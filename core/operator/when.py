@@ -56,7 +56,16 @@ _MONTHS = {
     "dec": 12, "december": 12,
 }
 _MONTH_WORD = r"(?P<{name}>" + "|".join(sorted(_MONTHS, key=len, reverse=True)) + r")\b\.?"
-_DAY_NUMBER = r"(?<![\d:.\-/])(?P<{name}>\d{{1,2}})(?:st|nd|rd|th)?(?![\d:]|\.\d|\s*(?:am|pm)\b)"
+# A number followed by a unit ("march 3 miles", "may 2 people") is a quantity, not a day.
+_NOT_A_DAY_UNIT = (
+    r"miles?|mi|km|kms|kilomet(?:er|re)s?|meters?|metres?|m|kg|kgs|kilos?|grams?|g|lbs?|pounds?|steps?|laps?"
+    r"|reps?|sets?|times|people|persons?|guests?|kids?|items?|pieces?|pcs|percent|%|euros?|dollars?|usd|eur"
+    r"|seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|weeks?|months?|years?"
+)
+_DAY_NUMBER = (
+    r"(?<![\d:.\-/])(?P<{name}>\d{{1,2}})(?:st|nd|rd|th)?"
+    r"(?![\d:]|\.\d|\s*(?:am|pm)\b|\s*(?:" + _NOT_A_DAY_UNIT.replace("{", "{{").replace("}", "}}") + r")(?!\w))"
+)
 _YEAR = r"(?:,?\s+(?P<{name}>20\d{{2}})\b(?!:))?"
 _WORD_DATE_RE = re.compile(
     r"\b" + _DAY_NUMBER.format(name="day_a") + r"\s+(?:of\s+)?" + _MONTH_WORD.format(name="month_a") + _YEAR.format(name="year_a")
@@ -240,34 +249,46 @@ def _parse_when_expression(
     )
 
 
-def time_expression_spans(text: str) -> tuple[tuple[int, int], ...]:
-    """Where `parse_when_expression` could read a time in `text`: relative delays, ISO dates, clock times and day words.
+def time_expression_spans(text: str, *, word_dates: bool = True) -> tuple[tuple[int, int], ...]:
+    """Where `parse_when_expression` could read a time in `text`: relative delays, ISO dates, dates in words, clock times and day words.
 
     Recognition only, with no clock. A reader that needs to know WHETHER a request names a time uses this instead of a second
     copy of these patterns. The operator's approval reading does (`core.operator.approval_polarity`): the time a calendar
     request takes is the event's time, and any other time a request names defers the action.
+
+    `word_dates=False` leaves out dates written in words ("May 5"): in "remind me what I told you about the May 5 trip"
+    the date names the topic being recalled, not when to remind.
     """
     value = str(text or "")
-    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _WORD_DATE_RE, _TIME_RE, _DAY_RE)
+    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _TIME_RE, _DAY_RE) + ((_WORD_DATE_RE,) if word_dates else ())
     return tuple(sorted({match.span() for pattern in patterns for match in pattern.finditer(value)}))
 
 
 def _resolve_word_date(
     match: re.Match, text: str, zone: Any, tz_name: str, *, now: datetime,
 ) -> WhenResolution:
-    """A date written in words. With no year it is this year's date, read as said: a date
-    already behind us stays in the past (a caller that needs a future instant refuses it via
-    `has_passed`) instead of being rolled into next year. A weekday or day word that names a
-    different day than the date is a contradiction to ask about, never one to pick from."""
+    """A date written in words. With no year it is the next time that date comes round:
+    today or later this year, else next year ("5 March" said in October is 5 March next
+    year; the resolved year is in the basis and the wall time, so replies show it). A
+    weekday or day word that names a different day than the date is a contradiction to
+    ask about, never one to pick from."""
     day = int(match.group("day_a") or match.group("day_b"))
     month = _MONTHS[(match.group("month_a") or match.group("month_b")).lower()]
     year_text = match.group("year_a") or match.group("year_b")
     zone_now = now.astimezone(zone)
-    year = int(year_text) if year_text else zone_now.year
     said = match.group(0).strip()
-    try:
-        target = datetime(year, month, day).date()
-    except ValueError:
+    # A yearless 29 February looks ahead to the next leap year.
+    years = (int(year_text),) if year_text else tuple(range(zone_now.year, zone_now.year + 5))
+    target = None
+    for year in years:
+        try:
+            candidate = datetime(year, month, day).date()
+        except ValueError:
+            continue
+        if year_text or candidate >= zone_now.date():
+            target = candidate
+            break
+    if target is None:
         return WhenResolution(ok=False, problem=f"{said} is not a real date. Check the day and month and tell me again.", tz_name=tz_name)
     rest = text[:match.start()] + " " + text[match.end():]
     for day_word in _DAY_RE.finditer(rest):
@@ -285,7 +306,7 @@ def _resolve_word_date(
         return WhenResolution(ok=False, problem=str(exc))
     return _resolve_wall(
         target.year, target.month, target.day, hour, minute,
-        zone, tz_name, basis=f"{said} {time_match.group(0).strip()}", now=now, kind="absolute",
+        zone, tz_name, basis=f"{target.day} {target:%B %Y} {time_match.group(0).strip()}", now=now, kind="absolute",
     )
 
 

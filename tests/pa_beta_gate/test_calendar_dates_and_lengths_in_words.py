@@ -137,24 +137,79 @@ def test_a_reminder_on_a_date_in_words_is_due_that_day_with_its_subject(reminder
         assert row["note"] == "call the bank", (text, row["note"])
 
 
-def test_a_date_already_passed_this_year_is_read_as_said_and_a_reminder_refuses_it(reminders):
-    """With no year, a date is this year's: never rolled into next year by a guess."""
+def test_a_date_already_passed_this_year_moves_to_next_year_and_the_reply_says_the_year(reminders):
+    """With no year, a date is the next time it comes round: "5 March" said in October is next March."""
     from core.operator.reminders import list_reminders
-    from core.operator.when import has_passed, parse_when_expression
+    from core.operator.when import parse_when_expression
     from storage.db import get_connection
 
-    reading = parse_when_expression("5 March at 10:00 Europe/Athens", now_fn=lambda: T0)
-    assert reading.ok and reading.due_at_utc.startswith("2026-03-05T08:00"), reading
-    assert has_passed(reading)
-
     result = _run("remind me on 5 March at 10:00 to renew the passport", session_id="past")
-    assert not result.ok and result.details.get("reason") == "due_time_passed", result.response_text
-    assert list_reminders(session_id="past", get_connection_fn=get_connection) == []
-
-    with_year = _run("remind me on 5 March 2027 at 10:00 to renew the passport", session_id="next-year")
-    assert with_year.ok, with_year.response_text
-    [row] = list_reminders(session_id="next-year", get_connection_fn=get_connection)
+    assert result.ok, result.response_text
+    assert "2027" in result.response_text, result.response_text
+    [row] = list_reminders(session_id="past", get_connection_fn=get_connection)
     assert row["due_at_utc"].startswith("2027-03-05T08:00"), row["due_at_utc"]
+    assert row["note"] == "renew the passport", row["note"]
+
+    reading = parse_when_expression("5 March at 10:00 Europe/Athens", now_fn=lambda: T0)
+    assert reading.ok and reading.basis.startswith("5 March 2027"), reading
+    # A yearless 29 February waits for the next leap year; today's date stays today.
+    leap = parse_when_expression("29 February at 9:00 Europe/Athens", now_fn=lambda: T0)
+    assert leap.ok and leap.due_at_utc.startswith("2028-02-29T07:00"), leap
+    same_day = parse_when_expression("13 October at 23:00 Europe/Athens", now_fn=lambda: T0)
+    assert same_day.ok and same_day.due_at_utc.startswith("2026-10-13T20:00"), same_day
+
+
+def test_a_past_date_with_its_year_is_read_as_said_and_a_reminder_refuses_it(reminders):
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    result = _run("remind me on 5 March 2026 at 10:00 to renew the passport", session_id="past-year")
+    assert not result.ok and result.details.get("reason") == "due_time_passed", result.response_text
+    assert list_reminders(session_id="past-year", get_connection_fn=get_connection) == []
+
+
+def test_a_range_and_a_length_that_disagree_are_asked_about(calendar):
+    result = _run('propose "Dinner" on 5 November 18:30 to 20:00 for 2 hours', session_id="clash")
+    assert not result.ok and result.status == "invalid_request", result.response_text
+    assert result.details.get("reason") == "length_conflict", result.details
+    assert "1 hour 30 minutes" in result.response_text and "2 hours" in result.response_text, result.response_text
+    assert _events(calendar) == {}
+    agreed = _run('propose "Dinner" on 5 November 18:30 to 20:00 for 90 minutes', session_id="agree")
+    assert agreed.status == "approval_required", agreed.response_text
+    assert datetime.fromisoformat(agreed.details["end_utc"]) == NOV5_1830 + timedelta(minutes=90)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "remind me to march 3 miles at 9:00",
+        "remind me to get may 2 people at 9:00",
+    ],
+)
+def test_a_month_word_before_a_quantity_is_not_a_date(reminders, text):
+    from core.operator.reminders import list_reminders
+    from storage.db import get_connection
+
+    session = f"q-{uuid.uuid4().hex[:6]}"
+    result = _run(text, session_id=session)
+    assert result.ok, result.response_text
+    [row] = list_reminders(session_id=session, get_connection_fn=get_connection)
+    assert row["due_at_utc"].startswith("2026-10-14T06:00"), row["due_at_utc"]  # tomorrow 09:00 Athens, not March or May
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I ran march 3 miles today",
+        "my birthday is May 5",
+        "write a poem about May 5th",
+        "remind me what I told you about the May 5 trip",  # a recollection, not a reminder
+    ],
+)
+def test_a_date_in_words_outside_a_calendar_or_reminder_request_claims_nothing(text):
+    from core.local_operator_actions import parse_operator_action_intent
+
+    assert parse_operator_action_intent(text) is None
 
 
 @pytest.mark.parametrize(
@@ -186,7 +241,8 @@ def test_an_explicit_duration_is_read_exactly(text, minutes):
         ("18:30-20:00", 90),
         ("6pm to 8pm", 120),
         ("22:00 to 01:00", 180),          # runs past midnight
-        ("18:30 to 20:00 for 2 hours", 120),  # an explicit duration wins over the range
+        ("18:30 to 20:00 for 2 hours", None),  # they disagree: asked about, see above
+        ("18:30 to 20:00 for 90 minutes", 90),
         ("at 18:30 with 5 people", None),
         ("18:30 to 5 people", None),      # not a clock time after "to"
         ("18:30 to 25:00", None),
@@ -196,6 +252,6 @@ def test_a_clock_range_is_the_event_length_but_not_an_availability_length(text, 
     from core.operator.calendar_provider import parse_duration_minutes, parse_event_length_minutes
 
     assert parse_event_length_minutes(text) == minutes
-    if "for " not in text:
+    if " for " not in text:
         # In "check Tuesday 14:00 to 16:00 for a slot" a range is the window to search, not the slot's length.
         assert parse_duration_minutes(text) is None

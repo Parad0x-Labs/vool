@@ -253,16 +253,38 @@ _RANGE_END_RE = re.compile(r"\s*(?:to|until|till|til|-|–|—)\s*(\d{1,2})(?::(
 
 
 def parse_event_length_minutes(text: str) -> int | None:
-    """An event's length as asked: an explicit duration, else the clock range it names.
+    """An event's length as asked: an explicit duration or the clock range it names.
 
-    "18:30 to 20:00", "from 6pm until 8pm" and "18:30-20:00" run from the start clock to
-    the end clock; an end at or before the start runs past midnight. A range end that is not
-    a clock time (no minutes and no am/pm, e.g. "18:30 to 5 people") is not read as one.
+    None when it names neither, or when the two disagree (`event_length_conflict` says so).
     The availability check keeps `parse_duration_minutes`: there a range is a window, not a length.
     """
-    duration = parse_duration_minutes(text)
-    if duration is not None:
-        return duration
+    duration, ranged = parse_duration_minutes(text), _clock_range_minutes(text)
+    if duration is not None and ranged is not None and duration != ranged:
+        return None
+    return duration if duration is not None else ranged
+
+
+def event_length_conflict(text: str) -> str:
+    """The question to ask when a request's clock range and its stated duration disagree, or ''."""
+    duration, ranged = parse_duration_minutes(text), _clock_range_minutes(text)
+    if duration is None or ranged is None or duration == ranged:
+        return ""
+    return (
+        f"The time range you gave lasts {_minutes_words(ranged)}, but you also said {_minutes_words(duration)}. "
+        "Which length should the event have?"
+    )
+
+
+def _minutes_words(minutes: int) -> str:
+    hours, rest = divmod(int(minutes), 60)
+    parts = ([f"{hours} hour" + ("s" if hours != 1 else "")] if hours else []) + ([f"{rest} minute" + ("s" if rest != 1 else "")] if rest else [])
+    return " ".join(parts) or "0 minutes"
+
+
+def _clock_range_minutes(text: str) -> int | None:
+    """Minutes from the start clock to the end clock of a range ("18:30 to 20:00", "from 6pm
+    until 8pm", "18:30-20:00"); an end at or before the start runs past midnight. A range end
+    that is not a clock time (no minutes and no am/pm, e.g. "18:30 to 5 people") is not one."""
     from core.operator.when import _TIME_RE, _clock_from_match
 
     raw = str(text or "")
@@ -945,6 +967,9 @@ def propose_event(
             details={},
         )
     start = datetime.fromisoformat(when.due_at_utc)
+    conflict = event_length_conflict(intent.raw_text)
+    if conflict:
+        return OperatorActionResult(ok=False, status="invalid_request", response_text=conflict, details={"reason": "length_conflict"})
     duration = parse_event_length_minutes(intent.raw_text) or slot_duration_minutes or 30
     end = start + timedelta(minutes=duration)
     try:
