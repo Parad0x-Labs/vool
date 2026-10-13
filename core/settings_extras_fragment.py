@@ -65,6 +65,21 @@ function XTF(key, fallback, params){
   return fallback;
 }
 
+// English pages show the corrected English sentence for keys whose catalog text is out of date (jargon,
+// a "would be a lie" aside, upper-case status words); other locales keep their translation through XT
+// until the catalog carries the corrected source. The key stays the lookup, so nothing is orphaned.
+function pageIsEnglish(){
+  /* English only when the page says so; an unknown language keeps the catalog text. */
+  var lang = String((document.documentElement && document.documentElement.lang)
+    || (window.VOOL_I18N && window.VOOL_I18N.locale) || '').toLowerCase();
+  return lang === 'en' || lang.indexOf('en-') === 0;
+}
+function XE(key, english){ return pageIsEnglish() ? english : XT(key, english); }
+function XEF(key, english, params){
+  if (!pageIsEnglish()) return XTF(key, english, params);
+  return String(english).replace(/\\{(\\w+)\\}/g, function(m, k){ return params && params[k] != null ? String(params[k]) : m; });
+}
+
 function chips(){ return window.VoolChips || null; }
 function chip(state, label){
   var c = chips();
@@ -84,7 +99,7 @@ function renderMemory(){
   fetch('/api/memory/entries?limit=50').then(function(r){ return r.json(); }).then(function(j){
     var rows = (j && j.entries) || [];
     if (!rows.length) {
-      list.innerHTML = '<div class="vs-empty">' + XT('vx.memory.empty', 'Nothing remembered yet \\u2014 confirmed facts land here with their stored scope, and each can be forgotten.') + '</div>';
+      list.innerHTML = '<div class="vs-empty">' + XE('vx.memory.empty', 'Nothing yet. Facts VOOL confirms in your chats are listed here, and you can forget any of them.') + '</div>';
       return;
     }
     list.innerHTML = rows.map(function(row){
@@ -120,11 +135,13 @@ var beltOverlay = document.createElement('div');
 beltOverlay.id = 'vsToolbeltOverlay';
 beltOverlay.hidden = true;
 beltOverlay.innerHTML = '<div id="vsToolbeltModal"><h3>' + XT('vx.toolbelt.modal_title', 'Toolbelt \\u2014 installed capabilities') + '</h3>' +
-  '<div class="vs-law">' + XT('vx.toolbelt.law', 'UNKNOWN \\u2260 FAILED: a capability never probed reads UNKNOWN \\u2014 we do not know yet, and that is the honest state.') + '</div>' +
-  '<div class="vs-belt"></div></div>';
+  '<div class="vs-law">' + XE('vx.toolbelt.law', 'What VOOL can use on this computer right now. \\u201cNot checked yet\\u201d means VOOL has not tried it, not that it failed.') + '</div>' +
+  '<div class="vs-belt"></div>' +
+  '<div style="margin-top:12px;text-align:right"><button type="button" class="btn" id="vsToolbeltClose">' + XE('vx.toolbelt.close', 'Close') + '</button></div></div>';
 document.body.appendChild(beltOverlay);
 beltOverlay.addEventListener('mousedown', function(ev){ if (ev.target === beltOverlay) beltOverlay.hidden = true; });
-document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape' && !beltOverlay.hidden) beltOverlay.hidden = true; }, true);
+beltOverlay.addEventListener('click', function(ev){ if (ev.target && ev.target.id === 'vsToolbeltClose') beltOverlay.hidden = true; });
+document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape' && !beltOverlay.hidden) { beltOverlay.hidden = true; ev.preventDefault(); } }, true);
 
 function beltRow(name, state, label, detail){
   return '<div class="vs-belt-row"><span>' + esc(name) + '</span>' + chip(state, label) +
@@ -138,36 +155,40 @@ function openToolbelt(){
     fetch('/api/connections').then(function(r){ return r.json(); }).catch(function(){ return null; }),
     fetch('/api/cloud/status').then(function(r){ return r.json(); }).catch(function(){ return null; }),
     fetch('/api/plugins').then(function(r){ return r.json(); }).catch(function(){ return null; }),
-    fetch('/api/tags').then(function(r){ return r.json(); }).catch(function(){ return null; }),
+    // The real local listing, not /api/tags: that route also publishes VOOL's own placeholder tags
+    // (size 0, digest "vool-runtime") even when no local model exists, which read as "3 installed".
+    fetch('/api/models/local').then(function(r){ return r.json(); }).catch(function(){ return null; }),
   ]).then(function(results){
     var connections = (results[0] && results[0].connections) || [];
     var cloud = results[1];
     var plugins = (results[2] && (results[2].plugins || results[2].items)) || [];
-    var localModels = (results[3] && results[3].models) || [];
+    var local = results[3];
+    var localModels = (local && !local.local_models_disabled && local.models) || [];
     var rows = '';
-    rows += beltRow(XT('vx.toolbelt.local_models', 'Local models (Ollama)'),
-      localModels.length ? 'pass' : 'unknown',
-      localModels.length ? 'AVAILABLE' : 'UNKNOWN',
-      localModels.length ? XTF('vx.toolbelt.installed', '{n, plural, one {{n} installed} other {{n} installed}}', { n: localModels.length }) : XT('vx.toolbelt.inventory_unreadable', 'inventory not readable'));
+    rows += beltRow(XE('vx.toolbelt.local_models', 'Local models'),
+      localModels.length ? 'pass' : (local ? 'failed' : 'unknown'),
+      localModels.length ? XE('vx.toolbelt.st_available', 'Available') : (local ? XE('vx.toolbelt.st_none', 'None yet') : XE('vx.toolbelt.st_unknown', 'Not checked yet')),
+      localModels.length ? XTF('vx.toolbelt.installed', '{n, plural, one {{n} installed} other {{n} installed}}', { n: localModels.length })
+        : (local ? (local.local_models_disabled ? XE('vx.toolbelt.local_disabled', 'turned off on this copy of VOOL') : XE('vx.toolbelt.local_none', 'no local model on this computer \\u2014 see Models & Providers')) : XT('vx.toolbelt.inventory_unreadable', 'inventory not readable')));
     if (cloud) {
       var st = String(cloud.state || 'no_key');
       rows += beltRow(XTF('vx.toolbelt.cloud', 'Cloud ({label})', { label: (cloud.label || cloud.provider || 'provider') }),
         st === 'ok' ? 'pass' : st === 'failed' ? 'failed' : st === 'no_key' ? 'unknown' : 'unknown',
-        st === 'ok' ? 'CONNECTED' : st === 'failed' ? 'FAILED' : st === 'no_key' ? 'NO KEY' : 'UNTESTED',
+        st === 'ok' ? XE('vx.toolbelt.st_connected', 'Connected') : st === 'failed' ? XE('vx.toolbelt.st_failed', 'Not working') : st === 'no_key' ? XE('vx.toolbelt.st_no_key', 'No key yet') : XE('vx.toolbelt.st_untested', 'Not checked yet'),
         st === 'untested' ? XT('vx.toolbelt.key_never_probed', 'key present \\u00b7 never probed') : (cloud.detail || ''));
     } else {
-      rows += beltRow(XT('vx.toolbelt.cloud_fallback', 'Cloud connection'), 'unknown', 'UNKNOWN', XT('vx.toolbelt.status_unreadable', 'status not readable'));
+      rows += beltRow(XT('vx.toolbelt.cloud_fallback', 'Cloud connection'), 'unknown', XE('vx.toolbelt.st_unknown', 'Not checked yet'), XT('vx.toolbelt.status_unreadable', 'status not readable'));
     }
     connections.forEach(function(conn){
       var st2 = String(conn.state || 'untested');
       rows += beltRow(conn.label || conn.provider || 'connection',
         st2 === 'ok' ? 'pass' : st2 === 'failed' ? 'failed' : 'unknown',
-        st2 === 'ok' ? 'CONNECTED' : st2 === 'failed' ? 'FAILED' : st2.toUpperCase(),
+        st2 === 'ok' ? XE('vx.toolbelt.st_connected', 'Connected') : st2 === 'failed' ? XE('vx.toolbelt.st_failed', 'Not working') : XE('vx.toolbelt.st_untested', 'Not checked yet'),
         conn.detail || '');
     });
     var enabled = plugins.filter(function(p){ return p && (p.enabled || p.on); }).length;
     rows += beltRow(XT('vx.toolbelt.plugins', 'Plugins'), plugins.length ? 'done' : 'unknown',
-      plugins.length ? (enabled + '/' + plugins.length + ' ENABLED') : 'UNKNOWN',
+      plugins.length ? XEF('vx.toolbelt.st_enabled', '{on} of {all} on', { on: enabled, all: plugins.length }) : XE('vx.toolbelt.st_unknown', 'Not checked yet'),
       plugins.length ? '' : XT('vx.toolbelt.registry_unreadable', 'registry not readable'));
     belt.innerHTML = rows;
   });
@@ -188,15 +209,15 @@ function section(which){
   } else if (which === 'privacy') {
     node.className = 'vs-sec vs-privacy'; node.id = 'vsPrivacySec';
     node.innerHTML = '<h4>' + XT('vx.privacy.title', 'Privacy &amp; data') + '</h4>' +
-      '<p><b>' + XT('vx.privacy.p1_b', 'Local first.') + '</b> ' + XT('vx.privacy.p1', 'Chats, memory, receipts and generated files live in this machine\\u2019s VOOL home; nothing leaves it on the local lane.') + '</p>' +
-      '<p><b>' + XT('vx.privacy.p2_b', 'Cloud is explicit.') + '</b> ' + XT('vx.privacy.p2', 'A cloud call happens only for a cloud-pinned or Auto-free turn with your key; Local Only blocks the cloud lane entirely, including free models.') + '</p>' +
-      '<p><b>' + XT('vx.privacy.p3_b', 'Keys are sealed.') + '</b> ' + XT('vx.privacy.p3', 'Provider keys live in the system keychain/encrypted store and are never rendered back into this page.') + '</p>' +
-      '<p><b>' + XT('vx.privacy.p4_b', 'Spend is gated.') + '</b> ' + XT('vx.privacy.p4', 'Paid pins require server-confirmed consent; accepted ceilings re-gate on price rises.') + '</p>' +
-      '<p>' + XT('vx.privacy.p5', 'Retention windows and cloud-learning controls are not shown because no enforcement for them exists yet \\u2014 an unenforced toggle would be a lie.') + '</p>';
+      '<p><b>' + XE('vx.privacy.p1_b', 'On this computer.') + '</b> ' + XE('vx.privacy.p1', 'Your chats, memory and files are kept on this computer. When a local model answers, nothing leaves it.') + '</p>' +
+      '<p><b>' + XE('vx.privacy.p2_b', 'Online only when used.') + '</b> ' + XE('vx.privacy.p2', 'A message goes online only when an online model you set up with your key answers it, or when VOOL runs a web search. To keep every answer on this computer, choose Local Only in the chat\\u2019s model menu.') + '</p>' +
+      '<p><b>' + XT('vx.privacy.p3_b', 'Keys are sealed.') + '</b> ' + XE('vx.privacy.p3', 'Your keys are stored encrypted on this computer and are never shown on this page again.') + '</p>' +
+      '<p><b>' + XT('vx.privacy.p4_b', 'Spend is gated.') + '</b> ' + XE('vx.privacy.p4', 'Nothing that costs money runs without your OK, and VOOL asks again if a price goes above what you accepted.') + '</p>' +
+      '<p>' + XE('vx.privacy.p5', 'There are no switches here for how long data is kept or for cloud learning, because VOOL cannot enforce those yet.') + '</p>';
   } else if (which === 'toolbelt') {
     node.className = 'vs-sec'; node.id = 'vsToolbeltSec';
     node.innerHTML = '<h4>' + XT('vx.toolbelt.title', 'Toolbelt') + '</h4>' +
-      '<button type="button" class="vs-forget" id="vsToolbeltBtn" style="margin-left:0;color:var(--accent,#5eead4)">' + XT('vx.toolbelt.open', 'Open capability inventory\\u2026') + '</button>';
+      '<button type="button" class="btn" id="vsToolbeltBtn">' + XE('vx.toolbelt.open', 'Check what VOOL can use\\u2026') + '</button>';
     node.querySelector('#vsToolbeltBtn').addEventListener('click', openToolbelt);
   } else {
     return null;

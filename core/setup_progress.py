@@ -61,7 +61,7 @@ STEPS: tuple[StepSpec, ...] = (
         id="name",
         title="What should it call you?",
         sentence="Optional. A first name or nickname is enough, and it stays on this Mac.",
-        later="Settings → Memory & Personalisation",
+        later="Settings → Memory & Personalisation → What should VOOL call you?",
     ),
 )
 
