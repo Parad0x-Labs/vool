@@ -54,6 +54,20 @@ function CTF(key, fallback, params){
   } catch (e) {}
   return fallback;
 }
+// English pages show the corrected English for keys whose catalog text is out of date (developer words such
+// as "binding", a pointer to "Keys" for a section called API Keys); other locales keep their translation
+// through CT until the catalog carries the corrected source.
+function pageIsEnglish(){
+  /* English only when the page says so; an unknown language keeps the catalog text. */
+  var lang = String((document.documentElement && document.documentElement.lang)
+    || (window.VOOL_I18N && window.VOOL_I18N.locale) || '').toLowerCase();
+  return lang === 'en' || lang.indexOf('en-') === 0;
+}
+function CE(key, english){ return pageIsEnglish() ? english : CT(key, english); }
+function isMacPlatform(){
+  var p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+  return /mac/i.test(p);
+}
 function stateText(status, raw){
   var key = {configured: 'vcs.state.configured', connected: 'vcs.state.connected', stale: 'vcs.state.stale',
              revoked: 'vcs.state.revoked', denied: 'vcs.state.denied', rate_limited: 'vcs.state.rate_limited',
@@ -86,7 +100,7 @@ function mountInto(host){
   host.textContent = '';
   var root = h('div', 'vcs-root');
   host.appendChild(root);
-  root.appendChild(h('div', 'vcs-note', CT('vcs.note.intro', 'VOOL reads only the calendars you choose, and only after you turn sync on. A credential is chosen by its binding; no password or token is typed or shown here.')));
+  root.appendChild(h('div', 'vcs-note', CE('vcs.note.intro', 'VOOL reads only the calendars you choose, and only after you turn sync on. No password or token is typed or shown here.')));
   var status = h('div', 'vcs-status', CT('vcs.status.loading', 'Loading calendar accounts…'));
   var list = h('div', 'vcs-list');
   var addBox = h('div', 'vcs-add');
@@ -97,6 +111,7 @@ function mountInto(host){
     return request('GET', '/api/calendar/accounts').then(function(j){
       if (!j.ok) { say(CTF('vcs.status.unavailable', 'Calendar accounts are unavailable: {reason}', {reason: (j.error || j.detail || ('HTTP ' + j.http_status))}), true); return; }
       view = j; paint();
+      say('');   /* loaded: the "Loading…" line must not stay above a list that is already drawn */
     }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
   function act(url, body, done){
@@ -123,7 +138,12 @@ function mountInto(host){
     head.appendChild(h('strong', null, account.label || capability.label || account.provider));
     head.appendChild(h('span', 'vcs-chip vcs-' + account.status, stateText(account.status, account.status)));
     card.appendChild(head);
-    card.appendChild(h('div', 'vcs-detail', (capability.label || account.provider) + (account.credential_binding ? ' · ' + CT('vcs.detail.binding', 'credential binding {binding}', {binding: account.credential_binding}) : '')));
+    /* The source line, without repeating the title when the account has no name of its own; the sign-in is
+       named as provider data through CTF (CT would leave a literal "{binding}" in the line). */
+    var title = account.label || capability.label || account.provider;
+    var source = capability.label || account.provider;
+    var detail = (source !== title ? source : '') + (account.credential_binding ? (source !== title ? ' · ' : '') + CTF('vcs.detail.binding', 'credential binding {binding}', {binding: account.credential_binding}) : '');
+    if (detail) card.appendChild(h('div', 'vcs-detail', detail));
     if (account.recovery) card.appendChild(h('div', 'vcs-recovery', account.recovery));
     if (account.status_detail) card.appendChild(h('div', 'vcs-detail', account.status_detail));
     if (account.status === 'disconnected') {
@@ -160,8 +180,24 @@ function mountInto(host){
     card.appendChild(table);
     var actions = h('div', 'vcs-row');
     actions.appendChild(button(CT('vcs.btn.refresh', 'Refresh calendar list'), function(){ act('/api/calendar/accounts/discover', {account_id: account.account_id}, CT('vcs.saved.refreshed', 'Calendar list refreshed.')); }));
-    actions.appendChild(button(CT('vcs.btn.sync_now', 'Sync now'), function(){ act('/api/calendar/sync', {account_id: account.account_id}, CT('vcs.saved.synced', 'Synced.')); }));
+    /* "Synced" only when calendars were really read: a sync with nothing chosen, sync off or no working
+       sign-in is said as what it is. */
+    var syncBtn = button(CT('vcs.btn.sync_now', 'Sync now'), function(){
+      say(CT('vns.status.working', 'Working…'));
+      request('POST', '/api/calendar/sync', {account_id: account.account_id}).then(function(j){
+        var report = (j.reports || [])[0] || {};
+        var read = (report.calendars || []).filter(function(c){ return c.ok; }).length;
+        return load().then(function(){
+          if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
+          else if (!j.ok) say(report.detail || CT('vns.status.failed', 'That did not work.'), true);
+          else if (!read) say(CE('vcs.sync.nothing', 'Nothing synced: no calendars are chosen for this account yet. Tick the calendars VOOL should read.'), true);
+          else say(CE('vcs.sync.done', 'Synced ' + read + (read === 1 ? ' calendar' : ' calendars') + ', ' + (report.events_seen || 0) + ' events read.'));
+        });
+      }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
+    });
+    actions.appendChild(syncBtn);
     actions.appendChild(button(CT('vcs.btn.disconnect', 'Disconnect'), function(){
+      if (!window.confirm(CE('vcs.disconnect.confirm', 'Disconnect this calendar account? VOOL stops reading it, and its pending alerts are cancelled. You can reconnect it later.'))) return;
       act('/api/calendar/accounts/disconnect', {account_id: account.account_id}, CT('vcs.saved.disconnected', 'Disconnected. Pending alerts from this account were cancelled; alerts already shown stay in the bell.'));
     }));
     card.appendChild(actions);
@@ -186,6 +222,7 @@ function mountInto(host){
     }
     return row;
   }
+  var draft = {provider: '', label: '', base_url: '', auth_binding: ''};   /* what was typed survives a redraw */
   function paintAdd(){
     addBox.textContent = '';
     addBox.appendChild(h('div', 'vcs-title', CT('vcs.add.title', 'Add a calendar account')));
@@ -193,44 +230,82 @@ function mountInto(host){
     var form = h('form', 'vcs-form');
     var sourceRow = h('label', 'vcs-field'); sourceRow.appendChild(h('span', null, CT('vcs.add.source', 'Source')));
     var providerSelect = h('select', 'vcs-input'); providerSelect.setAttribute('aria-label', CT('vcs.add.source_aria', 'Calendar source'));
-    Object.keys(providers).forEach(function(key){ var option = h('option', null, providers[key].label); option.value = key; providerSelect.appendChild(option); });
+    Object.keys(providers).forEach(function(key){
+      /* A source this computer cannot use is shown, but not offered: Apple Calendar works only on a Mac. */
+      var unusable = key === 'eventkit' && !isMacPlatform();
+      var label = unusable ? String(providers[key].label || '').replace(/ on this Mac$/, '') : providers[key].label;
+      var option = h('option', null, label + (unusable ? ' ' + CE('vcs.add.mac_only', '(only on a Mac)') : ''));
+      option.value = key; option.disabled = unusable; providerSelect.appendChild(option);
+    });
+    if (draft.provider && providers[draft.provider]) providerSelect.value = draft.provider;
     sourceRow.appendChild(providerSelect);
     var capability = h('div', 'vcs-detail');
     var nameRow = h('label', 'vcs-field'); nameRow.appendChild(h('span', null, CT('vcs.add.name', 'Name in VOOL')));
     var nameInput = h('input', 'vcs-input'); nameInput.setAttribute('aria-label', CT('vcs.add.name_aria', 'Account name shown in VOOL')); nameRow.appendChild(nameInput);
     var addressRow = h('label', 'vcs-field'); addressRow.appendChild(h('span', null, CT('vcs.add.address', 'Server address')));
     var addressInput = h('input', 'vcs-input'); addressInput.setAttribute('aria-label', CT('vcs.add.address_aria', 'CalDAV server address')); addressRow.appendChild(addressInput);
-    var bindingRow = h('label', 'vcs-field'); bindingRow.appendChild(h('span', null, CT('vcs.add.binding', 'Credential binding')));
-    var bindingSelect = h('select', 'vcs-input'); bindingSelect.setAttribute('aria-label', CT('vcs.add.binding_aria', 'Credential binding')); bindingRow.appendChild(bindingSelect);
+    var bindingRow = h('label', 'vcs-field'); bindingRow.appendChild(h('span', null, CE('vcs.add.binding', 'Sign-in')));
+    var bindingSelect = h('select', 'vcs-input'); bindingSelect.setAttribute('aria-label', CE('vcs.add.binding_aria', 'Sign-in for this account')); bindingRow.appendChild(bindingSelect);
+    nameInput.value = draft.label; addressInput.value = draft.base_url;
+    addressInput.placeholder = 'https://';
+    var why = h('div', 'vcs-detail');
     function refreshFields(){
       var key = providerSelect.value; var provider = providers[key] || {};
       capability.textContent = CTF('vcs.add.capability', 'Connects with {connection}. Reads: {events}. Links: {links}.', {connection: (provider.connection || ''), events: (provider.events || ''), links: (provider.links || '')});
       addressRow.hidden = key !== 'caldav';
       bindingRow.hidden = key === 'eventkit';
       bindingSelect.textContent = '';
-      var none = h('option', null, key === 'caldav' ? CT('vcs.add.binding_none_caldav', 'No credential (a server without sign-in)') : CT('vcs.add.binding_none', 'Choose a verified binding'));
+      var none = h('option', null, key === 'caldav' ? CE('vcs.add.binding_none_caldav', 'No sign-in (a server that does not need one)') : CE('vcs.add.binding_none', 'Choose a sign-in'));
       none.value = ''; bindingSelect.appendChild(none);
       (view.bindings || []).forEach(function(binding){
-        var option = h('option', null, binding.binding_id + ' — ' + (binding.provider_label || binding.provider_id) + (binding.account ? ' (' + binding.account + ')' : '') + (binding.status === 'verified' ? '' : ' · ' + binding.status));
+        var option = h('option', null, (binding.account || binding.provider_label || binding.provider_id) + (binding.account ? ' — ' + (binding.provider_label || binding.provider_id) : '') + (binding.status === 'verified' ? '' : ' · ' + CE('vcs.add.binding_unverified', 'not checked yet, cannot be used')));
         option.value = binding.binding_id; option.disabled = binding.status !== 'verified'; bindingSelect.appendChild(option);
       });
+      if (draft.auth_binding) bindingSelect.value = draft.auth_binding;
+      checkReady();
     }
-    providerSelect.addEventListener('change', refreshFields);
+    /* "Add account" is offered only when the source has what it needs; otherwise it says what is missing.
+       Before, an add with nothing chosen made a broken account that blamed a credential nobody gave. */
+    function missing(){
+      var key = providerSelect.value;
+      var opt = providerSelect.selectedOptions && providerSelect.selectedOptions[0];
+      if (opt && opt.disabled) return CE('vcs.add.need_mac', 'Apple Calendar can be added only in VOOL on a Mac.');
+      if (key === 'caldav') {
+        var url = addressInput.value.trim();
+        if (!url) return CE('vcs.add.need_address', 'Enter the full server address, starting with https://');
+        if (!/^https:\/\/[^\s\/]+/i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/i.test(url)) return CE('vcs.add.bad_address', 'That server address doesn\u2019t work. Enter the full address, starting with https://');
+        return '';
+      }
+      if ((key === 'google' || key === 'graph') && !bindingSelect.value) {
+        return (view.bindings || []).some(function(b){ return b.status === 'verified'; })
+          ? CE('vcs.add.need_binding', 'Choose the sign-in for this account first.')
+          : CE('vcs.add.need_connect', 'This calendar needs a connected account sign-in first, and there is none yet. Adding one from Settings is not available in this version.');
+      }
+      return '';
+    }
+    function checkReady(){ var m = missing(); submit.disabled = !!m; why.textContent = m; why.hidden = !m; }
+    function keepDraft(){ draft = {provider: providerSelect.value, label: nameInput.value, base_url: addressInput.value, auth_binding: bindingSelect.value}; }
+    providerSelect.addEventListener('change', function(){ draft.auth_binding = ''; refreshFields(); keepDraft(); });
+    [nameInput, addressInput].forEach(function(i){ i.addEventListener('input', function(){ keepDraft(); checkReady(); }); });
+    bindingSelect.addEventListener('change', function(){ keepDraft(); checkReady(); });
     var submit = h('button', 'btn vcs-btn', CT('vcs.btn.add', 'Add account')); submit.type = 'submit';
-    [sourceRow, capability, nameRow, addressRow, bindingRow, submit].forEach(function(node){ form.appendChild(node); });
+    [sourceRow, capability, nameRow, addressRow, bindingRow, why, submit].forEach(function(node){ form.appendChild(node); });
     form.addEventListener('submit', function(ev){
       ev.preventDefault();
+      var stop = missing();
+      if (stop) { say(stop, true); return; }
       var body = {provider: providerSelect.value, label: nameInput.value.trim(), base_url: addressRow.hidden ? '' : addressInput.value.trim(),
                   auth_binding: bindingRow.hidden ? '' : bindingSelect.value};
       say(CT('vcs.status.adding', 'Adding…'));
       request('POST', '/api/calendar/accounts/add', body).then(function(j){
         if (!j.ok) { say(j.detail || j.reason || CT('vcs.status.not_added', 'The account was not added.'), true); return; }
+        draft = {provider: '', label: '', base_url: '', auth_binding: ''};
         return act('/api/calendar/accounts/discover', {account_id: j.account_id}, CT('vcs.saved.added', 'Added. Choose the calendars VOOL should read, then turn sync on.'));
       }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
     });
     addBox.appendChild(form);
     if (view.bindings_error) addBox.appendChild(h('div', 'vcs-bad', CTF('vcs.bindings_error', 'The credential binding list could not be read ({error}).', {error: view.bindings_error})));
-    else if (!(view.bindings || []).length) addBox.appendChild(h('div', 'vcs-detail', CT('vcs.no_bindings', 'No credential bindings yet. Google and Microsoft accounts need a verified binding: add and verify the account credential under Keys first.')));
+    else if (!(view.bindings || []).length) addBox.appendChild(h('div', 'vcs-detail', CE('vcs.no_bindings', 'No account sign-ins yet. Google and Microsoft calendars need a connected account sign-in; an iCloud or other CalDAV server can be added with its address.')));
     refreshFields();
   }
   load();
