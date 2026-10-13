@@ -100,7 +100,7 @@ def emit_runtime_event(
         live = {**payload, **{key: stored[key] for key in ("session_id", "seq", "created_at") if key in stored}} if private else stored
         payload = stored
         # The turn's execution facts (which tool ran, and how it ended) are read from the full
-        # event: the turn's own honesty gates depend on them, private or not.
+        # event: the turn's own answer checks depend on them, private or not.
         facts_from = live
         # An execution becomes an authoritative fact HERE, at the one function every runtime event
         # passes through, rather than at the sixteen call sites that emit `tool_executed` -- which is
