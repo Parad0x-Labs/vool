@@ -478,6 +478,33 @@ def _handle_x_setup(inp, ctx):
     return _legacy_fault("usage", f"X setup refused: {payload.get('state', 'invalid')}", status, payload)
 
 
+@dataclass(frozen=True)
+class XActivityInput:
+    action: str
+    action_id: str = ""
+    hash: str = ""
+    monthly_reads: Any = "keep"
+    monthly_actions: Any = "keep"
+
+
+def _handle_x_activity(inp, ctx):
+    from core.x_actions import handle
+
+    body: dict[str, Any] = {"action": inp.action}
+    if inp.action_id:
+        body["action_id"] = inp.action_id
+    if inp.hash:
+        body["hash"] = inp.hash
+    if inp.monthly_reads != "keep":
+        body["monthly_reads"] = inp.monthly_reads
+    if inp.monthly_actions != "keep":
+        body["monthly_actions"] = inp.monthly_actions
+    status, payload = handle(body)
+    if status == 200:
+        return HandlerOk(data=payload, summary=f"X activity: {inp.action}")
+    return _legacy_fault("usage", f"X activity refused: {payload.get('state', 'invalid')}", status, payload)
+
+
 def _probe_x_setup_state(context: dict) -> tuple[bool, str]:
     try:
         import core.x_setup  # noqa: F401
@@ -998,6 +1025,25 @@ def register(reg) -> None:
                 verifier="core.command_registry.groups.convergence:_gate_operator_approval",
             ),
             handler=Handler("core.command_registry.groups.convergence:_handle_x_setup"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="x.activity",
+            group="x",
+            description="X usage and limits, and the user's approve/decline of a proposed X action (post, reply, like, repost, follow)",
+            input_schema=XActivityInput,
+            # Approve sends the one action the user approved, as the user, to X.
+            effects="external_send",
+            capabilities=frozenset({"settings.x_activity"}),
+            permission=ApprovalGate(
+                kind="x.activity",
+                verifier="core.command_registry.groups.convergence:_gate_operator_approval",
+            ),
+            handler=Handler("core.command_registry.groups.convergence:_handle_x_activity"),
             availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
             exit_codes=(0, 2, 20),
         )

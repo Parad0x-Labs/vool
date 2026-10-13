@@ -94,6 +94,19 @@ def _has_image_service() -> bool:
         return False
 
 
+def _x_reads_available() -> bool:
+    """The user's connected X keys are the opt-in for the X tools (Settings > API Keys > X).
+
+    Disk-index presence only: no key read and no keychain prompt while building the tool list.
+    Local Only and the per-turn veto still refuse every request at the outbound door."""
+    try:
+        from core.x_api import connected
+
+        return connected()
+    except Exception:
+        return False
+
+
 def _hive_read_configured() -> bool:
     """Whether a Hive read path is actually wired: a watcher URL or a public bridge target.
 
@@ -195,7 +208,8 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
     email_read_enabled = bool(policy_engine.get("email.read_enabled", False))
     image_gen_enabled = bool(policy_engine.get("image.generate_enabled", False)) or _has_image_service()
     video_gen_enabled = bool(policy_engine.get("video.generate_enabled", False))
-    x_trending_enabled = bool(policy_engine.get("x.trending_enabled", False))
+    x_connected = _x_reads_available()
+    x_trending_enabled = bool(policy_engine.get("x.trending_enabled", False)) or x_connected
     wallet_spend_enabled = bool(policy_engine.get("wallet.spend_enabled", False))
     from core.wallet.config import wallet_enabled as _wallet_enabled
 
@@ -874,6 +888,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             artifact_emission="none",
             error_contract="returns_structured_error_result",
         ),
+        *_x_contracts(x_connected),
                 RuntimeToolContract(
             intent="demo.plan",
             description="Read a GitHub repo README or a docs/website page and return either a timed subtitled shot list plus image prompts (format=slideshow, default) or a continuous product-presentation video story with per-shot scene backgrounds and on-camera host dialogue (format=video_story). Read-only; off unless web access is enabled.",
@@ -3134,3 +3149,128 @@ def _code_task_contracts(*, write_enabled: bool) -> list[RuntimeToolContract]:
 
 def runtime_tool_contract_map() -> dict[str, RuntimeToolContract]:
     return {contract.intent: contract for contract in runtime_tool_contracts()}
+
+
+_X_UNSUPPORTED = "X is not connected. Add your X keys in Settings > API Keys > X to turn the X tools on."
+_X_READ_ACTIONS = ("use_network_access", "access_external_providers")
+
+
+def _x_read_contract(intent: str, description: str, capability_id: str, claim: str,
+                     input_schema: dict[str, str], output_schema: dict[str, str], supported: bool) -> RuntimeToolContract:
+    return RuntimeToolContract(
+        intent=intent, description=description, tool_surface="x", capability_id=capability_id,
+        capability_claim=claim, supported=supported, unsupported_reason=_X_UNSUPPORTED,
+        input_schema=input_schema, output_schema=output_schema, side_effect_class="read_only",
+        # The user's own keys read the user's X data: authenticated, so the same private-connector
+        # gate as email.read and x.trending (never the public-read exemption).
+        permission_actions=_X_READ_ACTIONS, approval_requirement="none", timeout_policy="network_default",
+        retry_policy="none", artifact_emission="none", error_contract="returns_structured_error_result",
+    )
+
+
+def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
+    """The X tools. Reads use the user's own keys and count against the user's X usage limit;
+    actions that act as the user are only PROPOSED here and go out after the user approves them in
+    the app (core.x_actions)."""
+    page = {"max_results": "int optional", "next_token": "string optional (from the previous page)"}
+    window = {"start_time": "string optional (ISO date/time, UTC)", "end_time": "string optional (ISO date/time, UTC)"}
+    return [
+        _x_read_contract(
+            "x.search",
+            "Search X posts. Give `token` (a contract address, a $CASHTAG or a coin name) or a raw X `query` "
+            "(X search operators work: from:, to:, -is:retweet, lang:, url:, conversation_id:). Returns posts with "
+            "author, time, engagement and link, plus the authors' profiles. mode=counts returns how many posts "
+            "match per day/hour instead (cheap: no posts are read). Recent search covers the last 7 days; "
+            "archive=true searches the full archive when the user's X plan allows it.",
+            "x.search_posts", "search X posts by token address, cashtag, name or any X query with the user's keys",
+            {"token": "string optional (address, $CASHTAG or name)", "query": "string optional (raw X query)",
+             "mode": "string optional (posts|counts)", "sort": "string optional (recency|relevancy)",
+             "granularity": "string optional (minute|hour|day, counts mode)", "archive": "boolean optional",
+             "include_reposts": "boolean optional", **window, **page},
+            {"posts": "list", "authors": "list", "total": "int (counts mode)", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.token_callers",
+            "Find who called a token on X: every account that posted its address, $CASHTAG or name, ordered by who "
+            "posted first, with followers, account age, number of posts and engagement, and each one's first post. "
+            "history_for=N (max 10) also reads the top N callers' recent posts and lists the other tokens each "
+            "of them called, for judging their track record.",
+            "x.token_callers", "find and rank the accounts that called a token on X, with their other calls",
+            {"token": "string (address, $CASHTAG or name)", "max_results": "int optional (10-100 posts)",
+             "history_for": "int optional (0-10 callers)", "history_posts": "int optional (5-100 posts each)",
+             "archive": "boolean optional", "include_reposts": "boolean optional", **window},
+            {"callers": "list", "earliest_post_at": "string", "posts_found": "int"}, connected),
+        _x_read_contract(
+            "x.user",
+            "Look up X accounts by username, @handle or profile link (or 'me' for the connected account): "
+            "name, bio, followers, following, post count, account age, verified.",
+            "x.read_users", "look up X account profiles",
+            {"usernames": "string or list (up to 100)"}, {"users": "list", "not_found": "list"}, connected),
+        _x_read_contract(
+            "x.user_posts",
+            "Read an account's posts (kind=posts), mentions of it (kind=mentions), posts it liked (kind=likes), "
+            "or the connected user's home timeline (kind=home). Each answer also lists every token "
+            "($CASHTAG or contract address) the posts named, with first and last mention, for checking "
+            "someone's past calls.",
+            "x.read_timelines", "read X timelines, mentions and likes with the tokens they named",
+            {"username": "string (or 'me')", "kind": "string optional (posts|mentions|likes|home)",
+             "exclude": "string optional (retweets,replies)", **window, **page},
+            {"account": "object", "posts": "list", "calls": "list", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.post",
+            "Read X posts by link or id (kind=post), or who liked (liking_users), reposted (reposted_by), "
+            "quoted (quotes) or replied to (replies) a post.",
+            "x.read_posts", "read X posts and their likes, reposts, quotes and replies",
+            {"post": "string or list (post link or id)",
+             "kind": "string optional (post|liking_users|reposted_by|quotes|replies)", **page},
+            {"posts": "list", "users": "list", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.follows",
+            "List an account's followers (kind=followers) or the accounts it follows (kind=following).",
+            "x.read_follows", "list X followers and following",
+            {"username": "string (or 'me')", "kind": "string optional (followers|following)", **page},
+            {"users": "list", "next_token": "string"}, connected),
+        _x_read_contract(
+            "x.lists",
+            "X lists: an account's lists (kind=owned|memberships|followed, with username), or one list's "
+            "details, posts, members or followers (kind=details|posts|members|followers, with list_id).",
+            "x.read_lists", "read X lists, their posts and members",
+            {"username": "string optional", "list_id": "string optional (id or link)",
+             "kind": "string optional (owned|memberships|followed|details|posts|members|followers)", **page},
+            {"lists": "list", "posts": "list", "users": "list"}, connected),
+        RuntimeToolContract(
+            intent="x.usage",
+            description="How much of the X API the user's keys used this month (requests, posts and accounts "
+                        "read, actions sent) against the monthly limits the user set. Local; nothing is sent.",
+            tool_surface="x", capability_id="x.usage", capability_claim="report X API usage against the user's limits",
+            supported=connected, unsupported_reason=_X_UNSUPPORTED, input_schema={},
+            output_schema={"usage": "object"}, side_effect_class="read_only", permission_actions=("read_files",),
+            approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
+            artifact_emission="none", error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
+            intent="x.action.propose",
+            description="Propose an action on X as the user: post, reply, quote, delete (one of the user's own "
+                        "posts), like, unlike, repost, unrepost, follow, unfollow. NOTHING is sent: the user sees "
+                        "the exact action in the app and approves or declines it there. Say so in the reply.",
+            tool_surface="x", capability_id="x.propose_action",
+            capability_claim="propose a post, reply, like, repost or follow on X for the user to approve",
+            supported=connected, unsupported_reason=_X_UNSUPPORTED,
+            input_schema={"kind": "string (post|reply|quote|delete|like|unlike|repost|unrepost|follow|unfollow)",
+                          "text": "string (post, reply, quote)", "post": "string (post link or id: reply, quote, "
+                          "delete, like, unlike, repost, unrepost)", "username": "string (follow, unfollow)"},
+            output_schema={"action": "object (id, kind, state)"},
+            side_effect_class="creative_state", permission_actions=("read_files",),
+            approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
+            artifact_emission="none", error_contract="returns_structured_error_result",
+        ),
+        RuntimeToolContract(
+            intent="x.action.status",
+            description="Check a proposed X action: waiting for the user's approval, declined, sent (with the "
+                        "post link) or failed. Local; nothing is sent.",
+            tool_surface="x", capability_id="x.action_status", capability_claim="check a proposed X action",
+            supported=connected, unsupported_reason=_X_UNSUPPORTED, input_schema={"action_id": "string optional"},
+            output_schema={"action": "object"}, side_effect_class="read_only", permission_actions=("read_files",),
+            approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
+            artifact_emission="none", error_contract="returns_structured_error_result",
+        ),
+    ]

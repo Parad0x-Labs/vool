@@ -3340,6 +3340,11 @@ def _dispatch_runtime_tool(
             return _covered(lambda: media_export(arguments))
         if intent == "x.trending":
             return _x_trending(arguments)
+        if intent.startswith("x."):
+            from core.x_chat_tools import X_INTENTS, run_x_tool
+
+            if intent in X_INTENTS:
+                return run_x_tool(intent, arguments, source_context)
         if intent == "demo.plan":
             return _demo_plan(arguments, source_context=source_context)
         if intent == "set.save":
