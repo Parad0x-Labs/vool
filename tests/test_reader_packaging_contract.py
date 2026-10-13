@@ -6,7 +6,7 @@ surface that installs the product. A decoder missing from any one surface means 
 built from that surface silently degrade a format to typed-unavailable — safe, but never
 to be described as support. Pinned today:
 
-* ``pypdf==6.19.0`` — confined PDF text fallback.
+* ``pypdf==6.20.1`` — confined PDF text fallback.
 * ``xlrd==2.0.2``   — legacy XLS reader (pure Python, no native parts).
 """
 
@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 #: The full census: pin -> the registry format that dies without it.
 CANONICAL_DECODERS = {
-    "pypdf==6.19.0": "pdf",
+    "pypdf==6.20.1": "pdf",
     "xlrd==2.0.2": "xls",
 }
 
