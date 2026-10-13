@@ -1699,10 +1699,10 @@ function paintChatSearchCount(matched, query) {
   if (!searchCountEl) return;
   if (!query) { searchCountEl.textContent = ''; searchCountEl.className = 'search-count'; }
   else if (query.length < SEARCH_MIN_CHARS) {
-    searchCountEl.textContent = 'type ' + SEARCH_MIN_CHARS + '+ characters';
+    searchCountEl.textContent = pageTF('chat.search_type_more', 'type {n}+ characters', { n: SEARCH_MIN_CHARS });
     searchCountEl.className = 'search-count';
   } else if (!matched) {
-    searchCountEl.textContent = 'no matches';
+    searchCountEl.textContent = pageT('chat.search_no_matches', 'no matches');
     searchCountEl.className = 'search-count none';
   } else {
     searchCountEl.textContent = (chatSearchIndex + 1) + ' / ' + matched;
@@ -1788,8 +1788,8 @@ function paintActivityCount(matched, query) {
   const prev = document.getElementById('xpSearchPrev'), next = document.getElementById('xpSearchNext');
   if (countEl) {
     if (!query) { countEl.textContent = ''; countEl.className = 'search-count'; }
-    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = SEARCH_MIN_CHARS + '+ chars'; countEl.className = 'search-count'; }
-    else if (!matched) { countEl.textContent = 'none'; countEl.className = 'search-count none'; }
+    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = pageTF('chat.search_chars_min', '{n}+ chars', { n: SEARCH_MIN_CHARS }); countEl.className = 'search-count'; }
+    else if (!matched) { countEl.textContent = pageT('chat.search_none', 'none'); countEl.className = 'search-count none'; }
     else { countEl.textContent = (activityIndex + 1) + ' / ' + matched; countEl.className = 'search-count'; }
   }
   if (prev) prev.disabled = !matched;
@@ -2524,7 +2524,7 @@ function renderPinPanel() {
   }
   for (const p of view.pins) {
     const card = document.createElement('div'); card.className = 'pin-card';
-    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : 'You';
+    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : pageT('pin.you', 'You');
     const txt = document.createElement('div'); txt.className = 'pin-text'; txt.textContent = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
     const row = document.createElement('div'); row.className = 'pin-row';
     const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = pageT('msg.copy', 'Copy'); copy.addEventListener('click', () => copyText(p.text, copy));
@@ -2544,7 +2544,7 @@ async function unpinFromPanel(pinId) {
 }
 
 function copyText(text, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, btn, done));
   } else {
@@ -2570,7 +2570,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = 'Copy failed';
+  btn.textContent = pageT('msg.copy_failed', 'Copy failed');
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -2597,7 +2597,7 @@ function richHtmlFor(raw) {
 }
 
 function copyRichMessage(raw, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
   let html = '';
   try { html = richHtmlFor(raw); } catch (e) { html = ''; }
   if (!html || typeof window.ClipboardItem !== 'function' || !(navigator.clipboard && navigator.clipboard.write)) { copyText(raw, btn); return; }
@@ -2677,9 +2677,9 @@ function requestTextInput(message, initialValue = '') {
   dialog.innerHTML = '<form method="dialog"><div class="modal-body">'
     + '<label id="textPromptLabel" for="textPromptValue"></label>'
     + '<input id="textPromptValue" type="text" autocomplete="off">'
-    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>Cancel</button>'
-    + '<button type="submit" class="set-btn">OK</button></div></div></form>';
-  dialog.querySelector('label').textContent = String(message || 'Enter a value');
+    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>' + pageT('xsetup.cancel', 'Cancel') + '</button>'
+    + '<button type="submit" class="set-btn">' + pageT('chat.prompt_ok', 'OK') + '</button></div></div></form>';
+  dialog.querySelector('label').textContent = String(message || pageT('chat.prompt_enter_value', 'Enter a value'));
   const input = dialog.querySelector('input'); input.value = String(initialValue == null ? '' : initialValue);
   document.body.appendChild(dialog);
   return new Promise((resolve) => {
@@ -2713,12 +2713,12 @@ async function createProjectFlow(assignSid) {
   let root = await nativePickFolder();
   if (root === null) return null;
   if (!root) {
-    root = await requestTextInput('Project folder — full path to a folder on this machine:', '');
+    root = await requestTextInput(pageT('session.project_folder_prompt', 'Project folder — full path to a folder on this machine:'), '');
     if (!root || !root.trim()) return null;
     root = root.trim();
   }
   const suggested = root.split('/').filter(Boolean).pop() || 'Project';
-  const name = await requestTextInput('Project name:', suggested);
+  const name = await requestTextInput(pageT('session.project_name_prompt', 'Project name:'), suggested);
   if (name === null) return null;
   try {
     const r = await fetch('/api/projects', {
@@ -2726,18 +2726,18 @@ async function createProjectFlow(assignSid) {
       body: JSON.stringify({ name: name.trim(), root: root }),
     });
     const d = await r.json();
-    if (!r.ok || !d.project) { alert('Could not add project: ' + ((d && d.error) || ('HTTP ' + r.status))); return null; }
+    if (!r.ok || !d.project) { alert(pageTF('session.project_add_failed', 'Could not add project: {error}', { error: (d && d.error) || ('HTTP ' + r.status) })); return null; }
     await refreshProjects();
     // Global "+ Project": mint + bind + focus a fresh chat for the new project (reuses the
     // r.ok-gated fail-closed bind in newChatInProject). The move-menu path (assignSid) reassigns the
     // existing chat instead.
     if (assignSid) { await assignSession(assignSid, d.project.id); } else { await newChatInProject(d.project.id); }
     return d.project.id;
-  } catch (e) { alert('Could not add project.'); return null; }
+  } catch (e) { alert(pageT('session.project_add_failed_short', 'Could not add project.')); return null; }
 }
 async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
-  if (!confirm('Delete project "' + (proj.name || 'this project') + '"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).')) return;
+  if (!confirm(pageTF('session.project_delete_confirm', 'Delete project "{name}"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).', { name: proj.name || pageT('session.project_this', 'this project') }))) return;
   try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
   await refreshProjects();
   await loadSessions();   // its chats now fall back to General; its memory is purged server-side
@@ -2777,7 +2777,7 @@ function openProjectMenu(sid, anchor) {
   add('General', '', !cur);
   for (const id in projects) add(projects[id].name || 'Project', id, cur === id);
   const nb = document.createElement('button');
-  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = '+ New project…';
+  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = pageT('session.new_project_menu', '+ New project…');
   nb.addEventListener('click', (e) => { e.stopPropagation(); closeProjectMenu(); createProjectFlow(sid); });
   menu.appendChild(nb);
   document.body.appendChild(menu);
@@ -2816,31 +2816,31 @@ function makeSessionItem(s, archived, nested) {
   const emo = document.createElement('span'); emo.className = 's-emoji'; if (s.emoji) emo.textContent = s.emoji;
   const title = document.createElement('span');
   title.className = 's-title';
-  title.textContent = s.title || '(new chat)';
+  title.textContent = s.title || pageT('session.new_chat', '(new chat)');
   title.title = s.title || '';
   title.addEventListener('click', () => openSession(s.session_id));
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
-  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = 'Set chat emoji or colour';
+  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
   actions.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
-    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = 'Move to project';
+    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = pageT('session.move_title', 'Move to project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
   const ren = document.createElement('button');
-  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
+  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = pageT('session.rename_title', 'Rename');
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
   const arch = document.createElement('button');
   arch.type = 'button'; arch.className = 's-act';
   arch.textContent = archived ? '↩' : '\u{1F5C4}';
-  arch.title = archived ? 'Unarchive' : 'Archive';
+  arch.title = archived ? pageT('session.unarchive_title', 'Unarchive') : pageT('session.archive_title', 'Archive');
   arch.addEventListener('click', (e) => { e.stopPropagation(); archiveSession(s.session_id, !archived); });
   const del = document.createElement('button');
-  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = 'Delete chat (removes it and its memory)';
+  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = pageT('session.delete_title', 'Delete chat (removes it and its memory)');
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
@@ -2850,7 +2850,7 @@ function makeSessionItem(s, archived, nested) {
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
-  if (!confirm('Delete "' + (title || 'this chat') + '"? This permanently removes the chat and everything VOOL learned in it.')) return;
+  if (!confirm(pageTF('session.delete_confirm', 'Delete "{name}"? This permanently removes the chat and everything VOOL learned in it.', { name: title || pageT('session.delete_this', 'this chat') }))) return;
   try { await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, delete: true }) }); } catch (e) {}
   if (sid === displayedChat) {
     // Deleting the chat you are IN has to leave you somewhere, so a replacement is opened. It must

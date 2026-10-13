@@ -418,7 +418,13 @@
     "bypass.timed": "Contourner les permissions · portée {scope} · expire {time}",
     "chat.ctx_aria": "Projet et chat actuels",
     "chat.log_aria": "Conversation",
+    "chat.prompt_enter_value": "Saisissez une valeur",
+    "chat.prompt_ok": "Valider",
     "chat.queue_aria": "Messages en file",
+    "chat.search_none": "aucune",
+    "chat.search_chars_min": "{n}+ caractères",
+    "chat.search_no_matches": "aucune correspondance",
+    "chat.search_type_more": "saisissez {n}+ caractères",
     "chat.setup_line_hide_aria": "Ne plus me le rappeler",
     "chat.setup_line_hide_title": "Ne plus me le rappeler — vous pourrez toujours finir la configuration depuis les réglages",
     "chat.setup_line_open": "Terminer la configuration",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL peut inspecter et préparer des diffs de modification. Chaque lot de modifications clairement identifié doit être approuvé avant d'être appliqué.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Local uniquement",
+    "msg.copied": "Copié",
     "msg.copy": "Copier",
+    "msg.copy_failed": "Échec de la copie",
     "msg.copy_rich": "Copier enrichi",
     "msg.copy_rich_title": "Copie avec mise en forme (HTML assaini + texte brut — l'application réceptrice décide du rendu)",
     "msg.copy_source_title": "Copier la source du message (Markdown brut, exactement tel qu'enregistré)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Épinglé",
     "pin.unpin": "Détacher",
     "pin.unpin_title": "Détacher ce message",
+    "pin.you": "Vous",
     "plugins.catalog_unavailable": "Impossible de lire le catalogue.",
     "plugins.close_title": "Fermer",
     "plugins.disable": "Désactiver",
@@ -935,6 +944,8 @@
     "send.queue": "File",
     "send.send": "Envoyer",
     "session.archive_title": "Archiver",
+    "session.delete_this": "ce chat",
+    "session.delete_confirm": "Supprimer « {name} » ? Cela supprime définitivement le chat et tout ce que VOOL y a appris.",
     "session.delete_title": "Supprimer la discussion (la retire avec sa mémoire)",
     "session.emoji_title": "Définir l'emoji ou la couleur de la discussion",
     "session.general": "Général",
@@ -942,6 +953,12 @@
     "session.new_chat": "(nouvelle discussion)",
     "session.new_project_menu": "+ Nouveau projet…",
     "session.no_past_chats": "Pas encore de discussions antérieures.",
+    "session.project_this": "ce projet",
+    "session.project_delete_confirm": "Supprimer le projet « {name} » ?\n\nVOOL OUBLIERA tout ce qu’il y a appris et ses chats retournent dans Général (vos fichiers ne sont pas touchés).",
+    "session.project_add_failed_short": "Impossible d’ajouter le projet.",
+    "session.project_add_failed": "Impossible d’ajouter le projet : {error}",
+    "session.project_name_prompt": "Nom du projet :",
+    "session.project_folder_prompt": "Dossier du projet — chemin complet d’un dossier sur cette machine :",
     "session.rename_title": "Renommer",
     "session.unarchive_title": "Désarchiver",
     "settings.group.about.blurb": "La version exacte qui vous répond, et comment signaler un problème.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Aucune version listée ne correspond à cette compilation précise de VOOL et à votre recherche.",
     "addons.registry_inspect": "Télécharger pour inspecter"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

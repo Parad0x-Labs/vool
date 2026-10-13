@@ -418,7 +418,13 @@
     "bypass.timed": "Ignorar permissões · escopo {scope} · expira {time}",
     "chat.ctx_aria": "Projeto e conversa atuais",
     "chat.log_aria": "Conversa",
+    "chat.prompt_enter_value": "Digite um valor",
+    "chat.prompt_ok": "Aceitar",
     "chat.queue_aria": "Mensagens na fila",
+    "chat.search_none": "nenhuma",
+    "chat.search_chars_min": "{n}+ caracteres",
+    "chat.search_no_matches": "nenhuma correspondência",
+    "chat.search_type_more": "digite {n}+ caracteres",
     "chat.setup_line_hide_aria": "Não me lembrar de novo",
     "chat.setup_line_hide_title": "Não me lembrar de novo — você ainda pode concluir a configuração nas linhas de Ajustes",
     "chat.setup_line_open": "Concluir configuração",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "O VOOL pode inspecionar e preparar diffs de edição. Cada lote de edições claramente identificado deve ser aprovado antes de ser aplicado.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Somente Local",
+    "msg.copied": "Copiado",
     "msg.copy": "Copiar",
+    "msg.copy_failed": "Falha ao copiar",
     "msg.copy_rich": "Copiar com formatação",
     "msg.copy_rich_title": "Copia com formatação (HTML higienizado + texto simples — o aplicativo receptor decide como renderizar)",
     "msg.copy_source_title": "Copiar a fonte da mensagem (Markdown bruto, exatamente como armazenado)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Fixada",
     "pin.unpin": "Desafixar",
     "pin.unpin_title": "Desafixar esta mensagem",
+    "pin.you": "Você",
     "plugins.catalog_unavailable": "Não foi possível ler o catálogo.",
     "plugins.close_title": "Fechar",
     "plugins.disable": "Desativar",
@@ -935,6 +944,8 @@
     "send.queue": "Fila",
     "send.send": "Enviar",
     "session.archive_title": "Arquivar",
+    "session.delete_this": "este chat",
+    "session.delete_confirm": "Excluir «{name}»? Isso remove permanentemente o chat e tudo o que o VOOL aprendeu nele.",
     "session.delete_title": "Excluir chat (remove-o junto com sua memória)",
     "session.emoji_title": "Definir emoji ou cor do chat",
     "session.general": "Geral",
@@ -942,6 +953,12 @@
     "session.new_chat": "(novo chat)",
     "session.new_project_menu": "+ Novo projeto…",
     "session.no_past_chats": "Ainda não há chats anteriores.",
+    "session.project_this": "este projeto",
+    "session.project_delete_confirm": "Excluir o projeto «{name}»?\n\nO VOOL ESQUECERÁ tudo o que aprendeu nele, e os chats dele voltam para Geral (seus arquivos não são tocados).",
+    "session.project_add_failed_short": "Não foi possível adicionar o projeto.",
+    "session.project_add_failed": "Não foi possível adicionar o projeto: {error}",
+    "session.project_name_prompt": "Nome do projeto:",
+    "session.project_folder_prompt": "Pasta do projeto — caminho completo para uma pasta neste computador:",
     "session.rename_title": "Renomear",
     "session.unarchive_title": "Desarquivar",
     "settings.group.about.blurb": "A versão exata que responde a você, e como reportar um problema.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
     "addons.registry_inspect": "Baixar para inspecionar"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

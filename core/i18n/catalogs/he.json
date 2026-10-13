@@ -418,7 +418,13 @@
     "bypass.timed": "עקיפת הרשאות · היקף {scope} · פג תוקף {time}",
     "chat.ctx_aria": "הפרויקט והצ׳אט הנוכחיים",
     "chat.log_aria": "שיחה",
+    "chat.prompt_enter_value": "הזן ערך",
+    "chat.prompt_ok": "אישור",
     "chat.queue_aria": "הודעות בתור",
+    "chat.search_none": "אין",
+    "chat.search_chars_min": "{n}+ תווים",
+    "chat.search_no_matches": "אין התאמות",
+    "chat.search_type_more": "הקלד {n}+ תווים",
     "chat.setup_line_hide_aria": "אל תזכיר לי שוב",
     "chat.setup_line_hide_title": "אל תזכיר לי שוב — תמיד אפשר להשלים את ההגדרה משורות ההגדרות",
     "chat.setup_line_open": "השלמת ההגדרה",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL רשאי לבחון ולהכין הפרשי עריכה. כל אצוות עריכה מזוהה בבירור חייבת אישור לפני החלתה.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto מקומי בלבד",
+    "msg.copied": "הועתק",
     "msg.copy": "העתקה",
+    "msg.copy_failed": "ההעתקה נכשלה",
     "msg.copy_rich": "העתקה עשירה",
     "msg.copy_rich_title": "העתקה עם עיצוב (HTML מטוהר + טקסט פשוט — האפליקציה המקבלת מחליטה איך להציג זאת)",
     "msg.copy_source_title": "העתקת מקור ההודעה (Markdown גולמי, בדיוק כפי שהוא מאוחסן)",
@@ -846,6 +854,7 @@
     "pin.pinned": "מוצמדת",
     "pin.unpin": "ביטול הצמדה",
     "pin.unpin_title": "ביטול הצמדת ההודעה הזו",
+    "pin.you": "אתה",
     "plugins.catalog_unavailable": "לא ניתן היה לקרוא את הקטלוג.",
     "plugins.close_title": "סגירה",
     "plugins.disable": "השבתה",
@@ -935,6 +944,8 @@
     "send.queue": "תור",
     "send.send": "שליחה",
     "session.archive_title": "ארכוב",
+    "session.delete_this": "הצ׳אט הזה",
+    "session.delete_confirm": "למחוק את „{name}“? פעולה זו מסירה לצמיתות את הצ׳אט ואת כל מה ש-VOOL למד בו.",
     "session.delete_title": "מחיקת הצ'אט (מסיר אותו ואת הזיכרון שלו)",
     "session.emoji_title": "הגדרת אימוג'י או צבע לצ'אט",
     "session.general": "כללי",
@@ -942,6 +953,12 @@
     "session.new_chat": "(צ'אט חדש)",
     "session.new_project_menu": "+ פרויקט חדש…",
     "session.no_past_chats": "אין עדיין צ'אטים קודמים.",
+    "session.project_this": "הפרויקט הזה",
+    "session.project_delete_confirm": "למחוק את הפרויקט „{name}“?\n\nVOOL ישכח כל מה שלמד בו, והצ׳אטים שלו חוזרים לכללי (הקבצים שלך לא נוגעים).",
+    "session.project_add_failed_short": "לא ניתן היה להוסיף את הפרויקט.",
+    "session.project_add_failed": "לא ניתן היה להוסיף את הפרויקט: {error}",
+    "session.project_name_prompt": "שם הפרויקט:",
+    "session.project_folder_prompt": "תיקיית הפרויקט — הנתיב המלא לתיקייה במחשב זה:",
     "session.rename_title": "שינוי שם",
     "session.unarchive_title": "ביטול ארכוב",
     "settings.group.about.blurb": "הגרסה המדויקת שעונה לכם, ואיך לדווח על בעיה.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

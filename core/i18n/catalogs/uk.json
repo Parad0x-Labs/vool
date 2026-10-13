@@ -418,7 +418,13 @@
     "bypass.timed": "Обхід дозволів · охоплення {scope} · спливає {time}",
     "chat.ctx_aria": "Поточний проєкт і чат",
     "chat.log_aria": "Розмова",
+    "chat.prompt_enter_value": "Введіть значення",
+    "chat.prompt_ok": "Гаразд",
     "chat.queue_aria": "Повідомлення в черзі",
+    "chat.search_none": "немає",
+    "chat.search_chars_min": "{n}+ символів",
+    "chat.search_no_matches": "немає збігів",
+    "chat.search_type_more": "введіть {n}+ символів",
     "chat.setup_line_hide_aria": "Більше не нагадувати",
     "chat.setup_line_hide_title": "Більше не нагадувати — налаштування все одно можна завершити у рядках Налаштувань",
     "chat.setup_line_open": "Завершити налаштування",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL може оглядати та готувати diff-и змін. Кожен чітко позначений пакет редагувань має бути схвалений до застосування.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Local Only",
+    "msg.copied": "Скопійовано",
     "msg.copy": "Копіювати",
+    "msg.copy_failed": "Не вдалося скопіювати",
     "msg.copy_rich": "Копіювати з форматуванням",
     "msg.copy_rich_title": "Копіювати з форматуванням (очищений HTML + звичайний текст — як відображати, вирішує програма-одержувач)",
     "msg.copy_source_title": "Копіювати джерело повідомлення (сирий Markdown, точно як збережено)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Прикріплено",
     "pin.unpin": "Відкріпити",
     "pin.unpin_title": "Відкріпити це повідомлення",
+    "pin.you": "Ви",
     "plugins.catalog_unavailable": "Не вдалося прочитати каталог.",
     "plugins.close_title": "Закрити",
     "plugins.disable": "Вимкнути",
@@ -935,6 +944,8 @@
     "send.queue": "Черга",
     "send.send": "Надіслати",
     "session.archive_title": "Архівувати",
+    "session.delete_this": "цей чат",
+    "session.delete_confirm": "Видалити «{name}»? Це назавжди видалить чат і все, чого VOOL у ньому навчився.",
     "session.delete_title": "Видалити чат (видаляє його та його пам’ять)",
     "session.emoji_title": "Установити емодзі або колір чату",
     "session.general": "Загальне",
@@ -942,6 +953,12 @@
     "session.new_chat": "(новий чат)",
     "session.new_project_menu": "+ Новий проєкт…",
     "session.no_past_chats": "Ще немає попередніх чатів.",
+    "session.project_this": "цей проєкт",
+    "session.project_delete_confirm": "Видалити проєкт «{name}»?\n\nVOOL ЗАБУДЕ усе, чого навчився в ньому, а його чати повернуться до «Загальних» (ваших файлів не торкаються).",
+    "session.project_add_failed_short": "Не вдалося додати проєкт.",
+    "session.project_add_failed": "Не вдалося додати проєкт: {error}",
+    "session.project_name_prompt": "Назва проєкту:",
+    "session.project_folder_prompt": "Тека проєкту — повний шлях до теки на цьому комп’ютері:",
     "session.rename_title": "Перейменувати",
     "session.unarchive_title": "Розархівувати",
     "settings.group.about.blurb": "Точна збірка, що відповідає вам, і як повідомити про проблему.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

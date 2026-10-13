@@ -418,7 +418,13 @@
     "bypass.timed": "Bỏ qua quyền · phạm vi {scope} · hết hạn {time}",
     "chat.ctx_aria": "Dự án và cuộc trò chuyện hiện tại",
     "chat.log_aria": "Cuộc trò chuyện",
+    "chat.prompt_enter_value": "Nhập một giá trị",
+    "chat.prompt_ok": "Xong",
     "chat.queue_aria": "Tin nhắn đang chờ",
+    "chat.search_none": "không có",
+    "chat.search_chars_min": "{n}+ ký tự",
+    "chat.search_no_matches": "không có kết quả phù hợp",
+    "chat.search_type_more": "gõ {n}+ ký tự",
     "chat.setup_line_hide_aria": "Đừng nhắc tôi nữa",
     "chat.setup_line_hide_title": "Đừng nhắc tôi nữa — bạn vẫn có thể hoàn tất thiết lập từ các dòng trong Cài đặt",
     "chat.setup_line_open": "Hoàn tất thiết lập",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL có thể xem và soạn các diff chỉnh sửa. Mỗi loạt chỉnh sửa được nhận diện rõ ràng phải được phê duyệt trước khi áp dụng.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Chỉ Cục bộ",
+    "msg.copied": "Đã sao chép",
     "msg.copy": "Sao chép",
+    "msg.copy_failed": "Không sao chép được",
     "msg.copy_rich": "Sao chép định dạng",
     "msg.copy_rich_title": "Sao chép kèm định dạng (HTML đã làm sạch + văn bản thuần — ứng dụng nhận quyết định cách hiển thị)",
     "msg.copy_source_title": "Sao chép nguồn tin nhắn (Markdown thô, đúng như lưu)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Đã ghim",
     "pin.unpin": "Bỏ ghim",
     "pin.unpin_title": "Bỏ ghim tin nhắn này",
+    "pin.you": "Bạn",
     "plugins.catalog_unavailable": "Không đọc được danh mục.",
     "plugins.close_title": "Đóng",
     "plugins.disable": "Tắt",
@@ -935,6 +944,8 @@
     "send.queue": "Hàng đợi",
     "send.send": "Gửi",
     "session.archive_title": "Lưu trữ",
+    "session.delete_this": "cuộc trò chuyện này",
+    "session.delete_confirm": "Xóa «{name}»? Thao tác này xóa vĩnh viễn cuộc trò chuyện và mọi thứ VOOL đã học trong đó.",
     "session.delete_title": "Xóa cuộc trò chuyện (gỡ bỏ nó cùng bộ nhớ của nó)",
     "session.emoji_title": "Đặt biểu tượng cảm xúc hoặc màu cho trò chuyện",
     "session.general": "Chung",
@@ -942,6 +953,12 @@
     "session.new_chat": "(trò chuyện mới)",
     "session.new_project_menu": "+ Dự án mới…",
     "session.no_past_chats": "Chưa có cuộc trò chuyện trước đây.",
+    "session.project_this": "dự án này",
+    "session.project_delete_confirm": "Xóa dự án «{name}»?\n\nVOOL sẽ QUÊN mọi thứ đã học trong đó, và các cuộc trò chuyện của nó quay về Chung (tệp của bạn không bị ảnh hưởng).",
+    "session.project_add_failed_short": "Không thể thêm dự án.",
+    "session.project_add_failed": "Không thể thêm dự án: {error}",
+    "session.project_name_prompt": "Tên dự án:",
+    "session.project_folder_prompt": "Thư mục dự án — đường dẫn đầy đủ tới một thư mục trên máy này:",
     "session.rename_title": "Đổi tên",
     "session.unarchive_title": "Bỏ lưu trữ",
     "settings.group.about.blurb": "Bản dựng chính xác đang trả lời bạn, và cách báo cáo vấn đề.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
     "addons.registry_inspect": "Tải xuống để kiểm tra"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

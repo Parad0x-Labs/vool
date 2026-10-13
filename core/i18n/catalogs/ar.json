@@ -418,7 +418,13 @@
     "bypass.timed": "تجاوز الأذونات · النطاق {scope} · ينتهي {time}",
     "chat.ctx_aria": "المشروع والمحادثة الحاليان",
     "chat.log_aria": "المحادثة",
+    "chat.prompt_enter_value": "أدخل قيمة",
+    "chat.prompt_ok": "موافق",
     "chat.queue_aria": "الرسائل في قائمة الانتظار",
+    "chat.search_none": "لا يوجد",
+    "chat.search_chars_min": "{n}+ أحرف",
+    "chat.search_no_matches": "لا نتائج مطابقة",
+    "chat.search_type_more": "اكتب {n}+ أحرف",
     "chat.setup_line_hide_aria": "لا تذكّرني مرة أخرى",
     "chat.setup_line_hide_title": "لا تذكّرني مرة أخرى — يمكنك دائمًا إكمال الإعداد من صفوف الإعدادات",
     "chat.setup_line_open": "أكمل الإعداد",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "يجوز لـ VOOL فحص فروق التعديل وتجهيزها. يجب الموافقة على كل دفعة تعديلات محددة بوضوح قبل تطبيقها.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto محلي فقط",
+    "msg.copied": "تم النسخ",
     "msg.copy": "نسخ",
+    "msg.copy_failed": "تعذّر النسخ",
     "msg.copy_rich": "نسخ منسّقًا",
     "msg.copy_rich_title": "نسخ بالتنسيق (HTML منقّى + نص عادي — التطبيق المستقبِل يقرر كيف يعرضه)",
     "msg.copy_source_title": "نسخ مصدر الرسالة (Markdown خام، كما هو مخزن تمامًا)",
@@ -846,6 +854,7 @@
     "pin.pinned": "مثبتة",
     "pin.unpin": "إلغاء التثبيت",
     "pin.unpin_title": "إلغاء تثبيت هذه الرسالة",
+    "pin.you": "أنت",
     "plugins.catalog_unavailable": "تعذّر قراءة الدليل.",
     "plugins.close_title": "إغلاق",
     "plugins.disable": "تعطيل",
@@ -935,6 +944,8 @@
     "send.queue": "قائمة الانتظار",
     "send.send": "إرسال",
     "session.archive_title": "أرشفة",
+    "session.delete_this": "هذه المحادثة",
+    "session.delete_confirm": "حذف «{name}»؟ سيؤدي ذلك إلى إزالة المحادثة وكل ما تعلّمه VOOL فيها نهائيًا.",
     "session.delete_title": "حذف المحادثة (يزيلها مع ذاكرتها)",
     "session.emoji_title": "تعيين رمز تعبيري أو لون للمحادثة",
     "session.general": "عام",
@@ -942,6 +953,12 @@
     "session.new_chat": "(محادثة جديدة)",
     "session.new_project_menu": "+ مشروع جديد…",
     "session.no_past_chats": "لا محادثات سابقة بعد.",
+    "session.project_this": "هذا المشروع",
+    "session.project_delete_confirm": "حذف المشروع «{name}»؟\n\nسيتجاهل VOOL كل ما تعلّمه فيه، وتعود محادثاته إلى عام (ملفاتك لا تُمس).",
+    "session.project_add_failed_short": "تعذّرت إضافة المشروع.",
+    "session.project_add_failed": "تعذّرت إضافة المشروع: {error}",
+    "session.project_name_prompt": "اسم المشروع:",
+    "session.project_folder_prompt": "مجلد المشروع — المسار الكامل لمجلد على هذا الجهاز:",
     "session.rename_title": "إعادة تسمية",
     "session.unarchive_title": "إلغاء الأرشفة",
     "settings.group.about.blurb": "الإصدار الدقيق الذي يجيبك، وكيف تبلّغ عن مشكلة.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

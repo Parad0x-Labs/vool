@@ -418,7 +418,13 @@
     "bypass.timed": "권한 우회 · 범위 {scope} · {time} 만료",
     "chat.ctx_aria": "현재 프로젝트와 채팅",
     "chat.log_aria": "대화",
+    "chat.prompt_enter_value": "값을 입력하세요",
+    "chat.prompt_ok": "확인",
     "chat.queue_aria": "대기 중인 메시지",
+    "chat.search_none": "없음",
+    "chat.search_chars_min": "{n}자 이상",
+    "chat.search_no_matches": "일치 항목 없음",
+    "chat.search_type_more": "{n}자 이상 입력",
     "chat.setup_line_hide_aria": "다시 알리지 않기",
     "chat.setup_line_hide_title": "다시 알리지 않기 — 설정 항목에서 언제든 설정을 마칠 수 있습니다",
     "chat.setup_line_open": "설정 마치기",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL은 편집 diff를 조사하고 준비할 수 있습니다. 적용 전에 명확히 식별된 각 편집 묶음을 승인해야 합니다.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Local Only",
+    "msg.copied": "복사됨",
     "msg.copy": "복사",
+    "msg.copy_failed": "복사 실패",
     "msg.copy_rich": "리치 복사",
     "msg.copy_rich_title": "서식 포함 복사(정화된 HTML + 일반 텍스트 — 받는 앱이 렌더링 방식을 정합니다)",
     "msg.copy_source_title": "메시지 원본 복사(저장된 그대로의 원시 Markdown)",
@@ -846,6 +854,7 @@
     "pin.pinned": "고정됨",
     "pin.unpin": "고정 해제",
     "pin.unpin_title": "이 메시지 고정 해제",
+    "pin.you": "나",
     "plugins.catalog_unavailable": "카탈로그를 읽을 수 없습니다.",
     "plugins.close_title": "닫기",
     "plugins.disable": "비활성화",
@@ -935,6 +944,8 @@
     "send.queue": "대기열",
     "send.send": "전송",
     "session.archive_title": "보관",
+    "session.delete_this": "이 채팅",
+    "session.delete_confirm": "\"{name}\"을(를) 삭제할까요? 채팅과 VOOL이 그 안에서 학습한 모든 것이 영구히 제거됩니다.",
     "session.delete_title": "채팅 삭제(채팅과 그 기억을 함께 삭제합니다)",
     "session.emoji_title": "채팅 이모지 또는 색상 설정",
     "session.general": "일반",
@@ -942,6 +953,12 @@
     "session.new_chat": "(새 채팅)",
     "session.new_project_menu": "+ 새 프로젝트…",
     "session.no_past_chats": "아직 지난 채팅이 없습니다.",
+    "session.project_this": "이 프로젝트",
+    "session.project_delete_confirm": "프로젝트 \"{name}\"을(를) 삭제할까요?\n\nVOOL이 여기서 배운 모든 것을 잊고, 채팅은 General로 돌아갑니다(파일은 그대로입니다).",
+    "session.project_add_failed_short": "프로젝트를 추가할 수 없습니다.",
+    "session.project_add_failed": "프로젝트를 추가할 수 없습니다: {error}",
+    "session.project_name_prompt": "프로젝트 이름:",
+    "session.project_folder_prompt": "프로젝트 폴더 — 이 컴퓨터의 폴더 전체 경로:",
     "session.rename_title": "이름 바꾸기",
     "session.unarchive_title": "보관 해제",
     "settings.group.about.blurb": "당신에게 답하는 정확한 빌드, 그리고 문제 보고 방법.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

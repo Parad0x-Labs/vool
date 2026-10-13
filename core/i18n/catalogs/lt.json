@@ -418,7 +418,13 @@
     "bypass.timed": "Leidimų apejimas · {scope} apimtis · baigiasi {time}",
     "chat.ctx_aria": "Dabartinis projektas ir pokalbis",
     "chat.log_aria": "Pokalbis",
+    "chat.prompt_enter_value": "Įrašykite reikšmę",
+    "chat.prompt_ok": "Gerai",
     "chat.queue_aria": "Eilėje laukiančios žinutės",
+    "chat.search_none": "nėra",
+    "chat.search_chars_min": "{n}+ simbolių",
+    "chat.search_no_matches": "atitikmenų nėra",
+    "chat.search_type_more": "įrašykite {n}+ simbolių",
     "chat.setup_line_hide_aria": "Nepriminti man",
     "chat.setup_line_hide_title": "Nepriminti man — sąranką vis tiek galite baigti per Nustatymus",
     "chat.setup_line_open": "Baigti sąranką",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL gali apžiūrėti ir paruošti redagavimų skirtumus. Kiekviena aiškai identifikuota redagavimų grupė turi būti patvirtinta prieš taikant.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Local Only",
+    "msg.copied": "Nukopijuota",
     "msg.copy": "Kopijuoti",
+    "msg.copy_failed": "Nukopijuoti nepavyko",
     "msg.copy_rich": "Kopijuoti praturtintai",
     "msg.copy_rich_title": "Kopijuoti su formatavimu (išvalytas HTML + paprastas tekstas — atvaizdavimo būdą nusprendžia gaunanti programa)",
     "msg.copy_source_title": "Kopijuoti žinutės šaltinį (neapdorotas Markdown, būtent taip, kaip saugoma)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Prisegta",
     "pin.unpin": "Atsegti",
     "pin.unpin_title": "Atsegti šią žinutę",
+    "pin.you": "Tu",
     "plugins.catalog_unavailable": "Nepavyko perskaityti katalogo.",
     "plugins.close_title": "Uždaryti",
     "plugins.disable": "Išjungti",
@@ -935,6 +944,8 @@
     "send.queue": "Eilė",
     "send.send": "Siųsti",
     "session.archive_title": "Archyvuoti",
+    "session.delete_this": "šis pokalbis",
+    "session.delete_confirm": "Ištrinti „{name}“? Tai visam laikui pašalina pokalbį ir viską, ką VOOL jame išmoko.",
     "session.delete_title": "Ištrinti pokalbį (pašalina jį ir jo atmintį)",
     "session.emoji_title": "Nustatyti pokalbio jaustuką ar spalvą",
     "session.general": "Bendra",
@@ -942,6 +953,12 @@
     "session.new_chat": "(naujas pokalbis)",
     "session.new_project_menu": "+ Naujas projektas…",
     "session.no_past_chats": "Kol kas nėra ankstesnių pokalbių.",
+    "session.project_this": "šis projektas",
+    "session.project_delete_confirm": "Ištrinti projektą „{name}“?\n\nVOOL PAMIRŠ viską, ką jame išmoko, o jo pokalbiai grįš į Bendruosius (jūsų failai neliečiami).",
+    "session.project_add_failed_short": "Nepavyko pridėti projekto.",
+    "session.project_add_failed": "Nepavyko pridėti projekto: {error}",
+    "session.project_name_prompt": "Projekto pavadinimas:",
+    "session.project_folder_prompt": "Projekto aplankas — pilnas kelias iki aplanko šiame kompiuteryje:",
     "session.rename_title": "Pervadinti",
     "session.unarchive_title": "Išarchyvuoti",
     "settings.group.about.blurb": "Tiksloji laida, atsakanti jums, ir kaip pranešti apie problemą.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

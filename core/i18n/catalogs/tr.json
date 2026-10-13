@@ -418,7 +418,13 @@
     "bypass.timed": "İzinleri atla · kapsam {scope} · {time} tarihinde sona erer",
     "chat.ctx_aria": "Geçerli proje ve sohbet",
     "chat.log_aria": "Konuşma",
+    "chat.prompt_enter_value": "Bir değer girin",
+    "chat.prompt_ok": "Tamam",
     "chat.queue_aria": "Kuyruktaki iletiler",
+    "chat.search_none": "yok",
+    "chat.search_chars_min": "{n}+ karakter",
+    "chat.search_no_matches": "eşleşme yok",
+    "chat.search_type_more": "{n}+ karakter yazın",
     "chat.setup_line_hide_aria": "Bana bir daha hatırlatma",
     "chat.setup_line_hide_title": "Bana bir daha hatırlatma — kurulumu Ayarlar satırlarından yine bitirebilirsiniz",
     "chat.setup_line_open": "Kurulumu bitir",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOL düzenleme farklarını inceleyip hazırlayabilir. Uygulanmadan önce her açıkça tanımlanmış düzenleme grubu onaylanmalıdır.",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Yalnızca Yerel",
+    "msg.copied": "Kopyalandı",
     "msg.copy": "Kopyala",
+    "msg.copy_failed": "Kopyalanamadı",
     "msg.copy_rich": "Zengin kopyala",
     "msg.copy_rich_title": "Biçimlendirmesiyle kopyala (temizlenmiş HTML + düz metin — nasıl görüneceğine alan uygulama karar verir)",
     "msg.copy_source_title": "İleti kaynağını kopyala (ham Markdown, tam olarak saklandığı gibi)",
@@ -846,6 +854,7 @@
     "pin.pinned": "Sabitlendi",
     "pin.unpin": "Sabitlemeyi kaldır",
     "pin.unpin_title": "Bu iletinin sabitlemesini kaldır",
+    "pin.you": "Sen",
     "plugins.catalog_unavailable": "Katalog okunamadı.",
     "plugins.close_title": "Kapat",
     "plugins.disable": "Devre dışı bırak",
@@ -935,6 +944,8 @@
     "send.queue": "Kuyruk",
     "send.send": "Gönder",
     "session.archive_title": "Arşivle",
+    "session.delete_this": "bu sohbet",
+    "session.delete_confirm": "\"{name}\" silinsin mi? Bu, sohbeti ve VOOL’un orada öğrendiği her şeyi kalıcı olarak kaldırır.",
     "session.delete_title": "Sohbeti sil (kendisini ve belleğini kaldırır)",
     "session.emoji_title": "Sohbet emojisi veya rengini ayarla",
     "session.general": "Genel",
@@ -942,6 +953,12 @@
     "session.new_chat": "(yeni sohbet)",
     "session.new_project_menu": "+ Yeni proje…",
     "session.no_past_chats": "Henüz geçmiş sohbet yok.",
+    "session.project_this": "bu proje",
+    "session.project_delete_confirm": "\"{name}\" projesi silinsin mi?\n\nVOOL orada öğrendiği her şeyi UNUTUR ve sohbetleri Genel’e döner (dosyalarınıza dokunulmaz).",
+    "session.project_add_failed_short": "Proje eklenemedi.",
+    "session.project_add_failed": "Proje eklenemedi: {error}",
+    "session.project_name_prompt": "Proje adı:",
+    "session.project_folder_prompt": "Proje klasörü — bu bilgisayardaki bir klasörün tam yolu:",
     "session.rename_title": "Yeniden adlandır",
     "session.unarchive_title": "Arşivden çıkar",
     "settings.group.about.blurb": "Size yanıt veren tam yapı ve bir sorunu nasıl bildireceğiniz.",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }

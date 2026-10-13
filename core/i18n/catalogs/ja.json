@@ -418,7 +418,13 @@
     "bypass.timed": "権限を一時免除 · 範囲 {scope} · {time} に失効",
     "chat.ctx_aria": "現在のプロジェクトとチャット",
     "chat.log_aria": "会話",
+    "chat.prompt_enter_value": "値を入力してください",
+    "chat.prompt_ok": "決定",
     "chat.queue_aria": "キュー内のメッセージ",
+    "chat.search_none": "なし",
+    "chat.search_chars_min": "{n}文字以上",
+    "chat.search_no_matches": "該当なし",
+    "chat.search_type_more": "{n}文字以上入力",
     "chat.setup_line_hide_aria": "今後は表示しない",
     "chat.setup_line_hide_title": "今後は表示しない — 設定の行からいつでもセットアップを完了できます",
     "chat.setup_line_open": "セットアップを完了",
@@ -709,7 +715,9 @@
     "mode.review_edits_description": "VOOLは編集差分を調査し、準備できます。適用する前に、明確に識別された各編集バッチを承認する必要があります。",
     "model.js.auto": "VOOL Auto",
     "model.js.local_only": "VOOL Auto Local Only",
+    "msg.copied": "コピーしました",
     "msg.copy": "コピー",
+    "msg.copy_failed": "コピーできませんでした",
     "msg.copy_rich": "リッチコピー",
     "msg.copy_rich_title": "書式付きでコピー(サニタイズ済みHTML + プレーンテキスト — 受け取るアプリが表示方法を決定します)",
     "msg.copy_source_title": "メッセージのソースをコピー(保存されているままの生のMarkdown)",
@@ -846,6 +854,7 @@
     "pin.pinned": "ピン留め済み",
     "pin.unpin": "ピン留め解除",
     "pin.unpin_title": "このメッセージのピン留めを解除",
+    "pin.you": "あなた",
     "plugins.catalog_unavailable": "カタログを読み取れませんでした。",
     "plugins.close_title": "閉じる",
     "plugins.disable": "無効化",
@@ -935,6 +944,8 @@
     "send.queue": "キュー",
     "send.send": "送信",
     "session.archive_title": "アーカイブ",
+    "session.delete_this": "このチャット",
+    "session.delete_confirm": "「{name}」を削除しますか？チャットと、VOOLがその中で学んだすべてが完全に削除されます。",
     "session.delete_title": "チャットを削除(チャットとその記憶を削除します)",
     "session.emoji_title": "チャットの絵文字または色を設定",
     "session.general": "全般",
@@ -942,6 +953,12 @@
     "session.new_chat": "(新しいチャット)",
     "session.new_project_menu": "+ 新規プロジェクト…",
     "session.no_past_chats": "過去のチャットはまだありません。",
+    "session.project_this": "このプロジェクト",
+    "session.project_delete_confirm": "プロジェクト「{name}」を削除しますか？\n\nVOOLはこの中で学んだことをすべて忘れ、チャットは「General」に戻ります（ファイルはそのままです）。",
+    "session.project_add_failed_short": "プロジェクトを追加できませんでした。",
+    "session.project_add_failed": "プロジェクトを追加できませんでした：{error}",
+    "session.project_name_prompt": "プロジェクト名：",
+    "session.project_folder_prompt": "プロジェクトフォルダー — このコンピューター上のフォルダーへの完全なパス：",
     "session.rename_title": "名前を変更",
     "session.unarchive_title": "アーカイブ解除",
     "settings.group.about.blurb": "あなたに応答している正確なビルドと、問題の報告方法。",
@@ -1863,12 +1880,27 @@
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
-  "generator": {
-    "engine": "GLM-5.3 (ZCode idle translation agent)",
-    "status": "MACHINE_DRAFT",
-    "cross_check": "language-family agent self-check + deterministic validator",
-    "generated_at": "2026-09-04T14:20:28Z",
-    "language_picker_addendum": "2 keys translated by the lane author (single writer)"
-  }
+  "source_catalog_sha256": "c6c8f742eb47f59233cc67690d9a7a7c752b6c8693d8cbca3d342cd0b8239cc6",
+  "generator": [
+    [
+      "engine",
+      "GLM-5.3 (ZCode idle translation agent)"
+    ],
+    [
+      "status",
+      "MACHINE_DRAFT"
+    ],
+    [
+      "cross_check",
+      "language-family agent self-check + deterministic validator"
+    ],
+    [
+      "generated_at",
+      "2026-09-04T14:20:28Z"
+    ],
+    [
+      "language_picker_addendum",
+      "2 keys translated by the lane author (single writer)"
+    ]
+  ]
 }
