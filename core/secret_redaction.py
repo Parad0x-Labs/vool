@@ -252,7 +252,7 @@ def _clause_before(text: str, start: int) -> str:
     return parts[-1] if parts else prefix
 
 
-def _card_number_spans(value: str):
+def _luhn_digit_run_spans(value: str):
     for match in _CARD_RUN_RE.finditer(value):
         raw = match.group(0)
         digits = re.sub(r"[ -]", "", raw)
@@ -277,7 +277,7 @@ def _labelled_word_spans(value: str):
 
 def _redactable_personal_spans(value: str) -> list[tuple[int, int, str]]:
     spans: list[tuple[int, int, str]] = []
-    spans.extend((start, end, "[redacted-card-number]") for start, end in _card_number_spans(value))
+    spans.extend((start, end, "[redacted-card-number]") for start, end in _luhn_digit_run_spans(value))
     spans.extend((match.start(2), match.end(2), "[redacted]") for match in _PIN_VALUE_RE.finditer(value))
     spans.extend((start, end, "[redacted]") for start, end in _labelled_word_spans(value))
     spans.sort()
@@ -323,7 +323,7 @@ def redactable_personal_kinds(text: str) -> tuple[str, ...]:
         return ()
     value = str(text)
     kinds: list[str] = []
-    if next(_card_number_spans(value), None) is not None:
+    if next(_luhn_digit_run_spans(value), None) is not None:
         kinds.append("card_number")
     if _PIN_VALUE_RE.search(value) is not None:
         kinds.append("pin")
