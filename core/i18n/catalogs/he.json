@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "חיפוש פלאגינים ומיומנויות…",
     "plugins.search_plugins": "חיפוש פלאגינים…",
     "plugins.search_skills": "חיפוש מיומנויות…",
+    "plugins.status.built_in": "מובנה",
+    "plugins.status.installed": "מותקן",
+    "plugins.status.off": "כבוי",
+    "plugins.status.on": "פעיל",
+    "plugins.status.unknown": "מצב לא ידוע",
     "plugins.status_disabled": "מושבת",
     "plugins.status_enabled": "מותקן · מופעל",
     "plugins.title": "פלאגינים ומיומנויות",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

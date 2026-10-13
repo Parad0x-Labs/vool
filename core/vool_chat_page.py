@@ -10888,8 +10888,18 @@ function renderPlugins(d, query) {
     const act = document.createElement('div'); act.className = 'p-actions';
     const off = pl.enabled === false;
     const nSk = (pl.skills || []).length;
-    const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
-    st.textContent = (off ? 'Disabled' : 'Installed · Enabled') + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
+    // The status line says exactly what the catalog states and nothing more: "On" only for
+    // enabled === true — a missing field is unknown, never on — "Off" for false, and a
+    // bundled/first-party pack is "Built in", not "Installed". Whether a plugin's runtime
+    // tools are loaded is not part of the catalog entry, so the label claims nothing there.
+    const builtIn = pl.first_party === true || pl.origin === 'bundled';
+    const origin = builtIn ? pageT('plugins.status.built_in', 'Built in')
+      : (pl.origin === 'installed' ? pageT('plugins.status.installed', 'Installed') : '');
+    const state = pl.enabled === true ? pageT('plugins.status.on', 'On')
+      : pl.enabled === false ? pageT('plugins.status.off', 'Off')
+      : pageT('plugins.status.unknown', 'Status unknown');
+    const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
+    st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
     const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
     tg.addEventListener('click', () => togglePlugin(pl.id, off));
     act.appendChild(st); act.appendChild(tg); card.appendChild(act);

@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Tìm plugin và skill…",
     "plugins.search_plugins": "Tìm plugin…",
     "plugins.search_skills": "Tìm skill…",
+    "plugins.status.built_in": "Tích hợp sẵn",
+    "plugins.status.installed": "Đã cài đặt",
+    "plugins.status.off": "Tắt",
+    "plugins.status.on": "Bật",
+    "plugins.status.unknown": "Không rõ trạng thái",
     "plugins.status_disabled": "Đã tắt",
     "plugins.status_enabled": "Đã cài · Đang bật",
     "plugins.title": "Plugin & Skill",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
     "addons.registry_inspect": "Tải xuống để kiểm tra"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

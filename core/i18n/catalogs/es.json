@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Buscar plugins y habilidades…",
     "plugins.search_plugins": "Buscar plugins…",
     "plugins.search_skills": "Buscar habilidades…",
+    "plugins.status.built_in": "Integrado",
+    "plugins.status.installed": "Instalado",
+    "plugins.status.off": "Desactivado",
+    "plugins.status.on": "Activado",
+    "plugins.status.unknown": "Estado desconocido",
     "plugins.status_disabled": "Desactivado",
     "plugins.status_enabled": "Instalado · Activado",
     "plugins.title": "Plugins y habilidades",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
     "addons.registry_inspect": "Descargar para inspeccionar"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Ieškoti papildinių ir įgūdžių…",
     "plugins.search_plugins": "Ieškoti papildinių…",
     "plugins.search_skills": "Ieškoti įgūdžių…",
+    "plugins.status.built_in": "Integruotas",
+    "plugins.status.installed": "Įdiegtas",
+    "plugins.status.off": "Išjungta",
+    "plugins.status.on": "Įjungta",
+    "plugins.status.unknown": "Būsena nežinoma",
     "plugins.status_disabled": "Išjungta",
     "plugins.status_enabled": "Įdiegta · Įjungta",
     "plugins.title": "Papildiniai ir įgūdžiai",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

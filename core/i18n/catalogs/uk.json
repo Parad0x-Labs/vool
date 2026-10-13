@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Пошук плагінів і навичок…",
     "plugins.search_plugins": "Пошук плагінів…",
     "plugins.search_skills": "Пошук навичок…",
+    "plugins.status.built_in": "Вбудовано",
+    "plugins.status.installed": "Встановлено",
+    "plugins.status.off": "Вимкнено",
+    "plugins.status.on": "Увімкнено",
+    "plugins.status.unknown": "Стан невідомий",
     "plugins.status_disabled": "Вимкнено",
     "plugins.status_enabled": "Встановлено · Увімкнено",
     "plugins.title": "Плагіни та навички",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

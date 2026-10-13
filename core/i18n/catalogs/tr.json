@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Eklenti ve beceri ara…",
     "plugins.search_plugins": "Eklenti ara…",
     "plugins.search_skills": "Beceri ara…",
+    "plugins.status.built_in": "Yerleşik",
+    "plugins.status.installed": "Yüklü",
+    "plugins.status.off": "Kapalı",
+    "plugins.status.on": "Açık",
+    "plugins.status.unknown": "Durum bilinmiyor",
     "plugins.status_disabled": "Devre dışı",
     "plugins.status_enabled": "Kurulu · Etkin",
     "plugins.title": "Eklentiler ve Beceriler",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

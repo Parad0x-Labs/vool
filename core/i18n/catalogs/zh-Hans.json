@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "搜索插件和技能…",
     "plugins.search_plugins": "搜索插件…",
     "plugins.search_skills": "搜索技能…",
+    "plugins.status.built_in": "内置",
+    "plugins.status.installed": "已安装",
+    "plugins.status.off": "关闭",
+    "plugins.status.on": "开启",
+    "plugins.status.unknown": "状态未知",
     "plugins.status_disabled": "已禁用",
     "plugins.status_enabled": "已安装 · 已启用",
     "plugins.title": "插件与技能",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

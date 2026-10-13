@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "प्लगइन और स्किल खोजें…",
     "plugins.search_plugins": "प्लगइन खोजें…",
     "plugins.search_skills": "स्किल खोजें…",
+    "plugins.status.built_in": "अंतर्निहित",
+    "plugins.status.installed": "स्थापित",
+    "plugins.status.off": "बंद",
+    "plugins.status.on": "चालू",
+    "plugins.status.unknown": "स्थिति अज्ञात",
     "plugins.status_disabled": "अक्षम",
     "plugins.status_enabled": "इंस्टॉल · सक्षम",
     "plugins.title": "प्लगइन और स्किल",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

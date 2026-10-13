@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "ابحث في الإضافات والمهارات…",
     "plugins.search_plugins": "ابحث في الإضافات…",
     "plugins.search_skills": "ابحث في المهارات…",
+    "plugins.status.built_in": "مدمج",
+    "plugins.status.installed": "مثبت",
+    "plugins.status.off": "معطل",
+    "plugins.status.on": "مفعل",
+    "plugins.status.unknown": "الحالة غير معروفة",
     "plugins.status_disabled": "معطّلة",
     "plugins.status_enabled": "مثبتة · مفعّلة",
     "plugins.title": "الإضافات والمهارات",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

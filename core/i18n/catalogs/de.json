@@ -859,6 +859,11 @@
     "plugins.search_placeholder": "Plugins und Skills suchen…",
     "plugins.search_plugins": "Plugins suchen…",
     "plugins.search_skills": "Skills suchen…",
+    "plugins.status.built_in": "Integriert",
+    "plugins.status.installed": "Installiert",
+    "plugins.status.off": "Aus",
+    "plugins.status.on": "Ein",
+    "plugins.status.unknown": "Status unbekannt",
     "plugins.status_disabled": "Deaktiviert",
     "plugins.status_enabled": "Installiert · Aktiviert",
     "plugins.title": "Plugins & Skills",
@@ -1863,7 +1868,7 @@
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "db6664c8d0ac264088dd38fcca9ef4293445d56a083ebde6b8504ccbe0074e8b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
