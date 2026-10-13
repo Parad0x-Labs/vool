@@ -494,7 +494,9 @@ def test_explicit_full_orchestrated_profile_fails_closed_when_keys_and_space_are
     fake_usage = mock.Mock()
     fake_usage.free = 10 * 1024**3
 
-    with mock.patch("core.runtime_install_profiles.shutil.disk_usage", return_value=fake_usage):
+    with mock.patch("core.runtime_install_profiles.shutil.disk_usage", return_value=fake_usage), mock.patch(
+        "core.runtime_install_profiles.default_ollama_models_path", return_value=Path("/tmp/vool-runtime/models")
+    ):
         profile = build_install_profile_truth(
             requested_profile="full-orchestrated",
             probe=probe,

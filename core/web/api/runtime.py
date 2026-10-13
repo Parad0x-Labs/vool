@@ -11,6 +11,7 @@ import re
 import secrets
 import subprocess
 import threading
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field, replace
@@ -303,6 +304,8 @@ def _platform_release_tag() -> str:
 
 
 def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, workstation_version: str) -> dict[str, Any]:
+    from core.runtime_paths import runtime_home_identity
+
     release = dict(release_manifest_snapshot())
     build_source = build_source_metadata(project_root)
     git_state = git_checkout_state(project_root)
@@ -371,6 +374,7 @@ def build_runtime_version_stamp(*, project_root: Path, runtime_model_tag: str, w
         "build_id": build_id,
         "started_at": started_at,
         "pid": os.getpid(),
+        "runtime_home_id": runtime_home_identity(),
         "workstation_version": workstation_version,
         # The boot/pull target is a default input to Auto routing, not per-turn execution truth.
         # Keep `model_tag` as a compatibility alias while giving new consumers an honest label.
@@ -387,8 +391,11 @@ class ModelPullProgress:
     pull is still running, instead of a snapshot frozen at boot.
     """
 
-    def __init__(self, model_tag: str) -> None:
+    def __init__(self, model_tag: str, *, env: dict[str, str] | None = None) -> None:
         self._done = threading.Event()
+        # The asynchronous job owns the selected endpoint, resolved once at
+        # intake. Progress publication cannot change its execution destination.
+        self._base_url = ollama_base_url(env)
         self.public: dict[str, Any] = {
             "model": str(model_tag or ""),
             "status": "starting",
@@ -414,6 +421,10 @@ class ModelPullProgress:
     def status(self) -> str:
         return str(self.public.get("status") or "")
 
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
 
 def normalized_ollama_tag(model_tag: str) -> str:
     clean = str(model_tag or "").strip()
@@ -427,6 +438,32 @@ def ollama_base_url(env: dict[str, str] | None = None) -> str:
     from core.ollama_endpoint import ollama_base_url as _resolve
 
     return _resolve(env)
+
+
+def _automatic_ollama_access_allowed(env: dict[str, str] | None = None) -> bool:
+    """Automatic startup may inspect localhost; remote HTTP needs saved consent."""
+    from core.runtime_guard import is_loopback_host
+
+    try:
+        parsed = urllib.parse.urlparse(ollama_base_url(env))
+        host = str(parsed.hostname or "")
+        if parsed.scheme not in {"http", "https"} or not host:
+            return False
+        # Validate without DNS or any connection, including malformed ports.
+        _ = parsed.port
+    except (TypeError, ValueError):
+        return False
+    if is_loopback_host(host):
+        return True
+    return not policy_engine.local_only_mode() and policy_engine.get("network.outbound_enabled", False) is True
+
+
+def _automatic_provider_env(env: dict[str, str]) -> dict[str, str]:
+    if _automatic_ollama_access_allowed(env):
+        return env
+    # Metadata registration remains available; automatic discovery must not
+    # cross the remote endpoint while registering or choosing default lanes.
+    return {**env, "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "0", "VOOL_ALLOW_OLLAMA_TAGS_FOR_DEFAULT": "0"}
 
 
 def candidate_aware_daily_runtime_model_tag(
@@ -455,6 +492,8 @@ def candidate_aware_daily_runtime_model_tag(
     # The canonical LocalModelPolicy: disabled means no Ollama inventory discovery even here —
     # this alignment exists to pick between LOCAL candidates, and there are none to pick.
     if not local_models_enabled(env=env):
+        return configured
+    if not _automatic_ollama_access_allowed(env):
         return configured
     try:
         installed = tuple(
@@ -513,12 +552,14 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
     """
     body = json.dumps({"model": model_tag, "stream": True}).encode("utf-8")
     request = urllib.request.Request(
-        f"{ollama_base_url()}/api/pull",
+        f"{progress.base_url}/api/pull",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
+    from core.provider_http import urlopen
+
+    with urlopen(request, timeout=_OLLAMA_PULL_READ_TIMEOUT_SECONDS) as response:
         for raw_line in response:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line:
@@ -543,7 +584,7 @@ def _stream_ollama_pull(model_tag: str, *, progress: ModelPullProgress) -> None:
 def ensure_ollama_model(model_tag: str | None = None, *, progress: ModelPullProgress | None = None) -> None:
     active_model = str(model_tag or "").strip() or default_runtime_model_tag()
     tracker = progress if progress is not None else ModelPullProgress(active_model)
-    if ollama_model_installed(active_model):
+    if ollama_model_installed(active_model, env={"VOOL_RAW_OLLAMA_API_URL": tracker.base_url}):
         tracker.update(status="ready", percent=100, detail="already installed")
         return
     logger.info(
@@ -565,7 +606,7 @@ def ensure_ollama_model(model_tag: str | None = None, *, progress: ModelPullProg
     logger.info("Ollama model '%s' pulled successfully.", active_model)
 
 
-def start_ollama_model_pull(model_tag: str | None = None) -> ModelPullProgress:
+def start_ollama_model_pull(model_tag: str | None = None, *, env: dict[str, str] | None = None) -> ModelPullProgress:
     """Run the first-run pull on a background thread and return its live progress immediately.
 
     A pull of a multi-GB model in front of the listener is what left the first-run window showing
@@ -575,10 +616,34 @@ def start_ollama_model_pull(model_tag: str | None = None) -> ModelPullProgress:
     Under the canonical LocalModelPolicy's disabled mode this is a typed no-op: no thread, no
     Ollama traffic, no local model download — boot of a cloud-only runtime must never pull.
     """
-    active_model = str(model_tag or "").strip() or default_runtime_model_tag()
-    progress = ModelPullProgress(active_model)
-    if not local_models_enabled():
+    selected_env = _automatic_provider_env({
+        **(dict(os.environ) if env is None else dict(env)),
+        "VOOL_RAW_OLLAMA_API_URL": ollama_base_url(env),
+    })
+    local_enabled = local_models_enabled(env=selected_env)
+    if not local_enabled:
+        # Choosing a default tag can consult inventory too. The disabled
+        # policy must take effect before selection, not only before the job.
+        selected_env = {**selected_env, "VOOL_ALLOW_OLLAMA_TAGS_FOR_DEFAULT": "0", "VOOL_REGISTER_INSTALLED_OLLAMA_MODELS": "0"}
+    active_model = str(model_tag or "").strip() or default_runtime_model_tag(env=selected_env)
+    progress = ModelPullProgress(active_model, env=selected_env)
+    if not local_enabled:
         progress.update(status="skipped", detail="local models disabled by policy")
+        progress.finish()
+        return progress
+    if not _automatic_ollama_access_allowed(selected_env):
+        progress.update(status="skipped", detail="automatic remote model preparation disabled by outbound policy")
+        progress.finish()
+        return progress
+    # Startup is an automatic action. Local inventory is safe to inspect, but
+    # a missing model does not grant permission to download it. Explicit model
+    # installation still uses ensure_ollama_model at its owning action seam.
+    if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
+        installed = ollama_model_installed(active_model, env={"VOOL_RAW_OLLAMA_API_URL": progress.base_url})
+        if installed:
+            progress.update(status="ready", percent=100, detail="already installed")
+        else:
+            progress.update(status="skipped", detail="automatic downloads disabled by outbound policy")
         progress.finish()
         return progress
 
@@ -606,7 +671,7 @@ def ensure_default_provider(
     for provider_id in ensure_default_runtime_providers(
         registry,
         model_tag=model_tag,
-        env=env,
+        env=_automatic_provider_env(dict(os.environ) if env is None else env),
         install_profile=install_profile,
         runtime_home=runtime_home,
     ):
@@ -623,6 +688,10 @@ def log_prewarm_results(
     if str(os.environ.get("VOOL_SKIP_PROVIDER_PREWARM") or "").strip().lower() in {"1", "true", "yes", "on"}:
         logger.info("Provider prewarm skipped by VOOL_SKIP_PROVIDER_PREWARM.")
         return
+    provider_env = merge_provider_env(runtime_home)
+    if not _automatic_ollama_access_allowed(provider_env):
+        logger.info("Automatic remote provider prewarm disabled by outbound policy.")
+        return
     try:
         snapshot = build_provider_registry_snapshot(
             registry,
@@ -631,6 +700,7 @@ def log_prewarm_results(
             requested_profile=requested_profile,
             honor_install_profile=bool(requested_profile or runtime_home),
             run_prewarm=True,
+            env=provider_env,
         )
         raw_results = snapshot.prewarm_results
     except Exception as exc:
@@ -685,6 +755,9 @@ def startup_provider_capability_truth(
     model_pull_status: str = "",
     model_pull_detail: str = "",
 ) -> tuple[dict[str, Any], ...]:
+    if not _automatic_ollama_access_allowed(env):
+        logger.info("Automatic remote provider capability discovery disabled by outbound policy.")
+        return tuple()
     try:
         snapshot = build_provider_registry_snapshot(
             registry,
@@ -736,6 +809,15 @@ def public_hive_auth_snapshot(auth_result: dict[str, Any] | None) -> dict[str, A
     if suggested_command:
         snapshot["next_step"] = suggested_command
     return snapshot
+
+
+def _bootstrap_public_hive_auth(*, project_root: Path, target_path: Path) -> dict[str, Any]:
+    """Automatic auth discovery needs saved outbound consent before any SSH lookup."""
+    from core import policy_engine
+
+    if policy_engine.local_only_mode() or policy_engine.get("network.outbound_enabled", False) is not True:
+        return {"ok": False, "status": "disabled_by_policy"}
+    return ensure_public_hive_auth(project_root=project_root, target_path=target_path)
 
 
 def bootstrap_runtime_services(
@@ -810,7 +892,7 @@ def bootstrap_runtime_services(
         logger.info("Starter credits seeded for peer %s...", peer_id[:24])
 
     auth_target_path = active_config_home_dir() / "agent-bootstrap.json"
-    auth_result = ensure_public_hive_auth(
+    auth_result = _bootstrap_public_hive_auth(
         project_root=project_root,
         target_path=auth_target_path,
     )
@@ -820,7 +902,9 @@ def bootstrap_runtime_services(
         suggested_command = str(auth_result.get("suggested_command") or "").strip()
         suggested_remote_config_path = str(auth_result.get("suggested_remote_config_path") or "").strip()
         watch_host = str(auth_result.get("watch_host") or "").strip()
-        if auth_status in {"missing_remote_config_path", "missing_watch_host", "missing_ssh_key"}:
+        if auth_status == "disabled_by_policy":
+            logger.info("Public Hive automatic auth discovery is disabled by outbound policy.")
+        elif auth_status in {"missing_remote_config_path", "missing_watch_host", "missing_ssh_key"}:
             detail_parts = []
             if watch_host:
                 detail_parts.append(f"watch_host={watch_host}")
@@ -869,7 +953,7 @@ def bootstrap_runtime_services(
             )
             if _advisory:
                 logger.warning("GPU capability: %s", _advisory)
-    provider_env = merge_provider_env(runtime_home)
+    provider_env = _automatic_provider_env(merge_provider_env(runtime_home))
     requested_profile = active_install_profile_id(runtime_home=runtime_home, env=provider_env) if runtime_home else None
     profile_default_model = _profile_fast_default_model(
         requested_profile=requested_profile,
@@ -917,7 +1001,7 @@ def bootstrap_runtime_services(
     # Background, never inline: a first-run pull downloads gigabytes, and bootstrap runs BEFORE the
     # API server binds its port. The window that opens on first run must reach a server that reports
     # this progress, not a refused connection.
-    model_pull = start_ollama_model_pull(runtime_model_tag)
+    model_pull = start_ollama_model_pull(runtime_model_tag, env=provider_env)
     logger.info(
         "Hardware: %s | GPU: %s | Primary local model: %s",
         probe.accelerator,
@@ -1816,21 +1900,35 @@ def _run_agent_locked(
             )
         memory_recall = _memory_recall_response(runtime, user_text=user_text, source_context=base_context)
         if memory_recall is not None:
+            # Coverage belongs to the clauses this authority actually answered.
+            # A family detector cannot turn one erased-fact answer into an
+            # answer to another intact or unavailable private field.
+            answered_recall_clauses = tuple(memory_recall.pop("_memory_recall_clauses", ()))
             # Same answer-coverage contract as the identity lane above: a recall question alone is
             # this lane's whole turn; beside another family's clause it is one slice of the turn,
             # and returning here would end the turn with the sibling never asked. This was the one
             # pre-agent exit with no arbitration -- the answer is still produced; it travels on as
             # a slice answer and the turn continues to `run_once`.
-            from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, coverage_for
+            from core.agent_runtime.answer_coverage import FAMILY_MEMORY_RECALL, coverage_for, demand_units
 
             memory_coverage = coverage_for(
                 user_text,
                 FAMILY_MEMORY_RECALL,
-                probe=lambda clause: _looks_like_private_memory_recall(
-                    clause, recent_user_texts=()
-                ),
+                probe=lambda clause: clause in answered_recall_clauses,
             )
-            if memory_coverage.covers_whole_turn:
+            requested_units = demand_units(user_text)
+            consumed_units = tuple(
+                unit.unit_id for unit in requested_units
+                if unit.slice_id in memory_coverage.consumed
+            )
+            # Family arbitration discloses conflicts between registered
+            # lanes; an unregistered knowledge demand can still sit beside
+            # this recall. The actual requested-unit set owns completeness.
+            if (
+                memory_coverage.covers_whole_turn
+                and requested_units
+                and len(consumed_units) == len(requested_units)
+            ):
                 update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
                 return finalize_turn_trace(memory_recall)
             record_slice_answer(
@@ -1839,6 +1937,8 @@ def _run_agent_locked(
                 family=FAMILY_MEMORY_RECALL,
                 response=str(memory_recall.get("response") or ""),
                 reason="private_memory_recall",
+                consumed=memory_coverage.consumed,
+                consumed_units=consumed_units,
             )
         from core.usepod.price_wait import running_task
         with running_task(session_id, user_text, queue_item_id=base_context.get("price_wait_queue_id", ""), source_context=base_context):
@@ -2190,12 +2290,24 @@ def _memory_recall_response(
     ).strip()
     if not chat_id:
         return None
+    from core.agent_runtime.answer_coverage import turn_slices
+
+    slices = turn_slices(user_text)
+    answered_clauses = (user_text,)
     # A follow-up whose subject is a bare pronoun ("i saved it already in settigns?!?! u dont
     # see?!") only resolves against what the user asked a moment ago, so the prior turns are
     # fetched before classifying rather than after -- but only for the messages that need them,
     # so an ordinary chat turn does not pay for a history read it will never use.
     recent_user_texts = _recent_user_texts(chat_id) if needs_prior_turns_to_classify(user_text) else ()
-    if not _looks_like_private_memory_recall(user_text, recent_user_texts=recent_user_texts):
+    private_recall = _looks_like_private_memory_recall(
+        user_text, recent_user_texts=recent_user_texts
+    ) or any(
+        item.text != user_text and _looks_like_private_memory_recall(item.text)
+        for item in slices
+    )
+    from core.request_trust import request_is_owner_local
+
+    if not private_recall and not request_is_owner_local(context):
         return None
     identity = classify_identity_question(user_text, recent_user_texts=recent_user_texts)
     try:
@@ -2216,6 +2328,7 @@ def _memory_recall_response(
     # hostage to the memory subsystem opening: a failure here degrades the OTHER recall fields,
     # never the settings-derived identity answer.
     values: dict[str, str] = {}
+    revoked_clauses: tuple[str, ...] = ()
     try:
         from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
         from core.vool_memory import VoolMemory
@@ -2223,6 +2336,22 @@ def _memory_recall_response(
         runtime_home = str(runtime.runtime_home or context.get("runtime_home") or "").strip() or None
         agent_id = str(context.get("agent_id") or "").strip() or SEMANTIC_MEMORY_AGENT_ID
         with VoolMemory(runtime_home=runtime_home, agent_id=agent_id) as memory:
+            if request_is_owner_local(context):
+                from core.memory.revocation import revoked_tokens, serialized
+                from core.memory_recall_intent import revoked_memory_recall_clauses
+
+                # The same completion fence and durable authority used by
+                # serving carriers decide absence. An unreadable ledger or
+                # pending erasure raises; neither becomes a no-record claim.
+                with serialized(memory._authority_home):
+                    tokens = revoked_tokens(
+                        chat_id, runtime_home, owner_memory=memory
+                    )
+                    revoked_clauses = revoked_memory_recall_clauses(
+                        user_text, revoked_tokens=tokens
+                    )
+            if not private_recall and not revoked_clauses:
+                return None
             values = _private_memory_values(
                 memory,
                 include_profile=True,
@@ -2232,6 +2361,9 @@ def _memory_recall_response(
             )
     except Exception:
         values = {}
+    if not private_recall and not revoked_clauses:
+        return None
+    identity_response = None
     if identity.asks_user_identity:
         # Answer the user's own name from the settings authority. The memory-block name is only a
         # fallback for installs that predate the settings field, and it is labelled as such.
@@ -2252,7 +2384,7 @@ def _memory_recall_response(
             # name was never given -- so declining is conditioned on transcript evidence rather
             # than on the store being empty.
             return None
-        return {
+        identity_response = {
             "response": response,
             "confidence": 0.95,
             "source": "local_user_settings" if provenance == SETTINGS_PROVENANCE else "local_private_memory",
@@ -2260,6 +2392,58 @@ def _memory_recall_response(
             "identity_name": name,
             "identity_provenance": provenance,
             "identity_intent": identity.reason,
+            "_memory_recall_clauses": answered_clauses,
+        }
+        if not name or identity.reason == "anaphoric_saved_name_followup":
+            return identity_response
+    from core.agent_runtime.answer_coverage import demand_units, turn_slices
+
+    requested_units = demand_units(user_text)
+    from core.memory_recall_intent import private_memory_recall_intent
+
+    whole_profile = private_memory_recall_intent(user_text).whole_profile
+    if len(requested_units) > 1 and not whole_profile:
+        # The same family can own several DIFFERENT facts. Resolve each
+        # complete demand against its own local authority before composing;
+        # unresolved siblings remain work for the agent. Ambiguous multi-ask
+        # slices abstain instead of claiming all their requested slots.
+        answers: list[tuple[str, dict[str, Any]]] = []
+        for item in slices:
+            if sum(unit.slice_id == item.slice_id for unit in requested_units) != 1:
+                continue
+            if item.text == user_text:
+                continue
+            answer = _memory_recall_response(runtime, user_text=item.text, source_context=context)
+            if answer is not None and item.text in answer.get("_memory_recall_clauses", ()):
+                answers.append((item.text, answer))
+        if not answers:
+            return None
+        responses = tuple(dict.fromkeys(str(answer["response"]) for _, answer in answers))
+        return {
+            "response": "\n\n".join(responses),
+            "confidence": min(float(answer.get("confidence", 0.95)) for _, answer in answers),
+            "source": "local_private_memory",
+            "route_reason": "scoped_private_memory_recall",
+            "model_calls": 0,
+            "web_calls": 0,
+            "_memory_recall_clauses": tuple(clause for clause, _ in answers),
+        }
+    answered_clauses = tuple(
+        item.text for item in slices
+        if any(unit.slice_id == item.slice_id for unit in requested_units)
+    )
+    if identity_response is not None:
+        identity_response["_memory_recall_clauses"] = answered_clauses
+        return identity_response
+    if revoked_clauses:
+        return {
+            "response": "I have no record of that information in this chat; it was forgotten.",
+            "confidence": 0.95,
+            "source": "local_private_memory",
+            "route_reason": "completed_scoped_erasure",
+            "model_calls": 0,
+            "web_calls": 0,
+            "_memory_recall_clauses": revoked_clauses,
         }
     if not any(values.values()):
         return None
@@ -2270,6 +2454,7 @@ def _memory_recall_response(
         "response": response,
         "confidence": 0.95,
         "source": "local_private_memory",
+        "_memory_recall_clauses": answered_clauses,
     }
 
 
@@ -2380,34 +2565,20 @@ def _compact_block_lines(block_text: str, *, max_lines: int = 3) -> str:
 
 
 def _format_private_memory_recall(values: dict[str, str], *, user_text: str = "") -> str:
-    text = " ".join(str(user_text or "").lower().split())
-    broad_recall = any(
-        marker in text
-        for marker in (
-            "profile recall",
-            "personal profile",
-            "what do you remember",
-            "remember about me",
-            "stored about me",
-            "persistent memory",
+    from core.memory_recall_intent import private_memory_recall_intent
+
+    intent = private_memory_recall_intent(user_text)
+    if not intent.whole_profile:
+        formats = {
+            "name": "Your name is {value}.",
+            "answer_style": "Your preferred answer style is {value}.",
+            "project_codename": "Your active project codename is {value}.",
+            "constraints": "Your stored constraints are {value}.",
+        }
+        return " ".join(
+            formats[field].format(value=values[field])
+            for field in intent.fields if values.get(field)
         )
-    )
-    # Field-scoped answer: for a single-field question, reply with just that field
-    # rather than dumping the whole profile. A broad or multi-field recall falls
-    # through to the summary below.
-    asked: list[str] = []
-    if values.get("name") and (
-        "my name" in text or "who am i" in text or "who is the user" in text
-    ):
-        asked.append(f"Your name is {values['name']}.")
-    if values.get("answer_style") and any(
-        p in text for p in ("answer style", "response style", "preferred style")
-    ):
-        asked.append(f"Your preferred answer style is {values['answer_style']}.")
-    if values.get("project_codename") and "codename" in text:
-        asked.append(f"Your active project codename is {values['project_codename']}.")
-    if not broad_recall and len(asked) == 1:
-        return asked[0]
     # Broad or multi-field recall — summarise what is stored.
     parts: list[str] = []
     if values.get("name"):

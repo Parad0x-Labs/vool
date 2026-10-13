@@ -64,14 +64,26 @@ _CONFIG_CACHE: list[dict[str, Any]] | None = None
 _CONTRACT_CACHE: list[RuntimeToolContract] | None = None
 _CLIENTS: dict[str, MCPStdioClient] = {}
 _CLIENT_FAILURES: dict[str, str] = {}
+_PROFILE_TOKEN: tuple[str, int] | None = None
 
 
 def _config_path() -> Path | None:
     explicit = str(os.environ.get("VOOL_MCP_CONFIG", "") or "").strip()
     if explicit:
         return Path(explicit)
-    home = str(os.environ.get("VOOL_HOME", "") or "").strip()
-    return (Path(home) / "mcp_servers.json") if home else None
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "mcp_servers.json"
+
+
+def _ensure_profile_scope() -> None:
+    global _PROFILE_TOKEN
+    from core.runtime_paths import runtime_home_generation
+
+    token = (str(_config_path()), runtime_home_generation())
+    if token != _PROFILE_TOKEN:
+        reset_mcp_state()
+        _PROFILE_TOKEN = token
 
 
 def _parse_trust(raw: Any, *, server: str) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
@@ -105,6 +117,7 @@ def _parse_trust(raw: Any, *, server: str) -> tuple[dict[str, dict[str, Any]], d
 def load_mcp_server_configs() -> list[dict[str, Any]]:
     """Enabled MCP server configs. Off by default: a missing/invalid config yields []."""
     global _CONFIG_CACHE
+    _ensure_profile_scope()
     if _CONFIG_CACHE is not None:
         return _CONFIG_CACHE
     servers: list[dict[str, Any]] = []
@@ -114,7 +127,7 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
             raw = json.loads(path.read_text(encoding="utf-8"))
             entries = raw.get("servers") if isinstance(raw, dict) else raw
             for entry in entries or []:
-                if not isinstance(entry, dict) or entry.get("enabled") is False:
+                if not isinstance(entry, dict) or entry.get("enabled", True) is not True:
                     continue
                 name = str(entry.get("name") or "").strip()
                 command = str(entry.get("command") or "").strip()
@@ -132,7 +145,7 @@ def load_mcp_server_configs() -> list[dict[str, Any]]:
                         "timeout": float(entry.get("timeout") or 30.0),
                         "trust": pins,
                         "trust_rejected": rejected,
-                        "allow_network": bool(entry.get("allow_network", False)),
+                        "allow_network": entry.get("allow_network") is True,
                         "confinement": confinement if confinement in {"auto", "heuristic_only"} else "auto",
                         "env": {str(k): str(v) for k, v in env.items()},
                         "env_allowlist": [str(x) for x in (entry.get("env_allowlist") or [])],
@@ -154,11 +167,13 @@ def is_mcp_intent(intent: str) -> bool:
 
 def server_failure_reason(server: str) -> str:
     """Why a configured server has no tools right now (empty when it is up)."""
+    _ensure_profile_scope()
     return _CLIENT_FAILURES.get(str(server or ""), "")
 
 
 def _client_for(server: str) -> MCPStdioClient | None:
     """Get (or lazily start) the cached client for a configured server, or None on failure."""
+    _ensure_profile_scope()
     if server in _CLIENTS:
         return _CLIENTS[server]
     cfg = next((s for s in load_mcp_server_configs() if s["name"] == server), None)
@@ -285,6 +300,7 @@ def _contract_for(cfg: dict[str, Any], tool: Any) -> RuntimeToolContract:
 def mcp_contracts() -> list[RuntimeToolContract]:
     """Registry contracts for every reachable configured MCP tool. Empty (fast) when MCP is off."""
     global _CONTRACT_CACHE
+    _ensure_profile_scope()
     if _CONTRACT_CACHE is not None:
         return _CONTRACT_CACHE
     contracts: list[RuntimeToolContract] = []
@@ -428,7 +444,8 @@ def execute_mcp_intent(intent: str, arguments: dict[str, Any]) -> ToolIntentExec
 
 def reset_mcp_state() -> None:
     """Drop config/contract caches, close started clients and withdraw the registry rows."""
-    global _CONFIG_CACHE, _CONTRACT_CACHE
+    global _CONFIG_CACHE, _CONTRACT_CACHE, _PROFILE_TOKEN
+    _PROFILE_TOKEN = None
     _CONFIG_CACHE = None
     _CONTRACT_CACHE = None
     _CLIENT_FAILURES.clear()

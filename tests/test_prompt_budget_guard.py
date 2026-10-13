@@ -650,3 +650,136 @@ def test_prompt_budget_accepts_system_prompt_with_surrounding_whitespace() -> No
 
     assert result.telemetry["status"] == "fit"
     assert result.telemetry["system_prompt_preserved"] is True
+
+
+def test_prompt_budget_preserves_guidance_split_into_turn_directives() -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+
+    primary = "You are VOOL. Preserve source attribution."
+    additions = "Answer format for this request: cite only the supplied records."
+    messages = [
+        {"role": "system", "content": primary},
+        {"role": "user", "content": "Older conversation."},
+        {"role": "assistant", "content": "Previous reply."},
+        {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\nClock and recall facts.\n\n{additions}"},
+        {"role": "user", "content": "When was the delivery scheduled?"},
+    ]
+    result = fit_messages_to_context_window(
+        messages, num_ctx=24576, output_reserve_tokens=476,
+        protected_system_prompt=f"{primary}\n\n{additions}",
+    )
+    assert result.messages == messages
+    assert result.telemetry["status"] == "fit"
+    assert result.telemetry["system_prompt_preserved"] is True
+    assert result.telemetry["estimated_prompt_tokens_after"] < 24100
+
+
+@pytest.mark.parametrize("carrier", ["user", "assistant", "retrieved", "missing", "partial"])
+def test_split_instruction_protection_cannot_be_satisfied_by_evidence_or_history(carrier) -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+
+    primary = "Keep the primary instructions intact."
+    additions = "Only use supplied private records; refuse unsupported answers."
+    role = "system" if carrier in {"retrieved", "partial"} else carrier
+    content = (
+        f"<retrieved_context>{additions}</retrieved_context>" if carrier == "retrieved"
+        else f"{TURN_DIRECTIVES_HEADER}\n{additions[:-9]}" if carrier == "partial"
+        else additions
+    )
+    messages = [{"role": "system", "content": primary}]
+    if carrier != "missing":
+        messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": "What does the record say?"})
+    with pytest.raises(PromptBudgetExceededError, match="instructions are missing") as caught:
+        fit_messages_to_context_window(
+            messages, num_ctx=24576, output_reserve_tokens=476,
+            protected_system_prompt=f"{primary}\n\n{additions}",
+        )
+    assert caught.value.telemetry["rejection_reason"] == "protected_instructions_missing"
+    assert caught.value.telemetry["estimated_prompt_tokens_after"] < 24100
+
+
+def test_split_guidance_remains_protected_when_history_and_memory_are_shed() -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+
+    primary = "Never invent private facts."
+    additions = "Answer only the bounded current request."
+    prefix = "Stored preferences. " * 200
+    turn = {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\n{prefix}\n\n---\n\n{additions}"}
+    current = {"role": "user", "content": "Recall the delivery date."}
+    expected = [
+        {"role": "system", "content": primary},
+        {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\n{additions}"},
+        current,
+    ]
+    available = estimate_message_tokens(expected)
+    result = fit_messages_to_context_window(
+        [expected[0], {"role": "user", "content": "old history " * 300}, turn, current],
+        num_ctx=available + 476, output_reserve_tokens=476,
+        protected_system_prompt=f"{primary}\n\n{additions}", memory_prefix=prefix,
+    )
+    assert result.messages == expected
+    assert result.telemetry["dropped_history_messages"] == 1
+    assert result.telemetry["dropped_memory"] is True
+    assert result.telemetry["system_prompt_preserved"] is True
+    with pytest.raises(PromptBudgetExceededError) as caught:
+        fit_messages_to_context_window(
+            expected, num_ctx=available + 475, output_reserve_tokens=476,
+            protected_system_prompt=f"{primary}\n\n{additions}",
+        )
+    assert caught.value.telemetry["rejection_reason"] == "context_window_exceeded"
+    assert caught.value.telemetry["system_prompt_preserved"] is True
+
+
+@pytest.mark.parametrize("carrier", ["primary", "turn_directives"])
+def test_memory_evidence_cannot_satisfy_protected_instructions(carrier) -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+    from core.memory_prompt_builder import apply_memory_prefix_to_messages
+
+    primary = "Retain the immutable instruction contract."
+    additions = "Only answer from the supplied scoped records."
+    if carrier == "primary":
+        protected = primary
+        prefix = primary
+        messages = [{"role": "system", "content": "Different instruction body."}]
+    else:
+        protected = f"{primary}\n\n{additions}"
+        prefix = additions
+        messages = [
+            {"role": "system", "content": primary},
+            {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\nDifferent instruction body."},
+        ]
+    messages.append({"role": "user", "content": "What do the records say?"})
+    augmented = apply_memory_prefix_to_messages(
+        messages, ModelRequest(task_kind="normalization_assist", prompt="What do the records say?"), prefix=prefix
+    )
+    with pytest.raises(PromptBudgetExceededError, match="instructions are missing") as caught:
+        fit_messages_to_context_window(
+            augmented, num_ctx=24576, output_reserve_tokens=476,
+            protected_system_prompt=protected, memory_prefix=prefix,
+        )
+    assert caught.value.telemetry["rejection_reason"] == "protected_instructions_missing"
+    assert caught.value.telemetry["estimated_prompt_tokens_after"] < 24100
+
+
+def test_canonical_memory_prefix_preserves_actual_split_instruction_body() -> None:
+    from core.internal_message_schema import TURN_DIRECTIVES_HEADER
+    from core.memory_prompt_builder import apply_memory_prefix_to_messages
+
+    primary = "Retain all primary instructions."
+    additions = "Do not substitute an unrelated record."
+    messages = [
+        {"role": "system", "content": primary},
+        {"role": "system", "content": f"{TURN_DIRECTIVES_HEADER}\n{additions}"},
+        {"role": "user", "content": "What happened in the workshop?"},
+    ]
+    prefix = "Memory evidence quotes the instruction: " + additions
+    augmented = apply_memory_prefix_to_messages(
+        messages, ModelRequest(task_kind="normalization_assist", prompt="What happened in the workshop?"), prefix=prefix
+    )
+    result = fit_messages_to_context_window(
+        augmented, num_ctx=24576, output_reserve_tokens=476,
+        protected_system_prompt=f"{primary}\n\n{additions}", memory_prefix=prefix,
+    )
+    assert result.messages == augmented
+    assert result.telemetry["system_prompt_preserved"] is True

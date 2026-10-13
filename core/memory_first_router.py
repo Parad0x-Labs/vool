@@ -874,7 +874,8 @@ def _model_call_identity(source_context: dict[str, Any] | None, *, task: Any, mo
 def _interpreted_user_text(interpretation: Any, task: Any) -> str:
     """Return the user-authored turn without replaying generated reference prose."""
     return str(
-        getattr(interpretation, "normalized_text", "")
+        getattr(interpretation, "user_demand_text", "")
+        or getattr(interpretation, "normalized_text", "")
         or getattr(interpretation, "raw_text", "")
         or getattr(interpretation, "reconstructed_text", "")
         or getattr(task, "task_summary", "")
@@ -1889,6 +1890,15 @@ class MemoryFirstRouter:
         source_context: dict[str, Any] | None,
         tool_offer: Any | None = None,
     ) -> ModelRequest:
+        composed_input = str(getattr(interpretation, "raw_text", "") or "").strip()
+        demand_text = str(getattr(interpretation, "user_demand_text", "") or "").strip()
+        if demand_text and composed_input != demand_text:
+            from copy import copy
+
+            interpretation = copy(interpretation)
+            interpretation.raw_text = demand_text
+            interpretation.normalized_text = demand_text
+            interpretation.reconstructed_text = demand_text
         internal_request = normalize_prompt(
             task=task,
             classification=classification,
@@ -2200,7 +2210,25 @@ class MemoryFirstRouter:
         # identifiers, URLs and quoted text own this turn, not a normalized paraphrase of them.
         # History/context keep their bounded representations; only the final user message is
         # restored, mirroring the structured-batch restoration below and at :1344.
-        raw_current_turn = str(getattr(interpretation, "raw_text", "") or "").strip()
+        raw_current_turn = str(
+            getattr(interpretation, "user_demand_text", "")
+            or getattr(interpretation, "raw_text", "") or ""
+        ).strip()
+        evidence_prefix = raw_current_turn
+        if not composed_input.startswith(evidence_prefix + "\n\n"):
+            evidence_prefix = " ".join(raw_current_turn.split())
+        if raw_current_turn and composed_input.startswith(evidence_prefix + "\n\n"):
+            # Runtime observations are evidence, with their own bounded message.
+            # They never become bytes authored by the user at the provider door.
+            observations = composed_input[len(evidence_prefix):].strip()
+            last_user = max((
+                index for index, message in enumerate(provider_messages)
+                if str(message.get("role") or "").casefold() == "user"
+            ), default=len(provider_messages))
+            provider_messages.insert(last_user, {
+                "role": "system",
+                "content": f"<retrieved_context>\n{observations}\n</retrieved_context>",
+            })
         if raw_current_turn:
             for index in range(len(provider_messages) - 1, -1, -1):
                 if str(provider_messages[index].get("role") or "").casefold() == "user":
@@ -4337,6 +4365,11 @@ class MemoryFirstRouter:
             # with only the reason string — can still name the actual axes instead of pointing
             # generically at Settings. Redaction-safe by construction (ids and prices only).
             failure_evidence = getattr(exc, "provider_evidence", None)
+            if isinstance(source_context, dict):
+                source_context["_last_provider_failure"] = {
+                    "error_class": generic_error_class.value if generic_error_class else "",
+                    "empty_reply_class": _empty_reply_class(exc),
+                }
             if isinstance(failure_evidence, dict) and isinstance(source_context, dict):
                 usepod_body = failure_evidence.get("usepod")
                 route_evidence = (
@@ -6132,6 +6165,8 @@ class MemoryFirstRouter:
                         update={"runtime_config": {**(manifest.runtime_config or {}), "timeout_seconds": capped_timeout}}
                     )
             _attempt_started = time.monotonic()
+            if isinstance(source_context, dict):
+                source_context.pop("_last_provider_failure", None)
             adapter, response, error = self._invoke_manifest(
                 manifest=invoke_manifest,
                 request=request,
@@ -6154,6 +6189,8 @@ class MemoryFirstRouter:
                     (invoke_manifest.runtime_config or {}).get("timeout_seconds") or 0.0
                 ),
             )
+            if isinstance(source_context, dict) and attempt_timings:
+                attempt_timings[-1].update(source_context.get("_last_provider_failure") or {})
             if error or adapter is None or response is None:
                 attempted.append(manifest.provider_id)
                 attempted_error_reasons.append(str(error or "no_response"))
@@ -6800,6 +6837,7 @@ class MemoryFirstRouter:
                 "block_reason": reason,
                 "block_route_evidence": pin_route_evidence,
                 "model_was_attempted": bool(dispatched),
+                "provider_failure": dict((source_context or {}).get("_last_provider_failure") or {}),
                 "requested_model": requested_model,
                 "provider_role": provider_role,
                 "ranked_candidates": [],

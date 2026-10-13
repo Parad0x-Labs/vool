@@ -2441,6 +2441,19 @@ class VoolAgent(
             # question: the model answers the question and never sees the key).
             raw_turn_text = secret_intake.remainder
             effective_input = secret_intake.remainder
+            # Every downstream demand reader must see the intake's safe text.
+            # Rebuild all interpretation fields without writing a second turn;
+            # rebinding only effective_input leaves raw/user_demand text unsafe.
+            try:
+                interpreted = adapt_user_input(
+                    secret_intake.remainder,
+                    session_id=session_id,
+                    persist=False,
+                    turn_id=turn_request.turn_id,
+                    user_demand_text=secret_intake.remainder,
+                )
+            except Exception:
+                return _guard_final_result(_secret_intake_failure_result())
             try:
                 from dataclasses import replace as _dc_replace
 

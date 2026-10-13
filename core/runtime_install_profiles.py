@@ -1233,7 +1233,9 @@ def _volume_checks(
     runtime_required_gb: float,
     ollama_required_gb: float,
 ) -> tuple[InstallProfileVolumeCheck, ...]:
-    runtime_target = Path(runtime_home).expanduser().resolve() if runtime_home else (Path.home() / ".vool_runtime").resolve()
+    from core.runtime_paths import active_vool_home
+
+    runtime_target = Path(runtime_home).expanduser().resolve() if runtime_home else active_vool_home(env)
     ollama_target = default_ollama_models_path(env)
     allocations = [
         ("runtime_home", runtime_target, runtime_required_gb),
