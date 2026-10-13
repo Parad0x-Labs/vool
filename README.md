@@ -66,6 +66,15 @@ On macOS 14 you can also Control-click VOOL, choose **Open**, then **Open** agai
 
 Nothing goes online on a fresh install until you turn it on. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
+| Platform | Getting started |
+| --- | --- |
+| **macOS / Apple Silicon** | App download (`macos-arm64` DMG) or the source installer; macOS CI coverage. |
+| **macOS / Intel** | Separate app download (`macos-x86_64` DMG) or the source installer. Local models run on the CPU only and are slower; see [Intel Macs](docs/getting-started/install.md#intel-macs). |
+| **Linux** | Self-contained x86_64 tarball, tested on Ubuntu 22.04 and 24.04, or the source installer; Linux test shards cover the source installer. |
+| **Windows** | Experimental desktop path from source; PowerShell installer and Windows gauntlet coverage. No Windows download in this release. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
+
+For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).
+
 ### From source: macOS / Linux
 
 Download the bootstrap script, then run it:
@@ -83,15 +92,6 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
-
-| Platform | Getting started |
-| --- | --- |
-| **macOS / Apple Silicon** | App download (`macos-arm64` DMG) or the source installer; macOS CI coverage. |
-| **macOS / Intel** | Separate app download (`macos-x86_64` DMG) or the source installer. Local models run on the CPU only and are slower; see [Intel Macs](docs/getting-started/install.md#intel-macs). |
-| **Linux** | Self-contained x86_64 tarball, tested on Ubuntu 22.04 and 24.04, or the source installer; Linux test shards cover the source installer. |
-| **Windows** | Experimental desktop path from source; PowerShell installer and Windows gauntlet coverage. No Windows download in this release. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
-
-For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).
 
 <details>
 <summary><strong>Choose a local profile or run from a checkout</strong></summary>
