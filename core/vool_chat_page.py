@@ -4112,8 +4112,9 @@ function agentEvidenceText(rows, nowMs) {
   }
   return out.join('\n').trim();
 }
-// The provenance "details" toggle, for both render paths (kept outside the renderer code that tests run on their own).
-document.addEventListener('click', (ev) => {
+// The provenance "details" toggle, for both render paths. Guarded so the renderer helpers
+// around it still load where there is no document (they are also run on their own).
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', (ev) => {
   const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
   if (!btn) return;
   const block = btn.closest('.chat-provenance');
