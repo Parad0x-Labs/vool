@@ -7,6 +7,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 from core.plugin_package import DIGEST_SCHEMA, MAX_FILES, capture_package
+from core.registry.categories import is_listed
 from core.registry.codec import (
     COMMIT,
     HEX,
@@ -58,10 +59,12 @@ def metadata(value: dict) -> dict:
     require(value["kind"] in {"skill", "plugin"} and isinstance(value["version"], str) and
             len(value["version"]) <= 64 and bool(VERSION.fullmatch(value["version"])),
             "invalid package kind or version")
-    for field, limit in (("summary", 500), ("category", 60), ("subcategory", 60), ("license", 80)):
+    for field, limit in (("summary", 500), ("license", 80)):
         text = value[field]
         require(isinstance(text, str) and text.strip() and len(text) <= limit and
                 all(ord(char) >= 32 for char in text), f"invalid {field}")
+    require(is_listed(value["category"], value["subcategory"]),
+            "category and subcategory must come from the registry category list")
     source = value["source"]
     require(isinstance(source, dict), "invalid source provenance")
     if set(source) == {"upload_id", "namespace"}:

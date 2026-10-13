@@ -13,6 +13,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
+from core.registry.categories import public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
 from registry_service.auth import Auth
 from registry_service.store import Store
@@ -96,6 +97,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             row["category_rank"] = category_counts[row["category"]]
         return JSONResponse({"channel": "approved", "entries": rows, "target": target,
                              "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
+
+    async def categories(request):
+        return JSONResponse({"categories": public_taxonomy()})
 
     async def signed_catalog(request):
         from core.registry.codec import decode
@@ -209,6 +213,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
+        Route(PREFIX + "/categories", categories),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),
         Route(PREFIX + "/submissions", submissions, methods=["GET", "POST"]),
         Route(PREFIX + "/drafts", draft, methods=["POST"]),

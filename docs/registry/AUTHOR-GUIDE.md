@@ -79,7 +79,7 @@ Supply these metadata fields, with **no `source` field**:
 }
 ```
 
-Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory are nonempty labels, at most 60 characters, rather than a server-published taxonomy.
+Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
 
 The form sends a same-origin JSON request to `POST /registry/api/drafts`:
 

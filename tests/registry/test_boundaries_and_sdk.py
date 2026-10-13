@@ -106,3 +106,28 @@ def test_sdk_initialization_lint_pack_round_trip_and_no_overwrite(tmp_path, caps
     assert artifact["metadata"] == info and artifact["manifest"]["name"].startswith("registry-")
     assert main(["pack", str(source), "--scratch", str(scratch), "--output", str(output)]) == 1
     assert "preflight_passed" in capsys.readouterr().out
+
+
+def test_off_list_category_is_refused_by_sdk_and_listed_taxonomy_is_served(tmp_path, capsys):
+    from starlette.testclient import TestClient
+
+    from core.registry.categories import TAXONOMY
+    from registry_service.api import PREFIX
+    from tests.registry.test_service import setup_service
+
+    _, _, info = artifact_fixture(tmp_path)
+    licence = tmp_path / "licence.txt"
+    licence.write_text("Test fixture licence.")
+    for category, subcategory in (("Writing", "Notes"), ("productivity", "translation"), ("other", "misc")):
+        meta = tmp_path / f"{category}-{subcategory}.json"
+        meta.write_bytes(canonical({**info, "category": category, "subcategory": subcategory}))
+        target = tmp_path / f"pkg-{category}-{subcategory}"
+        assert main(["init", str(target), "--metadata", str(meta), "--license-file", str(licence)]) == 1
+        assert "registry category list" in capsys.readouterr().out
+        assert not target.exists()
+    assert len(TAXONOMY) == 10
+    *_, app, _, _, _ = setup_service(tmp_path / "service")
+    with TestClient(app, base_url="https://registry.test") as client:
+        served = client.get(PREFIX + "/categories").json()["categories"]
+    assert [row["id"] for row in served] == list(TAXONOMY)
+    assert {"id": "meetings", "label": "Meetings"} in served[1]["subcategories"]

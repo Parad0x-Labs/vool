@@ -52,7 +52,7 @@ def artifact_fixture(tmp_path, *, executable=False):
         (root / "tool.py").write_text("print('must never run on intake')\n")
         (root / "tool.py").chmod(0o755)
     info = {"id": "alice/echo", "kind": "plugin" if executable else "skill", "version": "1.0.0",
-            "summary": "Summarize a message", "category": "Writing", "subcategory": "Summaries", "license": "MIT",
+            "summary": "Summarize a message", "category": "productivity", "subcategory": "notes-summaries", "license": "MIT",
             "source": {"repository": "alice/skills", "commit": "b" * 40, "path": "echo"}}
     raw = pack(root, info, tmp_path / "scratch")
     return raw, root, info

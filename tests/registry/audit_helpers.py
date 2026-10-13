@@ -12,7 +12,7 @@ from tools.community_skills import initialize
 def package(tmp_path, *, publisher="alice", tools=False, permissions=(), effect="network_send"):
     source = tmp_path / "source"
     info = {"id": publisher + "/echo", "kind": "plugin" if tools else "skill", "version": "1.0.0",
-            "summary": "Summarize user supplied notes", "category": "Writing", "subcategory": "Notes",
+            "summary": "Summarize user supplied notes", "category": "productivity", "subcategory": "notes-summaries",
             "license": "MIT", "source": {"repository": publisher + "/notes", "commit": "b" * 40, "path": "echo"}}
     initialize(source, info, b"Local fixture licence.\n")
     manifest_path = source / ".codex-plugin/plugin.json"
