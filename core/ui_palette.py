@@ -1,4 +1,8 @@
-"""Shared dark UI colors. Character artwork and semantic status colors stay separate."""
+"""Shared dark UI colors. Character artwork and semantic status colors stay separate.
+
+The status colours are muted to sit with the warm stone accent: a calm app has no neon green,
+signal yellow or alarm red. Each is still distinct from the others and readable on every surface.
+"""
 from __future__ import annotations
 
 DARK_PALETTE_CSS = """:root {
@@ -9,6 +13,6 @@ DARK_PALETTE_CSS = """:root {
   --accent:#c3b8a8; --accent2:#b5a58f; --accent-ink:#171513;
   --accent-rgb:195,184,168; --accent-soft:rgba(var(--accent-rgb),.12);
   --grad:linear-gradient(135deg,var(--accent),var(--accent2));
-  --success:#34d399; --ok:var(--success); --bad:#f87171; --warn:#fbbf24;
+  --success:#8fb59a; --ok:var(--success); --bad:#d08a82; --warn:#cfae6e;
   --mk-bg:#18181b; --mk-border:#39393f; --shadow:rgba(0,0,0,.45);
 }"""
