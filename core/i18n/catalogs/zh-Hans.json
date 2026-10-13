@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "浏览技能宝典",
     "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
-    "addons.registry_inspect": "下载以检查"
+    "addons.registry_inspect": "下载以检查",
+    "private.banner": "私密聊天：不保存任何内容",
+    "private.end": "重新开启记录",
+    "private.end_title": "从下一条消息起重新保存此聊天",
+    "private.msg_title": "私密：此消息未被保存",
+    "private.wait": "请等待当前回答完成后再试。"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

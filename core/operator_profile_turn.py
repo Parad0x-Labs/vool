@@ -160,10 +160,15 @@ def observe_profile_turn(
     principal = profile.principal_for_request(source_context)
     project_id = str(getattr(access_policy, "project_id", "") or (source_context or {}).get("_trusted_project_id") or "")
     bind_turn_scope(principal, session_id, project_id)
+    # Private chat (core.private_chat): the profile is still READ for this turn, but nothing the
+    # turn says is saved to it (no standing instruction, no profile fact, no candidate chip).
+    from core.private_chat import turn_is_private
+
+    private = turn_is_private(source_context, session_id)
     # Standing instructions ("from now on …", "always …", a correction of how answers look) are saved here,
     # on the same seat as the profile, so they reach every later chat in this workspace. Owner turns only; a
     # turn that only states an instruction still gets an answer (this never claims the turn).
-    if principal:
+    if principal and not private:
         try:
             from core.standing_instructions import observe_turn as _observe_standing
 
@@ -175,6 +180,9 @@ def observe_profile_turn(
             pass
     try:
         proposals = interpret_profile_turn(raw_user_input)
+        if private:
+            # Showing or forgetting what is already saved still works in a private chat.
+            proposals = [p for p in proposals if getattr(p, "action", "") in {"forget", "undo", "show"}]
     except Exception:
         proposals = []
     used_lines: list[str] = []

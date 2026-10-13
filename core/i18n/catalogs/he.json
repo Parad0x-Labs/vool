@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "עיון בקודקס המיומנויות",
     "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
-    "addons.registry_inspect": "הורדה לבדיקה"
+    "addons.registry_inspect": "הורדה לבדיקה",
+    "private.banner": "צ'אט פרטי: שום דבר לא נשמר",
+    "private.end": "הפעל שוב את ההקלטה",
+    "private.end_title": "שמור שוב את הצ'אט הזה החל מההודעה הבאה",
+    "private.msg_title": "פרטי: ההודעה הזו לא נשמרה",
+    "private.wait": "המתן לסיום התשובה הנוכחית ונסה שוב."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1980,6 +1980,26 @@ class VoolAgent(
         runtime_source_context["chat_id"] = access_policy.chat_id
         if access_policy.project_id:
             runtime_source_context["_trusted_project_id"] = access_policy.project_id
+        # Private chat (core.private_chat): "don't record this" / "private chat" switches the chat
+        # here, before the dialogue row, the checkpoint and every memory writer below, so the turn
+        # that asks not to be recorded is itself never recorded. A bare command is answered now
+        # from the switch's store; a private turn carries PRIVATE_TURN_KEY from here on.
+        from core.private_chat import observe_private_turn, turn_is_private
+
+        private_outcome = observe_private_turn(
+            self, user_input, session_id=session_id, source_context=runtime_source_context,
+        )
+        if private_outcome is not None:
+            return _seal_semantic_result(
+                private_outcome["result"],
+                session_id=session_id,
+                user_input=user_input,
+                effective_input=user_input,
+                source_context=runtime_source_context,
+                semantic_source=SemanticSource.FAST_PATH,
+                route_id="private_chat_command",
+            )
+        private_turn = turn_is_private(runtime_source_context, session_id)
         # A turn with no request in it is stopped HERE, ahead of everything that would record it.
         # It used to run the whole front door and die at `TaskEnvelopeV1.__post_init__` --
         # `ValueError: goal is required`, because the envelope goal is the request text stripped and
@@ -2056,7 +2076,7 @@ class VoolAgent(
         interpreted = adapt_user_input(
             intake_text,
             session_id=session_id,
-            persist=not forget_turn,
+            persist=not (forget_turn or private_turn),
             turn_id=(
                 ""
                 if bool((source_context or {}).get("planned_subturn"))
@@ -2135,7 +2155,9 @@ class VoolAgent(
         # never change the route or reach a provider as user prose.
         effective_input = interpreted.normalized_text or interpreted.raw_text or user_input
         normalized_input = str(interpreted.normalized_text or "").strip()
-        if forget_turn:
+        if forget_turn or private_turn:
+            # Neither a forget nor a private turn leaves a resumable checkpoint: both would store
+            # the turn's own words.
             checkpoint_bundle = {
                 "source_context": runtime_source_context, "state": "created", "effective_input": effective_input,
             }

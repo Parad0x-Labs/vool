@@ -2207,6 +2207,10 @@ def schedule_memory_extraction(
 
 def _memory_capture_allowed(source_context: dict[str, Any] | None) -> bool:
     context = dict(source_context or {})
+    # Private chat (core.private_chat): nothing from a private turn is extracted or admitted as
+    # context for later turns.
+    if _turn_was_private(context):
+        return False
     platform = str(context.get("platform") or "").strip().lower()
     surface = str(context.get("surface") or "").strip().lower()
     group_like = (
@@ -3002,6 +3006,15 @@ def _hashlast_gate(commit: dict[str, Any]) -> str | None:
     if actual != expected:
         return f"canonical_content hashes {actual} != committed {expected}"
     return None
+
+
+def _turn_was_private(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(source_context)
+    except Exception:
+        return False
 
 
 def _response_commit(

@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Explorar el códice de habilidades",
     "addons.registry_network": "Este botón consulta el registro público. No se envían cuentas, chats, archivos locales ni claves de proveedores.",
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
-    "addons.registry_inspect": "Descargar para inspeccionar"
+    "addons.registry_inspect": "Descargar para inspeccionar",
+    "private.banner": "Chat privado: no se guarda nada",
+    "private.end": "Volver a activar el registro",
+    "private.end_title": "Guardar este chat de nuevo desde el próximo mensaje",
+    "private.msg_title": "Privado: este mensaje no se guardó",
+    "private.wait": "Espera a que termine la respuesta actual y vuelve a intentarlo."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

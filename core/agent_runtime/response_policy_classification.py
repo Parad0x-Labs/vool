@@ -69,6 +69,8 @@ def fast_path_response_class(
         "action_receipt_location",
         # "your message had nothing in it" is a statement of runtime fact, not conversation.
         "empty_turn_fast_path",
+        # "private chat is on / off" reports the switch the store now holds (core.private_chat).
+        "private_chat_command",
         "builder_capability_gap",
         "builder_controller_direct_response",
     }:

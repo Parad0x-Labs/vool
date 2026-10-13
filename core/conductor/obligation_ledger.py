@@ -360,6 +360,49 @@ def set_for_request(request_id: str) -> tuple[str, str] | None:
     return None
 
 
+def scrub_request_texts(request_id: str) -> int:
+    """Blank the words a request's obligation sets froze, once the request has ended.
+
+    For a private chat turn (core.private_chat): the snapshot keeps the request text only so the
+    closure sweep can run after the turn's scope exits; once the request is over nothing needs it.
+    Identities, kinds and states stay. Returns how many sets were scrubbed.
+    """
+    clean = str(request_id or "").strip()
+    if not clean:
+        return 0
+    scrubbed = 0
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT set_id, version, snapshot_json FROM obligation_sets").fetchall()
+        for row in rows:
+            try:
+                snapshot = json.loads(row["snapshot_json"])
+            except Exception:
+                continue
+            if str(snapshot.get("request_id") or "") != clean:
+                continue
+            snapshot["request_text"] = ""
+            snapshot.pop("request_graph", None)
+            for item in snapshot.get("obligations") or []:
+                if isinstance(item, dict):
+                    item["text"] = ""
+            for receipt in snapshot.get("consumption") or []:
+                if isinstance(receipt, dict):
+                    for key in [k for k, v in receipt.items() if isinstance(v, str) and k not in {
+                        "unit_id", "slice_id", "obligation_id", "lane", "state", "kind",
+                    }]:
+                        receipt[key] = ""
+            conn.execute(
+                "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
+                (json.dumps(snapshot), str(row["set_id"]), str(row["version"])),
+            )
+            scrubbed += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return scrubbed
+
+
 def request_text(set_id: str, version: str) -> str:
     """The turn's frozen request text, for re-deriving demand grain after scope exit."""
     snapshot = _read_snapshot(set_id, version)

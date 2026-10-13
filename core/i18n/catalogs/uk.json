@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Відкрити кодекс навичок",
     "addons.registry_network": "Ця кнопка запитує публічний реєстр. Облікові записи, розмови, локальні файли та ключі провайдерів не надсилаються.",
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
-    "addons.registry_inspect": "Завантажити для перегляду"
+    "addons.registry_inspect": "Завантажити для перегляду",
+    "private.banner": "Приватний чат: нічого не зберігається",
+    "private.end": "Знову ввімкнути запис",
+    "private.end_title": "Знову зберігати цей чат із наступного повідомлення",
+    "private.msg_title": "Приватно: це повідомлення не збережено",
+    "private.wait": "Зачекайте, доки поточна відповідь завершиться, і спробуйте ще раз."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
