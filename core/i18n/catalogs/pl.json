@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Ciemny",
     "settings.appearance.theme_label": "Motyw",
     "settings.appearance.theme_light": "Jasny",
-    "settings.appearance.theme_system": "Jak w systemie",
+    "settings.appearance.theme_system": "Jak na tym komputerze",
     "settings.appearance.unavailable": "Nie wczytano ustawień wyglądu. Odśwież Ustawienia i spróbuj ponownie.",
     "settings.appearance.unsaved": "Nie udało się zapisać, więc dotyczy tylko tego okna.",
     "settings.group.about.blurb": "Dokładne wydanie, które Ci odpowiada, i jak zgłosić problem.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Działa od Twojej następnej wiadomości. Trwająca tura zachowuje starą wartość.",
     "settings.row.answer_language.help": "Język, w którym VOOL odpowiada, gdy Twoja wiadomość nie prosi o inny. Prośba w samej wiadomości zawsze wygrywa dla niej: „odpowiedz po polsku” jest spełnione, cokolwiek ustawisz tutaj. Język aplikacji na górze Ustawień steruje interfejsem osobno. Ta preferencja nie czyni VOOL równie dobrym w każdym języku: model odpowiada tak dobrze, jak potrafi, a narzędzia i wyniki z sieci pozostają bez zmian.",
     "settings.row.answer_language.label": "Język odpowiedzi",
-    "settings.row.appearance_theme.help": "Jak VOOL wygląda na tym komputerze. Domyślny jest ciemny; jasny i zgodny z systemem używają tych samych spokojnych kolorów. Rozmiar tekstu zmienia tekst rozmowy.",
+    "settings.row.appearance_theme.help": "Wybierz jasny lub ciemny albo „Jak na tym komputerze”, aby używać ustawienia komputera. Rozmiar tekstu ułatwia czytanie rozmowy.",
     "settings.row.appearance_theme.label": "Motyw i rozmiar tekstu",
     "settings.row.autonomy_mode.effect": "Działa od Twojej następnej wiadomości. Trwająca tura zachowuje starą wartość.",
     "settings.row.autonomy_mode.help": "Ile VOOL robi, zanim zatrzyma się, by zapytać. Przeczytaj kolejność uważnie — działa tak, jak środowisko faktycznie bramkuje działania (core/execution_gate.py): „Bez pytań” pyta o NAJMNIEJ rzeczy, „Ściśle” pyta o wszystko. Cokolwiek wybierzesz, wszystko skierowane na zewnątrz (wpis, wiadomość) albo wrażliwe na prywatność zawsze pyta najpierw, a wydatki zawsze pytają.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X używa kilku kluczy. Konfiguracja z przewodnikiem mówi, co gdzie wkleić, i sprawdza je jednym odczytem.",
     "xsetup.open": "Połącz X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

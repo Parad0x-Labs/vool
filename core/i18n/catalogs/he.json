@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "כהה",
     "settings.appearance.theme_label": "ערכת נושא",
     "settings.appearance.theme_light": "בהיר",
-    "settings.appearance.theme_system": "לפי המערכת",
+    "settings.appearance.theme_system": "כמו המחשב הזה",
     "settings.appearance.unavailable": "פקדי המראה לא נטענו. טען מחדש את ההגדרות ונסה שוב.",
     "settings.appearance.unsaved": "לא ניתן היה לשמור, ולכן זה חל על החלון הזה בלבד.",
     "settings.group.about.blurb": "הגרסה המדויקת שעונה לכם, ואיך לדווח על בעיה.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "חל מההודעה הבאה שלכם. התור שבעיצומו שומר את הערך הישן.",
     "settings.row.answer_language.help": "השפה שבה VOOL עונה כשההודעה שלכם לא מבקשת אחת. בקשה בתוך ההודעה עדיין מנצחת לאותה הודעה: ״ענה בפולנית״ מתקבל בלי קשר למה שקבוע כאן. שפת האפליקציה בראש ההגדרות שולטת בממשק בנפרד. העדפה זו אינה הופכת את VOOL לטוב באותה מידה בכל שפה: הדגם עונה כמיטב יכולתו, וכלים ותוצאות רשת אינם מושפעים.",
     "settings.row.answer_language.label": "שפת התשובות",
-    "settings.row.appearance_theme.help": "איך VOOL נראה במחשב הזה. כהה הוא ברירת המחדל; בהיר ולפי המערכת משתמשים באותם צבעים רגועים. גודל הטקסט משנה את טקסט השיחה.",
+    "settings.row.appearance_theme.help": "בחרו בהיר או כהה, או \"כמו המחשב הזה\" כדי לעקוב אחרי הגדרת המחשב שלכם. גודל הטקסט הופך את השיחה לקלה יותר לקריאה.",
     "settings.row.appearance_theme.label": "ערכת נושא וגודל טקסט",
     "settings.row.autonomy_mode.effect": "חל מההודעה הבאה שלכם. התור שבעיצומו שומר את הערך הישן.",
     "settings.row.autonomy_mode.help": "כמה VOOL עושה לפני שהוא עוצר לשאול. קראו את הסדר בעיון — הוא רץ כפי שסביבת הריצה באמת שולטת בפעולות (core/execution_gate.py): ״בלי לשאול״ שואל את המעט ביותר, ״נוקשה״ שואל הכול. בכל בחירה, כל דבר פונה כלפי חוץ (פוסט, הודעה) או רגיש לפרטיות תמיד שואל קודם, והוצאה תמיד שואלת.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X משתמש בכמה מפתחות. ההגדרה המודרכת מסבירה מה להדביק איפה ובודקת אותם בקריאה אחת.",
     "xsetup.open": "חיבור X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

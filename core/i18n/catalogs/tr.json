@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Koyu",
     "settings.appearance.theme_label": "Tema",
     "settings.appearance.theme_light": "Açık",
-    "settings.appearance.theme_system": "Sisteme uy",
+    "settings.appearance.theme_system": "Bu bilgisayar gibi",
     "settings.appearance.unavailable": "Görünüm denetimleri yüklenmedi. Ayarları yeniden yükleyip tekrar dene.",
     "settings.appearance.unsaved": "Kaydedilemedi; yalnızca bu pencerede geçerli.",
     "settings.group.about.blurb": "Size yanıt veren tam yapı ve bir sorunu nasıl bildireceğiniz.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur.",
     "settings.row.answer_language.help": "İletiniz bir dil istemediğinde VOOL'un yanıtladığı dil. İletinin içinde istemek o ileti için her zaman kazanır: “Lehçe yanıtla” burada ne olursa olsun yerine getirilir. Ayarlar'ın tepesindeki uygulama dili arayüzü ayrı yönetir. Bu tercih, VOOL'u her dilde eşit iyi yapmaz: model yapabildiği kadar iyi yanıtlar, araçlar ve web sonuçları etkilenmez.",
     "settings.row.answer_language.label": "Yanıt dili",
-    "settings.row.appearance_theme.help": "VOOL'un bu bilgisayarda nasıl göründüğü. Varsayılan koyu; Açık ve Sisteme uy aynı sakin renkleri kullanır. Metin boyutu sohbet metnini değiştirir.",
+    "settings.row.appearance_theme.help": "Açık veya Koyu'yu seçin ya da bilgisayarınızın ayarını izlemek için \"Bu bilgisayar gibi\"yi seçin. Metin boyutu sohbeti okumayı kolaylaştırır.",
     "settings.row.appearance_theme.label": "Tema ve metin boyutu",
     "settings.row.autonomy_mode.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur.",
     "settings.row.autonomy_mode.help": "VOOL sormak için durmadan önce ne kadar yapar. Sıralamayı dikkatle okuyun — çalışma zamanı eylemleri nasıl gerçekten süzdüyse öyle yürür (core/execution_gate.py): “Sorumsuz” EN AZ şeyi sorar, “Katı” her şeyi sorar. Ne seçerseniz seçin, dışa dönük her şey (bir gönderi, bir ileti) veya gizliliğe duyarlı olanlar her zaman önce sorar ve harcama her zaman sorar.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X birkaç anahtar kullanır. Rehberli kurulum neyin nereye yapıştırılacağını söyler ve bunları tek bir okumayla kontrol eder.",
     "xsetup.open": "X’i bağla"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

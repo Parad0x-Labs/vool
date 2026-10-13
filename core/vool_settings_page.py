@@ -853,12 +853,12 @@ def _settings_groups() -> list[dict]:
                     id="appearance_theme",
                     label="Theme and text size",
                     help=(
-                        "How VOOL looks on this computer. Dark is the default; Light and Match "
-                        "system use the same calm colours. Text size changes the conversation text."
+                        "Choose Light or Dark, or \"Same as this computer\" to follow your computer's "
+                        "setting. Text size makes the conversation easier to read."
                     ),
                     kind="custom",
                     widget="appearance",
-                    keywords=["appearance", "theme", "dark", "light", "system", "mode", "colour", "color", "text", "size", "font", "bigger", "larger", "readability"],
+                    keywords=["appearance", "theme", "dark", "light", "system", "computer", "mode", "colour", "color", "text", "size", "font", "bigger", "larger", "readability"],
                 ),
                 _row(
                     id="companion_pet_panel",
@@ -1105,6 +1105,7 @@ dl.kv dd { margin:0; }
 .sb-box { border:1px solid var(--border); border-radius:8px; padding:10px 12px; background:var(--bg); }
 input[type=file].inp { min-width:0; }
 label.inline { cursor:pointer; }
+.ap-label { min-width:7em; }   /* Appearance: both pickers start at the same edge */
 .profile-scope-select { min-width:120px; }
 .profile-export { max-height:240px; overflow:auto; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:8px 10px; white-space:pre-wrap; margin:0; }
 
@@ -1910,7 +1911,7 @@ function widgetAppearance(stack) {
   said.setAttribute('role', 'status');
   function picker(label, name, options, value, key) {
     const wrap = el('label', 'inline');
-    wrap.appendChild(el('span', null, label));
+    wrap.appendChild(el('span', 'ap-label', label));
     const s = el('select', 'inp');
     s.name = name;
     s.setAttribute('aria-label', label);
@@ -1928,7 +1929,7 @@ function widgetAppearance(stack) {
   stack.appendChild(picker(T('settings.appearance.theme_label', 'Theme'), 'appearanceTheme', [
     ['dark', T('settings.appearance.theme_dark', 'Dark')],
     ['light', T('settings.appearance.theme_light', 'Light')],
-    ['system', T('settings.appearance.theme_system', 'Match system')],
+    ['system', T('settings.appearance.theme_system', 'Same as this computer')],
   ], now.theme, 'theme'));
   stack.appendChild(picker(T('settings.appearance.text_label', 'Text size'), 'appearanceText', [
     [100, T('settings.appearance.text_100', 'Normal')],

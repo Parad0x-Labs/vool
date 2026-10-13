@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Tối",
     "settings.appearance.theme_label": "Giao diện",
     "settings.appearance.theme_light": "Sáng",
-    "settings.appearance.theme_system": "Theo hệ thống",
+    "settings.appearance.theme_system": "Giống máy tính này",
     "settings.appearance.unavailable": "Không tải được các tùy chọn giao diện. Hãy tải lại Cài đặt và thử lại.",
     "settings.appearance.unsaved": "Không lưu được, nên chỉ áp dụng cho cửa sổ này.",
     "settings.group.about.blurb": "Bản dựng chính xác đang trả lời bạn, và cách báo cáo vấn đề.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ.",
     "settings.row.answer_language.help": "Ngôn ngữ VOOL trả lời khi tin nhắn của bạn không yêu cầu. Yêu cầu ngay trong tin nhắn vẫn luôn thắng cho tin đó: “trả lời tiếng Ba Lan” được tuân theo bất kể đặt gì ở đây. Ngôn ngữ ứng dụng trên đầu Cài đặt điều khiển giao diện riêng. Tuỳ chọn này không làm VOOL giỏi đều mọi ngôn ngữ: mô hình trả lời tốt nhất có thể, còn công cụ và kết quả web không bị ảnh hưởng.",
     "settings.row.answer_language.label": "Ngôn ngữ trả lời",
-    "settings.row.appearance_theme.help": "Giao diện VOOL trên máy tính này. Mặc định là Tối; Sáng và Theo hệ thống dùng cùng những màu dịu. Cỡ chữ thay đổi chữ trong cuộc trò chuyện.",
+    "settings.row.appearance_theme.help": "Chọn Sáng hoặc Tối, hoặc \"Giống máy tính này\" để theo cài đặt của máy tính. Cỡ chữ giúp cuộc trò chuyện dễ đọc hơn.",
     "settings.row.appearance_theme.label": "Giao diện và cỡ chữ",
     "settings.row.autonomy_mode.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ.",
     "settings.row.autonomy_mode.help": "VOOL làm bao nhiêu trước khi dừng lại hỏi. Đọc thứ tự cẩn thận — nó chạy đúng như cách thời gian chạy thực sự kiểm soát hành động (core/execution_gate.py): “Tự do” hỏi ÍT nhất, “Nghiêm ngặt” hỏi mọi thứ. Dù chọn gì, mọi thứ hướng ra ngoài (bài đăng, tin nhắn) hoặc nhạy cảm riêng tư luôn hỏi trước, và chi tiêu luôn hỏi.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X dùng nhiều khóa. Thiết lập có hướng dẫn cho biết dán gì vào đâu và kiểm tra chúng bằng một lần đọc.",
     "xsetup.open": "Kết nối X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

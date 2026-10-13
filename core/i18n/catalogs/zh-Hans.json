@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "深色",
     "settings.appearance.theme_label": "主题",
     "settings.appearance.theme_light": "浅色",
-    "settings.appearance.theme_system": "跟随系统",
+    "settings.appearance.theme_system": "与这台电脑一致",
     "settings.appearance.unavailable": "外观设置未能加载。请重新加载设置后再试。",
     "settings.appearance.unsaved": "无法保存，因此仅对此窗口生效。",
     "settings.group.about.blurb": "正在回答你的确切构建，以及如何报告问题。",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "从你的下一条消息起生效。进行中的回合保持旧值。",
     "settings.row.answer_language.help": "当你的消息没有指定语言时 VOOL 用来回答的语言。在消息里提出的要求对该消息仍然优先：无论此处设置什么，“用波兰语回答”都会被遵守。设置顶部的应用语言单独控制界面。此偏好不会让 VOOL 在每种语言里一样好：模型尽力回答，工具和网络结果不受影响。",
     "settings.row.answer_language.label": "回答语言",
-    "settings.row.appearance_theme.help": "VOOL 在这台电脑上的外观。默认为深色；浅色和跟随系统使用同样柔和的颜色。文字大小会改变对话文字。",
+    "settings.row.appearance_theme.help": "选择浅色或深色，或选择“与这台电脑一致”以跟随电脑的设置。文字大小让对话更易阅读。",
     "settings.row.appearance_theme.label": "主题和文字大小",
     "settings.row.autonomy_mode.effect": "从你的下一条消息起生效。进行中的回合保持旧值。",
     "settings.row.autonomy_mode.help": "VOOL 在停下来询问之前会做多少。请仔细阅读顺序 — 它按运行时实际把关动作的方式运行（core/execution_gate.py）：“不打扰”问得最少，“严格”事事都问。无论你选什么，一切对外的东西（发帖、发消息）或涉及隐私的内容总是先问，花钱总是要问。",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X 使用多个密钥。引导设置会说明在哪里粘贴什么,并通过一次读取来检查。",
     "xsetup.open": "连接 X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

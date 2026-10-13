@@ -63,9 +63,7 @@ _SETUP_HTML = r"""<!doctype html>
 __VOOL_PALETTE_CSS__
 /* The light palette is a HOST choice (?theme=light, or data-theme set on <html>), not the OS setting:
    a framed page that followed the OS would sit light inside a dark window (seen 2026-09-07 in the
-   frame overlay). Settings > Appearance "Light" turns it on; "Match system" leaves setup dark. */
-:root[data-theme="light"] { --bg:#f4f5f8; --panel:#ffffff; --field:#eef0f4; --ink:#14171c; --muted:#5b6472; --accent:#655642; --accent-ink:#ffffff;
-          --accent-soft:rgba(101,86,66,.18); --border:#d9dde5; --ok:#15803d; --bad:#b91c1c; --mk-bg:#e9ecf1; --mk-border:#c9cfda; --shadow:rgba(0,0,0,.14); }
+   frame overlay). Settings > Appearance "Light" turns it on with the same warm tokens as the chat. */
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; flex-direction:column; }
@@ -723,8 +721,7 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", app
 
     tag = catalog_for(ui_locale).locale
     direction = (get_locale(tag) or get_locale("en")).direction
-    # The shared light palette serves "Match system"; the explicit light rule below it in the page
-    # (the host's ?theme=light choice) keeps its own tokens.
+    # The explicit Light choice only (the host's ?theme=light, or Settings > Appearance > Light).
     page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_ONLY_PALETTE_CSS)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))

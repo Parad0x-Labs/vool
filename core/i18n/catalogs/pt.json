@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Escuro",
     "settings.appearance.theme_label": "Tema",
     "settings.appearance.theme_light": "Claro",
-    "settings.appearance.theme_system": "Igual ao sistema",
+    "settings.appearance.theme_system": "Igual a este computador",
     "settings.appearance.unavailable": "Os controles de aparência não carregaram. Recarregue as Configurações e tente de novo.",
     "settings.appearance.unsaved": "Não foi possível salvar, então vale só para esta janela.",
     "settings.group.about.blurb": "A versão exata que responde a você, e como reportar um problema.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Vale a partir da sua próxima mensagem. O turno em curso mantém o valor antigo.",
     "settings.row.answer_language.help": "O idioma em que o VOOL responde quando sua mensagem não pede um. Pedir dentro da mensagem ainda vence para aquela mensagem: “responda em polonês” é obedecido seja lá o que estiver aqui. O idioma do app no topo de Ajustes controla a interface separadamente. Esta preferência não torna o VOOL igualmente bom em todos os idiomas: o modelo responde tão bem quanto pode, e ferramentas e resultados da web não mudam.",
     "settings.row.answer_language.label": "Idioma das respostas",
-    "settings.row.appearance_theme.help": "Como o VOOL aparece neste computador. Escuro é o padrão; Claro e Igual ao sistema usam as mesmas cores calmas. O tamanho do texto muda o texto da conversa.",
+    "settings.row.appearance_theme.help": "Escolha Claro ou Escuro, ou \"Igual a este computador\" para seguir a definição do seu computador. O tamanho do texto torna a conversa mais fácil de ler.",
     "settings.row.appearance_theme.label": "Tema e tamanho do texto",
     "settings.row.autonomy_mode.effect": "Vale a partir da sua próxima mensagem. O turno em curso mantém o valor antigo.",
     "settings.row.autonomy_mode.help": "Quanto o VOOL faz antes de parar para perguntar. Leia a ordem com atenção — ela roda como o runtime de verdade libera ações (core/execution_gate.py): “Sem perguntas” pergunta pelo MENOS, “Rígido” pergunta tudo. O que você escolher, tudo que vai para fora (um post, uma mensagem) ou é sensível à privacidade sempre pergunta primeiro, e gastar sempre pergunta.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "O X usa várias chaves. A configuração guiada diz o que colar onde e as verifica com uma leitura.",
     "xsetup.open": "Conectar X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

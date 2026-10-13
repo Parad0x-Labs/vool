@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "डार्क",
     "settings.appearance.theme_label": "थीम",
     "settings.appearance.theme_light": "लाइट",
-    "settings.appearance.theme_system": "सिस्टम जैसा",
+    "settings.appearance.theme_system": "इस कंप्यूटर जैसा",
     "settings.appearance.unavailable": "दिखावट के नियंत्रण लोड नहीं हुए। सेटिंग्स दोबारा लोड करके फिर कोशिश करें।",
     "settings.appearance.unsaved": "सहेजा नहीं जा सका, इसलिए यह सिर्फ़ इसी विंडो पर लागू है।",
     "settings.group.about.blurb": "आपको जवाब देता सटीक बिल्ड, और समस्या बताने का तरीका।",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "आपके अगले संदेश से लागू। चल रहा टर्न पुराना मान रखता है।",
     "settings.row.answer_language.help": "जब आपका संदेश भाषा न माँगे तब VOOL जिस भाषा में जवाब देता है। संदेश के भीतर माँगना उस संदेय के लिए हमेशा जीतता है: “पोलिश में जवाब दो” यहाँ जो भी सेट हो उसके बावजूद माना जाता है। सेटिंग्स के ऊपर की ऐप भाषा इंटरफ़ेस को अलग से नियंत्रित करती है। यह प्राथमिकता VOOL को हर भाषा में बराबर अच्छा नहीं बनाती: मॉडल जितना कर सकता है उतना जवाब देता है, टूल और वेब परिणाम अप्रभावित रहते हैं।",
     "settings.row.answer_language.label": "जवाब की भाषा",
-    "settings.row.appearance_theme.help": "इस कंप्यूटर पर VOOL कैसा दिखता है। डार्क डिफ़ॉल्ट है; लाइट और सिस्टम जैसा भी वही शांत रंग इस्तेमाल करते हैं। टेक्स्ट का आकार बातचीत के टेक्स्ट को बदलता है।",
+    "settings.row.appearance_theme.help": "लाइट या डार्क चुनें, या अपने कंप्यूटर की सेटिंग अपनाने के लिए \"इस कंप्यूटर जैसा\" चुनें। टेक्स्ट का आकार बातचीत को पढ़ना आसान बनाता है।",
     "settings.row.appearance_theme.label": "थीम और टेक्स्ट का आकार",
     "settings.row.autonomy_mode.effect": "आपके अगले संदेश से लागू। चल रहा टर्न पुराना मान रखता है।",
     "settings.row.autonomy_mode.help": "रुककर पूछने से पहले VOOL कितना करता है। क्रम ध्यान से पढ़ें — यह उसी तरह चलता है जैसे रनटाइम वास्तव में काम जाँचता है (core/execution_gate.py): “बिना पूछे” सबसे कम पूछता है, “सख़्त” सब कुछ पूछता है। आप जो भी चुनें, बाहर जाने वाली हर चीज़ (पोस्ट, संदेश) या गोपनीयता-संवेदनशील हर चीज़ हमेशा पहले पूछती है, और खर्च हमेशा पूछता है।",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X कई कुंजियों का उपयोग करता है। निर्देशित सेटअप बताता है कि क्या कहाँ पेस्ट करना है और एक बार पढ़कर उन्हें जाँचता है।",
     "xsetup.open": "X कनेक्ट करें"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

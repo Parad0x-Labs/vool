@@ -15,7 +15,7 @@ DARK_PALETTE_CSS = """:root {
   --mk-bg:#18181b; --mk-border:#39393f; --shadow:rgba(0,0,0,.45);
 }"""
 
-# ---- Appearance: Dark (default), Light, or Match system; and a conversation text size -----------
+# ---- Appearance: Dark (default), Light, or Same as this computer; and a conversation text size -----------
 # A per-person presentation choice. It lives in one first-party cookie on this runtime's own origin
 # so the server can paint the right theme in the very first frame (no dark flash before light) and
 # every VOOL page (chat, Settings, setup) agrees. It never reaches a model, a provider or the
@@ -52,13 +52,23 @@ _LIGHT_FIXED_RULES = (
     (".pop-prov .pp-free", "color:var(--success);"),
     (".pop-prov .pp-unknown, :LIGHT .council-live .cl-state, :LIGHT .council-cell .cv.none", "color:var(--accent);"),
     ("#input::placeholder", "color:var(--muted);"),
+    # The browser's own blue clear button in Settings search, in the page's muted ink instead.
+    ("#search::-webkit-search-cancel-button", "filter:grayscale(1) opacity(.65);"),
+    # The model menu's provider box is tinted blue for a dark backdrop; on light, the accent.
+    (".pop-prov", "background:rgba(var(--accent-rgb),.06);"),
     # Contacts' primary button writes a fixed dark ink for the bright dark-theme accent.
     (".vc-btn.vc-primary", "color:var(--accent-ink);"),
     ("#companionLayer .vn-bubble-title", "color:var(--ink);"),
     ("#companionLayer .vn-caption", "background:rgba(255,255,255,.94); border-color:var(--border);"),
     # The pet's status tones are pale for a dark backdrop; on light, darken the same hue.
     ("#companionLayer .vn-bubble-activity", "color:color-mix(in srgb, var(--vn-tone, #94a3b8) 50%, #1f1d1a);"),
-    ("#companionLayer .vn-caption.vn-show", "color:color-mix(in srgb, var(--vn-tone, #94a3b8) 50%, #1f1d1a);"),
+    ("#companionLayer .vn-caption.vn-show, :LIGHT #companionLayer .vool-ninja:hover .vn-caption, "
+     ":LIGHT #companionLayer .vool-ninja:focus-visible .vn-caption",
+     "color:color-mix(in srgb, var(--vn-tone, #94a3b8) 50%, #1f1d1a);"),
+    # The bubble outline: the status tones are cool slates for a dark backdrop; on the warm page the
+    # outline keeps the hue but leans to the warm border colour.
+    ("#companionLayer .vn-bubble, :LIGHT #companionLayer .vn-bubble::after",
+     "border-color:color-mix(in srgb, var(--vn-tone, #94a3b8) 45%, #cdc7be);"),
 )
 
 
@@ -70,7 +80,7 @@ def _light_rules(prefix: str) -> str:
 
 
 # The calm light counterpart of the dark palette: the same warm neutrals and muted earth accent,
-# never a bright or electric colour. "Match system" follows the operating system's own setting.
+# never a bright or electric colour. "Same as this computer" follows the operating system's own setting.
 # The explicit Light choice alone, for a page whose light look is the host's call (setup, framed).
 LIGHT_ONLY_PALETTE_CSS = ':root[data-theme="light"] {' + _LIGHT_TOKENS + "}\n" + _light_rules(':root[data-theme="light"]')
 

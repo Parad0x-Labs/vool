@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "어둡게",
     "settings.appearance.theme_label": "테마",
     "settings.appearance.theme_light": "밝게",
-    "settings.appearance.theme_system": "시스템 설정 따르기",
+    "settings.appearance.theme_system": "이 컴퓨터 설정 따르기",
     "settings.appearance.unavailable": "모양 설정을 불러오지 못했어요. 설정을 새로 고친 뒤 다시 시도해 주세요.",
     "settings.appearance.unsaved": "저장하지 못해 이 창에만 적용돼요.",
     "settings.group.about.blurb": "당신에게 답하는 정확한 빌드, 그리고 문제 보고 방법.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다.",
     "settings.row.answer_language.help": "메시지가 언어를 요구하지 않을 때 VOOL이 답하는 언어. 메시지 안에서의 요청은 그 메시지에 대해 항상 이깁니다: “폴란드어로 답해”는 여기에 무엇이 설정됐든 따릅니다. 설정 맨 위의 앱 언어는 인터페이스를 따로 조정합니다. 이 기본 설정이 VOOL을 모든 언어에서 똑같이 잘하게 하지는 않습니다: 모델은 될 수 있는 만큼 답하고, 도구와 웹 결과는 영향을 받지 않습니다.",
     "settings.row.answer_language.label": "답변 언어",
-    "settings.row.appearance_theme.help": "이 컴퓨터에서 VOOL이 보이는 방식입니다. 기본은 어둡게이며, 밝게와 시스템 설정 따르기도 같은 차분한 색을 씁니다. 글자 크기는 대화 글자를 바꿉니다.",
+    "settings.row.appearance_theme.help": "밝게 또는 어둡게를 고르거나, 컴퓨터 설정을 따르려면 \"이 컴퓨터 설정 따르기\"를 고르세요. 글자 크기로 대화를 더 쉽게 읽을 수 있습니다.",
     "settings.row.appearance_theme.label": "테마와 글자 크기",
     "settings.row.autonomy_mode.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다.",
     "settings.row.autonomy_mode.help": "VOOL이 물어보려고 멈추기 전까지 얼마나 하는지. 순서를 주의해서 읽으세요 — 런타임이 실제로 행동을 걸러내는 방식 그대로 작동합니다 (core/execution_gate.py): “자율”이 가장 적게 물어보고, “엄격”은 모든 것을 물어봅니다. 무엇을 고르든, 밖으로 나가는 것(게시물, 메시지)이나 개인정보에 민감한 것은 항상 먼저 물어보고, 지출은 항상 물어봅니다.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X는 여러 키를 사용합니다. 안내 설정이 무엇을 어디에 붙여 넣을지 알려 주고 한 번의 읽기로 확인합니다.",
     "xsetup.open": "X 연결"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

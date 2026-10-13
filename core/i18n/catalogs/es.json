@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Oscuro",
     "settings.appearance.theme_label": "Tema",
     "settings.appearance.theme_light": "Claro",
-    "settings.appearance.theme_system": "Igual que el sistema",
+    "settings.appearance.theme_system": "Igual que este ordenador",
     "settings.appearance.unavailable": "Los controles de apariencia no se cargaron. Recarga Ajustes e inténtalo de nuevo.",
     "settings.appearance.unsaved": "No se pudo guardar, así que solo se aplica a esta ventana.",
     "settings.group.about.blurb": "La versión exacta que te responde y cómo reportar un problema.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Se aplica desde tu próximo mensaje. El turno en curso conserva el valor anterior.",
     "settings.row.answer_language.help": "El idioma en que responde VOOL cuando tu mensaje no pide uno. Pedirlo dentro del mensaje sigue ganando para ese mensaje: «responde en polaco» se obedece sin importar lo configurado aquí. El idioma de la aplicación, arriba en Ajustes, controla la interfaz por separado. Esta preferencia no hace a VOOL igual de bueno en todos los idiomas: el modelo responde tan bien como puede, y las herramientas y resultados web no se ven afectados.",
     "settings.row.answer_language.label": "Idioma de respuesta",
-    "settings.row.appearance_theme.help": "Cómo se ve VOOL en este ordenador. Oscuro es lo predeterminado; Claro y Igual que el sistema usan los mismos colores tranquilos. El tamaño del texto cambia el texto de la conversación.",
+    "settings.row.appearance_theme.help": "Elige Claro u Oscuro, o «Igual que este ordenador» para seguir el ajuste de tu ordenador. El tamaño del texto hace que la conversación se lea mejor.",
     "settings.row.appearance_theme.label": "Tema y tamaño del texto",
     "settings.row.autonomy_mode.effect": "Se aplica desde tu próximo mensaje. El turno en curso conserva el valor anterior.",
     "settings.row.autonomy_mode.help": "Cuánto hace VOOL antes de detenerse a preguntar. Lee el orden con atención — funciona como el tiempo de ejecución realmente admite acciones (core/execution_gate.py): «Sin preguntas» pregunta por LO MENOS, «Estricto» pregunta por todo. Elijas lo que elijas, todo lo dirigido al exterior (una publicación, un mensaje) o lo sensible a la privacidad siempre pregunta primero, y el gasto siempre pregunta.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X usa varias claves. La configuración guiada indica qué pegar en cada sitio y las comprueba con una lectura.",
     "xsetup.open": "Conectar X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

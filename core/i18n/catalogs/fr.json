@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Sombre",
     "settings.appearance.theme_label": "Thème",
     "settings.appearance.theme_light": "Clair",
-    "settings.appearance.theme_system": "Comme le système",
+    "settings.appearance.theme_system": "Comme cet ordinateur",
     "settings.appearance.unavailable": "Les réglages d’apparence ne se sont pas chargés. Recharge les Réglages et réessaie.",
     "settings.appearance.unsaved": "Impossible d’enregistrer : cela ne s’applique qu’à cette fenêtre.",
     "settings.group.about.blurb": "La version exacte qui vous répond, et comment signaler un problème.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur.",
     "settings.row.answer_language.help": "La langue dans laquelle VOOL répond quand votre message n'en demande pas une. Demander dans le message l'emporte toujours pour ce message : « réponds en polonais » est obéi quoi qu'il soit réglé ici. La langue de l'app en haut des Réglages pilote l'interface séparément. Cette préférence ne rend pas VOOL aussi bon dans toutes les langues : le modèle répond aussi bien qu'il peut, et outils et résultats web ne sont pas affectés.",
     "settings.row.answer_language.label": "Langue des réponses",
-    "settings.row.appearance_theme.help": "L’apparence de VOOL sur cet ordinateur. Sombre est le réglage par défaut ; Clair et Comme le système utilisent les mêmes couleurs calmes. La taille du texte change le texte de la conversation.",
+    "settings.row.appearance_theme.help": "Choisissez Clair ou Sombre, ou « Comme cet ordinateur » pour suivre le réglage de votre ordinateur. La taille du texte rend la conversation plus facile à lire.",
     "settings.row.appearance_theme.label": "Thème et taille du texte",
     "settings.row.autonomy_mode.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur.",
     "settings.row.autonomy_mode.help": "Combien VOOL fait avant de s'arrêter pour demander. Lisez l'ordre attentivement — il tourne comme le runtime filtre réellement les actions (core/execution_gate.py) : « Sans questions » demande le MOINS de choses, « Strict » demande tout. Quoi que vous choisissiez, tout ce qui va vers l'extérieur (une publication, un message) ou touche à la vie privée demande toujours d'abord, et toute dépense demande.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X utilise plusieurs clés. La configuration guidée indique quoi coller où et les vérifie par une lecture.",
     "xsetup.open": "Connecter X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

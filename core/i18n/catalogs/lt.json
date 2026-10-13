@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "Tamsi",
     "settings.appearance.theme_label": "Tema",
     "settings.appearance.theme_light": "Šviesi",
-    "settings.appearance.theme_system": "Pagal sistemą",
+    "settings.appearance.theme_system": "Kaip šiame kompiuteryje",
     "settings.appearance.unavailable": "Išvaizdos valdikliai neįsikėlė. Iš naujo įkelk Nustatymus ir bandyk dar kartą.",
     "settings.appearance.unsaved": "Nepavyko išsaugoti, todėl taikoma tik šiam langui.",
     "settings.group.about.blurb": "Tiksloji laida, atsakanti jums, ir kaip pranešti apie problemą.",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę.",
     "settings.row.answer_language.help": "Kalba, kuria VOOL atsako, kai jūsų žinutė jos nereikalauja. Prašymas pačioje žinutėje visada laimi tam kartui: „atsakyk lenkiškai“ vykdomas, kas bebūtų nustatyta čia. Programos kalba Nuostatų viršuje valdo sąsają atskirai. Šis pageidavimas nepadaro VOOL vienodai geru visomis kalbomis: modelis atsako, kaip išgali, o įrankiai ir paieškos rezultatai lieka nepakeisti.",
     "settings.row.answer_language.label": "Atsakymų kalba",
-    "settings.row.appearance_theme.help": "Kaip VOOL atrodo šiame kompiuteryje. Numatytoji – tamsi; šviesi ir pagal sistemą naudoja tas pačias ramias spalvas. Teksto dydis keičia pokalbio tekstą.",
+    "settings.row.appearance_theme.help": "Pasirinkite šviesią arba tamsią, arba „Kaip šiame kompiuteryje“, kad būtų naudojamas kompiuterio nustatymas. Teksto dydis padeda lengviau skaityti pokalbį.",
     "settings.row.appearance_theme.label": "Tema ir teksto dydis",
     "settings.row.autonomy_mode.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę.",
     "settings.row.autonomy_mode.help": "Kiek VOOL padaro iki sustodamas klausti. Skirkite tvarką — ji veikia taip, kaip vykdymo aplinka iš tiesų riboja veiksmus (core/execution_gate.py): „Nesikišant“ klauso MAŽIAUSIAI dalykų, „Griežtai“ klauso apie viską. Ką bepasirinktumėte, viskas, kas išorėje (įrašas, žinutė), arba jautru privatumui, visada prašo leidimo, o išlaidos visada prašo leidimo.",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X naudoja kelis raktus. Vedlys parodo, ką kur įklijuoti, ir patikrina juos vienu skaitymu.",
     "xsetup.open": "Prijungti X"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

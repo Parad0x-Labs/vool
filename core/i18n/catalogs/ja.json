@@ -952,7 +952,7 @@
     "settings.appearance.theme_dark": "ダーク",
     "settings.appearance.theme_label": "テーマ",
     "settings.appearance.theme_light": "ライト",
-    "settings.appearance.theme_system": "システムに合わせる",
+    "settings.appearance.theme_system": "このコンピューターに合わせる",
     "settings.appearance.unavailable": "外観の設定を読み込めませんでした。設定を再読み込みしてもう一度お試しください。",
     "settings.appearance.unsaved": "保存できなかったため、このウィンドウにのみ適用されます。",
     "settings.group.about.blurb": "あなたに応答している正確なビルドと、問題の報告方法。",
@@ -1010,7 +1010,7 @@
     "settings.row.answer_language.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。",
     "settings.row.answer_language.help": "メッセージが言語を指定しないときVOOLが答える言語。メッセージ内での指定は常にそのメッセージについて優先されます：「ポーランド語で答えて」は、ここの設定にかかわらず守られます。設定最上部のアプリ言語はインターフェースを別々に制御します。この設定はVOOLをすべての言語で等しく上手にはしません：モデルはできる範囲で答え、ツールやウェブ結果は影響を受けません。",
     "settings.row.answer_language.label": "回答言語",
-    "settings.row.appearance_theme.help": "このコンピューターでのVOOLの見た目。既定はダークです。ライトとシステムに合わせるも同じ落ち着いた色を使います。文字サイズは会話の文字を変えます。",
+    "settings.row.appearance_theme.help": "ライトかダークを選ぶか、「このコンピューターに合わせる」でコンピューターの設定に従います。文字サイズで会話が読みやすくなります。",
     "settings.row.appearance_theme.label": "テーマと文字サイズ",
     "settings.row.autonomy_mode.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。",
     "settings.row.autonomy_mode.help": "VOOLが確認のために立ち止まるまでにどこまでやるか。順序をよく読んでください — ランタイムが実際に操作を制御する順序で動きます（core/execution_gate.py）：「最小限の確認」が最も質問が少なく、「厳格」はすべてを確認します。どれを選んでも、外部に向かうもの（投稿、メッセージ）やプライバシーに関わるものは必ず最初に確認し、支出は常に確認します。",
@@ -1865,7 +1865,7 @@
     "xsetup.entry_note": "X は複数のキーを使います。ガイド付き設定が何をどこに貼るかを示し、1 回の読み取りで確認します。",
     "xsetup.open": "X を接続"
   },
-  "source_catalog_sha256": "9fd0b87daeb506f272beffbde133ff8c5f894f0c93a29355b86c757c8bb870a0",
+  "source_catalog_sha256": "c2f8c33b1d709f3301071e75c30db9d9fd4446d7534ee43404517d25b15c092b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

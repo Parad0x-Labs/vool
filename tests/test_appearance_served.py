@@ -4,7 +4,7 @@
 - Settings > Appearance switches the theme and the text size; the choice is stored in a cookie,
   the open chat window follows at once without a reload, and a fresh load is served already in the
   chosen look (no dark flash: the server writes the attribute on ``<html>``).
-- Light and Match system use real light colours, and Match system follows the operating system.
+- Light and "Same as this computer" use real light colours, and the latter follows the operating system.
 - Text size reaches the assistant's replies, not only the person's own bubbles.
 - Light leaves no dark-only spot behind: no dark panel, and toasts stay readable.
 - A tampered cookie falls back to the default instead of breaking the page; another app's cookie on
@@ -122,7 +122,7 @@ def test_theme_and_text_size_switch_live_and_survive_a_reload(tmp_path):
                 dark_spots = chat.evaluate(DARK_SPOTS)
                 assert dark_spots == [], dark_spots
 
-                # Match system follows the operating system's choice.
+                # "Same as this computer" follows the operating system's choice.
                 theme.select_option("system")
                 chat.wait_for_function("document.documentElement.getAttribute('data-theme') === 'system'", timeout=5000)
                 assert _luma(chat.evaluate(BG)) < 60          # the OS says dark
@@ -194,3 +194,15 @@ def test_cookie_reading_ignores_other_cookies_and_bad_values():
         assert appearance_from_cookie_header(f"{other}; vool_appearance=light.125") == ("light", 125), other
     assert appearance_from_cookie_header("my_vool_appearance=light.125") == ("dark", 100)
     assert appearance_from_cookie_header("vool_appearance=light%E0.125") == ("dark", 100)
+
+
+def test_setup_light_uses_the_same_warm_colours_as_the_chat():
+    # The first screen of the product must not look like a different app in Light: no later rule in
+    # the setup page may override the shared warm tokens with the old cool grey-blue ones.
+    from core.ui_palette import LIGHT_ONLY_PALETTE_CSS
+    from core.vool_setup_page import render_vool_setup_html
+
+    html = render_vool_setup_html(appearance=("light", 100))
+    assert LIGHT_ONLY_PALETTE_CSS in html
+    assert html.count(':root[data-theme="light"] {') == 1
+    assert "--bg:#f3f1ed" in html.split(':root[data-theme="light"] {')[1].split("}", 1)[0]
