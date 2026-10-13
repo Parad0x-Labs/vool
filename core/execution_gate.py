@@ -231,7 +231,7 @@ class ExecutionGate:
         return action_name in {"cleanup_temp_files", "move_path", "discord_post", "telegram_send"}
 
     @staticmethod
-    def evaluate_command(cmd: str) -> dict[str, str]:
+    def evaluate_command(cmd: str, *, cwd: str = "") -> dict[str, str]:
         # M5 SLICE 3 — every command outcome emits a typed EffectReceipt onto
         # the turn's one ledger: sandbox -> allowed; blocked/advice_only ->
         # denied; simulate_only -> simulated (a third, mechanically distinct
@@ -252,9 +252,15 @@ class ExecutionGate:
         )
         from core.remote_fetch_policy import _utcnow_iso
 
+        # A user-rule exception that let this git command through is named on whatever this gate
+        # decides (core.user_rules), so the operator sees which rule it overrode.
+        rule_override: list[str] = []
+
         def _receipted(
             verdict: str, result: dict[str, str], *, mode: str = ""
         ) -> dict[str, str]:
+            if rule_override and "reason" in result:
+                result = {**result, "reason": f"{result['reason']} {rule_override[0]}", "user_rule_override": rule_override[0]}
             record_effect_receipt(
                 EffectReceipt(
                     effect_class=EFFECT_COMMAND,
@@ -328,6 +334,28 @@ class ExecutionGate:
                 mode=mode,
             )
         base_cmd = ExecutionGate._base_command(argv)
+        if base_cmd == "git":
+            # The user's rules are a HARD block, reported before any approvable gate: a commit,
+            # tag or push carrying a word the user banned from git is refused outright, so nobody
+            # is asked to approve a command a rule forbids. Narrow-only: no match grants nothing.
+            from core.user_rules import sandbox_git_check
+
+            git_at = next((i for i, token in enumerate(argv) if str(token).strip().lower() == "git"), 0)
+            rules_verdict = sandbox_git_check([str(t) for t in argv[git_at:]], cwd=cwd)
+            ruled = rules_verdict.refusal
+            if ruled is None and rules_verdict.note:
+                rule_override.append(rules_verdict.note)
+            if ruled is not None:
+                return _receipted(
+                    DECISION_DENIED,
+                    {
+                        "decision": "blocked",
+                        "reason": ruled.reason,
+                        "base_command": base_cmd,
+                        "user_rule": "refused",
+                    },
+                    mode=mode,
+                )
         destructive = ExecutionGate._is_destructive_command(base_cmd, argv, lowered)
         read_only = ExecutionGate._is_read_only_command(base_cmd, argv)
         writes_workspace = not read_only

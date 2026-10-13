@@ -106,6 +106,41 @@ def test_a_numbered_list(render) -> None:
     assert html.count("<li>") == 2
 
 
+# Seen in the app: a numbered answer read "1. 1. 1." Models write numbered steps with a blank line
+# between them, or with a sub-bullet under a step, and each piece became its own one-item <ol>,
+# every one restarting at 1.
+
+
+def test_a_numbered_list_with_blank_lines_between_items_is_one_list(render) -> None:
+    html = render("Steps:\n\n1. Open Settings\n\n2. Pick a model\n\n3. Press Save\n\nDone.")
+    assert html.count("<ol") == 1
+    assert html.count("<li>") == 3
+    assert html.index("Press Save") < html.index("<p class=\"chat-p\">Done.</p>")
+
+
+def test_a_sub_bullet_under_a_step_does_not_restart_the_numbering(render) -> None:
+    html = render("1. First\n2. Second\n   - a detail\n   - another\n3. Third")
+    assert html == (
+        '<ol class="chat-list"><li>First</li>'
+        '<li>Second<ul class="chat-list"><li>a detail</li><li>another</li></ul></li>'
+        "<li>Third</li></ol>"
+    )
+
+
+def test_a_list_resumed_after_a_paragraph_keeps_its_number(render) -> None:
+    html = render("1. First\n2. Second\n\nA note in between.\n\n3. Third\n4. Fourth")
+    assert '<ol class="chat-list" start="3"><li>Third</li><li>Fourth</li></ol>' in html
+    assert html.count("start=") == 1
+
+
+def test_blank_lines_do_not_join_different_kinds_of_list(render) -> None:
+    html = render("1. a\n2. b\n\n- x\n- y")
+    assert html == (
+        '<ol class="chat-list"><li>a</li><li>b</li></ol>'
+        '<ul class="chat-list"><li>x</li><li>y</li></ul>'
+    )
+
+
 def test_a_table(render) -> None:
     html = render("| File | Lines |\n|---|---|\n| a.py | 12 |\n| b.py | 40 |")
     assert "<table class=\"chat-table\">" in html

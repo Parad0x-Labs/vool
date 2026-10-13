@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import replace
 from typing import Any
@@ -33,6 +34,7 @@ from core.normalized_provider_result import (
 )
 from core.prompt_budget import PromptBudgetExceededError, fit_messages_to_context_window
 from core.prompt_debug import dump_outbound_prompt
+from core.provider_http import is_loopback_url
 from core.provider_invocation_gateway import (
     seal_direct_provider_invocation,
     seal_provider_invocation,
@@ -68,6 +70,69 @@ def _reasoning_disabled(request: Any) -> bool:
         return bool(dict(getattr(request, "metadata", None) or {}).get("workspace_audit_turn"))
     except Exception:
         return False
+
+
+# Endpoints that refused a reasoning-disabled request in this process (see
+# `_reasoning_mandatory_refusal`), keyed by (provider id, endpoint URL, model) -- never by the model
+# name alone: the same model name at another provider or endpoint may allow disabling, and must not
+# inherit a refusal it never gave. Process lifetime: the refusal is a property of that endpoint.
+_REASONING_MANDATORY_LEARNED: set[tuple[str, str, str]] = set()
+_REASONING_EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+
+def _lowest_reasoning_effort(efforts: tuple[str, ...]) -> str:
+    """The cheapest published effort above "none" (none would disable a mandatory reasoner).
+
+    Unpublished efforts fall back to "low", the level OpenRouter accepts across reasoning models.
+    """
+    for level in _REASONING_EFFORT_ORDER[1:]:
+        if level in efforts:
+            return level
+    return "low"
+
+
+#: The endpoint's own refusal of the disabled-reasoning form: the error message itself SAYS reasoning
+#: is mandatory (or cannot be disabled) -- it starts with that, after at most a short "provider:"
+#: label. A phrase anywhere in the body is not enough: a 400 about another parameter that quotes
+#: documentation ("... reasoning is mandatory for another endpoint") is that other error, and must
+#: fail with one request.
+_REASONING_MANDATORY_MESSAGE_RE = re.compile(
+    r"^\s*(?:[\w/-]+(?:\s[\w/-]+){0,3}:\s*)?(?:"
+    r"reasoning\s+is\s+(?:mandatory|required)\b(?!\s+(?:for|on)\s+(?:another|other|some)\b)"
+    r"|reasoning\b[^.;:()]*\bcannot\s+be\s+disabled\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _error_message(response: Any) -> str:
+    """The error message a provider put in its JSON error body (OpenAI/OpenRouter shape), or the raw
+    text when the body is not JSON."""
+    try:
+        text = str(getattr(response, "text", "") or "")
+    except Exception:
+        return ""
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return text
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            return str(error.get("message") or "")
+        if isinstance(error, str):
+            return error
+        return str(body.get("message") or body.get("detail") or "")
+    return ""
+
+
+def _reasoning_mandatory_refusal(response: Any, payload: dict[str, Any]) -> bool:
+    """True when this response is the endpoint refusing the disabled-reasoning form we sent."""
+    if getattr(response, "status_code", None) != 400:
+        return False
+    if dict(payload.get("reasoning") or {}).get("enabled") is not False:
+        return False
+    return bool(_REASONING_MANDATORY_MESSAGE_RE.search(_error_message(response)))
 
 
 # Headroom a thinking model needs before it starts answering. qwen3:4b was measured spending
@@ -411,21 +476,33 @@ class OpenAICompatibleAdapter(ModelAdapter):
         native_tool_calls: tuple[CloudToolCall, ...] = ()
         for attempt_index in range(max_attempts):
             timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
-            permit = seal_provider_invocation(
-                request=request,
-                provider_id=self.manifest.provider_id,
-                model_id=self.manifest.model_name,
-                operation="structured" if force_json else "chat",
-                payload=payload,
-                header_names=tuple(headers),
-            )
-            response = requests.post(
-                f"{base_url}{api_path}",
-                json=permit.consume(),
-                headers=headers,
-                timeout=_request_timeout(timeout_seconds),
-            )
-            _assert_response_timely(request, response)
+            for reasoning_try in range(2):
+                permit = seal_provider_invocation(
+                    request=request,
+                    provider_id=self.manifest.provider_id,
+                    model_id=self.manifest.model_name,
+                    operation="structured" if force_json else "chat",
+                    payload=payload,
+                    header_names=tuple(headers),
+                )
+                response = requests.post(
+                    f"{base_url}{api_path}",
+                    json=permit.consume(),
+                    headers=headers,
+                    timeout=_request_timeout(timeout_seconds),
+                )
+                _assert_response_timely(request, response)
+                if reasoning_try == 0 and _reasoning_mandatory_refusal(response, payload):
+                    # The endpoint refuses disabled reasoning and the cached catalog did not say
+                    # so. Learn it for this process and resend ONCE at the lowest effort; any
+                    # other failure, or a second refusal, raises below as before.
+                    _REASONING_MANDATORY_LEARNED.add(self._reasoning_learning_key())
+                    payload = {
+                        **payload,
+                        "reasoning": {"effort": _lowest_reasoning_effort(self._reasoning_mandatory()[1])},
+                    }
+                    continue
+                break
             _raise_for_status_with_cause(response)
             if request.is_cancelled():
                 raise RuntimeError("model_call_cancelled")
@@ -570,10 +647,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
         governor reclaims other idle models, raising here turns "the whole Mac swap-freezes" into
         an ordinary failed call the routing fallback machinery already knows how to degrade.
         """
+        base_url = _native_ollama_base_url(str(self.manifest.runtime_config.get("base_url") or ""))
+        if not is_loopback_url(base_url):
+            return
         try:
             from core.resource_governor import plan_model_load
 
-            decision = plan_model_load(str(self.manifest.model_name or ""))
+            decision = plan_model_load(str(self.manifest.model_name or ""), base_url=base_url)
         except Exception:
             return
         if decision.ok:
@@ -990,8 +1070,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
             and (self._declares_reasoning_support() or self._is_openrouter_lane())
         ):
             # Endpoint capability owns this control, not a model-name heuristic.
-            # Unknown catalog metadata must not erase an explicit disabled policy.
-            payload["reasoning"] = {"enabled": False}
+            # Unknown catalog metadata must not erase an explicit disabled policy. An endpoint
+            # that makes reasoning mandatory refuses the disabled form with HTTP 400, so there the
+            # nearest lawful request is the lowest effort it publishes.
+            mandatory, efforts = self._reasoning_mandatory()
+            payload["reasoning"] = (
+                {"effort": _lowest_reasoning_effort(efforts)} if mandatory else {"enabled": False}
+            )
         if generation_profile.get("top_p") is not None:
             payload["top_p"] = float(generation_profile["top_p"])
         if self._runtime_family() == "ollama":
@@ -1249,6 +1334,40 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
         return manifest_declares_reasoning(self.manifest)
 
+    def _reasoning_learning_key(self) -> tuple[str, str, str]:
+        """Which endpoint a learned reasoning refusal belongs to: provider, chat URL and model."""
+        config = dict(self.manifest.runtime_config or {})
+        endpoint = str(config.get("base_url") or "").strip().rstrip("/") + str(
+            config.get("api_path") or "/v1/chat/completions"
+        )
+        return (
+            str(getattr(self.manifest, "provider_id", "") or "").strip(),
+            endpoint,
+            str(self.manifest.model_name or "").strip(),
+        )
+
+    def _reasoning_mandatory(self) -> tuple[bool, tuple[str, ...]]:
+        """(mandatory, published efforts) for this model's reasoning. Cache-only, never blocks.
+
+        True when the cached OpenRouter catalog row says so, or when this process already saw the
+        endpoint refuse a disabled request (``_REASONING_MANDATORY_LEARNED``) -- the catalog cache
+        is absent on a fresh install, and one refusal must not repeat on every later call.
+        """
+        model = str(self.manifest.model_name or "").strip()
+        efforts: tuple[str, ...] = ()
+        mandatory = self._reasoning_learning_key() in _REASONING_MANDATORY_LEARNED
+        if self._is_openrouter_lane():
+            try:
+                from core.openrouter_catalog import cached_catalog_row
+
+                row = cached_catalog_row(model)
+            except Exception:
+                row = None
+            if row is not None:
+                mandatory = mandatory or bool(row.reasoning_mandatory)
+                efforts = tuple(row.reasoning_efforts)
+        return mandatory, efforts
+
     def _declares_reasoning_support(self) -> bool:
         declared = {
             str(item).strip().lower()
@@ -1331,9 +1450,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
         # tokens are billed, so a conversational turn under `auto` is priced exactly as before.
         if getattr(request, "tools", None):
             return max(requested, _CLOUD_TOOL_CALL_FLOOR_TOKENS)
-        if self._is_thinking_capable_model():
-            if _reasoning_disabled(request) and (
-                self._declares_reasoning_support() or self._is_openrouter_lane()
+        # An endpoint that makes reasoning mandatory always reasons, whatever the request asked:
+        # measured 2026-10-05 on z-ai/glm-5.3-flashx, a 380-token chat budget came back empty
+        # (all reasoning) and the turn paid for a second call at 4,476. It takes the reserve, and
+        # a disabled request there is sent at the lowest effort, not disabled (see
+        # `_build_openai_payload`), so the skip below must not apply to it.
+        reasoning_mandatory = self._reasoning_mandatory()[0]
+        if self._is_thinking_capable_model() or reasoning_mandatory:
+            if (
+                _reasoning_disabled(request)
+                and not reasoning_mandatory
+                and (self._declares_reasoning_support() or self._is_openrouter_lane())
             ):
                 return requested
             # The chat-turn reserve now resolves through the ONE lane policy

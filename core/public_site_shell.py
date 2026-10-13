@@ -3,96 +3,19 @@ from __future__ import annotations
 from html import escape
 from urllib.parse import urlencode
 
-REPO_URL = "https://github.com/Parad0x-Labs/vool-hive-mind"
+REPO_URL = "https://github.com/Parad0x-Labs/vool"
 DOCS_URL = f"{REPO_URL}/blob/main/docs/README.md"
 STATUS_DOC_URL = f"{REPO_URL}/blob/main/docs/STATUS.md"
 INSTALL_URL = f"{REPO_URL}/blob/main/docs/INSTALL.md"
-PUBLIC_CANONICAL_SCHEME = "https"
-PUBLIC_CANONICAL_HOST = "voolbook.com"
-PUBLIC_CANONICAL_ORIGIN = f"{PUBLIC_CANONICAL_SCHEME}://{PUBLIC_CANONICAL_HOST}"
-PUBLIC_STATUS_PATH = "/status"
-PUBLIC_ALT_HOSTS = ("www.voolbook.com",)
-PUBLIC_ROUTE_INDEX: tuple[tuple[str, str, str], ...] = (
-    ("/proof", "Proof", "finalized results and the receipts that justify them"),
-    ("/tasks", "Tasks", "open and finished work with status, owner, and evidence links"),
-    ("/agents", "Operators", "who is doing the work, what they are handling now, and what they have actually closed"),
-    ("/feed", "Worklog", "public work notes and research updates tied back to tasks, operators, and proof"),
-    (PUBLIC_STATUS_PATH, "Status", "what already works, what is rough, and what is still not ready"),
-    ("/hive", "Coordination", "read-only shared task state for work that moves beyond one runtime"),
-)
 
 
 def canonical_public_url(path: str, *, query: dict[str, str] | None = None) -> str:
+    """Return the route as a host-relative URL; no public site host is served."""
     clean_path = "/" + str(path or "/").lstrip("/")
     if clean_path == "//":
         clean_path = "/"
     qs = urlencode([(key, value) for key, value in (query or {}).items() if str(value or "").strip()])
-    return f"{PUBLIC_CANONICAL_ORIGIN}{clean_path}" + (f"?{qs}" if qs else "")
-
-
-def redirect_to_canonical_public_host(*, host_header: str | None, path: str, query: str = "") -> str | None:
-    host = str(host_header or "").strip().lower()
-    if not host:
-        return None
-    host = host.split(",", 1)[0].strip()
-    host = host.split(":", 1)[0].strip()
-    if not host or host in {"127.0.0.1", "localhost", "[::1]"}:
-        return None
-    if host == PUBLIC_CANONICAL_HOST:
-        return None
-    if host not in PUBLIC_ALT_HOSTS:
-        return None
-    clean_path = "/" + str(path or "/").lstrip("/")
-    if clean_path == "//":
-        clean_path = "/"
-    return f"{PUBLIC_CANONICAL_ORIGIN}{clean_path}" + (f"?{query.lstrip('?')}" if query else "")
-
-
-def render_public_route_index(
-    *,
-    current_path: str = "",
-    title: str = "Public routes",
-    dense: bool = False,
-) -> str:
-    safe_current_path = "/" + str(current_path or "/").lstrip("/")
-    rows: list[str] = []
-    for href, label, description in PUBLIC_ROUTE_INDEX:
-        current_attr = ' aria-current="page"' if href == safe_current_path else ""
-        current_class = " ns-route-row is-active" if href == safe_current_path else " ns-route-row"
-        safe_href = escape(href, quote=True)
-        safe_label = escape(label)
-        safe_description = escape(description)
-        rows.append(
-            f'<a class="{current_class.strip()}" href="{safe_href}"{current_attr}>'
-            f"<strong>{safe_label}</strong>"
-            f"<span>{safe_description}</span>"
-            "</a>"
-        )
-    dense_class = " ns-route-index--dense" if dense else ""
-    return (
-        '<section class="ns-route-index{dense_class}" aria-label="{title_attr}">'
-        '<div class="ns-route-index-head">{title}</div>'
-        '<div class="ns-route-list">{rows}</div>'
-        "</section>"
-    ).format(
-        dense_class=dense_class,
-        title_attr=escape(title, quote=True),
-        title=escape(title),
-        rows="".join(rows),
-    )
-
-
-def render_public_breadcrumbs(*items: tuple[str, str]) -> str:
-    parts: list[str] = []
-    last_index = len(items) - 1
-    for index, (href, label) in enumerate(items):
-        if index == last_index:
-            parts.append(
-                f'<span class="ns-crumb-current" aria-current="page">{escape(label)}</span>'
-            )
-        else:
-            parts.append(f'<a href="{escape(href, quote=True)}">{escape(label)}</a>')
-    return f'<nav class="ns-breadcrumbs" aria-label="Breadcrumb">{"<span>/</span>".join(parts)}</nav>'
+    return clean_path + (f"?{qs}" if qs else "")
 
 
 def public_site_base_styles() -> str:
@@ -513,34 +436,10 @@ button:focus-visible,
 """
 
 
-def render_landing_header() -> str:
-    return _render_header(
-        nav_items=(
-            ("/proof", "Proof", False, ""),
-            ("/tasks", "Tasks", False, ""),
-            ("/agents", "Operators", False, ""),
-            ("/feed", "Worklog", False, ""),
-            (PUBLIC_STATUS_PATH, "Status", False, ""),
-            ("/hive", "Coordination", False, ""),
-        ),
-        secondary_items=(
-            (DOCS_URL, "Docs", False, ' target="_blank" rel="noreferrer noopener"'),
-            (REPO_URL, "GitHub", False, ' target="_blank" rel="noreferrer noopener"'),
-        ),
-        primary_cta_href=INSTALL_URL,
-        primary_cta_label="Get VOOL",
-    )
-
-
 def render_surface_header(*, active: str) -> str:
     active_key = str(active or "").strip().lower()
     return _render_header(
         nav_items=(
-            ("/proof", "Proof", active_key == "proof", ' data-tab="proof"'),
-            ("/tasks", "Tasks", active_key == "tasks", ' data-tab="tasks"'),
-            ("/agents", "Operators", active_key == "agents", ' data-tab="agents"'),
-            ("/feed", "Worklog", active_key == "feed", ' data-tab="feed"'),
-            (PUBLIC_STATUS_PATH, "Status", active_key == "status", ""),
             ("/hive", "Coordination", active_key == "hive", ' data-tab="hive"'),
         ),
         secondary_items=(
@@ -564,47 +463,22 @@ def render_public_site_footer() -> str:
         <a href="{escape(REPO_URL, quote=True)}" target="_blank" rel="noreferrer noopener">GitHub</a>
       </div>
     </div>
-    {render_public_route_index(current_path="", title="Public routes", dense=True)}
   </div>
 </footer>
 """
 
 
-def render_public_view_nav(
-    *,
-    base_path: str,
-    items: tuple[tuple[str, str, bool], ...],
-    active_key: str,
-) -> str:
-    parts: list[str] = []
-    for key, label, enabled in items:
-        if enabled:
-            href = base_path if key == "all" else f"{base_path}?view={escape(key, quote=True)}"
-            current_attr = ' aria-current="page"' if key == active_key else ""
-            parts.append(f'<a href="{href}"{current_attr}>{escape(label)}</a>')
-        else:
-            parts.append(f'<span aria-disabled="true">{escape(label)}</span>')
-    return f'<nav class="ns-local-nav" aria-label="Route filters">{"".join(parts)}</nav>'
-
-
-def render_back_to_route_index() -> str:
-    return '<div class="ns-route-return"><a href="/#public-routes">Back to route index</a></div>'
-
-
-def render_route_meta_block(*, current_path: str, breadcrumbs: tuple[tuple[str, str], ...]) -> str:
-    return (
-        render_public_breadcrumbs(*breadcrumbs)
-        + render_back_to_route_index()
-        + render_public_route_index(current_path=current_path, title="Public routes", dense=True)
-    )
-
-
 def render_public_canonical_meta(*, canonical_url: str, og_title: str, og_description: str, og_type: str = "website") -> str:
+    url_lines = ""
+    if str(canonical_url or "").startswith(("https://", "http://")):
+        url_lines = (
+            f'<link rel="canonical" href="{escape(canonical_url, quote=True)}"/>\n'
+            f'<meta property="og:url" content="{escape(canonical_url, quote=True)}"/>\n'
+        )
     return (
-        f'<link rel="canonical" href="{escape(canonical_url, quote=True)}"/>\n'
-        f'<meta property="og:title" content="{escape(og_title, quote=True)}"/>\n'
+        url_lines
+        + f'<meta property="og:title" content="{escape(og_title, quote=True)}"/>\n'
         f'<meta property="og:description" content="{escape(og_description[:300], quote=True)}"/>\n'
-        f'<meta property="og:url" content="{escape(canonical_url, quote=True)}"/>\n'
         f'<meta property="og:type" content="{escape(og_type, quote=True)}"/>\n'
         f'<meta name="twitter:card" content="summary"/>\n'
         f'<meta name="twitter:site" content="@vool_ai"/>\n'
@@ -635,7 +509,7 @@ def _render_header(
     return f"""
 <header class="ns-header">
   <div class="ns-shell ns-header-inner">
-    <a class="ns-brand" href="/">
+    <a class="ns-brand" href="/hive">
       <span class="ns-brand-mark" aria-hidden="true"></span>
       <span class="ns-brand-copy">
         <span class="ns-brand-title">VOOL</span>

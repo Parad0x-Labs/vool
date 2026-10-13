@@ -582,6 +582,7 @@ def run_bounded_builder_loop(
             event_type=execution_mode,
             message=str(step_record.get("summary") or getattr(execution, "status", "") or "Tool step finished."),
             tool_name=str(getattr(execution, "tool_name", "") or tool_payload.get("intent") or "unknown"),
+            observation=dict((getattr(execution, "details", {}) or {}).get("observation") or {}),
             status=str(getattr(execution, "status", "") or "executed"),
             mode=execution_mode,
             ok=bool(getattr(execution, "ok", False)),
@@ -1147,6 +1148,7 @@ def _run_model_build(
             message=str(getattr(result, "response_text", "") or ""),
             tool_name=intent,
             status=str(getattr(result, "status", "") or ""),
+            observation=dict((getattr(result, "details", {}) or {}).get("observation") or {}),
             approval_request=dict((getattr(result, "details", {}) or {}).get("approval_request") or {}),
         )
         return app_builder.ToolOutcome(

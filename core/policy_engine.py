@@ -10,13 +10,13 @@ import yaml
 
 from core.cross_process_lock import LockUnavailable, PublicationLock
 from core.privacy_guard import shard_privacy_risks, share_scope_is_public
-from core.runtime_paths import config_path
+from core.runtime_paths import config_path, runtime_home_generation
 
 _DEFAULT_POLICY = {
     "system": {
         "advice_only_default": True,
         "local_only_mode": False,
-        "allow_web_fallback": True,
+        "allow_web_fallback": False,
         "allow_null_dial": False,
         "allow_swarm_queries": True,
         "max_datagram_bytes": 32768,
@@ -116,7 +116,7 @@ _DEFAULT_POLICY = {
     },
     "network": {
         "inbound_enabled": True,
-        "outbound_enabled": True,
+        "outbound_enabled": False,
         "max_peers": 64,
         "max_requests_per_minute_per_peer": 30,
         "max_failed_messages_before_quarantine": 3,
@@ -342,6 +342,7 @@ _DEFAULT_POLICY = {
 }
 
 _POLICY_CACHE: dict[str, Any] | None = None
+_POLICY_CACHE_BINDING: tuple[dict[str, Any], int] | None = None
 _POLICY_LOCK = RLock()
 # Import-time resolution kept for back-compat readers; load() resolves the path
 # DYNAMICALLY every call — a process (or test) may reconfigure VOOL_HOME after import.
@@ -368,8 +369,8 @@ def _env_is_truthy(value: str | None) -> bool:
 def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = None) -> dict[str, Any]:
     """Apply explicit, documented environment overrides on top of file/default policy.
 
-    Web access is on by default (see config/default_policy.yaml) so live-data
-    questions get a real DuckDuckGo-backed answer out of the box. Setting
+    New installations start with web access off. A saved home policy retains
+    the operator's choices across upgrades. Setting
     `VOOL_ENABLE_WEB=1` (or its alias `VOOL_ALLOW_WEB=1`) force-enables it
     regardless of the config file. Setting `VOOL_DISABLE_WEB=1` (or its alias
     `VOOL_NO_WEB=1`) force-disables it regardless of the config file or the
@@ -408,11 +409,20 @@ def _apply_env_overrides(config: dict[str, Any], env: dict[str, str] | None = No
     return config
 
 def load(force_reload: bool = False) -> dict[str, Any]:
-    global _POLICY_CACHE
+    global _POLICY_CACHE, _POLICY_CACHE_BINDING
 
     with _POLICY_LOCK:
+        generation = runtime_home_generation()
         if _POLICY_CACHE is not None and not force_reload:
-            return _POLICY_CACHE
+            # A cache loaded by this owner belongs to one runtime home. A home
+            # switch must not inherit another profile's network permissions.
+            # An explicitly replaced in-process cache has no owner binding.
+            if (
+                _POLICY_CACHE_BINDING is None
+                or _POLICY_CACHE_BINDING[0] is not _POLICY_CACHE
+                or _POLICY_CACHE_BINDING[1] == generation
+            ):
+                return _POLICY_CACHE
 
         config = dict(_DEFAULT_POLICY)
 
@@ -427,6 +437,7 @@ def load(force_reload: bool = False) -> dict[str, Any]:
         config = _apply_env_overrides(config)
 
         _POLICY_CACHE = config
+        _POLICY_CACHE_BINDING = (config, generation)
         return _POLICY_CACHE
 
 def get(path: str, default: Any = None) -> Any:
@@ -444,7 +455,11 @@ def local_only_mode() -> bool:
     return bool(get("system.local_only_mode", False))
 
 def allow_web_fallback() -> bool:
-    return bool(get("system.allow_web_fallback", False))
+    return get("system.allow_web_fallback", False) is True
+
+def automatic_outbound_enabled() -> bool:
+    """Whether background work may contact remote peers or services."""
+    return get("network.outbound_enabled", False) is True and not local_only_mode()
 
 def null_dial_enabled() -> bool:
     return bool(get("system.allow_null_dial", False))

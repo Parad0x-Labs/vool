@@ -44,7 +44,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -220,10 +219,12 @@ def home_is_synthetic(env: dict[str, str] | None = None) -> bool:
     to protect, so unattended runs keep it that way (file-backed, no Keychain).
     """
     env_map = os.environ if env is None else env
-    home = str(env_map.get("VOOL_HOME") or "").strip()
+    home = str(env_map.get("VOOL_HOME") or "").strip() or str(env_map.get("NULLA_HOME") or "").strip()
     if not home:
         return False  # no explicit isolation -> assume the real runtime home
-    root = Path(home).expanduser()
+    from core.runtime_paths import active_vool_home
+
+    root = active_vool_home(env)
     data = root / "data"
     for marker in (
         data / "credentials.keychain_migrated",
@@ -440,7 +441,9 @@ def _select_isolated_browser(report: PreflightReport) -> None:
     Safe Storage" Keychain item to look for.
     """
     if not os.environ.get(BROWSER_PROFILE_ROOT_ENV):
-        profile_root = Path(tempfile.gettempdir()) / f"vool-browser-profiles-{os.getuid()}"
+        from core.runtime_paths import active_vool_home
+
+        profile_root = active_vool_home() / "tmp" / "browser-profiles"
         try:
             profile_root.mkdir(parents=True, exist_ok=True)
             os.environ[BROWSER_PROFILE_ROOT_ENV] = str(profile_root)

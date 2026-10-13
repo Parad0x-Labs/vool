@@ -44,6 +44,7 @@ Remove-Item $embedZip -Force
 $pth = (Get-ChildItem "$pyDir\python*._pth" | Select-Object -First 1).FullName
 $lines = Get-Content $pth | ForEach-Object { if ($_ -match '^\s*#\s*import site\s*$') { 'import site' } else { $_ } }
 if ($lines -notcontains 'Lib\site-packages') { $lines += 'Lib\site-packages' }
+if ($lines -notcontains '..\app') { $lines += '..\app' }
 Set-Content -Path $pth -Value $lines -Encoding ascii
 
 # --- 2. lean runtime deps (no heavy ML training stack) ------------------------------------

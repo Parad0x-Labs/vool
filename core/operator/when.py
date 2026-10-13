@@ -36,12 +36,17 @@ _ZONE_RE = re.compile(
 _ZONE_SLASH_RE = re.compile(r"\b([A-Za-z][A-Za-z_]*(?:/[A-Za-z0-9_+\-]+){1,2})\b")
 _ZONE_ROOTS = frozenset(z.split("/")[0] for z in available_timezones() if "/" in z)
 _ISO_DATETIME_RE = re.compile(r"\b(20\d{2})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?\b")
-_TIME_RE = re.compile(r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b", re.IGNORECASE)
+_TIME_RE = re.compile(
+    r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)(\d{1,2}):(\d{2})\b"
+    # A bare 24-hour clock ("tomorrow 15:00"), the form this lane's own clarifications suggest.
+    r"|(?<![\d:.\-/])\b(\d{1,2}):(\d{2})\b(?![:.]?\d)",
+    re.IGNORECASE,
+)
 _IN_RELATIVE_RE = re.compile(
     r"\bin\s+(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b",
     re.IGNORECASE,
 )
-_DAY_RE = re.compile(r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.IGNORECASE)
+_DAY_RE = re.compile(r"\b(yesterday|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.IGNORECASE)
 _WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 MAX_FUTURE_DAYS = 366 * 2
@@ -75,10 +80,41 @@ def format_due_time(due_at_utc: str, tz_name: str = "", due_wall: str = "") -> s
     return instant.strftime("%d %b %Y at %H:%M:%S %Z")
 
 
+def has_passed(resolution: WhenResolution) -> bool:
+    """True when a resolved instant is before the instant it was read at.
+
+    "In 0 minutes" resolves to the read instant itself: that is due now, not passed. Only a
+    caller that needs a FUTURE instant (a reminder) asks this; a calendar search or move may
+    legitimately name a past time, so the parser itself never refuses one.
+    """
+    if not resolution.ok:
+        return False
+    try:
+        due = datetime.fromisoformat(str(resolution.due_at_utc).replace("Z", "+00:00"))
+        read_at = datetime.fromisoformat(str(resolution.details.get("read_at_utc") or ""))
+    except ValueError:
+        return False
+    return due < read_at
+
+
 def parse_when_expression(
     text: str,
     *,
     now_fn: Callable[[], datetime] = CLOCK.now_utc,
+) -> WhenResolution:
+    now = now_fn()
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    resolution = _parse_when_expression(text, now_fn=lambda: now)
+    if resolution.ok:
+        resolution.details = {**resolution.details, "read_at_utc": now.astimezone(timezone.utc).isoformat()}
+    return resolution
+
+
+def _parse_when_expression(
+    text: str,
+    *,
+    now_fn: Callable[[], datetime],
 ) -> WhenResolution:
     text = str(text or "").strip()
     if not text:
@@ -227,7 +263,10 @@ def _clock_from_match(match: re.Match) -> tuple[int, int]:
         elif meridiem == "am" and hour == 12:
             hour = 0
         return hour, minute
-    hour, minute = int(match.group(4)), int(match.group(5))
+    if match.group(4) is not None:
+        hour, minute = int(match.group(4)), int(match.group(5))
+    else:
+        hour, minute = int(match.group(6)), int(match.group(7))
     if not 0 <= hour <= 23 or not 0 <= minute <= 59:
         raise ValueError("Give me a valid clock time: hours 00–23 and minutes 00–59.")
     return hour, minute
@@ -239,6 +278,10 @@ def _date_for_day_word(day_word: str, zone_now: datetime) -> datetime:
         return zone_now.date()
     if word == "tomorrow":
         return zone_now.date() + timedelta(days=1)
+    if word == "yesterday":
+        # Read as said: a past day stays in the past, and a caller that needs a future
+        # instant refuses it (see `has_passed`), instead of rolling it into the future.
+        return zone_now.date() - timedelta(days=1)
     target_weekday = _WEEKDAY_ORDER.index(word)
     days_ahead = (target_weekday - zone_now.weekday()) % 7
     if days_ahead == 0:

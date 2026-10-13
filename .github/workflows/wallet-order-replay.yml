@@ -1,0 +1,180 @@
+name: Wallet order replay (diagnostic only)
+
+on:
+  workflow_dispatch:
+
+# This bounded replay is diagnostic evidence, never the complete CI merge gate.
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wallet-order-replay-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  replay:
+    name: diagnostic-wallet-order-replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history is load-bearing: test_legacy_migration_repair extracts a real ancestor.
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+      - name: Install verification dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,browser,companion,evm]"
+      - name: Provision the kernel sandbox backend (bubblewrap)
+        # The code-task lane's test steps run through the real sandbox runner, whose Linux
+        # confinement is bwrap. Installing the package alone is NOT enough on these runners:
+        # Ubuntu 24.04 ships AppArmor with kernel.apparmor_restrict_unprivileged_userns=1 and
+        # the bubblewrap package installs no AppArmor profile, so bwrap's availability probe
+        # fails for the non-root runner user and every journaled step answers
+        # sandbox_unavailable (measured, run 35520785157: the probe returned rc=1 with the
+        # package installed). The profile below grants ONLY bwrap the right to create its
+        # user namespace — the confinement itself stays kernel-enforced — and the probe at
+        # the end fails this step loudly if a future runner image changes the rules, instead
+        # of letting 900 tests cascade.
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          if ! sudo apparmor_parser -r /etc/apparmor.d/bwrap 2>/tmp/vool-bwrap-apparmor.err; then
+            echo "::error::this host's apparmor refused the bwrap userns profile — the sandbox backend cannot run confined here; refusing to relax the host-wide unprivileged-userns restriction to proceed"
+            cat /tmp/vool-bwrap-apparmor.err >&2
+            sudo cat /etc/apparmor.d/bwrap >&2
+            exit 1
+          fi
+          bwrap --unshare-net --ro-bind / / --tmpfs /tmp -- true
+      - name: Provision the served-browser lane (Playwright chromium)
+        # Ubuntu 24.04's restricted-unprivileged-userns AppArmor policy grants namespace
+        # creation only to binaries with a profile carrying `userns` — the bwrap step above
+        # grants it to bwrap ALONE. The bundled Chromium this lane serves renders through
+        # (find_browser_binary / select_bundled_chromium) launches with its namespace sandbox
+        # ON (the --no-sandbox escape is test/container-only by design and an invariant test
+        # pins its absence), so without the same right it refuses to start entirely: exit 5,
+        # empty DOM, the browser's "SUID sandbox" refusal on stderr (measured, run
+        # 35752689216 shard 2). The profile below grants ONLY the userns right to the exact
+        # playwright-cache binaries (versioned paths, resolved at runtime — both the
+        # headless-shell build the unattended preflight pins and the full build the locator's
+        # glob order prefers); Chromium's sandbox itself stays kernel-enforced. The bounded
+        # probe at the end fails this step loudly — instead of letting the render suites
+        # cascade or a launch hang the shard.
+        run: |
+          python -m playwright install --with-deps chromium
+          bins=()
+          while IFS= read -r bin; do
+            [ -n "$bin" ] || continue
+            bins+=("$bin")
+          done < <(find "$HOME/.cache/ms-playwright" -type f \
+            \( -name chrome -o -name chrome-headless-shell \) | sort)
+          if [ "${#bins[@]}" -eq 0 ]; then
+            echo "::error::no chromium binaries in the playwright cache — provisioning drifted"
+            exit 1
+          fi
+          profile_file=/etc/apparmor.d/vool-playwright-chromium
+          {
+            echo 'abi <abi/4.0>,'
+            echo 'include <tunables/global>'
+            i=0
+            for bin in "${bins[@]}"; do
+              echo "profile vool-playwright-chromium-$i $bin flags=(unconfined) {"
+              echo '  userns,'
+              echo '}'
+              i=$((i + 1))
+            done
+          } | sudo tee "$profile_file" >/dev/null
+          if ! sudo apparmor_parser -r "$profile_file" 2>/tmp/vool-chromium-apparmor.err; then
+            echo "::error::this host's apparmor refused the chromium userns profile — the served-browser lane cannot run confined here; refusing to relax the host-wide unprivileged-userns restriction to proceed"
+            cat /tmp/vool-chromium-apparmor.err >&2
+            exit 1
+          fi
+          # Loud probe, HARD-BOUND, and limited to the headless-shell build the render lane
+          # actually pins (select_bundled_chromium prefers it; the failing CI test pinned it
+          # via VOOL_BROWSER_BINARY). Measured, cancelled run 35767154971: probing the FULL
+          # Chrome-for-Testing build hung every shard inside this step for 86 minutes -- the
+          # same fresh-profile hang under that build the preflight's binary preference
+          # documents. Two laws follow:
+          #   * a chromium launch is an UNBOUNDED subprocess without the engine's own
+          #     --virtual-time-budget AND a `timeout -k` wrapper;
+          #   * the browser's output must go to a FILE, never a command-substitution pipe:
+          #     chromium forks chrome_crashpad_handler helpers that inherit the pipe, and
+          #     when the parent is killed the orphans hold the pipe open and the caller
+          #     blocks forever (the cancelled run's cleanup killed two of them).
+          # The probe page's own bytes must appear in the dumped DOM. The full build keeps
+          # its userns grant above (identical profile mechanism, never launched here): its
+          # served lanes run through playwright's own launcher, green unmodified in
+          # 35752689216.
+          probe_fail=0
+          probe_count=0
+          for bin in "${bins[@]}"; do
+            case "$(basename "$bin")" in chrome-headless-shell*) ;; *) continue ;; esac
+            probe_count=$((probe_count + 1))
+            probe_dir=$(mktemp -d)
+            ok=0
+            if timeout -k 5s 60s "$bin" --disable-gpu --no-first-run --no-default-browser-check \
+                 --disable-extensions --disable-background-networking \
+                 "--user-data-dir=$probe_dir" --virtual-time-budget=2000 \
+                 --dump-dom "data:text/html,<title>vool-probe</title>vool-probe" \
+                 >/tmp/vool-chromium-probe.dom 2>/tmp/vool-chromium-probe.err \
+                 && grep -q "vool-probe" /tmp/vool-chromium-probe.dom; then
+              ok=1
+            fi
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::the bundled chromium headless shell cannot render under its own namespace sandbox: $bin"
+              cat /tmp/vool-chromium-probe.err >&2
+              probe_fail=1
+            fi
+            rm -rf "$probe_dir"
+          done
+          if [ "$probe_count" -eq 0 ]; then
+            echo "::error::no chrome-headless-shell binary in the playwright cache — the render lane's pinned build is missing (provisioning drifted); a preflight that probed nothing cannot pass"
+            exit 1
+          fi
+          exit $probe_fail
+      - name: Provision a virtual display for headful sessions
+        # The wallet-handoff contract opens one genuinely headful Chromium session (a handoff
+        # requires a VISIBLE browser by design). These runners have no display, so a headful
+        # launch cannot open and the lane times out waiting for the operator's session. A
+        # virtual framebuffer gives the headful lane a real display to map its window onto;
+        # every other test is unaffected.
+        run: sudo apt-get install -y xvfb
+      - name: Download the recorded failed shard as data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .verification-logs/wallet-order-source
+          gh run view 38248362279 --repo "$GITHUB_REPOSITORY" \
+            --json headSha,databaseId,status,conclusion \
+            > .verification-logs/wallet-order-source-run.json
+          gh run download 38248362279 --repo "$GITHUB_REPOSITORY" \
+            --name verification-logs-shard-1 \
+            --dir .verification-logs/wallet-order-source
+      - name: Replay every recorded file with only the privacy node last
+        run: >-
+          xvfb-run -a --server-args="-screen 0 1280x1024x24"
+          python ops/ci_wallet_order_replay.py
+          --artifact-dir .verification-logs/wallet-order-source
+          --source-run-json .verification-logs/wallet-order-source-run.json
+          --output-dir .verification-logs/wallet-order-replay
+      - name: Upload replay evidence (including red or incomplete runs)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostic-wallet-order-replay
+          path: .verification-logs/
+          include-hidden-files: true

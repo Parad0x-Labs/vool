@@ -688,11 +688,39 @@ def _subject_in_source(subject: str, source: _Source) -> bool:
     )
 
 
+def _time_framing_spans(segment: str) -> list[tuple[int, int]]:
+    """Character spans of the claim's time-of-statement framing ("Right now", "Today", "currently").
+
+    Read from the SAME closed class `_has_currency_marker` already uses (`_CURRENCY_TOKENS`,
+    `_CURRENCY_PHRASES`), so the matcher has one notion of "this sentence is framed as current"."""
+
+    spans: list[tuple[int, int]] = []
+    for phrase in (*_CURRENCY_PHRASES, *_CURRENCY_TOKENS):
+        body = "[ ]+".join(re.escape(word) for word in phrase.split())
+        pattern = rf"(?<![\w'-]){body}(?![\w'-])"
+        spans.extend(found.span() for found in re.finditer(pattern, segment, flags=re.IGNORECASE))
+    return spans
+
+
 def _subject_candidates(segment: str, *, stopwords: frozenset[str], request_terms: set[str]) -> tuple[str, ...]:
-    """Capitalised phrases of the claim whose every token the request supplied: the claim's subjects."""
+    """Capitalised phrases of the claim whose every token the request supplied: the claim's subjects.
+
+    Time framing is never a subject. Measured on the served daemon: "What is the launch date
+    right now?" answered "Right now beta.md says the launch date is 14 March." from a search that
+    returned exactly that line, and the claim was refused as `subject_absent_from_source` --
+    sentence position capitalised "Right", the request supplied "right", and no source says
+    "right". A word inside the claim's own currency framing names WHEN, not WHO or WHAT."""
     subjects: list[str] = []
+    framing = _time_framing_spans(segment)
     for match in re.finditer(r"(?:[A-ZÀ-Þ][\w'&.-]*)(?:[ ]+[A-ZÀ-Þ][\w'&.-]*)*", segment):
-        folded_tokens = [_fold(token).strip("'&.-") for token in match.group(0).split()]
+        folded_tokens = [
+            _fold(token.group(0)).strip("'&.-")
+            for token in re.finditer(r"\S+", match.group(0))
+            if not any(
+                start <= match.start() + token.start() and match.start() + token.end() <= end
+                for start, end in framing
+            )
+        ]
         kept = [tok for tok in folded_tokens if len(tok) >= 2 and tok not in stopwords and tok not in GENERIC_SUPPORT_TERMS]
         if not kept:
             continue

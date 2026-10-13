@@ -112,7 +112,7 @@ class SandboxRunner:
                         "status": "blocked_by_policy",
                     }
 
-        gate_result = self.gate.evaluate_command(cmd)
+        gate_result = self.gate.evaluate_command(cmd, cwd=str(target_cwd))
 
         if gate_result["decision"] == "blocked":
             return {"error": gate_result["reason"], "status": "blocked_by_policy"}

@@ -71,6 +71,12 @@ def test_normalized_fails_safe():
     assert n.on_cap_reached == "ask"  # unknown -> ask
 
 
+@pytest.mark.parametrize("value", ["false", "true", "0", 1, 0, None, [], {}])
+def test_free_cloud_consent_requires_a_saved_boolean(value):
+    assert CloudEscalationPolicy.from_dict({"free_cloud_enabled": value}).free_cloud_enabled is False
+    assert CloudEscalationPolicy(free_cloud_enabled=value).normalized().free_cloud_enabled is False
+
+
 # ── persistence + daily reset (isolated store) ───────────────────────────────
 
 def _isolate(monkeypatch, tmp_path):

@@ -209,9 +209,10 @@ def _domain_member_token_indexes(toks: list[tuple[int, int, str]], lowered: str)
 
     members: set[int] = set()
     try:
-        from tools.web.coin_index import resolve_tokens
+        from tools.web.coin_index import cached_index_only, resolve_tokens
 
-        resolved_starts = {start for start, _coin_id in resolve_tokens(lowered, skip_spans=())}
+        with cached_index_only():
+            resolved_starts = {start for start, _coin_id in resolve_tokens(lowered, skip_spans=())}
     except Exception:
         resolved_starts = set()
     for index, (tok_start, _tok_end, word) in enumerate(toks):

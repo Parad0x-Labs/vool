@@ -411,12 +411,9 @@ def shipped_helper_app() -> Path | None:
 
 
 def tools_dir() -> Path:
-    try:
-        from core.runtime_paths import active_data_dir
+    from core.runtime_paths import active_data_dir
 
-        return Path(active_data_dir()) / "notification_tools"
-    except Exception:
-        return Path(tempfile.gettempdir()) / "vool_notification_tools"
+    return Path(active_data_dir()) / "notification_tools"
 
 
 def cached_helper_app(*, bundle_identifier: str = DEV_BUNDLE_IDENTIFIER) -> Path:

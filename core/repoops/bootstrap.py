@@ -238,6 +238,11 @@ def initial_push(
         return EffectOutcome(status="refused",
                              reason="bootstrap push needs a clean attached branch")
     target_branch = branch or local.branch
+    from core.user_rules import git_outbound_refusal
+
+    ruled = git_outbound_refusal(ws.root, "push", names=(target_branch,), unpublished_head=local.head_sha)
+    if ruled is not None:
+        return EffectOutcome(status="refused", reason=ruled.reason)
     existing = provider.branch_head(ws.repo, target_branch)
     if existing and existing != local.head_sha:
         return EffectOutcome(
