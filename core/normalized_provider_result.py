@@ -176,6 +176,27 @@ def is_retryable(error_class: ProviderErrorClass | None) -> bool:
     return error_class is not None and error_class in RETRYABLE_ERROR_CLASSES
 
 
+def retry_after_hint(error: str | Exception | None) -> float | None:
+    """The provider's typed 429 wait hint, in seconds, when the error carries one.
+
+    The adapter parses the HTTP ``Retry-After`` header (numeric form only) into the greppable
+    ``[retry_after=Ns]`` marker; this reads it back at the seam that decides whether to wait.
+    None for anything else -- an HTTP-date form is deliberately not approximated, and a fault
+    without the marker waits by the caller's own backoff instead of an invented number.
+    """
+
+    import re as _re
+
+    message = str(error or "")
+    if not message:
+        return None
+    match = _re.search(r"\[retry_after=(\d+)s\]", message)
+    if match is None:
+        return None
+    seconds = int(match.group(1))
+    return float(seconds) if seconds > 0 else None
+
+
 # Ordered so a more specific signal wins over a more generic one that might also match (e.g. a
 # timeout message often also contains "provider" or "connection"-adjacent words).
 _ERROR_CLASS_MARKERS: tuple[tuple[str, ProviderErrorClass], ...] = (
@@ -214,6 +235,17 @@ _ERROR_CLASS_MARKERS: tuple[tuple[str, ProviderErrorClass], ...] = (
     ("rate limit", ProviderErrorClass.PROVIDER_RATE_LIMIT),
     ("rate_limited", ProviderErrorClass.PROVIDER_RATE_LIMIT),
     ("quota", ProviderErrorClass.PROVIDER_RATE_LIMIT),
+    # The canonical 429 status text itself. Measured 2026-10-02: a real OpenAI-compatible 429
+    # arrives as "429 Client Error: Too Many Requests for url: ... — provider said: {...}", and
+    # the body excerpt is provider-authored -- one provider's overload body said "model
+    # overloaded", another's says "You exceeded your quota" -- so the table above only matched
+    # when the provider's own body happened to contain rate/quota words. The status line is the
+    # one signal every 429 carries.
+    ("too many requests", ProviderErrorClass.PROVIDER_RATE_LIMIT),
+    # The typed marker adapters/openai_compatible_adapter.py::_raise_for_status_with_cause stamps
+    # ONLY on an HTTP 429 (numeric-seconds Retry-After form). It is provider evidence by
+    # construction, so it carries the class even when the body excerpt is silent.
+    ("[retry_after=", ProviderErrorClass.PROVIDER_RATE_LIMIT),
     ("timeout", ProviderErrorClass.PROVIDER_TIMEOUT),
     ("timed out", ProviderErrorClass.PROVIDER_TIMEOUT),
     ("connection", ProviderErrorClass.PROVIDER_CONNECTION_ERROR),
@@ -483,4 +515,5 @@ __all__ = [
     "is_retryable",
     "normalize_cloud_model_response",
     "normalize_model_response",
+    "retry_after_hint",
 ]
