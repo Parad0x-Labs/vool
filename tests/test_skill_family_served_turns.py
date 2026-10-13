@@ -411,7 +411,7 @@ def test_served_lifecycle_create_validate_install_edit_rollback_disable(family_r
         "turn-life-edit",
         mode="auto",
     )
-    assert "Drafted the skill" in _answer(edited), _answer(edited)[:200]
+    assert "Revised the skill" in _answer(edited), _answer(edited)[:200]
     replayed, _s = _activate(
         daemon, family_rig, "turn-life-install-2",
         "install the skill called served-echo-skill",

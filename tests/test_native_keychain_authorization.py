@@ -84,16 +84,26 @@ def test_invalid_deadline_fails_closed(deadline):
 
 
 def test_native_child_receives_one_deadline_without_mutating_parent_environment(tmp_path):
+    from core.runtime_paths import runtime_home_identity
+
     child = mock.Mock()
+    child.pid = 61001
     child.poll.return_value = None
     spawn = mock.Mock(return_value=child)
     supervisor = NativeRuntimeSupervisor(tmp_path, ["python", "-m", "apps.vool_api_server"],
                                          expected_sha="a" * 40, env={"VOOL_HOME": str(tmp_path)},
                                          startup_timeout=30, popen=spawn)
-    supervisor._health = mock.Mock(side_effect=[None, {"runtime": {"commit_full": "a" * 40, "dirty": False}}])
+    home_id = runtime_home_identity({"VOOL_HOME": str(tmp_path)})
+    supervisor._health = mock.Mock(side_effect=[None, {"ok": True, "runtime": {
+        "commit_full": "a" * 40, "dirty": False, "pid": child.pid,
+        "runtime_home_id": home_id, "protocol_version": 1,
+        "workstation_version": "vool-workstation-test", "release_version": "0.7.0",
+    }}])
     before = time.monotonic()
     try:
-        supervisor.ensure_ready()
+        identity = supervisor.ensure_ready()
+        assert identity["pid"] == child.pid
+        assert identity["runtime_home_id"] == home_id
         deadline = float(spawn.call_args.kwargs["env"]["VOOL_NATIVE_AUTHORIZATION_DEADLINE"])
         assert before + 26 <= deadline <= time.monotonic() + 27
         assert "VOOL_NATIVE_AUTHORIZATION_DEADLINE" not in supervisor.env

@@ -192,11 +192,19 @@ def verify_source_intact(project_id: str) -> bool:
 
 # ---------------------------------------------------------------- preview
 
+def _preview_cache_dir(project_id: str) -> Path:
+    from core.runtime_paths import runtime_auxiliary_path
+
+    return runtime_auxiliary_path(
+        "cache", PREVIEW_CACHE_DIRNAME, project_id,
+        legacy=Path.home() / ".vool" / PREVIEW_CACHE_DIRNAME / project_id,
+    )
+
 def render_preview_frame(project_id: str, at_time: float | None = None) -> dict[str, Any]:
     """Cheap preview frame for the editor (typed local-cache effect)."""
     project = get_project(project_id)
     t = float(at_time if at_time is not None else project.active_selection.playhead)
-    cache_dir = Path.home() / ".vool" / PREVIEW_CACHE_DIRNAME / project.project_id
+    cache_dir = _preview_cache_dir(project.project_id)
     dst = cache_dir / f"frame_{int(t * 1000)}.png"
     if not dst.exists():
         _worker_call("thumbnail", {"src": project.source_asset.path,
@@ -207,7 +215,7 @@ def render_preview_frame(project_id: str, at_time: float | None = None) -> dict[
 def ensure_proxy(project_id: str) -> dict[str, Any]:
     """Low-cost proxy encode used by the editor <video> element."""
     project = get_project(project_id)
-    cache_dir = Path.home() / ".vool" / PREVIEW_CACHE_DIRNAME / project.project_id
+    cache_dir = _preview_cache_dir(project.project_id)
     proxy_path = cache_dir / f"proxy_r{project.edit_revision}.mp4"
     if not proxy_path.exists():
         _worker_call("proxy", {"src": project.source_asset.path,

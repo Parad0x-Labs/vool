@@ -17,14 +17,33 @@ itself — the flow is deliberately three-stage:
 3. **Approve** — sending requires your explicit approval of those exact bytes. If the payload
    changes, the approval no longer binds and you must approve again.
 
-A **local copy** needs no approval at all: it writes the same sanitized bytes to a file on
-your machine.
+After you approve, **Open on GitHub** opens a filled-in report page on the public
+[vool-reports](https://github.com/Parad0x-Labs/vool-reports) repository in your browser. Read it
+there once more and press Submit. VOOL itself sends nothing, and no GitHub token is needed.
+**Copy report** and **Save a local copy** need no approval at all: they hand you the same sanitized
+bytes and nothing leaves your machine. **My reports** lists your drafts and how each one left.
+
+## Reporting a wrong answer
+
+Press **Report** or 👎 under any answer, or highlight the wrong part and press **Report**. The
+report quotes only that part (or the whole answer). Your question is left out unless you tick the
+box. The answer's receipt is included: model, provider, tokens, time, and which steps ran, never
+their content. An answer you asked VOOL to forget cannot be reported.
+
+## What is added to help investigate
+
+Your computer's shape: OS version, chip, memory, GPU, and the local model server version. Also a
+short health check: whether the local model server answers, and free disk space as a range. Never
+your computer's name, your user name, serial numbers or network addresses. You can remove any of it
+in the preview.
 
 ## What redaction removes
 
 Deterministically, before you ever see the draft: credentials and auth headers, home paths
-and usernames, emails, IP addresses, labelled secrets and high-entropy blobs — layered under
-a final secret-scan pass. Stack traces are reconstructed from an allowlist, not pasted raw.
+and usernames, your computer's name, emails, IP addresses, PINs and one-time codes, card and
+bank (IBAN) numbers, phone numbers, wallet addresses, the personal details saved in your
+profile, labelled secrets and high-entropy blobs — layered under a final secret-scan pass.
+VOOL can't recognise names or private facts typed in ordinary sentences, so read the preview. Stack traces are reconstructed from an allowlist, not pasted raw.
 Fault evidence in reports carries **typed codes only** — never internal context or cause
 chains.
 

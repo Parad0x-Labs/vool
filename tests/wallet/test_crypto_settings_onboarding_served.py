@@ -16,6 +16,7 @@ never printed, stored or asserted by content beyond its format and derived addre
 from __future__ import annotations
 
 import json
+import os
 import re
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -63,9 +64,20 @@ def browser():
 
 @pytest.fixture(scope="module")
 def served(tmp_path_factory):
-    from tests._blackbox_served_rig import ServedDaemon
+    from tests._blackbox_served_rig import REPO_ROOT, ServedDaemon
 
-    home = tmp_path_factory.mktemp("onboarding") / "home"
+    fixture_root = tmp_path_factory.mktemp("onboarding")
+    home = fixture_root / "home"
+    # This flow proves the no-device case on every host. The child uses the existing
+    # test authority seam, so it cannot consult or prompt the operator's Keychain.
+    startup = fixture_root / "startup"
+    startup.mkdir()
+    (startup / "sitecustomize.py").write_text(
+        "from core.wallet.device_auth import set_device_authority_for_tests\n"
+        "from tests.wallet._device_auth_fake import FakeDeviceAuthority\n"
+        "set_device_authority_for_tests(FakeDeviceAuthority(available=False))\n",
+        encoding="utf-8",
+    )
     sol = ScriptedRpc(genesis_hash=DEVNET_GENESIS)
     sol.real_signature = True
     sol.status_keyed = True
@@ -76,6 +88,7 @@ def served(tmp_path_factory):
         node.__enter__()
     # Crypto is OFF: no VOOL_WALLET_ENABLED override; the switch in Settings is the only way on
     daemon = ServedDaemon(home, env_extra={
+        "PYTHONPATH": os.pathsep.join((str(startup), str(REPO_ROOT))),
         "VOOL_ALWAYS_ON_CATALOG": "1", "VOOL_WALLET_RPC_URLS": json.dumps({SOLANA_DEVNET: sol.url, BASE_SEPOLIA: base.url, ETH_SEPOLIA: eth.url}),
         "VOOL_WALLET_X402_ALLOW_LOOPBACK": "1", "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url,
         "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat", "VOOL_OLLAMA_PS_URL": f"{provider.base_url}/api/ps", "VOOL_OLLAMA_TAGS_URL": f"{provider.base_url}/api/tags",

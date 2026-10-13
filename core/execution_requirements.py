@@ -86,6 +86,13 @@ class RequiredToolsNotOfferedError(RuntimeError):
 
 
 def _live_data_classification(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
+    from tools.web.coin_index import cached_index_only
+
+    with cached_index_only():
+        return _live_data_classification_cached(text)
+
+
+def _live_data_classification_cached(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
     """Whether this GROUNDED request is specifically a live-data (price/weather) lookup.
 
     Returns `(multipart, parallel_preferred, allowed_toolsets)`, or `None` when the request is
@@ -791,14 +798,22 @@ def _compute_requirements(
     # The software-authoring register (see `answer_mode_for`): the request asks the runtime to
     # BUILD something, and no explicit evidence contract was stated. The live-data recognizers and
     # the freshness signals below would otherwise read the artifact's specification as a lookup.
+    # A SKILL-authoring request ("create a skill for this project that writes release notes from a
+    # list of merged changes ...") is authoring too: its clauses describe the skill, not a lookup.
+    # Measured live 2026-10-05: read as current-information, its model-drafted skill was withheld
+    # by the publication gate as unsupported by retrieval that never applied.
+    from core.agent_runtime.fast_paths_skill import is_skill_authoring_request
     from core.agent_runtime.grounded_mode import (
         explicitly_promises_evidence,
         is_software_authoring_request,
         software_authoring_remainder,
     )
 
-    authoring_request = is_software_authoring_request(candidate_text) and not explicitly_promises_evidence(candidate_text)
-    if authoring_request:
+    skill_authoring = is_skill_authoring_request(candidate_text)
+    authoring_request = (
+        is_software_authoring_request(candidate_text) or skill_authoring
+    ) and not explicitly_promises_evidence(candidate_text)
+    if authoring_request and not skill_authoring:
         # Only an authoring-ONLY request disarms the live-data and freshness arms. Any other clause
         # that ASKS FOR current information on its own keeps them armed for the whole turn -- the
         # same lookup-shape rule `answer_mode_for` applies: the remainder arms grounding when it
@@ -944,6 +959,29 @@ def _compute_requirements(
             user_material_supplied=supplied,
             tools_required=True,
             allowed_toolsets=("email",),
+            inference_allowed=not no_guessing,
+            reason_codes=tuple(reasons),
+        )
+
+    # Asking what was said earlier in this conversation is answered from the conversation and memory.
+    # The live arms below read the topic of the recollection ("the latest bitcoin news", "the weather
+    # at my wedding") as a lookup; an ask beside the recollection still arms them on its own reading.
+    from core.execution.constants import conversation_recall_remainder
+
+    recall_rest = conversation_recall_remainder(text)
+    if recall_rest is not None and not any(
+        (rest := _compute_requirements(clause, task_class="unknown")).current_information_required
+        or rest.tools_required
+        for clause in recall_rest
+    ):
+        reasons.append("conversation_recall")
+        return ExecutionRequirements(
+            answer_mode="DIRECT",
+            external_evidence_required=False,
+            current_information_required=False,
+            user_material_supplied=supplied,
+            tools_required=False,
+            allowed_toolsets=(),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )

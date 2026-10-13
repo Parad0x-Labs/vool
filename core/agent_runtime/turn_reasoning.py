@@ -941,6 +941,7 @@ def execute_grounded_turn(
             ),
             session_id=session_id,
             persist=False,
+            user_demand_text=str(getattr(interpreted, "raw_text", "") or effective_input),
         )
     # M2 -- RETRIEVAL BEFORE SYNTHESIS.
     #

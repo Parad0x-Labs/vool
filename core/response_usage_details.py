@@ -20,6 +20,8 @@ def response_usage_details(response: Any, *, cost_class: str = "") -> dict[str, 
 
 
 def _response_usage_details(response: Any, *, cost_class: str = "") -> dict[str, Any]:
+    from core.model_pricing import cached_prompt_tokens
+
     usage = dict(getattr(response, "usage", None) or {})
     metadata = dict(getattr(response, "provider_metadata", None) or {})
     def count(*keys: str) -> int | None:
@@ -31,6 +33,7 @@ def _response_usage_details(response: Any, *, cost_class: str = "") -> dict[str,
     result: dict[str, Any] = {
         "input_tokens": count("prompt_tokens", "input_tokens", "prompt_eval_count"),
         "output_tokens": count("completion_tokens", "output_tokens", "eval_count"),
+        "cached_input_tokens": cached_prompt_tokens(usage),
         "request_seconds": _number(metadata.get("vool_call_seconds")),
         "cost_state": "unreported",
     }

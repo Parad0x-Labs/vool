@@ -317,7 +317,8 @@ def normalize_prompt(
         from core.tool_offer_assembly import skill_guidance_for
 
         _matched_worker_skills = skill_guidance_for(
-            str(user_text or ""), task_class=str(task_class or "")
+            str(user_text or ""), task_class=str(task_class or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
         )
         if _matched_worker_skills.text.strip():
             _skill_guidance_block = (
@@ -627,6 +628,7 @@ def _build_conversational_request(
         system_segments.extend([
             ("persona", _PAYLOAD_SYSTEM_BOOTSTRAP, f"You are {persona_name}."),
             ("plain_task_instruction", _PAYLOAD_SYSTEM_BOOTSTRAP, task_instruction),
+            ("style_guide", _PAYLOAD_SYSTEM_BOOTSTRAP, style_guide),
             (
                 "no_side_effect_claim",
                 _PAYLOAD_SYSTEM_BOOTSTRAP,
@@ -719,7 +721,8 @@ def _build_conversational_request(
         from core.tool_offer_assembly import skill_guidance_for
 
         _matched_skills = skill_guidance_for(
-            str(user_text or ""), task_class=str(task_class or "")
+            str(user_text or ""), task_class=str(task_class or ""),
+            source_context=source_context if isinstance(source_context, dict) else None,
         )
         if _matched_skills.text.strip():
             system_segments.append(
@@ -774,6 +777,17 @@ def _build_conversational_request(
                     ("x_editorial_voice", _PAYLOAD_SYSTEM_BOOTSTRAP, _voice_segment)
                 )
 
+    # User rules (core.user_rules): the rules that bind this chat, stable until a rule is added or
+    # removed, so they belong in the cached system prefix rather than the per-turn message.
+    _user_rules_block = ""
+    with contextlib.suppress(Exception):
+        from core.user_rules import rules_prompt_block, scope_keys_for
+
+        _rules_keys = scope_keys_for(source_context)
+        _user_rules_block = rules_prompt_block(chat_id=_rules_keys["chat"], project_id=_rules_keys["project"])
+    if _user_rules_block:
+        system_segments.append(("user_rules", _PAYLOAD_SYSTEM_BOOTSTRAP, _user_rules_block))
+
     system_content = _join_system_segments(
         [segment for segment in system_segments if segment[0] not in _PER_TURN_SYSTEM_SEGMENTS]
     )
@@ -823,6 +837,17 @@ def _build_conversational_request(
             else EXPANDED_HISTORY_MESSAGES
         ),
     )
+    if (source_context or {}).get("runtime_retry_of") or (source_context or {}).get("turn_routing_retry"):
+        from core.attempt_followup import classify_followup_intent
+
+        ordinary_history: list[InternalMessage] = []
+        control_exchange = False
+        for message in history_messages:
+            if message.role == "user":
+                control_exchange = classify_followup_intent(message.content) is not None
+            if not control_exchange:
+                ordinary_history.append(message)
+        history_messages = ordinary_history
     # The stipulated-frame rule ("answer inside the frame, never replace named people") is right
     # only when the user set up a frame. Sent on every turn, it told the reader to answer inside
     # the premise of an ordinary question -- including a false premise that names the wrong
