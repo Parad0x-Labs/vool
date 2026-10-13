@@ -28,11 +28,18 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "github_search": {"action", "query"},
         "github_repository": {"action", "repository"},
         "github_inspect": {"action", "repository", "ref", "path"},
+        "registry_refresh": {"action", "approved"},
+        "registry_prepare": {"action", "id", "version", "approved"},
+        "registry_install": {"action", "id", "version", "review_id", "accepted", "enable"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
         return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
     try:
-        if action.startswith('github_'):
+        if action.startswith("registry_"):
+            from core.registry.client import handle
+
+            result = handle(action, body)
+        elif action.startswith('github_'):
             from core import addon_discovery
             if action == 'github_search':
                 result = addon_discovery.search(str(body.get('query', '')))
@@ -60,6 +67,12 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         return 200, result
     except AddonError as exc:
         return exc.status, {"ok": False, "error": exc.code, "message": exc.message}
+    except ValueError as exc:
+        from core.registry.codec import RegistryError
+
+        if isinstance(exc, RegistryError):
+            return 400, {"ok": False, "error": "registry_refused", "message": str(exc)}
+        return 400, {"ok": False, "error": "addon_refused", "message": "The add-on input was refused."}
     except Exception:
         # Never echo transport errors, credential values or personal storage paths.
         return 500, {"ok": False, "error": "addon_operation_failed", "message": "The add-on operation could not finish. Check storage access and review its status before retrying."}

@@ -653,6 +653,23 @@ def handle_turn_frontdoor(
             )
         }
 
+    # User rules: "add this to global rules: ...", "what are my rules", "remove rule 2". Answered
+    # from the rules store itself so "saved" is only said after the write (core.user_rules).
+    try:
+        from core.user_rules import observe_rules_turn
+
+        rules_outcome = observe_rules_turn(
+            agent,
+            raw_user_input,
+            session_id=session_id,
+            source_context=source_context,
+            access_policy=access_policy,
+        )
+    except Exception:
+        rules_outcome = None
+    if rules_outcome is not None and rules_outcome.get("result") is not None:
+        return {"result": rules_outcome["result"]}
+
     # Operator Profile (P1): the ONE seat where a turn's statements about the operator (name,
     # language, timezone, response preferences, signature, default account) meet the memory law.
     # Runs ahead of the preference-command surface and the memory-command lane so neither can

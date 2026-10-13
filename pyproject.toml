@@ -157,6 +157,8 @@ vool-meet = "apps.meet_and_greet_server:main"
 vool-watch = "apps.brain_hive_watch_server:main"
 vool-benchmark = "ops.benchmark_vool:main"
 vool = "core.command_registry.cli:main"
+vool-community = "tools.community_skills:main"
+vool-registry = "registry_service.cli:main"
 
 [tool.setuptools.package-data]
 "core.command_registry" = ["census_snapshot.json"]
@@ -165,9 +167,10 @@ vool = "core.command_registry.cli:main"
 # the built wheel omits it: an installed copy cannot import core.wallet.mnemonic at all, and
 # secret redaction cannot see a recovery phrase.
 "core.wallet" = ["bip39_english.txt"]
+"core.registry" = ["trusted-root.json"]
 
 [tool.setuptools.packages.find]
-include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*"]
+include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*", "registry_service*"]
 
 [tool.uv]
 # Resolver-side security floors for the open Python advisories (2026-10-04 intake). The lock is

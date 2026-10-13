@@ -343,6 +343,34 @@ def _detail_subset(source: dict[str, Any], keys: tuple[str, ...]) -> dict[str, A
     return {key: source.get(key) for key in keys if source.get(key)}
 
 
+def file_output_identity(source: dict[str, Any]) -> dict[str, Any]:
+    """Bounded terminal output metadata, never input arguments, file bytes or model prose.
+
+    Writers report their actual result here. Keeping these fields on the canonical fact
+    lets the final-answer validator bind filenames without guessing from a summary.
+    """
+    keys = {"filename", "file_name", "path", "file_path", "output_path", "target", "format", "media_type"}
+
+    def bounded(value: Any, depth: int = 0) -> dict[str, Any]:
+        if not isinstance(value, dict) or depth > 3:
+            return {}
+        result: dict[str, Any] = {}
+        for key, inner in value.items():
+            if key in keys and isinstance(inner, str) and 0 < len(inner) <= 4096:
+                result[key] = inner
+            elif key in {"observation", "details", "result"} and isinstance(inner, dict):
+                child = bounded(inner, depth + 1)
+                if child:
+                    result[key] = child
+            elif key == "files" and isinstance(inner, list):
+                children = [bounded(item, depth + 1) for item in inner[:200]]
+                if any(children):
+                    result[key] = [item for item in children if item]
+        return result
+
+    return bounded(source)
+
+
 def _retrieval_spec_from_receipt(receipt: dict[str, Any], *, failed_event: bool) -> ExecutionSpec | None:
     """One retrieval fact from one `vool.web_retrieval_receipt.v1`-shaped payload.
 
@@ -401,10 +429,10 @@ def classify_runtime_event(event_type: str, details: dict[str, Any] | None) -> l
                 # `subtask_id` / `node_id`: the plan node this execution WAS, so a consumer that also
                 # reads node completions (the proof projection) unions the two records by a
                 # runtime-owned identifier instead of counting one lookup twice.
-                detail=_detail_subset(
+                detail={**_detail_subset(
                     detail,
                     ("receipt_id", "tool_call_id", "action_id", "summary", "checkpoint_id", "subtask_id", "node_id"),
-                ),
+                ), **file_output_identity(detail)},
             )
         ]
 

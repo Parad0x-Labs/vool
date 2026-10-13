@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "Đã hủy. Không có gì được lưu.",
     "xsetup.title": "X (trước đây là Twitter)",
     "xsetup.entry_note": "X dùng nhiều khóa. Thiết lập có hướng dẫn cho biết dán gì vào đâu và kiểm tra chúng bằng một lần đọc.",
-    "xsetup.open": "Kết nối X"
+    "xsetup.open": "Kết nối X",
+    "addons.registry_tab": "Bộ sưu tập kỹ năng",
+    "addons.registry_title": "Kỹ năng và plugin từ người tạo",
+    "addons.registry_intro": "Do người tạo làm ra. VOOL không viết hay bảo đảm cho các kỹ năng cộng đồng, và việc kiểm tra tự động có thể bỏ sót. Tải gói để kiểm tra rồi quyết định có cài đặt và bật hay không.",
+    "addons.native_authority": "Kỹ năng cung cấp hướng dẫn. Quy tắc gốc của VOOL, cài đặt của chủ sở hữu, giới hạn chi tiêu, xử lý tiền tệ, quyền truy cập và yêu cầu phê duyệt luôn được ưu tiên.",
+    "addons.registry_evidence": "Tệp chính xác, quyền và nguồn",
+    "addons.registry_install_only": "Cài đặt nhưng chưa bật",
+    "addons.registry_enable": "Cài đặt và bật",
+    "addons.registry_refresh": "Duyệt bộ sưu tập kỹ năng",
+    "addons.registry_network": "Nút này yêu cầu kho công khai. Không gửi tài khoản, cuộc trò chuyện, tệp cục bộ hoặc khóa của nhà cung cấp.",
+    "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
+    "addons.registry_inspect": "Tải xuống để kiểm tra"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

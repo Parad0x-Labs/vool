@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "Cancelado. No se guardó nada.",
     "xsetup.title": "X (antes Twitter)",
     "xsetup.entry_note": "X usa varias claves. La configuración guiada indica qué pegar en cada sitio y las comprueba con una lectura.",
-    "xsetup.open": "Conectar X"
+    "xsetup.open": "Conectar X",
+    "addons.registry_tab": "Códice de habilidades",
+    "addons.registry_title": "Habilidades y extensiones de sus creadores",
+    "addons.registry_intro": "Hechas por sus creadores. VOOL no escribe ni respalda las habilidades de la comunidad, y las comprobaciones automáticas pueden pasar cosas por alto. Descarga el paquete para inspeccionarlo y decide después si lo instalas y activas.",
+    "addons.native_authority": "Las habilidades aportan instrucciones. Las reglas nativas de VOOL, los ajustes del propietario, los límites de gasto, la gestión de divisas, los permisos y las aprobaciones siempre tienen prioridad.",
+    "addons.registry_evidence": "Archivos exactos, permisos y origen",
+    "addons.registry_install_only": "Instalar sin activar",
+    "addons.registry_enable": "Instalar y activar",
+    "addons.registry_refresh": "Explorar el códice de habilidades",
+    "addons.registry_network": "Este botón consulta el registro público. No se envían cuentas, chats, archivos locales ni claves de proveedores.",
+    "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
+    "addons.registry_inspect": "Descargar para inspeccionar"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
