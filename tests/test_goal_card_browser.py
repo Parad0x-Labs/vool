@@ -21,8 +21,13 @@ from tests import served_browser
 
 HTML = render_vool_chat_html()
 
-#: Where the visual evidence is preserved.
-SHOTS = Path(".verification-logs/goal-card-shots")
+def _shots_dir() -> Path | None:
+    """Where visual evidence is written, supplied privately by the harness (never a
+    machine-specific path in source). Unset: screenshots are skipped."""
+    import os
+
+    value = str(os.environ.get("VOOL_GOAL_CARD_SHOTS_DIR") or "").strip()
+    return Path(value) if value else None
 
 
 def _goal_view(session: str, **overrides: Any) -> dict[str, Any]:
@@ -258,8 +263,7 @@ def test_reload_hydrates_paused_goal_and_does_not_resurrect_it(page) -> None:
 
 def test_card_stays_usable_at_narrow_and_wide_widths(page) -> None:
     server = _GoalServer()
-    shots = SHOTS
-    shots.mkdir(parents=True, exist_ok=True)
+    shots = _shots_dir()
     for width, name in ((480, "goal-card-480"), (900, "goal-card-900"), (1440, "goal-card-1440")):
         _boot(page, server, viewport=(width, 900))
         page.wait_for_function("String(window.VoolPageActions.displayedChat() || '').length > 0", timeout=8000)
@@ -277,4 +281,6 @@ def test_card_stays_usable_at_narrow_and_wide_widths(page) -> None:
         assert boxes["cardRight"] <= boxes["width"] + 1, f"{name}: card overflows the viewport"
         assert boxes["cardBottom"] <= boxes["composerTop"] + 8, f"{name}: card obstructs the composer"
         assert boxes["cardTop"] >= 0, f"{name}: card grows past the top"
-        page.screenshot(path=str(shots / f"{name}.png"))
+        if shots is not None:
+            shots.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(shots / f"{name}.png"))

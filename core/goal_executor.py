@@ -79,6 +79,14 @@ def step_source_context(base_context: dict[str, Any] | None, *, goal: dict[str, 
     }
     if approval_token:
         context["mode_approval_token"] = str(approval_token)
+    # Preserve the chat's selected model across the goal's turns: the binding persisted at
+    # start rides as the requested model (sticky — an unresolvable name degrades to the
+    # session's routing rather than hard-failing), so resume/retry re-dispatches answer
+    # with the SAME model the chat chose.
+    bound_model = str(goal.get("model") or "").strip()
+    if bound_model:
+        context.setdefault("requested_model", bound_model)
+        context.setdefault("model_selection", "sticky")
     return context
 
 
@@ -88,6 +96,7 @@ def _step_prompt(goal: dict[str, Any], step: dict[str, Any], *, index: int, tota
         f"You are executing one step of an explicit goal in this chat.",
         f"Goal: {objective}",
         f"Step {index} of {total}: {step.get('title')}",
+        "Handle this step as an ordinary tool-supported request; do not treat it as a project build.",
     ]
     details = str(step.get("details") or "").strip()
     if details:
@@ -273,6 +282,23 @@ Goal: {objective}
 """
 
 
+#: The planning turn's no-tools rule, enforced through the EXISTING per-call authority: the
+#: deny-only ``project_permissions`` every tool consult reads. The controller stamps it after
+#: ingress (never the client), so a planning turn can propose but cannot execute — reads
+#: included — no matter what the prompt says or which mode the chat is in. Deny-only means
+#: this can never grant anything the mode matrix would refuse.
+_PLANNING_DENY = None
+
+
+def _planning_deny() -> dict[str, bool]:
+    global _PLANNING_DENY
+    if _PLANNING_DENY is None:
+        from core.mode_permission_policy import PermissionAction
+
+        _PLANNING_DENY = {action.value: False for action in PermissionAction}
+    return _PLANNING_DENY
+
+
 def run_planner_turn(runtime, goal: dict[str, Any], base_context: dict[str, Any], model: str, turn_id: str, *, session_id: str = "") -> tuple[list[dict[str, Any]] | None, str]:
     """One bounded planning turn through the existing execution path.
 
@@ -288,6 +314,7 @@ def run_planner_turn(runtime, goal: dict[str, Any], base_context: dict[str, Any]
     context = step_source_context(
         base_context, goal=goal, step={"id": "planning"}, attempt=0, turn_id=turn_id
     )
+    context["project_permissions"] = dict(_planning_deny())
     register_turn(str(session_id or goal.get("session_id") or ""), turn_id)
     try:
         result = run_agent(runtime, prompt, session_id=str(session_id or goal.get("session_id") or ""), source_context=context) or {}
@@ -409,8 +436,14 @@ def execute_goal(
             if planner_steps is None:
                 planner_steps = [{"id": "step-1", "title": str(goal.get("objective") or "")[:300]}]
                 planner_error = (planner_error or "planner returned no parsable plan") + "; derived single-step plan"
+                fallback_provenance = "derived"
+            else:
+                fallback_provenance = ""
             try:
-                new_plan = build_plan(planner_steps, provenance=str((plan or {}).get("provenance") or "model"))
+                new_plan = build_plan(
+                    planner_steps,
+                    provenance=fallback_provenance or str((plan or {}).get("provenance") or "model"),
+                )
             except ValueError as exc:
                 new_plan = derived_single_step_plan(str(goal.get("objective") or ""))
                 planner_error = f"planner plan rejected ({exc}); derived single-step plan"
