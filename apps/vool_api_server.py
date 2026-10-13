@@ -589,6 +589,15 @@ def main() -> int:
     import signal
 
     faulthandler.register(signal.SIGUSR1, all_threads=True, file=sys.stderr)
+    # Silent-death witness (2026-10-02 corrected gate): a served test's daemon lost its
+    # listener mid-run with no trace anywhere -- stdout logging had been routed into the
+    # disposable home's file, that home died with the test, and the only native record of
+    # the session is a python3.12 child lost to a take_gil SIGSEGV under the same load.
+    # The fatal-signal handlers put every thread's Python stack on stderr the moment
+    # SIGSEGV/SIGBUS/SIGABRT/SIGFPE/SIGILL lands, so the next native death names its
+    # frames instead of vanishing. It witnesses; it never recovers or retries.
+    with contextlib.suppress(Exception):
+        faulthandler.enable(all_threads=True)
     # C15: the ONE bounded unattended preflight, before any bootstrap can reach an OS
     # credential API. A scratch/synthetic home gets non-interactive storage pinned; the
     # operator's established home is recorded, never rewritten.

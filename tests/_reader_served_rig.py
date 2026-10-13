@@ -510,6 +510,27 @@ class ServedDaemon:
         except Exception:
             return "<no daemon log>"
 
+    def assert_running(self, *, context: str = "") -> None:
+        """Fail AS a dead daemon, with its own evidence, before the test depends on it.
+
+        After start() nothing checks this process again until stop(), so a daemon that dies
+        mid-test surfaces as whatever the next HTTP or browser call happens to raise. In the
+        2026-10-02 corrected combined gate that was page.goto's bare ``ERR_CONNECTION_REFUSED``
+        -- unattributable, because the server had routed its logging into the disposable home
+        and nothing carried the exit status or log tail out. This applies the same capture law
+        certify() already applies to transport loss: name the daemon's exit status and its
+        redacted log tail at the moment the test is about to rely on it. Never a retry, never
+        a weakened readiness, never a pass.
+        """
+        if self.process is None:
+            raise AssertionError(f"served daemon was never started ({context})")
+        code = self.process.poll()
+        if code is not None:
+            raise AssertionError(
+                f"served daemon exited rc={code} before {context or 'this step'} -- daemon death, "
+                f"not a browser or product-chat defect. Server evidence:\n{self.await_failure_log_tail()}"
+            )
+
     # --- the doors under test -----------------------------------------------------------------
 
     def upload(

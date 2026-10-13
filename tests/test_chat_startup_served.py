@@ -97,8 +97,12 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                            else route.abort())
                 for generation in range(2):
                     if generation:
+                        # The daemon's death must fail as daemon death (with its server
+                        # evidence), never as an unattributable browser error.
+                        daemon.assert_running(context=f"reload generation {generation}")
                         page.reload(wait_until="domcontentloaded")
                     else:
+                        daemon.assert_running(context="initial browser navigation")
                         page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                     page.wait_for_selector("#input", timeout=5000)
                     provider.reset()
@@ -214,6 +218,10 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
                            else route.abort())
+                # The 2026-10-02 corrected gate lost this daemon between certify and goto
+                # (rc unknown, server log dead with the home, page saw ERR_CONNECTION_REFUSED).
+                # The boundary check makes the next occurrence name itself.
+                daemon.assert_running(context="initial browser navigation")
                 page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                 page.wait_for_selector("#input", timeout=5000)
                 # Instrument the queue door at its seam: claim #1 (the greeting turn's
