@@ -18,12 +18,12 @@ import pytest
 
 from core import persistent_memory
 from core.agent_runtime.secret_intake import consume_secret_intake
-from tests.test_memory_secret_filter_v071 import _chat_turn, harness  # noqa: F401  (fixture)
+from tests.test_memory_secret_filter_v071 import _chat_turn, harness  # fixture
 
 NOT_SAVED = "I didn't save your PIN"
 
 
-def _turn_and_writes(harness, text):  # noqa: F811
+def _turn_and_writes(harness, text):
     written: list[str] = []
     real = persistent_memory.add_memory_fact
 
@@ -36,7 +36,7 @@ def _turn_and_writes(harness, text):  # noqa: F811
     return str(result.get("response") or ""), written
 
 
-def test_a_pin_to_remember_is_one_answer(harness):  # noqa: F811
+def test_a_pin_to_remember_is_one_answer(harness):
     answer, written = _turn_and_writes(harness, "Remember that my bank card PIN is 4821.")
     assert NOT_SAVED in answer, answer
     assert "Locked in" not in answer and "remember that" not in answer.lower(), answer
@@ -45,7 +45,7 @@ def test_a_pin_to_remember_is_one_answer(harness):  # noqa: F811
     assert written == [], f"an empty shell of the PIN was remembered: {written}"
 
 
-def test_other_content_is_kept_and_named(harness):  # noqa: F811
+def test_other_content_is_kept_and_named(harness):
     answer, written = _turn_and_writes(
         harness, "Remember that my bank card PIN is 4821 and that my dentist is Dr Okafor."
     )
