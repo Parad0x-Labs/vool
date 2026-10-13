@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from core.registry.artifact import inspect
-from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require
+from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require, version_key
 from core.registry.intake import secret_findings
 
 
@@ -55,6 +55,17 @@ class Store:
                 CREATE TABLE IF NOT EXISTS service_keys (name TEXT PRIMARY KEY, value BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS upload_leases (id TEXT PRIMARY KEY,
                     account TEXT REFERENCES accounts(id) ON DELETE CASCADE, namespace TEXT NOT NULL, expires INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS account_downloads (account TEXT REFERENCES accounts(id) ON DELETE CASCADE,
+                    package_id TEXT NOT NULL, first INTEGER NOT NULL, PRIMARY KEY(account,package_id));
+                CREATE TABLE IF NOT EXISTS comments (id TEXT PRIMARY KEY, package_id TEXT NOT NULL,
+                    account TEXT REFERENCES accounts(id) ON DELETE CASCADE, created INTEGER NOT NULL,
+                    body TEXT NOT NULL, state TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS comments_package ON comments(package_id,state,created);
+                CREATE TABLE IF NOT EXISTS comment_reports (comment TEXT REFERENCES comments(id) ON DELETE CASCADE,
+                    account TEXT REFERENCES accounts(id) ON DELETE CASCADE, created INTEGER NOT NULL,
+                    PRIMARY KEY(comment,account));
+                CREATE TABLE IF NOT EXISTS muted_accounts (account TEXT PRIMARY KEY REFERENCES accounts(id)
+                    ON DELETE CASCADE, created INTEGER NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
@@ -62,6 +73,8 @@ class Store:
             columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
             if "publisher_bound" not in columns:
                 db.execute("ALTER TABLE submissions ADD COLUMN publisher_bound INTEGER NOT NULL DEFAULT 0")
+            if "auto_consent" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN auto_consent INTEGER NOT NULL DEFAULT 0")
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
@@ -240,6 +253,11 @@ class Store:
             namespace = self._check_upload_slot(db, account, _slot, now)
         artifact = inspect(raw)
         require(namespace == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
+        with self.connection() as db:
+            published = [row[0] for row in db.execute("SELECT version FROM public_versions WHERE package_id=?",
+                                                      (artifact["metadata"]["id"],))]
+        require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in published),
+                "this version is already published; use a higher version number for the update")
         findings = secret_findings(artifact["files"])
         identifier = secrets.token_hex(16)
         with self.connection() as db:
@@ -289,6 +307,96 @@ class Store:
             db.execute("UPDATE submissions SET publisher_bound=1 WHERE id=? AND account=?", (result["id"], account))
         return self.submission(account, result["id"])
 
+    def github_import(self, account: str, value: dict, github, *, now: int, _slot: str | None = None) -> dict:
+        """Build a skill from the author's own public GitHub folder at an exact commit."""
+        if _slot is None:
+            with self.upload_slot(account, now=now) as slot:
+                return self.github_import(account, value, github, now=now, _slot=slot)
+        import io
+        import shutil
+        import tarfile
+
+        from core.plugin_package import execution_directory
+        from core.registry.artifact import pack, path_name
+        from registry_service.github_source import check_ref, check_repository
+        from tools.community_skills import initialize, preflight
+
+        started = time.monotonic()
+        require(isinstance(value, dict) and set(value) == {"repository", "ref", "path", "metadata",
+                "publish_when_checks_pass"}, "invalid GitHub import")
+        repository, ref = check_repository(value["repository"]), check_ref(value["ref"])
+        folder = path_name(value["path"])
+        require(type(value["publish_when_checks_pass"]) is bool, "publish choice must be true or false")
+        info = dict(value["metadata"]) if isinstance(value["metadata"], dict) else {}
+        require("source" not in info and info.get("kind") == "skill", "import source is assigned by the server")
+        with self.connection() as db:
+            namespace = self._check_upload_slot(db, account, _slot, now)
+            row = db.execute("SELECT subject FROM identities WHERE account=? AND provider='github'", (account,)).fetchone()
+        require(row, "sign in with GitHub to import from GitHub")
+        require(str(info.get("id", "")).split("/")[0] == namespace, "package publisher must match your namespace")
+        owner = github.repository(repository)
+        require(not owner["private"], "only public repositories can be imported")
+        require(str(owner["owner_id"]) == row[0], "the repository must belong to your GitHub account")
+        commit = github.commit(repository, ref)
+        info["source"] = {"repository": repository, "commit": commit, "path": folder}
+        archive = github.archive(repository, commit)
+        scratch = self.path.parent / "scratch"
+        with execution_directory(scratch) as owned:
+            extracted, total, count = owned / "import", 0, 0
+            extracted.mkdir()
+            try:
+                with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
+                    seen, unpacked = 0, 0
+                    for member in bundle:
+                        # Bound work on the whole archive, not only the chosen folder (gzip bombs).
+                        seen, unpacked = seen + 1, unpacked + max(member.size, 0)
+                        require(seen <= 20000 and unpacked <= 256 * 1024 * 1024, "GitHub archive exceeds limits")
+                        parts = member.name.split("/", 1)
+                        if len(parts) < 2 or not (parts[1] == folder or parts[1].startswith(folder + "/")):
+                            continue
+                        relative = parts[1][len(folder):].lstrip("/")
+                        if not relative:
+                            continue
+                        require(member.isfile() or member.isdir(), "links and special files are refused")
+                        path_name(relative)
+                        count += 1
+                        total += member.size
+                        require(count <= 512 and total <= 16 * 1024 * 1024, "imported folder exceeds limits")
+                        target = extracted / relative
+                        if member.isdir():
+                            target.mkdir(parents=True, exist_ok=True)
+                            continue
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        with bundle.extractfile(member) as handle, target.open("xb") as output:
+                            output.write(handle.read(member.size + 1)[:member.size])
+                        if member.mode & 0o111:
+                            target.chmod(0o755)
+            except (tarfile.TarError, EOFError, OSError):
+                raise RegistryError("GitHub archive could not be read") from None
+            require((extracted / "SKILL.md").is_file() and (extracted / "LICENSE").is_file(),
+                    "the folder must contain SKILL.md and LICENSE")
+            source = owned / "author"
+            initialize(source, info, (extracted / "LICENSE").read_bytes())
+            skill = source / "skills" / info["id"].split("/")[1]
+            for item in extracted.iterdir():
+                if item.name == "LICENSE":
+                    continue
+                destination = skill / item.name
+                if item.is_dir():
+                    shutil.copytree(item, destination)
+                else:
+                    shutil.copy2(item, destination)
+            raw = pack(source, info, scratch)
+            local = preflight(raw, scratch)
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot)
+        with self.connection() as db:
+            if local["findings"] and result["state"] != "rejected":
+                db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
+            # Server-built bytes from a repository owned by this account's verified GitHub identity.
+            db.execute("UPDATE submissions SET publisher_bound=1, auto_consent=? WHERE id=? AND account=?",
+                       (int(value["publish_when_checks_pass"]), result["id"], account))
+        return self.submission(account, result["id"]) | {"source": info["source"]}
+
     def submission(self, account: str, identifier: str) -> dict:
         with self.connection() as db:
             row = db.execute("SELECT * FROM submissions WHERE id=? AND account=?", (identifier, account)).fetchone()
@@ -330,6 +438,10 @@ class Store:
                 return
             db.execute("UPDATE submissions SET state=?, findings=?, review=? WHERE id=?",
                        (state, canonical([]), canonical(envelope), identifier))
+            if row["auto_consent"] and not row["consent"]:
+                # The author consented at import to these exact server-built bytes.
+                db.execute("UPDATE submissions SET consent=1, state='ready_for_github' WHERE id=? AND sha256=?",
+                           (identifier, row["sha256"]))
 
     def consent(self, account: str, identifier: str, sha256: str, *, public: bool) -> dict:
         require(public is True, "explicit consent to permanent public GitHub history is required")
@@ -392,7 +504,7 @@ class Store:
             bound = db.execute("""SELECT submissions.account FROM submissions JOIN accounts
                 ON accounts.id=submissions.account WHERE sha256=? AND artifact=? AND publisher_bound=1
                 AND consent=1 AND state IN ('ready_for_github','published') AND accounts.namespace=?""",
-                (artifact["sha256"], raw, namespace)).fetchone() if "upload_id" in artifact["metadata"]["source"] else None
+                (artifact["sha256"], raw, namespace)).fetchone()
             if bound:
                 db.execute("UPDATE namespace_owners SET verified=1 WHERE namespace=? AND account=?", (namespace, bound[0]))
             else:

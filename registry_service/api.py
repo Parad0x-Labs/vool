@@ -13,16 +13,35 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from core.registry.categories import public_taxonomy
+from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
+from registry_service import community
 from registry_service.auth import Auth
+from registry_service.curation import labels, load_curation
 from registry_service.store import Store
 
 PREFIX = "/registry/api"
 UPLOAD_BODY_TIMEOUT = 30
+SORTS = {"stars", "updated", "downloads", "newest"}
 
 
-def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None) -> Starlette:
+def _stem(word: str) -> str:
+    for ending in ("ing", "es", "s"):
+        if word.endswith(ending) and len(word) - len(ending) >= 3:
+            return word[:-len(ending)]
+    return word
+
+
+def _search_text(row: dict) -> str:
+    category = TAXONOMY.get(row["category"], ("", {}))
+    return " ".join([row["id"].replace("/", " ").replace("-", " "), row["summary"], category[0],
+                     category[1].get(row["subcategory"], ""), row["category"], row["subcategory"]]).casefold()
+
+
+def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None,
+               curation: dict | None = None, github=None) -> Starlette:
+    curation = load_curation() if curation is None else curation
+
     def now():
         return int(clock())
 
@@ -62,6 +81,29 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
             return JSONResponse({"channel": "discovery", "entries": CATALOG if discovery is None else discovery,
                                  "notice": "Import compatibility is not public registry admission."})
+        rows = await approved_rows()
+        query = request.query_params
+        require(len(query.multi_items()) == len(query) and set(query) <= {"q", "category", "subcategory", "origin", "sort"},
+                "unknown catalog query")
+        text = query.get("q", "")
+        require(len(text) <= 100, "search text exceeds limit")
+        words = [_stem(word) for word in text.casefold().split()][:8]
+        if words:
+            rows = [row for row in rows if all(word in _search_text(row) for word in words)]
+        for field in ("category", "subcategory", "origin"):
+            if field in query:
+                rows = [row for row in rows if row[field] == query[field]]
+        sort = query.get("sort", "stars")
+        require(sort in SORTS, "unknown sort order")
+        key = {"stars": lambda row: (-row["stars"], row["id"]),
+               "updated": lambda row: (-row["updated_at"], row["id"]),
+               "downloads": lambda row: (-row["download_requests"], row["id"]),
+               "newest": lambda row: (-row["published_at"], row["id"])}[sort]
+        rows.sort(key=key)
+        return JSONResponse({"channel": "approved", "entries": rows, "target": target, "sort": sort,
+                             "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
+
+    async def approved_rows():
         rows = []
         if catalog.current is None:
             require(False, "approved catalog is not configured")
@@ -83,9 +125,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
                          "discovery_only": False, "import_ready": True,
                          "policy_sha256": approved["policy_sha256"], "updated_at": approved["issued_at"]})
         # Popularity cannot confer approval; only resolved admissions enter this list.
-        latest = {}
+        latest, first = {}, {}
         for row in rows:
             prior = latest.get(row["id"])
+            first[row["id"]] = min(first.get(row["id"], row["updated_at"]), row["updated_at"])
             if prior is None or version_key(row["version"]) > version_key(prior["version"]):
                 latest[row["id"]] = row
         rows = list(latest.values())
@@ -95,8 +138,45 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             row["global_rank"] = rank
             category_counts[row["category"]] = category_counts.get(row["category"], 0) + 1
             row["category_rank"] = category_counts[row["category"]]
-        return JSONResponse({"channel": "approved", "entries": rows, "target": target,
-                             "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
+            row["published_at"] = first[row["id"]]
+            row.update(labels(curation, row["id"], row["version"]))
+        return rows
+
+    async def profile_page(request):
+        namespace = request.path_params["namespace"]
+        require(isinstance(namespace, str) and len(namespace) <= 64, "invalid namespace")
+        rows = [row for row in await approved_rows() if row["id"].split("/")[0] == namespace]
+        profile = await run_in_threadpool(store.public_profile, namespace)
+        return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"]
+                             else "community", "packages": rows})
+
+    async def comment_list(request):
+        viewer = None
+        if request.cookies.get("vool_registry"):
+            try:
+                viewer = store.authenticate(request.cookies["vool_registry"], now=now())
+            except RegistryError:
+                viewer = None
+        if request.method == "GET":
+            return JSONResponse(await run_in_threadpool(community.comments, store, request.query_params.get("id"), viewer))
+        value = await json_body(request)
+        require(set(value) == {"id", "body"}, "invalid comment fields")
+        who = account(request, mutation=True)
+        result = await run_in_threadpool(community.post_comment, store, who, value["id"], value["body"], now=now())
+        return JSONResponse(result, status_code=201 if result["state"] != "refused" else 400)
+
+    async def comment_report(request):
+        who = account(request, mutation=True)
+        return JSONResponse(await run_in_threadpool(community.report_comment, store, who,
+                                                    request.path_params["identifier"], now=now()))
+
+    async def github_import(request):
+        require(github is not None, "GitHub import is not configured")
+        who = account(request, mutation=True)
+        with store.upload_slot(who, now=now()) as slot:
+            value = await upload_body(json_body(request))
+            return JSONResponse(await run_in_threadpool(store.github_import, who, value, github, now=now(), _slot=slot),
+                                status_code=201)
 
     async def categories(request):
         return JSONResponse({"categories": public_taxonomy()})
@@ -166,6 +246,14 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         _, admission = await run_in_threadpool(store.public_artifact, sha256)
         entry(admission["metadata"]["id"], admission["metadata"]["version"])
         raw = await run_in_threadpool(store.download, sha256, request.query_params.get("ticket", ""), now=now())
+        if request.cookies.get("vool_registry"):
+            # A signed-in website download makes the account eligible to comment.
+            try:
+                who = store.authenticate(request.cookies["vool_registry"], now=now())
+            except RegistryError:
+                who = None
+            if who:
+                await run_in_threadpool(community.record_download, store, who, admission["metadata"]["id"], now=now())
         return Response(raw, media_type="application/vnd.vool.registry+json", headers={"X-Content-SHA256": sha256,
                         "Content-Disposition": 'attachment; filename="package.vool.json"'})
 
@@ -214,6 +302,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
         Route(PREFIX + "/categories", categories),
+        Route(PREFIX + "/profiles/{namespace}", profile_page),
+        Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
+        Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),
+        Route(PREFIX + "/imports", github_import, methods=["POST"]),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),
         Route(PREFIX + "/submissions", submissions, methods=["GET", "POST"]),
         Route(PREFIX + "/drafts", draft, methods=["POST"]),
