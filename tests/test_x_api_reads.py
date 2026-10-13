@@ -156,7 +156,9 @@ def test_tools_are_off_until_x_is_connected(fake_x):
     _connect()
     offered = {s["intent"] for s in runtime_execution_tool_specs()}
     assert {"x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists",
-            "x.usage", "x.action.propose", "x.action.status", "x.trending"} <= offered
+            "x.usage", "x.action.propose", "x.action.status"} <= offered
+    # Trending reads outside the usage meter, so connecting X never switches it on by itself.
+    assert "x.trending" not in offered
 
 
 def test_search_by_solana_address_end_to_end(fake_x):

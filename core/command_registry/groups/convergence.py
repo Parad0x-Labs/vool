@@ -488,7 +488,16 @@ class XActivityInput:
 
 
 def _handle_x_activity(inp, ctx):
+    from core.request_trust import is_loopback_host
     from core.x_actions import handle
+
+    # Only the owner's own Settings page (/api/x/activity, which passes the real peer) may see the
+    # approval hashes or send: a dispatch path that carries no peer is refused, never assumed local.
+    peer = str((ctx.extra or {}).get("client_host") or "")
+    if not peer or not is_loopback_host(peer):
+        return _legacy_fault("usage", "X activity refused: owner_local_required", 403,
+                             {"ok": False, "state": "owner_local_required",
+                              "message": "X approvals are only available in Settings inside this VOOL app. Nothing was sent."})
 
     body: dict[str, Any] = {"action": inp.action}
     if inp.action_id:

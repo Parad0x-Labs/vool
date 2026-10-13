@@ -209,7 +209,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
     image_gen_enabled = bool(policy_engine.get("image.generate_enabled", False)) or _has_image_service()
     video_gen_enabled = bool(policy_engine.get("video.generate_enabled", False))
     x_connected = _x_reads_available()
-    x_trending_enabled = bool(policy_engine.get("x.trending_enabled", False)) or x_connected
+    x_trending_enabled = bool(policy_engine.get("x.trending_enabled", False))
     wallet_spend_enabled = bool(policy_engine.get("wallet.spend_enabled", False))
     from core.wallet.config import wallet_enabled as _wallet_enabled
 
@@ -3125,8 +3125,10 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
 def _chain_contracts() -> list[RuntimeToolContract]:
     from core.chain_data import chain_contracts
+    from core.token_research import research_contracts
 
-    return chain_contracts()
+    # token.research rides beside the chain lookup; it adds the X gate only when X is connected.
+    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available())]
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:
@@ -3259,7 +3261,10 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
                           "text": "string (post, reply, quote)", "post": "string (post link or id: reply, quote, "
                           "delete, like, unlike, repost, unrepost)", "username": "string (follow, unfollow)"},
             output_schema={"action": "object (id, kind, state)"},
-            side_effect_class="creative_state", permission_actions=("read_files",),
+            side_effect_class="creative_state",
+            # Proposing reads the target post or account from X with the user's keys (billed), so it
+            # takes the same network and private-connector gates as the reads.
+            permission_actions=("use_network_access", "access_external_providers"),
             approval_requirement="none", timeout_policy="local_only_default", retry_policy="none",
             artifact_emission="none", error_contract="returns_structured_error_result",
         ),

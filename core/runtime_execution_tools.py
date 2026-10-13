@@ -3299,6 +3299,10 @@ def _dispatch_runtime_tool(
             from core.chain_data import run_tool as _chain_tool
 
             return _chain_tool(intent, arguments, source_context)
+        if intent in {"token.research", "token.launches"}:
+            from core.token_research import run_tool as _research_tool
+
+            return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":

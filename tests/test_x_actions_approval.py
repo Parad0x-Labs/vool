@@ -355,3 +355,47 @@ def test_the_model_only_sees_actions_from_its_own_chat(fake_x):
     assert newest.ok and newest.details["action"]["id"] == mine["id"]
     other = execute_runtime_tool("x.action.status", {"action_id": mine["id"]}, source_context={"session_id": "chat-b"})
     assert not other.ok and other.status == "not_found"
+
+
+def test_generic_command_dispatch_cannot_reach_x_approvals(fake_x):
+    from core.web.api.runtime import RuntimeServices
+    from core.web.api.service import dispatch_post
+
+    action = _propose({"kind": "post", "text": "hello"}).details["action"]
+    shown = _hash_shown(action["id"])
+    for step in ({"action": "overview"}, {"action": "approve", "action_id": action["id"], "hash": shown}):
+        res = dispatch_post(path="/api/commands/dispatch", body={"command_id": "x.activity", "input": step},
+                            headers={"Content-Type": "application/json"}, runtime=RuntimeServices(display_name="t"),
+                            model_name="fixture", client_host="192.168.1.50", workspace_root_provider=lambda: ".")
+        text = res.body.decode() if isinstance(res.body, bytes) else str(res.body)
+        assert res.status != 200 and shown not in text
+    assert fake_x.writes() == []
+
+
+@pytest.mark.parametrize("hidden", ["\U000e0041", "⁠", "؜", "­"])
+def test_other_invisible_format_characters_are_refused(fake_x, hidden):
+    out = _propose({"kind": "post", "text": f"hi{hidden}there"})
+    assert not out.ok and out.status == "invalid_arguments"
+
+
+def test_the_approval_hash_cannot_be_computed_from_the_text(fake_x):
+    import hashlib
+
+    action = _propose({"kind": "post", "text": "hello"}).details["action"]
+    guess = hashlib.sha256(json.dumps({"kind": "post", "text": "hello"}, sort_keys=True).encode()).hexdigest()
+    status, out = _settings({"action": "approve", "action_id": action["id"], "hash": guess})
+    assert status == 400 and out["state"] == "changed" and fake_x.writes() == []
+
+
+def test_proposing_takes_the_network_and_connector_gates(fake_x):
+    from core.runtime_tool_contracts import runtime_tool_contracts
+
+    [propose] = [c for c in runtime_tool_contracts() if c.intent == "x.action.propose"]
+    assert set(propose.permission_actions) >= {"use_network_access", "access_external_providers"}
+
+
+def test_a_redirected_send_is_unclear_not_nothing_sent(fake_x):
+    fake_x.write_answer = (302, {"title": "moved"})
+    action = _propose({"kind": "post", "text": "hello"}).details["action"]
+    status, out = _approve(action["id"])
+    assert status == 400 and out["action"]["state"] == "unknown" and "check X" in out["message"]

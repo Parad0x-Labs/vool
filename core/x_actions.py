@@ -11,9 +11,10 @@ actions are never retried on their own.
   followed), so the approval card shows what the action touches, not just an id.
 * Every send counts against the user's monthly action limit (``core.x_usage``), counted under the
   same lock that marks the action as sending, so parallel approvals cannot run past the limit.
-* Approval needs the action's hash, which only the Settings panel is shown; the model's view of an
-  action leaves it out. Post text with invisible direction or zero-width characters is refused, so
-  the card shows exactly what will be posted.
+* Approval needs the action's hash (over the payload and a secret per-action nonce), which only the
+  owner-local Settings panel is shown; the model's view of an action leaves it out. Post text with
+  invisible format characters (direction marks, zero-width, tag characters) is refused, so the
+  card shows exactly what will be posted.
 * A send whose answer is lost (timeout, dropped connection, X server error) may still have reached
   X: it is marked ``unknown`` and never re-sent automatically; the card says to check X first.
 * Proposals expire after 24 hours. At most 20 can wait at once.
@@ -41,8 +42,14 @@ _POST_KINDS = {"reply", "quote", "delete", "like", "unlike", "repost", "unrepost
 _USER_KINDS = {"follow", "unfollow"}
 SENDING_STALE_S = 600
 _lock = threading.RLock()
-# Characters that reorder or hide text, so what the card shows would not be what X shows.
-_HIDDEN_CHARS = frozenset(chr(c) for c in (*range(0x200B, 0x2010), *range(0x202A, 0x202F), *range(0x2066, 0x206A), 0xFEFF))
+
+
+def _hidden(ch: str) -> bool:
+    """Characters that reorder or hide text (format controls, tag characters), so what the card
+    shows would not be what X shows."""
+    import unicodedata
+
+    return unicodedata.category(ch) == "Cf" or 0xE0000 <= ord(ch) <= 0xE007F
 
 _VERBS = {
     "post": "Post on X", "reply": "Reply to", "quote": "Quote a post by", "delete": "Delete your post",
@@ -95,8 +102,10 @@ def _expire(state: dict[str, Any], now: float) -> None:
         state["actions"].pop(old["id"], None)
 
 
-def _digest(payload: dict[str, Any]) -> str:
-    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+def _digest(payload: dict[str, Any], nonce: str) -> str:
+    """The approval hash: the frozen payload under a secret nonce that never leaves the store, so
+    it can't be computed from the text alone; only the Settings panel is shown it."""
+    return hashlib.sha256((nonce + json.dumps(payload, sort_keys=True)).encode("utf-8")).hexdigest()
 
 
 def public(action: dict[str, Any], *, for_settings: bool = False) -> dict[str, Any]:
@@ -143,7 +152,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             return _result(False, "invalid_arguments", "Say what the post should say. Nothing was proposed.")
         if len(text) > MAX_TEXT:
             return _result(False, "invalid_arguments", f"That text is longer than {MAX_TEXT} characters. Nothing was proposed.")
-        if any(ch in _HIDDEN_CHARS for ch in text):
+        if any(_hidden(ch) for ch in text):
             return _result(False, "invalid_arguments", "That text has invisible characters that change how it reads, "
                            "so it could look different on X than on the approval card. Nothing was proposed.")
         payload["text"] = text
@@ -172,7 +181,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
     now = time.time()
     action = {
         "id": "xa_" + secrets.token_hex(8), "kind": kind, "text": payload.get("text", ""), "payload": payload,
-        "hash": _digest(payload), "target": target, "state": "pending", "created_at": now, "updated_at": now,
+        "nonce": (nonce := secrets.token_hex(16)), "hash": _digest(payload, nonce), "target": target, "state": "pending", "created_at": now, "updated_at": now,
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
         "session": str((source_context or {}).get("session_id") or ""),
     }
@@ -316,7 +325,7 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
             _save(state)
             return {"ok": False, "state": "not_pending",
                     "message": "That X action is no longer waiting for approval (sent, declined or expired). Nothing was sent."}
-        if str(expected_hash or "") != action.get("hash") or _digest(action["payload"]) != action.get("hash"):
+        if str(expected_hash or "") != action.get("hash") or _digest(action["payload"], str(action.get("nonce") or "")) != action.get("hash"):
             return {"ok": False, "state": "changed", "message": "That X action does not match what was shown. Nothing was sent."}
         saved = x_api._saved()
         account = saved.get("account") if isinstance(saved.get("account"), dict) else {}
@@ -354,8 +363,10 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         action = _finish(action, state="pending", message="VOOL is not allowed to go online right now (for example Local Only is on). Nothing was sent; you can approve again later.")
         return {"ok": False, "state": "refused", "message": action["message"], "action": public(action)}
     except CredentialRedirectRefusedError:
-        action = _finish(action, state="failed", message="X answered with a redirect; VOOL did not follow it. Nothing was sent.")
-        return {"ok": False, "state": "failed", "message": action["message"], "action": public(action)}
+        # X received the request before it answered with a redirect, so it may have acted on it.
+        action = _finish(action, state="unknown", message="X answered with a redirect that VOOL did not follow. "
+                         "It may or may not have gone out: check X before trying again.")
+        return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
     except urllib.error.HTTPError as exc:
         try:
             err_body = json.loads((exc.read(64 * 1024) or b"{}").decode("utf-8"))
@@ -366,8 +377,8 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         if err.status == "plan_refused":
             message += (" To act on X, your X app needs \"Read and write\" permission (developer.x.com > your app > "
                         "User authentication settings); then generate new Access Tokens and reconnect X in Settings.")
-        if int(exc.code or 0) >= 500:
-            # X may have done it before failing to answer.
+        if int(exc.code or 0) >= 500 or 300 <= int(exc.code or 0) < 400:
+            # X may have done it before failing to answer, or before redirecting.
             action = _finish(action, state="unknown", message=message + " It may or may not have gone out: check X before trying again.")
             return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
         action = _finish(action, state="failed", message=message + " X did not do it.")

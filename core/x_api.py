@@ -160,7 +160,9 @@ def _worst_case(params: dict[str, Any]) -> int:
         if params.get(key):
             items = max(items, len(str(params[key]).split(",")))
     expansions = [e for e in str(params.get("expansions") or "").split(",") if e]
-    return max(1, items) * (1 + len(expansions))
+    # A post can reference two others (a reply that also quotes), so that expansion weighs 2.
+    weight = 1 + sum(2 if e == "referenced_tweets.id" else 1 for e in expansions)
+    return max(1, items) * weight
 
 
 def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:

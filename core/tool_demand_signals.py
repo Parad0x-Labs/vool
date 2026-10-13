@@ -142,6 +142,20 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"\b(?:sol|solana|eth|ethereum|base|bnb|bsc|robinhood\s+chain|on[- ]?chain|address|token|mint|contract)\b"
         r"|\b(?:sol|solana|eth|ethereum|bnb|bsc|on[- ]?chain|token|mint)\b[^.?!]{0,30}?\b(?:balances?|holders?|holdings|transactions?|history|supply)\b"
         r"|\b0x[0-9a-fA-F]{40}\b|\b0x[0-9a-fA-F]{64}\b", re.I)),
+    # -- token research (core/token_research; read-only facts, creator, links, early X posts) --
+    # a research verb near a token word, a creator/deployer question, or a mint/freeze-rights question
+    ("token.research", "web", re.compile(
+        r"\b(?:research|dig\s+into|look\s+into|due\s+diligence|dd\s+on|analy[sz]e|check\s+out|tell\s+me\s+about)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|memecoin|mint|ca)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\b(?:deployer|creator|dev)\b[^.?!]{0,60}?\b(?:token|coin|contract|mint|launch\w*|deploy\w*)\b"
+        r"|\bwho\s+(?:made|created|deployed|launched|minted)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|contract|mint|this|it)\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\bwhat\s+else\b[^.?!]{0,40}?\b(?:launch|deploy|creat|made|ma[dk]e)\w*"
+        r"|\b(?:mint|freeze)\s+authority\b", re.I)),
+    # new tokens: "new launches", "newest tokens", "latest memecoins on solana", "fresh mints"
+    ("token.launches", "web", re.compile(
+        r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
+        r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",
@@ -833,7 +847,7 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 # pattern, so the reason a database turn did NOT seat the skill is a
                 # named law instead of a regex that quietly failed to match.
                 continue
-            if intent == "web.chain_lookup" and is_wallet_move:
+            if intent in {"web.chain_lookup", "token.research"} and is_wallet_move:
                 # A send/pay turn belongs to VOOL's wallet alone (its caps, approval and
                 # receipt): the destination address in the words is not a chain-data
                 # question, so the read-only lookup is not offered beside the proposal.
