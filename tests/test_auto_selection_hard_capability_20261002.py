@@ -19,11 +19,17 @@ from __future__ import annotations
 
 import pytest
 
+from adapters.base_adapter import ModelRequest
+from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+from core import runtime_flags
+from core.cloud_tool_call_contract import build_cloud_tool_definitions
+from core.execution_requirements import RequiredToolsNotOfferedError
 from core.media_analysis_pipeline import MediaAnalysisPipeline
 from core.media_ingestion import _normalize_item
 from core.model_failover import select_with_failover
 from core.model_health import reset_provider_health
 from core.model_registry import ModelRegistry
+from core.model_output_contracts import json_schema_for_mode
 from core.model_selection_policy import ModelSelectionRequest, explain_provider_exclusions
 from core.orchestration.task_envelope import TaskEnvelopeV1
 from core.provider_routing import rank_provider_candidates, resolve_provider_routing_plan_for_envelope
@@ -323,3 +329,205 @@ def test_an_unknown_window_is_named_and_ranks_after_a_known_sufficient_one() -> 
     assert plan.selected is not None and plan.selected.model_name == "widewin:8b"
     assert [m.model_name for m in plan.candidates] == ["widewin:8b", "unknownwin:8b"]
     assert any("unknownwin:8b" in note and "unknown" in note for note in plan.selection_notes)
+
+
+# --------------------------------------------------------------------------------------------
+# Tool-step eligibility follows the dialect the adapter actually sends, in both flag states
+# --------------------------------------------------------------------------------------------
+#
+# A lane declaring ``tool_dialect: prompted`` and no JSON mode/schema is excluded from a tool step
+# only when its payload would carry neither native tools nor a structured-output fallback. The
+# adapter decides native tools: with ``capability_tool_dialect`` OFF (the rollback path) it
+# ignores the declaration and keeps the historical OpenRouter rule, so an OpenRouter lane still
+# gets native tools there and must stay eligible. Measured on 92879e9: that lane was ranked
+# nowhere although its real payload carried the native tool and the final guard accepted it.
+
+READ_TOOLS = build_cloud_tool_definitions(
+    [{"intent": "workspace.read_file", "description": "Read one workspace file.", "arguments": {"path": "string"}}]
+)
+
+
+def _router_lane(provider: str, model: str, base_url: str, **runtime) -> ModelProviderManifest:
+    return ModelProviderManifest(
+        provider_name=provider,
+        model_name=model,
+        source_type="http",
+        adapter_type="openai_compatible",
+        license_name="Apache-2.0",
+        license_reference="https://example.com/license",
+        weight_location="external",
+        runtime_dependency="openai-compatible-server",
+        capabilities=GENERAL_CAPS,
+        runtime_config={"base_url": base_url, "api_path": "/v1/chat/completions", "timeout_seconds": 10, **runtime},
+        metadata={"runtime_family": "openai-compatible", "cost_class": "free_local"},
+    )
+
+
+def _read_request() -> ModelRequest:
+    return ModelRequest(
+        task_kind="tool_intent",
+        prompt="open notes/quarterly.md and tell me the first heading",
+        messages=[{"role": "user", "content": "open notes/quarterly.md and tell me the first heading"}],
+        output_mode="tool_intent",
+        contract={"json_schema": json_schema_for_mode("tool_intent")},
+        tools=READ_TOOLS,
+        tool_choice="required",
+        tools_required=True,
+    )
+
+
+def _tool_step(registry: ModelRegistry, **request) -> list[str]:
+    return _models(
+        registry.rank_manifests(
+            ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True, **request)
+        )
+    )
+
+
+def _native_read_reply() -> dict:
+    return {"function": {"name": READ_TOOLS[0].name, "arguments": {"path": "notes/quarterly.md"}}}
+
+
+def test_rollback_flag_off_keeps_the_openrouter_prompted_lane_eligible_and_its_native_tool_reaches_the_wire() -> None:
+    with ScriptedProvider({}, default=_native_read_reply()) as provider:
+        lane = _router_lane("openrouter-byok", "vendor/reader-7b", provider.base_url, tool_dialect="prompted")
+        registry = _registry(lane)
+        with runtime_flags.override("capability_tool_dialect", False):
+            ranked = _tool_step(registry)
+            live = rank_provider_candidates(
+                registry, task_kind="tool_intent", output_mode="tool_intent", role="drone", swarm_size=4,
+                min_trust=0.0, allow_paid_fallback=True,
+            )
+            adapter = OpenAICompatibleAdapter(lane)
+            adapter.invoke(_read_request())
+
+    assert ranked == ["vendor/reader-7b"]
+    assert _models(live) == ["vendor/reader-7b"]
+    assert len(provider.calls) == 1
+    assert provider.calls[0]["model"] == "vendor/reader-7b"
+    assert provider.calls[0]["tools"] == [READ_TOOLS[0].name]
+
+
+def test_rollback_flag_off_reads_the_openrouter_rule_by_hostname_too() -> None:
+    lane = _router_lane("hosted-router", "vendor/hosted-9b", "https://openrouter.ai/api/v1", tool_dialect="prompted")
+    registry = _registry(lane)
+    with runtime_flags.override("capability_tool_dialect", False):
+        ranked = _tool_step(registry)
+        payload = OpenAICompatibleAdapter(lane)._build_openai_payload(_read_request(), force_json=True, stream=False)
+    with runtime_flags.override("capability_tool_dialect", True):
+        ranked_on = _tool_step(registry)
+
+    assert ranked == ["vendor/hosted-9b"]
+    assert [tool["function"]["name"] for tool in payload["tools"]] == [READ_TOOLS[0].name]
+    assert ranked_on == []
+
+
+def test_rollback_flag_off_still_excludes_a_prompted_lane_the_openrouter_rule_does_not_cover() -> None:
+    with ScriptedProvider({}, default=_native_read_reply()) as provider:
+        lane = _router_lane("lab-gateway", "labmodel:14b", provider.base_url, tool_dialect="prompted")
+        registry = _registry(lane)
+        with runtime_flags.override("capability_tool_dialect", False):
+            ranked = _tool_step(registry)
+            rows = explain_provider_exclusions(
+                [lane], ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True)
+            )
+            with pytest.raises(RequiredToolsNotOfferedError):
+                OpenAICompatibleAdapter(lane).invoke(_read_request())
+
+    assert ranked == []
+    assert rows[0]["status"] == "prompted_tool_dialect_without_structured_output"
+    assert provider.calls == []
+
+
+def test_flag_on_honors_the_prompted_declaration_on_the_openrouter_lane() -> None:
+    with ScriptedProvider({}, default=_native_read_reply()) as provider:
+        lane = _router_lane("openrouter-byok", "vendor/reader-7b", provider.base_url, tool_dialect="prompted")
+        registry = _registry(lane)
+        with runtime_flags.override("capability_tool_dialect", True):
+            ranked = _tool_step(registry)
+            with pytest.raises(RequiredToolsNotOfferedError):
+                OpenAICompatibleAdapter(lane).invoke(_read_request())
+
+    assert ranked == []
+    assert provider.calls == []
+
+
+@pytest.mark.parametrize("flag_on", [True, False], ids=["flag-on", "flag-off"])
+def test_pins_and_failover_follow_the_effective_dialect(flag_on) -> None:
+    with ScriptedProvider({}) as provider:
+        router = _router_lane("openrouter-byok", "vendor/reader-7b", provider.base_url, tool_dialect="prompted")
+        gateway = _router_lane("lab-gateway", "labmodel:14b", provider.base_url, tool_dialect="prompted")
+        native = _router_lane("lab-native", "nativelab:14b", provider.base_url, tool_dialect="native")
+        registry = _registry(router, gateway, native)
+        with runtime_flags.override("capability_tool_dialect", flag_on):
+            pinned_router = _tool_step(registry, preferred_provider="openrouter-byok", preferred_model="vendor/reader-7b")
+            pinned_gateway = _tool_step(registry, preferred_provider="lab-gateway", preferred_model="labmodel:14b")
+            after_router = select_with_failover(
+                registry,
+                ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True),
+                attempted_provider_ids=["openrouter-byok:vendor/reader-7b", "lab-native:nativelab:14b"],
+            )
+            after_native = select_with_failover(
+                registry,
+                ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", allow_paid_fallback=True),
+                attempted_provider_ids=["lab-native:nativelab:14b"],
+            )
+
+    # The gateway lane carries neither carrier in either state: never pinned, never failed over to.
+    assert "labmodel:14b" not in pinned_gateway
+    assert after_router.selected is None
+    if flag_on:
+        assert "vendor/reader-7b" not in pinned_router
+        assert after_native.selected is None
+    else:
+        assert pinned_router[0] == "vendor/reader-7b"
+        assert after_native.selected is not None and after_native.selected.model_name == "vendor/reader-7b"
+
+
+@pytest.mark.parametrize("flag_on", [True, False], ids=["flag-on", "flag-off"])
+@pytest.mark.parametrize("json_flag", ["supports_json_mode", "supports_json_schema"])
+def test_prompted_lane_with_structured_output_stays_eligible_in_both_flag_states(flag_on, json_flag) -> None:
+    reply = '{"intent": "workspace.read_file", "arguments": {"path": "notes/quarterly.md"}}'
+    with ScriptedProvider({}, default=reply) as provider:
+        lane = _router_lane("lab-gateway", "labjson:14b", provider.base_url, tool_dialect="prompted", **{json_flag: True})
+        registry = _registry(lane)
+        with runtime_flags.override("capability_tool_dialect", flag_on):
+            ranked = _tool_step(registry)
+            adapter = OpenAICompatibleAdapter(lane)
+            payload = adapter._build_openai_payload(_read_request(), force_json=True, stream=False)
+            adapter.invoke(_read_request())
+
+    assert ranked == ["labjson:14b"]
+    assert payload.get("response_format") and not payload.get("tools")
+    assert len(provider.calls) == 1
+
+
+@pytest.mark.parametrize("native_on", [True, False], ids=["ollama-native-tools-on", "ollama-native-tools-off"])
+def test_native_ollama_lane_follows_its_own_native_tool_rule_not_the_declaration(native_on) -> None:
+    # The native Ollama chat lane never reads tool_dialect: ``ollama_native_tools`` decides.
+    reply = {"function": {"name": READ_TOOLS[0].name, "arguments": {"path": "notes/quarterly.md"}}}
+    with ScriptedProvider({"ollamaread:4b": reply}) as provider:
+        lane = ModelProviderManifest(
+            provider_name="ollama-local",
+            model_name="ollamaread:4b",
+            source_type="http",
+            adapter_type="openai_compatible",
+            license_name="Apache-2.0",
+            license_reference="https://example.com/license",
+            weight_location="external",
+            runtime_dependency="ollama",
+            capabilities=GENERAL_CAPS,
+            runtime_config={"base_url": provider.base_url, "timeout_seconds": 30, "tool_dialect": "prompted"},
+            metadata={"runtime_family": "ollama", "cost_class": "free_local"},
+        )
+        registry = _registry(lane)
+        with runtime_flags.override("ollama_native_tools", native_on):
+            ranked = _tool_step(registry)
+            payload = OpenAICompatibleAdapter(lane)._build_ollama_payload(_read_request(), force_json=True, stream=False)
+
+    if native_on:
+        assert ranked == ["ollamaread:4b"]
+        assert [tool["function"]["name"] for tool in payload["tools"]] == [READ_TOOLS[0].name]
+    else:
+        assert ranked == []
+        assert not payload.get("tools") and not payload.get("format")

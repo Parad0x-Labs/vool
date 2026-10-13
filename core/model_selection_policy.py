@@ -136,26 +136,68 @@ PROMPTED_TOOL_EXCLUSION_REASON = "prompted_tool_dialect_without_structured_outpu
 
 
 def declares_prompted_tools_without_structured_output(manifest: ModelProviderManifest) -> bool:
-    """Whether this lane declares a prompted tool dialect and no structured-output mode.
+    """Whether a tool step to this lane, which declares a prompted tool dialect and no
+    structured-output mode, would leave with neither tool carrier.
 
     A tool_intent turn requires a tool call (the router sets ``tools_required``), and the
     adapter's final guard (``core.execution_requirements.assert_envelope_carries_tools``) lets
     such a call reach the wire only when the built payload carries native ``tools`` or a
-    structured-output fallback. A lane that declares ``tool_dialect: prompted`` is sent no native
-    tools, and the adapter builds the fallback only for an endpoint that declares JSON mode or
-    JSON schema. Without either, every tool step offered to it is refused before the wire.
+    structured-output fallback. The adapter builds the fallback only for an endpoint that declares
+    JSON mode or JSON schema. Whether native tools are sent is the adapter's decision, and the
+    declaration is not always what decides it: with ``capability_tool_dialect`` off the adapter
+    ignores ``tool_dialect`` and keeps the historical OpenRouter rule, and the native Ollama chat
+    lane follows ``ollama_native_tools``. So the declaration only nominates the lane; the
+    adapter's own rule (``_lane_sends_native_tools``) says whether its payload still carries
+    native tools. Only a lane that would carry neither is excluded.
 
-    Only the explicit declaration is read. An undeclared dialect is decided per call by the
-    adapter (catalog facts, a loopback probe), and the final guard stays the backstop there.
+    Only an explicit prompted declaration is read. An undeclared dialect is decided per call by
+    the adapter (catalog facts, a loopback probe), and the final guard stays the backstop there.
     """
     runtime_config = getattr(manifest, "runtime_config", None) or {}
     dialect = str(runtime_config.get("tool_dialect") or "").strip().lower()
     if dialect != "prompted":
         return False
-    return not (
-        bool(runtime_config.get("supports_json_mode", False))
-        or bool(runtime_config.get("supports_json_schema", False))
-    )
+    if bool(runtime_config.get("supports_json_mode", False)) or bool(
+        runtime_config.get("supports_json_schema", False)
+    ):
+        return False
+    return not _lane_sends_native_tools(manifest)
+
+
+def _lane_sends_native_tools(manifest: ModelProviderManifest) -> bool:
+    """The adapter's answer to "does a tool step to this lane carry native tools?".
+
+    Read from the transport owner (``OpenAICompatibleAdapter``, which every tool-carrying adapter
+    type inherits this rule from) rather than restated here, so selection and the payload cannot
+    disagree. It is asked only for an explicit prompted declaration, where the answer depends on
+    configuration alone: runtime flags, the lane's family and provider identity. No catalog read,
+    probe or request happens. An answer that cannot be obtained is not a yes: the lane is treated
+    as carrying no native tools, which is what its declaration says.
+    """
+    try:
+        from types import SimpleNamespace
+
+        from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+        from core.cloud_provider_contract import CloudToolDefinition
+
+        adapter = OpenAICompatibleAdapter(manifest)
+        if adapter._uses_native_ollama_chat():
+            # The native Ollama rule filters the step's tool definitions; ask it with one.
+            question = SimpleNamespace(
+                output_mode="tool_intent",
+                tools=(
+                    CloudToolDefinition(
+                        intent="selection.native_tool_question",
+                        name="selection__native_tool_question",
+                        description="Eligibility question only; never sent.",
+                        parameters={"type": "object", "properties": {}},
+                    ),
+                ),
+            )
+            return bool(adapter._ollama_native_tools(question))
+        return bool(adapter._supports_native_tools())
+    except Exception:
+        return False
 
 
 def missing_hard_capabilities(
