@@ -27,6 +27,7 @@ from core.goal_workflow import (
     goal_public_view,
     load_active_goal_for_session,
     load_goal,
+    load_latest_goal_for_session,
     new_goal_id,
     parse_goal_command,
     request_pause,
@@ -301,11 +302,16 @@ def goal_state_payload(session_id: str) -> dict[str, Any]:
 
 
 def goal_control(action: str, body: dict[str, Any], session_id: str) -> tuple[int, dict[str, Any]]:
-    """Owner-local POST controls from the card: pause / resume / stop / retry."""
+    """Owner-local POST controls from the card: pause / resume / stop / retry.
+
+    Chat-scoped: a control naming a goal that belongs to a DIFFERENT chat refuses, so one
+    chat's card can never pause or stop another chat's goal."""
     goal_id = str(body.get("goal_id") or "").strip()
     goal = load_goal(goal_id) if goal_id else load_active_goal_for_session(session_id)
     if goal is None:
         return 404, {"ok": False, "error": "no such goal"}
+    if str(goal.get("session_id") or "") != str(session_id or ""):
+        return 403, {"ok": False, "error": "goal belongs to a different chat"}
     goal_id = str(goal.get("goal_id"))
     if action == "pause":
         outcome = request_pause(goal_id)

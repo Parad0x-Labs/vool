@@ -7319,6 +7319,32 @@ def _dispatch_post_inner(
         if operating_mode is not None:
             source_context["bypass_token"] = str(body.get("bypass_token") or "").strip()
         source_context["runtime_session_id"] = session_id
+        # ---- Explicit /goal ingress ------------------------------------------------
+        # A message that IS a goal command is answered here, before any lane claims the turn:
+        # the goal controller owns goal creation, planning dispatch and controls, all under
+        # THIS request's fully-derived context (same session, workspace, mode authority — the
+        # context this ladder built, never a second ingress derivation). Owner-local only: a
+        # remote peer's "/goal ..." text is an ordinary message and reaches the model as such.
+        if owner_local:
+            from core.goal_workflow import parse_goal_command
+
+            _goal_parsed = parse_goal_command(user_text)
+            if _goal_parsed is not None:
+                from core.web.api.goal_api import serve_goal_ingress
+
+                _status, _goal_iter, _goal_meta = serve_goal_ingress(
+                    runtime,
+                    parsed=_goal_parsed,
+                    user_text=user_text,
+                    session_id=session_id,
+                    source_context=source_context,
+                    model=model,
+                )
+                _commit_goal_reply(session_id, user_text, _goal_meta)
+                return apply_runtime_headers(
+                    stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
+                    runtime,
+                )
         # ---- Attachments: spend what THIS chat staged, on THIS turn, and hand it over as bounded
         # evidence. The ids are the only thing a client may name; the bytes, the kinds and the
         # text all come from the authority. A client-stamped turn id or delivery record is a forgery
@@ -7538,34 +7564,6 @@ def _dispatch_post_inner(
             except Exception:
                 pass
             return apply_runtime_headers(json_response(200, payload), runtime)
-
-        # ---- Explicit /goal ingress ------------------------------------------------
-        # A message that IS a goal command is answered here, before the model turn: the goal
-        # controller owns goal creation, planning dispatch and controls, all under THIS
-        # request's fully-derived context (same session, workspace, mode authority — the
-        # context the ladder above built, never a second ingress derivation). Owner-local
-        # only: a remote peer's "/goal ..." text is an ordinary message and reaches the model
-        # as such.
-        if owner_local:
-            from core.goal_workflow import parse_goal_command
-
-            _goal_parsed = parse_goal_command(user_text)
-            if _goal_parsed is not None:
-                from core.web.api.goal_api import serve_goal_ingress
-
-                _status, _goal_iter, _goal_meta = serve_goal_ingress(
-                    runtime,
-                    parsed=_goal_parsed,
-                    user_text=user_text,
-                    session_id=session_id,
-                    source_context=source_context,
-                    model=model,
-                )
-                _commit_goal_reply(session_id, user_text, _goal_meta)
-                return apply_runtime_headers(
-                    stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
-                    runtime,
-                )
 
         if stream:
             # F-01 (independent-proof repair): the A0/A2 ContextVar binding set
