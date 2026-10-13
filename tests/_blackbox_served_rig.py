@@ -100,6 +100,14 @@ class ScriptedProvider:
                             "path": self.path,
                             "tools": [str(((t or {}).get("function") or {}).get("name") or "") for t in tools if isinstance(t, dict)],
                             "has_tool_result": has_tool_result,
+                            # Each message's role and content as sent, so a proof can say WHICH
+                            # message carried a tool result into the next round, not only that the
+                            # joined prompt contains it. Additive: no existing field changes.
+                            "messages": [
+                                {"role": str(m.get("role") or ""), "content": str(m.get("content") or "")[:8000]}
+                                for m in messages
+                                if isinstance(m, dict)
+                            ],
                         }
                     )
                 reply = rig.reply_for(model, has_tool_result=has_tool_result, body=body)
