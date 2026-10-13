@@ -773,12 +773,20 @@ def resolve_demand_signals(text: str) -> DemandSignals:
         _note("code.task.open", "code")
 
     database_is_context_only = bool(_DATABASE_CONTEXT_ONLY.search(cleaned))
+    is_wallet_move = any(
+        pattern.search(cleaned) for intent, _family, pattern in _RULES if intent == "wallet.propose"
+    )
     for intent, family, pattern in _RULES:
         if pattern.search(cleaned):
             if family == "database" and database_is_context_only:
                 # Discussed, not demanded. Recorded here rather than by narrowing the
                 # pattern, so the reason a database turn did NOT seat the skill is a
                 # named law instead of a regex that quietly failed to match.
+                continue
+            if intent == "web.chain_lookup" and is_wallet_move:
+                # A send/pay turn belongs to VOOL's wallet alone (its caps, approval and
+                # receipt): the destination address in the words is not a chain-data
+                # question, so the read-only lookup is not offered beside the proposal.
                 continue
             _note(intent, family)
             if family == "workspace" and intent.startswith(
