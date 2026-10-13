@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "تصفّح دليل المهارات",
     "addons.registry_network": "يطلب هذا الزر السجل العام. لا تُرسل الحسابات أو المحادثات أو الملفات المحلية أو مفاتيح المزودين.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
-    "addons.registry_inspect": "تنزيل للفحص"
+    "addons.registry_inspect": "تنزيل للفحص",
+    "settings.local_models.apple_silicon_notice": "يحتوي جهاز Mac هذا على شريحة Apple، لكن نسخة Intel من VOOL هي المثبتة. تعمل النماذج المحلية بهذه الطريقة ببطء شديد وقد لا تجتاز فحصها. نزّل نسخة Apple Silicon من VOOL وثبّتها بدلًا منها."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

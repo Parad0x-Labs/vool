@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Przeglądaj kodeks umiejętności",
     "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
-    "addons.registry_inspect": "Pobierz do sprawdzenia"
+    "addons.registry_inspect": "Pobierz do sprawdzenia",
+    "settings.local_models.apple_silicon_notice": "Ten Mac ma układ Apple, ale zainstalowana jest wersja VOOL dla procesorów Intel. W ten sposób modele lokalne działają bardzo wolno i mogą nie przejść kontroli. Zamiast niej pobierz i zainstaluj wersję VOOL dla Apple Silicon."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

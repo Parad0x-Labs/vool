@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Duyệt bộ sưu tập kỹ năng",
     "addons.registry_network": "Nút này yêu cầu kho công khai. Không gửi tài khoản, cuộc trò chuyện, tệp cục bộ hoặc khóa của nhà cung cấp.",
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
-    "addons.registry_inspect": "Tải xuống để kiểm tra"
+    "addons.registry_inspect": "Tải xuống để kiểm tra",
+    "settings.local_models.apple_silicon_notice": "Máy Mac này dùng chip Apple, nhưng đang cài phiên bản VOOL dành cho Intel. Khi đó các mô hình cục bộ chạy rất chậm và có thể không vượt qua bước kiểm tra. Hãy tải và cài phiên bản VOOL dành cho Apple Silicon thay thế."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

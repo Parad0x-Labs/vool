@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Explorar el códice de habilidades",
     "addons.registry_network": "Este botón consulta el registro público. No se envían cuentas, chats, archivos locales ni claves de proveedores.",
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
-    "addons.registry_inspect": "Descargar para inspeccionar"
+    "addons.registry_inspect": "Descargar para inspeccionar",
+    "settings.local_models.apple_silicon_notice": "Este Mac tiene un chip de Apple, pero está instalada la versión para Intel de VOOL. Así, los modelos locales funcionan muy despacio y puede que no superen su comprobación. Descarga e instala en su lugar la versión de VOOL para Apple Silicon."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3195,7 +3195,7 @@ function widgetLocalModels(stack) {
       body.appendChild(el('div', 'empty', 'Local models are disabled by policy on this runtime.'));
       return;
     }
-    if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', data.apple_silicon_notice));
+    if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', 'No text models found in your local Ollama. Install one (e.g. `ollama pull qwen3:8b`) and it will appear here.'));

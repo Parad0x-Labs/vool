@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "עיון בקודקס המיומנויות",
     "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
-    "addons.registry_inspect": "הורדה לבדיקה"
+    "addons.registry_inspect": "הורדה לבדיקה",
+    "settings.local_models.apple_silicon_notice": "ל-Mac הזה יש שבב של Apple, אבל מותקנת גרסת Intel של VOOL. כך מודלים מקומיים פועלים לאט מאוד ועלולים לא לעבור את הבדיקה שלהם. הורידו והתקינו במקומה את גרסת Apple Silicon של VOOL."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

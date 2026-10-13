@@ -1861,7 +1861,8 @@
     "addons.registry_refresh": "Browse Skill Codex",
     "addons.registry_network": "This button requests the public registry. No account, chats, local files or provider keys are sent.",
     "addons.registry_empty": "No listed versions match this exact VOOL build and search.",
-    "addons.registry_inspect": "Download for inspection"
+    "addons.registry_inspect": "Download for inspection",
+    "settings.local_models.apple_silicon_notice": "This Mac has an Apple chip, but the Intel version of VOOL is installed. Local models run very slowly this way and may not pass their check. Download and install the Apple Silicon version of VOOL instead."
   },
   "html_keys": [
     "bypass.modal_limits",

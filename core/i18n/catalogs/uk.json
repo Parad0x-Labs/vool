@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Відкрити кодекс навичок",
     "addons.registry_network": "Ця кнопка запитує публічний реєстр. Облікові записи, розмови, локальні файли та ключі провайдерів не надсилаються.",
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
-    "addons.registry_inspect": "Завантажити для перегляду"
+    "addons.registry_inspect": "Завантажити для перегляду",
+    "settings.local_models.apple_silicon_notice": "На цьому Mac стоїть чип Apple, але встановлено версію VOOL для Intel. Так локальні моделі працюють дуже повільно й можуть не пройти перевірку. Натомість завантажте та встановіть версію VOOL для Apple Silicon."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

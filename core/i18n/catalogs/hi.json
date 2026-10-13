@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "कौशल कोडेक्स ब्राउज़ करें",
     "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
-    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
+    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
+    "settings.local_models.apple_silicon_notice": "इस Mac में Apple चिप है, लेकिन VOOL का Intel संस्करण इंस्टॉल है। इस तरह स्थानीय मॉडल बहुत धीमे चलते हैं और अपनी जाँच में पास नहीं भी हो सकते। इसके बजाय VOOL का Apple Silicon संस्करण डाउनलोड करके इंस्टॉल करें।"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

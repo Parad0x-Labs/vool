@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Fertigkeiten-Codex durchsuchen",
     "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
-    "addons.registry_inspect": "Zur Prüfung herunterladen"
+    "addons.registry_inspect": "Zur Prüfung herunterladen",
+    "settings.local_models.apple_silicon_notice": "Dieser Mac hat einen Apple-Chip, aber die Intel-Version von VOOL ist installiert. Lokale Modelle laufen so sehr langsam und bestehen ihre Prüfung womöglich nicht. Laden Sie stattdessen die Apple-Silicon-Version von VOOL herunter und installieren Sie sie."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

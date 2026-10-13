@@ -146,4 +146,22 @@ def test_the_settings_local_models_widget_shows_the_notice():
     page = (Path(__file__).resolve().parents[1] / "core" / "vool_settings_page.py").read_text(encoding="utf-8")
     widget = page[page.index("function widgetLocalModels"):]
     widget = widget[: widget.index("\n}\n")]
-    assert "if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', data.apple_silicon_notice));" in widget
+    assert (
+        "if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', "
+        "T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));"
+    ) in widget
+
+
+def test_the_notice_is_in_every_language_catalog():
+    from core.i18n.catalog import CATALOGS_DIR
+
+    key = "settings.local_models.apple_silicon_notice"
+    catalogs = sorted(CATALOGS_DIR.glob("*.json"))
+    assert len(catalogs) > 1
+    english = json.loads((CATALOGS_DIR / "en.json").read_text(encoding="utf-8"))["messages"][key]
+    assert english == local_compute_budget.APPLE_SILICON_BUILD_NOTICE
+    for path in catalogs:
+        text = json.loads(path.read_text(encoding="utf-8"))["messages"].get(key, "")
+        assert "VOOL" in text and "Apple" in text, path.name
+        if path.stem != "en":
+            assert text != english, f"{path.name} carries the English text"

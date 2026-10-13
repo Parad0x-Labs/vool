@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "浏览技能宝典",
     "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
-    "addons.registry_inspect": "下载以检查"
+    "addons.registry_inspect": "下载以检查",
+    "settings.local_models.apple_silicon_notice": "这台 Mac 使用 Apple 芯片，但安装的是 Intel 版 VOOL。这样本地模型会运行得非常慢，还可能无法通过检查。请改为下载并安装 Apple 芯片版 VOOL。"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

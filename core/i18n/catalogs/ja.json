@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "スキルコーデックスを見る",
     "addons.registry_network": "このボタンは公開レジストリに問い合わせます。アカウント、チャット、ローカルファイル、プロバイダーのキーは送信されません。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
-    "addons.registry_inspect": "確認用にダウンロード"
+    "addons.registry_inspect": "確認用にダウンロード",
+    "settings.local_models.apple_silicon_notice": "この Mac には Apple チップが搭載されていますが、Intel 版の VOOL がインストールされています。この状態ではローカルモデルの動作が非常に遅く、チェックに合格しないことがあります。代わりに Apple シリコン版の VOOL をダウンロードしてインストールしてください。"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

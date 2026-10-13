@@ -1861,9 +1861,10 @@
     "addons.registry_refresh": "Открыть кодекс навыков",
     "addons.registry_network": "Эта кнопка запрашивает публичный реестр. Аккаунты, переписки, локальные файлы и ключи провайдеров не отправляются.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
-    "addons.registry_inspect": "Скачать для просмотра"
+    "addons.registry_inspect": "Скачать для просмотра",
+    "settings.local_models.apple_silicon_notice": "На этом Mac стоит чип Apple, но установлена версия VOOL для Intel. В таком режиме локальные модели работают очень медленно и могут не пройти проверку. Скачайте и установите вместо неё версию VOOL для Apple Silicon."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "46ca377395500268a7573a4b3d56f6f71e677b3cee75e4f6e454469e9a8ad0a3",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
