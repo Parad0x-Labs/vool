@@ -3283,6 +3283,10 @@ def _dispatch_runtime_tool(
             from core.zcash.tools import run_tool as _zcash_tool
 
             return _zcash_tool(intent, arguments, source_context)
+        if intent == "chain.lookup":
+            from core.chain_data import run_tool as _chain_tool
+
+            return _chain_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":

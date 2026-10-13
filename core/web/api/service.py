@@ -4997,6 +4997,42 @@ def _dispatch_post_inner(
         _st_status, _st_payload = _cr_forward("search.test", {"provider": _sp.strip().lower()})
         return apply_runtime_headers(json_response(_st_status, _st_payload), runtime)
 
+    if normalized_path == "/api/chain/test":
+        # "Test" for a stored chain-data key (Helius/Alchemy/Solscan/Etherscan): the same one
+        # verification read Save used, through the same verifier. Same guard suite as /api/search/test.
+        # Response carries state/detail only — never any key material.
+        import json as _json
+
+        from core.web.api.runtime import host_header_allowed
+
+        def _chain_test_header(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        content_type = _chain_test_header("content-type").lower()
+        if content_type and "json" not in content_type:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _chain_test_header("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 65536:
+                return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
+        unknown = set(body.keys()) - {"provider"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        _cp = body.get("provider")
+        if not isinstance(_cp, str) or not _cp.strip():
+            return apply_runtime_headers(json_response(400, {"error": "missing provider"}), runtime)
+        from core.command_registry.legacy import forward as _cr_forward
+
+        _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()})
+        return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
+
     if normalized_path == "/api/search/detect":
         # Which provider does this pasted key belong to? Prefix-only, entirely local: nothing is
         # stored and no network call is made, so the UI can label the key the moment it is pasted.

@@ -1835,6 +1835,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/chain/test": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chain/test",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "chain.test",
+      "surface": "http"
+    },
     "http:POST:/api/chat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/chat",
@@ -2952,7 +2959,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 287,
-    "GENERATED_ADAPTER": 125,
+    "GENERATED_ADAPTER": 126,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

@@ -442,6 +442,27 @@ def _handle_search_test(inp, ctx):
     return HandlerOk(data=payload, summary=f"Search probe: {inp.provider}")
 
 
+@dataclass(frozen=True)
+class ChainTestInput:
+    provider: str
+
+
+def _handle_chain_test(inp, ctx):
+    from core.chain_data import probe_chain_provider
+
+    payload = probe_chain_provider(inp.provider.strip().lower())
+    return HandlerOk(data=payload, summary=f"Chain-data key probe: {inp.provider}")
+
+
+def _probe_chain_state(context: dict) -> tuple[bool, str]:
+    try:
+        from core.chain_providers import CHAIN_PROVIDERS
+
+        return (True, "") if CHAIN_PROVIDERS else (False, "no chain-data providers declared")
+    except Exception as exc:
+        return False, f"chain-data provider table unavailable: {exc}"
+
+
 # ---------------------------------------------------------------------------
 # memory group
 # ---------------------------------------------------------------------------
@@ -907,6 +928,24 @@ def register(reg) -> None:
             ),
             handler=Handler("core.command_registry.groups.convergence:_handle_search_test"),
             availability=Availability("core.command_registry.groups.convergence:_probe_search_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="chain.test",
+            group="chain",
+            description="Probe one stored chain-data provider key",
+            input_schema=ChainTestInput,
+            effects="idempotent_write",
+            capabilities=frozenset({"settings.chain_provider_test"}),
+            permission=ApprovalGate(
+                kind="chain.test",
+                verifier="core.command_registry.groups.convergence:_gate_operator_approval",
+            ),
+            handler=Handler("core.command_registry.groups.convergence:_handle_chain_test"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_chain_state"),
             exit_codes=(0, 2, 20),
         )
     )

@@ -134,6 +134,14 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("zcash.invoice.create", "wallet", re.compile(r"\b(?:bill|invoice|charge|request)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:zec|zcash|taz)\b|\b(?:zec|zcash)\s+(?:invoice|payment\s+request)\b", re.I)),
     ("zcash.invoice.unpaid", "wallet", re.compile(r"\b(?:owes?|owing|unpaid|outstanding|not\s+(?:yet\s+)?paid)\b[^.?!]{0,60}?\b(?:zec|zcash)\b|\b(?:zec|zcash)\b[^.?!]{0,60}?\b(?:owes?|owing|unpaid|outstanding|paid\s+yet)\b|\b(?:has|have)\b[^.?!]{0,30}?\bpaid\b[^.?!]{0,60}?\b(?:zec|zcash)\b", re.I)),
     ("zcash.payment.history", "wallet", re.compile(r"\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b[^.?!]{0,60}?\b(?:zec|zcash)\b|\b(?:zec|zcash)\b[^.?!]{0,60}?\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b", re.I)),
+    # -- chain-data lookups (core/chain_data; read-only, through the operator's own provider keys) --
+    # a provider's name, an on-chain read word near a chain or address word, or a raw EVM address/hash
+    ("chain.lookup", "web", re.compile(
+        r"\b(?:helius|alchemy|solscan|etherscan|basescan|bscscan)\b"
+        r"|\b(?:balances?|holders?|holdings|token\s+info|transactions?|txs?|history|portfolio|supply)\b[^.?!]{0,60}?"
+        r"\b(?:sol|solana|eth|ethereum|base|bnb|bsc|robinhood\s+chain|on[- ]?chain|address|token|mint|contract)\b"
+        r"|\b(?:sol|solana|eth|ethereum|bnb|bsc|on[- ]?chain|token|mint)\b[^.?!]{0,30}?\b(?:balances?|holders?|holdings|transactions?|history|supply)\b"
+        r"|\b0x[0-9a-fA-F]{40}\b|\b0x[0-9a-fA-F]{64}\b", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",
