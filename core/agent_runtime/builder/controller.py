@@ -905,6 +905,9 @@ def maybe_run_builder_controller(
             task_outcome="success" if failed_execution is None else "failed",
             workflow_summary=workflow_summary,
         )
+        # The action result carries no typed outcome of its own; stamp it as the direct branch
+        # does, so a failed step reads as failed in the typed field, not only in the mode.
+        result["task_outcome"] = "success" if failed_execution is None else "failed"
         result["details"] = {"builder_controller": builder_details}
         return result
     if agent._is_chat_truth_surface(loop_source_context):
