@@ -30,8 +30,10 @@ Downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 are on the
   private details removed, before it is sent.
 * **Skill Codex** is on the Add-ons page. Browsing is not open yet in this release.
 * **More languages.** 16 languages besides English.
-* **Crypto stays off by default.** Paying for web content with x402 works on test
-  networks only in this release; mainnet is planned for 0.7.1.
+* **Crypto stays off by default.** Paying websites with x402 works on test networks only.
+  The pay-per-call option in the model marketplace in Settings can pay from the Solana
+  Mainnet wallet, one approval per call with the 0.1% fee shown; it has not yet been tested
+  on a real chain.
 
 The Mac apps are not notarized yet: see
 [first open on a Mac](../getting-started/install.md#first-open-on-a-mac).

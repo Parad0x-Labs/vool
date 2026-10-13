@@ -86,7 +86,7 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 - Patched dependency releases are pinned.
 
 ### Known limitations
-- x402 payments work on test networks only (Solana Devnet, Base Sepolia, Ethereum Sepolia, BNB testnet). Mainnet x402 is planned for 0.7.1.
+- x402 for websites works on test networks only in 0.7.0 (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet). One exception: the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet. Each call waits for your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been tested on a real chain. Mainnet x402 for websites is planned for 0.7.1.
 - Skill Codex browsing is not open yet.
 - X is drafting plus guided read-only setup; trending is hidden.
 - The macOS apps are not notarized.

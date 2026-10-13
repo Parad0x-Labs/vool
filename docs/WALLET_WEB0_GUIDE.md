@@ -2,7 +2,10 @@
 
 Crypto is **off by default**. When you turn it on, VOOL's wallet covers the mainnet chains
 listed below, with caps, your approval and a receipt for every payment. In 0.7.0, x402
-payments work on test networks only; mainnet x402 is planned for 0.7.1.
+for websites works on test networks only. One exception: the pay-per-call option in the
+model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet; each call
+waits for your approval within your limits and shows the 0.1% VOOL fee, and it has not yet
+been tested on a real chain.
 
 ## Enablement
 

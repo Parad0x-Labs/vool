@@ -33,8 +33,8 @@ transfers and payments sections below for exactly which lanes exist on mainnet.
 ## What moves on which lane
 
 * **Pilot transfers move native coins only** (SOL on Solana, ETH on Base/Ethereum).
-* **Tokens move only for x402 payments**, and in 0.7.0 x402 runs on test networks only
-  (see below). Proposals refuse a mainnet token for every other origin.
+* **The one Mainnet token is USDC on Solana**, and it exists for the x402 payment lane only:
+  automatic payments to AI services. Proposals refuse it for every other origin.
 * Every transfer is previewed (a **quote**: amount, fee ceiling, recipient, network) and needs
   your explicit approval bound to exactly that preview. Change anything and the approval is
   void — nothing is signed.
@@ -50,9 +50,13 @@ attempts locks the wallet for a while — deliberately, with a stated wait.
 
 ## x402 automatic payments
 
-x402 is a per-request payment protocol some AI services speak. **In 0.7.0 it works on test
-networks only** (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet), in
-Developer options. Mainnet x402 is planned for 0.7.1. When a paid resource uses it:
+x402 is a per-request payment protocol some AI services speak. **For websites, 0.7.0 runs it
+on test networks only** (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet), in
+Developer options; mainnet x402 for websites is planned for 0.7.1. **One exception:** the
+pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet
+Crypto Pilot wallet in USDC or SOL. Each call waits for your approval within your wallet
+limits and shows the 0.1% VOOL fee. That path has not yet been tested on a real chain.
+When a paid resource uses x402:
 
 * Payments go through the same wallet caps and approval flow.
 * Automatic payments are capped per payment; a resource above the cap is **not paid** (you can
@@ -62,7 +66,7 @@ Developer options. Mainnet x402 is planned for 0.7.1. When a paid resource uses 
 
 ## DNA service fee
 
-When x402 runs on mainnet, the built-in accountless x402 route charges a **10 basis point** service fee on each accepted
+The model marketplace's pay-per-call x402 route charges a **0.1% (10 basis point)** service fee on each accepted
 provider payment, shown apart from the payment and apart from the network fee. Nothing else
 acquires it: ordinary sends, wallet creation, local inference and your own API-key (BYOK)
 calls carry **no** service fee. Accrued fees are collected economically (with a later native

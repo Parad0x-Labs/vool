@@ -51,7 +51,8 @@ release.
 | Capability | State in this build |
 | --- | --- |
 | Crypto and wallet | Off by default. When you turn it on, VOOL uses mainnet; test networks are in Developer options. Every payment goes through VOOL's wallet, with its limits, your approval and a receipt. See [Wallet](../guides/wallet.md). |
-| Paying for web content (x402) | Test networks only in this release: Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet. Mainnet is planned for 0.7.1. |
+| Mainnet transfers | Native coins only; the sole Mainnet token (USDC on Solana) exists for the x402 payment lane only. |
+| Paying with x402 | x402 for websites works on test networks only in 0.7.0 (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet). One exception: the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet. Each call waits for your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been tested on a real chain. |
 | X | Drafting posts in chat, plus a guided setup that checks your keys read-only. No posting from VOOL in this release. |
 | Dictation | Temporarily unavailable in this beta build; it returns in an update. |
 | Cloud "burst" ask mode | The per-call prompt is not wired yet in this build. |
