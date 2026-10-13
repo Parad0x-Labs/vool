@@ -71,8 +71,19 @@ class _GatedProvider(rig.CapturingProvider):
             return [
                 call
                 for call in self.calls
-                if str(call.get("path") or "").startswith(("/api/chat", "/v1/")) and str(call.get("text") or "").strip()
+                if str(call.get("path") or "").startswith(("/api/chat", "/v1/"))
+                and str(call.get("text") or "").strip()
+                and not str(call.get("text") or "").lstrip().startswith(_MEMORY_HELPER_PROMPTS)
             ]
+
+
+#: v0.7 memory runs its own helper calls around a turn -- the recall search-phrase writer before
+#: the answer and the background fact extractor after it. They carry the message text but are not
+#: the message being executed, so "this message ran once" counts answer calls only.
+_MEMORY_HELPER_PROMPTS = (
+    "You help search a stored record of past conversations.",
+    "You are a local memory extraction agent.",
+)
 
 
 def _queue_state(daemon, session_id: str) -> dict:
