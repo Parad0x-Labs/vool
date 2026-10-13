@@ -1867,9 +1867,13 @@
     "private.end_title": "Guardar este chat novamente a partir da próxima mensagem",
     "private.msg_title": "Privado: esta mensagem não foi guardada",
     "private.wait": "Aguarde até a resposta atual terminar e tente novamente.",
-    "settings.local_models.apple_silicon_notice": "Este Mac tem um chip da Apple, mas está instalada a versão do VOOL para Intel. Assim, os modelos locais funcionam muito devagar e podem não passar na verificação. Baixe e instale a versão do VOOL para Apple Silicon."
+    "settings.local_models.apple_silicon_notice": "Este Mac tem um chip da Apple, mas está instalada a versão do VOOL para Intel. Assim, os modelos locais funcionam muito devagar e podem não passar na verificação. Baixe e instale a versão do VOOL para Apple Silicon.",
+    "private.saving_again": "A guardar novamente a partir daqui",
+    "private.banner_short": "Privado",
+    "private.end_short": "Guardar de novo",
+    "private.reload_note": "Este chat é privado. As mensagens privadas não são guardadas, por isso não aparecem aqui depois de recarregar."
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

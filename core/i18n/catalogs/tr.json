@@ -1867,9 +1867,13 @@
     "private.end_title": "Bu sohbeti bir sonraki mesajdan itibaren yeniden kaydet",
     "private.msg_title": "Özel: bu mesaj kaydedilmedi",
     "private.wait": "Mevcut yanıtın bitmesini bekleyin, ardından yeniden deneyin.",
-    "settings.local_models.apple_silicon_notice": "Bu Mac'te Apple çipi var, ancak VOOL'un Intel sürümü yüklü. Bu şekilde yerel modeller çok yavaş çalışır ve kontrolünü geçemeyebilir. Bunun yerine VOOL'un Apple Silicon sürümünü indirip yükleyin."
+    "settings.local_models.apple_silicon_notice": "Bu Mac'te Apple çipi var, ancak VOOL'un Intel sürümü yüklü. Bu şekilde yerel modeller çok yavaş çalışır ve kontrolünü geçemeyebilir. Bunun yerine VOOL'un Apple Silicon sürümünü indirip yükleyin.",
+    "private.saving_again": "Buradan itibaren yeniden kaydediliyor",
+    "private.banner_short": "Özel",
+    "private.end_short": "Yeniden kaydet",
+    "private.reload_note": "Bu sohbet özel. Özel mesajlar kaydedilmez, bu yüzden yeniden yüklemeden sonra burada görünmezler."
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

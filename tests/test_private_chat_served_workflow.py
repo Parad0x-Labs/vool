@@ -36,9 +36,10 @@ def _certify(daemon: ServedDaemon) -> dict[str, Any]:
         return json.loads(response.read().decode())
 
 
-def _stream(daemon: ServedDaemon, text: str, session: str) -> tuple[str, dict[str, Any]]:
+def _stream(daemon: ServedDaemon, text: str, session: str, **extra: Any) -> tuple[str, dict[str, Any]]:
     """One streamed turn, as the chat page sends it: the answer and the turn's response.commit."""
-    body = {"messages": [{"role": "user", "content": text}], "stream": True, "session_id": session, "model": MODEL}
+    body = {"messages": [{"role": "user", "content": text}], "stream": True, "session_id": session, "model": MODEL,
+            **extra}
     request = Request(f"{daemon.base_url}/api/chat", data=json.dumps(body).encode(),
                       headers={"Content-Type": "application/json"}, method="POST")
     answer, commit = "", {}
@@ -121,7 +122,7 @@ def test_private_chat_keeps_nothing_and_recording_comes_back(tmp_path):
             assert private_commit.get("display_metadata", {}).get("private_chat") is True
 
             refused, _ = _stream(daemon, f"remember that the party is at {SECRET} Hall", chat)
-            assert "Private chat is on" in refused and "not saving" in refused, refused
+            assert "Private chat is on" in refused and "won't save" in refused, refused
 
             status, _ = _stream(daemon, "are you recording this?", chat)
             assert "private right now" in status, status
@@ -137,12 +138,27 @@ def test_private_chat_keeps_nothing_and_recording_comes_back(tmp_path):
             assert off_commit.get("display_metadata", {}).get("private_chat") is True
             assert off_commit["display_metadata"].get("private_chat_on") is False
 
+            # A tab that had not heard private chat ended still shows it, and sends its next message
+            # believing it won't be saved: it isn't, and the commit tells that tab saving is back.
+            _, stale_commit = _stream(daemon, f"From the other tab: the cake is from {SECRET} Bakery.", chat,
+                                      private_chat=True)
+            assert stale_commit.get("display_metadata", {}).get("private_chat") is True
+            assert stale_commit["display_metadata"].get("private_chat_on") is False
+
             _, after_commit = _stream(daemon, "My cat likes tuna.", chat)
             assert "private_chat" not in after_commit.get("display_metadata", {})
             history = _history(daemon, chat)
             assert "private_chat" not in history
             text = json.dumps(history)
             assert "Biscuit" in text and "tuna" in text and SECRET not in text
+
+            # Asking not to be saved in words the switch doesn't read: nothing switches, and the model is
+            # told the chat is still saved, so it cannot promise otherwise.
+            before = len(provider.calls)
+            _, unread_commit = _stream(daemon, "bitte nicht speichern: my cat is scared of thunder", chat)
+            sent = "\n".join(f"{c.get('system', '')}\n{c.get('full_prompt', '')}" for c in provider.calls[before:])
+            assert "PRIVATE CHAT IS NOT ON" in sent, "the model was not told the chat is still saved"
+            assert "private_chat" not in unread_commit.get("display_metadata", {})
 
             # Asking about it later: nothing of the private turns reaches the model, so there is no record to use.
             before = len(provider.calls)

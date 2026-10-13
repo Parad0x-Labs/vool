@@ -1867,9 +1867,13 @@
     "private.end_title": "Знову зберігати цей чат із наступного повідомлення",
     "private.msg_title": "Приватно: це повідомлення не збережено",
     "private.wait": "Зачекайте, доки поточна відповідь завершиться, і спробуйте ще раз.",
-    "settings.local_models.apple_silicon_notice": "На цьому Mac стоїть чип Apple, але встановлено версію VOOL для Intel. Так локальні моделі працюють дуже повільно й можуть не пройти перевірку. Натомість завантажте та встановіть версію VOOL для Apple Silicon."
+    "settings.local_models.apple_silicon_notice": "На цьому Mac стоїть чип Apple, але встановлено версію VOOL для Intel. Так локальні моделі працюють дуже повільно й можуть не пройти перевірку. Натомість завантажте та встановіть версію VOOL для Apple Silicon.",
+    "private.saving_again": "Звідси знову зберігається",
+    "private.banner_short": "Приватно",
+    "private.end_short": "Знову зберігати",
+    "private.reload_note": "Це приватний чат. Приватні повідомлення не зберігаються, тому після перезавантаження їх тут немає."
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

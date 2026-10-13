@@ -1867,9 +1867,13 @@
     "private.end_title": "अगले संदेश से इस चैट को फिर से सहेजें",
     "private.msg_title": "निजी: यह संदेश सहेजा नहीं गया",
     "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।",
-    "settings.local_models.apple_silicon_notice": "इस Mac में Apple चिप है, लेकिन VOOL का Intel संस्करण इंस्टॉल है। इस तरह स्थानीय मॉडल बहुत धीमे चलते हैं और अपनी जाँच में पास नहीं भी हो सकते। इसके बजाय VOOL का Apple Silicon संस्करण डाउनलोड करके इंस्टॉल करें।"
+    "settings.local_models.apple_silicon_notice": "इस Mac में Apple चिप है, लेकिन VOOL का Intel संस्करण इंस्टॉल है। इस तरह स्थानीय मॉडल बहुत धीमे चलते हैं और अपनी जाँच में पास नहीं भी हो सकते। इसके बजाय VOOL का Apple Silicon संस्करण डाउनलोड करके इंस्टॉल करें।",
+    "private.saving_again": "यहाँ से फिर से सहेजा जा रहा है",
+    "private.banner_short": "निजी",
+    "private.end_short": "फिर से सहेजें",
+    "private.reload_note": "यह चैट निजी है। निजी संदेश सहेजे नहीं जाते, इसलिए रीलोड के बाद वे यहाँ नहीं दिखते।"
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

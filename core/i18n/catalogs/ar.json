@@ -1867,9 +1867,13 @@
     "private.end_title": "احفظ هذه المحادثة مجددًا بدءًا من الرسالة التالية",
     "private.msg_title": "خاصة: لم يتم حفظ هذه الرسالة",
     "private.wait": "انتظر حتى ينتهي الرد الحالي، ثم حاول مرة أخرى.",
-    "settings.local_models.apple_silicon_notice": "يحتوي جهاز Mac هذا على شريحة Apple، لكن نسخة Intel من VOOL هي المثبتة. تعمل النماذج المحلية بهذه الطريقة ببطء شديد وقد لا تجتاز فحصها. نزّل نسخة Apple Silicon من VOOL وثبّتها بدلًا منها."
+    "settings.local_models.apple_silicon_notice": "يحتوي جهاز Mac هذا على شريحة Apple، لكن نسخة Intel من VOOL هي المثبتة. تعمل النماذج المحلية بهذه الطريقة ببطء شديد وقد لا تجتاز فحصها. نزّل نسخة Apple Silicon من VOOL وثبّتها بدلًا منها.",
+    "private.saving_again": "يتم الحفظ مجددًا من هنا",
+    "private.banner_short": "خاصة",
+    "private.end_short": "احفظ مجددًا",
+    "private.reload_note": "هذه المحادثة خاصة. الرسائل الخاصة لا تُحفظ، لذلك لا تظهر هنا بعد إعادة التحميل."
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

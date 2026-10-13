@@ -93,14 +93,41 @@ def test_private_messages_wear_the_ghost_and_the_banner_ends_it(tmp_path):
                     ".every(b => getComputedStyle(b).display === 'none')"
                 )
 
+                # A second tab opened on the private chat reads it back from the server: the private
+                # messages are not there, and it says why instead of looking like lost messages.
+                other = browser.new_page()
+                other.on("pageerror", lambda e: errors.append(str(e)))
+                other.route("**/api/tags", lambda route: route.fulfill(
+                    content_type="application/json", body=json.dumps({"models": [{"name": daemon.model}]})))
+                other.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                other.locator(".session .s-title", has_text="Biscuit").first.click()
+                other.wait_for_selector("#privateBanner:not([hidden])", timeout=30_000)
+                other.wait_for_selector(".private-note", timeout=10_000)
+                assert SECRET not in other.evaluate("() => document.getElementById('log').textContent")
+
+                page.bring_to_front()
                 page.click("#privateEnd")
                 _wait_answers(page, 4)
                 page.wait_for_selector("#privateBanner[hidden]", state="attached", timeout=10_000)
+                marks = page.evaluate(MARKS)
+                assert "Recording is back on" in marks[7]["text"], marks
+                # The line under that reply: what follows is saved again.
+                assert page.evaluate(
+                    "() => { const d = document.querySelector('#log .private-divider');"
+                    " return !!d && d.previousElementSibling === [...document.querySelectorAll('#log .msg')][7]; }"
+                )
+
+                # The second tab still shows the banner it last heard. Coming back to it re-reads the
+                # server, and its next message, saved, wears no ghost.
+                other.bring_to_front()
+                other.evaluate("() => window.dispatchEvent(new Event('focus'))")
+                other.wait_for_selector("#privateBanner[hidden]", state="attached", timeout=10_000)
+                other.close()
+                page.bring_to_front()
                 _send(page, "My cat likes tuna.")
                 _wait_answers(page, 5)
                 marks = page.evaluate(MARKS)
                 assert [m["ghost"] for m in marks] == [False, False, True, True, True, True, True, True, False, False], marks
-                assert "Recording is back on" in marks[7]["text"], marks
 
                 # Reload: the chat comes back from what was saved, and the private part is not in it.
                 page.reload(wait_until="domcontentloaded")

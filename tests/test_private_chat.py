@@ -158,3 +158,99 @@ def test_words_a_private_turn_blanked_or_deleted_are_not_left_in_the_database_fi
         conn.close()
     leftovers = [p.name for p in tmp_path.iterdir() if p.is_file() and secret.encode() in p.read_bytes()]
     assert leftovers == []
+
+
+@pytest.mark.parametrize(
+    ("text", "rest"),
+    [
+        ("don't record this\nmy boss is Grumblewick", "my boss is Grumblewick"),
+        ("my pin is 1234 dont save this", "my pin is 1234"),
+        ("(don't save this)", ""),
+        ("don't record this 🙏", ""),
+        ("can we talk privately", ""),
+        ("do not record", ""),
+        ("can you not record this", ""),
+        ("make this private", ""),
+        ("I don't want this saved", ""),
+        ("dont recrod this", ""),
+        ("I need to vent, keep this between us", "I need to vent"),
+    ],
+)
+def test_more_ways_a_person_asks_not_to_be_recorded(text, rest):
+    command = parse_private_command(text)
+    assert command is not None and command.action == ON and command.rest == rest, (text, command)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["what is private chat?", "how do I make this private", "I told him don't record this",
+     "Remind me to tell Sam we should talk privately", "don't save it as a PDF, save it as docx",
+     "I don't want this saved as a draft", "keep this between us and the client",
+     "subject line: Don't save this", "tell my wife: keep this between us", "Save again"],
+)
+def test_a_mention_at_the_end_of_a_sentence_is_not_a_command(text):
+    assert parse_private_command(text) is None, text
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["You can save this, it's just a draft", "start recording, I'm going to sing",
+     "Ok, we're on the record now, said the journalist", "turn recording back on. My cat is Tom"],
+)
+def test_private_chat_ends_only_on_the_command_alone(text):
+    command = parse_private_command(text, currently_private=True)
+    assert command is None or command.action != OFF, (text, command)
+
+
+@pytest.mark.parametrize(
+    "text", ["private off", "recording on", "disable private mode", "normal mode", "turn on recording again"]
+)
+def test_more_ways_to_end_private_chat(text):
+    command = parse_private_command(text, currently_private=True)
+    assert command is not None and command.action == OFF and command.bare, (text, command)
+
+
+def test_a_privacy_request_the_switch_did_not_read_tells_the_model_it_is_not_on(monkeypatch):
+    """Nothing switched: the model is told the chat is still saved, so it can't promise otherwise."""
+
+    class _Agent:
+        def _fast_path_result(self, **kwargs):
+            raise AssertionError("not a command")
+
+    monkeypatch.setattr(private_chat, "is_private", lambda sid: False)
+    context: dict = {"chat_id": "openclaw:" + "t" * 20}
+    assert private_chat.observe_private_turn(
+        _Agent(), "bitte nicht speichern, mein Gehalt ist 90k", session_id="", source_context=context
+    ) is None
+    assert context.get(private_chat.NOT_ON_KEY) is True and not context.get(private_chat.PRIVATE_TURN_KEY)
+    assert "IS NOT ON" in private_chat.not_on_prompt_block()
+    plain: dict = {"chat_id": "openclaw:" + "t" * 20}
+    private_chat.observe_private_turn(_Agent(), "what's the weather in Vilnius?", session_id="", source_context=plain)
+    assert private_chat.NOT_ON_KEY not in plain
+
+
+def test_a_failed_switch_names_no_error_type():
+    assert "{" not in private_chat.REPLY_FAILED and "{" not in private_chat.REPLY_FAILED_ON
+
+
+@pytest.mark.parametrize(
+    ("text", "asks"),
+    [("bitte nicht speichern", True), ("не сохраняй это", True), ("don't remember that", True),
+     ("don't save this file yet", False), ("dont log me out", False), ("my private key file", False)],
+)
+def test_only_a_request_about_the_chat_gets_the_not_on_note(text, asks):
+    assert private_chat.looks_like_privacy_request(text) is asks, text
+
+
+def test_a_message_sent_from_a_tab_that_still_shows_private_is_not_saved(monkeypatch):
+    monkeypatch.setattr(private_chat, "is_private", lambda sid: False)
+    context: dict = {}
+    assert private_chat.observe_private_door(
+        "the cake is from Larkspur", session_id="openclaw:" + "u" * 20, source_context=context,
+        page_believes_private=True,
+    ) is True
+    assert context[private_chat.PRIVATE_TURN_KEY] is True
+    plain: dict = {}
+    assert private_chat.observe_private_door(
+        "the cake is from Larkspur", session_id="openclaw:" + "u" * 20, source_context=plain
+    ) is False

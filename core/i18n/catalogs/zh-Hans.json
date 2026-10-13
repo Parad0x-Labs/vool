@@ -1867,9 +1867,13 @@
     "private.end_title": "从下一条消息起重新保存此聊天",
     "private.msg_title": "私密：此消息未被保存",
     "private.wait": "请等待当前回答完成后再试。",
-    "settings.local_models.apple_silicon_notice": "这台 Mac 使用 Apple 芯片，但安装的是 Intel 版 VOOL。这样本地模型会运行得非常慢，还可能无法通过检查。请改为下载并安装 Apple 芯片版 VOOL。"
+    "settings.local_models.apple_silicon_notice": "这台 Mac 使用 Apple 芯片，但安装的是 Intel 版 VOOL。这样本地模型会运行得非常慢，还可能无法通过检查。请改为下载并安装 Apple 芯片版 VOOL。",
+    "private.saving_again": "从这里开始重新保存",
+    "private.banner_short": "私密",
+    "private.end_short": "重新保存",
+    "private.reload_note": "此聊天为私密聊天。私密消息不会保存，因此重新加载后不会显示在这里。"
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

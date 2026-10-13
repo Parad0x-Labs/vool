@@ -414,18 +414,30 @@ header a:hover { text-decoration:underline; }
    ends (finishRun -> setMsgTime), never while still streaming. */
 /* Private chat (core.private_chat): a small, quiet ghost on every message that was not saved. */
 .msg.is-private { border-style:dashed; }
-.msg-ghost { position:absolute; top:-8px; left:-8px; width:20px; height:20px; display:flex; align-items:center; justify-content:center;
-  border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--muted); pointer-events:auto; }
+.msg-ghost { position:absolute; top:-9px; left:-9px; width:22px; height:22px; padding:0; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--ink); opacity:.75; pointer-events:auto; cursor:help; font:inherit; }
+.msg-ghost:hover, .msg-ghost:focus-visible { opacity:1; border-color:var(--accent); }
 .msg-ghost svg { display:block; }
+/* VOOL's replies have no bubble: the ghost sits in the text's first line instead of floating loose. */
+.msg.assistant .msg-ghost { position:static; display:inline-flex; vertical-align:middle; margin:0 6px 4px 0; }
+.private-divider { display:flex; align-items:center; gap:10px; margin:6px 0 2px; color:var(--muted); font-size:11px; user-select:none; }
+.private-divider::before, .private-divider::after { content:""; flex:1 1 auto; border-top:1px solid var(--border); }
+.private-note { margin:10px auto; max-width:420px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
 .msg.is-private .msg-pin, .msg.is-private .msg-report, .msg.is-private .msg-thumbs-down,
 .msg.is-private .msg-export-pdf, .msg.is-private .msg-export-status, .msg.is-private .proof-chip { display:none; }
-.private-banner { display:inline-flex; flex:0 1 auto; min-width:24px; align-items:center; gap:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.private-banner { display:inline-flex; flex:0 0 auto; min-width:24px; align-items:center; gap:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
 .private-banner[hidden] { display:none; }
-.private-banner .pb-ghost { display:inline-flex; }
+.private-banner .pb-ghost { display:inline-flex; color:var(--ink); opacity:.75; }
+.private-banner .pb-short, .private-banner .pb-end-short { display:none; }
 .private-banner .pb-text { overflow:hidden; text-overflow:ellipsis; max-width:180px; }
 .private-banner button { flex:0 0 auto; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0 8px; font-size:11px; cursor:pointer; }
 .private-banner button:hover { color:var(--ink); border-color:var(--accent); }
-@container composer (max-width:470px) { .private-banner .pb-text { display:none; } }
+@container composer (max-width:470px) {
+  .private-banner .pb-text, .private-banner .pb-end-long { display:none; }
+  .private-banner .pb-short, .private-banner .pb-end-short { display:inline; }
+}
+/* Narrowest phones: the ghost and its button say it; the word goes so the row never scrolls. */
+@container composer (max-width:400px) { .private-banner .pb-short { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
@@ -1192,7 +1204,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
-    <div id="privateBanner" class="private-banner" role="status" hidden><span class="pb-ghost" id="privateBannerGhost" aria-hidden="true"></span><span class="pb-text" data-i18n="private.banner">Private chat: nothing is saved</span><button type="button" id="privateEnd" title="Save this chat again from the next message" data-i18n="private.end" data-i18n-title="private.end_title">Turn recording back on</button></div>
+    <div id="privateBanner" class="private-banner" hidden><span class="pb-ghost" id="privateBannerGhost" title="Private: this message was not saved" data-i18n-title="private.msg_title" aria-hidden="true"></span><span class="pb-text" data-i18n="private.banner">Private chat: nothing is saved</span><span class="pb-short" data-i18n="private.banner_short">Private</span><button type="button" id="privateEnd" title="Save this chat again from the next message" data-i18n-title="private.end_title"><span class="pb-end-long" data-i18n="private.end">Turn recording back on</span><span class="pb-end-short" data-i18n="private.end_short">Save again</span></button></div><span id="privateAnnounce" class="sr-only" aria-live="polite"></span>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
@@ -2232,6 +2244,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // The ids of the attachments THIS turn staged, and only when there are any: a text-only turn
     // carries no attachment field at all, so its body is byte-identical to a build without them.
     ...(run.attachments && run.attachments.length ? { attachments: run.attachments.map((a) => String(a.id)) } : {}),
+    // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
+    // still keeps this message unsaved, because the person sent it believing it would be.
+    ...(owner.privateChat ? { private_chat: true } : {}),
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -2511,35 +2526,89 @@ function msgTextEl(el) { return el.querySelector('.msg-text'); }
 // the user's and VOOL's -- wears the ghost, and loses the actions that would save a copy (pin,
 // report, export). Nothing from those turns is in the server's transcript, so a reload shows the
 // chat without them: that is the record being what the ghost said it would be.
-const GHOST_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">'
+const GHOST_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">'
   + '<path fill="currentColor" fill-rule="evenodd" d="M8 1.5C5.2 1.5 3 3.7 3 6.5V14l1.7-1.2L6.3 14 8 12.8 9.7 14l1.6-1.2L13 14V6.5c0-2.8-2.2-5-5-5zM5.6 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0zM8.5 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0z"/></svg>';
 function markPrivateMsg(el) {
   if (!el || el.classList.contains('is-private')) return;
   el.classList.add('is-private');
-  const g = document.createElement('span');
+  // A button, so its meaning is one tap (or Enter) away on a phone or keyboard, not hover only.
+  const g = document.createElement('button');
+  g.type = 'button';
   g.className = 'msg-ghost';
   g.innerHTML = GHOST_SVG;
   const label = pageT('private.msg_title', 'Private: this message was not saved');
-  g.title = label; g.setAttribute('role', 'img'); g.setAttribute('aria-label', label);
+  g.title = label; g.setAttribute('aria-label', label);
+  g.addEventListener('click', (e) => { e.stopPropagation(); toast(label); });
   el.insertBefore(g, el.firstChild);
+}
+function unmarkPrivateMsg(el) {
+  if (!el || !el.classList.contains('is-private')) return;
+  el.classList.remove('is-private');
+  const g = el.querySelector(':scope > .msg-ghost'); if (g) g.remove();
+}
+function isPrivateEntry(m) { return !!(m && (m.private || (m.display_metadata && m.display_metadata.private_chat))); }
+// The quiet line under the reply that ends private chat: what follows it is saved again.
+function privateDivider() {
+  const d = document.createElement('div');
+  d.className = 'private-divider'; d.setAttribute('role', 'separator');
+  d.textContent = pageT('private.saving_again', 'Saving again from here');
+  return d;
 }
 // Applies one committed private turn to its chat: both bubbles and both transcript entries get the
 // mark, and the chat's switch follows what the server says it is now.
+// The server is the only source: a message is marked from its own turn's commit, never from what
+// this tab last believed (another tab may have ended private chat since). A commit that is not
+// private says the chat is being saved, so this tab's banner follows it too.
 function applyPrivateCommit(run, meta) {
-  if (!run || !meta || !meta.private_chat) return;
+  if (!run) return;
   const owner = ownerOf(run);
+  const userEntry = run.userHistoryIndex >= 0 ? owner.history[run.userHistoryIndex] : null;
+  if (!meta || !meta.private_chat) {
+    if (userEntry) delete userEntry.private;
+    withRunDom(run, () => unmarkPrivateMsg(run.userMsgEl));
+    if (owner.privateChat) { owner.privateChat = false; if (isDisplayed(run.chatId)) reflectPrivate(); }
+    return;
+  }
   run.private = true;
-  if (run.userHistoryIndex >= 0 && owner.history[run.userHistoryIndex]) owner.history[run.userHistoryIndex].private = true;
-  withRunDom(run, () => { markPrivateMsg(run.userMsgEl); markPrivateMsg(run.assistantMsgEl); });
+  if (userEntry) userEntry.private = true;
   owner.privateChat = !!meta.private_chat_on;
+  withRunDom(run, () => {
+    markPrivateMsg(run.userMsgEl); markPrivateMsg(run.assistantMsgEl);
+    if (!owner.privateChat && run.assistantMsgEl && !(run.assistantMsgEl.nextElementSibling || {}).classList?.contains('private-divider')) {
+      run.assistantMsgEl.after(privateDivider());
+    }
+  });
   if (isDisplayed(run.chatId)) reflectPrivate();
 }
+// Another tab (or window) may have switched private chat since this one last heard: re-read the
+// server's answer when this tab comes back into view, so the banner never promises what isn't so.
+async function refreshPrivateState() {
+  const chatId = displayedChat;
+  if (!chatId || document.hidden) return;
+  try {
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
+    const data = await r.json();
+    const on = !!(data && data.private_chat);
+    if (chatState(chatId).privateChat !== on) { chatState(chatId).privateChat = on; if (isDisplayed(chatId)) reflectPrivate(); }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', refreshPrivateState);
+window.addEventListener('focus', refreshPrivateState);
 function reflectPrivate() {
   const banner = document.getElementById('privateBanner');
   if (!banner) return;
   const ghost = document.getElementById('privateBannerGhost');
   if (ghost && !ghost.innerHTML) ghost.innerHTML = GHOST_SVG;
-  banner.hidden = !view.privateChat;
+  const on = !!view.privateChat;
+  if (!on) document.querySelectorAll('#log .private-note').forEach((n) => n.remove());
+  if (banner.hidden === on) {
+    banner.hidden = !on;
+    // Said once when it changes within the same chat, so a screen reader hears it; showing a
+    // hidden node is not enough. Moving to another chat is not "saving again".
+    const say = document.getElementById('privateAnnounce');
+    if (say && reflectPrivate.chat === displayedChat) say.textContent = on ? pageT('private.banner', 'Private chat: nothing is saved') : pageT('private.saving_again', 'Saving again from here');
+  }
+  reflectPrivate.chat = displayedChat;
 }
 function endPrivateChat() {
   const chatId = displayedChat;
@@ -3480,16 +3549,27 @@ function repaintCouncilCards(chatId, rows) {
   if (!window.VoolCouncilCard) return;
   try { window.VoolCouncilCard.repaint(chatId, logEl, rows); } catch (e) {}
 }
+// A private chat read back from the server has none of its private messages: say so, so the gap
+// reads as kept-private rather than lost. Only when this page holds no private message itself.
+function privateReloadNote(st) {
+  if (!st.privateChat || st.history.some(isPrivateEntry)) return;
+  const n = document.createElement('div');
+  n.className = 'private-note';
+  n.textContent = pageT('private.reload_note', 'This chat is private. Private messages are not saved, so they don\'t show here after a reload.');
+  logEl.appendChild(n);
+}
 function renderChat(chatId) {
   const st = chatState(chatId);
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); repaintCouncilCards(chatId, []); return; }
+  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
-    if (m.private) markPrivateMsg(el);
+    if (isPrivateEntry(m)) markPrivateMsg(el);
+    // Private turns followed by a saved one (or a chat no longer private): the line where saving resumed.
+    if (m.role === 'assistant' && isPrivateEntry(m) && !(st.history[i + 1] ? isPrivateEntry(st.history[i + 1]) : st.privateChat)) logEl.appendChild(privateDivider());
     if (m.role === 'assistant') councilRows.push({ el: el, textEl: msgTextEl(el), text: m.content });
     // Re-hang a finished run's card on the exact bubble it produced, matched by the index recorded
     // when its answer was appended -- never by comparing text, so two identical answers in one chat
@@ -3498,6 +3578,7 @@ function renderChat(chatId) {
   });
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
+  privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
   logEl.scrollTop = logEl.scrollHeight;
   // The transcript was just rebuilt, so any marks from an open search went with it.
@@ -3702,6 +3783,7 @@ async function restoreCurrent() {
       if (isDisplayed(chatId)) renderChat(chatId);
     } else if (isDisplayed(chatId)) {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      privateReloadNote(target);
     }
   } catch (e) { if (isDisplayed(chatId) && !target.run && !target.history.length) showEmpty(); }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat
@@ -7291,9 +7373,7 @@ async function runTurn(text, queueItemId, opts) {
     if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
     userHistoryIndex = owner.history.length - 1;
-    // A chat already private marks the message as it leaves; a message that turns private on is
-    // marked when the server's commit says so.
-    if (owner.privateChat) { owner.history[userHistoryIndex].private = true; markPrivateMsg(userMsgEl); }
+    // Marked private only when the server's commit for this turn says so (applyPrivateCommit).
     ensureSessionInSidebar(chatId, text);
     // The draft is spent: its chips now live on the bubble, and the strip is clear for the next
     // message of THIS chat.

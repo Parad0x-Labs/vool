@@ -791,10 +791,12 @@ def _build_conversational_request(
     # promise to remember. Per turn, because the switch can change between turns.
     _private_block = ""
     with contextlib.suppress(Exception):
-        from core.private_chat import private_prompt_block, turn_is_private
+        from core.private_chat import NOT_ON_KEY, not_on_prompt_block, private_prompt_block, turn_is_private
 
         if turn_is_private(source_context):
             _private_block = private_prompt_block()
+        elif isinstance(source_context, dict) and source_context.get(NOT_ON_KEY):
+            _private_block = not_on_prompt_block()
     if _private_block:
         system_segments.append(("private_chat", _PAYLOAD_SYSTEM_BOOTSTRAP, _private_block))
 

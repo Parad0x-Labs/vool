@@ -1867,9 +1867,13 @@
     "private.end_title": "Lưu lại cuộc trò chuyện này từ tin nhắn tiếp theo",
     "private.msg_title": "Riêng tư: tin nhắn này không được lưu",
     "private.wait": "Hãy đợi câu trả lời hiện tại hoàn tất rồi thử lại.",
-    "settings.local_models.apple_silicon_notice": "Máy Mac này dùng chip Apple, nhưng đang cài phiên bản VOOL dành cho Intel. Khi đó các mô hình cục bộ chạy rất chậm và có thể không vượt qua bước kiểm tra. Hãy tải và cài phiên bản VOOL dành cho Apple Silicon thay thế."
+    "settings.local_models.apple_silicon_notice": "Máy Mac này dùng chip Apple, nhưng đang cài phiên bản VOOL dành cho Intel. Khi đó các mô hình cục bộ chạy rất chậm và có thể không vượt qua bước kiểm tra. Hãy tải và cài phiên bản VOOL dành cho Apple Silicon thay thế.",
+    "private.saving_again": "Lưu lại từ đây",
+    "private.banner_short": "Riêng tư",
+    "private.end_short": "Lưu lại",
+    "private.reload_note": "Cuộc trò chuyện này là riêng tư. Tin nhắn riêng tư không được lưu nên sẽ không hiện ở đây sau khi tải lại."
   },
-  "source_catalog_sha256": "16ac6a786a4dc9b2a60f39a3e540741eaaf180868c3122d971f97ba005c2d4ec",
+  "source_catalog_sha256": "4f38047bb90f37c03d1a808cf105563cc4d62b834b5eaf3ec58480a081f0fb7c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -272,7 +272,12 @@ STATUS = "status"
 #: a sentence about something else ("I said don't record this"), which is not a command.
 _LEAD = r"(?:(?:hey|hi|ok|okay|so|and|also|please|pls|vool|now|from\s+now\s+on|for\s+now|right|alright|(?:can|could|would|will)\s+you)[,\s]+)*"
 _TAIL = r"(?:[,\s]+(?:please|pls|thanks|thank\s+you|ok|okay|now|for\s+now|from\s+now\s+on|vool))*"
-_THIS = r"(?:this|that|it|any\s+of\s+this|anything|everything|me|us|our\s+(?:chat|conversation|talk)|this\s+(?:chat|conversation|talk|one|part|bit))"
+_THIS = (
+    r"(?:this|that|any\s+of\s+this|anything|everything|me|us|our\s+(?:chat|conversation|talk)"
+    r"|this\s+(?:chat|conversation|talk|one|part|bit)|my\s+(?:messages|chats?|words))"
+)
+#: Common slips of the keyboard for the verbs a person uses to ask not to be recorded.
+_RECORD = r"(?:record|recrod|reocrd|recrd|save|svae|log|store|keep)"
 
 _ON_PHRASES = (
     r"(?:let'?s\s+|can\s+we\s+|we\s+should\s+)?go\s+(?:private|incognito|off\s+the\s+record)",
@@ -281,7 +286,15 @@ _ON_PHRASES = (
     r"(?:switch|change)\s+to\s+(?:a\s+)?(?:private|incognito)(?:\s+(?:chat|mode))?",
     r"(?:private|incognito)\s+(?:chat|mode)(?:\s+(?:on|please|now))?",
     r"(?:this\s+is\s+|keep\s+(?:this|it)\s+|let'?s\s+keep\s+(?:this|it)\s+|(?:let'?s\s+|can\s+we\s+)?talk\s+)?off\s+the\s+record",
-    rf"(?:don'?t|do\s+not|dont|please\s+don'?t)\s+(?:record|save|log|store|keep)\s+{_THIS}",
+    rf"(?:don'?t|do\s+not|dont|please\s+don'?t)\s+{_RECORD}\s+{_THIS}",
+    rf"(?:can|could|would)\s+you\s+not\s+(?:{_RECORD}|remember)\s+{_THIS}",
+    r"i\s+(?:don'?t|do\s+not|dont)\s+want\s+(?:this|that|it|any\s+of\s+this|this\s+(?:chat|conversation)|my\s+messages)"
+    r"\s+(?:to\s+be\s+)?(?:saved|recorded|logged|stored|remembered|kept)",
+    r"(?:(?:can|could)\s+we\s+|let'?s\s+|i\s+(?:want|need|would\s+like|'d\s+like)\s+to\s+)?(?:talk|speak|chat)\s+(?:in\s+private|privately)",
+    r"make\s+(?:this|it|this\s+(?:chat|conversation))\s+private",
+    r"(?:enable|activate|use)\s+(?:the\s+)?(?:private|incognito)\s+(?:chat|mode)",
+    r"i\s+(?:want|need|would\s+like|'d\s+like)\s+(?:a\s+|to\s+have\s+a\s+)?private\s+(?:chat|conversation|talk)",
+    r"(?:keep\s+(?:this|it)\s+|let'?s\s+keep\s+(?:this|it)\s+|this\s+(?:is|stays)\s+)between\s+(?:us|you\s+and\s+me)(?![ ]+and\b)",
     r"(?:don'?t|do\s+not|dont)\s+(?:remember|memorize)\s+(?:any\s+of\s+this|anything|this\s+(?:chat|conversation|talk))",
     r"(?:stop|pause)\s+(?:recording|saving|logging)(?:\s+(?:this|it|me|us|our\s+chat|this\s+chat))?",
     r"(?:no|without)\s+(?:recording|saving|logging)(?:\s+(?:this|please|now))?",
@@ -289,23 +302,25 @@ _ON_PHRASES = (
 )
 _OFF_PHRASES = (
     r"(?:turn|switch|put)\s+(?:the\s+)?(?:recording|saving|logging|memory|record)\s+(?:back\s+)?on",
-    r"(?:turn|switch)\s+(?:back\s+)?on\s+(?:the\s+)?(?:recording|saving|logging|memory)",
+    r"(?:turn|switch)\s+(?:back\s+)?on\s+(?:the\s+)?(?:recording|saving|logging|memory)(?:\s+again)?",
+    r"(?:recording|saving)\s+(?:back\s+)?on(?:\s+again)?",
+    r"(?:disable|deactivate)\s+(?:the\s+)?(?:private|incognito)(?:\s+(?:chat|mode))?",
     r"(?:turn|switch)\s+(?:off|out\s+of)\s+(?:the\s+)?(?:private|incognito)\s+(?:chat|mode)",
     r"(?:turn|switch)\s+(?:the\s+)?(?:private|incognito)\s+(?:chat|mode)\s+off",
     r"(?:(?:you\s+can|can\s+you|please)\s+)?(?:start|resume|restart)\s+(?:recording|saving|logging)(?:\s+again)?",
-    r"(?:you\s+can|ok\s+to|okay\s+to|feel\s+free\s+to)\s+(?:record|save|remember)(?:\s+(?:this|again|now|stuff|things))*",
-    r"(?:record|save)\s+(?:again|from\s+now)",
+    r"(?:you\s+can|ok\s+to|okay\s+to|feel\s+free\s+to)\s+(?:record|save|remember)(?:\s+(?:again|now))+",
+    r"record\s+(?:again|from\s+now)",
     r"(?:we'?re\s+|we\s+are\s+|go\s+|let'?s\s+go\s+)?back\s+on\s+the\s+record",
     r"(?:we'?re\s+|we\s+are\s+)?on\s+the\s+record(?:\s+again)?",
     r"(?:end|exit|leave|stop|close|quit|finish)\s+(?:the\s+)?(?:private|incognito)(?:\s+(?:chat|mode|conversation))?",
-    r"(?:private|incognito)\s+(?:chat|mode)\s+off",
+    r"(?:private|incognito)(?:\s+(?:chat|mode))?\s+off",
     r"(?:i'?m\s+)?done\s+with\s+(?:the\s+)?private\s+(?:chat|mode)",
 )
 #: "turn on" / "turn it back on" with no object only means "recording back on" while the chat is
 #: private (the person was told that is how to end it); in an ordinary chat it means nothing here.
 _BARE_TURN_ON = (
     r"turn\s+(?:it\s+)?(?:back\s+)?on|turn\s+on\s+again|switch\s+(?:it\s+)?(?:back\s+)?on"
-    r"|(?:go\s+)?back\s+to\s+normal(?:\s+(?:chat|mode))?"
+    r"|(?:go\s+)?back\s+to\s+normal(?:\s+(?:chat|mode))?|normal\s+(?:chat|mode)|save\s+(?:again|from\s+now)"
 )
 _STATUS_PHRASES = (
     r"(?:are\s+you|is\s+vool)\s+(?:recording|saving|logging|remembering)(?:\s+(?:this|me|us|our\s+chat|this\s+chat|now|right\s+now))*\??",
@@ -314,9 +329,17 @@ _STATUS_PHRASES = (
     r"am\s+i\s+in\s+(?:a\s+)?(?:private|incognito)\s+(?:chat|mode)\??",
 )
 
-# A clause ends at a sentence mark, a comma, a dash or the end of the message.
-_STOP = r"(?=\s*(?:$|[.!?;:,—–]|\s-\s|\bbut\b|\bthough\b|\bjust\b|\bbecause\b|\bsince\b|\bas\b|\bso\b|\band\b))"
-_START = r"(?:^|(?<=[.!?;:,—–(])|(?<=\s-))\s*"
+# A clause ends at a line break, any mark that is not a letter (sentence marks, brackets, an
+# emoji), a dash or the end of the message.
+_STOP = r"(?=[ ]*(?:$|\n|[^\w\s']|\s-\s|\bbut\b|\bthough\b|\bjust\b|\bbecause\b|\bsince\b|\bso\b|\band\b))"
+_START = r"(?:^|(?<=[.!?;,—–(\[\n])|(?<=\s-))[ ]*"
+#: Words that, said right before a command, make it a report of words rather than a request
+#: ("I told him don't record this"). A command at the end of a message after anything else asks.
+_REPORTED = frozenset(
+    {"said", "say", "says", "saying", "told", "tell", "tells", "asked", "ask", "asks", "wrote", "write",
+     "typed", "type", "if", "when", "whenever", "whether", "why", "how", "what", "to", "not", "never",
+     "didn't", "didnt", "you", "he", "she", "they", "him", "her", "them", "the", "a", "means", "meaning"}
+)
 
 
 def _clause_re(phrases: tuple[str, ...] | str) -> re.Pattern[str]:
@@ -325,6 +348,22 @@ def _clause_re(phrases: tuple[str, ...] | str) -> re.Pattern[str]:
 
 
 _ON_RE = _clause_re(_ON_PHRASES)
+#: The requests that may close a message after other words: only ones that cannot be a mention
+#: of the feature ("what is private chat?") or of something else ("please don't go private").
+_ON_AT_END_PHRASES = (
+    rf"(?:don'?t|do\s+not|dont|please\s+don'?t)\s+{_RECORD}\s+{_THIS}",
+    r"i\s+(?:don'?t|do\s+not|dont)\s+want\s+(?:this|that|it|any\s+of\s+this|this\s+(?:chat|conversation)|my\s+messages)"
+    r"\s+(?:to\s+be\s+)?(?:saved|recorded|logged|stored|remembered|kept)",
+    r"keep\s+(?:this|it)\s+(?:private|between\s+us|off\s+the\s+record)(?![ ]+and\b)",
+)
+_ON_AT_END_RE = re.compile(
+    r"(?<![\w'])" + "(?P<cmd>" + "|".join(f"(?:{p})" for p in _ON_AT_END_PHRASES) + ")" + _TAIL + r"[ ]*[^\w\s]*[ ]*$",
+    re.IGNORECASE,
+)
+_WHOLE_ON_RE = re.compile(
+    r"^[ ]*" + _LEAD + rf"(?:don'?t|do\s+not|dont|please\s+don'?t)\s+{_RECORD}(?:ing)?" + _TAIL + r"[ ]*[.!?]*[ ]*$",
+    re.IGNORECASE,
+)
 _OFF_RE = _clause_re(_OFF_PHRASES)
 _BARE_ON_RE = re.compile(r"^\s*" + _LEAD + rf"(?:{_BARE_TURN_ON})" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^\s*" + _LEAD + "(?:" + "|".join(f"(?:{p})" for p in _STATUS_PHRASES) + ")" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
@@ -354,24 +393,33 @@ def _rest_without(text: str, match: re.Match[str]) -> str:
     rest = re.sub(r"^\s*[,;:—–\-]+\s*", "", rest)
     rest = re.sub(r"^\s*(?:but|and|so|just|though)\b[\s,]*", "", rest, flags=re.IGNORECASE)
     rest = re.sub(r"[\s,;:\u2014\u2013\-]+$", "", rest)
-    return "" if _FILLER_RE.match(rest) else rest.strip()
+    rest = re.sub(r"\(\s*\)|\[\s*\]", " ", rest)
+    rest = " ".join(rest.split()) if "\n" not in rest else rest.strip()
+    return "" if _FILLER_RE.match(rest) or not re.search(r"\w", rest) else rest.strip()
 
 
 def parse_private_command(text: str, *, currently_private: bool = False) -> PrivateCommand | None:
     """Read a private-chat command from one user message, or None.
 
     ``currently_private`` lets a bare "turn it back on" end private chat; in an ordinary chat
-    those words are left for whatever else they might mean.
+    those words are left for whatever else they might mean. Turning private ON reads the command
+    anywhere it stands as its own clause, or at the end of the message. Turning it OFF only counts
+    when the message is the command alone: "you can save this, it's a draft" must not end it.
     """
-    raw = " ".join(str(text or "").translate(_APOSTROPHES).split())
+    lines = str(text or "").translate(_APOSTROPHES).splitlines()
+    raw = "\n".join(" ".join(line.split()) for line in lines if line.strip())
     if not raw or len(raw) > 4000:
         return None
     if _STATUS_RE.match(raw):
         return PrivateCommand(STATUS)
     if currently_private and _BARE_ON_RE.match(raw):
         return PrivateCommand(OFF)
+    if _WHOLE_ON_RE.match(raw):
+        return PrivateCommand(ON)
     off = _OFF_RE.search(raw)
-    on = _ON_RE.search(raw)
+    on = _ON_RE.search(raw) or _on_at_end(raw)
+    if off and _rest_without(raw, off):
+        off = None
     if off and on:
         # Both in one message: the one said last is what the person wants now.
         chosen, action = (off, OFF) if off.start() > on.start() else (on, ON)
@@ -382,6 +430,19 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
     else:
         return None
     return PrivateCommand(action, _rest_without(raw, chosen))
+
+
+def _on_at_end(raw: str) -> re.Match[str] | None:
+    """A request not to be recorded that closes the message ("my pin is 1234 dont save this"),
+    unless the word before it makes it reported speech ("I told him don't record this")."""
+    match = _ON_AT_END_RE.search(raw)
+    if match is None:
+        return None
+    head = raw[: match.start()].rstrip()
+    before = head.split()
+    if head.endswith((":", '"', "'", "\u201c")) or (before and before[-1].lower().strip("\"'(") in _REPORTED):
+        return None
+    return match
 
 
 # ── replies ──────────────────────────────────────────────────────────────────
@@ -396,8 +457,8 @@ REPLY_ALREADY_ON = (
     "Say \"turn recording back on\" to end it."
 )
 REPLY_OFF = (
-    "Recording is back on. Messages from now on are saved as usual. "
-    "Nothing from the private part was saved, so I can't recall it later."
+    "Recording is back on, so I'll save this chat as usual from here. "
+    "The private part stays unsaved, so I won't be able to recall it later."
 )
 REPLY_ALREADY_OFF = (
     "This chat isn't private, so it is being saved as usual. "
@@ -409,12 +470,12 @@ REPLY_STATUS_OFF = (
     "Say \"private chat\" or \"don't record this\" and I'll stop saving it."
 )
 REPLY_REMEMBER_REFUSED = (
-    "Private chat is on, so I'm not saving anything from this chat, that included. "
+    "Private chat is on, so I won't save that either. "
     "Say \"turn recording back on\" first, then tell me again and I'll remember it."
 )
-REPLY_FAILED = "I couldn't change private chat ({reason}), so nothing changed. Please try again."
+REPLY_FAILED = "Sorry, I couldn't change that just now, so nothing changed. Please try again."
 REPLY_FAILED_ON = (
-    "I couldn't turn private chat on ({reason}). To be safe, I'm not saving this message, "
+    "Sorry, I couldn't turn private chat on. I haven't saved this message, "
     "but please try again before you share anything private."
 )
 
@@ -430,13 +491,55 @@ def private_prompt_block() -> str:
     )
 
 
+#: Stamped on a turn that sounds like a request not to be recorded but switched nothing on.
+NOT_ON_KEY = "private_chat_not_on"
+
+#: English: a "don't save/record ..." that ends its clause on the chat itself, or a privacy word.
+_PRIVACY_ASK_RE = re.compile(
+    r"\b(?:don'?t|dont|do\s+not|never|stop|no)\s+(?:\w+\s+)?(?:record|recrod|sav|log|stor|remember|memori|keep)\w*"
+    r"(?:\s+(?:this|that|it|anything|any\s+of\s+(?:this|it)|our\s+chat|this\s+(?:chat|conversation)|my\s+messages|me|us))?"
+    r"[ ]*(?:$|\n|[^\w\s'])"
+    r"|\b(?:privately|incognito|off\s+the\s+record|private\s+(?:chat|mode|conversation))\b",
+    re.IGNORECASE,
+)
+#: The page's other languages: a recording/saving word and a negation in the same message.
+_FOREIGN_SAVE_RE = re.compile(
+    r"\b(?:privat\w*|privé\w*|enregistr\w*|grab(?:ar|es|e)\w*|guard(?:ar|es|e)\w*|aufzeichn\w*|aufnehm\w*"
+    r"|speicher\w*|zapis\w*|записыв\w*|сохран\w*|kaydet\w*)",
+    re.IGNORECASE,
+)
+_FOREIGN_NOT_RE = re.compile(r"\b(?:nicht|kein\w*|ne|pas|no|nie|не|ни)\b|kaydetme", re.IGNORECASE)
+
+
+def looks_like_privacy_request(text: str) -> bool:
+    """Loose: the message talks about (not) recording or saving, in any way the parser did not
+    read as a command. Used only to tell the model the truth, never to switch anything."""
+    raw = str(text or "").translate(_APOSTROPHES)
+    return bool(_PRIVACY_ASK_RE.search(raw) or (_FOREIGN_SAVE_RE.search(raw) and _FOREIGN_NOT_RE.search(raw)))
+
+
+def not_on_prompt_block() -> str:
+    """The system note for a turn that may ask not to be recorded while private chat is off."""
+    return (
+        "PRIVATE CHAT IS NOT ON for this conversation: it is being saved as usual. If the user is "
+        "asking you not to record, save or remember something, say plainly that this chat is still "
+        "being saved, and that they can say \"private chat\" (in English) to turn private chat on. "
+        "Never say you won't save it, will forget it, or will keep it off the record."
+    )
+
+
 def observe_private_door(
     user_text: str,
     *,
     session_id: str,
     source_context: dict[str, Any] | None,
+    page_believes_private: bool = False,
 ) -> bool:
     """The chat door's half: make the request private before anything can record it.
+
+    ``page_believes_private`` is the sending tab's own view. A tab that still shows private chat
+    (another tab ended it, and this one has not heard yet) sent its message believing it would not
+    be saved: that turn is kept unsaved too, and its commit tells the tab the chat is saved again.
 
     A chat that is already private, or a message that turns it on, marks the bound request private
     and stamps ``source_context``. Turning it OFF is left to the turn itself, which answers it.
@@ -449,7 +552,7 @@ def observe_private_door(
         command = parse_private_command(user_text, currently_private=currently)
     except Exception:
         command = None
-    private = currently
+    private = currently or bool(page_believes_private)
     if command is not None and command.action == ON:
         private = True
         if sid and not currently:
@@ -491,20 +594,20 @@ def observe_private_turn(
     if command is not None and command.action in {ON, OFF}:
         want_on = command.action == ON
         if not sid:
-            reply = REPLY_FAILED.format(reason="this message has no chat") if command.bare else None
+            reply = REPLY_FAILED if command.bare else None
             # A turn that asked not to be recorded is never recorded, chat or no chat.
             turn_private = turn_private or want_on
         else:
             try:
                 now_on = set_private(sid, want_on)
-            except Exception as exc:
+            except Exception:
                 _log.warning("private chat switch failed", exc_info=True)
                 now_on = currently
                 if want_on:
                     turn_private = True
-                    reply = REPLY_FAILED_ON.format(reason=type(exc).__name__)
+                    reply = REPLY_FAILED_ON
                 elif command.bare:
-                    reply = REPLY_FAILED.format(reason=type(exc).__name__)
+                    reply = REPLY_FAILED
             else:
                 if command.bare and reply is None:
                     if want_on:
@@ -522,6 +625,8 @@ def observe_private_turn(
         mark_request_private(session_id=sid)
     if context is not None and command is not None and command.action == OFF and not turn_private:
         context.pop(PRIVATE_TURN_KEY, None)
+    if context is not None and not turn_private and command is None and looks_like_privacy_request(raw_user_input):
+        context[NOT_ON_KEY] = True
     if reply is None:
         return None
     return {
