@@ -716,6 +716,12 @@
     "msg.copy_text": "Kopijuoti tekstą",
     "msg.copy_text_title": "Kopijuoti kaip paprastą tekstą (pašalintas Markdown formatavimas)",
     "msg.copy_title": "Kopijuoti žinutę",
+    "msg.edit": "Redaguoti",
+    "msg.edit_title": "Grąžinti šią žinutę į laukelį, kad galėtum ją pakeisti ir išsiųsti dar kartą",
+    "msg.retry": "Bandyti dar kartą",
+    "msg.retry_box_busy": "Žinutės laukelyje jau kažkas yra. Pirmiausia išsiųsk arba išvalyk.",
+    "msg.retry_nothing": "Toje žinutėje buvo tik priedai. Pridėk juos dar kartą, kad paklaustum iš naujo.",
+    "msg.retry_title": "Užduoti tą patį klausimą dar kartą nauja žinute",
     "notif.action_failed": "Tai neveikė (",
     "notif.bell_title": "Pranešimai — foniniai užbaigtimai ir stebimų modelių rinkos pokyčiai",
     "notif.dismiss": "Slėpti",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X naudoja kelis raktus. Vedlys parodo, ką kur įklijuoti, ir patikrina juos vienu skaitymu.",
     "xsetup.open": "Prijungti X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

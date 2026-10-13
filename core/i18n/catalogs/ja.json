@@ -716,6 +716,12 @@
     "msg.copy_text": "テキストをコピー",
     "msg.copy_text_title": "プレーンテキストとしてコピー(Markdownの書式を除去)",
     "msg.copy_title": "メッセージをコピー",
+    "msg.edit": "編集",
+    "msg.edit_title": "このメッセージを入力欄に戻して、直してから送り直す",
+    "msg.retry": "もう一度",
+    "msg.retry_box_busy": "入力欄にすでに内容があります。先に送信するか消してください。",
+    "msg.retry_nothing": "そのメッセージは添付ファイルだけでした。もう一度聞くには添付し直してください。",
+    "msg.retry_title": "同じ質問を新しいメッセージとしてもう一度送る",
     "notif.action_failed": "うまくいきませんでした（",
     "notif.bell_title": "通知 — バックグラウンド完了と監視中モデルの市場変化",
     "notif.dismiss": "閉じる",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X は複数のキーを使います。ガイド付き設定が何をどこに貼るかを示し、1 回の読み取りで確認します。",
     "xsetup.open": "X を接続"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

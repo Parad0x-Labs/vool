@@ -716,6 +716,12 @@
     "msg.copy_text": "टेक्स्ट कॉपी करें",
     "msg.copy_text_title": "सादे टेक्स्ट के रूप में कॉपी करें (Markdown फ़ॉर्मेटिंग हटाकर)",
     "msg.copy_title": "संदेश कॉपी करें",
+    "msg.edit": "बदलें",
+    "msg.edit_title": "इस संदेश को बदलने और फिर से भेजने के लिए वापस बॉक्स में डालें",
+    "msg.retry": "फिर से पूछें",
+    "msg.retry_box_busy": "आपके संदेश बॉक्स में पहले से कुछ है। पहले उसे भेजें या मिटाएँ।",
+    "msg.retry_nothing": "उस संदेश में सिर्फ़ अटैचमेंट थे। दोबारा पूछने के लिए उन्हें फिर से जोड़ें।",
+    "msg.retry_title": "यही सवाल नए संदेश के रूप में दोबारा पूछें",
     "notif.action_failed": "वह काम नहीं हुआ (",
     "notif.bell_title": "सूचनाएँ — बैकग्राउंड पूर्णताएँ और देखे जा रहे मॉडल-बाज़ार के बदलाव",
     "notif.dismiss": "हटाएँ",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X कई कुंजियों का उपयोग करता है। निर्देशित सेटअप बताता है कि क्या कहाँ पेस्ट करना है और एक बार पढ़कर उन्हें जाँचता है।",
     "xsetup.open": "X कनेक्ट करें"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

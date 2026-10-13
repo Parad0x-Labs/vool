@@ -716,6 +716,12 @@
     "msg.copy_text": "Kopiuj tekst",
     "msg.copy_text_title": "Kopiuj jako zwykły tekst (z usuniętym formatowaniem Markdown)",
     "msg.copy_title": "Kopiuj wiadomość",
+    "msg.edit": "Edytuj",
+    "msg.edit_title": "Wstaw tę wiadomość z powrotem do pola, aby ją zmienić i wysłać ponownie",
+    "msg.retry": "Spróbuj ponownie",
+    "msg.retry_box_busy": "W polu wiadomości coś już jest. Najpierw to wyślij albo wyczyść.",
+    "msg.retry_nothing": "Ta wiadomość zawierała tylko załączniki. Dołącz je ponownie, aby zapytać jeszcze raz.",
+    "msg.retry_title": "Zadaj to samo pytanie jeszcze raz jako nową wiadomość",
     "notif.action_failed": "To nie zadziałało (",
     "notif.bell_title": "Powiadomienia — ukończone w tle i zmiany cen obserwowanych modeli",
     "notif.dismiss": "Odrzuć",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X używa kilku kluczy. Konfiguracja z przewodnikiem mówi, co gdzie wkleić, i sprawdza je jednym odczytem.",
     "xsetup.open": "Połącz X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

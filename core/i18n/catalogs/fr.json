@@ -716,6 +716,12 @@
     "msg.copy_text": "Copier le texte",
     "msg.copy_text_title": "Copier en texte brut (mise en forme Markdown retirée)",
     "msg.copy_title": "Copier le message",
+    "msg.edit": "Modifier",
+    "msg.edit_title": "Remettre ce message dans la zone de saisie pour le modifier et le renvoyer",
+    "msg.retry": "Réessayer",
+    "msg.retry_box_busy": "Ta zone de saisie contient déjà quelque chose. Envoie-le ou efface-le d’abord.",
+    "msg.retry_nothing": "Ce message ne contenait que des pièces jointes. Joins-les à nouveau pour reposer la question.",
+    "msg.retry_title": "Reposer la même question dans un nouveau message",
     "notif.action_failed": "Cela n'a pas fonctionné (",
     "notif.bell_title": "Notifications — achèvements en arrière-plan et changements du marché des modèles",
     "notif.dismiss": "Ignorer",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X utilise plusieurs clés. La configuration guidée indique quoi coller où et les vérifie par une lecture.",
     "xsetup.open": "Connecter X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

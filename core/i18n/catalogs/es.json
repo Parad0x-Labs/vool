@@ -716,6 +716,12 @@
     "msg.copy_text": "Copiar texto",
     "msg.copy_text_title": "Copia como texto sin formato (se elimina el formato Markdown)",
     "msg.copy_title": "Copiar mensaje",
+    "msg.edit": "Editar",
+    "msg.edit_title": "Devolver este mensaje al cuadro para cambiarlo y enviarlo de nuevo",
+    "msg.retry": "Reintentar",
+    "msg.retry_box_busy": "Tu cuadro de mensaje ya tiene algo. Envíalo o bórralo primero.",
+    "msg.retry_nothing": "Ese mensaje solo tenía archivos adjuntos. Adjúntalos otra vez para volver a preguntar.",
+    "msg.retry_title": "Hacer la misma pregunta otra vez como mensaje nuevo",
     "notif.action_failed": "Eso no funcionó (",
     "notif.bell_title": "Notificaciones — finalizaciones en segundo plano y cambios de mercado de los modelos vigilados",
     "notif.dismiss": "Descartar",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X usa varias claves. La configuración guiada indica qué pegar en cada sitio y las comprueba con una lectura.",
     "xsetup.open": "Conectar X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

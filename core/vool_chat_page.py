@@ -384,6 +384,9 @@ header a:hover { text-decoration:underline; }
 .msg-text a:hover { text-decoration:none; }
 .msg-actions { position:absolute; top:6px; right:6px; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
 .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity:1; }
+/* Your own message carries Copy and Edit: the pair sits just under the bubble, in the gap between
+   messages, so it never covers the message's attachments or words. */
+.msg.user .msg-actions { top:calc(100% + 2px); right:0; }
 .msg-copy, .msg-act { background:var(--bg); color:var(--muted); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1; padding:3px 7px; cursor:pointer; user-select:none; }
 .msg-copy:hover, .msg-act:hover { color:var(--ink); border-color:var(--accent); }
 .msg-export-status { display:block; max-width:100%; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--muted); }
@@ -2471,6 +2474,24 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
       actions.appendChild(copyRichBtn);
     }
   }
+  // Try again (answers) and Edit (your own messages) both go back through the ordinary composer
+  // and send(): the same rules, approvals, paid-model confirmation, spend caps and receipts apply
+  // as to any typed message, and the earlier turn stays in the chat exactly as it happened.
+  if (role === 'assistant') {
+    const retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'msg-act msg-retry';
+    retry.textContent = pageT('msg.retry', 'Try again');
+    retry.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
+    retry.addEventListener('click', () => resendFromBubble(el, true));
+    actions.appendChild(retry);
+  } else if (role === 'user') {
+    const edit = document.createElement('button');
+    edit.type = 'button'; edit.className = 'msg-act msg-edit';
+    edit.textContent = pageT('msg.edit', 'Edit');
+    edit.title = pageT('msg.edit_title', 'Put this message back in the box to change it and send it again');
+    edit.addEventListener('click', () => resendFromBubble(el, false));
+    actions.appendChild(edit);
+  }
   // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
   const pin = document.createElement('button');
   pin.type = 'button'; pin.className = 'msg-act msg-pin';
@@ -2485,6 +2506,30 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// The words of the user message a bubble belongs to: the bubble itself for a user message, the
+// nearest user message above it for an answer. Attachment markers stay with the original message.
+function questionTextFor(el) {
+  let node = el;
+  while (node && !(node.classList && node.classList.contains('msg') && node.classList.contains('user'))) node = node.previousElementSibling;
+  const span = node ? msgTextEl(node) : null;
+  return span ? textWithoutMarkers(span.dataset.raw != null ? span.dataset.raw : span.textContent) : '';
+}
+// Never overwrite what the person is in the middle of typing or attaching: a busy box refuses.
+function resendFromBubble(el, sendNow) {
+  if (inputEl.value.trim() || attachBucket(displayedChat).length) {
+    toast(pageT('msg.retry_box_busy', 'Your message box already has something in it. Send or clear it first.'));
+    inputEl.focus();
+    return;
+  }
+  const text = questionTextFor(el);
+  if (!text) { toast(pageT('msg.retry_nothing', 'That message had only attachments. Attach them again to ask again.')); return; }
+  inputEl.value = text;
+  inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  if (sendNow) { send(); return; }
+  inputEl.focus();
+  inputEl.setSelectionRange(text.length, text.length);
+}
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }

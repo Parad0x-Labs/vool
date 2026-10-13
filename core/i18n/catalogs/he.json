@@ -716,6 +716,12 @@
     "msg.copy_text": "העתקת טקסט",
     "msg.copy_text_title": "העתקה כטקסט פשוט (עיצוב Markdown מוסר)",
     "msg.copy_title": "העתקת ההודעה",
+    "msg.edit": "עריכה",
+    "msg.edit_title": "להחזיר את ההודעה לתיבה כדי לשנות ולשלוח אותה שוב",
+    "msg.retry": "נסה שוב",
+    "msg.retry_box_busy": "בתיבת ההודעה כבר יש משהו. שלח או נקה אותה קודם.",
+    "msg.retry_nothing": "ההודעה הזו כללה רק קבצים מצורפים. צרף אותם שוב כדי לשאול שוב.",
+    "msg.retry_title": "לשאול את אותה שאלה שוב כהודעה חדשה",
     "notif.action_failed": "זה לא עבד (",
     "notif.bell_title": "התראות — השלמות ברקע ושינויי שוק של דגמים במעקב",
     "notif.dismiss": "ביטול",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X משתמש בכמה מפתחות. ההגדרה המודרכת מסבירה מה להדביק איפה ובודקת אותם בקריאה אחת.",
     "xsetup.open": "חיבור X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

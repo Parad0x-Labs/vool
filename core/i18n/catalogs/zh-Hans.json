@@ -716,6 +716,12 @@
     "msg.copy_text": "复制文本",
     "msg.copy_text_title": "复制为纯文本(去除 Markdown 格式)",
     "msg.copy_title": "复制消息",
+    "msg.edit": "编辑",
+    "msg.edit_title": "把这条消息放回输入框，修改后重新发送",
+    "msg.retry": "再试一次",
+    "msg.retry_box_busy": "输入框里已经有内容了。请先发送或清空。",
+    "msg.retry_nothing": "那条消息只有附件。请重新添加附件后再问。",
+    "msg.retry_title": "以新消息再问一次同样的问题",
     "notif.action_failed": "操作未成功（",
     "notif.bell_title": "通知 — 后台完成事项与所关注模型的市场变化",
     "notif.dismiss": "关闭",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X 使用多个密钥。引导设置会说明在哪里粘贴什么,并通过一次读取来检查。",
     "xsetup.open": "连接 X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

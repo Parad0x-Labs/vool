@@ -716,6 +716,12 @@
     "msg.copy_text": "Sao chép văn bản",
     "msg.copy_text_title": "Sao chép dưới dạng văn bản thuần (bỏ định dạng Markdown)",
     "msg.copy_title": "Sao chép tin nhắn",
+    "msg.edit": "Sửa",
+    "msg.edit_title": "Đưa tin nhắn này trở lại ô nhập để sửa và gửi lại",
+    "msg.retry": "Thử lại",
+    "msg.retry_box_busy": "Ô nhập đã có nội dung. Hãy gửi hoặc xóa trước.",
+    "msg.retry_nothing": "Tin nhắn đó chỉ có tệp đính kèm. Hãy đính kèm lại để hỏi lại.",
+    "msg.retry_title": "Hỏi lại câu này dưới dạng tin nhắn mới",
     "notif.action_failed": "Việc đó không thành công (",
     "notif.bell_title": "Thông báo — hoàn tất nền và thay đổi thị trường của các mô hình đang theo dõi",
     "notif.dismiss": "Bỏ qua",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X dùng nhiều khóa. Thiết lập có hướng dẫn cho biết dán gì vào đâu và kiểm tra chúng bằng một lần đọc.",
     "xsetup.open": "Kết nối X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

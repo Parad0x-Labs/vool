@@ -716,6 +716,12 @@
     "msg.copy_text": "نسخ النص",
     "msg.copy_text_title": "نسخ كنص عادي (مع إزالة تنسيق Markdown)",
     "msg.copy_title": "نسخ الرسالة",
+    "msg.edit": "تعديل",
+    "msg.edit_title": "أعد هذه الرسالة إلى المربع لتعديلها وإرسالها مرة أخرى",
+    "msg.retry": "حاول مرة أخرى",
+    "msg.retry_box_busy": "مربع الرسائل يحتوي على شيء بالفعل. أرسله أو امسحه أولًا.",
+    "msg.retry_nothing": "تلك الرسالة كانت مرفقات فقط. أرفقها مرة أخرى لتسأل من جديد.",
+    "msg.retry_title": "اطرح السؤال نفسه مرة أخرى كرسالة جديدة",
     "notif.action_failed": "لم ينجح ذلك (",
     "notif.bell_title": "الإشعارات — الاكتمالات في الخلفية وتغييرات سوق النماذج المتابعة",
     "notif.dismiss": "تجاهل",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "يستخدم X عدة مفاتيح. يوضح الإعداد الموجَّه ما تلصقه وأين، ويتحقق منها بقراءة واحدة.",
     "xsetup.open": "ربط X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

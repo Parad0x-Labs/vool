@@ -716,6 +716,12 @@
     "msg.copy_text": "Metni kopyala",
     "msg.copy_text_title": "Düz metin olarak kopyala (Markdown biçimlendirmesi kaldırılmış)",
     "msg.copy_title": "İletiyi kopyala",
+    "msg.edit": "Düzenle",
+    "msg.edit_title": "Bu mesajı değiştirip yeniden göndermek için kutuya geri koy",
+    "msg.retry": "Tekrar dene",
+    "msg.retry_box_busy": "Mesaj kutunda zaten bir şey var. Önce gönder ya da temizle.",
+    "msg.retry_nothing": "O mesajda yalnızca ekler vardı. Tekrar sormak için onları yeniden ekle.",
+    "msg.retry_title": "Aynı soruyu yeni bir mesaj olarak tekrar sor",
     "notif.action_failed": "Bu işe yaramadı (",
     "notif.bell_title": "Bildirimler — arka plan tamamlanmaları ve izlenen model pazarı değişiklikleri",
     "notif.dismiss": "Kapat",
@@ -1852,7 +1858,7 @@
     "xsetup.entry_note": "X birkaç anahtar kullanır. Rehberli kurulum neyin nereye yapıştırılacağını söyler ve bunları tek bir okumayla kontrol eder.",
     "xsetup.open": "X’i bağla"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "0ee3550e95b69f52fa93f0b91b4595a6aa381e60572343b52b076671e1229d45",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
