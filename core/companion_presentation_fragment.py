@@ -34,7 +34,7 @@ VN_POS_KEY = "vool_ninja_pos_v1"
 
 # --------------------------------------------------------------------------- CSS
 _VN_CSS = r"""
-.vn-caption{font-size:9px;font-family:ui-monospace,Menlo,monospace;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:.06em;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.vn-caption{font-size:11px;font-family:-apple-system,'Inter',system-ui,sans-serif;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:.06em;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
 #companionLayer .vn-caption.vn-show,#companionLayer .vool-ninja:hover .vn-caption,#companionLayer .vool-ninja:focus-visible .vn-caption{opacity:1}
 body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 .vn-lab-matrix{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
@@ -90,17 +90,18 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   transform: rotate(45deg);
 }
 #companionLayer .vn-bubble-title {
-  font: 600 10px/1.25 ui-monospace, Menlo, monospace; color: #e7ecf3;
+  /* UI font at a readable size: the pet's two lines are read at a glance, not decoded. */
+  font: 600 12px/1.3 -apple-system, 'Inter', system-ui, sans-serif; color: #e7ecf3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #companionLayer .vn-bubble-activity {
-  font: 400 9.5px/1.3 ui-monospace, Menlo, monospace; color: var(--vn-tone, #94a3b8);
+  font: 400 11px/1.3 -apple-system, 'Inter', system-ui, sans-serif; color: var(--vn-tone, #94a3b8);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #companionLayer .vool-ninja.chip .vn-bubble { max-width: 168px; padding: 4px 7px 5px; }
 #companionLayer .vool-ninja.chip .vn-bubble::after { display: none; }
-#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 9px; }
-#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 8.5px; }
+#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 11px; }
+#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 11px; }
 /* Flipped below the pet when there is no room above. The character never moves either way. */
 #companionLayer .vn-bubble.vn-below { bottom: auto; top: calc(100% - 18px); }
 #companionLayer .vn-bubble.vn-below::after { top: auto; bottom: 100%; border: 0;
@@ -123,6 +124,9 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   background: var(--vn-tone, #94a3b8); margin-right: 5px; vertical-align: 1px; }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
 .vool-ninja-pop {
+  /* The layer is click-through; its own panels must take the clicks they draw (otherwise a
+     menu row presses whatever app control sits under it). */
+  pointer-events: auto;
   position: fixed; z-index: 45; width: 300px; max-height: min(70vh, 480px); overflow-y: auto;
   background: var(--panel,#1b1b1e); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
   border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 10px 12px; font-size: 12px;
@@ -136,6 +140,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-ninja-pop .vn-close { position: absolute; right: 8px; top: 6px; background: none; border: none;
   color: var(--muted, #8b94a3); cursor: pointer; font-size: 14px; }
 .vool-ninja-menu {
+  pointer-events: auto;
   position: fixed; z-index: 46; min-width: 180px; background: var(--panel, #14181f);
   color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140); border-radius: 10px;
   box-shadow: 0 8px 26px rgba(0,0,0,.5); padding: 4px; font-size: 12px;
@@ -662,10 +667,15 @@ function vnClampBubble() {
 function vnBoundChatTitle(chatId) {
   const id = String(chatId || "");
   if (!id) return "";
-  if (typeof chatTitleFor === "function") {
-    try { const t = chatTitleFor(id); if (t) return String(t); } catch (e) { /* fall through */ }
-  }
-  return id.slice(-8);
+  // Only a REAL title. The page's chatTitleFor falls back to the id's last 8 characters for a
+  // chat that has none yet, and the pet's first words must never be a random code.
+  try {
+    if (typeof _lastSessions !== "undefined" && Array.isArray(_lastSessions)) {
+      const chat = _lastSessions.find(function (s) { return s && s.session_id === id; });
+      return chat && chat.title ? String(chat.title) : "";
+    }
+  } catch (e) { /* no session list in this view */ }
+  return "";
 }
 /* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
 function vnSetBubble(title, activity, visible) {
@@ -1239,13 +1249,19 @@ function vnPaintNow(now) {
       if (stage.style && VN_TONES[pres.tone]) stage.style.color = VN_TONES[pres.tone];
     }
   }
-  // aria-live: announce STATE changes only, once per change.
-  if (vnSr && pres.phraseText) {
-    const line = vnLabel("companion.label", "Companion") + " " + vnStateWord(nextState) + (pres.phraseText ? " — " + pres.phraseText : "");
+  // aria-live: announce STATE changes only, once per change -- except an ordinary finished
+  // answer, which the conversation log already announces; repeating "Unknown — not
+  // independently reviewed" after every reply was noise for a screen-reader user.
+  const finished = pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS";
+  const stateWord = finished ? vnLabel("companion.state.done", "Done") : vnStateWord(nextState);
+  if (vnSr && pres.phraseText && !finished) {
+    const line = vnLabel("companion.label", "Companion") + " " + stateWord + " — " + pres.phraseText;
     if (line !== vnPaint.announced) { vnPaint.announced = line; vnSr.textContent = line; }
+  } else if (vnSr && finished && vnPaint.announced) {
+    vnPaint.announced = ""; vnSr.textContent = "";  // no stale "working" line left behind
   }
   if (vnSprite) {
-    vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion") + ": " + vnStateWord(nextState) + (pres.phraseText ? " · " + pres.phraseText : ""));
+    vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion") + ": " + stateWord + (pres.phraseText ? " · " + pres.phraseText : ""));
   }
   vnPaint.lastPaint = now;
   vnPaint.dirty = false;
@@ -1269,6 +1285,7 @@ function vnProvRow(label, value) {
 }
 function vnRenderPopover(chatId) {
   if (!vnPop) return;
+  vnCloseMenu(false);  // one pet panel at a time
   const view = VN_VIEWS.get(String(chatId || ""));
   const pres = vnResolve(view);
   const m = (view && view.model) || {};
@@ -1413,11 +1430,13 @@ function vnBindDrag(el) {
   });
 }
 function vnDock() {
+  vnCloseMenu(false);
   if (vnPos.mode === "desktop") { vnReturnToApp("docked"); return; }
   vnPos.mode = "docked";
   vnPersistPos(); vnApplyPos();
 }
 function vnHide(hidden) {
+  vnCloseMenu(false);
   vnPos.hidden = hidden === true;
   vnPersistPos(); vnApplyPos();
 }
@@ -1545,13 +1564,25 @@ function vnOpenCharacterLab() {
   modal.appendChild(sceneRow);
   vnLab.appendChild(modal); vnLab.style.display = "flex"; close.focus();
 }
+function vnMenuOpen() { return !!(vnMenu && vnMenu.style.display === "block"); }
+function vnCloseMenu(refocus) {
+  if (!vnMenuOpen()) return;
+  vnMenu.style.display = "none";
+  if (refocus && vnSprite && vnSprite.focus && vnSprite.style.display !== "none") vnSprite.focus();
+}
 document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && vnMenuOpen()) {
+    e.preventDefault(); e.stopPropagation();
+    vnCloseMenu(true);
+    return;
+  }
   if (e.key === "Escape" && vnPop && vnPop.style.display === "block") {
     e.preventDefault(); e.stopPropagation();
     vnPop.style.display = "none";
   }
 }, true);
 document.addEventListener("pointerdown", function (e) {
+  if (vnMenuOpen() && !vnMenu.contains(e.target)) vnCloseMenu(false);
   if (!vnPop || vnPop.style.display !== "block") return;
   if (vnPop.contains(e.target)) return;
   if (vnSprite && vnSprite.contains(e.target)) return;  // the tap-toggle owns this case
@@ -1660,17 +1691,22 @@ function vnCycleMotion() {
 }
 function vnOpenMenu(x, y) {
   if (!vnMenu) return;
+  if (vnPop) vnPop.style.display = "none";  // one pet panel at a time
   vnMenu.innerHTML = "";
+  const spec = (window.VoolCompanionWorld.characters || {})[vnPos.personality] || {};
   const items = [
     ["Dock inside VOOL", vnDock],
     ["Character Lab…", vnOpenCharacterLab],
     ["Toggle edge snapping", function () { vnEdgeSnap = !vnEdgeSnap; vnPos.edge = vnEdgeSnap ? "snap" : null; vnPersistPos(); }],
     ["Hide pet", function () { if (vnPos.mode === "desktop") vnHideDesktopPet(); else vnHide(true); }],
-    ["Reset position", vnResetDesktopPosition],
-    ["Motion: " + vnPos.motion, vnCycleMotion],
-    ["Companion: " + vnPos.personality, vnCyclePersonality],
-    ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }],
   ];
+  // Desktop-only actions are offered only where a desktop pet can exist.
+  if (vnNativeCompanionApi() && vnPos.mode === "desktop") items.push(["Reset position", vnResetDesktopPosition]);
+  items.push(
+    ["Motion: " + vnPos.motion, vnCycleMotion],
+    ["Pet: " + String(spec.name || vnPos.personality), vnCyclePersonality],
+    ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }]
+  );
   for (let i = 0; i < items.length; i++) {
     const b = document.createElement("button");
     b.type = "button";

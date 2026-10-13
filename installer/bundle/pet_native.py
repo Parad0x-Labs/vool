@@ -640,7 +640,15 @@ class PetWindowController:
             return False
         script = ('window.VoolDesktopCompanion&&window.VoolDesktopCompanion.interaction('
                   + str(hovered).lower() + ',' + str(dragging).lower() + ')')
-        instance.webview.evaluateJavaScript_completionHandler_(script, None)
+        tracker = self._tracker
+
+        def _done(_result, error):
+            # A script that did not run must be sent again: forget the reported state so the
+            # next tick re-sends it, instead of the controls latching on (or off) forever.
+            if error is not None and tracker is not None:
+                tracker._interaction = None
+
+        instance.webview.evaluateJavaScript_completionHandler_(script, _done)
         return True
 
     def _report_settled(self, origin: tuple[float, float]) -> None:
