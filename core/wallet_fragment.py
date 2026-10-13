@@ -779,7 +779,7 @@ function rowCard(r, cp, st){
   title.appendChild(el('span', 'vw-badge' + (r.environment === 'mainnet' ? '' : ' testnet'), r.badge));
   if (!r.active) title.appendChild(el('span', 'vw-badge mode', 'not active'));
   card.appendChild(title);
-  card.appendChild(el('div', 'vw-cx-env', (r.value_note || '') + ' · native coin ' + (r.native_display_symbol || r.native_symbol) + (r.chain_key === 'robinhood' ? ' · Robinhood Chain is a public network, not the Robinhood brokerage or its wallet' : '')));
+  card.appendChild(el('div', 'vw-cx-env', (r.value_note || '') + ' · native coin ' + (r.native_display_symbol || r.native_symbol) + (r.explorer_label ? ' · explorer: ' + r.explorer_label : '') + (r.chain_key === 'robinhood' ? ' · Robinhood Chain is a public network, not the Robinhood brokerage or its wallet' : '')));
   card.appendChild(capChips(r));
   var accounts = r.accounts || [];
   var caps = r.capabilities || {};

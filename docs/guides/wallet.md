@@ -12,7 +12,8 @@ state: capabilities are added lane by lane, and each lane below says exactly wha
 
 ## Network environments
 
-When Crypto is on, VOOL runs on **Mainnet**: Solana, Robinhood Chain, Base, Ethereum and BNB.
+When Crypto is on, VOOL runs on **Mainnet**: Solana, Robinhood Chain, Base, Ethereum, BNB and
+Arbitrum One.
 Normal setup never asks you to pick a network environment.
 
 * **Mainnet** — the default for every install, including installs upgraded with older
