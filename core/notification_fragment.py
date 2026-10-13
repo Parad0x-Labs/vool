@@ -49,6 +49,26 @@ _NOTIFY_CSS = """
 .vf-btn.vf-ghost{color:var(--muted,#9aa1af)}
 .vf-cert{font-size:10.5px;color:var(--muted,#9aa1af);margin-top:4px;line-height:1.45}
 .vf-empty{padding:14px;font-size:12px;color:var(--muted,#9aa1af)}
+/* The detail card is appended to <body>, which is a flex ROW: without its own box it became a
+   third column and squeezed the whole chat. It is a floating card under the bell instead. */
+#vfEventCard{position:fixed;top:56px;right:16px;z-index:1160;width:min(360px,calc(100vw - 32px));max-height:80vh;overflow:auto;
+  background:var(--panel,#16191f);border:1px solid var(--border,#262b35);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#vfEventCard[hidden]{display:none}
+.vf-card{padding:12px 14px;display:grid;gap:8px;font-size:13px;color:var(--ink,#e8eaf0)}
+.vf-card-head{display:flex;align-items:flex-start;gap:8px}
+.vf-card-head strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.vf-x{flex:none;background:transparent;border:0;color:var(--muted,#9aa1af);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.vf-x:hover{color:var(--ink,#e8eaf0)}
+.vf-card .vf-row span{color:var(--muted,#9aa1af);text-align:left}
+.vf-card .vf-row b{color:var(--ink,#e8eaf0);font-weight:500;text-align:right;overflow-wrap:anywhere}
+.vf-card-acts{display:flex;flex-wrap:wrap;gap:6px}
+.vf-btn.vf-primary{background:var(--accent,#c3b8a8);color:var(--accent-ink,#171513);border-color:var(--accent,#c3b8a8);text-decoration:none}
+.vf-policy{display:grid;gap:6px;font-size:12px}
+.vf-policy input{width:4.5em;background:var(--field,#1d2129);color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);border-radius:6px;padding:2px 6px;font:inherit}
+.vf-acts{display:flex;flex-wrap:wrap;gap:6px}
+.vf-acts button,.vf-acts a,.vf-actions button,[data-vf-discover]{font:inherit;font-size:11.5px;border-radius:6px;padding:3px 9px;cursor:pointer;
+  background:transparent;color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);text-decoration:none}
+.vf-acts button:hover,.vf-acts a:hover,.vf-actions button:hover,[data-vf-discover]:hover{border-color:var(--accent,#5eead4)}
 .vf-foot{padding:8px 14px;font-size:10.5px;color:var(--muted,#9aa1af);border-top:1px solid var(--border,#262b35);line-height:1.5}
 """
 
@@ -288,7 +308,14 @@ function centreMeta(item){
       .filter(Boolean).join(' \\u00b7 ');
   }
   if (item.source_kind === 'reminder') return NTF('notif.reminder', 'Reminder') + (p.due_local ? ' \\u00b7 ' + NTF('notif.due_label', 'due') + ' ' + p.due_local : '');
-  return String(item.body || '');
+  // Name the chat an item is about, so two "Chat failed" rows can be told apart.
+  var chatName = '';
+  if (item.session_id) {
+    var acts = pageActions();
+    var meta = acts && acts.sessionMeta ? acts.sessionMeta(item.session_id) : null;
+    chatName = meta && meta.title ? '\\u201c' + meta.title + '\\u201d' : '';
+  }
+  return [chatName, String(item.body || '')].filter(Boolean).join(' \\u00b7 ');
 }
 
 function snoozable(item){
@@ -325,7 +352,8 @@ function paintList(){
   centre.forEach(function(item, index){ if (itemSection(item) === section) rows.push(centreRow(item, index)); });
   pop.innerHTML = '<div class="vf-head">' + NTF('notif.pop_title', 'Notifications') + '</div><div class="vf-tabs" role="tablist" aria-label="' + NTF('notif.sections_aria', 'Notification sections') + '">' + nav + '</div>'
     + (rows.join('') || '<div class="vf-empty">' + NTF('notif.empty', 'Nothing here yet.') + '</div>')
-    + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button> \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') + '</div>';
+    + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button>'
+    + (rows.length ? ' \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') : '') + '</div>';
 }
 function readItems(items){
   var ids = items.filter(function(item){ return !item.read_at; }).map(function(item){ return item.notification_id; });

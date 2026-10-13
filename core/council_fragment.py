@@ -13,6 +13,7 @@ from __future__ import annotations
 
 _COUNCIL_CSS = """
 #vccRoot{margin-top:14px;border-top:1px solid var(--border,#262b35);padding-top:12px}
+#vccRoot .vcc-more summary{cursor:pointer;font-size:12px;color:var(--muted,#9aa4b2);margin:4px 0}
 #vccRoot h4{margin:0 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted,#9aa1af)}
 #vccRoot .vcc-note{font-size:11.5px;color:var(--muted,#9aa1af);margin:0 0 10px;line-height:1.5}
 .vcc-seat{display:flex;gap:6px;align-items:center;margin-bottom:6px}
@@ -65,11 +66,11 @@ _COUNCIL_JS = """
 if (window.VoolCouncilConvene) return;
 
 var ROLES = [
-  ['builder','Builder / root-causer'],
-  ['falsifier','Falsifier / counterexample'],
-  ['reviewer','Independent reviewer'],
-  ['verifier','Evidence verifier'],
-  ['adjudicator','Adjudicator']
+  ['builder','Builder (answers)'],
+  ['falsifier','Critic (looks for mistakes)'],
+  ['reviewer','Reviewer'],
+  ['verifier','Fact checker'],
+  ['adjudicator','Referee']
 ];
 var seats = [];
 var pollTimer = null;
@@ -80,6 +81,15 @@ function esc(s){
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(ch){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
   });
+}
+
+// The server answers in typed codes ("local_seat_refused: ..."). A person reads what to do.
+function councilError(raw, status){
+  var text = String(raw || '');
+  var code = (text.match(/^([a-z_]+):/) || [])[1] || '';
+  if (code === 'local_seat_refused') return 'Every seat needs an online model. Models on this computer can\\u2019t sit on a council. Connect an online provider in Settings, then pick its models here.';
+  if (!text) return 'The council couldn\\u2019t start' + (status ? ' (' + status + ')' : '') + '. Try again in a moment.';
+  return code ? text.slice(code.length + 1).trim() || text : text;
 }
 
 function defaultSeats(){
@@ -101,26 +111,29 @@ function seatRows(){
     return '<div class="vcc-seat" data-i="' + index + '">' +
       '<select data-k="role">' + roleOptions(seat.role_id) + '</select>' +
       '<input data-k="model" list="vccModels" value="' + esc(seat.model) + '" ' +
-        'placeholder="provider\\/model \\u2014 cloud only" spellcheck="false">' +
-      '<span class="vcc-vote ' + (seat.votes ? 'vcc-judge' : '') + '">' + (seat.votes ? 'JUDGE' : 'ADVISOR') + '</span>' +
+        'placeholder="Online model, for example provider\\/model" aria-label="Model for this seat" spellcheck="false">' +
+      '<span class="vcc-vote ' + (seat.votes ? 'vcc-judge' : '') + '">' + (seat.votes ? 'Votes' : 'Advises') + '</span>' +
       '<button type="button" class="vcc-x" title="Remove seat">\\u00d7</button>' +
       '</div>';
   }).join('');
 }
 
 function renderForm(root){
-  root.innerHTML = '<h4>Convene a council</h4>' +
-    '<p class="vcc-note">Seats are roles, not personalities \\u2014 the model behind a seat is replaceable, ' +
-    'the role is not. Judges vote; advisors report without a vote. One receipt-backed counterexample beats ' +
-    'any vote count. The council adjudicates \\u2014 promotion, merge and spend stay with you. Cloud seats only on this machine \\u2014 the server refuses auto\\/local seats.</p>' +
+  root.innerHTML = '<h4>Ask several models</h4>' +
+    '<p class="vcc-note">Several online models look at the same question, check each other, and report back. ' +
+    'Each seat is a role; pick an online model for each one. Seats that vote decide together; advisors only comment. ' +
+    'Nothing is changed or paid for without you. This needs a connected online provider: models on this computer can\\u2019t sit on a council.</p>' +
+    '<details class="vcc-more"><summary>How the council works</summary><p class="vcc-note">Seats are roles, not personalities: the model behind a seat can be swapped, the role stays. ' +
+    'One receipt-backed counterexample beats any vote count. The council only gives its verdict; promotion, merge and spend stay with you. ' +
+    'With Background left empty it is a blind round 1: each seat gathers its own evidence.</p></details>' +
     '<div id="vccSeats">' + seatRows() + '</div>' +
     '<datalist id="vccModels"></datalist>' +
     '<div class="vcc-add">' +
-      '<button type="button" id="vccAddJudge">+ Judge</button>' +
+      '<button type="button" id="vccAddJudge">+ Seat that votes</button>' +
       '<button type="button" id="vccAddAdvisor">+ Advisor</button>' +
     '</div>' +
-    '<textarea id="vccProblem" placeholder="The problem. Root cause + best fix with minimal blast radius is the default ask."></textarea>' +
-    '<textarea id="vccExhibits" placeholder="Optional proof \\u2014 logs, repro output, paths. Empty = blind round 1: every seat gathers its own evidence."></textarea>' +
+    '<textarea id="vccProblem" aria-label="Question for the council" placeholder="What do you want them to look at?"></textarea>' +
+    '<textarea id="vccExhibits" aria-label="Background (optional)" placeholder="Optional: anything they should read first, such as notes or an error message. Leave empty and each one looks on its own."></textarea>' +
     '<button type="button" id="vccConvene">Convene</button>' +
     '<div id="vccError"></div>' +
     '<div id="vccStatus"></div>' +
@@ -180,7 +193,7 @@ function doConvene(root){
   var errorEl = root.querySelector('#vccError');
   var problem = (root.querySelector('#vccProblem') || {}).value || '';
   var exhibits = (root.querySelector('#vccExhibits') || {}).value || '';
-  if (!problem.trim()) { if (errorEl) errorEl.textContent = 'A council needs a problem statement.'; return; }
+  if (!problem.trim()) { if (errorEl) errorEl.textContent = 'Type the question you want the council to look at first.'; return; }
   var body = {
     problem: problem,
     exhibits: exhibits,
@@ -196,7 +209,7 @@ function doConvene(root){
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   }).then(function(r){ return r.json().then(function(data){ return { status: r.status, data: data }; }); })
     .then(function(result){
-      if (!result.data.ok) { if (errorEl) errorEl.textContent = result.data.error || ('convene failed (' + result.status + ')'); return; }
+      if (!result.data.ok) { if (errorEl) errorEl.textContent = councilError(result.data.error, result.status); return; }
       activeRun = result.data.run_id;
       // The modal is the entry FORM, not the run's home: hand the run to the chat it was
       // convened from, where it survives this overlay closing, a chat switch and a reload.
