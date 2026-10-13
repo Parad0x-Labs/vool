@@ -288,13 +288,30 @@ def _wire_tool_steps(provider: ScriptedProvider, model: str) -> int:
     )
 
 
+#: The background memory extractor runs on the local model whatever the chat's pin (owner
+#: decision 2026-10-13: a pin covers the answer; memory processing stays on the device and never
+#: spends the paid model). Its calls are not answer generations and are counted apart.
+_MEMORY_EXTRACTION_SYSTEM = "You are a local memory extraction agent."
+
+
+def _is_memory_extraction(call: dict[str, Any]) -> bool:
+    return str(call.get("system") or "").startswith(_MEMORY_EXTRACTION_SYSTEM)
+
+
 def _generated_by(provider: ScriptedProvider) -> set[str]:
-    """Models that were asked to GENERATE (chat calls with a prompt), not metadata probes."""
+    """Models that were asked to GENERATE an answer-path reply (chat calls with a prompt), not
+    metadata probes and not the background memory extractor."""
     return {
         call["model"]
         for call in provider.calls
-        if call["path"].rstrip("/").endswith(("/api/chat", "/chat/completions")) and str(call["full_prompt"]).strip()
+        if call["path"].rstrip("/").endswith(("/api/chat", "/chat/completions"))
+        and str(call["full_prompt"]).strip()
+        and not _is_memory_extraction(call)
     }
+
+
+def _memory_extraction_models(provider: ScriptedProvider) -> set[str]:
+    return {call["model"] for call in provider.calls if _is_memory_extraction(call)}
 
 
 def _diag(events: list[dict[str, Any]], provider: ScriptedProvider) -> str:
