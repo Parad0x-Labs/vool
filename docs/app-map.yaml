@@ -115,7 +115,7 @@ rows:
     title: Pin a paid cloud model behind a price confirmation
     area: chat-models
     ui: [model_pin]
-    wired: ["/api/cloud/acceptances", "/api/cloud/price-history"]
+    wired: ["/api/cloud/acceptances", "/api/cloud/price-history", "/api/discovery", "/api/discovery/refresh"]
     default: []
     tests: [tests/test_pinned_paid_build_served_lifecycle.py]
     label: TESTED
@@ -129,7 +129,7 @@ rows:
     tests: [tests/test_paid_call_settlement_ledger.py]
     label: TESTED
     target_release: 0.7.0
-    note: Caps (0.25 per call, 1 per task, 5 per day, 25 per month) are code constants; no route or setting changes them.
+    note: Defaults in code (0.25 per call, 1 per task, 5 per day, 25 per month); policy keys can override them; no page control or route changes them.
   - id: daily-token-budget
     title: Daily cloud token budget as guidance only
     area: settings
@@ -162,7 +162,7 @@ rows:
     label: TESTED
     target_release: 0.7.0
   - id: custom-endpoint
-    title: Custom OpenAI-compatible endpoint
+    title: Custom compatible model endpoint
     area: chat-models
     ui: [cloud_keys]
     wired: []
@@ -171,16 +171,16 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: Off until a base URL and key are saved in the keys card.
-  - id: usepod-marketplace
-    title: UsePod model marketplace
+  - id: model-marketplace
+    title: Model marketplace provider
     area: chat-models
     ui: [usepod]
-    wired: ["/api/cloud/usepod/discovery", "/api/cloud/usepod/x402/unresolved", "/api/cloud/usepod/*"]
+    wired: ["/api/cloud/usepod/discovery", "/api/cloud/usepod/x402/unresolved", "/api/cloud/usepod/*", "/api/money/projection", "/api/money/grants/revoke"]
     default: []
     tests: [tests/usepod/test_usepod_registration.py, tests/usepod/test_usepod_served_flow.py]
     label: TESTED
     target_release: 0.7.0
-    note: Off until a UsePod key is saved.
+    note: Off until its key is saved; its settings card reads the spend projection and can revoke a spend grant.
   - id: local-models
     title: Register local models served on this machine
     area: chat-models
@@ -215,7 +215,7 @@ rows:
     title: Discover models with the model radar
     area: chat-models
     ui: [discoverModelsBtn, mrPrefsBtn]
-    wired: ["/api/model-radar/feed", "/api/model-radar/preferences", "/api/model-radar/dismiss", "/api/model-radar/try-once", "/api/model-radar/viewed", "/api/discovery", "/api/discovery/refresh", "/api/cloud/market-events"]
+    wired: ["/api/model-radar/feed", "/api/model-radar/preferences", "/api/model-radar/dismiss", "/api/model-radar/try-once", "/api/model-radar/viewed", "/api/cloud/market-events"]
     default: []
     tests: [tests/test_model_radar_api.py, tests/test_model_radar_authority.py, tests/test_model_radar_ui.py]
     label: TESTED
@@ -647,7 +647,7 @@ rows:
     tests: [tests/test_execution_web_tools.py]
     label: TESTED
     target_release: 0.7.0
-    note: Off on a fresh install and nothing in the app turns the web switch on; only the environment variable or a direct policy write does.
+    note: Off on a fresh install and nothing in the app turns the web switch on; only the environment variable or a raw request to the onboarding boundary route does.
   - id: search-api-key
     title: Your own search API key
     area: tools
@@ -694,9 +694,9 @@ rows:
         file: default_policy
         expected: false
     tests: [tests/test_demo_planner.py, tests/test_demo_plan_edit.py]
-    label: TESTED
+    label: UNKNOWN
     target_release: 0.7.0
-    note: Reads a remote page, so it stays off with the web switch.
+    note: Not a row in the draft table (named only in its web gap), so no label was copied; reads a remote page, so it stays off with the web switch.
   - id: pdf-reading
     title: Read PDFs from attachments
     area: tools
@@ -1036,8 +1036,8 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: No page; test networks only on this commit — the main network entry refuses.
-  - id: usepod-x402
-    title: x402 payments through the UsePod lane
+  - id: marketplace-x402
+    title: x402 payments through the model marketplace lane
     area: crypto
     ui: [usepod]
     wired: ["/api/wallet/usepod/status", "/api/wallet/usepod/topup"]
@@ -1087,7 +1087,7 @@ rows:
     tests: [tests/test_zcash_lane.py]
     label: IMPLEMENTED
     target_release: 0.7.0
-    note: An environment variable gates the lane in code; the preference key exists but no settings control does.
+    note: The preference turns the lane on and an environment variable overrides it; no settings control sets the preference.
   - id: payment-channels
     title: Choose payment channels
     area: crypto
@@ -1122,7 +1122,7 @@ rows:
     title: Earnings page and credit exchange
     area: crypto
     ui: []
-    wired: ["/api/credits/balance", "/api/credits/settle", "/v1/credits/balance", "/v1/credits/settle", "/api/money/contract", "/api/money/funding", "/api/money/grants", "/api/money/grants/revoke", "/api/money/liabilities", "/api/money/liabilities/{id}", "/api/money/projection", "/api/money/rules", "/api/money/reconcile", sell.quote, marketplace.search_listings, marketplace.purchase_knowledge]
+    wired: ["/api/credits/balance", "/api/credits/settle", "/v1/credits/balance", "/v1/credits/settle", sell.quote, marketplace.search_listings, marketplace.purchase_knowledge]
     default: []
     tests: [tests/legacy/test_credit_dex.py, tests/test_knowledge_marketplace_buy.py]
     label: IMPLEMENTED
@@ -1139,7 +1139,7 @@ rows:
     tests: [tests/test_email_account_selection.py, tests/test_email_action_routing.py, tests/test_email_draft_state.py]
     label: TESTED
     target_release: 0.7.0
-    note: The read and send switches exist only as policy-engine keys that are absent from the shipped policy file; the model tools for email are absent from the tool golden pin.
+    note: Draft label was tested in code only. The read and send switches exist only as policy-engine keys that are absent from the shipped policy file; the model tools for email are absent from the tool golden pin.
   - id: add-email-account
     title: Add an email account from the app
     area: other
@@ -1250,7 +1250,7 @@ rows:
     tests: [tests/test_telegram_chat_bridge.py]
     label: TESTED
     target_release: 0.7.0
-    note: Manual process with environment settings; not a product feature yet.
+    note: Draft label was tested in code only; manual process with environment settings; not a product feature yet.
   - id: mobile-companion
     title: Phone companion pairing and API
     area: other
@@ -1357,7 +1357,7 @@ rows:
     tests: [tests/test_production_research_boundary.py]
     label: TESTED
     target_release: 0.7.0
-    note: Off unless an environment variable turns the research network on; the shipped policy leaves mesh inbound on but the research gate closed.
+    note: Draft label was tested while off; off unless an environment variable turns the research network on; the shipped policy leaves mesh inbound on but the research gate closed.
   - id: hive-task-read
     title: Read available research tasks
     area: other
@@ -1395,10 +1395,12 @@ internal:
     routes: ["/api/cloud/diagnostics"]
   - reason: Preference read and write door shared by every settings card; the cards are the mapped rows.
     routes: ["/api/settings/prefs"]
-  - reason: First-run pact read kept after its page was retired; a direct policy write can still flip the web switch here.
+  - reason: First-run pact read kept after its page was retired.
     routes: ["/api/onboarding/pact"]
-  - reason: Remaining onboarding writes without a page caller.
+  - reason: Remaining onboarding writes without a page caller; the pact boundary write among them can still turn the web switch on.
     routes: ["/api/onboarding/*"]
+  - reason: Owner-local money budget reads and reconcile door with no page caller; the marketplace card's two callers are mapped there.
+    routes: ["/api/money/contract", "/api/money/funding", "/api/money/grants", "/api/money/liabilities", "/api/money/liabilities/{id}", "/api/money/rules", "/api/money/reconcile"]
   - reason: Research intake quarantine (security lane for shared research intake).
     routes: ["/api/intake/quarantine/list", "/api/intake/*"]
   - reason: Recovery door for tasks interrupted by a crash.
