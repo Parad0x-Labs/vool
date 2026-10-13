@@ -282,7 +282,11 @@ def read(
             contents = _read_rar_contents(source, chosen, scratch=scratch.path, warnings=warnings)
 
     units: list[ReaderUnit] = []
-    listing_lines = [f"{len(members)} member(s) in {name}:"]
+    # Folders are entries too (`zip -r` and friends write them), but "what is in this archive"
+    # is a question about files: count those, and mention folders separately when any exist.
+    files = [m for m in members if not m.is_dir]
+    folders = [m for m in members if m.is_dir]
+    listing_lines = [f"{len(files)} file(s) in {name}" + (f" ({len(folders)} folder(s))" if folders else "") + ":"]
     total_size = 0
     nested: list[str] = []
     for member in members:
@@ -306,7 +310,7 @@ def read(
             locator="archive listing",
             kind=UNIT_MEMBER,
             text="\n".join(listing_lines),
-            meta={"members": len(members), "total_uncompressed_bytes": total_size, "read": len(contents), "unread": len(unread)},
+            meta={"members": len(files), "folders": len(folders), "total_uncompressed_bytes": total_size, "read": len(contents), "unread": len(unread)},
         )
     )
     for member, text in contents:
@@ -334,7 +338,8 @@ def read(
         omitted=tuple(omitted),
         source_sha256=digest,
         meta={
-            "members": len(members),
+            "members": len(files),
+            "folders": len(folders),
             "members_read": len(contents),
             "members_refused": len(refused),
             "nested_archives": nested,
