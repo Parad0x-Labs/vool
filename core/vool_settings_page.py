@@ -297,8 +297,8 @@ def _settings_groups() -> list[dict]:
                     label="Autonomy",
                     help=(
                         "How much VOOL does before stopping to ask. Read the order carefully — it "
-                        "runs the way the runtime actually gates actions "
-                        "(core/execution_gate.py): Hands-off asks about the FEWEST things, Strict "
+                        "runs the way the runtime actually gates actions: Hands-off asks about the "
+                        "FEWEST things, Strict "
                         "asks about everything. Whatever you pick, anything outward-facing (a post, "
                         "a message) or privacy-sensitive always asks first, and spending always asks."
                     ),
@@ -390,7 +390,12 @@ def _settings_groups() -> list[dict]:
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
-                    help="Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+                    help=(
+                        "Add, test or remove your keys. One store on this machine holds them all — "
+                        "model providers, web search and security scans — so they live together here, "
+                        "not in the sections that use them. VOOL runs locally without any of them. "
+                        "Saving verifies a key with that one service; search checks may use credits."
+                    ),
                     read={"url": CREDENTIALS},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
@@ -415,7 +420,7 @@ def _settings_groups() -> list[dict]:
                     help=(
                         "Every configured mailbox, what it can do (read, send), its state, and which one "
                         "is the default. The default is one Operator Profile item (an opaque credential "
-                        "name, core/email_accounts.py resolves it): a chat's own choice outranks it, an "
+                        "name that VOOL resolves): a chat's own choice outranks it, an "
                         "explicit account in a request outranks both, and an account that cannot do what "
                         "a step needs is refused with the accounts that can -- VOOL never falls back to "
                         "another mailbox. Choosing a default stores a name and contacts nobody; passwords "
@@ -436,8 +441,8 @@ def _settings_groups() -> list[dict]:
                     widget="email_recovery",
                     help=(
                         "When the email draft store is recovered from damaged bytes that recorded a send "
-                        "whose outcome is unknown, NEW sends are held until you acknowledge it here "
-                        "(core/email_drafts.py). This shows what was preserved, the Message-IDs it named, "
+                        "whose outcome is unknown, NEW sends are held until you acknowledge it here. "
+                        "This shows what was preserved, the Message-IDs it named, "
                         "a check of each against the account's own sent mail, and exactly what "
                         "acknowledging does: it releases new approved sends and resends nothing. The "
                         "acknowledgement names the exact recovery it was read for; a page that is out of "
@@ -558,7 +563,7 @@ def _settings_groups() -> list[dict]:
                     widget="extras_memory",
                     help=(
                         "A second store, separate from the profile items above: facts VOOL confirmed "
-                        "during chats (core/memory/entries.py), each shown with the scope it was stored "
+                        "during chats, each shown with the scope it was stored "
                         "under and where it came from. Forget removes exactly that record and its "
                         "mirror line; nothing else is touched. Reads are governed per chat, so what is "
                         "listed is what those chats may still see."
@@ -571,8 +576,7 @@ def _settings_groups() -> list[dict]:
                     kind="note",
                     help=(
                         "Neither is a setting any more. Both were moved out of the preferences "
-                        "file into this memory (core/user_preferences.py: "
-                        "migrate_legacy_profile_fields), because VOOL learns them from "
+                        "file into this memory, because VOOL learns them from "
                         "conversation and keeps them across chats. They appear in the list above "
                         "with everything else it remembers, and they are changed the same way — by "
                         "telling VOOL, or by editing the item. A second field here would be a "
