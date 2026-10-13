@@ -23,8 +23,8 @@ _ICONS: dict[str, str] = {
     "move": "<path d='M2.5 4.5a1 1 0 0 1 1-1h3l1.5 1.5h4.5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z'/><path d='M6 9h4M8.5 7.5 10 9l-1.5 1.5'/>",
     "contacts": "<circle cx='8' cy='5.5' r='2.5'/><path d='M3 13.5c.6-2.5 2.6-4 5-4s4.4 1.5 5 4'/>",
     "settings": (
-        "<circle cx='8' cy='8' r='2'/><path d='M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2"
-        "M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2'/>"
+        "<circle cx='8' cy='8' r='2'/><path d='M6.9 2h2.2l.4 1.6 1.2.7 1.6-.5 1.1 1.9-1.2 1.1v1.4l1.2 1.1-1.1 1.9"
+        "-1.6-.5-1.2.7-.4 1.6H6.9l-.4-1.6-1.2-.7-1.6.5-1.1-1.9 1.2-1.1V7.3L2.6 6.2l1.1-1.9 1.6.5 1.2-.7z'/>"
     ),
     "report": "<path d='M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z'/>",
     "pin": "<path d='M6 2.5h4l-.5 4 2 2h-7l2-2z'/><path d='M8 8.5v5'/>",
@@ -47,10 +47,10 @@ _ICONS: dict[str, str] = {
     "models": "<rect x='4' y='4' width='8' height='8' rx='1.2'/><path d='M6.5 2v2M9.5 2v2M6.5 12v2M9.5 12v2M2 6.5h2M2 9.5h2M12 6.5h2M12 9.5h2'/>",
     "memory": "<path d='M4.5 2.5h7v11L8 11l-3.5 2.5z'/>",
     "backup": "<path d='M5 13V3M2.8 5.2 5 3l2.2 2.2M11 3v10M8.8 10.8 11 13l2.2-2.2'/>",
-    "budgets": "<circle cx='8' cy='8' r='5.5'/><path d='M8 4.8V8l2.2 1.6'/>",
+    "budgets": "<path d='M2.8 11.5a5.5 5.5 0 1 1 10.4 0'/><path d='M8 10l2.4-3'/><circle cx='8' cy='10.3' r='.8'/>",
     "calendar": "<rect x='2.5' y='3.5' width='11' height='10' rx='1.2'/><path d='M2.5 6.5h11M5.5 2v3M10.5 2v3'/>",
-    "appearance": "<circle cx='8' cy='8' r='5.5'/><path d='M8 2.5v11a5.5 5.5 0 0 0 0-11z' fill='black'/>",
-    "advanced": "<path d='M3 4.5h10M3 8h10M3 11.5h10'/><circle cx='6' cy='4.5' r='1.3' fill='black'/><circle cx='10' cy='8' r='1.3' fill='black'/><circle cx='5' cy='11.5' r='1.3' fill='black'/>",
+    "appearance": "<circle cx='8' cy='8' r='5.5'/><path d='M8 2.5v11'/><path d='M9.5 4.5h2M9.5 7h3M9.5 9.5h3M9.5 12h1.5'/>",
+    "advanced": "<path d='M3 4.5h10M3 8h10M3 11.5h10'/><circle cx='6' cy='4.5' r='1.3'/><circle cx='10' cy='8' r='1.3'/><circle cx='5' cy='11.5' r='1.3'/>",
     "about": "<circle cx='8' cy='8' r='5.5'/><path d='M8 7.3v3.7M8 5v.1'/>",
     "lock": "<rect x='3.5' y='7' width='9' height='6.5' rx='1'/><path d='M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7'/>",
     "globe": "<circle cx='8' cy='8' r='5.5'/><path d='M2.5 8h11M8 2.5c1.6 1.6 2.3 3.5 2.3 5.5S9.6 11.9 8 13.5C6.4 11.9 5.7 10 5.7 8S6.4 4.1 8 2.5z'/>",
@@ -73,7 +73,8 @@ ICON_CSS = (
     ".vi::before { content:''; display:inline-block; width:1.08em; height:1.08em; flex:0 0 auto;"
     " vertical-align:-0.17em; background:currentColor;"
     " -webkit-mask:var(--vi) center/contain no-repeat; mask:var(--vi) center/contain no-repeat; }\n"
-    ".vi:not(:empty)::before { margin-right:0.55em; }\n"
+    ".vi:not(:empty)::before { margin-inline-end:0.55em; }\n"
+    "button.vi:empty::before, #pinBtn .pin-i::before, #vfBell > .vi::before { width:1.2em; height:1.2em; }\n"
     + "\n".join(f'.vi[data-ico="{name}"] {{ --vi:{_mask(body)}; }}' for name, body in _ICONS.items())
     + "\n"
 )

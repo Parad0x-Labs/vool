@@ -2,7 +2,7 @@
 
 Each check pins one thing a person notices:
 
-- a starter on the empty screen fills the message box and never sends by itself;
+- a starter on the empty screen fills an EMPTY message box (never replacing a draft) and never sends;
 - reading an earlier answer is not interrupted: a reply that lands while the reader is scrolled up
   leaves the view where it is and offers "Latest", while the reader's own send always follows;
 - Up in an empty box brings back the last message, and never replaces typed text;
@@ -84,6 +84,13 @@ def test_small_comforts_on_the_served_chat_page(tmp_path):
                 # A starter fills the box and sends nothing.
                 starters = page.locator(".empty-start")
                 assert starters.count() == 3
+                # A draft is never replaced by a starter, and the starters step back while it is there.
+                page.locator("#input").fill("my half written draft")
+                assert starters.first.is_hidden()
+                page.evaluate("document.querySelector('.empty-start').click()")
+                assert page.locator("#input").input_value() == "my half written draft"
+                page.locator("#input").fill("")
+                assert starters.first.is_visible()
                 first = starters.first.inner_text()
                 starters.first.click()
                 assert page.locator("#input").input_value() == first

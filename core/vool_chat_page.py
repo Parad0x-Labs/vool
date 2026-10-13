@@ -424,6 +424,12 @@ header a:hover { text-decoration:underline; }
 .empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
 .empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
 .empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
+/* The starters are meant to be tapped: they sit above the resting pet (whose layer is z-index 30). */
+.empty-start { position:relative; z-index:31; }
+/* While the box holds a draft the starters step back, so it is clear they would not replace it. */
+#log.has-draft .empty-starts { visibility:hidden; }
+/* Shortcut labels read left to right in every language ("Ctrl+/" never turns into "/+Ctrl"). */
+kbd { direction:ltr; unicode-bidi:isolate; }
 .empty-hint { font-family:Georgia,'Times New Roman',serif; font-style:italic; font-size:14px; line-height:1.5; color:var(--ink); max-width:440px; margin:2px auto 0; }
 /* A size container: the control row's breakpoint has to key off the room the FOOTER actually has,
    not off the window. The sidebar and the Activity panel can take 900px of a 1280px window, so a
@@ -3034,7 +3040,7 @@ function renderContextBar() {
   else bar.appendChild(mkChip(' cc-project muted', '', 'General', '', 'Not bound to a project'));
   const sep = document.createElement('span'); sep.className = 'ctx-sep'; sep.textContent = '›'; bar.appendChild(sep);
   const chat = (_lastSessions || []).find((s) => s.session_id === displayedChat) || null;
-  const chatName = (chat && chat.title) ? chat.title : 'New chat';
+  const chatName = (chat && chat.title) ? chat.title : ((typeof pageT === 'function') ? pageT('companion.untitled_chat', 'New chat') : 'New chat');
   bar.appendChild(mkChip('', (chat && chat.emoji) || '', chatName, (chat && chat.color) || '', chatName));
   // A tight composer hides the muted project chip and ellipsizes the chat name, so the bar itself
   // carries the whole path -- the collapse is a display decision, never a loss of information.
@@ -4330,6 +4336,8 @@ if (logEl) {
   logEl.addEventListener('click', (e) => {
     const start = e.target.closest && e.target.closest('.empty-start');
     if (start) {
+      // A starter only fills an EMPTY box: words or attachments already there are never replaced.
+      if (inputEl.value.trim() || attachBucket(displayedChat).length) { inputEl.focus(); return; }
       inputEl.value = start.dataset.start || start.textContent;
       inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       inputEl.focus();
@@ -11931,6 +11939,8 @@ if (xpScopeEl) {
 // over category headlines and none of the evidence under them.
 const xpCopyEl = document.getElementById('xpCopy');
 if (xpCopyEl) xpCopyEl.addEventListener('click', () => copyPanelEvidence(xpCopyEl, panelTab || 'Activity'));
+// Starters step back while the box holds a draft (they only ever fill an empty box).
+inputEl.addEventListener('input', () => { logEl.classList.toggle('has-draft', !!inputEl.value.trim()); });
 inputEl.addEventListener('keydown', (e) => {
   // Enter that confirms an input-method candidate (Japanese, Chinese, Korean...) is part of
   // typing, not a send.
