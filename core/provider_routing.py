@@ -125,14 +125,15 @@ def rank_provider_candidates(
     min_trust: float = 0.0,
     enforce_hardware_fit: bool = False,
     local_only: bool = False,
-    min_context_tokens: int = 0,
+    min_context_tokens: Any = 0,
 ) -> list[ModelProviderManifest]:
     """Rank the candidates for one model call.
 
     ``min_context_tokens`` is the call's serialized size (messages, tool schemas and completion
-    headroom) when the caller knows it. A declared context window below it is not eligible; an
-    unknown window stays eligible but ranks after every window known to cover it. 0 means the
-    caller supplied no size, and nothing is filtered.
+    headroom) when the caller knows it, read through ``parse_token_count``. A declared context
+    window below it is not eligible; an unknown window stays eligible but ranks after every window
+    known to cover it. Absent or 0 means the caller supplied no size, and nothing is filtered. A
+    malformed size cannot be verified against any window, so nothing is eligible.
     """
     return _rank_provider_candidates_internal(
         registry,
@@ -180,9 +181,13 @@ def _rank_provider_candidates_internal(
     enforce_hardware_fit: bool = False,
     limit_to_swarm_size: bool = True,
     local_only: bool = False,
-    min_context_tokens: int = 0,
+    min_context_tokens: Any = 0,
 ) -> list[ModelProviderManifest]:
-    required_context_tokens = max(0, int(min_context_tokens or 0))
+    required_context_tokens = parse_token_count(min_context_tokens)
+    if required_context_tokens is None:
+        # Fail closed: a size that is not a usable count is never read as "no size" (which would
+        # disable context eligibility) and never truncated below what was asked.
+        return []
     normalized_role = _normalize_role(role)
     resolved_allow_paid = _resolve_allow_paid_fallback(normalized_role, allow_paid_fallback)
     resolved_swarm_size = _resolve_swarm_size(normalized_role, swarm_size)
@@ -475,22 +480,46 @@ def resolve_provider_routing_plan_for_envelope(
     )
 
 
-def _token_requirement(value: Any) -> int | None:
+# Upper bound of the token-count domain. Far above any declared context window, and small enough
+# that a decimal string of it never approaches the interpreter's integer-conversion limit.
+MAX_TOKEN_COUNT = 1_000_000_000
+_MAX_TOKEN_COUNT_DIGITS = len(str(MAX_TOKEN_COUNT))
+
+
+def parse_token_count(value: Any) -> int | None:
     """A declared token count, 0 when absent, or None when the value is not a usable count.
 
-    A malformed hard requirement must not quietly become "no requirement": measured on 57fdc03,
-    ``min_context_tokens="12,000"`` read as 0 and a 4096-window model was selected.
+    The one domain for both selection entry points that take a size: the live ranking call
+    (``rank_provider_candidates(min_context_tokens=)``) and the envelope's token requirements.
+    Absent (None, a blank string) and 0 mean the caller supplied no size. A usable count is a
+    whole number in ``[0, MAX_TOKEN_COUNT]``: an int, a finite float (a fraction rounds UP, so a
+    requirement is never weakened below what was asked) or a string of ASCII decimal digits.
+    Everything else is malformed, and a malformed hard requirement must not quietly become "no
+    requirement": measured on 57fdc03, ``min_context_tokens="12,000"`` read as 0 and a
+    4096-window model was selected. It must not raise either: ``str.isdigit`` admits
+    superscript and other non-decimal digits that ``int`` cannot read.
     """
-    if value is None or (isinstance(value, str) and not value.strip()):
+    if value is None:
         return 0
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
-        return value if value >= 0 else None
+        return value if 0 <= value <= MAX_TOKEN_COUNT else None
     if isinstance(value, float):
-        return math.ceil(value) if math.isfinite(value) and value >= 0 else None
-    if isinstance(value, str) and value.strip().isdigit():
-        return int(value.strip())
+        if not math.isfinite(value) or value < 0 or value > MAX_TOKEN_COUNT:
+            return None
+        return math.ceil(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return 0
+        if not (text.isascii() and text.isdigit()):
+            return None
+        digits = text.lstrip("0") or "0"
+        if len(digits) > _MAX_TOKEN_COUNT_DIGITS:
+            return None
+        count = int(digits)
+        return count if count <= MAX_TOKEN_COUNT else None
     return None
 
 
@@ -539,8 +568,8 @@ def _build_envelope_routing_requirements(
     # completion headroom belong in it, exactly as the cloud lane's contract already states;
     # provider routing does not re-estimate packing here (that owner is `core.prompt_budget`).
     malformed: list[str] = []
-    parsed_context = _token_requirement(constraints.get("min_context_tokens"))
-    parsed_output = _token_requirement(constraints.get("expected_output_tokens"))
+    parsed_context = parse_token_count(constraints.get("min_context_tokens"))
+    parsed_output = parse_token_count(constraints.get("expected_output_tokens"))
     if parsed_context is None:
         malformed.append("min_context_tokens")
     if parsed_output is None:

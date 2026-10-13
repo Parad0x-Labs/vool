@@ -119,7 +119,9 @@ def reported_cost_class(manifest: ModelProviderManifest) -> str:
 # step to a model declaring no tool selection, a JSON turn to a JSON-less model and an external
 # image to a text-only model. The other required tags (summarize, classify, format, extract,
 # code_*, long_context) describe what a model is good at; they rank candidates through
-# `capability_score` and never remove one.
+# `capability_score`. They never remove a candidate that declares at least one of the turn's
+# required tags; the older zero-overlap rule (`no_required_capability` in
+# `_hard_exclusion_reason`) still excludes a candidate that declares none of them.
 #
 # `structured_json` is a contract only where the OUTPUT is structured: the output contract owner
 # (`core.model_output_contracts`) rejects non-JSON for json_object, action_plan and summary_block,
@@ -130,6 +132,30 @@ def reported_cost_class(manifest: ModelProviderManifest) -> str:
 # native, JSON mode off, a real tool executed). There `tool_intent` is the contract.
 HARD_REQUIRED_CAPABILITIES = frozenset({"structured_json", "tool_intent", "multimodal"})
 STRUCTURED_OUTPUT_MODES = frozenset({"json_object", "action_plan", "summary_block"})
+PROMPTED_TOOL_EXCLUSION_REASON = "prompted_tool_dialect_without_structured_output"
+
+
+def declares_prompted_tools_without_structured_output(manifest: ModelProviderManifest) -> bool:
+    """Whether this lane declares a prompted tool dialect and no structured-output mode.
+
+    A tool_intent turn requires a tool call (the router sets ``tools_required``), and the
+    adapter's final guard (``core.execution_requirements.assert_envelope_carries_tools``) lets
+    such a call reach the wire only when the built payload carries native ``tools`` or a
+    structured-output fallback. A lane that declares ``tool_dialect: prompted`` is sent no native
+    tools, and the adapter builds the fallback only for an endpoint that declares JSON mode or
+    JSON schema. Without either, every tool step offered to it is refused before the wire.
+
+    Only the explicit declaration is read. An undeclared dialect is decided per call by the
+    adapter (catalog facts, a loopback probe), and the final guard stays the backstop there.
+    """
+    runtime_config = getattr(manifest, "runtime_config", None) or {}
+    dialect = str(runtime_config.get("tool_dialect") or "").strip().lower()
+    if dialect != "prompted":
+        return False
+    return not (
+        bool(runtime_config.get("supports_json_mode", False))
+        or bool(runtime_config.get("supports_json_schema", False))
+    )
 
 
 def missing_hard_capabilities(
@@ -193,6 +219,10 @@ def _hard_exclusion_reason(
     missing_contract = missing_hard_capabilities(manifest, required, output_mode=request.output_mode)
     if missing_contract:
         return "missing_required_capability:" + ",".join(missing_contract)
+    if str(request.output_mode or "").strip().lower() == "tool_intent" and (
+        declares_prompted_tools_without_structured_output(manifest)
+    ):
+        return PROMPTED_TOOL_EXCLUSION_REASON
     if provider_base_trust(manifest) < request.min_trust:
         return "below_min_trust"
     return ""
