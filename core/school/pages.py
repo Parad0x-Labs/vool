@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 _BASE_CSS = """
-:root{--bg:#0f1115;--panel:#171a21;--line:#262b36;--txt:#e8eaf0;--dim:#9aa3b2;--acc:#4f8cff;--ok:#3fbf7f;--warn:#e0a83c;--bad:#e0605c}
+:root{--bg:#0f1115;--panel:#171a21;--line:#262b36;--txt:#e8eaf0;--dim:#9aa3b2;--acc:#c3b8a8;--acc-ink:#171513;--ok:#3fbf7f;--warn:#e0a83c;--bad:#e0605c}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 a{color:var(--acc)}
@@ -24,7 +24,7 @@ h1{font-size:20px;margin:0 0 4px} h2{font-size:15px;margin:22px 0 8px;color:var(
 input,select,textarea,button{font:inherit;background:#10131a;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 textarea{width:100%;min-height:90px;resize:vertical}
 button{cursor:pointer;background:#1c2740;border-color:#31405f}
-button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+button.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:600}
 button.danger{background:#4a2525;border-color:#6e3535}
 .chip{display:inline-block;background:#1c2740;border:1px solid #31405f;border-radius:999px;padding:2px 10px;font-size:12px;margin:2px 4px 2px 0}
 .chip.on{border-color:var(--ok);color:var(--ok)} .chip.off{border-color:var(--bad);color:var(--bad)} .chip.warn{border-color:var(--warn);color:var(--warn)}
@@ -40,22 +40,55 @@ td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;font-s
 #chatlog{max-height:46vh;overflow-y:auto;padding:6px 2px}
 .quota{font-size:12px;color:var(--dim)}
 label{font-size:12px;color:var(--dim)}
+.say{min-height:20px;font-size:13px;margin-top:8px}
+.say.bad{color:var(--bad)}
+.secret{font-family:ui-monospace,monospace;font-size:22px;letter-spacing:2px;text-align:center;padding:14px;border:1px solid var(--warn);border-radius:10px;background:#10131a;margin:10px 0;overflow-wrap:anywhere;user-select:all}
 """
 
 _JS_HELPERS = """
-async function api(path, body){
-  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body||{})});
-  const d = await r.json().catch(()=>({error:'bad json'}));
-  if(!r.ok){ toast((d && (d.detail||d.error)) || ('HTTP '+r.status)); throw {status:r.status, data:d}; }
+// Server answers carry short codes; people see a sentence. An unknown code gets a calm retry line.
+const SAY = {
+  invalid_or_used_code: "That code didn't work or was already used. Ask your teacher or school admin for a new one.",
+  school_session_required: 'Sign in first, then try again.',
+  admin_only: 'Only a school admin can do that.',
+  admin_only_or_bad_role: 'Only a school admin can do that, and the role must be one of the listed ones.',
+  admin_only_or_bad_teacher: 'Only a school admin can do that, with a teacher from the list.',
+  admin_only_or_bad_target: 'Only a school admin can do that.',
+  not_your_class: 'That class is not one of yours.',
+  not_your_class_or_lesson_inactive: 'That class is not yours, or its lesson has ended.',
+  no_active_lesson: 'There is no lesson running right now.',
+  teacher_or_admin_only: 'Only a teacher or a school admin can do that.',
+  not_found: 'That item no longer exists. Reload the page.',
+};
+const OFFLINE = "VOOL isn't answering right now. Check that it is running, then try again.";
+function plain(d, status){
+  const raw = String((d && (d.detail || d.error)) || '');
+  if (SAY[raw]) return SAY[raw];
+  if (/\\s/.test(raw)) return raw;
+  return 'Something went wrong. Please try again.';
+}
+async function api(path, body, sayId){
+  let r;
+  try { r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body||{})}); }
+  catch (e) { tell(OFFLINE, sayId); throw {status:0, data:{}}; }
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok){ if (r.status !== 409 || !d.already_exists) tell(plain(d, r.status), sayId); throw {status:r.status, data:d}; }
+  if (sayId) tell('', sayId);
   return d;
 }
 async function get(path){
-  const r = await fetch(path); const d = await r.json().catch(()=>({error:'bad json'}));
+  const r = await fetch(path); const d = await r.json().catch(()=>({}));
   if(!r.ok) throw {status:r.status, data:d}; return d;
 }
+// A message next to the field it is about when there is one, else the corner note.
+function tell(text, sayId){
+  const box = sayId && document.getElementById(sayId);
+  if (box) { box.textContent = text; box.className = 'say' + (text ? ' bad' : ''); return; }
+  if (text) toast(text);
+}
 function toast(text){ const t=document.getElementById('toast'); t.textContent=text; t.classList.remove('hidden');
-  setTimeout(()=>t.classList.add('hidden'), 5000); }
+  setTimeout(()=>t.classList.add('hidden'), 6000); }
 function el(id){ return document.getElementById(id); }
 function show(id, on){ el(id).classList.toggle('hidden', !on); }
 """
@@ -85,19 +118,51 @@ def render_console_page(session: Any) -> str:
 
 def _login_page() -> str:
     body = """
-<div class="wrap" style="max-width:420px;margin-top:12vh">
+<div class="wrap" style="max-width:440px;margin-top:12vh">
   <h1>VOOL School</h1><div class="dim">Sign in with your school access code.</div>
-  <div class="card">
-    <div class="row"><input id="code" placeholder="access code" style="flex:1" autocomplete="off"></div>
-    <div class="row" style="margin-top:10px"><button class="primary" onclick="login()">Sign in</button></div>
-    <div class="dim" style="margin-top:10px">First run? <a href="#" onclick="return bootstrapAsk()">Create the school</a> (generates the first admin code).</div>
+  <form class="card" id="loginForm" onsubmit="login(event)">
+    <div class="row"><input id="code" placeholder="Access code" aria-label="Access code" style="flex:1" autocomplete="off"></div>
+    <div class="row" style="margin-top:10px"><button class="primary" type="submit">Sign in</button></div>
+    <div class="say" id="loginSay" role="status" aria-live="polite"></div>
+    <div class="dim" style="margin-top:10px">First time here? <a href="#" onclick="return bootstrapAsk()">Create the school</a> (this makes the first admin code).</div>
+  </form>
+  <form class="card hidden" id="createForm" onsubmit="createSchool(event)">
+    <label for="schoolName">School name</label>
+    <div class="row" style="margin-top:6px"><input id="schoolName" style="flex:1" maxlength="120" autocomplete="off" placeholder="For example Hillside Primary"></div>
+    <div class="row" style="margin-top:10px"><button class="primary" type="submit" id="createBtn">Create the school</button>
+      <button type="button" onclick="show('createForm',false)">Cancel</button></div>
+    <div class="say" id="createSay" role="status" aria-live="polite"></div>
+  </form>
+  <div class="card hidden" id="adminCodeBox" role="region" aria-labelledby="adminCodeTitle">
+    <b id="adminCodeTitle">Your admin access code</b>
+    <div class="dim">This is the only time it is shown. Save it somewhere safe before you continue: without it nobody can manage the school.</div>
+    <div class="secret" id="adminCode"></div>
+    <div class="row"><button type="button" onclick="copyCode()">Copy code</button><span class="dim" id="copySay" aria-live="polite"></span></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="savedIt" onchange="el('continueBtn').disabled=!this.checked"> I have saved this code</label>
+    <div class="row" style="margin-top:10px"><button class="primary" type="button" id="continueBtn" disabled onclick="useCode()">Continue to sign in</button></div>
   </div>
 </div>"""
     script = """
-async function login(){ const d=await api('/school/api/login',{access_code:el('code').value}); location.reload(); }
-function bootstrapAsk(){ const name=prompt('School name:'); if(!name) return false;
-  api('/school/api/bootstrap',{name:name}).then(d=>{ if(d.already_exists){toast('School exists — sign in with an admin code');return;}
-    alert('Admin access code (shown once): '+d.admin_access_code); }).catch(e=>toast('bootstrap failed')); return false; }
+async function login(ev){ if(ev) ev.preventDefault();
+  const code=el('code').value.trim(); if(!code){ tell('Type your access code first.','loginSay'); return; }
+  try { await api('/school/api/login',{access_code:code},'loginSay'); location.reload(); } catch(e) {} }
+function bootstrapAsk(){ show('createForm',true); el('schoolName').focus(); return false; }
+async function createSchool(ev){ ev.preventDefault();
+  const name=el('schoolName').value.trim(); if(!name){ tell('Type the school name first.','createSay'); return; }
+  el('createBtn').disabled=true;
+  try {
+    const d=await api('/school/api/bootstrap',{name:name},'createSay');
+    show('createForm',false); show('loginForm',false);
+    el('adminCode').textContent=d.admin_access_code; show('adminCodeBox',true); el('savedIt').focus();
+  } catch(e) {
+    if (e && e.data && e.data.already_exists) tell('This school already exists. Sign in with an admin code.','createSay');
+    else if (e && e.status) tell("Couldn't create the school. Please try again.",'createSay');
+  } finally { el('createBtn').disabled=false; } }
+async function copyCode(){ const code=el('adminCode').textContent;
+  try { await navigator.clipboard.writeText(code); el('copySay').textContent='Copied.'; }
+  catch(e) { const r=document.createRange(); r.selectNodeContents(el('adminCode')); const s=getSelection(); s.removeAllRanges(); s.addRange(r);
+    el('copySay').textContent='Selected. Press Ctrl+C or Cmd+C to copy it.'; } }
+function useCode(){ el('code').value=el('adminCode').textContent; el('adminCode').textContent=''; show('adminCodeBox',false); show('loginForm',true); el('code').focus(); }
 """
     return _page("VOOL School — Sign in", body, script)
 
@@ -325,13 +390,13 @@ async function send(){
     const out=(d.message&&(d.message.content!=null?d.message.content:d.message))||d.response||'(no answer)';
     el('chatlog').insertAdjacentHTML('beforeend',`<div class="msg bot">${String(out).replace(/</g,'&lt;')}</div>`);
     el('chatlog').scrollTop=el('chatlog').scrollHeight;
-  }catch(e){ toast('request failed'); }
+  }catch(e){ toast(OFFLINE); }
   refresh();
 }
 async function needHelp(){ const note=prompt('What are you stuck on? (your teacher will see this)');
   if(note==null) return; await api('/school/api/help',{note:note}); toast('Help requested — your teacher sees it'); }
 async function prepareHandIn(){
-  if(!STATE.assignment){ toast('no assignment'); return; }
+  if(!STATE.assignment){ toast('There is no assignment to hand in right now.'); return; }
   const d=await api('/school/api/handin.prepare',{assignment_id:STATE.assignment.assignment_id,work_text:el('work').value});
   const w=d.will_share||{};
   el('handin').innerHTML=`<h2 style="margin-top:0">Hand in — check what will be shared</h2>
@@ -356,19 +421,25 @@ refresh();
 
 def _login_page_student() -> str:
     body = """
-<div class="wrap" style="max-width:420px;margin-top:12vh">
+<div class="wrap" style="max-width:440px;margin-top:12vh">
   <h1>VOOL School · Student</h1>
-  <div class="card">
-    <div class="row"><input id="code" placeholder="access code" style="flex:1"></div>
-    <div class="row" style="margin-top:10px"><button class="primary" onclick="login()">Sign in</button></div>
-  </div>
-  <div class="card" id="join" style="margin-top:14px">
-    <div class="dim">Have a lesson code from your teacher?</div>
-    <div class="row" style="margin-top:8px"><input id="joincode" placeholder="lesson code"><button onclick="join()">Join lesson</button></div>
-  </div>
+  <form class="card" onsubmit="login(event)">
+    <div class="row"><input id="code" placeholder="Access code" aria-label="Access code" style="flex:1" autocomplete="off"></div>
+    <div class="row" style="margin-top:10px"><button class="primary" type="submit">Sign in</button></div>
+    <div class="say" id="loginSay" role="status" aria-live="polite"></div>
+  </form>
+  <form class="card" id="join" style="margin-top:14px" onsubmit="join(event)">
+    <div class="dim">Have a lesson code from your teacher? Sign in above first, then type it here.</div>
+    <div class="row" style="margin-top:8px"><input id="joincode" placeholder="Lesson code" aria-label="Lesson code" autocomplete="off"><button type="submit">Join lesson</button></div>
+    <div class="say" id="joinSay" role="status" aria-live="polite"></div>
+  </form>
 </div>"""
     script = """
-async function login(){ await api('/school/api/login',{access_code:el('code').value}); location.reload(); }
-async function join(){ await api('/school/api/lesson.join',{join_code:el('joincode').value}); location.reload(); }
+async function login(ev){ ev.preventDefault(); const code=el('code').value.trim();
+  if(!code){ tell('Type your access code first.','loginSay'); return; }
+  try { await api('/school/api/login',{access_code:code},'loginSay'); location.reload(); } catch(e) {} }
+async function join(ev){ ev.preventDefault(); const code=el('joincode').value.trim();
+  if(!code){ tell('Type the lesson code from your teacher first.','joinSay'); return; }
+  try { await api('/school/api/lesson.join',{join_code:code},'joinSay'); location.reload(); } catch(e) {} }
 """
     return _page("VOOL School · Student", body, script)
