@@ -4111,6 +4111,20 @@ function agentEvidenceText(rows, nowMs) {
   }
   return out.join('\n').trim();
 }
+// The provenance "details" toggle, for both render paths (kept outside the renderer code that tests run on their own).
+document.addEventListener('click', (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
+  if (!btn) return;
+  const block = btn.closest('.chat-provenance');
+  const raw = block && block.querySelector('.prov-raw');
+  if (!raw) return;
+  const open = raw.hidden;
+  raw.hidden = !open;
+  block.classList.toggle('prov-open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  btn.textContent = open ? 'hide details' : 'details';
+});
+
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
 function safeUrl(u) {
   try { const url = new URL(String(u), location.origin); return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : ''; }
@@ -4455,20 +4469,6 @@ function renderAssistantContent(el, text, displayMetadata) {
   // that authority even though the metadata is now visible in the same bubble.
   el.dataset.raw = normalized.content;
 }
-
-// The provenance "details" toggle, for both render paths (kept outside the renderer itself).
-document.addEventListener('click', (ev) => {
-  const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
-  if (!btn) return;
-  const block = btn.closest('.chat-provenance');
-  const raw = block && block.querySelector('.prov-raw');
-  if (!raw) return;
-  const open = raw.hidden;
-  raw.hidden = !open;
-  block.classList.toggle('prov-open', open);
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  btn.textContent = open ? 'hide details' : 'details';
-});
 
 // ---- Proof Chip: one served turn's evidence, beside the answer ----
 // Everything shown here is projected server-side (GET /api/chat/proof) from the stores that own
@@ -5471,19 +5471,25 @@ function togglePanel() { document.body.classList.contains('panel-open') ? closeP
 // running (a bare Esc during a reply still stops the reply). Anything open on top of it (a menu,
 // a dialog) owns that Esc first; that is decided before those closers run.
 let panelEscOwned = false;
+function focusInsidePanel() {
+  const xp = document.getElementById('xpanel');
+  return !!(xp && typeof xp.contains === 'function' && xp.contains(document.activeElement));
+}
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  const xp = document.getElementById('xpanel');
-  const inside = !!(xp && xp.contains(document.activeElement));
-  const onTop = document.querySelector('.pop.open, .popover.open, #emojiPicker, #projMenu, #textPromptDialog')
-    || Array.from(document.querySelectorAll('.modal-overlay')).some((o) => !o.hidden && o.getClientRects().length);
-  panelEscOwned = document.body.classList.contains('panel-open') && !onTop && (inside || !(view.run && !view.run.ended));
+  panelEscOwned = false;
+  try {
+    if (!document.body.classList.contains('panel-open')) return;
+    const inside = focusInsidePanel();
+    const onTop = document.querySelector('.pop.open, .popover.open, #emojiPicker, #projMenu, #textPromptDialog')
+      || Array.from(document.querySelectorAll('.modal-overlay')).some((o) => !o.hidden && o.getClientRects().length);
+    panelEscOwned = !onTop && (inside || !(view.run && !view.run.ended));
+  } catch (err) { panelEscOwned = false; }
 }, true);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.defaultPrevented || !panelEscOwned) return;
   panelEscOwned = false;
-  const xp = document.getElementById('xpanel');
-  const inside = !!(xp && xp.contains(document.activeElement));
+  const inside = focusInsidePanel();
   if (inside && document.activeElement && document.activeElement.id === 'xpSearchInput') return;
   e.preventDefault();
   closePanel();
