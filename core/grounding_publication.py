@@ -479,11 +479,14 @@ def _trim_unsupported_spans(line: str, unsupported_segments: list[str]) -> str |
         if span is None:
             return None
         start, end = span
-        # Trimming may preserve complete neighbouring sentences, never the tail
-        # of the sentence whose unsupported prefix was just removed.
+        # Trimming may preserve complete neighbouring sentences, never the tail of the sentence whose unsupported
+        # prefix was just removed: when the removed span opened the line and what is left opens with a clause joiner
+        # (", and a paint roller ($12).") it is a fragment, so the whole line is withheld. A remainder that merely
+        # starts lowercase, or follows a kept sentence, is not a fragment
+        # (tests/test_chat_correction_authority.py::test_trim_squeezes_the_punctuation_a_removed_sentence_leaves_behind).
         tail = out[end:].lstrip()
-        if tail and (not needle.endswith((".", "!", "?"))
-                     or tail.startswith((",", ";")) or re.match(r"and\b", tail, re.I)):
+        if (tail and not out[:start].strip()
+                and (tail.startswith((",", ";", ":")) or re.match(r"(?:and|or|but|nor)\b", tail, re.I))):
             return None
         out = out[:start] + " " + out[end:]
     # Emphasis markers that wrapped a removed sentence are now empty pairs or lone tokens.
