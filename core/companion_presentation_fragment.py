@@ -703,6 +703,8 @@ let vnPos = { v: 2, mode: "docked", previousMode: "docked", x: 0, y: 0, edge: nu
 let vnDrag = null, vnMoveMode = false, vnEdgeSnap = false;
 let vnPaint = { dirty: true, concept: "prism", state: "idle", frame: 0, stateStart: 0, lastPaint: 0, announced: "" };
 let vnBooted = false, vnDesktopActive = false, vnDesktopSignature = "";
+// True while a drag-out waits for its desktop window: the in-app sprite stays gone meanwhile.
+let vnDetachPending = false;
 
 function vnPrefersReducedMotion() {
   // Manual override wins (three-state), else the system setting. Both keep state truth.
@@ -1063,7 +1065,7 @@ function vnApplyPos() {
     covering = vnCoversCritical(c[0], c[1]);
   }
   if (!vnDrag) vnSprite.classList.toggle("over-critical", covering);
-  const onDesktop = vnPos.mode === "desktop" && vnDesktopActive;
+  const onDesktop = (vnPos.mode === "desktop" && vnDesktopActive) || vnDetachPending;
   vnSprite.style.display = (vnPos.hidden || onDesktop) ? "none" : "flex";
   if (vnRestore) vnRestore.style.display = vnPos.hidden ? "block" : "none";
   // A moved or re-shown pet covers different controls: re-clip its hit area.
@@ -1590,7 +1592,10 @@ function vnDesktopHidden() {
 async function vnResetDesktopPosition() {
   const api = vnNativeCompanionApi();
   if (!api || !api.reset_companion_position) { vnNotify("The pet is not on the desktop."); return; }
-  try { await api.reset_companion_position(); vnNotify("Pet position reset."); } catch (e) { vnNotify("Could not reset the pet position."); }
+  try {
+    const result = await api.reset_companion_position();
+    vnNotify(result && result.ok ? "Pet position reset." : "The pet is not on the desktop.");
+  } catch (e) { vnNotify("Could not reset the pet position."); }
 }
 async function vnHideDesktopPet() {
   const api = vnNativeCompanionApi();
@@ -1610,16 +1615,18 @@ async function vnDetachDesktop(silent, atPointer=false) {
   const pres = vnResolve(VN_VIEWS.get(String(chatId||"")));
   // The sprite leaves the window now, not when the native window is ready: otherwise the paint
   // loop puts it back at its old spot for as long as the desktop window takes to appear.
-  if (atPointer && vnSprite) vnSprite.style.display = "none";
+  if (atPointer) { vnDetachPending = true; vnApplyPos(); }
   try {
     const result = await api.detach_companion({...vnDesktopPayload(pres,vnSpriteState(pres)),at_pointer:atPointer});
     if (!result || result.ok !== true) throw new Error((result&&result.error)||"unavailable");
     if (vnPos.mode !== "desktop") vnPos.previousMode = vnPos.mode === "free" ? "free" : "docked";
     vnPos.mode = "desktop"; vnDesktopActive = true; vnDesktopSignature = "";
+    vnDetachPending = false;
     vnPersistPos(); vnApplyPos(); vnSyncDesktop(pres,vnSpriteState(pres));
     if (!silent) vnNotify("Your pet is on the desktop. Drag it anywhere, or hover it and press \u21a9 to bring it back.");
     return true;
   } catch (e) {
+    vnDetachPending = false;
     vnDesktopActive = false;
     if (vnPos.mode === "desktop") vnPos.mode = vnPos.previousMode || "docked";
     vnPersistPos(); vnApplyPos();
@@ -1831,7 +1838,6 @@ window.VoolCompanion = {
   _devPuppet: function (spec) { vnDevPuppet = spec && (spec.state || spec.scene) ? { state: spec.state ? String(spec.state) : "", scene: spec.scene ? String(spec.scene) : "" } : null; vnSchedulePaint(); vnPaintNow(Date.now()); },
   liveAgentCount: vnLiveAgentCount,
   chooseCharacter: vnChooseCharacter,
-  detachDesktop: function () { vnDetachDesktop(false); },
   choosePack: vnChoosePack,
   openCharacterLab: vnOpenCharacterLab,
   cycleMotion: vnCycleMotion,

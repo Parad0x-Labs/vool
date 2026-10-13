@@ -178,3 +178,33 @@ def test_a_pet_hidden_from_the_desktop_stays_hidden_after_a_restart() -> None:
     assert hidden["detaches"] == 0, "a hidden desktop pet must not reappear on launch"
     shown = _boot_with({"mode": "desktop", "hidden": False, "personality": "spark"})
     assert shown["detaches"] >= 1, "a visible desktop pet is still restored on launch"
+
+
+FLASH_DRIVER = r"""
+const res = { errors: [] };
+try {
+  const VC = window.VoolCompanion;
+  window.pywebview = { api: { detach_companion: () => new Promise(function () {}),
+                              sync_companion: () => Promise.resolve({ ok: true }) } };
+  const layer = document.body.children.find((c) => c.id === "companionLayer");
+  const sprite = layer.children.find((c) => c.attrs && c.attrs.role === "button");
+  const startX = parseFloat(sprite.style.left) || 0, startY = parseFloat(sprite.style.top) || 0;
+  sprite.__on.pointerdown({ pointerId: 1, clientX: startX + 56, clientY: startY + 56 });
+  __winH.pointermove[__winH.pointermove.length - 1]({ pointerId: 1, clientX: 1199, clientY: 300 });
+  __winH.pointerup[__winH.pointerup.length - 1]({ pointerId: 1, clientX: 1199, clientY: 300 });
+  res.atDrop = sprite.style.display;
+  // The desktop window is still being created: the paint loop and the 1.2s tick keep running.
+  for (let i = 0; i < 3; i++) VC.paintNow(Date.now() + i * 1300);
+  res.whilePending = sprite.style.display;
+} catch (e) { res.errors.push(String(e && e.stack || e)); }
+out(res);
+"""
+
+
+def test_the_in_app_pet_stays_gone_while_its_desktop_window_is_created() -> None:
+    from tests.test_companion_one_drag_finality import run_driver
+
+    out = run_driver(FLASH_DRIVER)
+    assert not out["errors"], out["errors"]
+    assert out["atDrop"] == "none", "the pet leaves the window at the drop"
+    assert out["whilePending"] == "none", "repaints must not bring a second pet back meanwhile"
