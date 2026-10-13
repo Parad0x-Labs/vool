@@ -8,6 +8,8 @@ The website's Skill Codex pages use these routes in addition to [WEBSITE-HANDOVE
 
 Each row adds `published_at` (first listed version), `origin`, `featured`, `editors_pick` and `community_reviews: [{reviewer, role, version, date}]`. Only reviews of the row's exact version are listed. `role` is `team` or `community`. `reviewed: true` means the automated admission checks passed; it is not a statement that a person reviewed the skill.
 
+Rows carry the optional `title` when the author set one; show it as plain text and fall back to the package name. For a signed-in viewer every catalog and profile row also has `starred: true|false`; signed out, the field is absent.
+
 `GET /registry/api/categories` returns the fixed ten-category list with display labels. `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
 
 ## Curation
@@ -18,13 +20,13 @@ Each row adds `published_at` (first listed version), `origin`, `featured`, `edit
 
 | Request | Contract |
 |---|---|
-| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments. |
+| `GET /comments?id=publisher/name` | `{comments:[{id, author, created, body}], can_comment}`. A signed-in viewer also receives `mine:[{id, state, created, body}]`, which includes their own held comments, and, when `can_comment` is false, `can_comment_reason`: `no_public_name`, `not_downloaded` or `muted`. Signed out, there is no reason code (`GET /me` says the viewer is signed out). |
 | `POST /comments` | `{id, body}`. Returns HTTP 201 `{id, state, reason}` with state `published` or `held`, or HTTP 400 `{state: "refused", reason}`. |
 | `POST /comments/{id}/report` | `{status: "reported"}`. One report per account; authors cannot report themselves. |
 
 Only a signed-in account with a public name, which downloaded that package through the website while signed in, can comment. Native-app and anonymous downloads do not count. Each account can make five comment attempts per day, refused attempts included. A refused comment's text is not stored.
 
-The server filter in `registry_service/moderation.py` refuses links, domains, email addresses, @handles, phone numbers, crypto addresses, seed or key requests, giveaways and other scam phrases, promotions, cursing, slurs, sexual content and illegal sales, including spaced, dotted, leetspeak and zero-width-character obfuscation. It holds for review: text mostly outside Latin script (the term lists are English), shouting, character floods, and every comment from an account younger than one day. Three reports hide a published comment until an operator acts.
+The server filter in `registry_service/moderation.py` refuses links, domains (also spelled out, such as "example dot com slash page", "(dot)" and "[dot]"), email addresses, @handles, phone numbers, crypto addresses, seed or key requests, giveaways and other scam phrases, promotions, cursing, slurs, sexual content and illegal sales, including spaced, dotted, leetspeak and zero-width-character obfuscation. It holds for review: text mostly outside Latin script (the term lists are English), shouting, character floods, and every comment from an account younger than one day. Three reports hide a published comment until an operator acts.
 
 The filter lists are English and heuristic. Held comments and reports are the backstop, not a guarantee.
 
@@ -49,3 +51,11 @@ An update keeps the stable package ID and must use a higher version than every p
 When `publish_when_checks_pass` is `true`, the author's consent is bound to the exact server-built checksum, and the submission moves to `ready_for_github` as soon as the prepublication checks pass. Otherwise the normal consent step follows. Server-built imports establish the account's publisher association on publication, just as website drafts do.
 
 Import is off unless the service configuration sets `"github_import": true`. It contacts only `api.github.com` and `codeload.github.com`, refuses redirects, and reads at most 16 MiB. It uses no GitHub token, so GitHub's anonymous rate limit applies per server address. Private repositories and organisation-owned repositories are not supported in this version.
+
+## GitHub publisher link
+
+A name that already publishes through GitHub (a direct pull request to the community repository) is reserved: nobody can choose it on their profile, and drafts from an unlinked account are refused with "this publisher name already publishes through GitHub; link it with the GitHub account that owns those repositories". The page should then offer the link step.
+
+`POST /registry/api/publisher-link` takes `{namespace}` and returns `{namespace, verified: true}`. The account must be signed in with (or have linked) GitHub. Every published version under that name must come from a public repository whose GitHub owner is that GitHub account, or from bytes the server built for this same account. The account must not already use a different name, and no other account may hold the name. Anything else is refused and left to a maintainer, as are organisation-owned repositories. After linking, the name is the account's verified publisher name, its profile shows on the name's page, and drafts and imports work.
+
+The route uses the same read-only GitHub lookups as import and is off unless `"github_import": true` is set. It makes one owner lookup per distinct source repository (at most 20) and downloads nothing.

@@ -52,6 +52,23 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         return store.authenticate(request.cookies.get("vool_registry", ""), now=now(),
             csrf=request.headers.get("x-vool-csrf") if mutation else None)
 
+    def optional_account(request: Request):
+        """Signed-in account for read routes, or None. Never an error for signed-out viewers."""
+        if not request.cookies.get("vool_registry"):
+            return None
+        try:
+            return store.authenticate(request.cookies["vool_registry"], now=now())
+        except RegistryError:
+            return None
+
+    async def with_starred(request, rows):
+        viewer = optional_account(request)
+        if viewer:
+            starred = await run_in_threadpool(store.starred, viewer)
+            for row in rows:
+                row["starred"] = row["id"] in starred
+        return rows
+
     def entry(package_id, version):
         return catalog.resolve(package_id, version, target=target, now=now())
 
@@ -81,7 +98,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
             return JSONResponse({"channel": "discovery", "entries": CATALOG if discovery is None else discovery,
                                  "notice": "Import compatibility is not public registry admission."})
-        rows = await approved_rows()
+        rows = await with_starred(request, await approved_rows())
         query = request.query_params
         require(len(query.multi_items()) == len(query) and set(query) <= {"q", "category", "subcategory", "origin", "sort"},
                 "unknown catalog query")
@@ -145,20 +162,15 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     async def profile_page(request):
         namespace = request.path_params["namespace"]
         require(isinstance(namespace, str) and len(namespace) <= 64, "invalid namespace")
-        rows = [row for row in await approved_rows() if row["id"].split("/")[0] == namespace]
+        rows = await with_starred(request, [row for row in await approved_rows() if row["id"].split("/")[0] == namespace])
         profile = await run_in_threadpool(store.public_profile, namespace)
         return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"]
                              else "community", "packages": rows})
 
     async def comment_list(request):
-        viewer = None
-        if request.cookies.get("vool_registry"):
-            try:
-                viewer = store.authenticate(request.cookies["vool_registry"], now=now())
-            except RegistryError:
-                viewer = None
         if request.method == "GET":
-            return JSONResponse(await run_in_threadpool(community.comments, store, request.query_params.get("id"), viewer))
+            return JSONResponse(await run_in_threadpool(community.comments, store, request.query_params.get("id"),
+                                                        optional_account(request)))
         value = await json_body(request)
         require(set(value) == {"id", "body"}, "invalid comment fields")
         who = account(request, mutation=True)
@@ -178,6 +190,13 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             return JSONResponse(await run_in_threadpool(store.github_import, who, value, github, now=now(), _slot=slot),
                                 status_code=201)
 
+    async def publisher_link(request):
+        require(github is not None, "GitHub linking is not configured")
+        who = account(request, mutation=True)
+        value = await json_body(request)
+        require(set(value) == {"namespace"}, "invalid publisher link fields")
+        return JSONResponse(await run_in_threadpool(store.link_github_publisher, who, value["namespace"], github))
+
     async def categories(request):
         return JSONResponse({"categories": public_taxonomy()})
 
@@ -189,9 +208,18 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         require(catalog.current and now() < catalog.current["expires"], "catalog freshness expired")
         return JSONResponse(decode(row[0]))
 
+    async def own_profile(who, value=None):
+        profile = await run_in_threadpool(store.profile, who, value)
+        return profile | {"providers": await run_in_threadpool(store.providers, who)}
+
     async def me(request):
-        who = account(request)
-        profile = await run_in_threadpool(store.profile, who)
+        who = optional_account(request)
+        if who is None:
+            response = JSONResponse({"profile": None, "csrf": None})
+            if request.cookies.get("vool_registry"):
+                response.delete_cookie("vool_registry", path=PREFIX)
+            return response
+        profile = await own_profile(who)
         # CSRF is intentionally visible to the authenticated same-origin frontend.
         with store.connection() as db:
             row = db.execute("SELECT csrf FROM sessions WHERE hash=?", (
@@ -201,7 +229,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     async def profile(request):
         who = account(request, mutation=True)
         value = await json_body(request)
-        return JSONResponse(await run_in_threadpool(store.profile, who, value))
+        return JSONResponse(await own_profile(who, value))
 
     async def submissions(request):
         who = account(request, mutation=request.method == "POST")
@@ -246,14 +274,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         _, admission = await run_in_threadpool(store.public_artifact, sha256)
         entry(admission["metadata"]["id"], admission["metadata"]["version"])
         raw = await run_in_threadpool(store.download, sha256, request.query_params.get("ticket", ""), now=now())
-        if request.cookies.get("vool_registry"):
-            # A signed-in website download makes the account eligible to comment.
-            try:
-                who = store.authenticate(request.cookies["vool_registry"], now=now())
-            except RegistryError:
-                who = None
-            if who:
-                await run_in_threadpool(community.record_download, store, who, admission["metadata"]["id"], now=now())
+        # A signed-in website download makes the account eligible to comment.
+        who = optional_account(request)
+        if who:
+            await run_in_threadpool(community.record_download, store, who, admission["metadata"]["id"], now=now())
         return Response(raw, media_type="application/vnd.vool.registry+json", headers={"X-Content-SHA256": sha256,
                         "Content-Disposition": 'attachment; filename="package.vool.json"'})
 
@@ -263,7 +287,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             link = account(request, mutation=True)
         url, browser = await run_in_threadpool(auth.begin, request.path_params["provider"], now=now(), link_account=link,
                                              browser=request.cookies.get("vool_registry_oauth", ""))
-        response = RedirectResponse(url, status_code=303)
+        # Linking is a same-origin fetch carrying the CSRF header, so it gets the
+        # provider URL to open; a plain sign-in link is followed as a redirect.
+        response = JSONResponse({"url": url}) if link else RedirectResponse(url, status_code=303)
         # Apple posts its callback cross-site; this short-lived flow cookie has no
         # session authority and is bound to random state in the server's table.
         response.set_cookie("vool_registry_oauth", browser, max_age=600, secure=True, httponly=True,
@@ -306,6 +332,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
         Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),
         Route(PREFIX + "/imports", github_import, methods=["POST"]),
+        Route(PREFIX + "/publisher-link", publisher_link, methods=["POST"]),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),
         Route(PREFIX + "/submissions", submissions, methods=["GET", "POST"]),
         Route(PREFIX + "/drafts", draft, methods=["POST"]),

@@ -188,8 +188,76 @@ class Store:
             ON owner.account=accounts.id AND owner.namespace=accounts.namespace WHERE accounts.id=?
             AND (owner.verified=1 OR NOT EXISTS
             (SELECT 1 FROM publisher_names WHERE namespace=owner.namespace))""", (account,)).fetchone()
-        require(row and row[0], "namespace required; known publishers need a verified account association")
+        if not (row and row[0]):
+            named = db.execute("SELECT namespace FROM accounts WHERE id=?", (account,)).fetchone()
+            require(named and named[0], "choose a public publisher name on your profile first")
+            require(False, "this publisher name already publishes through GitHub; "
+                           "link it with the GitHub account that owns those repositories")
         return row[0]
+
+    def providers(self, account: str) -> list[str]:
+        """Sign-in provider names linked to the account. Provider subjects stay private."""
+        with self.connection() as db:
+            return [row[0] for row in db.execute(
+                "SELECT DISTINCT provider FROM identities WHERE account=? ORDER BY provider", (account,))]
+
+    def starred(self, account: str) -> set[str]:
+        with self.connection() as db:
+            return {row[0] for row in db.execute("SELECT package_id FROM stars WHERE account=?", (account,))}
+
+    def link_github_publisher(self, account: str, namespace: object, github) -> dict:
+        """Link a publisher name that already publishes through GitHub to its proven owner.
+
+        Every published version must come from a public repository owned by this
+        account's GitHub identity, or from bytes this account had the server build.
+        Anything else (a different owner, an organisation, another claimant) is
+        refused and left to a maintainer.
+        """
+        require(isinstance(namespace, str) and bool(IDENTITY.fullmatch(namespace)), "invalid publisher name")
+        with self.connection() as db:
+            subjects = self._link_preconditions(db, account, namespace)
+            versions = [(row[0], decode(row[1])["metadata"]["source"]) for row in db.execute(
+                "SELECT sha256, entry FROM public_versions WHERE substr(package_id,1,?)=?",
+                (len(namespace) + 1, namespace + "/"))]
+            built = {row[0] for row in db.execute(
+                "SELECT sha256 FROM submissions WHERE account=? AND publisher_bound=1", (account,))}
+        require(versions, "this publisher name has no published skills to link")
+        repositories = set()
+        for sha256, source in versions:
+            if set(source) == {"upload_id", "namespace"}:
+                require(sha256 in built, "a published version of this name was not built for this account")
+            else:
+                repositories.add(source["repository"])
+        require(repositories, "this publisher name has no GitHub publications to link")
+        require(len(repositories) <= 20, "too many source repositories to check; ask a maintainer")
+        for repository in sorted(repositories):
+            owner = github.repository(repository)
+            require(str(owner["owner_id"]) in subjects,
+                    "every source repository must belong to the GitHub account you signed in with")
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            require(self._link_preconditions(db, account, namespace) == subjects, "account changed during linking")
+            db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (namespace,))
+            db.execute("UPDATE accounts SET namespace=? WHERE id=?", (namespace, account))
+            db.execute("DELETE FROM namespace_owners WHERE namespace=?", (namespace,))
+            db.execute("INSERT INTO namespace_owners(namespace,account,verified) VALUES (?,?,1)", (namespace, account))
+        return {"namespace": namespace, "verified": True}
+
+    @staticmethod
+    def _link_preconditions(db, account: str, namespace: str) -> set[str]:
+        row = db.execute("SELECT namespace FROM accounts WHERE id=?", (account,)).fetchone()
+        require(row, "account not found")
+        require(row[0] in (None, namespace), "this account already uses a different publisher name")
+        subjects = {row[0] for row in db.execute(
+            "SELECT subject FROM identities WHERE account=? AND provider='github'", (account,))}
+        require(subjects, "sign in with GitHub to link a GitHub publisher name")
+        require(db.execute("SELECT 1 FROM publisher_names WHERE namespace=?", (namespace,)).fetchone(),
+                "this publisher name has no GitHub publications to link")
+        require(not db.execute("SELECT 1 FROM accounts WHERE namespace=? AND id<>?", (namespace, account)).fetchone() and
+                not db.execute("SELECT 1 FROM namespace_owners WHERE namespace=? AND account<>?",
+                               (namespace, account)).fetchone(),
+                "another account holds this publisher name; a maintainer must resolve it")
+        return subjects
 
     def session(self, account: str, *, now: int) -> tuple[str, str]:
         token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)

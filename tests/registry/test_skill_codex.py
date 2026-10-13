@@ -1,6 +1,7 @@
 """Skill Codex server pieces: comments, moderation, curation labels, search, profiles, updates, GitHub import."""
 import json
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from core.registry.codec import RegistryError, digest
 from core.registry.trust import TrustedCatalog
 from registry_service import community
 from registry_service.api import PREFIX, create_app
-from registry_service.auth import Auth
+from registry_service.auth import Auth, Provider
 from registry_service.curation import load_curation
 from registry_service.moderation import review
 from registry_service.store import Store
@@ -30,7 +31,7 @@ DAY = 86400
 
 
 def package(tmp_path, package_id, *, version="1.0.0", category="productivity", subcategory="meetings",
-            summary="Summarize meeting notes into decisions"):
+            summary="Summarize meeting notes into decisions", title=None):
     name = package_id.split("/")[1]
     root = tmp_path / ("src-" + package_id.replace("/", "-") + "-" + version)
     (root / ".codex-plugin").mkdir(parents=True)
@@ -43,6 +44,8 @@ def package(tmp_path, package_id, *, version="1.0.0", category="productivity", s
     info = {"id": package_id, "kind": "skill", "version": version, "summary": summary, "category": category,
             "subcategory": subcategory, "license": "MIT",
             "source": {"repository": package_id.split("/")[0] + "/skills", "commit": "b" * 40, "path": name}}
+    if title:
+        info["title"] = title
     return pack(root, info, tmp_path / "scratch")
 
 
@@ -501,4 +504,192 @@ def test_github_import_stops_on_an_oversized_archive_before_unpacking_it(tmp_pat
     alice, _, _ = account(store, "1", "alice")
     with pytest.raises(RegistryError, match="archive exceeds limits"):
         store.github_import(alice, import_body(), Bomb(repo, 1), now=NOW)
+    catalog.close()
+
+
+# -- website contract (shapes the Skill Codex pages read) --------------------------------------
+
+
+@pytest.mark.parametrize("text", [
+    "Handy, longer write up at example dot com slash review", "see example (dot) com", "example [dot] net",
+    "example{dot}io", "example d0t c0m", "example DOT app", "visit example . com", "example [.] com",
+    "hxxps example", "https colon slash slash example", "example com slash review", "find it at the dotcom",
+])
+def test_filter_refuses_links_spelled_out_in_words(text):
+    assert review(text)[0] == "refused"
+
+
+@pytest.mark.parametrize("text", [
+    "It helped me slash my prep time in half.", "The dot top right shows the status.",
+    "Connect the dots to finish the outline.", "I use the slash command every day.",
+])
+def test_filter_keeps_everyday_dot_and_slash_wording(text):
+    assert review(text) == ("published", "")
+
+
+def test_me_shapes_provider_names_and_linking_returns_the_provider_url(tmp_path):
+    store, catalog, _, *_ = service(tmp_path, [])
+
+    def exchange(url, data=None, *, token=""):
+        if url.endswith("access_token"):
+            return {"access_token": "example-provider-token", "scope": ""}
+        return {"id": 77}
+
+    auth = Auth(store, ORIGIN, [Provider("github", "test-client", "test-secret"),
+                                Provider("google", "test-client", "test-secret")], request=exchange)
+    app = create_app(store, auth, catalog, TARGET, clock=lambda: NOW)
+    who, token, csrf = account(store, "google-subject-private", "alice", provider="google")
+    with TestClient(app, base_url=ORIGIN) as client:
+        assert client.get(PREFIX + "/me").json() == {"profile": None, "csrf": None}
+        client.cookies.set("vool_registry", "expired-or-unknown")
+        stale = client.get(PREFIX + "/me")
+        assert stale.status_code == 200 and stale.json() == {"profile": None, "csrf": None}
+        client.cookies.clear()
+        # A plain sign-in link is still a redirect to the provider.
+        assert client.get(PREFIX + "/auth/github/start", follow_redirects=False).headers["location"].startswith(
+            "https://github.com/login/oauth/authorize?")
+        client.cookies.clear()
+        client.cookies.set("vool_registry", token)
+        me = client.get(PREFIX + "/me")
+        assert me.json()["profile"]["providers"] == ["google"] and me.json()["csrf"] == csrf
+        assert "google-subject-private" not in me.text  # provider subjects stay private
+        for headers in ({"Origin": ORIGIN}, {"Origin": "https://evil.test", "X-Vool-CSRF": csrf}):
+            assert client.post(PREFIX + "/auth/github/start", headers=headers).status_code == 400
+        linking = client.post(PREFIX + "/auth/github/start", headers=mutation(csrf))
+        assert linking.status_code == 200 and set(linking.json()) == {"url"}
+        url = linking.json()["url"]
+        assert url.startswith("https://github.com/login/oauth/authorize?")
+        state = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["state"][0]
+        back = client.get(PREFIX + "/auth/github/callback", params={"state": state, "code": "code"},
+                          follow_redirects=False)
+        assert back.status_code == 303, back.text
+        client.cookies.set("vool_registry", back.cookies["vool_registry"])
+        me = client.get(PREFIX + "/me").json()
+        assert me["profile"]["id"] == who and me["profile"]["providers"] == ["github", "google"]
+        saved = client.put(PREFIX + "/profile", json={"namespace": "alice", "bio": "Notes", "handles": {}},
+                           headers=mutation(me["csrf"]))
+        assert saved.json()["providers"] == ["github", "google"] and saved.json()["bio"] == "Notes"
+    catalog.close()
+
+
+def test_rows_carry_starred_for_signed_in_viewers_and_optional_titles(tmp_path):
+    store, catalog, app, *_ = service(tmp_path, [
+        ("alice/notes", {"title": "Meeting Notes"}, NOW - 300),
+        ("alice/agenda", {"subcategory": "planning-tasks", "summary": "Draft an agenda from a goal"}, NOW - 200)])
+    voter, token, _ = account(store, "2", "voter")
+    store.star(voter, "alice/notes", True, now=NOW)
+    with TestClient(app, base_url=ORIGIN) as client:
+        signed_out = {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        assert all("starred" not in row for row in signed_out.values())
+        assert signed_out["alice/notes"]["title"] == "Meeting Notes" and "title" not in signed_out["alice/agenda"]
+        client.cookies.set("vool_registry", token)
+        rows = {row["id"]: row["starred"] for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        assert rows == {"alice/notes": True, "alice/agenda": False}
+        page = {row["id"]: row["starred"] for row in client.get(PREFIX + "/profiles/alice").json()["packages"]}
+        assert page == rows
+        client.cookies.set("vool_registry", "expired-or-unknown")
+        assert all("starred" not in row for row in client.get(PREFIX + "/catalog").json()["entries"])
+    catalog.close()
+
+
+def test_comment_reason_codes_tell_the_page_why_commenting_is_closed(tmp_path):
+    store, catalog, *_ = service(tmp_path, [("alice/notes", {}, NOW - 100)])
+    nameless, _, _ = account(store, "4", None)
+    bob, _, _ = account(store, "2", "bob")
+    assert "can_comment_reason" not in community.comments(store, "alice/notes")
+    assert community.comments(store, "alice/notes", nameless)["can_comment_reason"] == "no_public_name"
+    assert community.comments(store, "alice/notes", bob)["can_comment_reason"] == "not_downloaded"
+    community.record_download(store, bob, "alice/notes", now=NOW)
+    open_ = community.comments(store, "alice/notes", bob)
+    assert open_["can_comment"] is True and "can_comment_reason" not in open_
+    community.mute(store, "bob", True, now=NOW)
+    assert community.comments(store, "alice/notes", bob)["can_comment_reason"] == "muted"
+    catalog.close()
+
+
+class OwnerOnlyGitHub:
+    """Repository owner lookups only; publisher linking never downloads anything."""
+
+    def __init__(self, owner_id: int):
+        self.owner_id, self.calls = owner_id, []
+
+    def repository(self, repository):
+        self.calls.append(repository)
+        return {"owner_id": self.owner_id, "private": False}
+
+
+def test_github_publisher_name_links_to_the_repository_owner_and_then_accepts_drafts(tmp_path):
+    github = OwnerOnlyGitHub(77)
+    store, catalog, app, *_ = service(tmp_path, [("alice/notes", {}, NOW - 300)], github=github)
+    who, token, csrf = account(store, "77", None)
+    draft = {"metadata": {**METADATA, "version": "1.0.1"}, "skill_markdown": SKILL, "license_text": "Test fixture licence.\n"}
+    with TestClient(app, base_url=ORIGIN) as client:
+        client.cookies.set("vool_registry", token)
+        claimed = client.put(PREFIX + "/profile", json={"namespace": "alice", "bio": "", "handles": {}},
+                             headers=mutation(csrf))
+        assert claimed.status_code == 400 and "reserved" in claimed.json()["error"]
+        assert "public publisher name" in client.post(PREFIX + "/drafts", json=draft, headers=mutation(csrf)).json()["error"]
+        cross = client.post(PREFIX + "/publisher-link", json={"namespace": "alice"},
+                            headers={"Origin": "https://evil.test", "X-Vool-CSRF": csrf})
+        assert cross.status_code == 400 and github.calls == []
+        linked = client.post(PREFIX + "/publisher-link", json={"namespace": "alice"}, headers=mutation(csrf))
+        assert linked.status_code == 200 and linked.json() == {"namespace": "alice", "verified": True}
+        assert github.calls == ["alice/skills"]
+        assert client.get(PREFIX + "/me").json()["profile"]["namespace"] == "alice"
+        created = client.post(PREFIX + "/drafts", json=draft, headers=mutation(csrf))
+        assert created.status_code == 201 and created.json()["package_id"] == "alice/notes"
+    catalog.close()
+
+
+@pytest.mark.parametrize("case, message", [
+    ("google-only", "sign in with GitHub"),
+    ("other-owner", "must belong to the GitHub account"),
+    ("unpublished-name", "no GitHub publications"),
+    ("prior-claimant", "another account holds"),
+    ("different-name", "different publisher name"),
+    ("website-upload", "not built for this account"),
+])
+def test_github_publisher_link_refusals(tmp_path, case, message):
+    github = OwnerOnlyGitHub(99 if case == "other-owner" else 77)
+    store, catalog, _, policy, keys, root = service(tmp_path, [])
+    if case == "prior-claimant":
+        account(store, "5", "alice", provider="google")
+    packages = [(package(tmp_path, "alice/notes"), NOW - 300)]
+    namespace = "alice"
+    if case == "website-upload":
+        # A website upload whose author later deleted the account leaves no proof for anyone else.
+        dave, _, _ = account(store, "8", "dave", provider="google")
+        first = store.draft(dave, {"metadata": {**METADATA, "id": "dave/notes"}, "skill_markdown": SKILL,
+                                   "license_text": "Test fixture licence.\n"}, now=NOW)
+        with store.connection() as db:
+            raw = db.execute("SELECT artifact FROM submissions WHERE id=?", (first["id"],)).fetchone()[0]
+        store.review(first["id"], signed(prepublication_fixture(raw, policy), keys["review"]), policy, root["signed"], now=NOW)
+        store.consent(dave, first["id"], first["sha256"], public=True)
+        packages.append((raw, NOW - 200))
+        namespace = "dave"
+    catalog.accept(catalog_of(packages, policy, keys), now=NOW)
+    for raw, _ in packages:
+        meta = inspect(raw)["metadata"]
+        store.publish(catalog, meta["id"], meta["version"], TARGET, raw, now=NOW)
+    if case == "website-upload":
+        store.delete_account(dave)
+    who, _, _ = account(store, "77", "elsewhere" if case == "different-name" else None,
+                        provider="google" if case == "google-only" else "github")
+    with pytest.raises(RegistryError, match=message):
+        store.link_github_publisher(who, "nobody" if case == "unpublished-name" else namespace, github)
+    if case != "other-owner":
+        assert github.calls == []  # refused before any GitHub lookup
+    assert store.profile(who)["namespace"] in (None, "elsewhere")
+    with store.connection() as db:
+        assert not db.execute("SELECT 1 FROM namespace_owners WHERE account=? AND verified=1", (who,)).fetchone()
+    catalog.close()
+
+
+def test_publisher_link_route_refuses_when_github_is_not_configured(tmp_path):
+    store, catalog, app, *_ = service(tmp_path, [])
+    _, token, csrf = account(store, "77", None)
+    with TestClient(app, base_url=ORIGIN) as client:
+        client.cookies.set("vool_registry", token)
+        response = client.post(PREFIX + "/publisher-link", json={"namespace": "alice"}, headers=mutation(csrf))
+        assert response.status_code == 400 and "not configured" in response.json()["error"]
     catalog.close()

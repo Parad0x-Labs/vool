@@ -35,21 +35,26 @@ def comments(store, package_id: object, viewer: str | None = None) -> dict:
         result = {"comments": [{"id": row[0], "author": row[1], "created": row[2], "body": row[3]} for row in rows],
                   "can_comment": False}
         if viewer:
-            result["can_comment"] = _eligibility(db, viewer, package_id) is None
+            # Signed-out viewers get no reason code; the website knows from /me.
+            refusal = _eligibility(db, viewer, package_id)
+            result["can_comment"] = refusal is None
+            if refusal:
+                result["can_comment_reason"] = refusal[0]
             result["mine"] = [{"id": row[0], "state": row[1], "created": row[2], "body": row[3]} for row in db.execute(
                 """SELECT id, state, created, body FROM comments WHERE package_id=? AND account=?
                 AND state IN ('published','held') ORDER BY created DESC LIMIT 50""", (package_id, viewer))]
     return result
 
 
-def _eligibility(db, account: str, package_id: str) -> str | None:
+def _eligibility(db, account: str, package_id: str) -> tuple[str, str] | None:
+    """Return (reason code, message) when the account may not comment, else None."""
     row = db.execute("SELECT namespace FROM accounts WHERE id=?", (account,)).fetchone()
     if not row or not row[0]:
-        return "choose a public name on your profile before commenting"
+        return "no_public_name", "choose a public name on your profile before commenting"
     if db.execute("SELECT 1 FROM muted_accounts WHERE account=?", (account,)).fetchone():
-        return "commenting is turned off for this account"
+        return "muted", "commenting is turned off for this account"
     if not db.execute("SELECT 1 FROM account_downloads WHERE account=? AND package_id=?", (account, package_id)).fetchone():
-        return "download this skill while signed in before commenting"
+        return "not_downloaded", "download this skill while signed in before commenting"
     return None
 
 
@@ -57,8 +62,8 @@ def post_comment(store, account: str, package_id: object, body: object, *, now: 
     with store.connection() as db:
         db.execute("BEGIN IMMEDIATE")
         _published(db, package_id)
-        reason = _eligibility(db, account, package_id)
-        require(reason is None, reason or "")
+        refusal = _eligibility(db, account, package_id)
+        require(refusal is None, refusal[1] if refusal else "")
         count = db.execute("SELECT count(*) FROM comments WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
         require(count < COMMENTS_PER_DAY, "daily comment limit reached")
         state, reason = review(body)

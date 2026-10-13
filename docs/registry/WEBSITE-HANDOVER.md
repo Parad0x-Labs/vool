@@ -24,8 +24,8 @@ API prefix: `/registry/api`. Use same-origin fetch with browser-managed credenti
 |---|---|
 | `GET /auth/github/start` | Redirects through configured GitHub state/PKCE flow. |
 | `GET /auth/google/start`, `GET /auth/apple/start` | Redirects through configured OIDC flow. Apple callback may POST. Provider registration is activation work. |
-| `POST /auth/{provider}/start` | Begins linking a provider to the authenticated account; same-origin mutation checks apply. No email-based linking. |
-| `GET /me` | Authenticated `{profile, csrf}`. Profile includes account ID/namespace and chosen public profile fields. |
+| `POST /auth/{provider}/start` | Begins linking a provider to the authenticated account; same-origin mutation checks apply. Returns HTTP 200 `{url}`: open that provider sign-in URL (only on the provider's own host). No email-based linking. |
+| `GET /me` | Signed in: `{profile, csrf}`. Profile includes account ID/namespace, chosen public profile fields and `providers`, the linked sign-in provider names (for example `["github", "google"]`; never provider account IDs). Signed out or expired: HTTP 200 `{profile: null, csrf: null}`. |
 | `PUT /profile` | Exactly `{namespace, bio, handles}`; no optional field omission. |
 | `POST /session` | Signs out current session and clears cookie. Mutation checks apply. |
 | `DELETE /session` | Deletes private account and clears cookie. Mutation checks apply. Public Git history/licensed publications survive. |

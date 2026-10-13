@@ -57,7 +57,16 @@ _PATTERNS = {
     "contact": re.compile(r"(?i)[\w.+-]+@[\w-]+\.[\w.-]+|(?<![\w@])@[a-z0-9_]{2,}|(?:\+?\d[\s().-]?){8,}"),
     "crypto": re.compile(r"\b0x[0-9a-fA-F]{40}\b|\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b|\bbc1[0-9a-z]{25,62}\b|"
                          r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"),
+    "defanged": re.compile(r"(?i)[\[({]\s*(?:\.|dot|slash|/)\s*[\])}]|\bhxxps?\b"),
 }
+# Links spelled out in words, matched on the normalized, single-spaced text:
+# "example dot com slash review", "example (dot) com", "https colon slash slash".
+# Endings that are everyday English after "dot" or before "slash" (top, me, live...) are left out.
+_SPOKEN_TLDS = ("com|net|org|io|xyz|ru|cn|gg|co|app|dev|ly|site|online|shop|store|info|biz|tk|ml|ga|cf|click|vip|"
+                "club|finance|exchange|ai|tv|cc|uk|de|cloud|tech")
+_SLASH_TLDS = "com|net|org|io|xyz|ru|cn|gg|ly|ai|tv|cc|uk|de|dev|app|site|online|info|biz"
+_SPELLED = re.compile(r"(?<!\w)(?:[a-z0-9]+ dot (?:" + _SPOKEN_TLDS + r")|dot ?(?:com|net|org|io)|(?:" +
+                      _SLASH_TLDS + r") slash|slash slash|colon slash|https? colon)(?!\w)")
 
 
 def normalize(text: str) -> str:
@@ -112,6 +121,8 @@ def review(text: object) -> tuple[str, str]:
     for terms in _WORDS.values():
         if words & terms:
             return "refused", REFUSAL
+    if _SPELLED.search(spaced):
+        return "refused", REFUSAL
     for phrases in _PHRASES.values():
         if any(re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", spaced) for phrase in phrases):
             return "refused", REFUSAL
