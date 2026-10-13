@@ -1,0 +1,231 @@
+name: macOS Intel package
+
+# Builds VOOL.app for x86_64 natively on GitHub's Intel macOS runner and proves the DMG on real
+# Intel hardware: launch, exact identity, a model reply through the bundled Ollama, and
+# remember / recall / forget on a fresh profile. An arm64 host can only build this target under
+# Rosetta, which proves nothing about Intel Macs.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'installer/bundle/build_macos_app.sh'
+      - 'installer/bundle/built_wheels.json'
+      - 'installer/bundle/macos_arch_gate.py'
+      - 'installer/bundle/macos_arch_census.py'
+      - 'installer/bundle/launcher_ollama.sh'
+      - 'installer/bundle/vool_window.py'
+      - 'installer/bundle/native_runtime_supervisor.py'
+      - 'ops/bundle_dependency_provenance.py'
+      - 'ops/macos_bundle_smoke.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/macos-intel.yml'
+
+permissions:
+  contents: read
+
+env:
+  # The Intel cryptography wheel recipe recorded in installer/bundle/built_wheels.json.
+  CRYPTO_VERSION: '50.0.2'
+  CRYPTO_SDIST_SHA256: '7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5'
+  OPENSSL_VERSION: '4.0.3'
+  OPENSSL_SHA256: '325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9'
+  MATURIN_VERSION: '1.15.0'
+  RUST_TOOLCHAIN: '1.93.1'
+  PROXY_TOOLS_SDIST_SHA256: 'ccb3751f529c047e2d8a58440d86b205303cf0fe8146f784d1cbcd94f0a28010'
+  OLLAMA_VERSION: 'v0.40.3'
+  OLLAMA_TGZ_SHA256: 'a2d1d906a2c8febd9cb18f5c183854d0a6db5dc522940d68b0c0ed048e8dfdea'
+  MACOSX_DEPLOYMENT_TARGET: '14.0'
+  # The bundle embeds python-build-standalone. Some runner images also carry a system or
+  # tool-cache CPython 3.11 (universal2, not relocatable), which `uv python find --system` can
+  # return first; managed-only keeps every interpreter here the standalone distribution.
+  UV_PYTHON_PREFERENCE: only-managed
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    outputs:
+      source: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.11.1'
+      - name: Refuse anything but a native Intel host
+        run: |
+          set -euo pipefail
+          echo "machine $(uname -m); cpu $(sysctl -n machdep.cpu.brand_string); macOS $(sw_vers -productVersion)"
+          test "$(uname -m)" = x86_64
+          test "$(sysctl -n hw.optional.arm64 2>/dev/null || echo 0)" = 0
+      - name: Record the exact packaged source
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Intel cryptography wheel built from the recorded recipe
+        id: crypto-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/crypto-wheel
+          key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v1
+      - name: Build cryptography natively for x86_64 (static OpenSSL, no-module)
+        if: steps.crypto-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/crypto-build"; OUT="$RUNNER_TEMP/crypto-wheel"
+          mkdir -p "$W/src" "$W/stage" "$OUT"
+          cd "$W/src"
+          curl -fsSLO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
+          echo "${OPENSSL_SHA256}  openssl-${OPENSSL_VERSION}.tar.gz" | shasum -a 256 -c -
+          tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
+          cd "openssl-${OPENSSL_VERSION}"
+          ./Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs \
+            --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib \
+            -mmacosx-version-min=14.0 > "$W/openssl-configure.log" 2>&1
+          make -j"$(sysctl -n hw.ncpu)" > "$W/openssl-make.log" 2>&1
+          make install_sw DESTDIR="$W/stage" > "$W/openssl-install.log" 2>&1
+          lipo -info "$W/stage/private/etc/ssl/lib/libcrypto.a"
+          rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal
+          uv python install cpython-3.11-macos-x86_64-none
+          uv venv --python cpython-3.11-macos-x86_64-none "$W/venv"
+          uv pip install --python "$W/venv/bin/python" pip "maturin==${MATURIN_VERSION}" "cffi>=2.0.0" setuptools
+          cd "$W/src"
+          "$W/venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: "cryptography==${CRYPTO_VERSION}" -d "$W/src"
+          echo "${CRYPTO_SDIST_SHA256}  cryptography-${CRYPTO_VERSION}.tar.gz" | shasum -a 256 -c -
+          # maturin's PEP 517 hook runs the `maturin` CLI by name, so the venv's bin goes on PATH.
+          env PATH="$W/venv/bin:$PATH" RUSTUP_TOOLCHAIN="${RUST_TOOLCHAIN}" OPENSSL_DIR="$W/stage/private/etc/ssl" OPENSSL_STATIC=1 \
+            ARCHFLAGS="-arch x86_64" CARGO_BUILD_TARGET=x86_64-apple-darwin \
+            RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=$W=/build" \
+            "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" -w "$OUT"
+          ls -l "$OUT"
+      - name: Check the cryptography wheel (slice, no dynamic OpenSSL, imports, legacy provider)
+        run: |
+          set -euo pipefail
+          WHL="$(ls "$RUNNER_TEMP"/crypto-wheel/cryptography-${CRYPTO_VERSION}-*-macosx_14_0_x86_64.whl)"
+          CHECK="$RUNNER_TEMP/crypto-check"; rm -rf "$CHECK"; mkdir -p "$CHECK"
+          unzip -q "$WHL" -d "$CHECK/files"
+          for so in "$CHECK"/files/cryptography/hazmat/bindings/*.so; do
+            lipo -info "$so"
+            if otool -L "$so" | tail -n +2 | grep -Ei 'libssl|libcrypto'; then echo "dynamic OpenSSL link in $so"; exit 1; fi
+          done
+          uv venv --python cpython-3.11-macos-x86_64-none "$CHECK/venv"
+          uv pip install --python "$CHECK/venv/bin/python" "$WHL" "cffi>=2.0.0"
+          "$CHECK/venv/bin/python" - <<'PY'
+          import platform
+          import cryptography
+          from cryptography.fernet import Fernet
+          from cryptography.hazmat.backends.openssl.backend import backend
+          key = Fernet.generate_key()
+          assert Fernet(key).decrypt(Fernet(key).encrypt(b"ok")) == b"ok"
+          assert platform.machine() == "x86_64", platform.machine()
+          from cryptography.hazmat.bindings._rust import openssl as rust_openssl
+          if not rust_openssl._legacy_provider_loaded:
+              raise SystemExit("the OpenSSL legacy provider did not load")
+          print("import ok", platform.machine(), cryptography.__version__, backend.openssl_version_text())
+          PY
+          recorded="$(python3 -c "import json;print(next(w['sha256'] for w in json.load(open('installer/bundle/built_wheels.json'))['wheels'] if w['package']=='cryptography'))")"
+          built="$(shasum -a 256 "$WHL" | awk '{print $1}')"
+          echo "recorded release wheel sha256: $recorded"
+          echo "this native build sha256:      $built"
+          if [[ "$built" == "$recorded" ]]; then echo "BYTE-IDENTICAL to the recorded release wheel"; else echo "differs from the recorded release wheel: this CI build is NOT release-grade"; fi
+
+      - name: Wheelhouse (cryptography + proxy-tools from its pinned sdist)
+        run: |
+          set -euo pipefail
+          WH="$RUNNER_TEMP/wheelhouse"; mkdir -p "$WH" "$RUNNER_TEMP/proxy-src"
+          cp "$RUNNER_TEMP"/crypto-wheel/*.whl "$WH/"
+          uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/pt-venv"
+          uv pip install --python "$RUNNER_TEMP/pt-venv/bin/python" pip setuptools wheel
+          "$RUNNER_TEMP/pt-venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: proxy_tools==0.1.0 -d "$RUNNER_TEMP/proxy-src"
+          echo "${PROXY_TOOLS_SDIST_SHA256}  $RUNNER_TEMP/proxy-src/proxy_tools-0.1.0.tar.gz" | shasum -a 256 -c -
+          "$RUNNER_TEMP/pt-venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$RUNNER_TEMP/proxy-src/proxy_tools-0.1.0.tar.gz" -w "$WH"
+          shasum -a 256 "$WH"/*.whl
+      - name: Bundled Ollama (pinned release, verified)
+        run: |
+          set -euo pipefail
+          O="$RUNNER_TEMP/ollama"; mkdir -p "$O"; cd "$O"
+          curl -fsSLO "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-darwin.tgz"
+          curl -fsSL -o sha256sum.txt "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/sha256sum.txt"
+          echo "publisher sha256sum.txt:"; cat sha256sum.txt
+          shasum -a 256 ollama-darwin.tgz
+          echo "${OLLAMA_TGZ_SHA256}  ollama-darwin.tgz" | shasum -a 256 -c -
+          # The pinned digest must also be the one the publisher lists for this exact file.
+          awk -v want="${OLLAMA_TGZ_SHA256}" '$1 == want && $2 ~ /(^|\/)ollama-darwin\.tgz$/ {found=1} END {exit !found}' sha256sum.txt
+          mkdir bin && tar xzf ollama-darwin.tgz -C bin
+          lipo -archs bin/ollama
+          echo "$O/bin" >> "$GITHUB_PATH"
+      - name: Build-time Python for the build script's helpers
+        run: |
+          set -euo pipefail
+          uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/sys-venv"
+          python3 -c "from ops.bundle_dependency_provenance import lean_requirements; print('\n'.join(lean_requirements()))" > "$RUNNER_TEMP/lean.txt"
+          uv pip install --python "$RUNNER_TEMP/sys-venv/bin/python" --no-build --find-links "$RUNNER_TEMP/wheelhouse" -r "$RUNNER_TEMP/lean.txt"
+      # The build script's footprint gate refuses any bundle byte that carries the builder's
+      # $HOME. On a hosted runner $HOME is /Users/runner, which is also the home of the GitHub
+      # runners that built many upstream PyPI wheels, so their own bytes trip the gate. The build
+      # therefore runs under a dedicated builder home that nothing upstream can contain, with the
+      # embedded CPython, uv's cache and the output all inside it, so the gate and its scrubs
+      # still cover everything this build stages. The checkout path is checked separately below.
+      - name: Build the x86_64 app and DMG on Intel
+        env:
+          VOOL_BUNDLE_WHEELHOUSE: ${{ runner.temp }}/wheelhouse
+          SYS_PY: ${{ runner.temp }}/sys-venv/bin/python
+        run: |
+          set -euo pipefail
+          export HOME="$RUNNER_TEMP/vool-builder-home"
+          export UV_PYTHON_INSTALL_DIR="$HOME/uv-python" UV_CACHE_DIR="$HOME/uv-cache"
+          mkdir -p "$HOME"
+          bash installer/bundle/build_macos_app.sh --self-contained --arch x86_64 \
+            --out "$HOME/macos-x86_64" --release-dir "$RUNNER_TEMP/assets"
+          hits="$(grep -r -a -l -F "$GITHUB_WORKSPACE" "$HOME/macos-x86_64/VOOL.app" || true)"
+          if [[ -n "$hits" ]]; then
+            printf '%s\n' "$hits" | head -5
+            echo "the bundle carries the build checkout path $GITHUB_WORKSPACE"; exit 1
+          fi
+          cd "$RUNNER_TEMP/assets"
+          for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
+          cat *.sha256
+          cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/ARCH_CENSUS.json" . || true
+          cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/VOOL.app/Contents/Resources/app/config/dependency-provenance.json" . || true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-x86_64-package
+          path: |
+            ${{ runner.temp }}/assets/*.dmg
+            ${{ runner.temp }}/assets/*.sha256
+            ${{ runner.temp }}/assets/*.json
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-x86_64-package
+          path: ${{ runner.temp }}/assets
+      - name: Install, launch, answer, remember, recall, forget, quit on real Intel
+        env:
+          EXPECTED_COMMIT: ${{ needs.build.outputs.source }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/assets"
+          shasum -a 256 -c ./*.dmg.sha256
+          /usr/bin/python3 "$GITHUB_WORKSPACE/ops/macos_bundle_smoke.py" --arch x86_64 \
+            --dmg "$(ls "$RUNNER_TEMP"/assets/VOOL-*-macos-x86_64.dmg)" \
+            --scratch "$RUNNER_TEMP/smoke" --expected-commit "$EXPECTED_COMMIT"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-x86_64-evidence
+          path: |
+            ${{ runner.temp }}/smoke/*.json
+            ${{ runner.temp }}/smoke/*.log
+            ${{ runner.temp }}/smoke/*.png
+            ${{ runner.temp }}/smoke/logs/
+          if-no-files-found: warn
