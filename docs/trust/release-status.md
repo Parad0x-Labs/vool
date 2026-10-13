@@ -56,6 +56,7 @@ release.
 | Dictation | Temporarily unavailable in this beta build; it returns in an update. |
 | Cloud "burst" ask mode | The per-call prompt is not wired yet in this build. |
 | Local models | Before a local model can answer, open **Settings → Local models** and press **Certify** for it once. VOOL does not prompt for this in 0.7.0; a clearer prompt comes in 0.7.1. |
+| Off the record | Saying "don't record this" does not stop a chat from being saved yet. Ask VOOL to forget it afterwards. |
 | Desktop pet | Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1. |
 | Skill Codex | The tab is on the Add-ons page. Browsing is not open yet in this release, and the tab says so. |
 
