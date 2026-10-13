@@ -11,7 +11,8 @@ response commit), so the test can look at the bubble between frames:
 - a half-written chart is NOT hydrated while streaming (no visual job on partial source);
 - after the commit the canonical text is painted, the streaming mark is gone, and the finished
   chart block is handed to the visuals layer as before;
-- no batched repaint lands after the commit and overwrites it.
+- no batched repaint lands after the commit and overwrites it;
+- unfinished markup (a half table row, an open ** or link) never flashes up raw.
 """
 from __future__ import annotations
 
@@ -79,6 +80,16 @@ def test_streaming_answer_is_formatted_and_settles_on_the_commit(tmp_path):
                     "display_metadata": {},
                 }
                 frames = [{"message": {"content": part}} for part in (PART_1, PART_2, PART_3)]
+                # Unfinished pieces never flash up raw: a half-received table row, an open ** or a
+                # half-typed link wait for the rest; finished text and code blocks are untouched.
+                preview = page.evaluate("""() => [
+                    streamingPreviewText('| a | b |\\n|---|---|\\n| Wick | Bu'),
+                    streamingPreviewText('Some **Bri'),
+                    streamingPreviewText('see [the doc](http://x'),
+                    streamingPreviewText('done **bold** and'),
+                    streamingPreviewText('```py\\nx = [1,'),
+                ]""")
+                assert preview == ["| a | b |\n|---|---|\n", "Some ", "see ", "done **bold** and", "```py\nx = [1,"], preview
                 page.evaluate(PACED_FETCH, {"frames": frames, "commit": commit})
 
                 page.locator("#input").fill("Tell me about lanterns.")

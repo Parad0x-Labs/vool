@@ -4461,10 +4461,31 @@ function attachRunDom(run, host) {
 // marked data-streaming meanwhile so half-written charts and diagrams are never hydrated; the
 // final render (server commit or stream end) clears the mark and paints the canonical text.
 const STREAM_PAINT_MS = 120;
+// A very long answer costs more to repaint, so it repaints less often (about every 120 ms up to
+// 24k characters, then slower in proportion), keeping the page responsive while it streams.
+function streamPaintDelay(run) { return Math.max(STREAM_PAINT_MS, Math.round(String(run.text || '').length / 200)); }
+// What a partial answer shows: the text so far, minus a trailing piece that is not finished yet --
+// a half-received table row, or an opened **, ` or [link]( that has not closed -- so raw markup
+// never flashes up for a moment. The final render always paints the complete text.
+function streamingPreviewText(text) {
+  let t = String(text || '');
+  const nl = t.lastIndexOf('\n');
+  const tail = t.slice(nl + 1);
+  if (/^\s*\|/.test(tail) && !/\|\s*$/.test(tail)) t = t.slice(0, nl + 1);
+  const lastLine = t.slice(t.lastIndexOf('\n') + 1);
+  if (/^\s*(```|~~~)/.test(lastLine)) return t;   // inside or opening a code fence: leave as is
+  const fences = (t.match(/^\s*(```|~~~)/gm) || []).length;
+  if (fences % 2) return t;                          // an open code block: its contents are literal
+  const cut = (re) => { const m = lastLine.match(re); if (m) t = t.slice(0, t.length - m[0].length); };
+  if (((lastLine.match(/\*\*/g) || []).length) % 2) cut(/\*\*(?!.*\*\*)[^]*$/);
+  else if (((lastLine.replace(/``+/g, '').match(/`/g) || []).length) % 2) cut(/`(?!.*`)[^]*$/);
+  else cut(/\[[^\]\n]*(\]\([^)\n]*)?$/);
+  return t;
+}
 function paintStreamingText(run) {
   if (!run.textEl) return;
   run.textEl.dataset.streaming = '1';
-  renderRichText(run.textEl, run.text);
+  renderRichText(run.textEl, streamingPreviewText(run.text));
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
@@ -4476,7 +4497,7 @@ function scheduleStreamPaint(run) {
       paintStreamingText(run);
       logEl.scrollTop = logEl.scrollHeight;
     });
-  }, STREAM_PAINT_MS);
+  }, streamPaintDelay(run));
 }
 function endStreamPaint(run) {
   if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
