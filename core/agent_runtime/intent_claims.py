@@ -374,6 +374,13 @@ def turn_action_constraints(text: str) -> TurnActionConstraints:
         tail = value[match.end() :]
         if re.match(r"\s+(?:anything|any\s+\w+)\s+else\b", tail, re.IGNORECASE):
             continue
+        # "Don't write any files, just explain" opens the turn and bans the lane. A "don't" after
+        # the turn's own request ("delete it, yes. Actually, don't delete it", "go ahead, but don't
+        # remove it") withholds that request's approval: the approval reading owns it and asks.
+        if not match.group(0).lower().startswith("do ") and re.search(
+            r"\w", re.sub(r"^\W*(?:please\W+)?", "", value[: match.start()], flags=re.IGNORECASE)
+        ):
+            continue
         if _negation_is_scoped(value, match):
             continue
         return TurnActionConstraints(policy=ActionPolicy.FORBIDDEN, forbid_commands=True)
