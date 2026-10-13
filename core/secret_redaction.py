@@ -291,6 +291,16 @@ def _redactable_personal_spans(value: str) -> list[tuple[int, int, str]]:
     return merged
 
 
+def contains_personal_secret(text: str) -> bool:
+    """True if `text` carries a card number, PIN or password written in plain words."""
+    return bool(text) and bool(_redactable_personal_spans(str(text)))
+
+
+def redact_personal_secrets(text: str) -> str:
+    """Mask only plain-word card numbers, PINs and passwords; everything else untouched."""
+    return _redact_personal_secrets(str(text)) if text else text
+
+
 def _redact_personal_secrets(value: str) -> str:
     spans = _redactable_personal_spans(value)
     if not spans:
@@ -606,8 +616,12 @@ def _mask_secret_label(match: re.Match) -> str:
     return f"{match.group(1)}: [redacted]"
 
 
-def redact_secrets(text: str) -> str:
+def redact_secrets(text: str, *, personal: bool = True) -> str:
     """Return `text` with high-confidence secrets masked and everything else untouched. Never raises.
+
+    ``personal=False`` leaves plain-word card numbers, PINs and passwords to a caller that masks
+    them itself under its own rule names (the bug report scrubber) and then calls
+    ``redact_personal_secrets`` as its own last pass.
 
     The exact guarantee: every pattern rule (keys, JWTs, private keys, bearer values, labelled
     secrets, registered exact values) always applies, but recovery-phrase masking applies ONLY
@@ -635,7 +649,8 @@ def redact_secrets(text: str) -> str:
     value = _BEARER_RE.sub("Bearer [redacted]", value)
     # Card numbers, PINs and passwords written in plain words, before the labelled rules so
     # "password is hunter22" and "password: hunter22" end in the same mask.
-    value = _redact_personal_secrets(value)
+    if personal:
+        value = _redact_personal_secrets(value)
     # Multi-word phrase secrets before the single-token rule: a masked first word
     # ("ostrich" -> "[redacted]") must not truncate the phrase match mid-list.
     # Both labelled rules honour the public-mnemonic declaration in _mask_secret_label.
@@ -645,8 +660,11 @@ def redact_secrets(text: str) -> str:
     return value
 
 
-def contains_secret(text: str) -> bool:
+def contains_secret(text: str, *, personal: bool = True) -> bool:
     """True if `text` appears to contain a high-confidence secret (used to gate/flag, never to store).
+
+    ``personal=False`` leaves plain-word card numbers, PINs and passwords out, for a caller that
+    checks them itself and then asks ``contains_personal_secret`` last (the bug report scanner).
 
     True is detection; False is NOT proof of absence. When the canonical wordlist is
     unavailable, a recovery phrase is invisible to this predicate, so a gate that releases
@@ -667,7 +685,7 @@ def contains_secret(text: str) -> bool:
             if pattern in (_B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE) and _is_public_identifier(match.group(0)):
                 continue
             return True
-    if _redactable_personal_spans(value):
+    if personal and _redactable_personal_spans(value):
         return True
     for match in _LABELED_RE.finditer(value):
         if not _label_declared_public(match.group(1), value, match.start()):
@@ -697,9 +715,11 @@ def redacted_copy(value):
 
 __all__ = [
     "clear_exact_secrets_for_tests",
+    "contains_personal_secret",
     "contains_secret",
     "luhn_valid",
     "mnemonic_redaction_available",
+    "redact_personal_secrets",
     "redact_secrets",
     "redact_url_path_tokens",
     "redactable_personal_kinds",
