@@ -17,10 +17,20 @@ owners and are referenced, never copied.
 
 State machine (goal.state)::
 
-    queued -> planning -> running -> completed | failed | cancelled
+    queued -> planning -> running -> completed | failed | cancelled | blocked
                        running -> waiting_approval -> running | failed | cancelled
                        running -> paused -> running
                        running -> interrupted -> running | cancelled
+                       running -> blocked -> running | cancelled
+
+``blocked`` is a non-terminal hold the operator can resolve (missing budget or capability);
+it is deliberately NOT ``waiting_approval``, which is reserved for a live permission ask.
+
+Worker ownership: every spawn claims a monotone durable ``worker_epoch``. A worker records
+its epoch and every durable write it makes is fenced against the current epoch — a worker
+overtaken by a successor (revise, resume after reconnect) exits without writing. ``_WORKERS``
+is keyed by goal id, but a worker's unregister only removes ITS OWN registration, never a
+successor's.
 
 Step states live on the plan's steps: pending, running, waiting_approval, completed, failed,
 blocked, skipped, cancelled, interrupted. A model saying "done" can never complete a step:
@@ -40,7 +50,8 @@ from typing import Any, Callable
 
 GOAL_EVENT_TYPE = "goal_updated"
 
-#: Goal lifecycle states. Terminal: completed, failed, cancelled.
+#: Goal lifecycle states. Terminal: completed, failed, cancelled. Holding: paused,
+#: interrupted, waiting_approval, blocked.
 GOAL_STATES = (
     "queued",
     "planning",
@@ -48,6 +59,7 @@ GOAL_STATES = (
     "waiting_approval",
     "paused",
     "interrupted",
+    "blocked",
     "completed",
     "failed",
     "cancelled",
@@ -73,7 +85,17 @@ MAX_STEP_ATTEMPTS = 2
 #: Bounded plan size. The planner may not mint an unbounded work program.
 MAX_PLAN_STEPS = 8
 
+#: Total bounded dispatch budget per goal (planner + steps + repairs). Crossing it fails the
+#: goal honestly instead of looping.
+MAX_GOAL_TURNS = 20
+
 _LOCK = threading.RLock()
+
+
+class WorkerFencedError(RuntimeError):
+    """A stale worker tried to write after a successor claimed the goal's epoch."""
+
+    code = "VOOL_E_GOAL_WORKER_FENCED"
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +103,38 @@ _LOCK = threading.RLock()
 # ---------------------------------------------------------------------------
 
 _GOAL_WORD = re.compile(r"^/goal\b\s*", re.IGNORECASE)
+
+#: The explicit CONVERSATIONAL goal-instruction form: "goal: do X instead" (no slash). This
+#: is the deterministic, unambiguous way a normal chat message addresses the active goal.
+_GOAL_INSTRUCTION_PREFIX = re.compile(r"^goal\s*[:：]\s*", re.IGNORECASE)
+
+#: Reference + correction cues for the AMBIGUOUS case. A message that references the
+#: goal/plan and carries a correction verb, without the explicit prefix, is likely about the
+#: goal — it asks ONE concise question instead of mutating anything. No classifier, no paid
+#: call: two closed-vocabulary regular expressions.
+_GOAL_REFERENCE_CUE = re.compile(r"\b(goal|plan|steps?)\b", re.IGNORECASE)
+_CORRECTION_CUE = re.compile(
+    r"\b(revise|change|update|instead|drop|remove|rename|reorder|adjust|extend|add|swap|replace|scrub|abort)\b",
+    re.IGNORECASE,
+)
+
+
+def parse_goal_reference(text: str) -> dict[str, str] | None:
+    """Classify a plain (non-slash) chat message's goal reference, or None.
+
+    Returns ``{"kind": "instruction", "arg": ...}`` for the explicit ``goal:`` prefix;
+    ``{"kind": "ambiguous"}`` when the message references the goal/plan with a correction
+    cue but no prefix (the caller asks ONE concise question; nothing is mutated); None for
+    ordinary chat. Only ever consulted when the chat HAS an active goal.
+    """
+    raw = str(text or "").strip()
+    if not raw or raw.startswith("/"):
+        return None
+    if _GOAL_INSTRUCTION_PREFIX.match(raw):
+        return {"kind": "instruction", "arg": _GOAL_INSTRUCTION_PREFIX.sub("", raw, count=1).strip()}
+    if _GOAL_REFERENCE_CUE.search(raw) and _CORRECTION_CUE.search(raw):
+        return {"kind": "ambiguous"}
+    return None
 
 
 def parse_goal_command(text: str) -> dict[str, str] | None:
@@ -129,6 +183,7 @@ _GOAL_COLUMNS = (
     "last_reason",
     "model",
     "exec_context_json",
+    "worker_epoch",
 )
 
 
@@ -160,13 +215,19 @@ def _ensure_table(conn) -> None:
             created_turn_id TEXT NOT NULL DEFAULT '',
             last_reason TEXT NOT NULL DEFAULT '',
             model TEXT NOT NULL DEFAULT '',
-            exec_context_json TEXT NOT NULL DEFAULT '{}'
+            exec_context_json TEXT NOT NULL DEFAULT '{}',
+            worker_epoch INTEGER NOT NULL DEFAULT 0
         )
         """
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_chat_goals_session ON chat_goals(session_id, created_at DESC)"
     )
+    # Evolution of THIS module's own table (the storage/migrations pattern for additive
+    # columns on an already-shipped table): add missing columns in place, idempotently.
+    existing = {str(row[1]) for row in conn.execute("PRAGMA table_info(chat_goals)").fetchall()}
+    if "worker_epoch" not in existing:
+        conn.execute("ALTER TABLE chat_goals ADD COLUMN worker_epoch INTEGER NOT NULL DEFAULT 0")
 
 
 def _row_to_goal(row) -> dict[str, Any]:
@@ -182,10 +243,23 @@ def _row_to_goal(row) -> dict[str, Any]:
     return goal
 
 
-def save_goal(goal: dict[str, Any]) -> None:
-    """Persist the full goal aggregate. The caller holds the authoritative in-memory copy."""
+def save_goal(goal: dict[str, Any], *, expected_epoch: int | None = None) -> None:
+    """Persist the full goal aggregate. The caller holds the authoritative in-memory copy.
+
+    ``expected_epoch`` fences a worker's writes: when the durable row has moved to a NEWER
+    epoch (a successor claimed it via revise/resume), the stale write raises
+    WorkerFencedError instead of clobbering the successor's state.
+    """
     conn = _conn()
     _ensure_table(conn)
+    if expected_epoch is not None:
+        row = conn.execute(
+            "SELECT worker_epoch FROM chat_goals WHERE goal_id = ?", (str(goal.get("goal_id") or ""),)
+        ).fetchone()
+        if row is not None and int(row[0] or 0) != int(expected_epoch):
+            raise WorkerFencedError(
+                f"goal {goal.get('goal_id')} moved to epoch {row[0]}; worker holds epoch {expected_epoch}"
+            )
     payload = {key: goal.get(key) for key in _GOAL_COLUMNS if key in goal}
     payload["plan_json"] = json.dumps(goal.get("plan") or {}, ensure_ascii=False)
     payload["exec_context_json"] = json.dumps(goal.get("exec_context") or {}, ensure_ascii=False)
@@ -461,12 +535,21 @@ def emit_goal_event(source_context: dict[str, Any] | None, goal: dict[str, Any],
 # ---------------------------------------------------------------------------
 
 class _GoalWorker:
-    def __init__(self, goal_id: str, session_id: str) -> None:
+    def __init__(self, goal_id: str, session_id: str, *, epoch: int = 0) -> None:
         self.goal_id = str(goal_id)
         self.session_id = str(session_id)
+        self.epoch = int(epoch)
         self.pause_requested = threading.Event()
         self.stop_requested = threading.Event()
+        # Revise fencing: stop-like (no new dispatch) but the settled outcome NEVER writes
+        # goal-level state — the successor owns the goal; only the step's own settled truth
+        # is recorded before exit.
+        self.fence_requested = threading.Event()
         self.current_turn_id = ""
+        # One-shot, in-memory ONLY (never persisted): the pending-approval token a retry
+        # resume applies to the exact waiting step's next dispatch.
+        self.pending_approval_token = ""
+        self.pending_step_id = ""
         self.lock = threading.Lock()
         self.finished = threading.Event()
 
@@ -478,6 +561,21 @@ class _GoalWorker:
         with self.lock:
             return str(self.current_turn_id or "")
 
+    def arm_approval_token(self, step_id: str, token: str) -> None:
+        with self.lock:
+            self.pending_step_id = str(step_id or "")
+            self.pending_approval_token = str(token or "")
+
+    def take_approval_token(self, step_id: str) -> str:
+        """Consume the armed approval token ONCE, and only for the step it was armed for."""
+        with self.lock:
+            if str(step_id or "") != self.pending_step_id:
+                return ""
+            token = self.pending_approval_token
+            self.pending_approval_token = ""
+            self.pending_step_id = ""
+            return token
+
 
 _WORKERS: dict[str, _GoalWorker] = {}
 
@@ -487,12 +585,21 @@ def register_worker(worker: _GoalWorker) -> None:
         _WORKERS[worker.goal_id] = worker
 
 
-def unregister_worker(goal_id: str) -> None:
+def unregister_worker(goal_id: str, worker: _GoalWorker | None = None) -> None:
+    """Release a worker's registration. With ``worker`` given, only THAT worker's own
+    registration is removed — a stale worker finishing late must never unregister its
+    successor (the revise/resume fencing law)."""
     with _LOCK:
-        worker = _WORKERS.get(str(goal_id))
-        if worker is not None:
+        current = _WORKERS.get(str(goal_id))
+        if current is None:
+            if worker is not None:
+                worker.finished.set()
+            return
+        if worker is not None and current is not worker:
             worker.finished.set()
-            _WORKERS.pop(str(goal_id), None)
+            return
+        current.finished.set()
+        _WORKERS.pop(str(goal_id), None)
 
 
 def active_worker(goal_id: str) -> _GoalWorker | None:
@@ -500,9 +607,23 @@ def active_worker(goal_id: str) -> _GoalWorker | None:
         return _WORKERS.get(str(goal_id))
 
 
+def claim_worker_epoch(goal_id: str) -> int:
+    """Atomically claim the NEXT worker epoch for this goal and return it. The durable
+    increment is what fences an overtaken worker's writes (save_goal expected_epoch)."""
+    goal = load_goal(goal_id)
+    if goal is None:
+        return 0
+    epoch = int(goal.get("worker_epoch") or 0) + 1
+    goal["worker_epoch"] = epoch
+    save_goal(goal)
+    return epoch
+
+
 def request_pause(goal_id: str) -> dict[str, Any]:
-    """Pause: no new goal step begins after acknowledgement; the in-flight step turn is
-    cancelled through the existing live-turn owner and accounted until it settles."""
+    """Pause: no NEW goal step begins after acknowledgement; the in-flight step turn is
+    cancelled through the existing live-turn owner and is ACCOUNTED until it settles — the
+    worker classifies the settled outcome (the step's own state) when the turn returns; this
+    control never pre-writes a step state it has not observed."""
     goal = load_goal(goal_id)
     if goal is None:
         return {"ok": False, "error": "no such goal"}
@@ -516,7 +637,6 @@ def request_pause(goal_id: str) -> dict[str, Any]:
     goal["state"] = "paused"
     goal["updated_at"] = now
     goal["last_reason"] = "paused by operator"
-    _freeze_running_steps(goal, "interrupted", "paused before dispatch")
     save_goal(goal)
     if worker is not None:
         worker.pause_requested.set()
@@ -532,7 +652,9 @@ def request_pause(goal_id: str) -> dict[str, Any]:
 def request_stop(goal_id: str) -> dict[str, Any]:
     """Stop: acknowledges cancellation, prevents new dispatch, and leaves already-dispatched
     side effects as unresolved-for-reconciliation (their receipts stay in the canonical
-    stores; nothing is claimed undone)."""
+    stores; nothing is claimed undone). The in-flight worker keeps ownership of its turn
+    until it settles — this control never unregisters it early and never pre-writes the
+    step's terminal state; the worker classifies the settled outcome."""
     goal = load_goal(goal_id)
     if goal is None:
         return {"ok": False, "error": "no such goal"}
@@ -549,7 +671,10 @@ def request_stop(goal_id: str) -> dict[str, Any]:
     goal["ended_at"] = now
     goal["updated_at"] = now
     goal["last_reason"] = "stopped by operator"
-    _freeze_running_steps(goal, "cancelled", "goal stopped by operator")
+    if worker is None:
+        # No live worker will settle an in-flight turn: freeze any recorded running step as
+        # cancelled so nothing is left claiming to run.
+        _freeze_running_steps(goal, "cancelled", "goal stopped by operator")
     save_goal(goal)
     if worker is not None:
         worker.stop_requested.set()
@@ -559,25 +684,28 @@ def request_stop(goal_id: str) -> dict[str, Any]:
 
             request_cancel(goal.get("session_id") or "", turn_id)
     emit_goal_event(_goal_event_context(goal), goal, "Goal stopped")
-    if worker is not None:
-        # The worker observes the stop flag at its next loop boundary and exits without
-        # dispatching anything new.
-        worker.finished.set()
-        unregister_worker(goal_id)
     return {"ok": True, "state": "cancelled"}
 
 
 def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resume re-checks current mode/authority through the NEXT dispatch: the step turns
-    carry the chat's live mode via the existing per-call mode consult, so a mode change made
-    while paused takes effect before the next action. Nothing is re-marked complete."""
+    """Resume re-checks current mode/authority through the NEXT dispatch: step turns carry no
+    pinned mode, so the authority resolves the chat's LIVE mode on every consult — a mode
+    change made while paused takes effect before the next action.
+
+    Interrupted steps are reconciled against their recorded turn's receipts BEFORE any
+    re-dispatch: a step whose declared verification already holds in its own turn's ledger
+    events is COMPLETED (the effect committed before the interruption) and is never replayed;
+    a step whose expected tool ran but could not be verified is a RECONCILIATION NEED
+    (blocked, honest reason) — never blindly replayed; only a step with no recorded effect
+    evidence returns to pending for a fresh dispatch.
+    """
     goal = load_goal(goal_id)
     if goal is None:
         return {"ok": False, "error": "no such goal"}
     state = str(goal.get("state"))
     if state in TERMINAL_GOAL_STATES:
         return {"ok": False, "error": f"goal already {state}"}
-    if state != "paused" and state != "interrupted":
+    if state not in ("paused", "interrupted", "blocked"):
         return {"ok": True, "state": state, "already": True}
     now = time.time()
     if goal.get("paused_at"):
@@ -587,10 +715,14 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
     goal["state"] = "running"
     goal["updated_at"] = now
     goal["last_reason"] = ""
-    # Interrupted/paused steps return to pending: their work is re-dispatched fresh. A step
-    # that already completed stays completed — resume never re-runs completed work.
+    from core.goal_executor import reconcile_interrupted_step
+
     for step in goal.get("plan", {}).get("steps", []):
-        if step.get("state") in ("interrupted",):
+        if step.get("state") == "interrupted":
+            reconcile_interrupted_step(goal, step)
+        elif step.get("state") == "blocked" and "reconcile" not in str(step.get("reason") or ""):
+            # A budget/capability hold resumes optimistically; the next dispatch re-consults
+            # the live authority and re-blocks honestly if the need persists.
             step["state"] = "pending"
             step["reason"] = ""
     save_goal(goal)
@@ -599,6 +731,74 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
     if resume_callback is not None:
         resume_callback()
     return {"ok": True, "state": "running"}
+
+
+def request_revise(goal_id: str, new_objective: str, *, source: str = "chat") -> dict[str, Any]:
+    """Revise the goal's objective and re-derive the plan, monotonically.
+
+    Fences the active worker first (epoch bump — the old worker exits without writing),
+    preserves completed work (completed steps carry over with their identities, receipts and
+    turn references), supersedes only pending obligations, bumps the revision monotonically,
+    and writes durable revision provenance. Exactly ONE successor worker may then be spawned
+    by the caller; the fence makes an old worker's late writes and unregister harmless.
+    """
+    goal = load_goal(goal_id)
+    if goal is None:
+        return {"ok": False, "error": "no such goal"}
+    if str(goal.get("state")) in TERMINAL_GOAL_STATES:
+        return {"ok": False, "error": f"goal already {goal.get('state')}"}
+    clean_objective = str(new_objective or "").strip()[:4000]
+    if not clean_objective:
+        return {"ok": False, "error": "an objective is required"}
+    worker = active_worker(goal_id)
+    if worker is not None:
+        # Fence the old worker: no new dispatch, and its settled outcome records only the
+        # STEP truth (never goal state). Wait bounded for the in-flight turn to settle so
+        # the rewrite below starts from the settled facts — an effect the turn committed is
+        # recorded before the plan is superseded.
+        worker.fence_requested.set()
+        turn_id = worker.current_step_turn()
+        if turn_id:
+            from core.live_turns import request_cancel
+
+            request_cancel(goal.get("session_id") or "", turn_id)
+        if not worker.finished.wait(timeout=10.0):
+            return {"ok": False, "error": "the active step is still settling; revise again in a moment"}
+    goal = load_goal(goal_id) or goal
+    previous_plan = goal.get("plan") if isinstance(goal.get("plan"), dict) else {}
+    previous_revision = int(goal.get("revision") or 0)
+    carried = [
+        step
+        for step in (previous_plan.get("steps") or [])
+        if isinstance(step, dict) and step.get("state") == "completed"
+    ]
+    history = list(previous_plan.get("history") or [])
+    history.append(
+        {
+            "revision": previous_revision,
+            "objective": str(goal.get("objective") or "")[:4000],
+            "provenance": str(previous_plan.get("provenance") or ""),
+            "completed_step_ids": [str(step.get("id")) for step in carried],
+            "superseded_at": time.time(),
+        }
+    )
+    # Only the last few revisions are retained in the row (bounded history); the canonical
+    # receipts stay in the runtime stores regardless.
+    goal["plan"] = {
+        "revision": 0,  # re-derived; build_plan stamps 1, so carry the monotone counter after
+        "provenance": f"revised:{source}",
+        "history": history[-5:],
+        "carried_steps": carried,
+    }
+    goal["objective"] = clean_objective
+    goal["state"] = "queued"
+    goal["current_step_id"] = ""
+    goal["worker_epoch"] = int(goal.get("worker_epoch") or 0) + 1
+    goal["updated_at"] = time.time()
+    goal["last_reason"] = f"objective revised from {source}; completed steps carried"
+    save_goal(goal)
+    emit_goal_event(_goal_event_context(goal), goal, "Goal revised")
+    return {"ok": True, "state": "queued", "worker_epoch": int(goal.get("worker_epoch") or 0)}
 
 
 #: Served-layer callback: after a resume, the HTTP layer re-arms the goal worker. The store

@@ -705,6 +705,35 @@ def revoke_chat_workspace_authority(session_id: str) -> bool:
     return True
 
 
+def pending_approval_record(session_id: str, approval_id: str) -> dict[str, Any] | None:
+    """The chat's recorded approval while it is STILL pending and unexpired, else None.
+
+    A narrow read over the ONE approval store, for callers that need to resume an exact
+    authorized attempt (the goal workflow's step retry): the returned record carries the
+    same token/approval_id, its exact intent/action binding and its expiry — the resume
+    applies it through the ordinary consult, which re-validates the exact call fingerprint.
+    Resolved, consumed, expired or wrong-chat approvals read as None, so a resume can never
+    re-use spent or foreign authority.
+    """
+    clean_session = str(session_id or "").strip()
+    clean_id = str(approval_id or "").strip()
+    if not clean_session or not clean_id:
+        return None
+    _ensure_approvals_restored()
+    now = time.time()
+    with _LOCK:
+        entry = _APPROVALS.get(clean_id)
+        if not isinstance(entry, dict):
+            return None
+        if str(entry.get("session_id") or "") != clean_session:
+            return None
+        if entry.get("status") != "pending":
+            return None
+        if float(entry.get("expires_at") or 0) <= now:
+            return None
+        return dict(entry)
+
+
 def session_has_pending_workspace_approval(session_id: str) -> bool:
     """Whether THIS chat currently shows a pending permission ask inside the chat-workspace class.
 

@@ -24,6 +24,7 @@ from core.goal_executor import execute_goal, retry_waiting_step
 from core.goal_workflow import (
     TERMINAL_GOAL_STATES,
     active_worker,
+    claim_worker_epoch,
     goal_public_view,
     load_active_goal_for_session,
     load_goal,
@@ -32,6 +33,7 @@ from core.goal_workflow import (
     parse_goal_command,
     request_pause,
     request_resume,
+    request_revise,
     request_stop,
     save_goal,
     unregister_worker,
@@ -69,19 +71,35 @@ def spawn_goal_worker(
     *,
     base_context: dict[str, Any],
     model: str,
-) -> None:
+    fresh_epoch: bool = True,
+    arm=None,
+) -> _GoalWorker | None:
     """Register the worker BEFORE the thread starts (the live-turn registration law), then run
     the goal loop detached. The response stream may end at any time; the worker's lifetime is
-    the goal's, not the HTTP stream's."""
-    worker = _GoalWorker(goal.get("goal_id") or "", goal.get("session_id") or "")
+    the goal's, not the HTTP stream's.
+
+    Exactly ONE owning worker per goal: a spawn for a goal that already has a live worker is
+    refused (returns None) — revise/resume fence the old worker by epoch BEFORE calling this.
+    Every spawn claims a monotone durable epoch, so an overtaken worker's writes are refused
+    by save_goal and its late unregister cannot touch the successor. ``runtime`` is the LIVE
+    daemon services handle — execution resolves through it, never a fabricated stand-in."""
+    goal_id = str(goal.get("goal_id") or "")
+    if active_worker(goal_id) is not None:
+        return None
+    epoch = claim_worker_epoch(goal_id) if fresh_epoch else int(goal.get("worker_epoch") or 0)
+    worker = _GoalWorker(goal_id, goal.get("session_id") or "", epoch=epoch)
     register_worker(worker)
+    if arm is not None:
+        # Applied BEFORE the thread starts: the worker's first dispatch already sees it.
+        arm(worker)
     thread = threading.Thread(
         target=_run_worker,
-        args=(runtime, worker, str(goal.get("goal_id") or ""), dict(base_context or {}), str(model or "")),
-        name=f"goal-worker-{str(goal.get('goal_id') or '')[-8:]}",
+        args=(runtime, worker, goal_id, dict(base_context or {}), str(model or "")),
+        name=f"goal-worker-{goal_id[-8:]}",
         daemon=True,
     )
     thread.start()
+    return worker
 
 
 def _run_worker(runtime, worker: _GoalWorker, goal_id: str, base_context: dict[str, Any], model: str) -> None:
@@ -103,7 +121,26 @@ def _run_worker(runtime, worker: _GoalWorker, goal_id: str, base_context: dict[s
             goal["last_reason"] = "goal worker failed; see server log"
             save_goal(goal)
     finally:
-        unregister_worker(goal_id)
+        unregister_worker(goal_id, worker)
+
+
+def serve_goal_ambiguous_note(
+    runtime,
+    *,
+    session_id: str,
+    source_context: dict[str, Any],
+    model: str,
+) -> tuple[int, Iterator[bytes], dict[str, Any]]:
+    """ONE concise question for an ambiguous goal reference. Nothing is mutated."""
+    model_name = str(model or "vool")
+    goal = load_active_goal_for_session(session_id)
+    view = goal_public_view(goal) if goal else None
+    objective = (view or {}).get("objective") or "the active goal"
+    reply = (
+        f'That may be about the active goal "{objective}". To apply it, send "goal: <instruction>". '
+        "Otherwise resend normally and the chat continues untouched."
+    )
+    return 200, _short_stream([reply], model=model_name, goal_view=view), {"reply": reply}
 
 
 def _short_stream(lines: list[str], *, model: str, goal_view: dict[str, Any] | None = None) -> Iterator[bytes]:
@@ -215,26 +252,24 @@ def serve_goal_ingress(
         if goal is None:
             reply = "No goal to revise. Start one with /goal <objective>."
             return 200, _short_stream([reply], model=model_name), {"reply": reply}
-        goal["objective"] = arg[:4000]
-        goal["plan"] = {}
-        goal["revision"] = 0
-        goal["state"] = "queued"
-        goal["current_step_id"] = ""
-        goal["updated_at"] = now
-        goal["last_reason"] = "objective revised; plan will be re-derived (completed steps are kept in history)"
-        save_goal(goal)
-        view = goal_public_view(goal)
-        reply = "Goal revised. Re-deriving the plan; completed steps stay completed."
-        spawn_goal_worker(runtime, goal, base_context=source_context, model=model_name)
+        outcome = request_revise(goal.get("goal_id") or "", arg, source="chat")
+        if not outcome.get("ok"):
+            reply = f"Could not revise the goal: {outcome.get('error')}"
+            return 200, _short_stream([reply], model=model_name), {"reply": reply}
+        fresh = load_goal(goal.get("goal_id") or "") or goal
+        view = goal_public_view(fresh)
+        reply = "Goal revised. Re-deriving the plan; completed steps carry over and the revision advanced."
+        spawn_goal_worker(runtime, fresh, base_context=source_context, model=model_name)
         return 200, _short_stream([reply], model=model_name, goal_view=view), {"reply": reply}
 
+    objective, acceptance = _split_acceptance(arg)
     goal_id = new_goal_id()
     goal = {
         "goal_id": goal_id,
         "session_id": session_id,
         "project_id": str(source_context.get("project_id") or ""),
-        "objective": arg[:4000],
-        "acceptance": "",
+        "objective": objective,
+        "acceptance": acceptance,
         "plan": {},
         "state": "queued",
         "revision": 0,
@@ -254,6 +289,26 @@ def serve_goal_ingress(
     reply = f"Goal created: {arg}\nDeriving the plan and starting the steps this chat's mode already permits. Progress shows on the goal card."
     spawn_goal_worker(runtime, goal, base_context=source_context, model=model_name)
     return 200, _short_stream([reply], model=model_name, goal_view=view), {"reply": reply}
+
+
+def _split_acceptance(arg: str) -> tuple[str, str]:
+    """Split an explicit acceptance clause out of the composer objective.
+
+    ``/goal build the site acceptance: all pages link-checked`` captures the goal's real
+    acceptance obligation durably (shown on the card, injected into every step prompt);
+    without the clause the acceptance stays empty and completion means the plan's own
+    verified steps."""
+    text = str(arg or "")
+    match = None
+    for marker in ("acceptance:", "accept:", "Acceptance:"):
+        idx = text.find(marker)
+        if idx >= 0 and (match is None or idx < match[0]):
+            match = (idx, marker)
+    if match is None:
+        return text.strip()[:4000], ""
+    objective = text[:match[0]].strip()
+    acceptance = text[match[0] + len(match[1]):].strip()
+    return objective[:4000], acceptance[:2000]
 
 
 def _persist_exec_binding(goal: dict[str, Any], source_context: dict[str, Any], model: str) -> None:
@@ -301,11 +356,13 @@ def goal_state_payload(session_id: str) -> dict[str, Any]:
     return {"goal": goal_public_view(goal)}
 
 
-def goal_control(action: str, body: dict[str, Any], session_id: str) -> tuple[int, dict[str, Any]]:
+def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=None) -> tuple[int, dict[str, Any]]:
     """Owner-local POST controls from the card: pause / resume / stop / retry.
 
     Chat-scoped: a control naming a goal that belongs to a DIFFERENT chat refuses, so one
-    chat's card can never pause or stop another chat's goal."""
+    chat's card can never pause or stop another chat's goal. ``runtime`` is the LIVE daemon
+    services handle from the serving request — resumed execution runs through it, never a
+    fabricated stand-in."""
     goal_id = str(body.get("goal_id") or "").strip()
     goal = load_goal(goal_id) if goal_id else load_active_goal_for_session(session_id)
     if goal is None:
@@ -322,16 +379,24 @@ def goal_control(action: str, body: dict[str, Any], session_id: str) -> tuple[in
         if outcome.get("ok") and not outcome.get("already"):
             fresh = load_goal(goal_id)
             if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
-                spawn_goal_worker(None, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""))
+                spawn_goal_worker(runtime, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""))
         outcome = dict(outcome)
     elif action == "retry":
-        approval_token = str(body.get("approval_token") or "").strip()[:128]
-        outcome = retry_waiting_step(goal_id, approval_token=approval_token)
+        # The token is resolved SERVER-SIDE from the goal's recorded pending approval (the
+        # exact preview the step's own turn minted): the client never supplies one, raw
+        # tokens are never persisted, and the existing consult re-validates the exact
+        # action/args fingerprint on the resumed dispatch.
+        outcome = retry_waiting_step(goal_id)
         if outcome.get("ok"):
             fresh = load_goal(goal_id)
+            pending_step_id = str(outcome.get("pending_step_id") or "")
+            pending_token = str(outcome.get("pending_approval_token") or "")
             if fresh is not None:
-                spawn_goal_worker(None, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""))
-        outcome = dict(outcome)
+                spawn_goal_worker(
+                    runtime, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""),
+                    arm=lambda w: w.arm_approval_token(pending_step_id, pending_token),
+                )
+        outcome = {k: v for k, v in outcome.items() if k != "pending_approval_token"}
     else:
         return 400, {"ok": False, "error": "unknown action"}
     fresh = load_goal(goal_id) or goal

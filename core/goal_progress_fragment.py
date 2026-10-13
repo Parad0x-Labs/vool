@@ -35,6 +35,7 @@ def render_goal_progress_fragment() -> str:
   .vgc-state.is-completed{background:rgba(48,209,88,.18);color:var(--vgc-ok)}
   .vgc-state.is-failed,.vgc-state.is-cancelled{background:rgba(255,69,58,.16);color:var(--vgc-bad)}
   .vgc-state.is-paused,.vgc-state.is-interrupted,.vgc-state.is-waiting_approval{background:rgba(255,159,10,.16);color:var(--vgc-warn)}
+  .vgc-state.is-blocked{background:rgba(191,90,242,.16);color:#a06bd6}
   .vgc-caret{margin-left:auto;color:var(--vgc-dim);transition:transform .15s ease}
   @media(prefers-reduced-motion:reduce){.vgc-caret{transition:none}}
   .vgc-count{color:var(--vgc-dim);font-variant-numeric:tabular-nums;font-size:12px}
@@ -78,6 +79,7 @@ def render_goal_progress_fragment() -> str:
   </button>
   <div class="vgc-body" id="vgcBody">
     <div class="vgc-objective" id="vgcObjective" title=""></div>
+    <div class="vgc-reason vgc-hidden" id="vgcAcceptance"></div>
     <div class="vgc-current vgc-hidden" id="vgcCurrent"></div>
     <div id="vgcPending"></div>
     <div class="vgc-section vgc-hidden" id="vgcCompletedSection">
@@ -112,6 +114,7 @@ def render_goal_progress_fragment() -> str:
     var labels = {queued:t('goal.state_queued','Queued'), planning:t('goal.state_planning','Planning'),
       running:t('goal.state_running','Running'), waiting_approval:t('goal.state_waiting','Waiting for approval'),
       paused:t('goal.state_paused','Paused'), interrupted:t('goal.state_interrupted','Interrupted'),
+      blocked:t('goal.state_blocked','Blocked'),
       completed:t('goal.state_completed','Completed'), failed:t('goal.state_failed','Failed'), cancelled:t('goal.state_cancelled','Cancelled')};
     return labels[state] || String(state||'');
   }
@@ -132,6 +135,10 @@ def render_goal_progress_fragment() -> str:
     obj.textContent = view.objective || '';
     obj.title = view.objective || '';
     obj.onclick = function(){ obj.classList.toggle('full'); };
+    // The goal's captured acceptance obligation, when one exists (durable, from the record).
+    var acc = $('vgcAcceptance');
+    if (view.acceptance){ acc.textContent = t('goal.acceptance_label','Acceptance') + ': ' + view.acceptance; acc.classList.remove('vgc-hidden'); }
+    else acc.classList.add('vgc-hidden');
     // current step
     var cur = $('vgcCurrent');
     var currentStep = null;
@@ -193,9 +200,9 @@ def render_goal_progress_fragment() -> str:
         .catch(function(){ schedulePoll(1500); });
     }
     if (view.state === 'running' || view.state === 'planning' || view.state === 'queued') btn(t('goal.pause','Pause'), false, function(){ post('pause'); });
-    if (view.state === 'paused' || view.state === 'interrupted') btn(t('goal.resume','Resume'), true, function(){ post('resume'); });
+    if (view.state === 'paused' || view.state === 'interrupted' || view.state === 'blocked') btn(t('goal.resume','Resume'), true, function(){ post('resume'); });
     if (view.state === 'waiting_approval') btn(t('goal.retry_step','Resume step'), true, function(){ post('retry'); });
-    if (['queued','planning','running','waiting_approval','paused','interrupted'].indexOf(view.state) >= 0) btn(t('goal.stop','Stop'), false, function(){ post('stop'); });
+    if (['queued','planning','running','waiting_approval','paused','interrupted','blocked'].indexOf(view.state) >= 0) btn(t('goal.stop','Stop'), false, function(){ post('stop'); });
     if (running) schedulePoll(3000); else schedulePoll(0);
     renderElapsedTick();
     anchorAboveComposer();
@@ -224,7 +231,7 @@ def render_goal_progress_fragment() -> str:
   function schedulePoll(delay){
     if (pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
     if (!view) return;
-    var running = ['queued','planning','running','waiting_approval'].indexOf(view.state) >= 0;
+    var running = ['queued','planning','running','waiting_approval','blocked'].indexOf(view.state) >= 0;
     if (!running) return;
     pollTimer = setTimeout(function(){
       if (document.hidden){ schedulePoll(3000); return; }

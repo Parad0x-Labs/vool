@@ -454,19 +454,33 @@ def test_pause_stops_dispatch_then_resume_completes_and_stop_terminates() -> Non
         status, payload = _post(_APP, "/api/goal/pause", {"session_id": created["session_id"], "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True, payload
         agent.step_gate.set()  # let the in-flight turn settle
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            goal = load_goal(goal_id)
+            if goal["plan"]["steps"][0]["state"] != "running":
+                break
+            time.sleep(0.1)
         goal = _wait_goal_terminal_or_holding(goal_id)
         assert goal["state"] == "paused", goal["last_reason"]
-        assert goal["plan"]["steps"][0]["state"] == "interrupted"
+        # The settled in-flight turn is truthfully classified: its declared effect already
+        # verifiably committed, so the step reads completed (never replayed on resume).
+        assert goal["plan"]["steps"][0]["state"] == "completed"
         calls_after_pause = len(agent.calls)
         time.sleep(0.6)
         assert len(agent.calls) == calls_after_pause, "pause must stop all new dispatch"
 
-        # Resume re-dispatches the interrupted step fresh; goal completes.
+        # Resume reconciles the interrupted step against its recorded receipts: the
+        # in-flight attempt had already committed its declared effect (real file +
+        # ledger event), so it is marked completed from evidence — never re-dispatched.
+        calls_before_resume = len(agent.calls)
         status, payload = _post(_APP, "/api/goal/resume", {"session_id": created["session_id"], "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True, payload
         goal = _wait_goal_terminal_or_holding(goal_id)
         assert goal["state"] == "completed", goal["last_reason"]
-        assert goal["plan"]["steps"][0]["attempts"] == 2, "resume re-dispatches, never re-marks"
+        assert goal["plan"]["steps"][0]["state"] == "completed"
+        assert goal["plan"]["steps"][0]["attempts"] == 1, "a committed effect is reconciled, never replayed"
+        # Only step TWO was newly dispatched after the resume (planner + settled s1 + s2).
+        assert len(agent.calls) == calls_before_resume + 1
 
         # A terminal goal refuses further control and further dispatch.
         calls_before = len(agent.calls)

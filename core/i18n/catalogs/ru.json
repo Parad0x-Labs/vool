@@ -1802,9 +1802,11 @@
     "goal.pause": "Пауза",
     "goal.resume": "Продолжить",
     "goal.retry_step": "Продолжить шаг",
-    "goal.stop": "Остановить"
+    "goal.stop": "Остановить",
+    "goal.state_blocked": "Заблокирована",
+    "goal.acceptance_label": "Критерии приёмки"
   },
-  "source_catalog_sha256": "2bf504421a634b8591f923840e4b7f4b15843cd0f7cd251a22df0aa844fb779f",
+  "source_catalog_sha256": "e365158e979e1be12b70ed3e91cf213057bdefd16d9b759c5cf4a534ddd0119e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

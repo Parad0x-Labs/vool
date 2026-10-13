@@ -203,14 +203,37 @@ class VerificationTests(GoalWorkflowTestBase):
         self.assertTrue(ok)
 
     def test_turn_outcome_classification_never_invents_success(self) -> None:
-        self.assertEqual(_classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "fulfilled"}}, False), ("completed", ""))
+        self.assertEqual(_classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "fulfilled"}, "task_outcome": "success"}, False), ("completed", ""))
         self.assertEqual(_classify_turn_outcome({"task_outcome": "pending_approval"}, False)[0], "waiting_approval")
-        self.assertEqual(_classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "blocked"}}, False)[0], "waiting_approval")
+        # A block that IS a live approval wait.
+        self.assertEqual(
+            _classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "blocked", "failure_codes": ["approval_required"]}}, False)[0],
+            "waiting_approval",
+        )
+        # A budget/capability block is a resource hold, never an approval.
+        self.assertEqual(
+            _classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "blocked", "failure_codes": ["budget_exhausted"]}}, False)[0],
+            "blocked",
+        )
         self.assertEqual(_classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "failed", "failure_codes": ["x"]}}, False)[0], "failed")
         self.assertEqual(_classify_turn_outcome({"fulfillment_outcome": {"fulfillment_status": "cancelled"}}, False)[0], "cancelled")
         self.assertEqual(_classify_turn_outcome({}, True)[0], "interrupted")
         self.assertEqual(_classify_turn_outcome({"error": "boom"}, False)[0], "failed")
         self.assertEqual(_classify_turn_outcome({}, False)[0], "failed")
+
+    def test_prose_cannot_manufacture_completion(self) -> None:
+        # The review's reproduced defect: a nonempty refusal with a failure-shaped typed
+        # outcome and no fulfillment evidence completed. It must fail.
+        result = {
+            "task_outcome": "provider_did_not_answer",
+            "response": "I could not complete the work.",
+        }
+        self.assertEqual(_classify_turn_outcome(result, False)[0], "failed")
+        # A fulfilled receipt with a success outcome still completes.
+        self.assertEqual(
+            _classify_turn_outcome({"task_outcome": "success", "fulfillment_outcome": {"fulfillment_status": "fulfilled"}, "response": "done"}, False)[0],
+            "completed",
+        )
 
     def test_step_context_drops_stream_and_authority_keys(self) -> None:
         base = {
@@ -229,13 +252,16 @@ class VerificationTests(GoalWorkflowTestBase):
         self.assertNotIn("cancel_event", ctx)
         self.assertEqual(ctx["cancel_turn_id"], "g1:s1:a1")
         self.assertEqual(ctx["workspace"], "/tmp/ws")
-        self.assertEqual(ctx["operating_mode"], "manual")  # informational; live session mode governs
+        # No pinned mode: the authority resolves the chat's LIVE session record per consult.
+        self.assertNotIn("operating_mode", ctx)
+        self.assertNotIn("operating_mode_revision", ctx)
+        self.assertEqual(ctx["goal_step"]["revision"], 0)
         ctx2 = step_source_context(base, goal={"goal_id": "g1"}, step={"id": "s1"}, attempt=2, turn_id="t", approval_token="tok2")
         self.assertEqual(ctx2["mode_approval_token"], "tok2")
 
 
 class ControlSemanticsTests(GoalWorkflowTestBase):
-    def test_pause_freezes_running_steps_and_resume_restores_them(self) -> None:
+    def test_pause_preserves_settlement_and_resume_reconciles_receipts(self) -> None:
         goal = self._goal()
         goal["state"] = "running"
         goal["current_step_id"] = "s1"
@@ -246,15 +272,66 @@ class ControlSemanticsTests(GoalWorkflowTestBase):
         paused = load_goal(goal["goal_id"])
         assert paused is not None
         self.assertEqual(paused["state"], "paused")
-        self.assertEqual(paused["plan"]["steps"][0]["state"], "interrupted")
         self.assertIsNotNone(paused["paused_at"])
-        outcome = request_resume(goal["goal_id"])
+        # Pause does NOT pre-write a step state it has not observed: the in-flight step
+        # stays exactly as the worker left it until the turn settles and is classified.
+        self.assertEqual(paused["plan"]["steps"][0]["state"], "running")
+
+        # Resume reconciles the interrupted step against its recorded turn's receipts.
+        paused = load_goal(goal["goal_id"])
+        assert paused is not None
+        paused["plan"]["steps"][0]["state"] = "interrupted"
+        paused["plan"]["steps"][0]["turn_id"] = "turn-x"
+        save_goal(paused)
+        # The interrupted turn's verification ALREADY holds in the ledger: completed, never
+        # replayed.
+        from unittest import mock
+
+        with mock.patch(
+            "core.goal_executor._step_events",
+            return_value=[{"event_type": "tool_executed", "tool_name": "workspace.write_file", "path": "ws/a.txt"}],
+        ):
+            outcome = request_resume(goal["goal_id"])
         self.assertTrue(outcome["ok"])
         resumed = load_goal(goal["goal_id"])
         assert resumed is not None
         self.assertEqual(resumed["state"], "running")
-        self.assertEqual(resumed["plan"]["steps"][0]["state"], "pending")
+        self.assertEqual(resumed["plan"]["steps"][0]["state"], "completed")
         self.assertIsNone(resumed["paused_at"])
+
+    def test_resume_marks_unverifiable_effect_a_reconciliation_need(self) -> None:
+        from unittest import mock
+
+        goal = self._goal(state="paused")
+        goal["plan"]["steps"][0]["state"] = "interrupted"
+        goal["plan"]["steps"][0]["turn_id"] = "turn-y"
+        save_goal(goal)
+        # The expected tool RAN in the interrupted turn but never verifiably completed:
+        # replaying it could duplicate a real effect — a reconciliation need, honestly.
+        with mock.patch(
+            "core.goal_executor._step_events",
+            return_value=[{"event_type": "tool_failed", "tool_name": "workspace.write_file", "path": "ws/a.txt"}],
+        ):
+            outcome = request_resume(goal["goal_id"])
+        self.assertTrue(outcome["ok"])
+        resumed = load_goal(goal["goal_id"])
+        assert resumed is not None
+        self.assertEqual(resumed["plan"]["steps"][0]["state"], "blocked")
+        self.assertIn("reconciliation", resumed["plan"]["steps"][0]["reason"])
+
+    def test_resume_redispatches_only_effect_free_interrupted_steps(self) -> None:
+        from unittest import mock
+
+        goal = self._goal(state="paused")
+        goal["plan"]["steps"][0]["state"] = "interrupted"
+        goal["plan"]["steps"][0]["turn_id"] = "turn-z"
+        save_goal(goal)
+        with mock.patch("core.goal_executor._step_events", return_value=[]):
+            outcome = request_resume(goal["goal_id"])
+        self.assertTrue(outcome["ok"])
+        resumed = load_goal(goal["goal_id"])
+        assert resumed is not None
+        self.assertEqual(resumed["plan"]["steps"][0]["state"], "pending")
 
     def test_stop_is_terminal_and_refuses_recontrol(self) -> None:
         goal = self._goal(state="running")
@@ -280,12 +357,30 @@ class ControlSemanticsTests(GoalWorkflowTestBase):
         goal["current_step_id"] = "s1"
         goal["plan"]["steps"][0]["state"] = "waiting_approval"
         save_goal(goal)
+        # Without a recorded pending approval, the retry refuses honestly instead of
+        # claiming a token was used.
         outcome = retry_waiting_step(goal["goal_id"])
+        self.assertEqual(outcome["ok"], False)
+        self.assertIn("no pending approval", outcome["error"])
+        # A resolved token (supplied by the served layer from the approval authority)
+        # arms exactly this step for one dispatch.
+        outcome = retry_waiting_step(goal["goal_id"], approval_token="tok-123")
         self.assertTrue(outcome["ok"])
+        self.assertEqual(outcome["pending_step_id"], "s1")
+        self.assertEqual(outcome["pending_approval_token"], "tok-123")
         retried = load_goal(goal["goal_id"])
         assert retried is not None
         self.assertEqual(retried["state"], "running")
         self.assertEqual(retried["plan"]["steps"][0]["state"], "pending")
+
+    def test_worker_token_armed_for_one_step_one_use(self) -> None:
+        from core.goal_workflow import _GoalWorker
+
+        worker = _GoalWorker("g", "chat", epoch=1)
+        worker.arm_approval_token("s1", "tok")
+        self.assertEqual(worker.take_approval_token("s2"), "", "a token never applies to another step")
+        self.assertEqual(worker.take_approval_token("s1"), "tok")
+        self.assertEqual(worker.take_approval_token("s1"), "", "one use only")
 
 
 class ReconciliationTests(GoalWorkflowTestBase):

@@ -1802,7 +1802,9 @@
     "goal.pause": "Pause",
     "goal.resume": "Resume",
     "goal.retry_step": "Resume step",
-    "goal.stop": "Stop"
+    "goal.stop": "Stop",
+    "goal.state_blocked": "Blocked",
+    "goal.acceptance_label": "Acceptance"
   },
   "html_keys": [
     "bypass.modal_limits",

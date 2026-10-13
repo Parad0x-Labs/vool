@@ -6222,7 +6222,7 @@ def _dispatch_post_inner(
         from core.web.api.goal_api import goal_control
 
         _action = normalized_path.rsplit("/", 1)[-1]
-        _status, _payload = goal_control(_action, body, _goal_session)
+        _status, _payload = goal_control(_action, body, _goal_session, runtime=runtime)
         return apply_runtime_headers(json_response(_status, _payload), runtime)
 
     if normalized_path == "/api/chat/pin":
@@ -7326,9 +7326,39 @@ def _dispatch_post_inner(
         # context this ladder built, never a second ingress derivation). Owner-local only: a
         # remote peer's "/goal ..." text is an ordinary message and reaches the model as such.
         if owner_local:
-            from core.goal_workflow import parse_goal_command
+            from core.goal_workflow import parse_goal_command, parse_goal_reference
 
             _goal_parsed = parse_goal_command(user_text)
+            if _goal_parsed is None:
+                # Unambiguous conversational goal corrections: the explicit ``goal:``
+                # prefix reaches the ACTIVE goal as a revision (durable provenance);
+                # ambiguous references ask ONE concise question and mutate nothing;
+                # ordinary chat leaves the goal intact.
+                from core.goal_workflow import load_active_goal_for_session as _load_active
+
+                _active_goal = _load_active(session_id)
+                if _active_goal is not None:
+                    _goal_ref = parse_goal_reference(user_text)
+                    if _goal_ref is not None and _goal_ref.get("kind") == "instruction":
+                        from core.web.api.goal_api import serve_goal_ingress
+
+                        _goal_parsed = {"sub": "revise", "arg": str(_goal_ref.get("arg") or "")}
+                        if not _goal_parsed["arg"]:
+                            _goal_parsed = None
+                    elif _goal_ref is not None and _goal_ref.get("kind") == "ambiguous":
+                        from core.web.api.goal_api import serve_goal_ambiguous_note
+
+                        _status, _goal_iter, _goal_meta = serve_goal_ambiguous_note(
+                            runtime,
+                            session_id=session_id,
+                            source_context=source_context,
+                            model=model,
+                        )
+                        _commit_goal_reply(session_id, user_text, _goal_meta)
+                        return apply_runtime_headers(
+                            stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
+                            runtime,
+                        )
             if _goal_parsed is not None:
                 from core.web.api.goal_api import serve_goal_ingress
 
