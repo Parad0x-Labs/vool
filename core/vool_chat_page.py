@@ -2872,7 +2872,7 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
   nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
-    nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
+  nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
   const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = pageT('session.reveal_folder_title', 'Reveal folder in Finder');
@@ -4561,7 +4561,7 @@ const HUMAN_ACTIVITY_STATES = {
   Running: pageT('run.stage_running', 'Running'), Testing: pageT('run.stage_testing', 'Testing'), 'Waiting for permission': pageT('run.stage_waiting_approval', 'Waiting for approval'),
 };
 function humanActivityState(run) {
-  if (run.permission) return 'Waiting for approval';
+  if (run.permission) return pageT('run.stage_waiting_approval', 'Waiting for approval');
   const stage = String(run.stage || '').trim();
   return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
 }
@@ -8030,9 +8030,9 @@ let dictationRecorder = null;
 const DICTATION_NOTICE_DISMISSED_KEY = 'vool_dictation_notice_dismissed_v1';
 const DICTATION_LOCALE_KEY = 'vool_dictation_locale_v1';
 const VOICE_MODE_KEY = 'vool_voice_mode_v1';
-const DICTATION_TITLE_IDLE = dictT('dictation.dictate_title', 'Dictate into this message — recorded and transcribed on this machine only');
-const DICTATION_TITLE_RECORDING = dictT('dictation.recording_stop_title', 'Recording — click to stop and transcribe');
-const DICTATION_TITLE_PTT = dictT('dictation.ptt_title', 'Hold to talk — release to transcribe into this message');
+const DICTATION_TITLE_IDLE = dictT('dictate_title', 'Dictate into this message — recorded and transcribed on this machine only');
+const DICTATION_TITLE_RECORDING = dictT('recording_stop_title', 'Recording — click to stop and transcribe');
+const DICTATION_TITLE_PTT = dictT('ptt_title', 'Hold to talk — release to transcribe into this message');
 function dictT(key, fallback, params) {
   // Localised through the page's i18n bundle when it is present; the inline English is the
   // honest fallback until a catalog resolves the key.
