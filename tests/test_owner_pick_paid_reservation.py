@@ -424,8 +424,9 @@ def test_invariant_1_a_failed_explicit_pin_does_not_reach_the_free_cloud_boost(a
     assert str(decision.details.get("requested_model") or "") == anthropic_lane.provider_id
 
 
-def test_invariant_1_an_internal_tool_intent_call_does_not_spend(anthropic_lane, posts) -> None:
-    """The pick authorizes the answering lane, not the turn's internal classification calls."""
+def test_invariant_1_a_tool_selection_round_spends_only_under_an_explicit_pick(anthropic_lane, posts) -> None:
+    """The pick authorizes its own tool-selection rounds (owner decision 2026-10-05), each one
+    reserved against the same caps; without an explicit pick a tool round never reserves."""
     from core.paid_call_reservation import reserve_owner_pick_paid_call
 
     _set_policy(mode="auto", daily_cap=25)
@@ -434,6 +435,14 @@ def test_invariant_1_an_internal_tool_intent_call_does_not_spend(anthropic_lane,
         task=_task(),
         source_context={"_owner_local": True},
         task_kind="tool_intent",
+        call_role="tool_intent",
+    ) is not None
+    assert reserve_owner_pick_paid_call(
+        manifest=None,
+        task=_task(),
+        source_context={"_owner_local": True},
+        task_kind="tool_intent",
+        call_role="tool_intent",
     ) is None
 
 

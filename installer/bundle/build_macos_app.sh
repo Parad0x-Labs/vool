@@ -285,6 +285,44 @@ esac
 # Stage a relocatable runtime INSIDE the bundle: embedded CPython + lean deps + VOOL source +
 # the ollama binary. This is the macOS analogue of build_bundle.ps1's staging step, so the app
 # runs with no system Python, no repo checkout and no separately-installed Ollama.
+# Ollama runs models in a separate llama-server process that it looks for next to its own
+# binary, with the ggml/llama libraries and CPU backends beside it. Bundling the ollama binary
+# alone gives an app that can pull a model but never run one: every chat that needs the model
+# fails with "llama-server binary not found" (seen on a real Intel Mac with ollama v0.40.3).
+# This copies the runner, its libraries and their license files from the directory the ollama
+# binary came from. A Mach-O without the target slice is left out: a universal release ships
+# x86_64-only libraries an arm64 app cannot load, and the slice gate would refuse them. The MLX
+# engine directories are left out too (Apple Silicon on macOS 26 only); VOOL's local models
+# run through llama-server. Fails closed when the ollama binary needs a runner it cannot get.
+bundle_ollama_runtime() {
+  local src="$1" dst="$2" arch="$3" f name archs target
+  # An unmatched pattern stays literal and fails the -f / -L test, so no nullglob is needed.
+  for f in "${src}"/llama-server "${src}"/llama-quantize "${src}"/lib*.dylib "${src}"/lib*.so \
+    "${src}"/*_LICENSE "${src}"/*_NOTICE; do
+    [[ -f "${f}" && ! -L "${f}" ]] || continue
+    name="${f##*/}"
+    if archs="$(lipo -archs "${f}" 2>/dev/null)"; then
+      [[ " ${archs} " == *" ${arch} "* ]] || { say "        left out ${name} (slices: ${archs})"; continue; }
+    fi
+    cp -f "${f}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
+  done
+  # Version links (libggml.0.dylib -> libggml.0.25.3.dylib) are recreated as the same relative
+  # links, only when their target was bundled, so no link points outside the bundle.
+  for f in "${src}"/llama-server "${src}"/llama-quantize "${src}"/lib*.dylib "${src}"/lib*.so \
+    "${src}"/*_LICENSE "${src}"/*_NOTICE; do
+    [[ -L "${f}" ]] || continue
+    name="${f##*/}"
+    target="$(readlink "${f}")"
+    [[ "${target}" != */* ]] || die "ollama's ${name} links outside its directory (${target})"
+    [[ -e "${dst}/${target}" || -L "${dst}/${target}" ]] || continue
+    ln -sfn "${target}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
+  done
+  if grep -a -q -F "llama-server binary not found" "${dst}/ollama" && [[ ! -x "${dst}/llama-server" ]]; then
+    die "the bundled ollama runs models through llama-server, but no ${arch} llama-server was found next to it in ${src}"
+  fi
+  return 0
+}
+
 stage_self_contained() {
   local res="$1"
   command -v uv >/dev/null 2>&1 || die "--self-contained needs uv (astral.sh) to supply a relocatable CPython"
@@ -506,6 +544,7 @@ stage_self_contained() {
     if [[ -f "${resolved}" ]]; then
       cp -f "${resolved}" "${res}/ollama/ollama" && chmod +x "${res}/ollama/ollama"
       say "        bundled: ${resolved}"
+      bundle_ollama_runtime "$(dirname "${resolved}")" "${res}/ollama" "${TARGET_ARCH}"
     fi
   fi
   [[ -x "${res}/ollama/ollama" ]] || say "        WARNING: no ollama binary bundled; the app will use a system ollama if present"
@@ -730,22 +769,39 @@ if [[ "${SELF_CONTAINED}" -eq 1 ]]; then
 #!/usr/bin/env bash
 set -uo pipefail
 RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
-PY="${RES}/python/bin/python3"
-export PYTHONPATH="${RES}/app"
-# Resolve the profile before the first writable effect. This stdlib-only authority
-# is shared by the native window, plugin catalog and API child.
-export VOOL_HOME="$("${PY}" -c 'from core.runtime_paths import native_runtime_home; print(native_runtime_home())')"
-SUPPORT="$("${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')"
-[[ -n "${VOOL_HOME}" && -n "${SUPPORT}" ]] || exit 1
-mkdir -p "${SUPPORT}"
-exec >>"${SUPPORT}/app.log" 2>&1
-echo "--- VOOL.app (self-contained) launch $(date) ---"
+# Bootstrap native state without executing the payload before its platform gate.
+# This is the Darwin selection law used by core.runtime_paths.native_runtime_home.
+CANONICAL_RUNTIME="${HOME}/Library/Application Support/VOOL/runtime"
+LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
+SELECTED_RUNTIME="${VOOL_HOME:-${NULLA_HOME:-}}"
+if [[ -z "${SELECTED_RUNTIME}" ]]; then
+  if [[ ! -d "${CANONICAL_RUNTIME}" && -d "${LEGACY_RUNTIME}" ]]; then
+    SELECTED_RUNTIME="${LEGACY_RUNTIME}"
+  else
+    SELECTED_RUNTIME="${CANONICAL_RUNTIME}"
+  fi
+fi
+if [[ "${SELECTED_RUNTIME}" == "${CANONICAL_RUNTIME}" || "${SELECTED_RUNTIME}" == "${LEGACY_RUNTIME}" ]]; then
+  SUPPORT="${HOME}/Library/Application Support/VOOL"
+else
+  SUPPORT="${SELECTED_RUNTIME}/logs"
+fi
+resolve_native_state() {
+  export VOOL_HOME="${VOOL_HOME:-${SELECTED_RUNTIME}}"
+  local resolved_home resolved_state
+  resolved_home="$("${PY}" -c 'from core.runtime_paths import native_runtime_home; print(native_runtime_home())')" || return 1
+  [[ -z "${resolved_home}" ]] || export VOOL_HOME="${resolved_home}"
+  resolved_state="$("${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')" || return 1
+  [[ -z "${resolved_state}" ]] || SUPPORT="${resolved_state}"
+}
 
 # A shell main executable has no CPU slice for LaunchServices to validate. Refuse
 # a wrong download before executing embedded Python, with an actionable dialog.
 launch_refusal() {
   local message="$1"
   echo "VOOL cannot start: ${message}" >&2
+  mkdir -p "${SUPPORT}"
+  printf 'VOOL cannot start: %s\n' "${message}" >>"${SUPPORT}/app.log"
   if command -v osascript >/dev/null 2>&1; then
     osascript -e 'on run argv' -e 'display alert "VOOL cannot start" message (item 1 of argv) as critical giving up after 10' -e 'end run' "${message}" || true
   fi
@@ -776,6 +832,12 @@ min_version=$((10#${min_major} * 1000000 + 10#${min_minor:-0} * 1000 + 10#${min_
 [[ "${host_version}" -ge "${min_version}" ]] || \
   launch_refusal "This VOOL build requires macOS ${MIN_MACOS} or newer; this Mac runs ${HOST_MACOS}."
 
+PY="${RES}/python/bin/python3"
+export PYTHONPATH="${RES}/app"
+resolve_native_state || launch_refusal "The bundled runtime could not resolve its selected profile."
+mkdir -p "${SUPPORT}"
+exec >>"${SUPPORT}/app.log" 2>&1
+echo "--- VOOL.app (self-contained) launch $(date) ---"
 # Respect a caller-provided VOOL_HOME. The runtime's own contract (core/runtime_paths.py)
 # honours the env var; overwriting it here silently defeated every isolated home a launcher
 # or validation rig set, routing the daemon's data to the installed home instead (measured
@@ -789,8 +851,6 @@ min_version=$((10#${min_major} * 1000000 + 10#${min_minor:-0} * 1000 + 10#${min_
 # deterministically (same rule as core.runtime_paths.user_runtime_default and the
 # .vool_local/.nulla_local reuse) and the decision names both directories in the log, so
 # the conflict is visible instead of silent. See docs/VOOL_IDENTITY_COMPATIBILITY_MAP.md.
-CANONICAL_RUNTIME="${HOME}/Library/Application Support/VOOL/runtime"
-LEGACY_RUNTIME="${HOME}/Library/Application Support/NULLA/runtime"
 if [[ "${VOOL_HOME}" == "${CANONICAL_RUNTIME}" && -d "${LEGACY_RUNTIME}" ]]; then
   echo "NOTE: profiles exist at both ${CANONICAL_RUNTIME} (used) and ${LEGACY_RUNTIME} (not used)."
 elif [[ "${VOOL_HOME}" == "${LEGACY_RUNTIME}" ]]; then
@@ -890,14 +950,6 @@ if [[ -z "\${PY}" ]]; then
   fi
 fi
 
-# Resolve writable native state with the same authority as the self-contained host.
-export PYTHONPATH="\${PROJECT_ROOT}\${PYTHONPATH:+:\${PYTHONPATH}}"
-LOG_DIR="\$("\${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')"
-[[ -n "\${LOG_DIR}" ]] || exit 1
-mkdir -p "\${LOG_DIR}"
-exec >>"\${LOG_DIR}/app.log" 2>&1
-echo "--- VOOL.app launch \$(date) ---"
-
 # The long-lived native host owns runtime startup and teardown. Export the live checkout identity;
 # the host refuses to create a window unless /healthz stamps this exact commit.
 export VOOL_PROJECT_ROOT="\${PROJECT_ROOT}"
@@ -907,6 +959,13 @@ export VOOL_NATIVE_API_URL="\${VOOL_NATIVE_API_URL:-http://127.0.0.1:11435}"
 export VOOL_NATIVE_REQUIRE_OWNED_RUNTIME="1"
 # The notification helper this bundle ships (core/notifications_macos.py); the host runs it while the window runs.
 export VOOL_NOTIFICATIONS_HELPER="\$(cd "\$(dirname "\$0")/.." && pwd)/Resources/bin/VOOL Notifications.app"
+
+# Resolve writable native state with the same authority as the self-contained host.
+LOG_DIR="\$(cd "\${PROJECT_ROOT}" && "\${PY}" -c 'from core.runtime_paths import native_state_dir; print(native_state_dir())')"
+[[ -n "\${LOG_DIR}" ]] || exit 1
+mkdir -p "\${LOG_DIR}"
+exec >>"\${LOG_DIR}/app.log" 2>&1
+echo "--- VOOL.app launch \$(date) ---"
 
 echo "opening the native window"
 exec "\${PY}" "\${PROJECT_ROOT}/installer/bundle/vool_window.py"

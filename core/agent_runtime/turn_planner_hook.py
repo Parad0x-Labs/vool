@@ -828,9 +828,11 @@ def _build_auxiliary_ask_model(
                 for key, value in dict(source_context or {}).items()
                 if key != "runtime_event_stream_id"
             }
+            from core.local_compute_budget import local_compute_seconds
+
             call_context = bind_provider_deadline(
                 call_context,
-                turn_deadline_monotonic=runtime_active_clock.monotonic() + timeout_seconds,
+                turn_deadline_monotonic=runtime_active_clock.monotonic() + local_compute_seconds(timeout_seconds),
                 cleanup_margin_seconds=0.0,
                 reason=f"pre-classification {kind.value} budget",
             )

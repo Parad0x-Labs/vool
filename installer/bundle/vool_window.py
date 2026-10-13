@@ -102,7 +102,8 @@ def _single_instance() -> bool:
     NULLA.app launched after the upgrade would open beside this window.
     An unavailable lock fails closed: an unproved singleton cannot own the runtime.
     """
-    if sys.platform == "win32":
+    # Lock primitives belong to the host OS, independently of the renderer lane.
+    if os.name == "nt":
         try:
             from core.runtime_paths import active_vool_home, runtime_home_is_isolated
 
@@ -196,9 +197,12 @@ def _fallback_to_edge() -> None:
         _log("fallback: vool-open.ps1 not found; no window opened")
         return
     try:
+        from core.runtime_paths import native_runtime_home
+
         subprocess.Popen(
             ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", ps1],
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env={**os.environ, "VOOL_HOME": str(native_runtime_home())},
         )
         _log("opened via Edge --app fallback")
     except Exception as exc:
@@ -1551,7 +1555,10 @@ def main() -> int:
             # bar entry is missing. Never trade the whole window for the menu.
             _log("pywebview does not accept a menu; starting without the Settings menu item")
             try:
-                webview.start(_post_start_all, **start_options)
+                if isolated_webkit:
+                    webview.start(_post_start_all, **start_options)
+                else:
+                    webview.start(_post_start_all)
             except TypeError as exc:
                 if isolated_webkit:
                     raise NativeWebKitProfileError("verified Cocoa backend could not start") from exc

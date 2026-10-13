@@ -301,7 +301,15 @@ class MacProcessHelper:
     def relaunch(self, app_path: Path) -> bool:
         command = self.relaunch_cmd or ["open", "-n", str(app_path)]
         try:
-            subprocess.Popen(command, start_new_session=True, close_fds=True)
+            launch_env = dict(os.environ)
+            # A detached updater executes a frozen private code copy. Its import
+            # path and old native ownership belong to that worker, never to the
+            # installed app being restarted after the swap.
+            for name in ("PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PYTHONINSPECT",
+                         "VOOL_PROJECT_ROOT", "VOOL_EXPECTED_COMMIT", "VOOL_RUNTIME_MODE",
+                         "VOOL_OWNED_BY_WINDOW_PID", "VOOL_NATIVE_PARENT_PID"):
+                launch_env.pop(name, None)
+            subprocess.Popen(command, env=launch_env, start_new_session=True, close_fds=True)
             return True
         except OSError as exc:
             logger.error("helper relaunch failed: %s", exc)

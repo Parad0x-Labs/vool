@@ -2290,11 +2290,119 @@ def _memory_recall_response(
     ).strip()
     if not chat_id:
         return None
+    from core.agent_runtime.answer_coverage import turn_slices
+
+    slices = turn_slices(user_text)
+    answered_clauses = (user_text,)
+    # A follow-up whose subject is a bare pronoun ("i saved it already in settigns?!?! u dont
+    # see?!") only resolves against what the user asked a moment ago, so the prior turns are
+    # fetched before classifying rather than after -- but only for the messages that need them,
+    # so an ordinary chat turn does not pay for a history read it will never use.
+    recent_user_texts = _recent_user_texts(chat_id) if needs_prior_turns_to_classify(user_text) else ()
+    private_recall = _looks_like_private_memory_recall(
+        user_text, recent_user_texts=recent_user_texts
+    ) or any(
+        item.text != user_text and _looks_like_private_memory_recall(item.text)
+        for item in slices
+    )
+    from core.request_trust import request_is_owner_local
+
+    if not private_recall and not request_is_owner_local(context):
+        return None
+    identity = classify_identity_question(user_text, recent_user_texts=recent_user_texts)
+    try:
+        from core.context_scope import ContextAccessPolicy
+
+        access_policy = ContextAccessPolicy.for_request(
+            session_id=chat_id,
+            source_context=context,
+        )
+    except Exception:
+        return None
+    if (
+        access_policy.namespace_state != "active"
+        or not access_policy.allow_user_profile_context
+    ):
+        return None
+    # The user's saved name lives in settings, not in durable memory. Reading it must not be
+    # hostage to the memory subsystem opening: a failure here degrades the OTHER recall fields,
+    # never the settings-derived identity answer.
+    values: dict[str, str] = {}
+    revoked_clauses: tuple[str, ...] = ()
+    try:
+        from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
+        from core.vool_memory import VoolMemory
+
+        runtime_home = str(runtime.runtime_home or context.get("runtime_home") or "").strip() or None
+        agent_id = str(context.get("agent_id") or "").strip() or SEMANTIC_MEMORY_AGENT_ID
+        with VoolMemory(runtime_home=runtime_home, agent_id=agent_id) as memory:
+            if request_is_owner_local(context):
+                from core.memory.revocation import revoked_tokens, serialized
+                from core.memory_recall_intent import revoked_memory_recall_clauses
+
+                # The same completion fence and durable authority used by
+                # serving carriers decide absence. An unreadable ledger or
+                # pending erasure raises; neither becomes a no-record claim.
+                with serialized(memory._authority_home):
+                    tokens = revoked_tokens(
+                        chat_id, runtime_home, owner_memory=memory
+                    )
+                    revoked_clauses = revoked_memory_recall_clauses(
+                        user_text, revoked_tokens=tokens
+                    )
+            if not private_recall and not revoked_clauses:
+                return None
+            values = _private_memory_values(
+                memory,
+                include_profile=True,
+                # Legacy project blocks have no project provenance. They remain
+                # stored for migration but are quarantined from active recall.
+                include_project=False,
+            )
+    except Exception:
+        values = {}
+    if not private_recall and not revoked_clauses:
+        return None
+    identity_response = None
+    if identity.asks_user_identity:
+        # Answer the user's own name from the settings authority. The memory-block name is only a
+        # fallback for installs that predate the settings field, and it is labelled as such.
+        response, name, provenance = user_identity_answer(
+            fallback_name=str(values.get("name") or ""),
+            fallback_provenance="memory.user_profile.Name" if values.get("name") else "",
+        )
+        if not name and _chat_already_holds_a_name(chat_id):
+            # Nothing is stored, but the user TOLD us their name in this very chat. Answering
+            # "I don't have a name saved for you. Add it in Settings under 'Your name'" is not a
+            # degraded answer, it is a wrong one, and it arrives with model_calls=0 so nothing
+            # downstream gets a chance to read the transcript that holds the answer.
+            #
+            # Measured 2026-08-17, turn 20 of a 50-turn chat: the user had said "My name is
+            # Alex" in turn 1 and was told to add it in Settings in turn 20.
+            #
+            # The settings guidance is kept for the case it was written for -- a chat where the
+            # name was never given -- so declining is conditioned on transcript evidence rather
+            # than on the store being empty.
+            return None
+        identity_response = {
+            "response": response,
+            "confidence": 0.95,
+            "source": "local_user_settings" if provenance == SETTINGS_PROVENANCE else "local_private_memory",
+            "identity_subject": "user",
+            "identity_name": name,
+            "identity_provenance": provenance,
+            "identity_intent": identity.reason,
+            "_memory_recall_clauses": answered_clauses,
+        }
+        if not name or identity.reason == "anaphoric_saved_name_followup":
+            return identity_response
     from core.agent_runtime.answer_coverage import demand_units, turn_slices
 
     requested_units = demand_units(user_text)
-    slices = turn_slices(user_text)
-    if len(requested_units) > 1:
+    from core.memory_recall_intent import private_memory_recall_intent
+
+    whole_profile = private_memory_recall_intent(user_text).whole_profile
+    if len(requested_units) > 1 and not whole_profile:
         # The same family can own several DIFFERENT facts. Resolve each
         # complete demand against its own local authority before composing;
         # unresolved siblings remain work for the agent. Ambiguous multi-ask
@@ -2324,108 +2432,18 @@ def _memory_recall_response(
         item.text for item in slices
         if any(unit.slice_id == item.slice_id for unit in requested_units)
     )
-    # A follow-up whose subject is a bare pronoun ("i saved it already in settigns?!?! u dont
-    # see?!") only resolves against what the user asked a moment ago, so the prior turns are
-    # fetched before classifying rather than after -- but only for the messages that need them,
-    # so an ordinary chat turn does not pay for a history read it will never use.
-    recent_user_texts = _recent_user_texts(chat_id) if needs_prior_turns_to_classify(user_text) else ()
-    private_recall = _looks_like_private_memory_recall(
-        user_text, recent_user_texts=recent_user_texts
-    )
-    from core.request_trust import request_is_owner_local
-
-    if not private_recall and not request_is_owner_local(context):
-        return None
-    identity = classify_identity_question(user_text, recent_user_texts=recent_user_texts)
-    try:
-        from core.context_scope import ContextAccessPolicy
-
-        access_policy = ContextAccessPolicy.for_request(
-            session_id=chat_id,
-            source_context=context,
-        )
-    except Exception:
-        return None
-    if (
-        access_policy.namespace_state != "active"
-        or not access_policy.allow_user_profile_context
-    ):
-        return None
-    # The user's saved name lives in settings, not in durable memory. Reading it must not be
-    # hostage to the memory subsystem opening: a failure here degrades the OTHER recall fields,
-    # never the settings-derived identity answer.
-    values: dict[str, str] = {}
-    try:
-        from core.context_retrieval import SEMANTIC_MEMORY_AGENT_ID
-        from core.vool_memory import VoolMemory
-
-        runtime_home = str(runtime.runtime_home or context.get("runtime_home") or "").strip() or None
-        agent_id = str(context.get("agent_id") or "").strip() or SEMANTIC_MEMORY_AGENT_ID
-        with VoolMemory(runtime_home=runtime_home, agent_id=agent_id) as memory:
-            if request_is_owner_local(context):
-                from core.memory.revocation import revoked_tokens, serialized
-                from core.memory_recall_intent import revoked_memory_recall_clauses
-
-                # The same completion fence and durable authority used by
-                # serving carriers decide absence. An unreadable ledger or
-                # pending erasure raises; neither becomes a no-record claim.
-                with serialized(memory._authority_home):
-                    tokens = revoked_tokens(
-                        chat_id, runtime_home, owner_memory=memory
-                    )
-                    revoked_clauses = revoked_memory_recall_clauses(
-                        user_text, revoked_tokens=tokens
-                    )
-                    if revoked_clauses:
-                        return {
-                            "response": "I have no record of that information in this chat; it was forgotten.",
-                            "confidence": 0.95,
-                            "source": "local_private_memory",
-                            "route_reason": "completed_scoped_erasure",
-                            "model_calls": 0,
-                            "web_calls": 0,
-                            "_memory_recall_clauses": revoked_clauses,
-                        }
-            if not private_recall:
-                return None
-            values = _private_memory_values(
-                memory,
-                include_profile=True,
-                # Legacy project blocks have no project provenance. They remain
-                # stored for migration but are quarantined from active recall.
-                include_project=False,
-            )
-    except Exception:
-        values = {}
-    if identity.asks_user_identity:
-        # Answer the user's own name from the settings authority. The memory-block name is only a
-        # fallback for installs that predate the settings field, and it is labelled as such.
-        response, name, provenance = user_identity_answer(
-            fallback_name=str(values.get("name") or ""),
-            fallback_provenance="memory.user_profile.Name" if values.get("name") else "",
-        )
-        if not name and _chat_already_holds_a_name(chat_id):
-            # Nothing is stored, but the user TOLD us their name in this very chat. Answering
-            # "I don't have a name saved for you. Add it in Settings under 'Your name'" is not a
-            # degraded answer, it is a wrong one, and it arrives with model_calls=0 so nothing
-            # downstream gets a chance to read the transcript that holds the answer.
-            #
-            # Measured 2026-08-17, turn 20 of a 50-turn chat: the user had said "My name is
-            # Alex" in turn 1 and was told to add it in Settings in turn 20.
-            #
-            # The settings guidance is kept for the case it was written for -- a chat where the
-            # name was never given -- so declining is conditioned on transcript evidence rather
-            # than on the store being empty.
-            return None
+    if identity_response is not None:
+        identity_response["_memory_recall_clauses"] = answered_clauses
+        return identity_response
+    if revoked_clauses:
         return {
-            "response": response,
+            "response": "I have no record of that information in this chat; it was forgotten.",
             "confidence": 0.95,
-            "source": "local_user_settings" if provenance == SETTINGS_PROVENANCE else "local_private_memory",
-            "identity_subject": "user",
-            "identity_name": name,
-            "identity_provenance": provenance,
-            "identity_intent": identity.reason,
-            "_memory_recall_clauses": answered_clauses,
+            "source": "local_private_memory",
+            "route_reason": "completed_scoped_erasure",
+            "model_calls": 0,
+            "web_calls": 0,
+            "_memory_recall_clauses": revoked_clauses,
         }
     if not any(values.values()):
         return None

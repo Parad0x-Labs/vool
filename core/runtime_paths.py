@@ -23,6 +23,7 @@ PROJECT_CONFIG_DIR = (PROJECT_ROOT / "config").resolve()
 WORKSPACE_DIR = (PROJECT_ROOT / "workspace").resolve()
 _VOOL_HOME_OVERRIDE: Path | None = None
 _VOOL_HOME_ENV_AT_OVERRIDE = ""
+_CONFIGURED_HOME_OVERRIDE: Path | None = None
 _RUNTIME_HOME_GENERATION = 0
 _RUNTIME_HOME_ENV_LAST_SEEN: str | None = None
 
@@ -69,9 +70,10 @@ def user_runtime_default() -> Path:
 
 
 def configure_runtime_home(path: str | Path | None) -> None:
-    global _VOOL_HOME_OVERRIDE, _VOOL_HOME_ENV_AT_OVERRIDE, _RUNTIME_HOME_GENERATION, _RUNTIME_HOME_ENV_LAST_SEEN
+    global _VOOL_HOME_OVERRIDE, _VOOL_HOME_ENV_AT_OVERRIDE, _RUNTIME_HOME_GENERATION, _RUNTIME_HOME_ENV_LAST_SEEN, _CONFIGURED_HOME_OVERRIDE
     _RUNTIME_HOME_GENERATION += 1
     _VOOL_HOME_OVERRIDE = None if path is None else Path(path).expanduser().resolve()
+    _CONFIGURED_HOME_OVERRIDE = _VOOL_HOME_OVERRIDE
     _VOOL_HOME_ENV_AT_OVERRIDE = _runtime_env_home(os.environ)
     _RUNTIME_HOME_ENV_LAST_SEEN = _VOOL_HOME_ENV_AT_OVERRIDE
 
@@ -102,7 +104,7 @@ def active_vool_home(env: Mapping[str, str] | None = None) -> Path:
         # An in-process override owns a deliberate home switch (session import, an
         # embedder). A later explicit environment change selects a new profile and
         # must not be silently pinned to a home captured by an earlier bootstrap.
-        if _VOOL_HOME_OVERRIDE is not None and _runtime_env_home(os.environ) == _VOOL_HOME_ENV_AT_OVERRIDE:
+        if _runtime_override_is_active(os.environ):
             return _VOOL_HOME_OVERRIDE.resolve()
         env_map = os.environ
         env_home = _runtime_env_home(env_map)
@@ -128,6 +130,16 @@ def active_vool_home(env: Mapping[str, str] | None = None) -> Path:
 
 def _runtime_env_home(env: Mapping[str, str]) -> str:
     return str(env.get("VOOL_HOME") or "").strip() or str(env.get("NULLA_HOME") or "").strip()
+
+
+def _runtime_override_is_active(env: Mapping[str, str]) -> bool:
+    # Explicit in-process assignments are a supported embedding seam. Only an
+    # override bound through configure_runtime_home can expire after a later
+    # environment selection; a newly assigned override has its own authority.
+    return _VOOL_HOME_OVERRIDE is not None and (
+        _VOOL_HOME_OVERRIDE is not _CONFIGURED_HOME_OVERRIDE
+        or _runtime_env_home(env) == _VOOL_HOME_ENV_AT_OVERRIDE
+    )
 
 
 def active_data_dir() -> Path:
@@ -177,7 +189,7 @@ def runtime_auxiliary_path(*parts: str, legacy: str | Path | None = None) -> Pat
 def native_runtime_home(env: Mapping[str, str] | None = None) -> Path:
     """Native launch home, resolved before the launcher opens logs or starts a child."""
     env_map = os.environ if env is None else env
-    if env is None and _VOOL_HOME_OVERRIDE is not None and _runtime_env_home(env_map) == _VOOL_HOME_ENV_AT_OVERRIDE:
+    if env is None and _runtime_override_is_active(env_map):
         return _VOOL_HOME_OVERRIDE.resolve()
     explicit = _runtime_env_home(env_map)
     if explicit:
@@ -269,10 +281,16 @@ def resolve_workspace_root(explicit: str | Path | None = None) -> Path:
     # bundle stays byte-identical while running" -- and it breaks three real things: a signed
     # bundle's seal, state survival across an app replacement, and any install where the .app
     # is not user-writable. The two resolvers now agree.
-    if str(vool_env("PROJECT_ROOT") or "").strip() or runtime_home_is_isolated():
+    if str(vool_env("PROJECT_ROOT") or "").strip():
         return (active_vool_home() / "workspace").resolve()
     try:
-        return Path.cwd().resolve()
+        working_directory = Path.cwd().resolve()
+        # An isolated runtime launched from its source tree owns generated state
+        # beneath its profile. A dev invocation in a selected working directory
+        # keeps that directory as the user's project workspace.
+        if working_directory == PROJECT_ROOT and runtime_home_is_isolated():
+            return (active_vool_home() / "workspace").resolve()
+        return working_directory
     except FileNotFoundError:
         return PROJECT_ROOT.resolve()
 

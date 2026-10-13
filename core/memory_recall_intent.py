@@ -91,9 +91,6 @@ def revoked_memory_recall_clauses(
     targets = tuple(subject for token in revoked_tokens if (subject := _recall_subject(token)) is not None)
     claimed: list[str] = []
     for item in turn_slices(user_text):
-        units = demand_units(item.text)
-        if units is None or len(units) != 1:
-            continue
         clauses = parse_turn_ir(item.text).clauses
         if len(clauses) != 1 or clauses[0].kind not in {ClauseKind.KNOW, ClauseKind.RECALL}:
             continue
@@ -103,7 +100,12 @@ def revoked_memory_recall_clauses(
             and (not target.relation or target.relation == requested.relation)
             for target in targets
         ):
-            claimed.append(item.text)
+            # Arbitration is needed only after a revoked subject matches. In
+            # particular, unrelated FX or tool requests must never run another
+            # lane's admission probe while checking for a memory absence.
+            units = demand_units(item.text)
+            if units is not None and len(units) == 1:
+                claimed.append(item.text)
     return tuple(claimed)
 
 
@@ -132,6 +134,7 @@ _PROFILE_FIELD_SUBJECTS = {
 _PROFILE_READ_FRAME = re.compile(r"^(?:please\s+)?(?:show|list|summarize|summarise)\s+(.+)$")
 _PROFILE_STORED_FRAME = re.compile(r"^what\s+(?:is\s+(?:stored|saved)|have\s+you\s+(?:stored|saved))\s+about\s+(.+)$")
 _PROFILE_FIELD_COPULA_FRAME = re.compile(r"^what(?:'s|s|\s+(?:is|are))\s+(.+)$")
+_PROFILE_RECALL_FRAME = re.compile(r"^(?:personal\s+)?profile\s+recall\s*:\s*\S", re.IGNORECASE)
 
 
 def private_memory_recall_intent(user_text: str) -> PrivateMemoryRecallIntent:
@@ -147,6 +150,8 @@ def private_memory_recall_intent(user_text: str) -> PrivateMemoryRecallIntent:
         return PrivateMemoryRecallIntent(fields=("name",))
     text = unicodedata.normalize("NFKC", str(user_text or "")).casefold().replace("’", "'")
     text = " ".join(text.split()).strip(" .!?;")
+    if _PROFILE_RECALL_FRAME.match(text):
+        return PrivateMemoryRecallIntent(whole_profile=True)
     subject = None
     # Recall/show/storage operations ask for the contents. A location or
     # timing question about the profile is not permission to dump it.
@@ -160,7 +165,14 @@ def private_memory_recall_intent(user_text: str) -> PrivateMemoryRecallIntent:
     if subject.subject in _PROFILE_SUBJECTS:
         return PrivateMemoryRecallIntent(whole_profile=True)
     if subject.subject[:1] == ("my",):
-        return PrivateMemoryRecallIntent(fields=_PROFILE_FIELD_SUBJECTS.get(subject.subject[1:], ()))
+        fields = tuple(dict.fromkeys(
+            field
+            for words, targets in _PROFILE_FIELD_SUBJECTS.items()
+            if subject.subject[1:len(words) + 1] == words
+            and field_is_the_subject(text, " ".join(words))
+            for field in targets
+        ))
+        return PrivateMemoryRecallIntent(fields=fields)
     return PrivateMemoryRecallIntent()
 
 

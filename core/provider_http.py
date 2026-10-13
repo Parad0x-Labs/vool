@@ -180,6 +180,12 @@ class _Response(_requests.Response):
         return self._content
 
     def iter_content(self, chunk_size=1, decode_unicode=False):
+        if self._content_consumed:
+            if isinstance(self._content, bool):
+                raise exceptions.StreamConsumedError()
+            iterator = _requests.utils.iter_slices(self._content, chunk_size)
+            return _requests.utils.stream_decode_response_unicode(iterator, self) if decode_unicode else iterator
+
         def chunks():
             total = 0
             try:
@@ -243,6 +249,7 @@ def _worker():
         if isinstance(options.get("timeout"), list):
             options["timeout"] = tuple(options["timeout"])
         loopback = is_loopback_url(invocation["url"])
+        return_redirect = options.get("allow_redirects") is False
         # Each transfer owns its session. A local invocation never changes the
         # proxy/redirect behavior of a later explicitly authorized cloud call.
         with _requests.Session() as session:
@@ -251,7 +258,7 @@ def _worker():
                 options.pop("proxies", None)
                 options["allow_redirects"] = False
             with session.request(invocation["method"], invocation["url"], stream=True, **options) as response:
-                if loopback and response.is_redirect:
+                if loopback and response.is_redirect and not return_redirect:
                     raise exceptions.TooManyRedirects("loopback provider redirect refused")
                 emit({"type": "response", "status": response.status_code,
                       "headers": dict(response.headers), "url": response.url})

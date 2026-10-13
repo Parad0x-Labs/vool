@@ -24,12 +24,25 @@ from tests.test_prompt_assembly_profiles import _synthetic_context_result
 
 @pytest.fixture(autouse=True)
 def isolated_memory_home(tmp_path, monkeypatch):
+    from core import task_state_machine, trace_id
+    from storage import db
+
+    previous_db_override = db._DEFAULT_DB_PATH_OVERRIDE
     home = tmp_path / "memory-home"
     monkeypatch.setenv("VOOL_HOME", str(home))
     configure_runtime_home(home)
-    initialize_memory_home(home)
-    yield home
-    configure_runtime_home(None)
+    # The typed operator profile uses the active SQLite authority. A preceding
+    # suite may select it explicitly, so the fixture must own that store too.
+    db.configure_default_db_path(db.resolve_runtime_db_filename(home / "data"))
+    for module in (trace_id, task_state_machine):
+        monkeypatch.setattr(module, "_TABLE_READY", False)
+    try:
+        db.init_schema()
+        initialize_memory_home(home)
+        yield home
+    finally:
+        db.configure_default_db_path(previous_db_override)
+        configure_runtime_home(None)
 
 
 @pytest.mark.parametrize(

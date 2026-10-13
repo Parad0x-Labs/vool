@@ -870,7 +870,10 @@ VENV_PY="$(bash "${VENV_RESOLVER}")"
 cd "${PROJECT_ROOT}"
 LAUNCHER_HEAD
   cat >>"${target_path}" <<EOF
-export VOOL_HOME="\${VOOL_HOME:-\${NULLA_HOME:-${runtime_home}}}"
+if [[ -z "\${VOOL_HOME:-}" && -n "\${NULLA_HOME:-}" ]]; then
+  export VOOL_HOME="\${NULLA_HOME}"
+fi
+export VOOL_HOME="\${VOOL_HOME:-${runtime_home}}"
 # VOOL_WORKSPACE_ROOT is deliberately NOT defaulted here: pinning it made every packaged
 # run resolve the unbound chat workspace to the hidden internal directory, silently
 # overriding the Desktop default (core/web/api/runtime.default_workspace_root). An
@@ -1232,7 +1235,7 @@ if ! is_healthy; then
     echo "Starting VOOL..."
     STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
     [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(PYTHONPATH="${PROJECT_ROOT}" "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
     [[ -n "${LOG_DIR}" ]] || exit 1
     mkdir -p "${LOG_DIR}"
     nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
@@ -1269,7 +1272,7 @@ if ! is_healthy; then
     echo "Starting VOOL..."
     STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
     [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(PYTHONPATH="${PROJECT_ROOT}" "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
     [[ -n "${LOG_DIR}" ]] || exit 1
     mkdir -p "${LOG_DIR}"
     nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &

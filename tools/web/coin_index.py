@@ -56,6 +56,8 @@ import re
 import threading
 import time
 import urllib.request
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +108,17 @@ _TOKEN_RE = re.compile(r"[a-z0-9]{2,12}")
 _lock = threading.Lock()
 _memory_index: dict[str, str] | None = None
 _memory_stamp: float = 0.0
+_CACHE_ONLY = ContextVar("coin_index_cache_only", default=False)
+
+
+@contextmanager
+def cached_index_only():
+    """Read known identities during classification without retrieving new ones."""
+    token = _CACHE_ONLY.set(True)
+    try:
+        yield
+    finally:
+        _CACHE_ONLY.reset(token)
 
 
 def _cache_path() -> Path:
@@ -209,6 +222,13 @@ def _index() -> dict[str, str]:
         # Cached identities are local reads even when web is off. A cold index
         # may refresh only after consent; a refusal is not an API outage and must
         # not suppress a newly permitted turn for the negative-cache TTL.
+        from core.agent_runtime.answer_coverage import interpretation_in_progress
+
+        # Lane admission describes the user's demand; it cannot perform a
+        # retrieval on the way to deciding what the user actually authorized.
+        # Cached identities remain readable and a later active lookup may retry.
+        if _CACHE_ONLY.get() or interpretation_in_progress():
+            return {}
         if remote_fetch_forbidden() or not effective_web_available():
             return {}
         try:
