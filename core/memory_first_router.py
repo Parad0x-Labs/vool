@@ -5469,6 +5469,7 @@ class MemoryFirstRouter:
             min_trust=0.45,
             enforce_hardware_fit=True,
             local_only=turn_is_local_only(source_context),
+            explicit_model_pin=explicit_pin_selected,
         )
         ranked_manifests = [
             manifest

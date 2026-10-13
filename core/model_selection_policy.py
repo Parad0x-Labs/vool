@@ -28,6 +28,9 @@ class ModelSelectionRequest:
     # same way — as a HARD exclusion below, never as a score penalty a strong cloud model could
     # out-rank.
     local_only: bool = False
+    # A resolved operator pin, distinct from Auto's preferred/sticky model. Paid pins own
+    # their tool rounds; the adapter reports actual tool support rather than static tags.
+    explicit_model_pin: bool = False
 
 
 def provider_cost_class(manifest: ModelProviderManifest) -> str:
@@ -120,7 +123,10 @@ def reported_cost_class(manifest: ModelProviderManifest) -> str:
 # image to a text-only model. The other required tags (summarize, classify, format, extract,
 # code_*, long_context) describe what a model is good at; they rank candidates through
 # `capability_score`. They never remove a candidate that declares at least one of the turn's
-# required tags; the older zero-overlap rule (`no_required_capability` in
+# required tags. An explicit paid pin may attempt its own tool round even without a
+# tool_intent declaration: adapter tool-carrier and output validation still bind, and the
+# router reports its actual failure without substituting. Auto receives no such exception.
+# The older zero-overlap rule (`no_required_capability` in
 # `_hard_exclusion_reason`) still excludes a candidate that declares none of them.
 #
 # `structured_json` is a contract only where the OUTPUT is structured: the output contract owner
@@ -256,12 +262,21 @@ def _hard_exclusion_reason(
         return SELECTION_EXCLUSION_REASON
     if not request.allow_paid_fallback and charges_the_user(manifest, cost_class=cost_class):
         return "paid_not_permitted"
-    if required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
+    pinned_tool_attempt = (
+        request.explicit_model_pin
+        and request.preferred_provider == manifest.provider_name
+        and request.preferred_model == manifest.model_name
+        and cost_class == "paid_cloud"
+        and "tool_intent" in required
+    )
+    if not pinned_tool_attempt and required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
         return "no_required_capability"
     missing_contract = missing_hard_capabilities(manifest, required, output_mode=request.output_mode)
+    if pinned_tool_attempt:
+        missing_contract = tuple(capability for capability in missing_contract if capability != "tool_intent")
     if missing_contract:
         return "missing_required_capability:" + ",".join(missing_contract)
-    if str(request.output_mode or "").strip().lower() == "tool_intent" and (
+    if not pinned_tool_attempt and str(request.output_mode or "").strip().lower() == "tool_intent" and (
         declares_prompted_tools_without_structured_output(manifest)
     ):
         return PROMPTED_TOOL_EXCLUSION_REASON
@@ -423,7 +438,8 @@ def explain_provider_exclusions(
                 # Completeness against every required tag, preferences included: "" when the turn
                 # requires nothing, else whether all of them are declared. A missing HARD tag is
                 # already the status itself (`missing_required_capability:<tags>`); a "0" on an
-                # eligible row means only that a preference tag is absent, which ranks lower.
+                # eligible row means a preference tag is absent, or the explicit paid pin is
+                # attempting its own tool round without a static tool_intent declaration.
                 "required_capability_complete": complete,
             }
         )

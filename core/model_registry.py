@@ -158,6 +158,7 @@ class ModelRegistry:
             # inherited. A dropped `local_only` would re-admit the cloud candidates the caller just
             # excluded, which is the one failure this flag cannot survive.
             local_only=request.local_only,
+            explicit_model_pin=request.explicit_model_pin,
         )
         return rank_providers(self.list_manifests(enabled_only=True), merged_request)
 

@@ -126,6 +126,7 @@ def rank_provider_candidates(
     enforce_hardware_fit: bool = False,
     local_only: bool = False,
     min_context_tokens: Any = 0,
+    explicit_model_pin: bool = False,
 ) -> list[ModelProviderManifest]:
     """Rank the candidates for one model call.
 
@@ -149,6 +150,7 @@ def rank_provider_candidates(
         limit_to_swarm_size=True,
         local_only=local_only,
         min_context_tokens=min_context_tokens,
+        explicit_model_pin=explicit_model_pin,
     )
 
 
@@ -182,6 +184,7 @@ def _rank_provider_candidates_internal(
     limit_to_swarm_size: bool = True,
     local_only: bool = False,
     min_context_tokens: Any = 0,
+    explicit_model_pin: bool = False,
 ) -> list[ModelProviderManifest]:
     required_context_tokens = parse_token_count(min_context_tokens)
     if required_context_tokens is None:
@@ -203,6 +206,7 @@ def _rank_provider_candidates_internal(
             allow_paid_fallback=resolved_allow_paid and not local_only,
             min_trust=min_trust,
             local_only=bool(local_only),
+            explicit_model_pin=explicit_model_pin,
         )
     )
     if enforce_hardware_fit:
