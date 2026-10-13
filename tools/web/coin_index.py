@@ -77,6 +77,8 @@ _INDEX_PATH = (
     "/coins/markets?vs_currency=usd"
     f"&order=market_cap_desc&per_page={_MAX_RANK}&page=1&sparkline=false"
 )
+# The keyless markets page (no stored key): the same root ``core.coingecko_auth`` names keyless.
+_INDEX_URL = "https://api.coingecko.com/api/v3" + _INDEX_PATH
 # The index moves slowly (a coin's rank, not its price), so a long TTL is correct: this cache must
 # never sit on the latency path of an actual quote.
 _CACHE_TTL_S = 6 * 3600.0
@@ -171,6 +173,8 @@ def _read_index_rows() -> Any:
 
     for _attempt in range(len(coingecko_auth.PLANS) + 1):
         url, auth, plan = coingecko_auth.request_for(_INDEX_PATH)
+        if plan == "keyless":
+            url = _INDEX_URL
         try:
             # The one outbound door: consent and the effect ledger as for the keyless page; a key
             # rides only in its unredirected plan header, never through a proxy.

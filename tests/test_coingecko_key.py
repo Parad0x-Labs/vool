@@ -127,7 +127,6 @@ def test_credentials_door_removes_but_never_writes_a_market_key(monkeypatch):
 def test_a_refusal_of_the_old_key_never_blocks_the_key_saved_meanwhile(store, monkeypatch, lane):
     """Key A is sent; while CoinGecko answers, the operator saves key B; A comes back 401. Only A
     may be remembered as refused: the next request carries B (audit T-0047 P2)."""
-    import urllib.request
 
     import tools.web.web_research as wr
     from core import coingecko_auth
@@ -148,7 +147,8 @@ def test_a_refusal_of_the_old_key_never_blocks_the_key_saved_meanwhile(store, mo
         monkeypatch.setattr(wr, "_open_remote", refuse_after_rotation)
         wr._coingecko_get_json("/simple/price?ids=bitcoin", timeout=3, limit=1000)
     else:
-        monkeypatch.setattr(urllib.request, "urlopen", refuse_after_rotation)
+        # The index asks through the same one outbound door (open_remote_url -> open_remote).
+        monkeypatch.setattr("core.remote_fetch_policy.open_remote", refuse_after_rotation)
         coin_index._read_index_rows()
     assert sent[0] == PRO and sent[1] == replacement, sent
     assert coingecko_auth.request_for("/ping")[1] == {"x-cg-pro-api-key": replacement}
