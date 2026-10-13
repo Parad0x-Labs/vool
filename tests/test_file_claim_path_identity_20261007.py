@@ -120,3 +120,17 @@ def test_a_location_introduced_by_a_preposition_is_the_claimed_path(sentence, ke
         source_context={"workspace_root": str(tmp_path), "tool_receipts": [{"tool_name": "file.deliver", "status": "executed",
         "execution": {"executed": True, "ok": True}, "observation": {"path": "reports/a.md", "format": "md"}}]})
     assert (result["response"] == text) is kept
+
+
+@pytest.mark.parametrize("written,kept", [
+    ("~/Desktop/MarchTest/weekly notes.txt", True),
+    ("~/Desktop/Other/weekly notes.txt", False),
+])
+def test_the_write_lanes_created_file_report_names_the_path_it_wrote(written, kept):
+    # The machine write lane reports "Created file <path>."; "file" names what the path is.
+    text = "Created file ~/Desktop/MarchTest/weekly notes.txt."
+    result = enforce_final_action_honesty({"response": text, "mode": "tool_executed"}, user_input="save it as txt",
+        session_id=uuid.uuid4().hex, source_context={"tool_receipts": [{"tool_name": "file.deliver",
+        "status": "executed", "execution": {"executed": True, "ok": True},
+        "observation": {"path": written, "format": "txt"}}]})
+    assert (result["response"] == text) is kept

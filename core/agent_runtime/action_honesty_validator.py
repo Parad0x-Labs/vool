@@ -920,7 +920,8 @@ def _claimed_file_names(claims: list[str]) -> set[str] | None:
                               or _SPECIFIC_DELIVERABLE_NAME_RE.search(prefix[:boundary.start()])]
             if boundaries:
                 extra = prefix[boundaries[-1].end():]
-                extra = re.sub(r"^(?:the|a|an|your)\s+", "", extra, flags=re.I)
+                # "Created file ~/Desktop/a.txt": the noun names what the path is, not part of it.
+                extra = re.sub(r"^(?:(?:the|a|an|your)\s+)?(?:(?:new\s+)?file\s+)?", "", extra, flags=re.I)
                 if re.fullmatch(r"[\w ~/.-]{0,240}", extra):
                     name = extra + name
                 elif "/" in extra or "\\" in extra:
