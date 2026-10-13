@@ -86,26 +86,30 @@ KIND_CONFIRM = "confirm"
 KIND_DECLINE = "decline"
 KIND_PASSTHROUGH = "passthrough"
 
+# These patterns read `classify_followup`'s collapsed text (single spaces, no leading or trailing
+# space), so each whitespace run is matched by exactly one quantifier: two quantifiers that could
+# both take the same spaces make a long run of them quadratic to reject.
+#
 # Whole-message only. "stop using pandas" is a plan change, "should I stop it?" is a question, and
 # "stop everything" / "stop vool" belong to the shutdown brake -- none of them is this stop.
 _STOP_RE = re.compile(
-    r"^\s*(?:please\s+)?(?:ok(?:ay)?[,\s]+)?"
+    r"^(?:please\s+)?(?:ok(?:ay)?(?:,\s?|\s))?"
     r"(?:/?stop|/?cancel|abort|halt)"
     r"(?:\s+(?:it|that|this|now|the\s+task|this\s+task|that\s+task|the\s+job|the\s+run|working"
     r"|(?:what|everything)\s+you(?:'re|\s+are)\s+doing))?"
-    r"(?:\s+(?:please|now|right\s+now))?\s*[.!]*\s*$",
+    r"(?:\s+(?:please|now|right\s+now))?(?:\s?[.!]+)?$",
     re.IGNORECASE,
 )
 _CONFIRM_RE = re.compile(
-    r"^\s*(?:yes|yep|yeah|yup|y|ok(?:ay)?|sure|confirm(?:ed)?|go\s+ahead|do\s+it|apply(?:\s+it)?"
-    r"|yes[,\s]+(?:apply|use|do)\s+(?:it|that|the\s+(?:note|change)))"
-    r"(?:\s+please)?\s*[.!]*\s*$",
+    r"^(?:yes|yep|yeah|yup|y|ok(?:ay)?|sure|confirm(?:ed)?|go\s+ahead|do\s+it|apply(?:\s+it)?"
+    r"|yes(?:,\s?|\s)(?:apply|use|do)\s+(?:it|that|the\s+(?:note|change)))"
+    r"(?:\s+please)?(?:\s?[.!]+)?$",
     re.IGNORECASE,
 )
 _DECLINE_RE = re.compile(
-    r"^\s*(?:no|nope|nah|n|don'?t|do\s+not|drop\s+it|discard(?:\s+it)?|ignore\s+(?:it|that)"
-    r"|keep\s+going|leave\s+it|no[,\s]+(?:drop|ignore|discard)\s+(?:it|that))"
-    r"(?:\s+thanks)?\s*[.!]*\s*$",
+    r"^(?:no|nope|nah|n|don'?t|do\s+not|drop\s+it|discard(?:\s+it)?|ignore\s+(?:it|that)"
+    r"|keep\s+going|leave\s+it|no(?:,\s?|\s)(?:drop|ignore|discard)\s+(?:it|that))"
+    r"(?:\s+thanks)?(?:\s?[.!]+)?$",
     re.IGNORECASE,
 )
 _QUESTION_LEAD_RE = re.compile(
@@ -127,7 +131,7 @@ _ADDITIVE_RE = re.compile(r"\b(?:also|too|as\s+well|additionally|in\s+addition)\
 _PLAN_CHANGE_RE = re.compile(
     r"\b(?:instead|actually|rather\s+than|never\s*mind|forget\s+(?:it|that|about)|undo|revert|scrap"
     r"|roll\s+back|skip|switch\s+to|change\s+(?:it|that|the|to)|replace|don'?t(?!\s+forget\b)(?!\s+miss\b)"
-    r"|do\s+not|stop\s+\w+ing|no\s+longer|not\s+\w+\s*,?\s+but)\b",
+    r"|do\s+not|stop\s+\w+ing|no\s+longer|not\s+\w+(?:\s?,)?\s+but)\b",
     re.IGNORECASE,
 )
 
