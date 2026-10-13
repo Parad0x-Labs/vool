@@ -77,6 +77,19 @@ try {
   fire("keydown", { key: "Escape" });
   res.afterEscape = menu.style.display;
 
+  let focused = 0;
+  sprite.focus = () => { focused++; };
+  open();
+  fire("keydown", { key: "Escape" });
+  res.focusAfterMouseMenu = focused;
+  sprite.__on.keydown({ key: " ", preventDefault() {} });
+  fire("keydown", { key: "Escape" });
+  res.focusAfterKeyMenu = focused;
+  sprite.__on.keydown({ key: " ", preventDefault() {} });
+  menu.children.find((b) => b.textContent.startsWith("Motion")).__click();
+  res.focusAfterKeyRow = focused;
+  res.afterRow = menu.style.display;
+
   open();
   fire("pointerdown", { target: menu.children[0] });
   res.afterInsidePress = menu.style.display;
@@ -94,6 +107,9 @@ def test_the_pet_menu_closes_like_any_menu_and_shows_only_what_works() -> None:
     assert out["afterEscape"] == "none", "Escape closes the menu"
     assert out["afterInsidePress"] == "block", "pressing a row is not a click outside"
     assert out["afterOutsidePress"] == "none", "a click elsewhere closes the menu"
+    assert out["focusAfterMouseMenu"] == 0, "a right-click menu must not pull typing focus onto the pet"
+    assert out["focusAfterKeyMenu"] == 1, "a menu opened from the pet's key returns focus to the pet"
+    assert out["focusAfterKeyRow"] == 2 and out["afterRow"] == "none", "choosing a row by key keeps focus"
     assert "Reset position" not in out["rows"], "no desktop pet here, so nothing to reset"
     assert any(row.startswith("Pet: ") and row != "Pet: spark" for row in out["rows"]), (
         f"the character is named, not shown as its id: {out['rows']}"
@@ -112,6 +128,16 @@ try {
   await window.VoolCompanion.detachDesktop(true);
   displayedChat = "chat-named";
   await window.VoolCompanion.detachDesktop(true);
+  // In the window: an untitled chat that is working still shows what the pet is doing.
+  await window.VoolCompanion.returnToApp("docked");
+  displayedChat = "chat-0123456789abcdef";
+  window.VoolCompanion.consume(displayedChat, { type: "task.started", seq: 1 });
+  window.VoolCompanion.consume(displayedChat, { type: "tool.started", seq: 2, tool: "web_search" });
+  window.VoolCompanion.paintNow(Date.now() + 5000);
+  const find = (n, cls) => n.className === cls ? n : (n.children || []).reduce((f, c) => f || find(c, cls), null);
+  const bubble = find(document.body, "vn-bubble");
+  res.bubble = { shown: bubble.style.display, title: find(bubble, "vn-bubble-title").textContent,
+                 activity: find(bubble, "vn-bubble-activity").textContent };
 } catch (e) { res.errors.push(String(e && e.stack || e)); }
 out(res);
 """
@@ -122,6 +148,9 @@ def test_an_untitled_chat_never_puts_a_random_code_in_the_pets_mouth() -> None:
     untitled, named = out["payloads"]
     assert "chatTitle" not in untitled, f"an id fragment reached the pet: {untitled.get('chatTitle')}"
     assert named["chatTitle"] == "Trip plans", "a real title still travels with the pet"
+    bubble = out["bubble"]
+    assert bubble["title"] == "", f"no id in the in-app bubble either: {bubble['title']!r}"
+    assert bubble["shown"] == "flex" and bubble["activity"], f"the activity still shows: {bubble}"
 
 
 SPEECH_DRIVER = r"""
@@ -211,7 +240,9 @@ def test_a_dropped_desktop_pet_update_is_sent_again(monkeypatch) -> None:
 
     assert controller._report_interaction(True, False) is True
     script, handler = sent[-1]
-    assert "interaction(true,false)" in script
+    assert script == "window.VoolDesktopCompanion.interaction(true,false);true", (
+        "a page that is not ready must fail the script, and one that ran must return a value"
+    )
     assert callable(handler), "the result must be checked, not dropped"
     handler(None, None)
     assert controller._tracker._interaction == (True, False), "a script that ran stays reported"

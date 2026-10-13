@@ -34,7 +34,7 @@ VN_POS_KEY = "vool_ninja_pos_v1"
 
 # --------------------------------------------------------------------------- CSS
 _VN_CSS = r"""
-.vn-caption{font-size:11px;font-family:-apple-system,'Inter',system-ui,sans-serif;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:.06em;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.vn-caption{font-size:11px;font-family:-apple-system,'Inter',system-ui,sans-serif;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
 #companionLayer .vn-caption.vn-show,#companionLayer .vool-ninja:hover .vn-caption,#companionLayer .vool-ninja:focus-visible .vn-caption{opacity:1}
 body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 .vn-lab-matrix{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
@@ -98,10 +98,11 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   font: 400 11px/1.3 -apple-system, 'Inter', system-ui, sans-serif; color: var(--vn-tone, #94a3b8);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+#companionLayer .vn-bubble-title:empty, #companionLayer .vn-bubble-activity:empty { display: none; }
 #companionLayer .vool-ninja.chip .vn-bubble { max-width: 168px; padding: 4px 7px 5px; }
 #companionLayer .vool-ninja.chip .vn-bubble::after { display: none; }
-#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 11px; }
-#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 11px; }
+#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 11.5px; }
+#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 10.5px; }
 /* Flipped below the pet when there is no room above. The character never moves either way. */
 #companionLayer .vn-bubble.vn-below { bottom: auto; top: calc(100% - 18px); }
 #companionLayer .vn-bubble.vn-below::after { top: auto; bottom: 100%; border: 0;
@@ -667,14 +668,14 @@ function vnClampBubble() {
 function vnBoundChatTitle(chatId) {
   const id = String(chatId || "");
   if (!id) return "";
-  // Only a REAL title. The page's chatTitleFor falls back to the id's last 8 characters for a
-  // chat that has none yet, and the pet's first words must never be a random code.
-  try {
-    if (typeof _lastSessions !== "undefined" && Array.isArray(_lastSessions)) {
-      const chat = _lastSessions.find(function (s) { return s && s.session_id === id; });
-      return chat && chat.title ? String(chat.title) : "";
-    }
-  } catch (e) { /* no session list in this view */ }
+  // Only a REAL title. The page's chatTitleFor falls back to the id (or its last 8 characters)
+  // for a chat that has none yet, and the pet's words must never be a random code.
+  if (typeof chatTitleFor === "function") {
+    try {
+      const t = String(chatTitleFor(id) || "");
+      if (t && t !== id && t !== id.slice(-8) && t !== "Chat") return t;
+    } catch (e) { /* fall through */ }
+  }
   return "";
 }
 /* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
@@ -682,7 +683,8 @@ function vnSetBubble(title, activity, visible) {
   if (!vnBubble) return;
   vnBubbleTitle.textContent = vnSafeText(title, VN_TITLE_MAX);
   vnBubbleActivity.textContent = vnSafeText(activity, VN_ACTIVITY_MAX);
-  vnBubble.style.display = (visible && vnBubbleTitle.textContent) ? "flex" : "none";
+  // An untitled chat still shows what the pet is doing; only an empty bubble hides.
+  vnBubble.style.display = (visible && (vnBubbleTitle.textContent || vnBubbleActivity.textContent)) ? "flex" : "none";
   vnClampBubble();
 }
 
@@ -1253,7 +1255,7 @@ function vnPaintNow(now) {
   // answer, which the conversation log already announces; repeating "Unknown — not
   // independently reviewed" after every reply was noise for a screen-reader user.
   const finished = pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS";
-  const stateWord = finished ? vnLabel("companion.state.done", "Done") : vnStateWord(nextState);
+  const stateWord = finished ? vnLabel("companion.state.success", "Done") : vnStateWord(nextState);
   if (vnSr && pres.phraseText && !finished) {
     const line = vnLabel("companion.label", "Companion") + " " + stateWord + " — " + pres.phraseText;
     if (line !== vnPaint.announced) { vnPaint.announced = line; vnSr.textContent = line; }
@@ -1564,6 +1566,7 @@ function vnOpenCharacterLab() {
   modal.appendChild(sceneRow);
   vnLab.appendChild(modal); vnLab.style.display = "flex"; close.focus();
 }
+let vnMenuFromKeyboard = false;
 function vnMenuOpen() { return !!(vnMenu && vnMenu.style.display === "block"); }
 function vnCloseMenu(refocus) {
   if (!vnMenuOpen()) return;
@@ -1573,7 +1576,7 @@ function vnCloseMenu(refocus) {
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && vnMenuOpen()) {
     e.preventDefault(); e.stopPropagation();
-    vnCloseMenu(true);
+    vnCloseMenu(vnMenuFromKeyboard);
     return;
   }
   if (e.key === "Escape" && vnPop && vnPop.style.display === "block") {
@@ -1689,8 +1692,11 @@ function vnCycleMotion() {
   document.body.classList.toggle("vn-motion-reduced", vnPrefersReducedMotion());
   vnPersistPos(); vnSchedulePaint();
 }
-function vnOpenMenu(x, y) {
+function vnOpenMenu(x, y, fromKeyboard) {
   if (!vnMenu) return;
+  // Focus goes back to the pet on close only when the menu came from the pet's own key: a
+  // right-click while typing must leave the keyboard where the user was typing.
+  vnMenuFromKeyboard = fromKeyboard === true;
   if (vnPop) vnPop.style.display = "none";  // one pet panel at a time
   vnMenu.innerHTML = "";
   const spec = (window.VoolCompanionWorld.characters || {})[vnPos.personality] || {};
@@ -1700,8 +1706,8 @@ function vnOpenMenu(x, y) {
     ["Toggle edge snapping", function () { vnEdgeSnap = !vnEdgeSnap; vnPos.edge = vnEdgeSnap ? "snap" : null; vnPersistPos(); }],
     ["Hide pet", function () { if (vnPos.mode === "desktop") vnHideDesktopPet(); else vnHide(true); }],
   ];
-  // Desktop-only actions are offered only where a desktop pet can exist.
-  if (vnNativeCompanionApi() && vnPos.mode === "desktop") items.push(["Reset position", vnResetDesktopPosition]);
+  // No "Reset position" here: while the pet is on the desktop this in-app pet is gone, so the
+  // desktop pet's own button and Settings carry it.
   items.push(
     ["Motion: " + vnPos.motion, vnCycleMotion],
     ["Pet: " + String(spec.name || vnPos.personality), vnCyclePersonality],
@@ -1712,7 +1718,7 @@ function vnOpenMenu(x, y) {
     b.type = "button";
     b.textContent = items[i][0];
     const fn = items[i][1];
-    b.addEventListener("click", function () { vnMenu.style.display = "none"; fn(); });
+    b.addEventListener("click", function () { vnCloseMenu(vnMenuFromKeyboard); fn(); });
     vnMenu.appendChild(b);
   }
   vnMenu.style.display = "block";
@@ -1741,7 +1747,7 @@ function vnBindKeyboard(el) {
     if (e.key === "Enter") { vnMoveMode = true; e.preventDefault(); }
     else if (e.key === " " || e.key === "Spacebar") {
       const r = el.getBoundingClientRect();
-      vnOpenMenu(r.left, r.bottom + 4);
+      vnOpenMenu(r.left, r.bottom + 4, true);
       e.preventDefault();
     }
     else if (e.key === "d" || e.key === "D") { vnDock(); e.preventDefault(); }
