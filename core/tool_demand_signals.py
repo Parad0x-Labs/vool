@@ -170,7 +170,9 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # words between the preposition and the format may not be a determiner of material
             # already present ("in the attached pdf" asks about a file, it does not order one).
             r"\b(?:as|in|into|to)\s+(?:an?\.?\s+)?(?:(?!the\b|this\b|that\b|these\b|those\b|attached\b|uploaded\b|my\b|your\b|our\b)[\w-]+\s+){0,3}?"
-            r"\.?\s?(?:word|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|zip|rar|7z|tar(?:\.gz|ball)?|spreadsheet|workbook|slide\s*deck)\b"
+            # "Word" alone is the program only when capitalized: "answer in exactly one word" and
+            # "in a word" constrain the reply, they order no document.
+            r"\.?\s?(?:(?-i:Word|WORD)|word\s+(?:docs?|documents?|files?)|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|zip|rar|7z|tar(?:\.gz|ball)?|spreadsheet|workbook|slide\s*deck)\b"
             # "a CSV file", "a JSON file", "a PowerPoint file", "a Word document": a NEW file of a
             # named type. Data formats need the noun, so "answer in JSON" stays a reply format.
             r"|\ban?\s+(?:(?!attached\b|uploaded\b)[\w-]+\s+){0,2}?\.?(?:word|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|json|yaml|xml|html|markdown|md|txt|text|zip|rar|7z)\s+"
@@ -178,6 +180,8 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             # "export ... .docx", "make me a slide deck", "give me a downloadable copy".
             r"|\b(?:export|download|give\s+me|send\s+me|make|create|generate|produce|build|prepare|convert|turn|save)\b[^.?!]{0,80}?"
             r"(?:\.(?:docx|xlsx|pptx|pdf|csv|tsv|json|zip|rar|7z)\b|\b(?:word\s+(?:doc|document|file)|excel\s+(?:file|sheet|workbook|spreadsheet)|powerpoint|slide\s*deck|downloadable\s+\w+)\b)"
+            # "export the notes to word": a conversion verb makes a lowercase "word" the program.
+            r"|\b(?:export|convert|save|turn)\b[^.?!]{0,80}?\b(?:to|into|as)\s+(?:ms\s+|microsoft\s+)?word\b"
             r"|\b(?:zip|compress)\s+(?:\w+\s+){0,2}?(?:up\s+)?(?:these|those|them|it|the\s+files|all\s+of\s+(?:it|them))\b"
             r"|\b(?:zip|compress)\s+(?:them|it|these|those)\s+up\b"
             # "...plus a usage note, and zip both files", "zip all of the files": the zip ordered by
