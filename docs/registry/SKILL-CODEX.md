@@ -20,7 +20,7 @@ All of these come from the signed entry, so the website and the app show the sam
 
 `GET /registry/api/requirements` returns `{requirements: [{id, label, kind, providers}]}`. `kind` is `provider` when the need is met by one of the listed services' keys in VOOL, or `vool` when VOOL itself provides it or the user allows it. A skill that needs a keyed Solana data service such as Helius declares `chain_data`; `solana_rpc` means it uses VOOL's own Solana connection, whatever RPC address the user set.
 
-`GET /registry/api/categories` returns the fixed ten-category list with display labels. `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
+`GET /registry/api/categories` returns the fixed category and subcategory list with display labels; read it rather than copying it, because new slugs may be added (existing slugs are never renamed or removed). `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
 
 ## Curation
 
