@@ -1866,9 +1866,13 @@
     "private.end": "रिकॉर्डिंग फिर से चालू करें",
     "private.end_title": "अगले संदेश से इस चैट को फिर से सहेजें",
     "private.msg_title": "निजी: यह संदेश सहेजा नहीं गया",
-    "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।"
+    "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।",
+    "private.banner_short": "निजी",
+    "private.end_short": "फिर से सहेजें",
+    "private.saving_again": "यहाँ से फिर से सहेजा जा रहा है",
+    "private.reload_note": "यह चैट निजी है। निजी संदेश सहेजे नहीं जाते, इसलिए रीलोड के बाद वे यहाँ नहीं दिखते।"
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

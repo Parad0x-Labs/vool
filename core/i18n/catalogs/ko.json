@@ -1866,9 +1866,13 @@
     "private.end": "기록 다시 켜기",
     "private.end_title": "다음 메시지부터 이 채팅을 다시 저장합니다",
     "private.msg_title": "비공개: 이 메시지는 저장되지 않았습니다",
-    "private.wait": "현재 답변이 끝날 때까지 기다린 후 다시 시도하세요."
+    "private.wait": "현재 답변이 끝날 때까지 기다린 후 다시 시도하세요.",
+    "private.banner_short": "비공개",
+    "private.end_short": "다시 저장",
+    "private.saving_again": "여기서부터 다시 저장됩니다",
+    "private.reload_note": "이 채팅은 비공개입니다. 비공개 메시지는 저장되지 않으므로 새로고침하면 여기에 표시되지 않습니다."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

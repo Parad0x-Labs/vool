@@ -1866,9 +1866,13 @@
     "private.end": "Réactiver l'enregistrement",
     "private.end_title": "Enregistrer à nouveau cette discussion à partir du prochain message",
     "private.msg_title": "Privé : ce message n'a pas été enregistré",
-    "private.wait": "Attendez la fin de la réponse en cours, puis réessayez."
+    "private.wait": "Attendez la fin de la réponse en cours, puis réessayez.",
+    "private.banner_short": "Privé",
+    "private.end_short": "Réenregistrer",
+    "private.saving_again": "Enregistrement repris à partir d'ici",
+    "private.reload_note": "Cette discussion est privée. Les messages privés ne sont pas enregistrés, ils n'apparaissent donc plus après un rechargement."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

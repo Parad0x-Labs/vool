@@ -1866,9 +1866,13 @@
     "private.end": "Voltar a ativar a gravação",
     "private.end_title": "Guardar este chat novamente a partir da próxima mensagem",
     "private.msg_title": "Privado: esta mensagem não foi guardada",
-    "private.wait": "Aguarde até a resposta atual terminar e tente novamente."
+    "private.wait": "Aguarde até a resposta atual terminar e tente novamente.",
+    "private.banner_short": "Privado",
+    "private.end_short": "Guardar de novo",
+    "private.saving_again": "A guardar novamente a partir daqui",
+    "private.reload_note": "Este chat é privado. As mensagens privadas não são guardadas, por isso não aparecem aqui depois de recarregar."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

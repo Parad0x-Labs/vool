@@ -1866,9 +1866,13 @@
     "private.end": "Bật lại ghi",
     "private.end_title": "Lưu lại cuộc trò chuyện này từ tin nhắn tiếp theo",
     "private.msg_title": "Riêng tư: tin nhắn này không được lưu",
-    "private.wait": "Hãy đợi câu trả lời hiện tại hoàn tất rồi thử lại."
+    "private.wait": "Hãy đợi câu trả lời hiện tại hoàn tất rồi thử lại.",
+    "private.banner_short": "Riêng tư",
+    "private.end_short": "Lưu lại",
+    "private.saving_again": "Lưu lại từ đây",
+    "private.reload_note": "Cuộc trò chuyện này là riêng tư. Tin nhắn riêng tư không được lưu nên sẽ không hiện ở đây sau khi tải lại."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

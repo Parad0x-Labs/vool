@@ -1866,7 +1866,11 @@
     "private.end": "Turn recording back on",
     "private.end_title": "Save this chat again from the next message",
     "private.msg_title": "Private: this message was not saved",
-    "private.wait": "Wait for the current answer to finish, then try again."
+    "private.wait": "Wait for the current answer to finish, then try again.",
+    "private.banner_short": "Private",
+    "private.end_short": "Save again",
+    "private.saving_again": "Saving again from here",
+    "private.reload_note": "This chat is private. Private messages are not saved, so they don't show here after a reload."
   },
   "html_keys": [
     "bypass.modal_limits",

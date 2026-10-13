@@ -121,7 +121,7 @@ def test_private_chat_keeps_nothing_and_recording_comes_back(tmp_path):
             assert private_commit.get("display_metadata", {}).get("private_chat") is True
 
             refused, _ = _stream(daemon, f"remember that the party is at {SECRET} Hall", chat)
-            assert "Private chat is on" in refused and "not saving" in refused, refused
+            assert "Private chat is on" in refused and "won't save" in refused, refused
 
             status, _ = _stream(daemon, "are you recording this?", chat)
             assert "private right now" in status, status
@@ -143,6 +143,14 @@ def test_private_chat_keeps_nothing_and_recording_comes_back(tmp_path):
             assert "private_chat" not in history
             text = json.dumps(history)
             assert "Biscuit" in text and "tuna" in text and SECRET not in text
+
+            # Asking not to be saved in words the switch doesn't read: nothing switches, and the model is
+            # told the chat is still saved, so it cannot promise otherwise.
+            before = len(provider.calls)
+            _, unread_commit = _stream(daemon, "bitte nicht speichern: my cat is scared of thunder", chat)
+            sent = "\n".join(f"{c.get('system', '')}\n{c.get('full_prompt', '')}" for c in provider.calls[before:])
+            assert "PRIVATE CHAT IS NOT ON" in sent, "the model was not told the chat is still saved"
+            assert "private_chat" not in unread_commit.get("display_metadata", {})
 
             # Asking about it later: nothing of the private turns reaches the model, so there is no record to use.
             before = len(provider.calls)

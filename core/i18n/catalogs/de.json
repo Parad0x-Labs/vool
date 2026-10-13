@@ -1866,9 +1866,13 @@
     "private.end": "Aufzeichnung wieder einschalten",
     "private.end_title": "Diesen Chat ab der nächsten Nachricht wieder speichern",
     "private.msg_title": "Privat: Diese Nachricht wurde nicht gespeichert",
-    "private.wait": "Warte, bis die aktuelle Antwort fertig ist, und versuche es dann erneut."
+    "private.wait": "Warte, bis die aktuelle Antwort fertig ist, und versuche es dann erneut.",
+    "private.banner_short": "Privat",
+    "private.end_short": "Wieder speichern",
+    "private.saving_again": "Ab hier wird wieder gespeichert",
+    "private.reload_note": "Dieser Chat ist privat. Private Nachrichten werden nicht gespeichert und erscheinen nach dem Neuladen nicht mehr."
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

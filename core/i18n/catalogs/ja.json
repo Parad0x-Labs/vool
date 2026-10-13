@@ -1866,9 +1866,13 @@
     "private.end": "記録を再開",
     "private.end_title": "次のメッセージからこのチャットを再び保存します",
     "private.msg_title": "プライベート：このメッセージは保存されていません",
-    "private.wait": "現在の回答が終わるまで待ってから、もう一度お試しください。"
+    "private.wait": "現在の回答が終わるまで待ってから、もう一度お試しください。",
+    "private.banner_short": "プライベート",
+    "private.end_short": "保存を再開",
+    "private.saving_again": "ここから再び保存されます",
+    "private.reload_note": "このチャットはプライベートです。プライベートなメッセージは保存されないため、再読み込み後はここに表示されません。"
   },
-  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
+  "source_catalog_sha256": "aa64009a01efca1e897a91f2a4395d03ee0ca304c0775e109e82fa1a9e32e0e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
