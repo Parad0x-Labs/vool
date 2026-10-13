@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "تم الإلغاء. لم يُحفظ أي شيء.",
     "xsetup.title": "X (Twitter سابقًا)",
     "xsetup.entry_note": "يستخدم X عدة مفاتيح. يوضح الإعداد الموجَّه ما تلصقه وأين، ويتحقق منها بقراءة واحدة.",
-    "xsetup.open": "ربط X"
+    "xsetup.open": "ربط X",
+    "addons.registry_tab": "دليل المهارات",
+    "addons.registry_title": "مهارات وإضافات من صانعيها",
+    "addons.registry_intro": "من صنع أصحابها. لا تكتب VOOL مهارات المجتمع ولا تضمنها، وقد تفوت الفحوص الآلية بعض الأمور. نزّل الحزمة لفحصها، ثم قرر ما إذا كنت تريد تثبيتها وتفعيلها.",
+    "addons.native_authority": "تقدم المهارات تعليمات. قواعد VOOL الأصلية وإعدادات المالك وحدود الإنفاق ومعالجة العملات والأذونات ومتطلبات الموافقة لها الأولوية دائماً.",
+    "addons.registry_evidence": "الملفات الدقيقة والأذونات والمصدر",
+    "addons.registry_install_only": "تثبيت دون تفعيل",
+    "addons.registry_enable": "تثبيت وتفعيل",
+    "addons.registry_refresh": "تصفّح دليل المهارات",
+    "addons.registry_network": "يطلب هذا الزر السجل العام. لا تُرسل الحسابات أو المحادثات أو الملفات المحلية أو مفاتيح المزودين.",
+    "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
+    "addons.registry_inspect": "تنزيل للفحص"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

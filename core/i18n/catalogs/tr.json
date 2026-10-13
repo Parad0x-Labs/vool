@@ -1850,9 +1850,20 @@
     "xsetup.cancelled": "İptal edildi. Hiçbir şey kaydedilmedi.",
     "xsetup.title": "X (eski adıyla Twitter)",
     "xsetup.entry_note": "X birkaç anahtar kullanır. Rehberli kurulum neyin nereye yapıştırılacağını söyler ve bunları tek bir okumayla kontrol eder.",
-    "xsetup.open": "X’i bağla"
+    "xsetup.open": "X’i bağla",
+    "addons.registry_tab": "Beceri Kodeksi",
+    "addons.registry_title": "Yapımcılarından beceriler ve eklentiler",
+    "addons.registry_intro": "Yapımcıları tarafından hazırlanır. VOOL topluluk becerilerini yazmaz ve onlara kefil olmaz; otomatik denetimler bazı şeyleri kaçırabilir. Paketi incelemek için indirin, ardından yükleyip etkinleştirmeye karar verin.",
+    "addons.native_authority": "Beceriler talimat sağlar. VOOL'un yerel kuralları, sahibinin ayarları, harcama limitleri, para birimi işlemleri, izinleri ve onay gereksinimleri her zaman önceliklidir.",
+    "addons.registry_evidence": "Tam dosyalar, izinler ve kaynak",
+    "addons.registry_install_only": "Etkinleştirmeden yükle",
+    "addons.registry_enable": "Yükle ve etkinleştir",
+    "addons.registry_refresh": "Beceri Kodeksine göz at",
+    "addons.registry_network": "Bu düğme herkese açık kaydı sorgular. Hesaplar, sohbetler, yerel dosyalar veya sağlayıcı anahtarları gönderilmez.",
+    "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
+    "addons.registry_inspect": "İncelemek için indir"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
