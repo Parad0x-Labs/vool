@@ -81,9 +81,11 @@ header h1 { margin:0; font-size:16px; font-weight:700; letter-spacing:-.1px; }
 main { flex:1 1 auto; overflow:auto; padding:22px 20px 26px; }
 #card { max-width:640px; margin:0 auto; }
 .dots { list-style:none; margin:0 0 18px; padding:0; display:flex; gap:10px; justify-content:center; }
-.dot { width:12px; height:12px; border-radius:50%; border:2px solid var(--border); background:transparent; position:relative; }
+.dot { width:14px; height:14px; border-radius:50%; border:2px solid var(--border); background:transparent; position:relative; }
 .dot.current { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
 .dot.done { background:var(--ok); border-color:var(--ok); }
+/* A tick inside the dot, so colour is never the only signal that a step is done. */
+.dot.done::after { content:"\2713"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9px; line-height:1; font-weight:700; color:var(--bg); }
 .dot.skipped { border-style:dashed; border-color:var(--muted); }
 
 h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line-height:1.2; }
@@ -111,13 +113,6 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .mk-tick { position:absolute; top:-7px; right:-7px; width:18px; height:18px; border-radius:50%; background:var(--ok); color:#fff; font-size:11px; line-height:18px; text-align:center; font-weight:700; }
 .mk-row { display:flex; align-items:center; justify-content:space-between; gap:8px; border:1px solid var(--mk-border); border-radius:8px; padding:8px 10px; background:var(--panel); position:relative; }
 .mk-row b { font-size:11px; }
-.mk-select { position:relative; min-width:120px; border:1px solid var(--mk-border); border-radius:6px; padding:4px 8px; background:var(--bg); font-size:10px; }
-.mk-select::after { content:"\25BE"; position:absolute; right:6px; top:3px; color:var(--muted); }
-.mk-sel-a { opacity:0; position:absolute; left:8px; top:4px; }
-.mk-sel-b { opacity:1; }
-.mk-menu { position:absolute; right:10px; top:38px; width:150px; background:var(--panel); border:1px solid var(--mk-border); border-radius:8px; padding:4px; font-size:10px; z-index:4; opacity:0; visibility:hidden; box-shadow:0 6px 18px var(--shadow); }
-.mk-menu div { padding:4px 6px; border-radius:5px; }
-.mk-menu .pick { background:var(--accent-soft); }
 .mk-saved { color:var(--ok); font-size:10px; font-weight:700; opacity:1; }
 .mk-field { display:flex; align-items:center; gap:8px; }
 .mk-input { flex:1 1 auto; border:1px solid var(--mk-border); border-radius:6px; padding:5px 8px; background:var(--bg); font-size:11px; min-height:24px; display:flex; align-items:center; }
@@ -134,8 +129,7 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 
 /* Timelines: 6 s per loop including the hold on the final state; base styles ARE the final frame. */
 .mock[data-step] .cursor, .mock[data-step] .cursor::after, .mock[data-step] .mk-choice.on, .mock[data-step] .mk-tick,
-.mock[data-step] .mk-plus, .mock[data-step] .mk-dialog, .mock[data-step] .mk-proj, .mock[data-step] .mk-select,
-.mock[data-step] .mk-menu, .mock[data-step] .mk-sel-a, .mock[data-step] .mk-sel-b, .mock[data-step] .mk-saved,
+.mock[data-step] .mk-plus, .mock[data-step] .mk-dialog, .mock[data-step] .mk-proj, .mock[data-step] .mk-saved,
 .mock[data-step] .mk-typed, .mock[data-step] .mk-caret, .mock[data-step] .mk-save { animation-duration:6s; animation-iteration-count:infinite; animation-timing-function:ease-in-out; }
 .mock.paused * , .mock.paused .cursor::after { animation-play-state:paused !important; }
 
@@ -163,18 +157,14 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .mock[data-step="folder"] .mk-dialog { animation-name:dialog-in; }
 .mock[data-step="folder"] .mk-proj { animation-name:proj-in; }
 
-/* permissions */
-@keyframes cur-perm { 0% { left:82%; top:86%; } 24%,34% { left:70%; top:38%; } 54%,100% { left:64%; top:66%; } }
-@keyframes menu-in { 0%,31% { opacity:0; visibility:hidden; } 35%,60% { opacity:1; visibility:visible; } 64%,100% { opacity:0; visibility:hidden; } }
-@keyframes sel-a { 0%,62% { opacity:1; } 66%,100% { opacity:0; } }
-@keyframes sel-b { 0%,62% { opacity:0; } 66%,100% { opacity:1; } }
-@keyframes saved-in { 0%,70% { opacity:0; } 76%,100% { opacity:1; } }
-.mock[data-step="permissions"] .cursor { animation-name:cur-perm; }
-.mock[data-step="permissions"] .cursor::after { animation-name:click, click2; animation-duration:6s, 6s; }
-.mock[data-step="permissions"] .mk-menu { animation-name:menu-in; }
-.mock[data-step="permissions"] .mk-sel-a { animation-name:sel-a; }
-.mock[data-step="permissions"] .mk-sel-b { animation-name:sel-b; }
+/* permissions: the pointer clicks the first of the three cards, a tick appears, then "Saved" */
+.mock[data-step="permissions"] .mk-choice b { font-size:10px; }
+.mock[data-step="permissions"] .cursor { animation-name:cur-thinking; }
+.mock[data-step="permissions"] .cursor::after { animation-name:click; }
+.mock[data-step="permissions"] .mk-choice.on { animation-name:pick-on; }
+.mock[data-step="permissions"] .mk-tick { animation-name:tick-in; }
 .mock[data-step="permissions"] .mk-saved { animation-name:saved-in; }
+@keyframes saved-in { 0%,70% { opacity:0; } 76%,100% { opacity:1; } }
 
 /* name */
 @keyframes cur-name { 0% { left:82%; top:86%; } 22%,50% { left:40%; top:50%; } 64%,100% { left:76%; top:50%; } }
@@ -202,11 +192,15 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 /* ---- the real control ---- */
 .control { border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:16px; display:flex; flex-direction:column; gap:12px; }
 .choices { display:flex; gap:10px; flex-wrap:wrap; }
-.choice { flex:1 1 200px; text-align:left; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--bg); color:var(--ink); cursor:pointer; }
+.choice { flex:1 1 170px; text-align:left; border:1px solid var(--border); border-radius:10px; padding:12px 14px; background:var(--bg); color:var(--ink); cursor:pointer; }
 .choice:hover { border-color:var(--accent); }
 .choice b { display:block; font-size:15px; margin-bottom:2px; }
 .choice span { color:var(--muted); font-size:13px; }
 .choice[aria-pressed="true"] { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+/* A choice that cannot work on this computer yet: visibly unavailable, still focusable so its reason can be read. */
+.choice.unavailable { opacity:.62; cursor:not-allowed; border-style:dashed; }
+.choice.unavailable:hover { border-color:var(--border); }
+.example-bar[hidden] { display:none; }
 .cloud-default { margin:0 0 12px; }
 .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .inp { background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:9px 11px; font:inherit; font-size:15px; min-width:220px; flex:1 1 220px; }
@@ -217,14 +211,21 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
 .hint { color:var(--muted); font-size:13px; margin:0; }
 .status { min-height:22px; font-size:14px; }
-.status.done { color:var(--ok); font-weight:600; }
+.status.done { color:var(--ok); }
 .status.skipped { color:var(--muted); }
 .status.failed { color:var(--bad); font-weight:600; }
+.status.info { color:var(--ink); }
+.note:empty { display:none; }
+.summary-list { display:flex; flex-direction:column; gap:8px; }
 
 footer { display:flex; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--border); background:var(--panel); }
 footer .grow { flex:1 1 auto; }
 #live { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 @media (max-width: 560px) { h2 { font-size:23px; } .mock { height:200px; } main { padding:16px 12px; } }
+/* Short windows: the real control must stay on the first screen, so the example shrinks, then steps aside
+   (its caption stays as the text version). */
+@media (max-height: 760px) { .mock { height:160px; } h2 { font-size:23px; } .sentence { margin-bottom:12px; } }
+@media (max-height: 600px) { .mock { display:none; } main { padding-top:14px; } }
 </style>
 </head>
 <body>
@@ -244,6 +245,7 @@ footer .grow { flex:1 1 auto; }
       <button class="mini" id="motionBtn" type="button" aria-pressed="false"></button>
     </div>
     <div class="control" id="control"></div>
+    <p class="status note" id="stepNote" role="status" aria-live="polite"></p>
     <div class="status" id="stepStatus" role="status" aria-live="polite"></div>
   </div>
 </main>
@@ -279,22 +281,75 @@ function T(key, fallback) {
 const framed = () => { try { return window.top !== window.self; } catch (e) { return true; } };
 const reducedMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? '' : vars[k]));
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const OFFLINE = () => T('setup.status.offline', 'VOOL isn’t running right now, so nothing was saved. Open VOOL again and try once more.');
 
+/* One visible message slot per step (#stepNote): a newer message replaces the older one instead of
+   stacking under it, and it is written where people can see it, not only for screen readers. */
+view.notes = {};
+function paintNote() {
+  const n = $('#stepNote'); if (!n) return;
+  const step = current();
+  const note = view.summary ? null : (view.offline && !view.snap ? { kind: 'failed', text: OFFLINE() } : view.notes[step.id]);
+  n.className = 'status note' + (note ? ' ' + note.kind : '');
+  n.textContent = note ? note.text : '';
+}
+function setNote(kind, text) {
+  view.notes[current().id] = text ? { kind: kind, text: text } : null;
+  paintNote();
+  if (text) live(text);
+}
+function clearFailNote() { const n = view.notes[current().id]; if (n && n.kind === 'failed') setNote('', ''); }
+// Why a write did not land, in words: an offline VOOL, a backend sentence, or a calm retry line for a bare code.
+function notSaved(res, raw) {
+  if (res && res.offline) return OFFLINE();
+  const said = String(raw || (res && res.json && (res.json.error || res.json.detail)) || '');
+  const reason = /\s/.test(said) ? said : T('setup.status.try_again', 'something went wrong. Please try again.');
+  return fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: reason });
+}
+// Unsent text survives a reload or an app relaunch mid-step (this window only).
+function draft(key, value) {
+  try {
+    if (value === undefined) return sessionStorage.getItem('vool.setup.draft.' + key) || '';
+    if (value) sessionStorage.setItem('vool.setup.draft.' + key, value); else sessionStorage.removeItem('vool.setup.draft.' + key);
+  } catch (e) {}
+  return '';
+}
+function noLocalModel() {
+  const cloud = view.snap && view.snap.cloud_default;
+  return !!(cloud && cloud.local_model_running === false);
+}
+
+// The page's own ?ui_locale= also reaches the state feed, so a link in another language
+// gets its step titles in that language too (the cookie already rides along by itself).
+function withLocale(url) {
+  try {
+    const m = /[?&]ui_locale=([^&#]+)/.exec(String(location.search || ''));
+    if (m) return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'ui_locale=' + m[1];
+  } catch (e) {}
+  return url;
+}
 async function getJSON(url) {
-  const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  let r;
+  try { r = await fetch(withLocale(url), { headers: { 'Accept': 'application/json' } }); }
+  catch (e) { const err = new Error('offline'); err.offline = true; throw err; }
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error((j && (j.error || j.detail)) || ('HTTP ' + r.status));
   return j || {};
 }
 async function postJSON(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  let r;
+  // VOOL stopped (or the network to it failed): report it as a result, never as an uncaught error that
+  // leaves the pressed button disabled.
+  try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
+  catch (e) { return { ok: false, status: 0, offline: true, json: null }; }
   const j = await r.json().catch(() => null);
   return { ok: r.ok && !(j && (j.error || j.ok === false)), status: r.status, json: j };
 }
 
 async function refresh() {
-  try { view.snap = await getJSON('/api/setup/state'); }
-  catch (e) { view.snap = null; }
+  try { view.snap = await getJSON('/api/setup/state'); view.offline = false; }
+  catch (e) { view.snap = null; view.offline = !!(e && e.offline); }
   render();
   return view.snap;
 }
@@ -333,21 +388,29 @@ function openSettings(section) {
 
 /* ------------------------------------------------------------------ the mock (aria-hidden; caption is the text) */
 const CURSOR_SVG = '<svg viewBox="0 0 16 20" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L1 15 L4.6 11.6 L7.4 18 L9.8 17 L7 10.8 L12 10.8 Z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+// Every word in the example goes through the catalog, so the example speaks the page's language.
+const M = (key, fallback) => esc(T('setup.mock.' + key, fallback));
 function mockFor(id) {
-  const win = '<div class="mk-win"><div class="mk-side"><div class="mk-side-head"><span>Chats</span><span class="mk-plus">+ Project</span></div>'
-    + (id === 'folder' ? '<div class="mk-proj">&#128193; Documents</div>' : '')
+  const win = '<div class="mk-win"><div class="mk-side"><div class="mk-side-head"><span>' + M('chats', 'Chats') + '</span><span class="mk-plus">' + M('project', '+ Project') + '</span></div>'
+    + (id === 'folder' ? '<div class="mk-proj">&#128193; ' + M('documents', 'Documents') + '</div>' : '')
     + '<div class="mk-chat"></div><div class="mk-chat"></div></div>'
-    + '<div class="mk-main"><div class="mk-head">VOOL</div><div class="mk-body">' + mockBody(id) + '</div><div class="mk-composer">Message VOOL…</div></div></div>';
+    + '<div class="mk-main"><div class="mk-head">VOOL</div><div class="mk-body">' + mockBody(id) + '</div><div class="mk-composer">' + M('composer', 'Message VOOL…') + '</div></div></div>';
   const extra = id === 'folder'
-    ? '<div class="mk-dialog"><div class="t">Choose a folder</div><div class="f">&#128193; Desktop</div><div class="f pick">&#128193; Documents</div><div class="f">&#128193; Pictures</div></div>'
+    ? '<div class="mk-dialog"><div class="t">' + M('choose_folder', 'Choose a folder') + '</div><div class="f">&#128193; ' + M('desktop', 'Desktop') + '</div><div class="f pick">&#128193; ' + M('documents', 'Documents') + '</div><div class="f">&#128193; ' + M('pictures', 'Pictures') + '</div></div>'
     : '';
   return '<span class="mock-badge">' + COPY.example + '</span>' + win + extra + '<div class="cursor">' + CURSOR_SVG + '</div>';
 }
 function mockBody(id) {
-  if (id === 'thinking') return '<div class="mk-choices"><div class="mk-choice on"><b>On my Mac</b><span>Private. Free.</span><span class="mk-tick">&#10003;</span></div><div class="mk-choice"><b>Online</b><span>Smarter. Needs a key.</span></div></div>';
-  if (id === 'permissions') return '<div class="mk-row"><b>What may it do alone?</b><span class="mk-select"><span class="mk-sel-a">Just do routine work</span><span class="mk-sel-b">Ask me first</span></span><div class="mk-menu"><div>Just do routine work</div><div>Ask before risky changes</div><div class="pick">Ask me first</div></div></div><span class="mk-saved">Saved &#10003;</span>';
-  if (id === 'name') return '<div class="mk-field"><span class="mk-input"><span class="mk-typed">Sam</span><span class="mk-caret"></span></span><span class="mk-save">Save</span></div><span class="mk-saved">Saved &#10003;</span>';
-  return '<div class="mk-row"><b>Pick a folder</b></div>';
+  const local = esc(T('setup.thinking.local_title', 'On my Mac'));
+  if (id === 'thinking') return '<div class="mk-choices"><div class="mk-choice on"><b>' + local + '</b><span>' + M('private_free', 'Private. Free.') + '</span><span class="mk-tick">&#10003;</span></div><div class="mk-choice"><b>' + M('online', 'Online') + '</b><span>' + M('needs_key', 'Smarter. Needs a key.') + '</span></div></div>';
+  // The same three cards as the real control below, in the same order; the pointer picks the first.
+  if (id === 'permissions') return '<div class="mk-choices">'
+    + '<div class="mk-choice on"><b>' + esc(AUTONOMY[0].title) + '</b><span class="mk-tick">&#10003;</span></div>'
+    + '<div class="mk-choice"><b>' + esc(AUTONOMY[1].title) + '</b></div>'
+    + '<div class="mk-choice"><b>' + esc(AUTONOMY[2].title) + '</b></div></div>'
+    + '<span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
+  if (id === 'name') return '<div class="mk-field"><span class="mk-input"><span class="mk-typed">' + M('name', 'Sam') + '</span><span class="mk-caret"></span></span><span class="mk-save">' + M('save', 'Save') + '</span></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
+  return '<div class="mk-row"><b>' + M('pick_folder', 'Pick a folder') + '</b></div>';
 }
 function renderMock(id) {
   const mock = $('#mock');
@@ -400,6 +463,11 @@ function render() {
   $('#stepSentence').textContent = step.sentence;
   $('#caption').textContent = CAPTIONS[step.id] || '';
   renderMock(step.id);
+  // The thinking example shows a click that succeeds; with no private model here that click cannot
+  // succeed, so the example steps aside instead of promising it.
+  const hideExample = step.id === 'thinking' && noLocalModel();
+  $('#mock').hidden = hideExample;
+  $('.example-bar').hidden = hideExample;
   renderControl(step);
   const st = $('#stepStatus');
   st.className = 'status' + (step.done ? ' done' : (step.skipped ? ' skipped' : ''));
@@ -407,6 +475,40 @@ function render() {
   $('#backBtn').disabled = view.index === 0;
   $('#skipBtn').hidden = !!step.done;
   document.body.dataset.step = step.id;
+  paintNote();
+  if (view.summary) renderSummary();
+}
+
+/* The end of setup says what is still open instead of closing straight away. */
+function renderSummary() {
+  const snap = view.snap;
+  const steps = (snap && snap.steps) || [];
+  const open = steps.map((s, i) => ({ s: s, i: i })).filter((x) => !x.s.done);
+  $('#stepOf').textContent = '';
+  $('#dots').querySelectorAll('.dot.current').forEach((d) => d.classList.remove('current'));
+  $('#stepTitle').textContent = T('setup.summary.title', 'Almost there');
+  $('#stepSentence').textContent = snap
+    ? fmt(T('setup.summary.sentence', '{done} of {total} steps are done. VOOL works now; you can finish the rest whenever you like.'), { done: snap.done_count || 0, total: snap.total || STEPS.length })
+    : OFFLINE();
+  $('#mock').hidden = true;
+  $('.example-bar').hidden = true;
+  $('#stepStatus').textContent = '';
+  $('#stepStatus').className = 'status';
+  const host = $('#control');
+  host.textContent = '';
+  if (open.length) {
+    host.appendChild(el('p', 'hint', T('setup.summary.open', 'Still open:')));
+    const list = el('div', 'summary-list');
+    open.forEach((x) => {
+      const b = el('button', 'btn', x.s.title); b.type = 'button'; b.dataset.openStep = x.s.id;
+      b.addEventListener('click', () => { view.summary = false; go(x.i, true); });
+      list.appendChild(b);
+    });
+    host.appendChild(list);
+  }
+  $('#skipBtn').hidden = true;
+  $('#backBtn').disabled = false;
+  $('#nextBtn').textContent = T('setup.summary.close', 'Close');
 }
 
 /* ------------------------------------------------------------------ the real controls */
@@ -418,22 +520,35 @@ function renderControl(step) {
   if (step.id === 'permissions') return controlPermissions(host, step);
   if (step.id === 'name') return controlName(host, step);
 }
-function fail(host, msg) { const n = el('p', 'status failed', msg); n.dataset.fail = '1'; host.appendChild(n); live(msg); }
+// One error slot per step: the newest reason replaces the last one (it never stacks).
+function fail(host, msg) { setNote('failed', msg); }
 
 function controlThinking(host, step) {
   const row = el('div', 'choices');
+  const unavailable = noLocalModel();
+  const localTitle = T('setup.thinking.local_title', 'On my Mac');
   const local = el('button', 'choice'); local.type = 'button'; local.id = 'chooseLocal';
-  local.appendChild(el('b', null, T('setup.thinking.local_title', 'On my Mac'))); local.appendChild(el('span', null, T('setup.thinking.local_sub', 'Private and free. Nothing you type leaves this computer.')));
+  local.appendChild(el('b', null, localTitle));
+  local.appendChild(el('span', null, unavailable
+    ? T('setup.thinking.local_not_ready', 'Not ready yet: there is no private model on this computer.')
+    : T('setup.thinking.local_sub', 'Private and free. Nothing you type leaves this computer.')));
   const online = el('button', 'choice'); online.type = 'button'; online.id = 'chooseOnline';
   online.appendChild(el('b', null, T('setup.thinking.online_title', 'Online, with a key'))); online.appendChild(el('span', null, T('setup.thinking.online_sub', 'Smarter answers. You paste a key from a company you pay; it is kept only on this Mac.')));
   local.setAttribute('aria-pressed', step.done ? 'true' : 'false');
+  if (unavailable) { local.classList.add('unavailable'); local.setAttribute('aria-disabled', 'true'); }
   local.addEventListener('click', async () => {
+    if (noLocalModel()) {
+      // Nothing is posted: the choice cannot answer on this computer, and the step would not tick.
+      setNote('failed', fmt(T('setup.thinking.local_needs_model', '“{local}” needs a private model on this computer first. Nothing was changed.'), { local: localTitle }));
+      return;
+    }
     local.disabled = true;
     const res = await postJSON('/api/onboarding/choice', { choice: 'local_only' });
     local.disabled = false;
     // 409 invalid_transition: a choice already stands. The authority's truth is what refresh shows.
-    if (!res.ok && res.status !== 409) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+    if (!res.ok && res.status !== 409) { fail(host, notSaved(res)); return; }
     await refresh();
+    if (!current().done) setNote('failed', T('setup.thinking.local_not_confirmed', 'VOOL could not confirm a private model on this computer yet, so this step stays open.'));
     live(current().done ? T('setup.status.saved_thinking', 'Saved: VOOL thinks on this Mac.') : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   });
   online.addEventListener('click', () => openSettings('keys'));
@@ -447,10 +562,15 @@ function controlThinking(host, step) {
 // the owner names the cloud model once, and Auto uses it only while no local model runs.
 function controlCloudDefault(host, cloud) {
   const box = el('div', 'cloud-default'); box.id = 'cloudDefault';
-  box.appendChild(el('p', null, T('setup.thinking.no_local', 'No local model is running on this computer, so “On my Mac” cannot answer yet.')));
+  const localTitle = T('setup.thinking.local_title', 'On my Mac');
+  const onlineTitle = T('setup.thinking.online_title', 'Online, with a key');
+  box.appendChild(el('p', null, fmt(T('setup.thinking.no_local', 'There is no private model on this computer yet, so “{local}” can’t answer.'), { local: localTitle })));
   const candidates = Array.isArray(cloud.candidates) ? cloud.candidates : [];
   if (!candidates.length) {
-    box.appendChild(el('p', 'hint', T('setup.thinking.no_cloud', 'Add a cloud key with “Online, with a key”, or start a local model.')));
+    box.appendChild(el('p', 'hint', fmt(T('setup.thinking.no_cloud', 'To finish this step, add a key with “{online}”, or set up a private model first.'), { online: onlineTitle })));
+    const how = el('button', 'btn', T('setup.thinking.private_how', 'How to set up a private model')); how.type = 'button'; how.id = 'privateModelHow';
+    how.addEventListener('click', () => openSettings('models'));
+    const row = el('div', 'inline'); row.appendChild(how); box.appendChild(row);
     host.appendChild(box);
     return;
   }
@@ -473,7 +593,7 @@ function controlCloudDefault(host, cloud) {
     btn.disabled = true;
     const res = await postJSON('/api/onboarding/cloud-default', body);
     btn.disabled = false;
-    if (!res.ok) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+    if (!res.ok) { fail(host, notSaved(res)); return; }
     await refresh();
     live(current().done ? saved : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   };
@@ -486,33 +606,46 @@ function controlCloudDefault(host, cloud) {
   host.appendChild(box);
 }
 
+function hasFolderPicker() {
+  // Framed in the chat: the host has the picker. Own native window: the bridge is right here.
+  if (framed()) return true;
+  try { return !!(window.pywebview && window.pywebview.api && window.pywebview.api.pick_folder); } catch (e) { return false; }
+}
 function controlFolder(host, step) {
   const row = el('div', 'inline');
   const path = document.createElement('input');
-  path.className = 'inp'; path.id = 'folderPath'; path.type = 'text'; path.placeholder = T('setup.folder.placeholder', 'Type the folder’s full path, e.g. /Users/you/Documents');
+  path.className = 'inp'; path.id = 'folderPath'; path.type = 'text'; path.placeholder = '~/Documents';
   path.setAttribute('aria-label', T('setup.folder.aria', 'Folder path')); path.autocomplete = 'off'; path.spellcheck = false;
+  path.value = draft('folder');
+  path.addEventListener('input', () => { draft('folder', path.value); clearFailNote(); });
   const choose = el('button', 'btn', T('setup.folder.choose', 'Choose a folder…')); choose.type = 'button'; choose.id = 'chooseFolder';
   const use = el('button', 'btn primary', T('setup.folder.use', 'Use this folder')); use.type = 'button'; use.id = 'useFolder';
   const bind = async (root) => {
     const clean = String(root || '').trim();
     if (!clean) { fail(host, T('setup.folder.err_empty', 'Type or choose a folder first.')); return; }
-    const name = clean.split('/').filter(Boolean).pop() || 'Project';
+    const name = clean.split(/[\\/]/).filter(Boolean).pop() || 'Project';
     use.disabled = true;
     const res = await postJSON('/api/projects', { name: name, root: clean });
     use.disabled = false;
-    if (!res.ok) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+    if (!res.ok) { fail(host, notSaved(res)); return; }
+    draft('folder', '');
+    const where = (res.json && res.json.project && res.json.project.root) || clean;
     await refresh();
+    if (current().done) setNote('done', fmt(T('setup.status.folder_where', 'VOOL works inside {root}.'), { root: where }));
     live(current().done ? fmt(T('setup.status.saved_folder', 'Saved: VOOL works inside {name}.'), { name: name }) : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   };
   choose.addEventListener('click', async () => {
     const picked = await pickFolder();
     if (picked) { path.value = picked; await bind(picked); }
-    else { path.focus(); live(T('setup.folder.none_chosen', 'No folder was chosen. You can type its path instead.')); }
+    else { path.focus(); setNote('info', T('setup.folder.none_chosen', 'No folder was chosen. You can type its path instead.')); }
   });
   use.addEventListener('click', () => bind(path.value));
   path.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); bind(path.value); } });
-  row.appendChild(choose); row.appendChild(path); row.appendChild(use);
+  // A browser tab has no folder picker: offer only what works there, and say how to do it.
+  if (hasFolderPicker()) row.appendChild(choose);
+  row.appendChild(path); row.appendChild(use);
   host.appendChild(row);
+  if (!hasFolderPicker()) host.appendChild(el('p', 'hint', T('setup.folder.type_help', 'Type the folder’s path, for example ~/Documents. VOOL shows the full folder once it is saved.')));
   host.appendChild(el('p', 'hint', T('setup.folder.hint', 'Pick a normal folder such as Documents. Not your whole disk.')));
 }
 function pickFolder() {
@@ -546,7 +679,8 @@ const AUTONOMY = [
 ];
 function controlPermissions(host, step) {
   const row = el('div', 'choices');
-  const currentValue = step.done && view.snap && view.snap.autonomy_mode ? view.snap.autonomy_mode : '';
+  const stored = view.snap && view.snap.autonomy_mode ? view.snap.autonomy_mode : '';
+  const currentValue = step.done ? stored : '';
   AUTONOMY.forEach((opt) => {
     const b = el('button', 'choice'); b.type = 'button'; b.dataset.autonomy = opt.value;
     b.appendChild(el('b', null, opt.title)); b.appendChild(el('span', null, opt.sub));
@@ -555,13 +689,18 @@ function controlPermissions(host, step) {
       b.disabled = true;
       const res = await postJSON('/api/settings/prefs', { autonomy_mode: opt.value });
       b.disabled = false;
-      if (!res.ok) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+      if (!res.ok) { fail(host, notSaved(res)); return; }
       await refresh();
       live(current().done ? opt.title + '.' : T('setup.status.not_confirmed', 'Not confirmed yet.'));
     });
     row.appendChild(b);
   });
   host.appendChild(row);
+  // Not chosen yet is not the same as nothing in effect: say which setting runs right now.
+  const running = AUTONOMY.find((o) => o.value === stored);
+  if (!step.done && running) {
+    host.appendChild(el('p', 'hint', fmt(T('setup.autonomy.running_now', 'Right now VOOL uses “{mode}”, the starting setting. Pick one to keep it or change it.'), { mode: running.title })));
+  }
   host.appendChild(el('p', 'hint', T('setup.autonomy.hint', 'Whatever you pick, sending a message, posting or spending money always asks you first.')));
 }
 
@@ -570,6 +709,8 @@ function controlName(host, step) {
   const input = document.createElement('input');
   input.className = 'inp'; input.id = 'nameInput'; input.type = 'text'; input.maxLength = 60; input.placeholder = T('setup.name.placeholder', 'e.g. Sam');
   input.setAttribute('aria-label', T('setup.name.aria', 'What VOOL should call you')); input.autocomplete = 'off';
+  input.value = draft('name');
+  input.addEventListener('input', () => { draft('name', input.value); clearFailNote(); });
   const save = el('button', 'btn primary', T('setup.name.save', 'Save')); save.type = 'button'; save.id = 'saveName';
   const submit = async () => {
     const value = input.value.trim();
@@ -577,8 +718,10 @@ function controlName(host, step) {
     save.disabled = true;
     const res = await postJSON('/api/profile/remember', { category: 'preferred_name', value: value, scope: 'global', replace: true });
     save.disabled = false;
-    if (!res.ok) { fail(host, fmt(T('setup.status.not_saved', 'Not saved — {reason}'), { reason: ((res.json && (res.json.error || (res.json.change && res.json.change.report) || res.json.detail)) || ('HTTP ' + res.status)) })); return; }
+    if (!res.ok) { fail(host, notSaved(res, res.json && (res.json.error || (res.json.change && res.json.change.report) || res.json.detail))); return; }
+    draft('name', '');
     await refresh();
+    if (current().done) setNote('done', fmt(T('setup.status.saved_name', 'Saved. VOOL will call you {name}.'), { name: value }));
     live(current().done ? fmt(T('setup.status.saved_name', 'Saved. VOOL will call you {name}.'), { name: value }) : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   };
   save.addEventListener('click', submit);
@@ -589,23 +732,37 @@ function controlName(host, step) {
 }
 
 /* ------------------------------------------------------------------ navigation */
-function go(i) {
+// push=true adds a history entry, so the browser's Back button walks back through the steps.
+function go(i, push) {
   view.index = Math.max(0, Math.min(STEPS.length - 1, i));
-  try { history.replaceState(null, '', '#step=' + STEPS[view.index].id); } catch (e) {}
+  view.summary = false;
+  try {
+    const hash = '#step=' + STEPS[view.index].id;
+    if (push && location.hash !== hash) history.pushState(null, '', hash); else history.replaceState(null, '', hash);
+  } catch (e) {}
   render();
   $('#pane').scrollTop = 0;
   live(fmt(COPY.stepOf, { n: view.index + 1, total: STEPS.length }) + ': ' + current().title);
 }
 async function next() {
-  if (view.index >= STEPS.length - 1) { live(COPY.allDone); closeSetup(); return; }
-  go(view.index + 1);
+  if (view.summary) { closeSetup(); return; }
+  if (view.index >= STEPS.length - 1) {
+    // "All set" only when every step really is done; otherwise end on what is still open.
+    if (view.snap && view.snap.complete) { live(COPY.allDone); closeSetup(); return; }
+    view.summary = true;
+    render();
+    $('#pane').scrollTop = 0;
+    live($('#stepTitle').textContent + '. ' + $('#stepSentence').textContent);
+    return;
+  }
+  go(view.index + 1, true);
 }
 async function skipCurrent() {
   const id = current().id;
   const have = (view.snap && view.snap.skipped) || [];
   const skipped = STEPS.map(s => s.id).filter(sid => sid === id || have.indexOf(sid) >= 0);
   const res = await postJSON('/api/settings/prefs', { setup_skipped_steps: skipped.join(',') });
-  if (!res.ok) { fail($('#control'), fmt(T('setup.status.skip_failed', 'Could not record the skip — {reason}'), { reason: ((res.json && res.json.error) || ('HTTP ' + res.status)) })); return; }
+  if (!res.ok) { fail($('#control'), res.offline ? OFFLINE() : fmt(T('setup.status.skip_failed', 'Could not record the skip — {reason}'), { reason: ((res.json && res.json.error) || ('HTTP ' + res.status)) })); return; }
   await refresh();
   next();
 }
@@ -618,7 +775,7 @@ function indexFromHash() {
 async function boot() {
   try { if (/[?&]theme=light\b/.test(String(location.search || ''))) document.documentElement.dataset.theme = 'light'; } catch (e) {}
   $('#laterBtn').addEventListener('click', closeSetup);
-  $('#backBtn').addEventListener('click', () => go(view.index - 1));
+  $('#backBtn').addEventListener('click', () => { if (view.summary) { view.summary = false; render(); return; } go(view.index - 1); });
   $('#nextBtn').addEventListener('click', next);
   $('#skipBtn').addEventListener('click', skipCurrent);
   $('#motionBtn').addEventListener('click', toggleMotion);
@@ -629,6 +786,8 @@ async function boot() {
   window.addEventListener('focus', () => { refresh(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   window.addEventListener('hashchange', () => { const i = indexFromHash(); if (i >= 0) go(i); });
+  // The native bridge can arrive after the first paint: re-render so the folder picker shows up.
+  window.addEventListener('pywebviewready', () => { render(); });
   render();                                  // paint the shell first; nothing here blocks
   const snap = await refresh();
   const wanted = indexFromHash();
