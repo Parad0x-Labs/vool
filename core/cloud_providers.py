@@ -15,6 +15,7 @@ Nothing else in the codebase should hardcode a provider fact — import it from 
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -34,6 +35,76 @@ CUSTOM_BASE_URL_SLOT = "llm.cloud.custom_base_url"
 # with the token (a loopback service, a staging gateway). No env var can set it: an environment
 # value silently re-pointing a credential-bearing request is an exfiltration route, not config.
 USEPOD_ORIGIN_SLOT = "llm.cloud.usepod_origin"
+
+# Where the custom endpoint's key travels, chosen by the operator because an endpoint they entered
+# documents nothing about its auth: "bearer" (``Authorization: Bearer <key>``, the OpenAI default),
+# "header:<Name>" (the bare key in a named header -- Azure's ``api-key``, proxies' ``x-api-key``) or
+# "none" (an open self-hosted server: no key is ever sent). Not a secret: it is committed in the
+# custom binding row, in the same transaction as the endpoint and key it belongs to, so a placement
+# can never outlive the pair it was chosen for.
+CUSTOM_AUTH_BEARER = "bearer"
+CUSTOM_AUTH_NONE = "none"
+CUSTOM_AUTH_HEADER_PREFIX = "header:"
+# What the key slot holds for a "none" endpoint. Every "is this provider keyed?" reader stays true
+# for a configured open endpoint, and the placement guarantees the value is never transmitted.
+CUSTOM_NO_KEY_VALUE = "no-key"
+_HEADER_NAME_RE = re.compile(r"^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,64}$")
+# Headers a key must never be placed in: they steer framing, routing or the body, or are set by the
+# transport itself.
+_RESERVED_AUTH_HEADERS = frozenset({
+    "host", "content-length", "content-type", "transfer-encoding", "connection", "keep-alive",
+    "upgrade", "te", "trailer", "proxy-authorization", "proxy-connection", "cookie", "accept",
+    "accept-encoding", "user-agent", "expect", "via", "forwarded",
+})
+
+
+def normalize_custom_auth(value: object) -> str:
+    """The canonical custom-endpoint key placement for ``value``, or "" when it is not one.
+
+    Empty means the default (Bearer). A header name is checked against the HTTP token grammar and a
+    reserved list; ``Authorization`` itself is Bearer by another name and normalizes to it."""
+    text = str(value or "").strip()
+    if not text or text.lower() == CUSTOM_AUTH_BEARER:
+        return CUSTOM_AUTH_BEARER
+    if text.lower() == CUSTOM_AUTH_NONE:
+        return CUSTOM_AUTH_NONE
+    if text.lower().startswith(CUSTOM_AUTH_HEADER_PREFIX):
+        name = text[len(CUSTOM_AUTH_HEADER_PREFIX):].strip()
+        if name.lower() == "authorization":
+            return CUSTOM_AUTH_BEARER
+        if _HEADER_NAME_RE.fullmatch(name) and name.lower() not in _RESERVED_AUTH_HEADERS:
+            return f"{CUSTOM_AUTH_HEADER_PREFIX}{name}"
+    return ""
+
+
+def custom_auth_parts(placement: str) -> tuple[str, str]:
+    """(auth_style, header name) in the verifier's vocabulary for a normalized placement."""
+    normalized = normalize_custom_auth(placement) or CUSTOM_AUTH_BEARER
+    if normalized == CUSTOM_AUTH_NONE:
+        return "none", ""
+    if normalized.startswith(CUSTOM_AUTH_HEADER_PREFIX):
+        return "header", normalized[len(CUSTOM_AUTH_HEADER_PREFIX):]
+    return "bearer", ""
+
+
+def committed_custom_auth(base_url: str | None = None) -> str:
+    """The placement committed with the custom endpoint's live pair, else Bearer.
+
+    Read from the custom binding row, and only when that row's endpoint IS the live base URL: a row
+    left by another endpoint never decides where this endpoint's key travels. An environment-owned
+    pair (no row) keeps the historical Bearer placement. Never raises."""
+    try:
+        from core.credential_intelligence import binding as binding_module
+
+        row = binding_module.load_index().get("custom") if binding_module.index_path().exists() else None
+    except Exception:
+        return CUSTOM_AUTH_BEARER
+    if not isinstance(row, dict):
+        return CUSTOM_AUTH_BEARER
+    live = str(custom_base_url() if base_url is None else base_url or "").strip().rstrip("/")
+    if not live or str(row.get("endpoint") or "").strip().rstrip("/") != live:
+        return CUSTOM_AUTH_BEARER
+    return normalize_custom_auth(row.get("auth")) or CUSTOM_AUTH_BEARER
 
 
 @dataclass(frozen=True)
@@ -637,6 +708,10 @@ def _safe_has(has_key, slot: str) -> bool:
 __all__ = [
     "AUTH_BEARER",
     "AUTH_URL_PATH_TOKEN",
+    "CUSTOM_AUTH_BEARER",
+    "CUSTOM_AUTH_HEADER_PREFIX",
+    "CUSTOM_AUTH_NONE",
+    "CUSTOM_NO_KEY_VALUE",
     "PROVIDERS",
     "USEPOD_ORIGIN_SLOT",
     "Confidence",
@@ -645,12 +720,15 @@ __all__ = [
     "StaleProviderBindingError",
     "active_provider",
     "all_slots",
+    "committed_custom_auth",
     "config_for",
+    "custom_auth_parts",
     "custom_base_url",
     "detect_provider",
     "env_key_present",
     "is_safe_key_transport",
     "key_env_names",
+    "normalize_custom_auth",
     "provider_for_slot",
     "resolved_base_url",
     "resolved_custom_pair",

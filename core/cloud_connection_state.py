@@ -116,7 +116,15 @@ def _identity_digest(provider: str, key: str) -> str:
     identity, so a stale green cached for the old host degrades to ``untested`` and a re-probe is
     required — the pill can never show a connection verdict for an endpoint that is no longer live.
     """
-    return hashlib.sha256((key + "\0" + _base_url(provider)).encode("utf-8")).hexdigest()
+    base = _base_url(provider)
+    material = key + "\0" + base
+    if provider == "custom":
+        # The custom endpoint's key placement is part of what was tested: the same key at the same
+        # URL sent in another header is a different connection.
+        from core.cloud_providers import committed_custom_auth
+
+        material += "\0" + committed_custom_auth(base)
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def _read_cached() -> dict[str, Any]:
@@ -191,7 +199,11 @@ def connection_status(*, provider: str | None = None, probe: bool = False, now: 
     if probe and not fresh:
         return run_auth_probe(provider=prov, now=ts)
 
-    if cache_is_for_this_key and cached.get("state") in (STATE_OK, STATE_FAILED):
+    if cache_is_for_this_key and (
+        cached.get("state") in (STATE_OK, STATE_FAILED)
+        # A probed connection that answered but could not judge the key keeps its own word for why.
+        or (cached.get("state") == STATE_UNTESTED and checked_at)
+    ):
         return {
             **base,
             "state": str(cached.get("state")),
@@ -204,7 +216,7 @@ def connection_status(*, provider: str | None = None, probe: bool = False, now: 
 
 
 def run_auth_probe(*, provider: str | None = None, now: float | None = None) -> dict[str, Any]:
-    """Live auth check for a provider. Rate-limited per provider; returns the status shape."""
+    """Live auth check for a provider. Rate-limited per connection; returns the status shape."""
     ts = time.time() if now is None else now
     prov = provider or _resolve_active_provider()
     base = {"provider": prov, "label": _label(prov)}
@@ -212,10 +224,14 @@ def run_auth_probe(*, provider: str | None = None, now: float | None = None) -> 
     if not key:
         return {**base, "state": STATE_NO_KEY, "detail": "no cloud key configured", "checked_at": None, "http_status": None}
 
-    if (ts - _last_probe_ts.get(prov, 0.0)) < _PROBE_MIN_INTERVAL_SECONDS:
-        # Too soon for another live call to THIS provider: serve the cached verdict.
+    # Limited per connection (provider + key + endpoint), not per provider: a corrected base URL or
+    # key is a new connection and is tested at once, while repeated clicks on the same one still
+    # cannot hammer the provider.
+    limiter = f"{prov}:{_identity_digest(prov, key)}"
+    if (ts - _last_probe_ts.get(limiter, 0.0)) < _PROBE_MIN_INTERVAL_SECONDS:
+        # Too soon for another live call to THIS connection: serve the cached verdict.
         return connection_status(provider=prov, probe=False, now=ts)
-    _last_probe_ts[prov] = ts
+    _last_probe_ts[limiter] = ts
 
     state, detail, http_status = _probe_once(prov, key)
     record = {
@@ -299,6 +315,7 @@ def _probe_verified(provider: str, key: str, base: str) -> tuple[str, str, int |
     from core.credential_intelligence.provider_registry import default_registry
     from core.credential_intelligence.verification import (
         STATUS_INVALID,
+        STATUS_PUBLIC_ENDPOINT,
         STATUS_UNAUTHORIZED,
         STATUS_VERIFIED,
         verify_provider_credential,
@@ -311,7 +328,14 @@ def _probe_verified(provider: str, key: str, base: str) -> tuple[str, str, int |
         descriptor = descriptor.with_base_url(base)
     outcome = verify_provider_credential(key, descriptor, scope="cloud.connection_probe")
     if outcome.status == STATUS_VERIFIED:
+        if descriptor.user_endpoint and str(descriptor.auth_style or "") == "none":
+            return STATE_OK, "reachable (open endpoint, no key sent)", outcome.http_status
         return STATE_OK, "authorized", outcome.http_status
+    if outcome.status == STATUS_PUBLIC_ENDPOINT and descriptor.user_endpoint:
+        # The endpoint answered as this API but lists its models to anyone, so no keyed request it
+        # serves can judge the key. That is not a failure of the key: it stays untested until the
+        # first real request answers for it.
+        return STATE_UNTESTED, "reachable; this endpoint cannot confirm keys, so the first message will", outcome.http_status
     if outcome.status in (STATUS_INVALID, STATUS_UNAUTHORIZED):
         return STATE_FAILED, "unauthorized", outcome.http_status
     return STATE_FAILED, outcome.status, outcome.http_status

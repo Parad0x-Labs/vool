@@ -1547,7 +1547,18 @@ class OpenAICompatibleAdapter(ModelAdapter):
             self.manifest.runtime_config.get("base_url") or ""
         ).strip()
         if api_key and self._key_transport_is_safe(transport_base):
-            headers["Authorization"] = f"Bearer {api_key}"
+            placement = "bearer"
+            if self._is_custom_managed_lane():
+                # The custom endpoint's key rides where its operator chose WITH this pair: Bearer,
+                # a named header, or nowhere for an open server. Read for the base this request
+                # travels to, so a placement committed with another endpoint never applies.
+                from core.cloud_providers import committed_custom_auth, custom_auth_parts
+
+                placement, header_name = custom_auth_parts(committed_custom_auth(transport_base))
+            if placement == "header":
+                headers[header_name] = api_key
+            elif placement == "bearer":
+                headers["Authorization"] = f"Bearer {api_key}"
         if self._is_openrouter_lane():
             # The manifest can contain legacy or caller-supplied headers. The canonical factory
             # must run last so no request path can clobber VOOL attribution on the wire.

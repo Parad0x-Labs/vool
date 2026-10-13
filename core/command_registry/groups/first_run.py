@@ -144,13 +144,17 @@ class IntakeProviderInput:
     provider_id: str
     #: The operator-entered base URL of a user endpoint (the custom OpenAI-compatible provider).
     base_url: str = ""
+    #: Where a user endpoint's key travels: "bearer" (default), "header:<Name>" or "none".
+    auth: str = ""
 
 
 @dataclass
 class IntakeCompleteInput:
     session_id: str
     #: "store" (default: verified only) or "later" (explicit save-for-later: quarantined,
-    #: encrypted, invisible to every execution consumer until a verification promotes it).
+    #: encrypted, invisible to every execution consumer until a verification promotes it), or
+    #: "asserted": a custom endpoint the operator uses although it cannot confirm a key (its model
+    #: list is public, or it has none) -- stored as an operator-asserted, unverified live pair.
     persist: str = "store"
 
 
@@ -403,10 +407,32 @@ class _IntakeSession:
     base_url: str = ""
     outcome: Any = None
     endpoint: str = ""
+    #: The key placement chosen for this session (custom endpoint only).
+    auth: str = ""
+    #: What ``outcome`` was obtained FOR: provider, endpoint, key placement and the secret's digest
+    #: (``_verification_identity``). An outcome is reused only for exactly that identity; any change
+    #: -- another placement on the same endpoint included -- is verified again before storing.
+    verified_identity: str = ""
+    #: Bumped by every change to what this session would verify or store (a new paste, another
+    #: provider, endpoint or placement, a newer verification, completion). A verification's outcome
+    #: is accepted only if nothing moved while its request was in flight.
+    generation: int = 0
 
 
 _INTAKE_SESSIONS: dict[str, _IntakeSession] = {}
 _INTAKE_LOCK = None  # created lazily to avoid import-time locks in spawned processes
+
+
+def _verification_identity(descriptor, value: str) -> str:
+    """The immutable facts one verification answered for: which provider, at which endpoint, with
+    the key placed where, and which secret (by digest only)."""
+    import hashlib
+
+    return "\0".join((
+        str(descriptor.provider_id), str(descriptor.verify_endpoint or ""),
+        str(descriptor.auth_style or ""), str(descriptor.auth_name or ""),
+        hashlib.sha256(str(value or "").encode("utf-8")).hexdigest(),
+    ))
 
 
 def _intake_lock():
@@ -436,7 +462,7 @@ def _intake_fault(error: str, detail: str, status: int) -> HandlerFault:
     )
 
 
-def _intake_descriptor(provider_id: str, base_url: str):
+def _intake_descriptor(provider_id: str, base_url: str, auth: str = ""):
     """(descriptor, fault) for the ONE selected provider. A user endpoint (the custom
     OpenAI-compatible provider) is verified at the operator's base URL, which must be safe to carry a
     key -- https to any host, plain http only to this machine -- before anything is sent. A key that
@@ -447,7 +473,22 @@ def _intake_descriptor(provider_id: str, base_url: str):
     descriptor = default_registry().get(str(provider_id or ""))
     if descriptor is None:
         return None, _intake_fault("unknown_provider", f"unknown provider {provider_id!r}", 400)
+    if str(auth or "").strip() and not descriptor.user_endpoint:
+        return None, _intake_fault(
+            "auth_not_configurable",
+            f"{descriptor.label} documents where its key goes; only a custom endpoint takes a chosen key placement",
+            400,
+        )
     if descriptor.user_endpoint:
+        from core.cloud_providers import normalize_custom_auth
+
+        placement = normalize_custom_auth(auth)
+        if not placement:
+            return None, _intake_fault(
+                "invalid_auth",
+                "the key placement must be Bearer, a plain header name such as api-key (no spaces, not a reserved header like Host or Cookie) or no key",
+                400,
+            )
         base = str(base_url or "").strip()
         if not base:
             return None, _intake_fault("base_url_required", "enter the base URL of the endpoint, for example https://host/v1", 400)
@@ -459,7 +500,9 @@ def _intake_descriptor(provider_id: str, base_url: str):
                 "the base URL must start with https:// (plain http:// is allowed only to a server on this machine), so the key never travels in clear",
                 400,
             )
-        descriptor = descriptor.with_base_url(base)
+        # The placement chosen in THIS intake, never the one committed with the live pair: a new
+        # endpoint is verified exactly as its key will travel.
+        descriptor = descriptor.with_base_url(base).with_custom_auth(placement)
     elif descriptor.endpoint_slot:
         chosen = str(base_url or "").strip()
         origin = _chosen_origin(chosen) if chosen else str(descriptor.default_endpoint or "")
@@ -484,7 +527,7 @@ def _chosen_origin(value: str) -> str:
         return ""
 
 
-def _path_token_descriptor(session: _IntakeSession, provider_id: str, base_url: str):
+def _path_token_descriptor(session: _IntakeSession, provider_id: str, base_url: str, auth: str = ""):
     """(descriptor, fault) for the selected provider, splitting a URL-path credential first.
 
     A credential that rides the URL path (UsePod) may be pasted as the bare token or as the whole
@@ -493,7 +536,7 @@ def _path_token_descriptor(session: _IntakeSession, provider_id: str, base_url: 
     the pasted URL itself is dropped. A URL that names another origin than the one the operator
     chose, or a non-default origin nobody chose, is refused. Every other placement is resolved by
     ``_intake_descriptor`` unchanged."""
-    descriptor, fault = _intake_descriptor(provider_id, base_url)
+    descriptor, fault = _intake_descriptor(provider_id, base_url, auth)
     if fault is not None or str(getattr(descriptor, "auth_style", "") or "") != "url_path_token":
         return descriptor, fault
     from core.usepod.descriptor import UsePodConfigError, remember_token_for_redaction
@@ -537,6 +580,8 @@ def _intake_classify(inp, ctx):
             session.value = value
             session.outcome = None  # a new paste invalidates any earlier verification
             session.endpoint = ""
+            session.verified_identity = ""
+            session.generation += 1  # ...and any verification still in flight
     suggestion = shortlist.suggestion
     payload = {
         "family": key_format.family,
@@ -566,16 +611,31 @@ def _intake_preview(inp, ctx):
     if session is not None and session.value:
         # A URL-path credential is split here as well, so a key saved for later keeps only its token
         # and the origin it binds to -- never the pasted URL.
-        descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url)
+        descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url,
+                                                   str(getattr(inp, "auth", "") or ""))
     else:
-        descriptor, fault = _intake_descriptor(str(inp.provider_id or ""), base_url)
+        descriptor, fault = _intake_descriptor(str(inp.provider_id or ""), base_url, str(getattr(inp, "auth", "") or ""))
     if fault is not None:
         return fault
     with _intake_lock():
         if session is not None:
+            if descriptor.user_endpoint and descriptor.custom_auth == "none":
+                # An open endpoint takes no key: a pasted value is dropped here too, never stored.
+                from core.cloud_providers import CUSTOM_NO_KEY_VALUE
+
+                session.value = CUSTOM_NO_KEY_VALUE
+            selected = (session.provider_id, session.base_url, session.auth, session.value)
             session.provider_id = descriptor.provider_id
+            session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
             if str(descriptor.auth_style or "") != "url_path_token":
                 session.base_url = base_url
+            if selected != (session.provider_id, session.base_url, session.auth, session.value):
+                session.generation += 1  # a verification in flight was for the old selection
+            if session.verified_identity != _verification_identity(descriptor, session.value):
+                # The selection moved away from what was verified: that outcome answers nothing now.
+                session.outcome = None
+                session.endpoint = ""
+                session.verified_identity = ""
     endpoint = descriptor.verify_endpoint
     origin = f"{urlparse(endpoint).scheme}://{urlparse(endpoint).netloc}" if endpoint else ""
     return HandlerOk(
@@ -603,26 +663,135 @@ def _intake_verify(inp, ctx):
     if session is None or not session.value:
         return _intake_fault("intake_session_expired", "re-paste the key; sessions are memory-only", 410)
     base_url = str(getattr(inp, "base_url", "") or "").strip()
-    descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url)
+    descriptor, fault = _path_token_descriptor(session, str(inp.provider_id or ""), base_url,
+                                               str(getattr(inp, "auth", "") or ""))
     if fault is not None:
         return fault
+    if descriptor.user_endpoint and descriptor.custom_auth == "none":
+        # An open endpoint takes no key: whatever was pasted is dropped here, never stored or sent.
+        from core.cloud_providers import CUSTOM_NO_KEY_VALUE
+
+        with _intake_lock():
+            session.value = CUSTOM_NO_KEY_VALUE
+    # What THIS request verifies, fixed before any I/O: the value sent and the session generation it
+    # belongs to. The answer describes exactly this value at exactly this destination, so it is
+    # recorded only if the session still holds them when the answer arrives.
+    with _intake_lock():
+        session.generation += 1
+        generation = session.generation
+        value = session.value
     try:
-        outcome = verify_provider_credential(session.value, descriptor)
+        outcome = verify_provider_credential(value, descriptor)
     except Exception as exc:
         return HandlerOk(
             data={"outcome": "network_unavailable", "provider_id": descriptor.provider_id, "detail": f"verification could not run: {type(exc).__name__}"},
             summary="the key was NOT stored",
         )
     with _intake_lock():
+        if session.generation != generation or session.value != value:
+            # Another paste, destination, placement or verification arrived while this request was
+            # in flight. Its outcome answers for a key or place the session no longer holds.
+            return _intake_fault(
+                "intake_changed",
+                "the key or where it goes changed while it was being checked; nothing was recorded -- check again",
+                409,
+            )
         session.provider_id = descriptor.provider_id
         if str(descriptor.auth_style or "") != "url_path_token":
             session.base_url = base_url  # a path token's session already holds the origin it was split to
         session.outcome = outcome
         session.endpoint = descriptor.verify_endpoint
+        session.auth = descriptor.custom_auth if descriptor.user_endpoint else ""
+        session.verified_identity = _verification_identity(descriptor, value)
     data = {key: value for key, value in outcome.to_dict().items() if key != "status"}
     return HandlerOk(
-        data={"outcome": str(outcome.status), **data, "label": descriptor.label, "kind": descriptor.kind},
+        data={"outcome": str(outcome.status), **data, "label": descriptor.label, "kind": descriptor.kind,
+              # A custom endpoint that answered but cannot confirm a key may still be used, by the
+              # operator's explicit choice (intake.complete persist="asserted").
+              "can_use_unconfirmed": _can_assert(descriptor, outcome)},
         summary="one check with the selected provider ran; nothing stored until you complete",
+    )
+
+
+#: Verification outcomes after which a custom endpoint may still be used by the operator's explicit
+#: choice: it answered as this API but cannot judge a key (its model list is public), or it has no
+#: model list to ask. Nothing else -- a rejected key, an outage, a timeout or a foreign page -- may
+#: be overridden: those are answers about the key or the address, and the operator must fix them.
+_ASSERTABLE_OUTCOMES = frozenset({"public_endpoint", "endpoint_not_found"})
+
+
+def _can_assert(descriptor, outcome) -> bool:
+    return bool(
+        descriptor is not None and descriptor.user_endpoint and descriptor.kind == "llm_cloud"
+        and outcome is not None and str(getattr(outcome, "status", "")) in _ASSERTABLE_OUTCOMES
+    )
+
+
+def _intake_complete_asserted(session: _IntakeSession, descriptor):
+    """Store a custom endpoint the operator uses although it cannot confirm the key.
+
+    Allowed only after THIS session's one verification of the same endpoint and placement ended in an
+    assertable outcome; the pair commits through the store's operator-pair transaction as
+    ``unverified`` (never ``verified``), and the first real request is what judges the key."""
+    from core.credential_intelligence.binding import MalformedBindingIndexError
+    from core.credential_intelligence.provider_registry import default_registry
+    from core.credential_intelligence.store import (
+        CredentialStore,
+        IntakeRefusedError,
+        StorageConflictError,
+        StorageUnavailableError,
+        StoreWriteTimeoutError,
+    )
+    from core.unattended_preflight import SecureStorageError
+
+    outcome = session.outcome
+    if (
+        outcome is None
+        or outcome.provider_id != descriptor.provider_id
+        or session.verified_identity != _verification_identity(descriptor, session.value)
+        or not _can_assert(descriptor, outcome)
+    ):
+        session.value = ""
+        return HandlerFault(
+            fault_code="fault_validation",
+            summary="only a custom endpoint that answered but cannot confirm a key can be used unconfirmed; nothing was stored",
+            detail={"error": "not_assertable", "detail": f"outcome {getattr(outcome, 'status', 'none')}",
+                    "outcome": str(getattr(outcome, "status", "") or ""), "legacy_status": 409},
+        )
+    from core.web.api.registry_authorities import bind_saved_cloud_key, cloud_key_save_refusal
+
+    refusal = cloud_key_save_refusal()
+    if refusal is not None:
+        session.value = ""
+        return HandlerFault(
+            fault_code="fault_validation",
+            summary="a council run holds the cloud model pin; nothing was stored",
+            detail={**refusal, "legacy_status": 409},
+        )
+    try:
+        binding = CredentialStore(default_registry()).save_operator_pair(
+            descriptor, session.value, endpoint=session.base_url)
+    except (IntakeRefusedError, StoreWriteTimeoutError, StorageUnavailableError, StorageConflictError,
+            SecureStorageError, MalformedBindingIndexError) as exc:
+        return _intake_fault("secure_storage_unavailable", f"secure storage did not complete ({type(exc).__name__}); the key was not bound", 503)
+    finally:
+        session.value = ""
+    bind_saved_cloud_key(descriptor.provider_id)
+    from core import credential_store
+
+    return HandlerOk(
+        data={
+            "slot": descriptor.credential_slot,
+            "label": descriptor.label,
+            "kind": descriptor.kind,
+            "provider_id": descriptor.provider_id,
+            "storage": str(credential_store.active_backend()),
+            "connected": bool(credential_store.has_credential(descriptor.credential_slot)),
+            "binding": binding.to_dict(),
+            "asserted": True,
+            "outcome": str(outcome.status),
+        },
+        summary="stored as an unconfirmed custom endpoint; the first request judges the key",
     )
 
 
@@ -651,13 +820,16 @@ def _intake_complete(inp, ctx):
         session = _INTAKE_SESSIONS.get(str(inp.session_id or ""))
         if session is not None:
             _INTAKE_SESSIONS.pop(str(inp.session_id), None)
+            session.generation += 1  # a verification still in flight can no longer record into it
     if session is None or not session.value:
         return _intake_fault("intake_session_expired", "re-paste the key; sessions are memory-only", 410)
     if not session.provider_id:
         return _intake_fault("provider_mismatch", "no provider was selected and verified in this session — nothing saved", 409)
-    descriptor, fault = _path_token_descriptor(session, session.provider_id, session.base_url)
+    descriptor, fault = _path_token_descriptor(session, session.provider_id, session.base_url, session.auth)
     if fault is not None:
         return fault
+    if str(getattr(inp, "persist", "store") or "store") == "asserted":
+        return _intake_complete_asserted(session, descriptor)
     # EXPLICIT save-for-later: the operator chose to keep an unverified key. It is stored
     # encrypted in a QUARANTINE slot no execution consumer reads, with an honest row that says
     # unverified — never into the provider's real slot, never bound, never used. Promotion
@@ -699,7 +871,11 @@ def _intake_complete(inp, ctx):
             summary="stored sealed and QUARANTINED — nothing uses this key until a verification promotes it",
         )
     outcome = session.outcome
-    if outcome is None or outcome.provider_id != descriptor.provider_id or session.endpoint != descriptor.verify_endpoint:
+    if (
+        outcome is None
+        or outcome.provider_id != descriptor.provider_id
+        or session.verified_identity != _verification_identity(descriptor, session.value)
+    ):
         outcome = verify_provider_credential(session.value, descriptor)
     if str(outcome.status) != "verified":
         return HandlerFault(
@@ -814,7 +990,9 @@ def _intake_quarantine_retry(inp, ctx):
     if descriptor.user_endpoint:
         if not snapshot.endpoint:
             return _intake_fault("base_url_required", "the quarantined key has no stored endpoint; delete it and re-save with the base URL", 400)
-        descriptor = descriptor.with_base_url(snapshot.endpoint)
+        # Verified where it was saved AND with the key placement it was saved with: never the live
+        # pair's placement. A row from before placements existed was saved as Bearer.
+        descriptor = descriptor.with_base_url(snapshot.endpoint).with_custom_auth(snapshot.auth or "bearer")
     elif descriptor.endpoint_slot:
         # A key saved for later keeps the origin it was split to; it is verified THERE, never at an
         # origin a later save chose.

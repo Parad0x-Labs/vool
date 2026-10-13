@@ -277,6 +277,8 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
+#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
+#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
 #sessions .session:hover .s-actions { display:flex; }
@@ -1885,7 +1887,7 @@ function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
 // bare ids, so any check that must EXCLUDE the local tiers pairs it with !MODEL_LABELS[modelValue].
-const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?(?::[A-Za-z0-9._-]+)?$/;
+const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?(?!(?:[^\/]*\/)*\.{1,2}(?:[\/:]|$))[A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@-]+){0,4}(?::[A-Za-z0-9._-]+)?$/;
 const CLOUD_MODEL_LABELS = {};
 // Id -> catalog row for every row served by /api/cloud/models this session. The
 // send-time paid-pin guard reads the SAME server catalog verdicts, never its own guess.
@@ -2892,6 +2894,13 @@ function makeSessionItem(s, archived, nested) {
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
+  if (!archived) {
+    const pinB = document.createElement('button');
+    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
+    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
+    actions.appendChild(pinB);
+  }
   const ren = document.createElement('button');
   ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
@@ -2905,9 +2914,16 @@ function makeSessionItem(s, archived, nested) {
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
+  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
+}
+async function setChatPinned(sid, pinned) {
+  try {
+    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+  } catch (e) {}
+  await loadSessions();
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
@@ -3343,6 +3359,22 @@ function renderSessions(sessions) {
     const pid = s.project_id;   // server-side binding
     if (pid && projects[pid]) { (byProject[pid] = byProject[pid] || []).push(s); }
     else general.push(s);
+  }
+  // Pinned chats first: a shortcut list above every group. A pinned chat also stays in its own
+  // group, so the group counts (computed server-side over every chat) remain true.
+  const PIN_KEY = '__pinned__';
+  const pinnedRows = active.filter((s) => s.pinned)
+    .sort((a, b) => String(b.pinned_at || '').localeCompare(String(a.pinned_at || '')));
+  if (pinnedRows.length) {
+    const pinCollapsed = !!collapsed[PIN_KEY];
+    const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
+    const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
+    ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
+    ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    sessionsEl.appendChild(ph);
+    if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
   }
   // General (unassigned) pinned to the TOP and collapsible, like a project group.
   const GEN_KEY = '__general__';
@@ -7381,6 +7413,21 @@ async function runTurn(text, queueItemId, opts) {
         return;
       }
     }
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
+    // reason, never an empty stream read as "(no response)" and marked Completed.
+    if (!res.ok) {
+      let refusal = null;
+      try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      run.text = reason
+        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
+        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+      finishRun(run, 'failed', run.text);
+      releaseComposer(run);
+      return;
+    }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
@@ -9518,6 +9565,36 @@ function buildAutoFallbackControl(freeModels) {
   return bar;
 }
 
+// A model id typed by hand, for a provider whose own endpoint may serve models it does not list (the
+// custom OpenAI-compatible endpoint says so with `accepts_typed_model`). The id goes through the same
+// server-owned pin as a catalogue row, cost confirmation included; only the shape is checked here.
+function buildTypedModelRow(provider) {
+  const row = document.createElement('div'); row.className = 'pop-order cloud-toolbar cloud-dyn cloud-typed';
+  const lab = document.createElement('label'); lab.textContent = 'Model id';
+  const input = document.createElement('input'); input.type = 'text'; input.placeholder = 'exact id the endpoint serves';
+  input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('aria-label', 'Type a model id for this endpoint');
+  const use = document.createElement('button'); use.type = 'button'; use.className = 'pop-item cloud-dyn'; use.textContent = 'Use';
+  const hint = document.createElement('span'); hint.className = 'pi-hint';
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); use.click(); } });
+  use.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = input.value.trim();
+    if (!id || !CLOUD_MODEL_ID_RE.test(id)) { hint.textContent = 'Not a model id (letters, digits, . _ - @, up to five / parts, optional :tag).'; return; }
+    hint.textContent = 'Checking model and price…'; use.disabled = true;
+    try {
+      if (await switchCloudModel(id, id, use, provider)) {
+        hint.textContent = '';
+        const pop = document.getElementById('modelPop'), btn = document.getElementById('modelBtn');
+        if (pop) pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+      } else if (!use.dataset.selectionError) hint.textContent = 'Not pinned.';
+      else hint.textContent = use.dataset.selectionError;
+    } finally { use.disabled = false; }
+  });
+  lab.appendChild(input); row.appendChild(lab); row.appendChild(use); row.appendChild(hint);
+  return row;
+}
+
 async function renderCloudModels() {
   const revision = ++cloudCatalogRevision;
   const pop = document.getElementById('modelPop');
@@ -9580,6 +9657,7 @@ async function renderCloudModels() {
     });
     pop.insertBefore(row, anchor);
     pop.insertBefore(retry, anchor);
+    if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
     positionPopover(pop, document.getElementById('modelBtn'));
     return;
   }
@@ -9606,6 +9684,7 @@ async function renderCloudModels() {
   pop.insertBefore(picker, anchor);
   autoFreeModel = String((data && data.auto_free_model) || 'auto');
   if ((data && data.provider) === 'openrouter') pop.insertBefore(buildAutoFallbackControl(free), anchor);
+  if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
   pop.insertBefore(buildCloudToolbar(renderMatches), anchor);
   function group(text) { const g = document.createElement('div'); g.className = 'pop-group cloud-dyn'; g.textContent = text; return g; }
   const list = document.createElement('div'); list.className = 'cloud-list cloud-dyn';
@@ -9646,7 +9725,9 @@ async function refreshCredentials() {
     if (!rp.ok) throw new Error('Provider list unavailable');
     const jp = await rp.json();
     const slots = new Set((j.credentials || []).map((c) => c.name));
-    const configured = (jp.providers || []).filter((p) => p && p.id && slots.has('llm.cloud.' + p.id));
+    // A key in a Settings slot or in the environment (the server reports the latter by presence
+    // only): either way the lane routes on it, so the picker must offer it.
+    const configured = (jp.providers || []).filter((p) => p && p.id && (slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
     let accountless = false;
     // Include the wallet route even when another provider also has a saved key.
     try {

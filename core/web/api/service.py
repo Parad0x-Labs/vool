@@ -1321,11 +1321,21 @@ def dispatch_get(
             counts[str(row.get("project_id") or "")] = (
                 counts.get(str(row.get("project_id") or ""), 0) + 1
             )
+        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+        # one that would otherwise fall outside the 100-row page.
+        from core.chat_housekeeping import pinned_chat_ids_from
+
+        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+        for row in every_session:
+            sid = str(row.get("session_id") or "")
+            row["pinned"] = sid in pinned_at
+            row["pinned_at"] = pinned_at.get(sid, "")
+        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
         return apply_runtime_headers(
             json_response(
                 200,
                 {
-                    "sessions": every_session[:100],
+                    "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),
                     "page_size": 100,
@@ -1800,11 +1810,24 @@ def dispatch_get(
     if normalized_path == "/api/cloud/providers":
         # The provider catalog for the Settings selector: id + label + key-id style, so the UI can
         # offer "Auto-detect / OpenAI / Anthropic / …" without hardcoding the list. No secrets.
-        from core.cloud_providers import PROVIDERS
+        # `key_from_environment` says, by presence only, that the provider's key comes from the
+        # environment (the lane routes on it although no Settings slot holds it), so the picker can
+        # count it as connected. A custom endpoint needs its base URL there too.
+        from core.cloud_providers import PROVIDERS, env_key_present
+
+        def _env_keyed(cfg) -> bool:
+            if not env_key_present(cfg.provider_id):
+                return False
+            if cfg.base_url_env_names:
+                import os as _os
+
+                return any(str(_os.environ.get(name) or "").strip() for name in cfg.base_url_env_names)
+            return True
 
         provider_rows = [
             {"id": cfg.provider_id, "label": cfg.label, "model_id_style": cfg.model_id_style,
-             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement}
+             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement,
+             "key_from_environment": _env_keyed(cfg)}
             for cfg in PROVIDERS.values()
         ]
         return apply_runtime_headers(json_response(200, {"providers": provider_rows}), runtime)
@@ -2534,6 +2557,64 @@ def dispatch_get(
             if _up_refresh is not None:
                 _up_payload["refresh"] = _up_refresh
             return apply_runtime_headers(json_response(200, _up_payload), runtime)
+
+        if prov == "custom":
+            # The operator's own endpoint has no curated list: its catalogue is what capability
+            # discovery OBSERVED at the endpoint now configured (?refresh=1 observes it again). Only
+            # rows seen available under the live key/endpoint generations are offered; a list from a
+            # previous endpoint, or one degraded to unknown, never is. Prices are not published by
+            # an operator endpoint, so none are invented.
+            from core.credential_intelligence.discovery import discovery_snapshot, refresh_discovery
+
+            _cu_refresh: dict[str, Any] | None = None
+            if str((query.get("refresh") or [""])[0] or "").strip() in {"1", "true", "yes"}:
+                try:
+                    _cu_assertion = refresh_discovery("custom")
+                    _cu_status = str(getattr(_cu_assertion, "last_refresh_status", "") or "")
+                    _cu_refresh = {"ok": _cu_status in {"verified", "public_endpoint", "empty_catalogue"},
+                                   "status": _cu_status}
+                    if not _cu_refresh["ok"]:
+                        _cu_refresh["error"] = _cu_status or "no catalogue observed"
+                except Exception as exc:
+                    _cu_refresh = {"ok": False, "error": f"catalogue fetch failed ({type(exc).__name__})"}
+            _cu_entry = discovery_snapshot(["custom"]).get("custom") or {}
+            _cu_rows: list[dict[str, Any]] = []
+            if _cu_entry.get("generations_match"):
+                for _cu_model in _cu_entry.get("models") or []:
+                    if _cu_model.get("status") != "available" or _cu_model.get("evidence") != "observed":
+                        continue
+                    _cu_id = str(_cu_model.get("model_id") or "")
+                    if not _cu_id:
+                        continue
+                    _cu_rows.append({
+                        "id": _cu_id,
+                        "name": str(_cu_model.get("display_name") or _cu_id),
+                        "context_length": int(_cu_model.get("context_window") or 0),
+                        "free": False,
+                        "coding": False,
+                        "provider": "custom",
+                        "supports_images": "image" in {str(x).lower() for x in (_cu_model.get("input_modalities") or ())},
+                    })
+            if order == "name" or order == "featured":
+                _cu_rows.sort(key=lambda r: str(r["id"]).lower())
+            elif order == "context":
+                _cu_rows.sort(key=lambda r: int(r.get("context_length") or 0), reverse=True)
+            _cu_cfg = config_for("custom")
+            _cu_payload: dict[str, Any] = {
+                "provider": "custom",
+                "label": _cu_cfg.label if _cu_cfg else "Custom",
+                "models": _cu_rows,
+                "free_count": 0,
+                "age_seconds": None,
+                "order": order,
+                "catalogue_status": str(_cu_entry.get("last_refresh_status") or ""),
+                # The picker offers a typed model id for this provider: an endpoint may serve models
+                # it does not list, or list none at all.
+                "accepts_typed_model": True,
+            }
+            if _cu_refresh is not None:
+                _cu_payload["refresh"] = _cu_refresh
+            return apply_runtime_headers(json_response(200, _cu_payload), runtime)
 
         # Direct provider: curated static list (no live free catalog).
         from core.cloud_model_catalog import curated_models
@@ -6393,6 +6474,47 @@ def _dispatch_post_inner(
         servable_ids = {p.get("id") for p in message_pins.list_servable_pins(session_id)}
         echoed_pin = pin if ok and pin.get("id") in servable_ids else {}
         return apply_runtime_headers(json_response(200 if ok else 400, {"ok": ok, "pin": echoed_pin, "pins": message_pins.list_servable_pins(session_id)}), runtime)
+
+    if normalized_path == "/api/chat/pin-chat":
+        # Pin or unpin a whole chat to the top of the sidebar. Same owner-local guards as
+        # /api/chat/pin; the write is read back by core.chat_housekeeping before it reports ok.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        import json as _json
+
+        from core import chat_housekeeping
+        from core.web.api.runtime import host_header_allowed
+
+        def _pch(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ct = _pch("content-type").lower()
+        if ct and "json" not in ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _pch("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 4096:
+                return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
+        if not isinstance(body, dict):
+            return apply_runtime_headers(json_response(400, {"error": "invalid body"}), runtime)
+        unknown = set(body.keys()) - {"session_id", "pinned"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        session_id = body.get("session_id")
+        if not isinstance(session_id, str) or not session_id.strip():
+            return apply_runtime_headers(json_response(400, {"error": "missing or invalid session_id"}), runtime)
+        if not isinstance(body.get("pinned"), bool):
+            return apply_runtime_headers(json_response(400, {"error": "pinned must be true or false"}), runtime)
+        result = chat_housekeeping.set_chat_pinned(session_id.strip(), body["pinned"])
+        status = 200 if result.ok else (404 if result.error in ("chat_not_found", "chat_deleted") else 400)
+        return apply_runtime_headers(json_response(status, {"ok": result.ok, "error": result.error or None, "pinned": bool(result.after.get("pinned")), "changed": result.changed}), runtime)
 
     if normalized_path in {"/api/model-radar/dismiss", "/api/model-radar/viewed", "/api/model-radar/preferences", "/api/model-radar/try-once"}:
         # One family with the same guard suite as the other owner-local

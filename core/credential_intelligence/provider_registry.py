@@ -27,8 +27,8 @@ VERIFY_SEARCH_QUERY = "example"
 class ProviderDescriptor:
     provider_id: str
     label: str
-    #: "llm_cloud" | "search_web" | "security_scan" | "chain_data" — selects the availability lane a
-    #: verified binding activates.
+    #: "llm_cloud" | "search_web" | "security_scan" | "chain_data" | "market_data" — selects the
+    #: availability lane a verified binding activates.
     kind: str
     credential_slot: str
     #: The pinned, absolute verification URL. The ONLY endpoint a key may be verified against.
@@ -39,7 +39,8 @@ class ProviderDescriptor:
     #: ``X-Subscription-Token``), "body" (JSON field ``auth_name`` of a POST) or "query_token" (query
     #: parameter ``auth_name``, for a fixed-origin provider that documents no other placement: Helius,
     #: Etherscan). A query token is handled like a URL-path token: registered as an exact secret before
-    #: the request is built, never redirected, never proxied. The verifier refuses anything else.
+    #: the request is built, never redirected, never proxied. For a user endpoint only, "none" (an open
+    #: server the operator says takes no key: nothing is ever sent). The verifier refuses anything else.
     auth_style: str = "bearer"
     auth_name: str = ""
     #: Extra query params merged into the verification URL (e.g. a minimal search query).
@@ -102,6 +103,27 @@ class ProviderDescriptor:
         """This descriptor verified at an operator-supplied base URL (user endpoints only)."""
         return replace(self, verify_endpoint=f"{str(base_url or '').strip().rstrip('/')}{self.verify_path}")
 
+    def with_custom_auth(self, placement: str) -> ProviderDescriptor:
+        """This user endpoint with the key placement its operator chose (``core.cloud_providers``
+        vocabulary: bearer, header:<Name>, none). A fixed provider's documented placement is never
+        overridden: only a user endpoint documents nothing about its own auth."""
+        if not self.user_endpoint:
+            return self
+        from core.cloud_providers import custom_auth_parts
+
+        style, name = custom_auth_parts(placement)
+        return replace(self, auth_style=style, auth_name=name)
+
+    @property
+    def custom_auth(self) -> str:
+        """The placement this descriptor carries, in ``core.cloud_providers`` vocabulary."""
+        style = str(self.auth_style or "bearer").strip().lower()
+        if style == "none":
+            return "none"
+        if style == "header" and self.auth_name:
+            return f"header:{self.auth_name}"
+        return "bearer"
+
 
 class ProviderRegistry:
     """An immutable provider_id → descriptor mapping."""
@@ -153,6 +175,11 @@ def default_registry() -> ProviderRegistry:
         path_token = getattr(cfg, "auth_placement", "") == "url_path_token"
         if cfg.user_base_url:
             base = custom_base_url()
+            from core.cloud_providers import committed_custom_auth, custom_auth_parts
+
+            # The placement the operator chose WITH this endpoint and key (their binding row), so
+            # Test, discovery and refresh send the key exactly where the chat lane does.
+            custom_style, custom_name = custom_auth_parts(committed_custom_auth(base))
         elif getattr(cfg, "endpoint_slot", ""):
             # The endpoint committed beside this provider's key (UsePod's origin), else its documented one.
             from core.cloud_providers import resolved_base_url
@@ -176,6 +203,8 @@ def default_registry() -> ProviderRegistry:
             # any other way, so this is the one fact that decides whether a real key verifies.
             auth_style = "header" if cfg.auth_header else "bearer"
             auth_name = cfg.auth_header
+            if cfg.user_base_url:
+                auth_style, auth_name = custom_style, custom_name
         extra_headers = dict(cfg.extra_headers)
         if pid == "openrouter":
             # The attribution headers the probe always sent (X-Title et al.): one policy means
@@ -251,6 +280,23 @@ def default_registry() -> ProviderRegistry:
         response_path=("engine",), response_kind="object", response_validator=valid_version_report,
     )
     descriptors.update(chain_data_descriptors())
+
+    # CoinGecko market data (core.coingecko_auth): each plan verifies on its own root's /ping with the
+    # key in that plan's documented header; a good key answers {"gecko_says": ...}, a bad one 401.
+    from core.coingecko_auth import KEY_PREFIX
+    from core.coingecko_auth import PLANS as COINGECKO_PLANS
+
+    for plan in COINGECKO_PLANS.values():
+        descriptors[f"market.{plan.provider_id}"] = ProviderDescriptor(
+            provider_id=f"market.{plan.provider_id}", label=plan.label, kind="market_data",
+            credential_slot=plan.credential_slot, verify_endpoint=plan.base_url + "/ping",
+            auth_style="header", auth_name=plan.key_header, key_prefixes=(KEY_PREFIX,),
+            capability_family="market_data", paid=plan.provider_id != "coingecko",
+            response_path=("gecko_says",), response_kind="value",
+            # 400 on /ping (no parameters) is CoinGecko's answer to a key of the other plan
+            # (error 10010, "change your root URL"): a refusal of THIS key for THIS plan.
+            invalid_statuses=(400, 401),
+        )
     return ProviderRegistry(descriptors)
 
 

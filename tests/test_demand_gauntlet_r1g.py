@@ -476,6 +476,8 @@ EXECUTABLE_TERMINAL_FAMILIES = (
     "workspace_read_fast_path",     # turn_frontdoor.py workspace runtime pass
                                    # (reason="workspace_runtime_fast_path")
     "direct_math_fast_path",        # turn_frontdoor.py direct math fast path
+    "chat_housekeeping",            # turn_frontdoor.py maybe_handle_housekeeping_request
+                                   # (housekeeping_lane.py: find/pin/rename/archive/move chats)
     # P0 simple-file-write: the single-file write family executes through the
     # builder's typed workflow loop (controller.py workflow response) and
     # finalizes single-unit turns there; its coverage probe is the resolver.

@@ -453,7 +453,7 @@ def _merge_models_url(built_url: str, models_url: str) -> str:
     return urlunsplit((models.scheme, models.netloc, models.path, "", "")) + query
 
 
-def _fetch_models(descriptor, key: str, *, timeout_s: float = _MODELS_TIMEOUT_S) -> tuple[int, bytes, object]:
+def _fetch_models(descriptor, key: str | None, *, timeout_s: float = _MODELS_TIMEOUT_S) -> tuple[int, bytes, object]:
     """One keyed models-list request built exactly like the verifier builds its own: the same
     auth placement, the same unredirected key header, the one outbound door, proxy-free."""
     import urllib.error
@@ -477,8 +477,8 @@ def _fetch_models(descriptor, key: str, *, timeout_s: float = _MODELS_TIMEOUT_S)
             timeout=timeout_s,
             no_proxy=True,
             provider_id=descriptor.provider_id,
-            keyed_or_keyless="keyed",
-            credential_headers=_credential_header_names(descriptor),
+            keyed_or_keyless="keyed" if key is not None else "keyless",
+            credential_headers=_credential_header_names(descriptor) if key is not None else (),
         )
     except urllib.error.HTTPError as exc:
         response = exc
@@ -562,10 +562,16 @@ def refresh_discovery(provider_id: str, *, registry=None, timeout_s: float = _MO
 
     with named_background_effect_scope("discovery.refresh"):
         outcome = verify_provider_credential(key, descriptor, scope="discovery.refresh")
-        if outcome.status != "verified":
+        # An operator's own endpoint that publishes its model list to anyone cannot judge a key, but
+        # its catalogue is exactly that public list: it is read WITHOUT the key (nothing keyed is
+        # sent to an address that never asked for one) and recorded as observed under that status,
+        # never as a verified key.
+        public_listing = outcome.status == "public_endpoint" and bool(descriptor.user_endpoint)
+        if outcome.status != "verified" and not public_listing:
             return _record(keep_previous=True, last_refresh_status=outcome.status, last_refresh_at=now,
                            refreshed_generations_match=True)
-        status, body, _headers = _fetch_models(descriptor, key, timeout_s=timeout_s)
+        status, body, _headers = _fetch_models(descriptor, None if public_listing else key, timeout_s=timeout_s)
+    listed_status = "public_endpoint" if public_listing else "verified"
 
     # Race guard: if the settings moved while the requests were in flight, this observation
     # belongs to a combination nobody configured anymore -- _record's compare-and-set discards it.
@@ -637,7 +643,7 @@ def refresh_discovery(provider_id: str, *, registry=None, timeout_s: float = _MO
             merged.append(replace(old_row, status=MODEL_MISSING))
     return _record(account=outcome.account, protocol=protocol, evidence=EVIDENCE_OBSERVED,
                    source="model_list_endpoint", observed_at=now2, expires_at=expires, models=tuple(merged),
-                   last_refresh_status="verified", last_refresh_at=now2,
+                   last_refresh_status=listed_status, last_refresh_at=now2,
                    refreshed_generations_match=True, truncated=False)
 
 
