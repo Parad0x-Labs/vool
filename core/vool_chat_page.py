@@ -4485,6 +4485,10 @@ function streamingPreviewText(text) {
     if (isRow(header) && !isRow(above)) return t.slice(0, nl2 + 1);
   }
   if (/^\s*\|/.test(lastLine) && !/\|\s*$/.test(lastLine)) return t.slice(0, nl + 1);  // half a row
+  if (isRow(lastLine)) {                             // a first row may be a header: wait for its newline
+    const above = nl >= 0 ? t.slice(t.lastIndexOf('\n', nl - 1) + 1, nl) : '';
+    if (!isRow(above)) return t.slice(0, nl + 1);
+  }
   // Finished inline code is literal: blank it out (same length) before looking for open markers.
   const masked = lastLine.replace(/(`+)[^`]*?\1/g, (m) => ' '.repeat(m.length));
   const holdFrom = (at) => (at >= 0 && lastLine.length - at <= STREAM_HOLD_MAX) ? t.slice(0, nl + 1 + at) : t;
@@ -4497,7 +4501,8 @@ function streamingPreviewText(text) {
     if (!/[\p{L}\p{N}]/u.test(masked.charAt(at - 1) || ' ') && /\S/.test(masked.charAt(at + 2) || '')) return holdFrom(at);
   }
   const link = masked.match(/!?\[[^\]]*(\]\([^)]*)?$/);
-  if (link) return holdFrom(link.index);
+  // Once "](" has arrived it is surely a link, however long its address: hold it whole.
+  if (link) return link[1] ? t.slice(0, nl + 1 + link.index) : holdFrom(link.index);
   return t;
 }
 function paintStreamingText(run) {

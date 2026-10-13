@@ -97,11 +97,14 @@ def test_streaming_answer_is_formatted_and_settles_on_the_commit(tmp_path):
                     streamingPreviewText('see ![alt](http://x/y.p'),
                     // Inside an open code block even a half "|" line is literal.
                     streamingPreviewText('```\\n| not a row'),
+                    // A first row with no newline yet may be a header; a long half link still waits.
+                    streamingPreviewText('Intro\\n\\n| a | b |'),
+                    streamingPreviewText('see [docs](https://example.com/' + 'deep/'.repeat(30)),
                 ]""")
                 long_tick = "A tick ` then " + "long text " * 10
                 assert preview == ["| a | b |\n|---|---|\n", "Some ", "see ", "done **bold** and", "```py\nx = [1,",
                                    "Use `a**b` for powers and more", "In Python 2**10 equals 1024", long_tick,
-                                   "Intro\n", "see ", "```\n| not a row"], preview
+                                   "Intro\n", "see ", "```\n| not a row", "Intro\n\n", "see "], preview
                 page.evaluate(PACED_FETCH, {"frames": frames, "commit": commit})
 
                 page.locator("#input").fill("Tell me about lanterns.")
