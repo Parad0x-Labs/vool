@@ -39,6 +39,7 @@ AUTHORITY_FREE_ALLOWLIST: dict[str, str] = {
     "core/nullpass.py": "verifies receipt signatures; decodes public keys only",
     "core/contribution_proof.py": "hive contribution proofs signed with the node identity key; never user funds",
     "core/x402/receipt_verifier.py": "verifies payment receipts by reading the chain; signs nothing",
+    "core/registry/publisher.py": "offline Skill Codex signing with the registry's Ed25519 keys: package admissions and catalogs, never user funds; no production module imports it",
 }
 
 #: Every retired surface, by id. The executable census probes each; test_6 demands a fault receipt for each.
