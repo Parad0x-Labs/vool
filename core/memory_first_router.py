@@ -5182,6 +5182,13 @@ class MemoryFirstRouter:
                 ),
                 **({"autopilot_plan": autopilot_plan} if autopilot_plan else {}),
                 **({"lane_proof": lane_proof} if lane_proof else {}),
+                # "Use the model's own tools": the provider's own search rode this call; the turn
+                # records what it returned as a retrieval receipt (core.model_own_tools).
+                **(
+                    {"provider_search": dict((getattr(response, "provider_metadata", None) or {})["provider_search"])}
+                    if isinstance((getattr(response, "provider_metadata", None) or {}).get("provider_search"), dict)
+                    else {}
+                ),
             },
         )
 
@@ -5803,6 +5810,30 @@ class MemoryFirstRouter:
                 )
             )
             request.tool_choice = "auto"
+        if output_mode != "tool_intent":
+            from core.model_own_tools import (
+                REQUEST_METADATA_KEY as _OWN_TOOLS_KEY,
+            )
+            from core.model_own_tools import (
+                provider_tool_grant,
+                turn_stamped,
+            )
+
+            if turn_stamped(source_context):
+                # "Use the model's own tools": no VOOL catalog on this call, whatever the flags say.
+                request.tools = ()
+                request.tool_choice = None
+                request.tools_required = False
+            # The provider's own tools ride ONLY the call the owner's paid reservation covers, on
+            # the model the owner pinned; the adapter re-checks the lane and the allowlist.
+            own_tools_grant = provider_tool_grant(
+                manifest=requested_manifest,
+                source_context=source_context,
+                authorized_paid_call=authorized_paid_call,
+            )
+            request.metadata.pop(_OWN_TOOLS_KEY, None)
+            if own_tools_grant is not None and turn_stamped(source_context):
+                request.metadata[_OWN_TOOLS_KEY] = own_tools_grant.as_metadata()
         if bool(autopilot_plan.get("verifier_required")):
             request.metadata["defer_stream_until_verified"] = True
 

@@ -230,6 +230,7 @@ def _handle_prefs_list(inp, ctx):
             "accept_hive_tasks": p.accept_hive_tasks,
             "social_commons": p.social_commons,
             "wallet_enabled": p.wallet_enabled,
+            "model_own_tools": p.model_own_tools,
             "setup_skipped_steps": p.setup_skipped_steps,
             "setup_dismissed": p.setup_dismissed,
             "speech_notice_dismissed": p.speech_notice_dismissed,
