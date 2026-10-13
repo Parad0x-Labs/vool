@@ -53,6 +53,9 @@ class ScriptedRpc:
         #: 'ok' | 'reject' (validated JSON-RPC preflight error) | 'accept_then_500' | 'accept_then_malformed' |
         #: 'accept_then_wrong_id' | 'accept_then_unlisted_error'. `send_ok=False` is the legacy spelling of 'reject'.
         self.send_mode = "ok"
+        #: when set, a sendTransaction the node recorded waits for this event before it answers (a slow node): the
+        #: wallet's side holds the transfer in flight until the test lets the answer go
+        self.send_answer_gate: threading.Event | None = None
         #: answer the transaction's real first signature (base58) rather than the legacy synthetic id
         self.real_signature = False
         self.finalized_slot = 1
@@ -135,6 +138,8 @@ class ScriptedRpc:
                         return
                     with rpc._lock:
                         rpc.sent.append(raw)
+                    if rpc.send_answer_gate is not None:
+                        rpc.send_answer_gate.wait(timeout=60)
                     if mode == "already_processed":
                         # recorded above: the node executed it, then answered the validated duplicate error
                         self._send({"jsonrpc": "2.0", "id": body.get("id"), "error": {"code": -32002, "message": "Transaction simulation failed: This transaction has already been processed", "data": {"err": "AlreadyProcessed", "logs": []}}})

@@ -1417,6 +1417,11 @@ function sheetRow(host, name, label, value){
   return value_el;
 }
 var transferCards = {};
+// Status reads are numbered as the page asks them. A transfer card drawn from a newer answer (an approval's or a
+// cancel's own reply, a later read) keeps it: a read asked before that, answering late, never takes the card back.
+var statusAsked = 0;
+function markAsked(host, asked){ host.setAttribute('data-status-asked', String(asked)); }
+function askedBefore(host, asked){ return asked <= Number(host.getAttribute('data-status-asked') || 0); }
 function transferLine(t){
   var line = el('div', 'vw-transfer');
   line.setAttribute('data-transfer-state', t.state || '');
@@ -1468,7 +1473,7 @@ function openExitSheet(t, host){
     var body = { proposal_id: t.proposal_id, pin: cred.value }; cred.value = '';
     postJson(terms.door, body).then(function(res){
       body = null;
-      if (res.ok && res.data && res.data.transfer) { close(); renderTransfer(host.parentNode || host, res.data.transfer); return; }
+      if (res.ok && res.data && res.data.transfer) { close(); renderTransfer(host.parentNode || host, res.data.transfer); markAsked(host.parentNode || host, statusAsked); return; }
       confirm.disabled = false; state.textContent = (res.data && (res.data.message || res.data.error)) || 'Not done.'; state.className = 'vw-msg err';
     }).catch(function(){ body = null; confirm.disabled = false; state.textContent = 'The request did not complete.'; state.className = 'vw-msg err'; });
   });
@@ -1491,13 +1496,13 @@ function transferCardFor(t){
   transferCards[t.proposal_id] = result;
   return card;
 }
-function syncTransfers(st){
+function syncTransfers(st, asked){
   var seen = {};
   (st.in_flight || []).concat(st.transfers || []).forEach(function(t){
     if (!t || !t.proposal_id || seen[t.proposal_id]) return;
     seen[t.proposal_id] = true;
     var host = transferCards[t.proposal_id];
-    if (host && host.getAttribute('data-transfer-state') !== t.state) { renderTransfer(host, t); host.setAttribute('data-transfer-state', t.state); }
+    if (host && host.getAttribute('data-transfer-state') !== t.state && !askedBefore(host, asked)) { renderTransfer(host, t); host.setAttribute('data-transfer-state', t.state); markAsked(host, asked); }
   });
 }
 var pilotCards = {};
@@ -1506,7 +1511,7 @@ var ENDED_TEXT = {
   expired: 'This request expired before a decision. Nothing was signed or sent.',
   failed: 'This request ended without a payment. Nothing was sent.'
 };
-function syncPilotCards(st){
+function syncPilotCards(st, asked){
   // A pending card belongs to the request, not to this page: when the request is approved, cancelled or expired on
   // another surface (another window, the API, a restart), the card follows the authoritative status -- a transfer
   // record replaces the Review action with the receipt line; an ended proposal says how it ended. Reading only:
@@ -1520,7 +1525,7 @@ function syncPilotCards(st){
     var entry = pilotCards[pid];
     var t = rows[pid];
     if (t) {
-      entry.controls.remove(); renderTransfer(entry.result, t); transferCards[pid] = entry.result; entry.result.setAttribute('data-transfer-state', t.state || '');
+      entry.controls.remove(); renderTransfer(entry.result, t); transferCards[pid] = entry.result; entry.result.setAttribute('data-transfer-state', t.state || ''); markAsked(entry.result, asked);
       delete pilotCards[pid];
       return;
     }
@@ -1746,7 +1751,7 @@ function openSheet(p, cardControls, cardResult, opener){
         var transfer = (res.data && (res.data.transfer || res.data.receipt)) || {};
         delete pilotCards[p.proposal_id];
         close(); cardControls.remove(); renderTransfer(cardResult, transfer); transferCards[p.proposal_id] = cardResult;
-        cardResult.setAttribute('data-transfer-state', transfer.state || '');
+        cardResult.setAttribute('data-transfer-state', transfer.state || ''); markAsked(cardResult, statusAsked);
         var companion = res.data && res.data.companion;
         if (companion && companion.collection_id) {
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
@@ -1772,10 +1777,10 @@ function openSheet(p, cardControls, cardResult, opener){
         var t = data.transfer || null;
         // the copy follows what was true when the request was cancelled: nothing signed, or signed and never sent
         cardResult.textContent = (t && t.state !== 'cancelled') ? 'Cancel requested. Nothing will be sent.' : (t && t.state_label && data.reason !== 'rejected_before_claim' ? 'Cancelled. Nothing was sent.' : 'Cancelled. Nothing was signed or sent.');
-        if (t) { transferCards[p.proposal_id] = cardResult; cardResult.setAttribute('data-transfer-state', t.state || ''); }
+        if (t) { transferCards[p.proposal_id] = cardResult; cardResult.setAttribute('data-transfer-state', t.state || ''); markAsked(cardResult, statusAsked); }
       } else if (res.ok && data.transfer) {
         cardControls.remove(); renderTransfer(cardResult, data.transfer); transferCards[p.proposal_id] = cardResult;
-        cardResult.setAttribute('data-transfer-state', data.transfer.state || '');
+        cardResult.setAttribute('data-transfer-state', data.transfer.state || ''); markAsked(cardResult, statusAsked);
       } else cardResult.textContent = (data.message || data.error) || 'The request could not be cancelled.';
     }).catch(function(){ cancel.disabled = false; setState('The cancel request did not complete.', true); });
   });
@@ -1799,7 +1804,7 @@ function syncSheet(st){
   var row = (st.pending || []).filter(function(x){ return x && x.proposal_id === sheetOpen.proposalId; })[0] || null;
   sheetOpen.sync(row, st);
 }
-function placeCards(){
+function placeCards(asked){
   var a = actions();
   var host = a && a.chatLog ? a.chatLog() : null;
   if (!host || !lastStatus || !lastStatus.enabled) return;
@@ -1813,18 +1818,19 @@ function placeCards(){
   (lastStatus.in_flight || []).forEach(function(t){
     if (!t || !t.proposal_id || rendered[t.proposal_id]) return;
     rendered[t.proposal_id] = true;
-    host.appendChild(transferCardFor(t));
+    host.appendChild(transferCardFor(t)); markAsked(transferCards[t.proposal_id], asked);
     host.scrollTop = host.scrollHeight;
   });
-  syncTransfers(lastStatus);
-  syncPilotCards(lastStatus);
+  syncTransfers(lastStatus, asked);
+  syncPilotCards(lastStatus, asked);
 }
 function refreshStatus(){
+  var asked = ++statusAsked;
   return getJson('/api/wallet/status').then(function(j){
     var st = (j && j.status) || null;
     if (!st) return null;
     lastStatus = st;
-    if (st.enabled) placeCards();
+    if (st.enabled) placeCards(asked);
     syncSheet(st);
     walletHome.onStatus(st);
     // the Settings surface follows the switch above it: on, the rows appear; off, they go

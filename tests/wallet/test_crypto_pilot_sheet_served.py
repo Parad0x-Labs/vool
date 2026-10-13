@@ -17,6 +17,7 @@ answer generated before the preview was minted, held in transit and delivered af
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 from urllib.error import HTTPError
@@ -371,5 +372,69 @@ def test_a_new_recipient_preview_survives_a_refused_pin_and_closes_when_the_requ
         assert hold.failures == [] and errors == [], (hold.failures, errors)
     finally:
         chain.balances = {}
+        browser.close()
+        manager.stop()
+
+
+def test_a_status_read_that_answers_after_the_approval_never_takes_the_paid_card_back(served):
+    """The page asks for the status while the payment is being sent, and that answer arrives only after the approval's
+    own answer drew the confirmed card. The card keeps the newer answer: it never goes back to "Sending". The late
+    answers carry a marker request that no other answer carries, so the marker's card proves the page applied them."""
+    daemon, chain = served
+    wallet = _ready_pilot_wallet(daemon, "Card order proof")
+    paid = _pending_transfer(daemon, wallet, 450_000)
+    gate = threading.Event()
+    manager, browser = served_browser.launch_chromium()
+    try:
+        page, errors, hold = _open_page(browser, daemon, install_clock=False)
+        review = page.locator(f'.vw-card[data-proposal="{paid}"] .vw-review')
+        review.wait_for(timeout=20_000)
+        review.click()
+        page.locator(f'[role="dialog"][data-proposal="{paid}"]').wait_for()
+        page.wait_for_function("!document.getElementById('vwSheetApprove').disabled", timeout=10_000)
+        page.locator("#vwSheetCredential").fill(PIN)
+
+        def held() -> list[dict]:
+            return [response.json()["status"] for _route, response in hold.held]
+
+        def carries_marker(status: dict) -> bool:
+            return marker in {row["proposal_id"] for row in status["pending"]}
+
+        def pump_until(predicate, what: str, timeout: float = 15.0) -> None:
+            deadline = time.monotonic() + timeout
+            while not predicate():
+                assert not hold.failures, hold.failures
+                assert time.monotonic() < deadline, what
+                page.wait_for_timeout(100)
+
+        sends = chain.send_count()
+        chain.send_answer_gate = gate  # the node records the payment and holds its answer: the transfer is in flight
+        with page.expect_response(lambda r: r.url == daemon.base_url + "/api/wallet/approve", timeout=90_000) as approved:
+            page.locator("#vwSheetApprove").click()
+            pump_until(lambda: chain.send_count() == sends + 1, "the payment never reached the node")
+            hold.armed = True  # every status read from here on is answered now and delivered later
+            marker = _pending_transfer(daemon, wallet, 350_000)
+            pump_until(lambda: any(carries_marker(status) for status in held()), "no held status answer carries the marker")
+            late = [status for status in held() if carries_marker(status)]
+            assert all({t["proposal_id"]: t["state"] for t in status["in_flight"]}.get(paid) == "dispatching" for status in late), late
+            status, rejected = _door(daemon, "/api/wallet/reject", {"proposal_id": marker})
+            assert status == 200 and rejected.get("cancelled") is True, rejected  # from here only the held answers carry it
+            hold.armed = False
+            gate.set()  # the node answers and the approval finishes
+        answer = approved.value.json()
+        assert answer.get("ok") is True and answer["transfer"]["state"] == "confirmed", answer
+        page.wait_for_selector("#vwSheet", state="detached")
+        card = page.locator(f'.vw-card[data-proposal="{paid}"]')
+        assert card.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Solana Devnet"
+
+        hold.release()
+        page.locator(f'.vw-card[data-proposal="{marker}"]').wait_for(state="attached", timeout=20_000)
+        assert card.locator(".vw-transfer-label").text_content() == "Transfer Confirmed on Solana Devnet"
+        assert card.locator(".vw-result").get_attribute("data-transfer-state") == "confirmed"
+        assert chain.send_count() == sends + 1
+        assert hold.failures == [] and errors == [], (hold.failures, errors)
+    finally:
+        chain.send_answer_gate = None
+        gate.set()
         browser.close()
         manager.stop()
