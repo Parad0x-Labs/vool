@@ -444,6 +444,78 @@ def _current_evidence_toolsets(text: str) -> tuple[str, ...]:
     return ("web_search", "web_fetch")
 
 
+#: Category nouns and purchase verbs of an ask over the user's own records, in _support_terms' stemmed form. They name
+#: the collection or the act, never the subject a dated record must carry.
+_ASK_CATEGORY_TERMS = frozenset({"gear", "item", "thing", "stuff", "purchas", "bought", "buy", "spent", "spend", "kit"})
+
+
+def _dated_chat_records_scope(text: str, source_context: dict[str, Any] | None) -> bool:
+    """A private record ask dated within this turn's reference frame needs no live observation."""
+    import re
+
+    if not isinstance(source_context, dict) or not re.search(r"\b(?:I|my|we|our)\b", text, re.I):
+        return False
+    from core.agent_runtime.grounded_mode import explicitly_promises_evidence
+
+    if explicitly_promises_evidence(text) or _live_data_classification(text) is not None:
+        return False
+    from core.bootstrap_context import admitted_capsule_evidence_text, admitted_request_reference_clock
+    from core.memory_grounding import memory_record_rows
+    from core.model_output_guard import _past_support_spans, _support_question_actors, _support_terms
+
+    evidence = admitted_capsule_evidence_text(source_context, question=text)
+    clock = admitted_request_reference_clock(source_context, question=text)
+    if not evidence:
+        return False
+    reference = clock.day if clock is not None else None
+    if reference is None and not (source_context.get("admitted_capsule_evidence") or {}).get("request_sha256"):
+        # Before provider sealing, the runtime's plumbed as-of frame owns the day.
+        from core.temporal_selection import resolve_question_as_of
+
+        frame = resolve_question_as_of(text, plumbed=source_context.get("question_as_of"))
+        reference = frame.as_of_end.date() if frame.as_of_end is not None else None
+    if reference is None:
+        return False
+    # The ask's category nouns ("garden GEAR", "the ITEMS I bought", "hiking STUFF") name the collection, not a subject a
+    # record must repeat: a record says "a garden spade", never "garden gear" (tests/test_dated_records_answer_a_present_
+    # tense_ask_20261007.py::test_a_category_noun_is_not_a_subject_a_record_must_repeat).
+    subjects = _support_terms(text) - {"much", "total", "current", "most", "expensiv", "item"} - _ASK_CATEGORY_TERMS
+    if not subjects:
+        return False
+    actors = _support_question_actors(text) or ("user",)
+    for row in memory_record_rows(evidence):
+        for span in _past_support_spans([row["summary"]], question=text):
+            if (span["actor"] in actors and span.get("polarity", "positive") == "positive"
+                    and span.get("statement") is not None and span["statement"] <= reference
+                    and all(day <= reference for day in span["dates"])
+                    and subjects <= _support_terms(span["context"])):
+                return True
+    return False
+
+
+def _record_scoped_requirements() -> ExecutionRequirements:
+    return ExecutionRequirements(answer_mode="DIRECT", external_evidence_required=False,
+                                 current_information_required=False, user_material_supplied=False,
+                                 tools_required=False, reason_codes=("dated_chat_records",))
+
+
+def _refine_dated_record_requirement(
+    source_context: dict[str, Any], record: CurrentRequirementRecord
+) -> CurrentRequirementRecord:
+    """Refine a surface freshness reading before synthesis; never erase bound work."""
+    if (record.synthesis_started or not record.requirements.current_information_required
+            or not _dated_chat_records_scope(record.request_text, source_context)):
+        return record
+    from core.grounding_lifecycle import lifecycle_for_context, withdraw_required
+
+    lifecycle = lifecycle_for_context(source_context)
+    if lifecycle is not None and not withdraw_required(source_context, reason="dated_chat_records"):
+        return record
+    refined = dataclasses.replace(record, requirements=_record_scoped_requirements())
+    source_context[CURRENT_REQUIREMENT_KEY] = refined
+    return refined
+
+
 def requirements_for(
     user_input: str,
     *,
@@ -458,7 +530,8 @@ def requirements_for(
     stated in their own words.
 
     M1 (2026-09-01) adds the freeze this module always implied: the FIRST decision computed for a
-    text inside a turn's context is THE turn's decision.  Later callers reading the same text get
+    text inside a turn's context is THE turn's decision. Before synthesis, admitted dated records
+    may refine a surface freshness reading when no bound work would be erased.  Later callers reading the same text get
     the same frozen object back, so no stage can re-litigate what an earlier stage already
     scheduled or guarded on.  A different text (a planner sub-turn) computes its own decision
     without disturbing the turn's record.
@@ -475,7 +548,7 @@ def requirements_for(
             # task_class-bearing callers keep their escalation path: the frozen return
             # is for the classless readers (guards, schedulers), which are the readers
             # the freeze exists to unify.
-            return record.requirements
+            return _refine_dated_record_requirement(source_context, record).requirements
     requirements = _compute_requirements(user_input, task_class=task_class, source_context=source_context)
     if isinstance(source_context, dict):
         _record_requirements(source_context, text, requirements)
@@ -494,8 +567,9 @@ class CurrentRequirementRecord:
     """The turn's frozen requirement decision plus its lifecycle state.
 
     `requirements` is replaced -- monotonically, pre-synthesis only -- when a lane
-    contributes a signal that widens it; `synthesis_started` closes that window, after
-    which the decision can neither widen nor flip.
+    contributes a signal that widens it. Admitted dated records may narrow a surface
+    freshness reading before any bound work or synthesis. `synthesis_started` closes
+    that window, after which the decision can neither widen nor flip.
     """
 
     requirements: ExecutionRequirements
@@ -608,6 +682,7 @@ def escalate_current_requirement(
         record = current_requirement_record(source_context)
     if record is None:
         return False
+    record = _refine_dated_record_requirement(source_context, record)
     widened = record.requirements
     if not widened.current_information_required:
         if record.synthesis_started:
@@ -627,6 +702,8 @@ def escalate_current_requirement(
             if declined not in widened.reason_codes:
                 widened = dataclasses.replace(widened, reason_codes=(*widened.reason_codes, declined))
                 source_context[CURRENT_REQUIREMENT_KEY] = dataclasses.replace(record, requirements=widened)
+            return False
+        if _dated_chat_records_scope(text, source_context):
             return False
         widened = dataclasses.replace(widened, current_information_required=True)
     if code in widened.reason_codes:
@@ -722,6 +799,7 @@ def begin_synthesis_freeze(source_context: dict[str, Any] | None, text: str) -> 
         requirements_for(text, source_context=source_context)
         record = current_requirement_record(source_context)
     if record is not None and not record.synthesis_started:
+        record = _refine_dated_record_requirement(source_context, record)
         source_context[CURRENT_REQUIREMENT_KEY] = dataclasses.replace(record, synthesis_started=True)
     _register_lifecycle(source_context, current_requirement_record(source_context))
 
@@ -817,6 +895,8 @@ def _compute_requirements(
     from core.stipulated_frame import stipulated_frame_active
 
     text = " ".join(str(user_input or "").split())
+    if _dated_chat_records_scope(text, source_context):
+        return _record_scoped_requirements()
     if stipulated_frame_active(text, source_context=source_context):
         return ExecutionRequirements(
             answer_mode="DIRECT",
