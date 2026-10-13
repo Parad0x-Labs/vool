@@ -1,0 +1,1074 @@
+{
+  "corpus_version": "1.0.0",
+  "base_commit": "dca4679fccd777554c4ad9f9653f0a3e8406b0ef",
+  "split_declaration": {
+    "declared_before_any_run": true,
+    "rule": "dev scenarios were used while authoring the harness; heldout scenarios were never run until the recorded baseline; control scenarios are guard self-proofs, excluded from pass/fail scores",
+    "dev": [
+      "auto-easy-chat",
+      "auto-reasoning-local-vs-cloud",
+      "auto-strict-json",
+      "auto-tool-intent",
+      "pinned-local-serves",
+      "pinned-unresolved-fails-closed",
+      "local-only-no-cloud-egress",
+      "free-cloud-verified-no-paid",
+      "paid-authorized-owner-pick",
+      "paid-missing-approval-no-dispatch",
+      "retry-timeout-fallback",
+      "circuit-preopen-skips",
+      "ratelimit-all-candidates",
+      "empty-then-fallback",
+      "stale-catalog-free-revoked",
+      "vision-excluded-from-text",
+      "multilingual-lithuanian",
+      "long-payload-context-window",
+      "seq-local-only-isolation",
+      "seq-complexity-change"
+    ],
+    "heldout": [
+      "h-pin-cloud-error-no-silent-local",
+      "h-quota-exhaustion-typed-failure",
+      "h-malformed-toolcall-not-fake-success",
+      "h-complexity-growth-3turns",
+      "h-free-cloud-only-no-local"
+    ],
+    "control": [
+      "c-guard-external-host"
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "auto-easy-chat",
+      "split": "dev",
+      "category": "task-mix/auto-easy",
+      "intent": "ordinary easy chat under Auto: local and catalog-verified free-cloud lanes both registered; the turn must complete on a non-paid lane",
+      "env": {
+        "manifests": [
+          "local_small",
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Hello! I can help you write, plan, analyze files, answer questions, and run local tools. What would you like to work on today?"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "hi! what can you help me with today?",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "chosen_cost_class_in": [
+          "free_local",
+          "free_cloud"
+        ],
+        "no_dispatch_to": [],
+        "checks": [
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "auto-reasoning-local-vs-cloud",
+      "split": "dev",
+      "category": "task-mix/multi-step-reasoning",
+      "intent": "multi-step reasoning demand under Auto: completion on a non-paid lane, chosen model recorded (identity is observed, not predicted)",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:First, replicate the database with streaming replication so the standby stays current. Second, route reads to the standby while writes continue on the primary. Third, promote the standby in a short transaction and switch the writers, then verify row counts and checksums before decommissioning the old primary."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "Plan how to migrate a postgres database with zero downtime: list constraints, steps, risks, and verification for each step.",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "chosen_cost_class_in": [
+          "free_local",
+          "free_cloud"
+        ],
+        "no_dispatch_to": [],
+        "checks": [
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "auto-strict-json",
+      "split": "dev",
+      "category": "format/strict-json",
+      "intent": "strict JSON output: a manifest without structured_json must be hard-excluded; the envelope must carry response_format; the answer must parse as JSON",
+      "env": {
+        "manifests": [
+          "local_nocap",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "free_cloud_verified": "ok_json:{\"answer\": \"synthetic json\", \"confidence\": 0.9}"
+        },
+        "default": "ok_text:plain text"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "Return strict JSON with keys answer and confidence for: what is 2+2?",
+          "task_kind": "reasoning",
+          "output_mode": "json_object"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "no_dispatch_to": [
+          "local_nocap"
+        ],
+        "checks": [
+          "envelope_carries_response_format",
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "auto-tool-intent",
+      "split": "dev",
+      "category": "tools/native-tool-calls",
+      "intent": "tool_intent turn: the chosen model must be offered tools (or the structured fallback), a native tool call must be parsed, and a no-tool-capability manifest must never serve",
+      "env": {
+        "manifests": [
+          "local_small",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "free_cloud_verified": "ok_toolcall:workspace__read_file:{\"path\": \"/synthetic/notes.txt\"}"
+        },
+        "default": "ok_text:I would read the file for you."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "read the file /synthetic/notes.txt and summarize it",
+          "task_kind": "tool_intent",
+          "output_mode": "tool_intent"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed",
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "no_dispatch_to": [
+          "local_small"
+        ],
+        "checks": [
+          "envelope_carries_tools_or_json",
+          "tool_call_observed_or_typed_failure"
+        ]
+      }
+    },
+    {
+      "id": "pinned-local-serves",
+      "split": "dev",
+      "category": "pin/contract",
+      "intent": "explicit pin to a registered local model must serve exactly that model",
+      "env": {
+        "manifests": [
+          "local_small",
+          "local_big"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Quicksort picks a pivot, partitions the array around it, and recursively sorts both sides. It averages O(n log n) time and sorts in place. In the worst case, such as an already sorted array with a poor pivot, it degrades to O(n squared)."
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest": "local_big"
+      },
+      "turns": [
+        {
+          "user_text": "explain quicksort in three sentences",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "chosen_manifest_in": [
+          "local_big"
+        ],
+        "no_dispatch_to": [
+          "local_small"
+        ],
+        "checks": [
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "pinned-unresolved-fails-closed",
+      "split": "dev",
+      "category": "pin/fail-closed",
+      "intent": "a pin naming a model that is not registered must fail closed with an explicit unavailable decision, dispatch nothing, and never silently substitute another model",
+      "env": {
+        "manifests": [
+          "local_big"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:should never be sent"
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest_absent": "synthetic-paid:frontier-xl"
+      },
+      "turns": [
+        {
+          "user_text": "summarize this chapter",
+          "task_kind": "summarization",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused"
+        ],
+        "no_dispatch_any": true,
+        "checks": [
+          "no_transport_calls"
+        ]
+      }
+    },
+    {
+      "id": "local-only-no-cloud-egress",
+      "split": "dev",
+      "category": "policy/local-only",
+      "intent": "a Local Only turn with cloud lanes registered must never egress to any cloud endpoint; it completes locally or refuses explicitly",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified",
+          "paid_cloud"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Thank you for the thoughtful feedback on the draft. I am glad the structure worked, and I will keep the closing shorter next time."
+      },
+      "mode": {
+        "type": "local_only"
+      },
+      "turns": [
+        {
+          "user_text": "draft a short thank-you note",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed",
+          "refused"
+        ],
+        "chosen_cost_class_in": [
+          "free_local"
+        ],
+        "no_dispatch_to": [
+          "free_cloud_verified",
+          "paid_cloud"
+        ]
+      }
+    },
+    {
+      "id": "free-cloud-verified-no-paid",
+      "split": "dev",
+      "category": "policy/free-cloud-only",
+      "intent": "Auto with no paid authorization and a paid lane registered: the paid endpoint must never receive a request; the turn completes on local or verified-free cloud",
+      "env": {
+        "manifests": [
+          "free_cloud_verified",
+          "paid_cloud"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Here are three cat name ideas: Miso, Pepper, and Juniper. Each is short, easy to say, and fits a playful cat."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "give me three name ideas for a cat",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "no_dispatch_to": [
+          "paid_cloud"
+        ],
+        "no_paid_reservation": true,
+        "checks": [
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "paid-authorized-owner-pick",
+      "split": "dev",
+      "category": "policy/paid-authorized",
+      "intent": "owner-local explicit paid pick with an escalation policy in place: the paid lane must execute exactly once, with one joinable reservation+settlement receipt pair and a usage row",
+      "env": {
+        "manifests": [
+          "local_big",
+          "paid_cloud"
+        ],
+        "cloud_escalation": {
+          "mode": "off",
+          "daily_cap": 25
+        }
+      },
+      "transport": {
+        "by_manifest": {
+          "paid_cloud": "ok_text:This repository implements a local-first AI assistant: a routing layer selects between local models and cloud providers, a tool executor runs authorized actions, and a storage layer keeps sessions and usage. The core design goal is that privacy and cost boundaries are enforced by the router itself rather than by user discipline."
+        },
+        "default": "ok_text:Thank you for the thoughtful feedback on the draft. I am glad the structure worked, and I will keep the closing shorter next time."
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest": "paid_cloud",
+        "owner_local": true
+      },
+      "turns": [
+        {
+          "user_text": "explain this repository in depth",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "chosen_manifest_in": [
+          "paid_cloud"
+        ],
+        "checks": [
+          "paid_receipt_pair",
+          "usage_row_recorded",
+          "single_dispatch_to_paid"
+        ]
+      }
+    },
+    {
+      "id": "paid-missing-approval-no-dispatch",
+      "split": "dev",
+      "category": "policy/paid-missing-approval",
+      "intent": "a non-owner turn pinning a paid model must not dispatch and must not create a paid reservation; the refusal is explicit",
+      "env": {
+        "manifests": [
+          "local_big",
+          "paid_cloud"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:should never be sent"
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest": "paid_cloud",
+        "owner_local": false
+      },
+      "turns": [
+        {
+          "user_text": "write a poem about the sea",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused"
+        ],
+        "no_dispatch_to": [
+          "paid_cloud",
+          "local_big"
+        ],
+        "no_paid_reservation": true,
+        "checks": [
+          "no_transport_calls"
+        ]
+      }
+    },
+    {
+      "id": "retry-timeout-fallback",
+      "split": "dev",
+      "category": "reliability/timeout-fallback",
+      "intent": "first candidate times out at the transport: the router must fall through to the next ranked candidate, never report the timed-out attempt as success",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "local_big": "timeout",
+          "free_cloud_verified": "ok_text:Paris is the capital of France."
+        },
+        "default": "ok_text:x"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "what is the capital of france? answer in one word",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "checks": [
+          "timeout_then_success_observed",
+          "attempts_at_least_2"
+        ]
+      }
+    },
+    {
+      "id": "circuit-preopen-skips",
+      "split": "dev",
+      "category": "reliability/unhealthy-endpoint",
+      "intent": "a provider with an open circuit must be skipped: the other candidate serves and the tripped endpoint receives nothing",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ],
+        "circuit_open": [
+          "synthetic-local:workhorse-8b"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:The French translation of 'good morning' is 'bonjour'."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "translate 'good morning' to french",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "no_dispatch_to": [
+          "local_big"
+        ],
+        "checks": [
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "ratelimit-all-candidates",
+      "split": "dev",
+      "category": "reliability/rate-limit",
+      "intent": "every candidate returns HTTP 429: the turn must NOT be reported as a successful answer; the failure is explicit",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "http:429"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "name three primary colors",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "not_completed": true
+      }
+    },
+    {
+      "id": "empty-then-fallback",
+      "split": "dev",
+      "category": "reliability/empty-response",
+      "intent": "a provider returning empty content (even after the widened re-ask) must not be served as an answer; the next candidate completes",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "local_big": "empty|empty",
+          "free_cloud_verified": "ok_text:One, two, three, four, five."
+        },
+        "default": "ok_text:x"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "count from one to five",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "checks": [
+          "attempts_at_least_2",
+          "usage_row_recorded"
+        ]
+      }
+    },
+    {
+      "id": "stale-catalog-free-revoked",
+      "split": "dev",
+      "category": "policy/stale-capabilities",
+      "intent": "a ':free'-suffixed openrouter model ABSENT from the cached catalog is not verified free: without a paid reservation it must be excluded like any paid lane",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_stale"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:HTTP 418 means 'I am a teapot': a joke status code from the 1998 April Fools hyper text coffee pot control protocol, now kept for compatibility and humor."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "what does http 418 mean?",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "no_dispatch_to": [
+          "free_cloud_stale"
+        ],
+        "no_paid_reservation": true
+      }
+    },
+    {
+      "id": "vision-excluded-from-text",
+      "split": "dev",
+      "category": "capability/vision-text-separation",
+      "intent": "a vision/multimodal-only model must never be selected for a plain text turn",
+      "env": {
+        "manifests": [
+          "local_vision",
+          "local_big"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:A rainbow forms when sunlight refracts, reflects, and refracts again inside water droplets, separating the light into its color spectrum."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "explain what a rainbow is",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "no_dispatch_to": [
+          "local_vision"
+        ]
+      }
+    },
+    {
+      "id": "multilingual-lithuanian",
+      "split": "dev",
+      "category": "language/multilingual",
+      "intent": "a Lithuanian-language turn through the free-cloud lane: completion and the response-language policy outcome are recorded (synthetic reply; control-flow evidence, not quality)",
+      "env": {
+        "manifests": [
+          "free_cloud_verified",
+          "local_big"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Trumpas atsakymas lietuvi\u0173 kalba."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "Trumpai paai\u0161kink, kas yra atmintis?",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "checks": [
+          "language_policy_observed"
+        ]
+      }
+    },
+    {
+      "id": "long-payload-context-window",
+      "split": "dev",
+      "category": "scale/long-payload",
+      "intent": "a ~30k-character turn with a 4k-context and a 128k-context model registered: completion may only come from the model whose declared context window can hold the payload; otherwise an explicit failure",
+      "env": {
+        "manifests": [
+          "local_smallctx",
+          "local_bigctx"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:The document is a long policy text. Its action items are: review the retention window, confirm the export format with the data team, and schedule the quarterly audit."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "LONGPAYLOAD: summarize the following document and list its action items. $TEXT",
+          "task_kind": "qa_long",
+          "output_mode": "plain_text",
+          "long_fill_chars": 30000
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed",
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "checks": [
+          "completed_only_on_sufficient_context_window"
+        ]
+      }
+    },
+    {
+      "id": "seq-local-only-isolation",
+      "split": "dev",
+      "category": "isolation/local-only-leak",
+      "intent": "two turns in one session: a Local Only turn followed by a normal pinned-cloud turn; the local-only binding must not leak into the second turn",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Here is a clear, complete answer to your question with the reasoning laid out step by step and a short summary at the end."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "count to three",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text",
+          "local_only": true
+        },
+        {
+          "user_text": "now explain relativity simply",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text",
+          "pin_manifest": "free_cloud_verified"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "turn_expectations": [
+          {
+            "no_dispatch_to": [
+              "free_cloud_verified",
+              "paid_cloud"
+            ]
+          },
+          {
+            "chosen_manifest_in": [
+              "free_cloud_verified"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "seq-complexity-change",
+      "split": "dev",
+      "category": "isolation/complexity-change",
+      "intent": "an easy turn then a heavy-demand turn in one session: both must complete; lane/model changes are observed, not predicted",
+      "env": {
+        "manifests": [
+          "local_small",
+          "local_big"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Here is a clear, complete answer to your question with the reasoning laid out step by step and a short summary at the end."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "hi",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        },
+        {
+          "user_text": "Design a distributed rate limiter: compare three architectures, derive the memory bound of each, and produce a migration plan with rollback.",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "all_turns_completed": true
+      }
+    },
+    {
+      "id": "h-pin-cloud-error-no-silent-local",
+      "split": "heldout",
+      "category": "pin/error-transparency",
+      "intent": "a pinned cloud model that keeps failing must not be silently replaced by the local model; the user sees the pin failing",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "free_cloud_verified": "http:500"
+        },
+        "default": "ok_text:The local model would happily answer here if it were allowed to substitute the pinned lane."
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest": "free_cloud_verified"
+      },
+      "turns": [
+        {
+          "user_text": "explain eigenvalues",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "no_dispatch_to": [
+          "local_big"
+        ]
+      }
+    },
+    {
+      "id": "h-quota-exhaustion-typed-failure",
+      "split": "heldout",
+      "category": "reliability/quota-exhaustion",
+      "intent": "every candidate reports an exhausted quota (403 with quota semantics): no fake success; the failure surfaces explicitly",
+      "env": {
+        "manifests": [
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "http:403"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "list the planets",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "not_completed": true
+      }
+    },
+    {
+      "id": "h-malformed-toolcall-not-fake-success",
+      "split": "heldout",
+      "category": "tools/malformed-arguments",
+      "intent": "a native tool call whose arguments are invalid JSON must not be presented as a successful executed tool; the parse failure is typed and the turn does not fake completion",
+      "env": {
+        "manifests": [
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "by_manifest": {
+          "free_cloud_verified": "ok_toolcall:workspace__read_file:{not valid json"
+        },
+        "default": "ok_text:x"
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "read /synthetic/notes.txt",
+          "task_kind": "tool_intent",
+          "output_mode": "tool_intent"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "refused",
+          "infra_or_unresolved"
+        ],
+        "not_completed": true,
+        "checks": [
+          "tool_call_observed_or_typed_failure"
+        ]
+      }
+    },
+    {
+      "id": "h-complexity-growth-3turns",
+      "split": "heldout",
+      "category": "isolation/complexity-growth",
+      "intent": "three turns of growing complexity in one session: every turn completes; selection changes are observed",
+      "env": {
+        "manifests": [
+          "local_small",
+          "local_big",
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:Here is a clear, complete answer to your question with the reasoning laid out step by step and a short summary at the end."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "hello there",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        },
+        {
+          "user_text": "fix this python snippet and explain the bug: [x for x in range(10) if x%2=0]",
+          "task_kind": "coding_help_basic",
+          "output_mode": "plain_text"
+        },
+        {
+          "user_text": "Prove that the set of prime numbers is infinite, then outline how the same diagonal structure appears in Cantor's argument.",
+          "task_kind": "reasoning",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "all_turns_completed": true
+      }
+    },
+    {
+      "id": "h-free-cloud-only-no-local",
+      "split": "heldout",
+      "category": "task-mix/no-local-available",
+      "intent": "no local lane registered at all: Auto must still complete on the catalog-verified free cloud lane",
+      "env": {
+        "manifests": [
+          "free_cloud_verified"
+        ],
+        "catalog": [
+          "free:tiny-free"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:A good birthday gift for a photographer is a prime lens in a focal length they do not own yet, or a high-quality photo workshop in a place they have always wanted to shoot."
+      },
+      "mode": {
+        "type": "auto"
+      },
+      "turns": [
+        {
+          "user_text": "suggest a birthday gift for a photographer",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "completed"
+        ],
+        "chosen_manifest_in": [
+          "free_cloud_verified"
+        ]
+      }
+    },
+    {
+      "id": "c-guard-external-host",
+      "split": "control",
+      "category": "guard/control",
+      "intent": "guard self-proof on the router path: a manifest whose endpoint is the real openrouter.ai host is pinned and free of paid class (remote_unknown); the guard must refuse the dispatch and the scenario must record a guard violation rather than a live call",
+      "env": {
+        "manifests": [
+          "guard_probe_external"
+        ]
+      },
+      "transport": {
+        "default": "ok_text:must never arrive"
+      },
+      "mode": {
+        "type": "pinned",
+        "pin_manifest": "guard_probe_external",
+        "owner_local": true
+      },
+      "turns": [
+        {
+          "user_text": "say hello",
+          "task_kind": "qa_short",
+          "output_mode": "plain_text"
+        }
+      ],
+      "expect": {
+        "status_in": [
+          "guard_violation"
+        ],
+        "control": true
+      }
+    }
+  ]
+}
