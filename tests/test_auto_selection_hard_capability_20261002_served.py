@@ -57,8 +57,9 @@ PROBE = "hard-capability-probe"
 # it shell_guidance, which offers the command tool). The files deliberately carry extensions the
 # front door's direct-read lane does not bind (``_FILE_TOKEN`` in
 # core.agent_runtime.fast_paths_utility: toml/json/yaml/md/txt/py/ts/js...) and the wording avoids
-# integration words such as "inbox" and note words such as "archive ... notes" (a deterministic
-# note-intent matcher claims those), so the turn reaches a model tool step instead of a fast path.
+# integration words such as "inbox", note words such as "archive ... notes" (a deterministic
+# note-intent matcher claims those) and the verb "grep" (the front door's workspace planner
+# re-plans it as workspace.search_text), so the turn reaches a model tool step, not a fast path.
 CARRY_CASES = {
     "head": {
         "command": "head -n 1 ledger/carry-note.log",
@@ -67,12 +68,12 @@ CARRY_CASES = {
         "marker": "ledger-total-4817-teal",
         "answer": "The first line is",
     },
-    "grep": {
-        "command": "grep -h quartz shipments/batch.csv",
+    "sed": {
+        "command": "sed -n 2p shipments/batch.csv",
         "file": "shipments/batch.csv",
         "content": "amber line\ninvoice-7c2e-quartz paid\nslate line\n",
         "marker": "invoice-7c2e-quartz",
-        "answer": "The matching line names",
+        "answer": "The second line names",
     },
 }
 
