@@ -95,6 +95,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .plugins-search { width:100%; box-sizing:border-box; margin:2px 0 14px; padding:10px 13px; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:14px; }
 .plugins-search:focus { outline:none; border-color:var(--accent); }
 .files-controls { display:flex; gap:8px; align-items:center; margin:2px 0 14px; }
+.files-controls[hidden] { display:none; }
 .files-controls .plugins-search { margin:0; flex:1 1 auto; }
 .files-sort { flex:0 0 auto; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:13px; padding:9px 10px; cursor:pointer; }
 .files-sort:focus { outline:none; border-color:var(--accent); }
@@ -1271,7 +1272,7 @@ body:not(.panel-open) #xpanel { display:none; }
     <span id="attachHint" class="att-hint"></span>
   </div>
   <div class="composer-row">
-    <textarea id="input" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
+    <textarea id="input" aria-label="Message VOOL" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
     <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#127897;</span></button>
     <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#128266;</span></button>
     <button id="send" data-i18n="composer.send">Send</button>
@@ -1355,8 +1356,8 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" id="filesClose" class="modal-x" title="Close" aria-label="Close files">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="set-help">Everything VOOL has generated on this machine &mdash; images, renders, docs &mdash; across every chat. Newest first; click a file to reveal it in Finder.</p>
-      <div class="files-controls">
+      <p class="set-help">Everything VOOL has generated on this machine &mdash; images, renders, docs &mdash; across every chat. Newest first; click a file to show it in its folder.</p>
+      <div class="files-controls" id="filesControls">
         <input type="search" id="filesSearch" class="plugins-search" placeholder="Search files&hellip;" autocomplete="off" spellcheck="false" aria-label="Search files">
         <select id="filesSort" class="files-sort" aria-label="Sort files">
           <option value="date">Newest</option>
@@ -4713,7 +4714,7 @@ function openImageMenu(img, x, y) {
   const menu = document.createElement('div'); menu.className = 'proj-menu'; menu.id = 'imgMenu';
   const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'proj-menu-item'; b.textContent = label; b.addEventListener('click', (e) => { e.stopPropagation(); _imgMenuClose(); fn(); }); menu.appendChild(b); };
   if (local) add('Open in Preview', () => openImageNative(local));
-  if (local) add('Show in Finder', () => revealImage(local));
+  if (local) add(/Mac/.test(navigator.platform || '') ? 'Show in Finder' : 'Show in folder', () => revealImage(local));
   add('Copy image', () => copyImageToClipboard(img));
   if (local) add('Copy path', () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
   document.body.appendChild(menu);
@@ -11701,7 +11702,10 @@ function renderFiles() {
   head.textContent = q
     ? (files.length + ' file' + (files.length === 1 ? '' : 's') + ' match “' + q + '”')
     : (_filesData.count + ' file' + (_filesData.count === 1 ? '' : 's') + (_filesData.count > _filesData.shown ? (' (showing newest ' + _filesData.shown + ')') : ''));
-  body.appendChild(head);
+  // Nothing to sort or search while there are no files at all.
+  const controls = document.getElementById('filesControls');
+  if (controls) controls.hidden = !_filesData.count;
+  if (!_filesData.count) head.remove(); else body.appendChild(head);
   if (!files.length) {
     const p = document.createElement('div'); p.className = 'plugins-empty';
     p.textContent = _filesData.count ? 'No files match that search.' : 'Nothing generated yet — make an image or a doc and it shows up here.';

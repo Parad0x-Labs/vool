@@ -25,6 +25,7 @@ _PALETTE_CSS = """
 #vpHint{font-size:11px;color:var(--muted,#9aa1af);text-align:center;padding:3px 0 6px;font-family:ui-monospace,Menlo,monospace;letter-spacing:.03em}
 #vpHint kbd{background:var(--field,#1d2129);border:1px solid var(--border,#262b35);border-radius:4px;padding:0 5px;font-size:10px}
 @media(max-width:900px){#vpHint{display:none}}
+@media(max-height:600px){#vpHint{display:none}}
 #vpOverlay{position:fixed;inset:0;background:rgba(5,7,10,.6);z-index:1200;display:flex;
   align-items:flex-start;justify-content:center}
 #vpOverlay[hidden]{display:none}
