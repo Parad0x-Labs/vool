@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import sys
 
 import pytest
 
@@ -82,20 +83,35 @@ def _mock_db(monkeypatch):
     def _get_conn(*_args, **_kwargs):
         return conn
 
+    def _execute_query(q, p=(), db_path=None):
+        return conn.execute(q, p).fetchall()
+
     import core.agent_name_registry
     import core.audit_logger
     import core.voolbook_identity
     import storage.db
     import storage.voolbook_store
 
+    real = {"get_connection": storage.db.get_connection, "execute_query": storage.db.execute_query}
     monkeypatch.setattr(storage.db, "get_connection", _get_conn)
     monkeypatch.setattr(storage.voolbook_store, "get_connection", _get_conn)
     monkeypatch.setattr(core.voolbook_identity, "get_connection", _get_conn)
     monkeypatch.setattr(core.agent_name_registry, "get_connection", _get_conn)
     monkeypatch.setattr(core.audit_logger, "get_connection", _get_conn)
-    monkeypatch.setattr(storage.db, "execute_query", lambda q, p=(), db_path=None: conn.execute(q, p).fetchall())
+    monkeypatch.setattr(storage.db, "execute_query", _execute_query)
 
     yield conn
+
+    # A module first imported while storage.db was patched bound this in-memory DB by name
+    # (`from storage.db import get_connection`) and would keep it for every later test in the process.
+    fakes = {"get_connection": _get_conn, "execute_query": _execute_query}
+    for module in list(sys.modules.values()):
+        namespace = getattr(module, "__dict__", None)
+        if not isinstance(namespace, dict):
+            continue
+        for name, fake in fakes.items():
+            if namespace.get(name) is fake:
+                namespace[name] = real[name]
 
 
 def _dispatch(method, path, query=None, payload=None):
