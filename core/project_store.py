@@ -99,7 +99,7 @@ def project_root(project_id: str) -> str | None:
 # binding it to the whole disk. Compared by real path, so a symlink spelling cannot slip past.
 _SYSTEM_ROOTS = (
     "/Applications", "/Library", "/System", "/Users", "/Volumes", "/bin", "/boot", "/dev", "/etc",
-    "/home", "/lib", "/opt", "/private", "/proc", "/root", "/sbin", "/sys", "/tmp", "/usr", "/var",
+    "/home", "/lib", "/opt", "/private", "/proc", "/sbin", "/sys", "/tmp", "/usr", "/var",
 )
 
 
@@ -111,10 +111,8 @@ def _real(path: str) -> str:
 
 
 def _too_broad_root(resolved: str) -> str:
-    """A plain refusal when ``resolved`` is the home folder, its parent or a system folder; else ''."""
+    """A plain refusal when ``resolved`` is the folder holding every home, or a system folder; else ''."""
     home = _real(os.path.expanduser("~"))
-    if home and home not in {"~", os.sep} and resolved == home:
-        return "that is your whole home folder. Pick one folder inside it, like Documents."
     if home and home not in {"~", os.sep} and resolved == _real(os.path.dirname(home)):
         return "that folder holds every user's files. Pick one folder inside your home folder, like Documents."
     if home and resolved == _real(os.path.join(home, "Library")):
@@ -130,8 +128,8 @@ def create_project(name: str, root: str) -> tuple[bool, Any]:
     Idempotent by real path: adding the same folder twice returns the existing project (name refreshed).
     The root must be an existing absolute directory (or start with ``~``). A relative path is refused
     instead of being resolved against the server's own working directory (which would bind VOOL to its
-    install folder), and so are the filesystem root, the whole home folder, the folder that holds every
-    user's home, and the operating system's own folders. Error messages are plain sentences that start in
+    install folder), and so are the filesystem root, the folder that holds every user's home, and the
+    operating system's own folders. Error messages are plain sentences that start in
     lower case (the callers prefix them) and name the resolved path where it helps.
     """
     raw = str(root or "").strip()
