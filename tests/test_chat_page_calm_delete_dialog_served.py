@@ -70,6 +70,7 @@ def test_deleting_a_chat_asks_in_the_calm_dialog(tmp_path):
                 # The name drops its own trailing punctuation and is isolated for right-to-left text;
                 # a long unbroken name wraps inside the dialog instead of running out of it.
                 assert page.evaluate("confirmName('Plans.')") == "\u2068Plans\u2069"
+                assert page.evaluate("confirmName('???')") == "\u2068???\u2069"   # never empty quotes
                 width = page.evaluate("""() => { requestConfirm('Delete “' + 'x'.repeat(300) + '”?', 'd', 'Delete');
                     const d = document.getElementById('confirmPromptDialog'); const r = [d.scrollWidth, d.clientWidth];
                     d.querySelector('[data-cancel]').click(); return r; }""")
@@ -89,6 +90,18 @@ def test_deleting_a_chat_asks_in_the_calm_dialog(tmp_path):
                 dialog.locator(".confirm-yes").click()
                 page.wait_for_function("id => displayedChat !== id", arg=chat, timeout=10000)
                 assert chat not in _session_ids(daemon.base_url)
+
+                # Deleting a project removes the row whose button opened the dialog: focus still
+                # lands in the message box, not on nothing.
+                (tmp_path / "garden").mkdir()
+                pid = page.evaluate("""async root => { const r = await fetch('/api/projects', {method: 'POST',
+                    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 'Garden', root})});
+                    const d = await r.json(); await refreshProjects(); await loadSessions(); return d.project.id; }""",
+                    str(tmp_path / "garden"))
+                page.evaluate("pid => { deleteProject(pid); }", pid)
+                page.wait_for_selector("#confirmPromptDialog .confirm-yes", timeout=5000).click()
+                page.wait_for_function("pid => !_serverProjects[pid]", arg=pid, timeout=10000)
+                page.wait_for_function("document.activeElement === inputEl", timeout=5000)
                 assert native == [], native
                 assert not errors, errors
             finally:

@@ -2706,7 +2706,11 @@ function requestTextInput(message, initialValue = '') {
 // never deletes anything. Caller text is set as text, never as HTML.
 // A chat or project name inside a question: its own trailing full stop or question mark dropped
 // (no "“Plans.”?"), and isolated so a right-to-left sentence never moves its punctuation.
-function confirmName(name) { return '\u2068' + String(name || '').trim().replace(/[\s.!?,;:\u2026\u3002\uff01\uff1f]+$/u, '') + '\u2069'; }
+function confirmName(name) {
+  const whole = String(name || '').trim();
+  // A name that is nothing BUT punctuation ("???") keeps it rather than showing empty quotes.
+  return '\u2068' + (whole.replace(/[\s.!?,;:\u2026\u3002\uff01\uff1f]+$/u, '') || whole) + '\u2069';
+}
 function requestConfirm(title, detail, confirmLabel) {
   if (document.getElementById('confirmPromptDialog')) return Promise.resolve(false);
   const previousFocus = document.activeElement;
@@ -2783,7 +2787,7 @@ async function createProjectFlow(assignSid) {
 }
 async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
-  const name = proj.name || pageT('dialog.this_project', 'this project');
+  const name = String(proj.name || '').trim() || pageT('dialog.this_project', 'this project');
   if (!await requestConfirm(
     pageTF('dialog.delete_project_title', 'Delete project “{name}”?', { name: confirmName(name) }),
     pageT('dialog.delete_project_detail', 'VOOL will forget everything it learned in it, and its chats move back to General. Your files are untouched.'),
@@ -2791,6 +2795,8 @@ async function deleteProject(pid) {
   try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
   await refreshProjects();
   await loadSessions();   // its chats now fall back to General; its memory is purged server-side
+  // The project's own row (and the button that opened the dialog) is gone: keep focus somewhere.
+  if (!document.activeElement || document.activeElement === document.body) { try { inputEl.focus(); } catch (e) {} }
 }
 async function revealProject(pid) {
   if (!_serverProjects[pid]) return;
@@ -2900,7 +2906,7 @@ function makeSessionItem(s, archived, nested) {
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
-  const name = title || pageT('dialog.this_chat', 'this chat');
+  const name = String(title || '').trim() || pageT('dialog.this_chat', 'this chat');
   if (!await requestConfirm(
     pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: confirmName(name) }),
     pageT('dialog.delete_chat_detail', 'This permanently removes the chat and everything VOOL learned in it.'),
