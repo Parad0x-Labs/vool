@@ -135,3 +135,26 @@ def test_stored_runtime_events_of_a_private_turn_keep_no_words():
         {"turn_key": "t1", "status": "completed", "request_preview": "the venue is Juniper Hall", "summary": "x" * 10}
     )
     assert kept == {"private_chat": True, "turn_key": "t1", "status": "completed"}
+
+
+def test_words_a_private_turn_blanked_or_deleted_are_not_left_in_the_database_file(tmp_path):
+    """A blanked or deleted row must not survive as bytes in SQLite's free pages (or its WAL)."""
+    from storage.db import get_connection
+
+    path = tmp_path / "store.db"
+    secret = "Quillmere-free-page-probe"
+    conn = get_connection(str(path))
+    try:
+        # Many SQLite builds (python.org, Homebrew, CI's setup-python) default this off; Debian's is on.
+        assert conn.execute("PRAGMA secure_delete").fetchone()[0] == 1
+        conn.execute("CREATE TABLE IF NOT EXISTS t (id INTEGER PRIMARY KEY, body TEXT)")
+        for i in range(40):
+            conn.execute("INSERT INTO t (body) VALUES (?)", (f"{secret} {i} " + "x" * 3000,))
+        conn.commit()
+        conn.execute("UPDATE t SET body = '' WHERE id <= 20")
+        conn.execute("DELETE FROM t WHERE id > 20")
+        conn.commit()
+    finally:
+        conn.close()
+    leftovers = [p.name for p in tmp_path.iterdir() if p.is_file() and secret.encode() in p.read_bytes()]
+    assert leftovers == []
