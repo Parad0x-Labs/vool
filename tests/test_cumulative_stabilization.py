@@ -91,8 +91,7 @@ def test_build_gate_steps_supports_sharded_full_gate() -> None:
 def test_pack_g_covers_browser_and_public_entry_surfaces() -> None:
     pack = SMOKE_PACKS["G"]
 
-    assert "tests/test_public_landing_page.py" in pack.targets
-    assert "tests/test_voolbook_profile_page.py" in pack.targets
+    assert "tests/test_brain_hive_watch_server.py" in pack.targets
     assert "tests/test_meet_and_greet_service.py" in pack.targets
     assert "tests/test_browser_render_flag.py" in pack.targets
     assert "tests/test_public_web_browser_smoke.py" in pack.targets

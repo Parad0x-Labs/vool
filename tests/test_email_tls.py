@@ -142,3 +142,23 @@ def test_untrusted_certificate_fails_closed(tls_service) -> None:
     result = email_tools.send_email(to="x@y.test", subject="s", body="b")
     assert not result.ok and result.status == "send_failed"
     assert "CERTIFICATE_VERIFY_FAILED" in result.message or "certificate" in result.message.lower()
+
+
+def test_implicit_tls_imap_refuses_an_untrusted_certificate(tls_service) -> None:
+    # Implicit-TLS IMAP (the iCloud default, port 993) must verify the server exactly like SMTP:
+    # without the fixture CA trusted, the read fails closed and the password is never sent.
+    service = tls_service[0]
+    _store("imap", "localhost", service.imap_tls_port, "ssl")
+    result = email_tools.read_email(limit=1)
+    assert not result.ok and result.status == "read_failed", result.message
+    assert "CERTIFICATE_VERIFY_FAILED" in result.message or "certificate" in result.message.lower()
+
+
+def test_implicit_tls_imap_refuses_a_name_mismatch(tls_service, monkeypatch) -> None:
+    # The fixture CA is trusted but the certificate names "localhost": reaching it by address
+    # must still fail the host check.
+    service, cert_dir = tls_service
+    _trust_fixture_ca(monkeypatch, cert_dir)
+    _store("imap", "127.0.0.1", service.imap_tls_port, "ssl")
+    result = email_tools.read_email(limit=1)
+    assert not result.ok and result.status == "read_failed", result.message

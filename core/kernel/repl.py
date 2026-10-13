@@ -613,7 +613,7 @@ def _session_record(query: str = "") -> str:
     it is the session's durable record, and reading it is an effect on the tape.
     """
     try:
-        lines = _SESSION_LOG.read_text(encoding="utf-8").splitlines()
+        lines = _session_log_path().read_text(encoding="utf-8").splitlines()
     except OSError:
         return "no session record exists yet"
     questions: list[str] = []
@@ -5088,7 +5088,15 @@ def run_turn(
     return "\n".join(out), runner.journal, still_open, new_facts
 
 
-_SESSION_LOG = pathlib.Path(os.environ.get("VOOL_HOME", "/tmp/vool-kernel-repl-home")) / "repl_sessions.jsonl"
+_SESSION_LOG: pathlib.Path | None = None
+
+
+def _session_log_path() -> pathlib.Path:
+    if _SESSION_LOG is not None:
+        return pathlib.Path(_SESSION_LOG)
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "repl_sessions.jsonl"
 # Consensus-5 LAW 8: the run id survives PROCESS RESTARTS when the driver owns it
 # (env), so a resumed run's review can be reconciled against the journal.
 _RUN_ID = os.environ.get("VOOL_RUN_ID") or f"run-{os.getpid()}-{int(time.time())}"
@@ -5205,8 +5213,9 @@ def _journal_turn(question: str, transcript: str, tape: EffectJournal | None,
         "tape": tape_field,
     }
     try:
-        _SESSION_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with _SESSION_LOG.open("a", encoding="utf-8") as fh:
+        journal_path = _session_log_path()
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        with journal_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     except Exception as write_exc:
         raise JournalPersistenceError(
@@ -5252,7 +5261,7 @@ def main() -> None:
     # long-running process keeps the code it launched with, and on 2026-08-19 an operator
     # session ran a pre-journaling REPL for 15 unrecorded turns because nothing on screen
     # said which build was serving. Code on disk is not code running — so say which one this is.
-    print(f"build: {_build_sha()} · journal: {_SESSION_LOG} (every turn is recorded there)")
+    print(f"build: {_build_sha()} · journal: {_session_log_path()} (every turn is recorded there)")
     print("commands: :replay  :done (aliases: we done, done — opens the Kimi/Codex/Fable consensus review)  :quit\n")
     last: tuple[str, EffectJournal, str, list[dict], dict[str, str]] | None = None
     history: list[tuple[str, str]] = []   # (question, rendered answer), newest last
@@ -5316,7 +5325,7 @@ def main() -> None:
             # [stipulated]" while the operator meant "start the review". The review
             # itself lives in core/kernel/consensus.py and never touches the laws.
             from core.kernel.consensus import run_review
-            run_review(session_turns, _build_sha(), run_id=_RUN_ID, journal_path=_SESSION_LOG)
+            run_review(session_turns, _build_sha(), run_id=_RUN_ID, journal_path=_session_log_path())
             continue
         if question == ":replay":
             if last is None:

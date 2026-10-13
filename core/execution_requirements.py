@@ -86,6 +86,13 @@ class RequiredToolsNotOfferedError(RuntimeError):
 
 
 def _live_data_classification(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
+    from tools.web.coin_index import cached_index_only
+
+    with cached_index_only():
+        return _live_data_classification_cached(text)
+
+
+def _live_data_classification_cached(text: str) -> tuple[bool, bool, tuple[str, ...]] | None:
     """Whether this GROUNDED request is specifically a live-data (price/weather) lookup.
 
     Returns `(multipart, parallel_preferred, allowed_toolsets)`, or `None` when the request is
@@ -944,6 +951,29 @@ def _compute_requirements(
             user_material_supplied=supplied,
             tools_required=True,
             allowed_toolsets=("email",),
+            inference_allowed=not no_guessing,
+            reason_codes=tuple(reasons),
+        )
+
+    # Asking what was said earlier in this conversation is answered from the conversation and memory.
+    # The live arms below read the topic of the recollection ("the latest bitcoin news", "the weather
+    # at my wedding") as a lookup; an ask beside the recollection still arms them on its own reading.
+    from core.execution.constants import conversation_recall_remainder
+
+    recall_rest = conversation_recall_remainder(text)
+    if recall_rest is not None and not any(
+        (rest := _compute_requirements(clause, task_class="unknown")).current_information_required
+        or rest.tools_required
+        for clause in recall_rest
+    ):
+        reasons.append("conversation_recall")
+        return ExecutionRequirements(
+            answer_mode="DIRECT",
+            external_evidence_required=False,
+            current_information_required=False,
+            user_material_supplied=supplied,
+            tools_required=False,
+            allowed_toolsets=(),
             inference_allowed=not no_guessing,
             reason_codes=tuple(reasons),
         )

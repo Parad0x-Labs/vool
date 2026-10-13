@@ -19,6 +19,7 @@ drivers with fake webview/supervisor stand-ins — produced behavior, never pros
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -35,6 +36,23 @@ SERVER_SCRIPT = REPO / "apps" / "vool_api_server.py"
 
 BASE_PATH = "/usr/bin:/bin"
 
+_COCOA_PROFILE_FIXTURE = """
+import sys, types
+class _ProfileStore:
+    def isPersistent(self):
+        return False
+_profile_cocoa = types.ModuleType('webview.platforms.cocoa')
+_profile_cocoa.BrowserView = types.SimpleNamespace(instances={})
+_profile_cocoa.WebKit = types.SimpleNamespace(
+    WKWebsiteDataStore=types.SimpleNamespace(nonPersistentDataStore=lambda: _ProfileStore()),
+    WKWebViewConfiguration=object,
+)
+_profile_platforms = types.ModuleType('webview.platforms')
+_profile_platforms.cocoa = _profile_cocoa
+sys.modules['webview.platforms'] = _profile_platforms
+sys.modules['webview.platforms.cocoa'] = _profile_cocoa
+"""
+
 
 def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = None,
             timeout: float = 90.0) -> subprocess.CompletedProcess:
@@ -42,7 +60,7 @@ def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = N
     home = tmp_path / ("home-" + name)
     home.mkdir(exist_ok=True)
     driver = tmp_path / f"driver_{name}.py"
-    driver.write_text(textwrap.dedent(body))
+    driver.write_text(_COCOA_PROFILE_FIXTURE + textwrap.dedent(body))
     full_env = {
         "PATH": BASE_PATH,
         "HOME": str(home),
@@ -54,8 +72,7 @@ def _driver(tmp_path: Path, name: str, body: str, env: dict[str, str] | None = N
 
 
 def _open_log(home_name: str, tmp_path: Path) -> str:
-    state = Path("Library/Application Support") if sys.platform == "darwin" else Path(".local/state")
-    log_file = tmp_path / home_name / state / "VOOL" / "open.log"
+    log_file = tmp_path / home_name.replace("home-", "vool-home-", 1) / "logs" / "open.log"
     return log_file.read_text() if log_file.exists() else ""
 
 
@@ -99,7 +116,7 @@ _RUNTIME_DEATH_DRIVER = """
     def create_window(*a, **k):
         assert sys.platform != 'darwin' or frame_ready == [True]
         w = FakeWindow(); created["w"] = w; return w
-    def start(fn=None):
+    def start(fn=None, **kwargs):
         deadline = time.time() + 15
         while not created.get("w").destroyed.is_set():
             if time.time() > deadline:
@@ -173,7 +190,7 @@ _SIGTERM_DRIVER = """
         print("WINDOW-CREATED", flush=True)
         return FakeWindow()
     fake.create_window = create_window
-    def start(fn=None):
+    def start(fn=None, **kwargs):
         deadline = time.time() + 15
         while time.time() < deadline:
             time.sleep(0.02)
@@ -421,3 +438,137 @@ def test_daemon_without_ownership_marker_never_arms_the_parent_watch(tmp_path: P
     assert "SHOULD-EXIT=0" in done.stdout, (
         "an unmarked daemon must not watch any parent (updater relaunches, manual runs)"
     )
+
+
+# ------------------------------------------------------------------------------------------
+# A slow health answer from a live owned runtime is not a lost runtime
+# ------------------------------------------------------------------------------------------
+#
+# Measured 2026-10-12 on a GitHub Intel Mac (i7-8700B): during first-run work a /healthz answered
+# 200 after 2.3 s, past the watchdog's 1.5 s probe, and the native host closed the whole app with
+# "runtime lost" while the runtime was alive and serving. These drive the REAL supervisor against
+# a real HTTP server and a real owned child process; only the clock is stepped.
+
+
+class _HealthServer:
+    """A loopback /healthz whose answer the test switches: ok, slow (past the probe), or foreign."""
+
+    def __init__(self, commit: str) -> None:
+        import http.server
+        import threading
+
+        self.mode = "ok"
+        self.identity = {}
+        server = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                if server.mode == "slow":
+                    time.sleep(2.0)
+                sha = "b" * 40 if server.mode == "foreign" else commit
+                body = json.dumps({"ok": True, "runtime": {**server.identity, "commit_full": sha}}).encode()
+                try:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except OSError:
+                    pass  # the probe already gave up on a slow answer
+
+            def log_message(self, *args: object) -> None:
+                pass
+
+        self.httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}/healthz"
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+
+
+def _watched_supervisor(tmp_path: Path, *, owned: bool):
+    sys.path.insert(0, str(REPO))
+    import installer.bundle.native_runtime_supervisor as nrs
+
+    commit = "a" * 40
+    server = _HealthServer(commit)
+    clock = [1000.0]
+    sup = nrs.NativeRuntimeSupervisor(
+        tmp_path, ["true"], expected_sha=commit, health_url=server.url,
+        unhealthy_grace=30.0, monotonic=lambda: clock[0],
+    )
+    child = None
+    if owned:
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+        sup.process = child
+    server.identity = {
+        "pid": child.pid if child is not None else os.getpid(),
+        "runtime_home_id": sup.runtime_home_id,
+        "protocol_version": 1,
+        "workstation_version": "vool-workstation-0.7",
+        "release_version": "0.7.0",
+    }
+    return nrs, sup, server, clock, child
+
+
+def test_slow_health_from_a_live_owned_runtime_is_tolerated_then_fatal_past_the_grace(tmp_path: Path) -> None:
+    nrs, sup, server, clock, child = _watched_supervisor(tmp_path, owned=True)
+    try:
+        sup.assert_alive()
+        server.mode = "slow"
+        sup.assert_alive()  # first late answer: the runtime is alive, the window stays
+        clock[0] += 20.0
+        sup.assert_alive()  # still inside the grace
+        server.mode = "ok"
+        sup.assert_alive()  # a good answer clears the failure window
+        server.mode = "slow"
+        clock[0] += 25.0
+        sup.assert_alive()  # a new window starts here, not at the first failure
+        clock[0] += 30.0
+        with pytest.raises(nrs.NativeRuntimeError, match="health endpoint is unavailable"):
+            sup.assert_alive()  # unhealthy for the whole grace: lost
+    finally:
+        child.kill()
+        child.wait()
+        server.close()
+
+
+def test_a_dead_owned_child_or_a_foreign_identity_is_fatal_at_once(tmp_path: Path) -> None:
+    nrs, sup, server, clock, child = _watched_supervisor(tmp_path, owned=True)
+    try:
+        server.mode = "foreign"
+        with pytest.raises(nrs.NativeRuntimeError, match="identity changed"):
+            sup.assert_alive()
+        server.mode = "ok"
+        server.identity["pid"] = child.pid + 1
+        with pytest.raises(nrs.NativeRuntimeError, match="identity changed"):
+            sup.assert_alive()
+        server.identity["pid"] = child.pid
+        server.identity["runtime_home_id"] = "foreign-profile"
+        with pytest.raises(nrs.NativeRuntimeError, match="identity changed"):
+            sup.assert_alive()
+        server.identity["runtime_home_id"] = sup.runtime_home_id
+        server.mode = "slow"
+        sup.assert_alive()
+        child.kill()
+        child.wait()
+        with pytest.raises(nrs.NativeRuntimeError, match="owned runtime child exited"):
+            sup.assert_alive()  # the grace never covers a child that is gone
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+        server.close()
+
+
+def test_without_an_owned_child_an_unanswered_health_probe_is_fatal_at_once(tmp_path: Path) -> None:
+    nrs, sup, server, clock, _child = _watched_supervisor(tmp_path, owned=False)
+    try:
+        sup.assert_alive()
+        server.mode = "slow"
+        with pytest.raises(nrs.NativeRuntimeError, match="health endpoint is unavailable"):
+            sup.assert_alive()
+    finally:
+        server.close()

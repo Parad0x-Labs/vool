@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
@@ -503,8 +502,10 @@ def plugin_scratch_dir(plugin_id: str) -> Path:
     `VOOL_PLUGIN_SCRATCH_ROOT`.
     """
 
+    from core.runtime_paths import runtime_child_scratch_root
+
     override = str(os.environ.get("VOOL_PLUGIN_SCRATCH_ROOT") or "").strip()
-    base = Path(override) if override else Path(tempfile.gettempdir()) / "vool-plugin-scratch"
+    base = Path(override) if override else runtime_child_scratch_root("plugin")
     return base / str(plugin_id)
 
 

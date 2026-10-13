@@ -1,16 +1,15 @@
 """The served UsePod TOOL flow: what the architecture actually does, proven end to end.
 
-The runtime's own law (core/paid_call_reservation.py, "internal_tool_intent_call", present at the
-base) keeps an explicit PAID pin off a turn's internal tool-selection rounds: the pick authorizes
-the answering lane, not the loop machinery. The router narrates that law as a routing event (the
-internal step rides the runtime lane; the owner's pick answers the turn) rather than as a blocked
-provider decision. This suite proves BOTH sides of that law through the served daemon rather than
-bypassing it:
+An explicit PAID pin runs its own tool-selection rounds (owner decision 2026-10-05; until then
+core/paid_call_reservation.py refused them as "internal_tool_intent_call", and a pinned turn with no
+free tool lane had no tools at all). Each round is reserved, dispatched and settled on the paid lane
+like the answer, and no other lane is ever substituted for the pick. This suite proves that law
+through the served daemon rather than bypassing it:
 
-* a PINNED UsePod turn with a tool-shaped request keeps the selection round off the paid lane --
-  narrated visibly -- selects no tool, answers plainly on the paid lane with exactly one dispatch,
-  one reservation and a correlated receipt -- in BOTH wire protocols, on the original and a novel
-  model;
+* a PINNED UsePod turn with a tool-shaped request sends the tool-selection round to the paid pick
+  (tools offered on the wire), substitutes no free lane, then answers on the paid lane -- two
+  dispatches, two reservation cycles, a correlated receipt -- in BOTH wire protocols, on the
+  original and a novel model;
 * an UNPINNED turn drives a real tool round trip: the served tool loop offers the catalog, a
   labelled free loopback lane picks the harmless disposable local tool, the daemon EXECUTES it for
   real, and the tool result is returned to the provider in the next request on the wire;
@@ -224,9 +223,10 @@ def _unpin(served) -> None:
 # --- the paid-pin law, both protocols, original and novel model ---------------------------------------
 
 
-def test_a_pinned_paid_turn_refuses_tool_selection_and_answers_with_exactly_one_dispatch(served) -> None:
-    """Original model, OpenAI dialect. The refusal is visible, nothing is executed, and the
-    answering lane carries exactly one dispatch, one reservation cycle and a receipt."""
+def test_a_pinned_paid_turn_runs_tool_selection_on_the_pick_and_answers_on_it(served) -> None:
+    """Original model, OpenAI dialect. The pick gets the tool-selection round (tools on the wire),
+    no free lane is substituted, and each paid call carries its own reservation cycle; the receipt
+    names the settled answer."""
     daemon, service, free = served.daemon, served.service, served.free
     _pin_and_approve(served, MODEL)
     before_journal = len(daemon.journal_lines())
@@ -238,23 +238,22 @@ def test_a_pinned_paid_turn_refuses_tool_selection_and_answers_with_exactly_one_
         model=f"usepod-byok:{MODEL}",
     )
     events = daemon.events(session_id)
-    _keep("pinned_openai_tool_refusal.json", {"status": status, "answer": answer, "events": events})
+    _keep("pinned_openai_tool_selection.json", {"status": status, "answer": answer, "events": events})
     assert status == 200, answer
     blob = json.dumps(events)
     # The law narrated as routing, not as a blocked provider decision: the internal step rode the
     # runtime lane and the owner's pick stayed the answering lane.
-    assert "Internal tool-selection step" in blob and "the owner's model pick answers the turn" in blob, \
-        "the tool-selection step's lane separation must be visible"
-    assert "internal_tool_intent_call" not in blob, "an internal step is not a provider failure"
-    # The pin invariant: the refused selection round substitutes nothing (no free-lane round).
+    assert "internal_tool_intent_call" not in blob, "the refusal no longer exists"
+    # The pin invariant: no other lane is substituted for the pick (no free-lane round).
     assert free.requests == []
-    # No tool ran: the paid pin answered plainly.
+    # The synthetic service selects no tool, so nothing is executed and the pick answers.
     assert not [e for e in events if e.get("event_type") == "tool_executed"]
-    # Exactly one paid dispatch: one inference request, one reserve->dispatch->settle cycle.
+    # Two paid dispatches: the pick's tool-selection round (tools offered), then its answer.
     arrived = service.requests_to(INFERENCE_PATHS["openai"]) + service.requests_to(INFERENCE_PATHS["anthropic"])
-    assert len(arrived) == 1, [r["path"] for r in arrived]
+    assert len(arrived) == 2, [r["path"] for r in arrived]
+    assert [bool(json.loads(r["body"]).get("tools")) for r in arrived] == [True, False]
     new_journal = daemon.journal_lines()[before_journal:]
-    assert [line["call"] for line in new_journal] == ["reserve", "mark_dispatched", "settle"]
+    assert [line["call"] for line in new_journal] == ["reserve", "mark_dispatched", "settle"] * 2
     receipts = [r for r in _receipts(events) if r.get("provider") == "usepod"]
     assert receipts and receipts[-1]["monetary_authority"] == DOUBLE_LABEL
     assert receipts[-1]["settlement"] == {"outcome": "completed", "recording": "settled_with_evidence"}
@@ -262,8 +261,8 @@ def test_a_pinned_paid_turn_refuses_tool_selection_and_answers_with_exactly_one_
 
 
 def test_the_same_law_holds_on_the_anthropic_lane_with_a_novel_model(served) -> None:
-    """Novel model, novel request wording, Anthropic dialect. The refusal, the single dispatch and
-    the receipt all name the novel model's own marketplace route."""
+    """Novel model, novel request wording, Anthropic dialect. Both dispatches and the receipt name
+    the novel model's own marketplace route."""
     daemon, service = served.daemon, served.service
     status, lane = daemon.call("POST", "/api/cloud/usepod/lane", {"protocol": "anthropic", "transport_mode": "prepaid_token"})
     assert status == 200, lane
@@ -278,18 +277,18 @@ def test_the_same_law_holds_on_the_anthropic_lane_with_a_novel_model(served) -> 
         model=f"usepod-byok:{NOVEL_MODEL}",
     )
     events = daemon.events(session_id)
-    _keep("pinned_anthropic_tool_refusal.json", {"status": status, "answer": answer, "events": events})
+    _keep("pinned_anthropic_tool_selection.json", {"status": status, "answer": answer, "events": events})
     assert status == 200, answer
     blob = json.dumps(events)
-    assert "Internal tool-selection step" in blob and "the owner's model pick answers the turn" in blob, blob
-    assert "internal_tool_intent_call" not in blob, "an internal step is not a provider failure"
+    assert "internal_tool_intent_call" not in blob, "the refusal no longer exists"
     assert not [e for e in events if e.get("event_type") == "tool_executed"]
     arrived = service.requests_to(INFERENCE_PATHS["anthropic"])[before:]
-    assert len(arrived) == 1
-    body = json.loads(arrived[0]["body"])
-    assert body["model"] == NOVEL_MODEL and isinstance(body.get("max_tokens"), int)
+    assert len(arrived) == 2
+    bodies = [json.loads(request["body"]) for request in arrived]
+    assert [bool(body.get("tools")) for body in bodies] == [True, False]
+    assert all(body["model"] == NOVEL_MODEL and isinstance(body.get("max_tokens"), int) for body in bodies)
     new_journal = daemon.journal_lines()[before_journal:]
-    assert [line["call"] for line in new_journal] == ["reserve", "mark_dispatched", "settle"]
+    assert [line["call"] for line in new_journal] == ["reserve", "mark_dispatched", "settle"] * 2
     receipts = [r for r in _receipts(events) if r.get("provider") == "usepod"]
     receipt = receipts[-1]
     assert (receipt["protocol"], receipt["model"]) == ("anthropic", NOVEL_MODEL)

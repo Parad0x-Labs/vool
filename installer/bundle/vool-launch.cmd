@@ -5,8 +5,14 @@ set "VOOL_ROOT=%~dp0"
 set "VOOL_BUNDLE_ROOT=%VOOL_ROOT%"
 set "VOOL_MANIFEST=%VOOL_ROOT%bundle_manifest.json"
 set "VOOL_BUNDLE_MANIFEST=%VOOL_MANIFEST%"
-set "VOOL_HOME=%LOCALAPPDATA%\VOOL"
-set "OLLAMA_MODELS=%VOOL_HOME%\models"
+rem Resolve custom, canonical and legacy homes through the shared runtime authority.
+set "VOOL_HOME_FILE=%TEMP%\vool_bundle_home_%RANDOM%_%RANDOM%.txt"
+"%VOOL_ROOT%python\python.exe" -c "from core.runtime_paths import native_runtime_home; print(native_runtime_home())" >"%VOOL_HOME_FILE%" 2>nul
+if errorlevel 1 exit /b 1
+for /f "tokens=*" %%A in ('type "%VOOL_HOME_FILE%" 2^>nul') do set "VOOL_HOME=%%A"
+del /f /q "%VOOL_HOME_FILE%" >nul 2>&1
+if "%VOOL_HOME%"=="" exit /b 1
+if "%OLLAMA_MODELS%"=="" set "OLLAMA_MODELS=%VOOL_HOME%\models"
 if not exist "%VOOL_HOME%" mkdir "%VOOL_HOME%" >nul 2>&1
 if not exist "%OLLAMA_MODELS%" mkdir "%OLLAMA_MODELS%" >nul 2>&1
 if not exist "%VOOL_MANIFEST%" (

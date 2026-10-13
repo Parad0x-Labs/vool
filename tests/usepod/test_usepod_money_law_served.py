@@ -476,6 +476,16 @@ def test_a_served_402_storm_settles_at_zero_and_keeps_the_envelope_usable(served
     session_id = _session(f"money-402-storm-{uuid.uuid4()}")
     storm = 8  # 8 x 15,000 = 120,000 held would exceed the 90,000 envelope
     for index in range(storm):
+        # Each intended provider refusal needs a fresh, real balance observation first.
+        # A long shard otherwise ages the module's initial observation past its cache
+        # window: the next read correctly sees zero and refuses locally before dispatch.
+        # Observe the synthetic funds through Settings, then drain them before this call.
+        with service.lock:
+            service.tokens[served.token] = 80_000_000
+        status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
+        assert status == 200 and refreshed["credential"]["state"] == "observed", refreshed
+        with service.lock:
+            service.tokens[served.token] = 0
         _chat(daemon, f"Write note {index} for the refusal storm.", session_id)
     blob = json.dumps(daemon.events(session_id))
     _keep("money_served_402_storm.json", {"events": daemon.events(session_id)})

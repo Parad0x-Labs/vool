@@ -17,7 +17,7 @@ def test_all_ready_catalogue_files_are_complete_licensed_and_packaged():
     directory = addon_catalog._DIRECTORY
     assert directory['schema'] == 2
     ready = [e for e in addon_catalog.CATALOG if e.get('import_ready')]
-    assert {e.get('ecosystem', e['publisher']) for e in ready} >= {'Hermes','OpenClaw','Anthropic'}
+    assert {e.get('ecosystem', e['publisher']) for e in ready} >= {'Superpowers','Anthropic'}
     assert all(not e.get('discovery_only') for e in addon_catalog.CATALOG)
     for entry in ready:
         assert entry['bundled_source']
@@ -31,9 +31,32 @@ def test_all_ready_catalogue_files_are_complete_licensed_and_packaged():
     assert all(e.get('license') in {'MIT','MIT-0','Apache-2.0'} for e in ready)
 
 
+# Product rule: VOOL never names a rival product publicly. The store used to carry two branded
+# collections built from rival agents' own repositories, and their entries named the rival in
+# their titles, descriptions, publisher line and source link. The store is everything the
+# catalogue and its bundled bytes can show, so the rule is checked on all of it.
+RIVAL_NAMES = ('hermes', 'openclaw', 'nousresearch')
+
+
+def test_the_shipped_store_names_no_rival_product():
+    import re
+    pattern = re.compile('|'.join(RIVAL_NAMES), re.I)
+    shown = json.dumps([addon_catalog.CATALOG, addon_catalog._DIRECTORY['sources']], ensure_ascii=False)
+    assert not pattern.findall(shown), sorted(set(m.lower() for m in pattern.findall(shown)))
+    bundled = json.dumps(addon_packages._files(), ensure_ascii=False)
+    assert not pattern.findall(bundled)
+    from core.addon_store_fragment import render_addon_store_fragment
+    assert not pattern.findall(render_addon_store_fragment())
+
+
+def test_bundled_bytes_are_exactly_what_the_catalogue_can_install():
+    digests = {e[k] for e in addon_catalog.CATALOG if e.get('import_ready') for k in ('sha256', 'license_sha256')}
+    assert set(addon_packages._files()) == digests
+
+
 def test_real_shipped_skill_scan_install_offer_needs_no_github(rig, monkeypatch):
     from core import plugin_catalog, tool_offer_assembly
-    entry = next(copy.deepcopy(e) for e in addon_catalog.CATALOG if e.get('ecosystem') == 'Hermes' and e.get('import_ready'))
+    entry = next(copy.deepcopy(e) for e in addon_catalog.CATALOG if e.get('ecosystem') == 'Superpowers' and e.get('import_ready'))
     monkeypatch.setattr(addon_store, 'CATALOG', [entry])
     def unavailable(*a, **kw):
         pytest.fail('A bundled skill must not contact GitHub')

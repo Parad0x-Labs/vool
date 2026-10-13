@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from core.runtime_paths import active_vool_home
+
 BUNDLE_MANIFEST_FILENAME = "bundle_manifest.json"
 
 
@@ -57,11 +59,9 @@ def bundle_model_store_path(
         return None
 
     local_app_data = Path(str(env_map.get("LOCALAPPDATA") or Path.home())).expanduser()
-    runtime = Path(
-        runtime_home
-        or str(env_map.get("VOOL_HOME") or "").strip()
-        or local_app_data / "VOOL"
-    ).expanduser()
+    runtime = (Path(runtime_home).expanduser() if runtime_home else
+               active_vool_home(env) if env is None or env_map.get("VOOL_HOME") or env_map.get("NULLA_HOME") else
+               local_app_data / "VOOL")
     normalized = raw.replace("\\", "/")
     while "//" in normalized:
         normalized = normalized.replace("//", "/")

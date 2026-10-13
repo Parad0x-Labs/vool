@@ -30,16 +30,21 @@ def test_reclaim_noop_when_healthy(monkeypatch) -> None:
     assert gov.reclaim_if_pressured() == []
 
 
-def test_stop_comfyui_signals_the_process(monkeypatch) -> None:
+def test_stop_comfyui_never_looks_processes_up_by_name(monkeypatch) -> None:
+    # It used to SIGTERM every `pgrep -f "main.py --port 8188"` match. Now the only target is the
+    # process VOOL recorded when it started ComfyUI (tests/test_stop_comfyui_only_signals_its_own_process.py).
     import subprocess
 
-    class _R:
-        stdout = "4559\n"
-    monkeypatch.setattr(subprocess, "run", lambda *a, **k: _R())
+    import core.local_service_autostart as autostart
+
+    monkeypatch.setattr(autostart, "_SPAWNED", {}, raising=False)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no process lookup")))
     killed = []
     monkeypatch.setattr(gov.os, "kill", lambda pid, sig: killed.append((pid, sig)))
-    assert gov.stop_comfyui() is True
-    assert killed and killed[0][0] == 4559
+    monkeypatch.setattr(autostart.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.setattr(autostart.os, "killpg", lambda pid, sig: killed.append((pid, sig)))
+    assert gov.stop_comfyui() is False
+    assert killed == []
 
 
 # --------------------------------------------------------------------------- adaptive render tiers

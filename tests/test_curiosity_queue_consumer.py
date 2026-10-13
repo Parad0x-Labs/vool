@@ -19,6 +19,7 @@ from unittest import mock
 
 import pytest
 
+from core import policy_engine
 from core.agent_runtime import presence
 from core.curiosity_policy import CuriosityConfig
 from core.curiosity_roamer import CuriosityRoamer, topic_from_queue_row
@@ -32,9 +33,15 @@ from storage.curiosity_state import (
 )
 from storage.db import get_connection
 from storage.migrations import run_migrations
+from tests.test_fresh_install_network_defaults import isolated_policy_home as isolated_policy_home
 
 NOTE = {"summary": "Use official docs and avoid token leaks.", "source_label": "duckduckgo.com"}
 SEARCH = "retrieval.web_adapter.WebAdapter.search_query"
+
+
+@pytest.fixture(autouse=True)
+def explicit_background_network_consent(isolated_policy_home):
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True})
 
 
 def _config(*, roam_seconds: int = 8) -> CuriosityConfig:

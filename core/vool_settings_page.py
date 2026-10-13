@@ -383,7 +383,7 @@ def _settings_groups() -> list[dict]:
                 _row(
                     id="provider_guide", label="Find a provider", kind="custom", widget="provider_guide",
                     help="Choose a category, open the official provider site, then add your key below.",
-                    keywords="api setup guide providers models web search security scans eyebrow keys official links",
+                    keywords="api setup guide providers models web search security scans eyebrow keys official links blockchain chain data helius alchemy solscan etherscan",
                 ),
                 _row(
                     id="cloud_keys",
@@ -396,7 +396,8 @@ def _settings_groups() -> list[dict]:
                     effect=EFFECT_IMMEDIATE,
                     keywords=(
                         "api key openai anthropic claude openrouter groq gemini deepseek kimi byok "
-                        "credential provider brave tavily exa serper firecrawl jina search token secret eyebrow security scans"
+                        "credential provider brave tavily exa serper firecrawl jina search token secret eyebrow security scans "
+                        "helius alchemy solscan etherscan blockchain chain data solana"
                     ),
                 ),
             ],
@@ -945,6 +946,7 @@ _SETTINGS_HTML = r"""<!doctype html>
 .key-guide-category summary{cursor:pointer}.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
 .key-guide-provider p{margin:5px 0 0}.key-guide-provider .inline{flex-shrink:0}.key-guide-link{color:var(--accent);font-size:12px}
 @media(max-width:700px){.key-guide-provider{align-items:flex-start;flex-direction:column}.key-guide-provider .inline{flex-wrap:wrap}}
+.key-setup-dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--ink);padding:20px}.key-setup-dialog::backdrop{background:rgba(0,0,0,.45)}.key-setup-steps-list{margin:8px 0 12px;padding-left:20px;line-height:1.5}
 /* Models & Providers redesign (overview / cards / guided / review sheet) */
 .mp-root { gap: 10px; }
 .mp-what .row-label { margin-bottom: 2px; }
@@ -2071,6 +2073,8 @@ const KEY_FAMILIES = [
   { id: 'llm.cloud.', title: 'Model providers', blurb: 'Used only when a turn actually runs on that provider.' },
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
   { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
+  { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
+  { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
 ];
 
 /* The same store also holds keys the RUNTIME minted for itself. blackbox.cas.keys is the
@@ -2146,8 +2150,8 @@ function widgetKeys(stack) {
           testBtn.disabled = true; st.textContent = tfmt('keys.asking_test', 'Testing — asking {label} whether it accepts this key…', { label: providerLabel });
           try {
             if (fam === 'security.' && !confirm(T('keys.eyebrow_confirm', 'Check Eyebrow with one version request? No add-on is scanned.'))) { testBtn.disabled = false; st.textContent = ''; return; }
-            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : '/api/cloud/test';
-            const payload = fam === 'security.' ? {action:'test_key'} : {provider:providerId};
+            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : fam === 'chain.data.' ? '/api/chain/test' : fam === 'x.api.' ? '/api/x/setup' : '/api/cloud/test';
+            const payload = fam === 'security.' ? {action:'test_key'} : fam === 'x.api.' ? {action:'test'} : {provider:providerId};
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
             st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
@@ -2159,7 +2163,7 @@ function widgetKeys(stack) {
           if (!confirm(tfmt('keys.remove_confirm', 'Remove the stored key “{name}”?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.', { name: (c.label || c.name) }))) return;
           rm.disabled = true; st.textContent = T('keys.removing', 'Removing…');
           try {
-            const r = await fetch(fam === 'security.' ? '/api/addons' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : { name: c.name, delete: true }) });
+            const r = await fetch(fam === 'security.' ? '/api/addons' : fam === 'x.api.' ? '/api/x/setup' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : fam === 'x.api.' ? {action:'remove'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
@@ -2199,6 +2203,7 @@ function widgetKeys(stack) {
     if (g.children.length) prov.appendChild(g);
   };
   addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
+  addGroup('chain', 'keys.group_chain', 'Blockchain data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
@@ -2301,7 +2306,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         const choices = names.length ? ' ' + tfmt('keys.could_be', 'It could be {names}.', { names: names.join(', ') }) : '';
@@ -2309,7 +2314,7 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^search\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain)\./, ''); syncBaseUrl(); syncOrigin(); }
       const label = selectedLabel() || (candidates[0] && candidates[0].label) || providerId;
       const verifyBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
@@ -2329,7 +2334,7 @@ function widgetKeys(stack) {
       if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
-      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : T('keys.use_model', ' It is now the active model provider.');
+      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : T('keys.use_model', ' It is now the active model provider.');
       const credit = verified.j.account_state === 'exhausted' ? T('keys.credit_exhausted', ' Its credit limit is used up, so requests will fail until credit is added.') : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
@@ -2358,7 +2363,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.'))
@@ -2367,7 +2372,7 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^search\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain)\./, ''); syncBaseUrl(); syncOrigin(); }
       const laterBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }
@@ -2439,13 +2444,30 @@ function widgetKeys(stack) {
     return tfmt('keys.test.unconfirmed', 'Could not confirm the key with {label}; the key itself was not judged{detail}.',
       { label: label, detail: j.detail ? tfmt('keys.test.refused_detail', ' ({detail})', { detail: j.detail }) : '' });
   }
-  form.appendChild(prov); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
+  /* Guided setup for a chain-data provider: the steps to get a working key (Alchemy needs its chains
+     turned on), shown in a dialog on request. Presentation only; nothing is sent anywhere. */
+  const steps = el('button', 'btn key-setup-steps', T('keyguide.setup_steps', 'Setup steps')); steps.type = 'button'; steps.hidden = true;
+  const syncSteps = () => { steps.hidden = selectedGroup() !== 'chain'; };
+  prov.addEventListener('change', syncSteps);
+  steps.addEventListener('click', () => {
+    const row = ((KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers || []).find(r => r.provider === prov.value.trim());
+    if (row) openKeySetupDialog(row);
+  });
+  form.appendChild(prov); form.appendChild(steps); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
   stack.appendChild(form);
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);
   stack.appendChild(st);
   stack.appendChild(el('div', 'subtle', T('keys.autodetect_note', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.')));
   stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
+  /* X has more than one key, so it gets a guided setup instead of the single paste field. */
+  const xRow = el('div', 'inline x-setup-entry');
+  xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
+  xRow.appendChild(el('span', 'subtle', T('xsetup.entry_note', 'X uses several keys. The guided setup says what to paste where and checks them with one read.')));
+  const xBtn = el('button', 'btn x-setup-open', T('xsetup.open', 'Connect X')); xBtn.type = 'button';
+  xBtn.addEventListener('click', () => openXSetupDialog(async () => { await readSource('/api/settings/credentials'); renderPane(); }));
+  xRow.appendChild(xBtn);
+  stack.appendChild(xRow);
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -2501,6 +2523,146 @@ function widgetKeys(stack) {
    category/provider copy through the locale's catalog (keyguide.*); these widget strings
    resolve through the page's own T() so buttons and notes follow the selected language. */
 const KEY_PROVIDER_GUIDE = __KEY_PROVIDER_GUIDE__;
+/* The guided setup dialog for one provider row: numbered steps, the chains it covers, and the notes
+   (what this release does not use, plan limits). `onAdd` selects the provider in the key form. */
+function openKeySetupDialog(row, onAdd) {
+  document.querySelector('dialog.key-setup-dialog')?.remove();
+  const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog';
+  dlg.setAttribute('aria-label', tfmt('keyguide.setup_title', 'Set up {label}', { label: row.label }));
+  dlg.appendChild(el('h3', null, tfmt('keyguide.setup_title', 'Set up {label}', { label: row.label })));
+  if (row.chains && row.chains.length) dlg.appendChild(el('p', 'subtle', tfmt('keyguide.setup_chains', 'Chains: {chains}', { chains: row.chains.join(', ') })));
+  const list = document.createElement('ol'); list.className = 'key-setup-steps-list';
+  (row.steps || []).forEach(text => list.appendChild(el('li', null, text)));
+  dlg.appendChild(list);
+  (row.notes || []).forEach(text => dlg.appendChild(el('p', 'subtle', text)));
+  const actions = el('div', 'inline');
+  if (row.url) {
+    const link = el('a', 'key-guide-link', T('keyguide.official_site', 'Official site ↗')); link.href = row.url;
+    link.target = '_blank'; link.rel = 'noopener noreferrer'; actions.appendChild(link);
+  }
+  if (onAdd) {
+    const add = el('button', 'btn primary', T('keyguide.setup_add', 'Add key now')); add.type = 'button';
+    add.addEventListener('click', () => { dlg.close(); onAdd(); }); actions.appendChild(add);
+  }
+  const close = el('button', 'btn', T('keyguide.setup_close', 'Close')); close.type = 'button';
+  close.addEventListener('click', () => dlg.close()); actions.appendChild(close);
+  dlg.appendChild(actions);
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.appendChild(dlg);
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+}
+/* Guided X (Twitter) setup. Two ways in: the app's Bearer Token (public reads) or the four keys of
+   the user's own X app (their account). Each is checked with one read-only X request before it is
+   saved (core/x_setup.py); the account path shows which account X names and saves only on confirm.
+   Nothing here posts to X, and no key is ever shown back. */
+function openXSetupDialog(onSaved) {
+  document.querySelector('dialog.x-setup-dialog')?.remove();
+  const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog x-setup-dialog';
+  dlg.setAttribute('aria-label', T('xsetup.dialog_title', 'Connect X'));
+  const body = el('div', 'stack');
+  const note = el('p', 'subtle x-setup-state'); note.setAttribute('role', 'status');
+  let pendingSession = '';
+  const call = async (payload) => {
+    const r = await fetch('/api/x/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && j.ok !== false, j: j };
+  };
+  const secretField = (label) => {
+    const wrap = el('label', 'stack');
+    wrap.appendChild(el('span', null, label));
+    const input = el('input', 'inp'); input.type = 'password'; input.autocomplete = 'off'; input.spellcheck = false;
+    input.setAttribute('aria-label', label); wrap.appendChild(input);
+    return { wrap: wrap, input: input };
+  };
+  const steps = (items) => { const ol = document.createElement('ol'); ol.className = 'key-setup-steps-list'; items.forEach(t => ol.appendChild(el('li', null, t))); return ol; };
+  const choose = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('p', null, T('xsetup.choose', 'How would you like to connect?')));
+    const pub = el('button', 'btn', T('xsetup.choose_public', 'Research public posts (Bearer Token)')); pub.type = 'button';
+    pub.addEventListener('click', bearerStep);
+    const own = el('button', 'btn', T('xsetup.choose_keys', 'I have my keys (my X account)')); own.type = 'button';
+    own.addEventListener('click', keysStep);
+    const row = el('div', 'inline'); row.appendChild(pub); row.appendChild(own); body.appendChild(row);
+    body.appendChild(el('p', 'subtle', T('xsetup.no_posting', 'VOOL only reads with these keys. Posting to X is not part of this version.')));
+  };
+  const bearerStep = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('h4', null, T('xsetup.public_title', 'Public posts · Bearer Token')));
+    body.appendChild(steps([
+      T('xsetup.public_step1', 'Open developer.x.com and sign in with your X account.'),
+      T('xsetup.public_step2', 'Open your app → Keys and tokens.'),
+      T('xsetup.public_step3', 'Under Bearer Token, choose Generate (or Regenerate) and copy it.'),
+      T('xsetup.public_step4', 'Paste it below. VOOL asks X for one public profile to check it, then saves it.'),
+    ]));
+    const f = secretField(T('xsetup.bearer_label', 'Bearer Token')); body.appendChild(f.wrap);
+    const save = el('button', 'btn primary x-setup-save-bearer', T('xsetup.check_save', 'Check and save')); save.type = 'button';
+    save.addEventListener('click', async () => {
+      save.disabled = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
+      try {
+        const res = await call({ action: 'save_bearer', bearer_token: f.input.value });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok) { f.input.value = ''; if (onSaved) await onSaved(); }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      save.disabled = false;
+    });
+    const back = el('button', 'btn', T('xsetup.back', 'Back')); back.type = 'button'; back.addEventListener('click', choose);
+    const row = el('div', 'inline'); row.appendChild(save); row.appendChild(back); body.appendChild(row);
+  };
+  const keysStep = () => {
+    body.replaceChildren(); note.textContent = '';
+    body.appendChild(el('h4', null, T('xsetup.keys_title', 'My X account · four keys')));
+    body.appendChild(el('p', 'subtle', T('xsetup.keys_where', 'All four are on developer.x.com → your app → Keys and tokens.')));
+    body.appendChild(el('div', 'row-label', T('xsetup.step1', 'Step 1 · Consumer keys')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step1_help', 'Under Consumer Keys, choose Regenerate if you no longer have them, then copy the API Key and the API Key Secret.')));
+    const ck = secretField(T('xsetup.consumer_key', 'Consumer Key (API Key)')); const cs = secretField(T('xsetup.consumer_secret', 'Consumer Key Secret (API Key Secret)'));
+    body.appendChild(ck.wrap); body.appendChild(cs.wrap);
+    body.appendChild(el('div', 'row-label', T('xsetup.step2', 'Step 2 · Access tokens')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step2_help', 'Under Access Token and Secret, choose Generate. They are made for the X account you are signed in with. Read permission is enough.')));
+    const at = secretField(T('xsetup.access_token', 'Access Token')); const as = secretField(T('xsetup.access_secret', 'Access Token Secret'));
+    body.appendChild(at.wrap); body.appendChild(as.wrap);
+    const confirmRow = el('div', 'inline'); confirmRow.hidden = true;
+    const check = el('button', 'btn primary x-setup-check', T('xsetup.check_account', 'Check my X account')); check.type = 'button';
+    check.addEventListener('click', async () => {
+      check.disabled = true; confirmRow.hidden = true; note.textContent = T('xsetup.checking', 'Asking X once whether it accepts this…');
+      try {
+        const res = await call({ action: 'keys_check', credentials: { api_key: ck.input.value, api_secret: cs.input.value, access_token: at.input.value, access_token_secret: as.input.value } });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok && res.j.session_id) {
+          pendingSession = res.j.session_id;
+          [ck, cs, at, as].forEach(f => { f.input.value = ''; });
+          confirmRow.hidden = false;
+        }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      check.disabled = false;
+    });
+    body.appendChild(el('div', 'row-label', T('xsetup.step3', 'Step 3 · Confirm')));
+    const keep = el('button', 'btn primary x-setup-confirm', T('xsetup.save_account', 'Save this X account')); keep.type = 'button';
+    keep.addEventListener('click', async () => {
+      keep.disabled = true;
+      try {
+        const res = await call({ action: 'keys_save', session_id: pendingSession });
+        note.textContent = res.j.message || (res.ok ? '' : T('xsetup.failed', 'X setup failed. Nothing was saved.'));
+        if (res.ok) { pendingSession = ''; confirmRow.hidden = true; if (onSaved) await onSaved(); }
+      } catch (e) { note.textContent = T('xsetup.failed', 'X setup failed. Nothing was saved.'); }
+      keep.disabled = false;
+    });
+    const drop = el('button', 'btn', T('xsetup.cancel', 'Cancel')); drop.type = 'button';
+    drop.addEventListener('click', async () => { if (pendingSession) await call({ action: 'keys_cancel', session_id: pendingSession }).catch(() => null); pendingSession = ''; confirmRow.hidden = true; note.textContent = T('xsetup.cancelled', 'Cancelled. Nothing was saved.'); });
+    confirmRow.appendChild(keep); confirmRow.appendChild(drop);
+    const back = el('button', 'btn', T('xsetup.back', 'Back')); back.type = 'button'; back.addEventListener('click', choose);
+    const row = el('div', 'inline'); row.appendChild(check); row.appendChild(back);
+    body.appendChild(row); body.appendChild(confirmRow);
+  };
+  dlg.appendChild(el('h3', null, T('xsetup.dialog_title', 'Connect X')));
+  dlg.appendChild(body); dlg.appendChild(note);
+  const close = el('button', 'btn', T('keyguide.setup_close', 'Close')); close.type = 'button';
+  close.addEventListener('click', () => dlg.close());
+  const actions = el('div', 'inline'); actions.appendChild(close); dlg.appendChild(actions);
+  dlg.addEventListener('close', () => { if (pendingSession) call({ action: 'keys_cancel', session_id: pendingSession }).catch(() => null); dlg.remove(); });
+  document.body.appendChild(dlg);
+  choose();
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+}
 function widgetProviderGuide(host) {
   const input = el('input', 'inp'); input.type = 'search';
   input.placeholder = T('keyguide.search_placeholder', 'Find a provider…'); input.setAttribute('aria-label', T('keyguide.search_aria', 'Find a provider'));
@@ -2543,6 +2705,12 @@ function widgetProviderGuide(host) {
           (field || picker).focus(); note.textContent = tfmt('keyguide.selected', 'Selected {label}. Paste its API key below.', { label: r.label });
         });
         actions.appendChild(add);
+        if (r.steps && r.steps.length) {
+          const how = el('button', 'btn key-guide-steps', T('keyguide.setup_steps', 'Setup steps')); how.type = 'button';
+          how.setAttribute('aria-label', tfmt('keyguide.setup_steps_aria', '{label} setup steps', { label: r.label }));
+          how.addEventListener('click', () => openKeySetupDialog(r, () => add.click()));
+          actions.appendChild(how);
+        }
         if (stored.has(r.slot)) actions.appendChild(el('span', 'pill on', T('keyguide.key_saved', 'Key saved')));
         card.appendChild(info); card.appendChild(actions); section.appendChild(card);
       });
