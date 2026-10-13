@@ -328,7 +328,7 @@ _ON_RE = _clause_re(_ON_PHRASES)
 _OFF_RE = _clause_re(_OFF_PHRASES)
 _BARE_ON_RE = re.compile(r"^\s*" + _LEAD + rf"(?:{_BARE_TURN_ON})" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^\s*" + _LEAD + "(?:" + "|".join(f"(?:{p})" for p in _STATUS_PHRASES) + ")" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
-_FILLER_RE = re.compile(r"^[\s.,;:!?—–\-]*(?:(?:but|and|so|ok|okay|please|thanks|thank\s+you|now|just|ok\s+so)[\s.,;:!?—–\-]*)*$", re.IGNORECASE)
+_FILLER_RE = re.compile(r"^[\s.,;:!?—–\-]*(?:(?:but|and|so|ok|okay|please|thanks|thank\s+you|now|just)[\s.,;:!?—–\-]*)*$", re.IGNORECASE)
 _APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
 
 

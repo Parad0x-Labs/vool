@@ -1,5 +1,4 @@
 """Pet presentation is timed, quiet at rest, and independent of screen refresh."""
-import re
 
 from core.companion_world_fragment import COMPANION_WORLD_JS, render_desktop_companion_html
 from tests.chat_page_js_harness import DOM, run_node
@@ -7,7 +6,7 @@ from tests.chat_page_js_harness import DOM, run_node
 
 def desktop_driver(driver, payload=None):
     html = render_desktop_companion_html(payload)
-    script = re.search(r'<script>(.*?)</script>', html, re.S).group(1)
+    script = html.split('<script>', 1)[1].split('</script>', 1)[0]
     return run_node(DOM + "\nlet callback; requestAnimationFrame=f=>{callback=f;return 1;};\n"
                     + script + '\nconst {VoolCompanionWorld,VoolDesktopCompanion}=window;\n' + driver.replace('console.log(JSON.stringify({frames}));','out({frames});').replace('console.log(JSON.stringify({seen}));','out({seen});'))
 
