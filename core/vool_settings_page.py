@@ -48,7 +48,7 @@ from core.ui_palette import DARK_PALETTE_CSS
 # Effect vocabulary. Every bound row states when its change takes hold and how far it reaches,
 # because "saved" alone does not tell a user whether the answer they are reading changes.
 # --------------------------------------------------------------------------------------
-EFFECT_NEXT_TURN = "Applies from your next message. The turn in flight keeps the old value."
+EFFECT_NEXT_TURN = "Applies from your next message. A reply already being written keeps the old setting."
 EFFECT_IMMEDIATE = "Applies immediately."
 EFFECT_NEXT_LAUNCH = "Applies the next time VOOL starts."
 
@@ -89,6 +89,8 @@ def _research_networking() -> bool:
 
 def _row(**kw) -> dict:
     """One settings row. Unset optional keys stay absent so the JSON stays small."""
+    if kw.get("effect") == EFFECT_NEXT_TURN:
+        kw["effect_kind"] = "next_turn"   # language-independent, so a page can word a shared line once
     return {k: v for k, v in kw.items() if v is not None}
 
 
@@ -1032,7 +1034,7 @@ h1 { margin:0 0 4px; font-size:26px; font-weight:700; letter-spacing:-.2px; }
 .row-main { flex:1 1 auto; min-width:0; }
 .row-label { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .row-help { color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:4px; }
-.pane-meta { margin:4px 0 0; font-size:12px; color:var(--muted); }
+.pane-meta { margin:4px 0 12px; font-size:12px; color:var(--muted); }
 .row-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:7px; font-size:11.5px; color:var(--muted); }
 .row-meta .m { display:inline-flex; align-items:center; gap:4px; }
 .row-ctl { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; padding-top:1px; }
@@ -1362,16 +1364,20 @@ function metaLine(row) {
 function commonPaneMeta(rows) {
   const counts = {};
   let best = null;
+  let kind = '';
+  let mixed = false;
   rows.forEach(r => {
     if (r.kind === 'note' || r.kind === 'custom' || !r.scope || !r.effect) return;
     const k = r.scope + '\u0000' + r.effect;
     counts[k] = (counts[k] || 0) + 1;
-    if (!best || counts[k] > counts[best]) best = k;
+    if (best && k !== best) mixed = true;
+    if (!best) { best = k; kind = r.effect_kind || ''; }
   });
-  // A single row gains nothing from being summarised at the top.
-  if (!best || counts[best] < 2) return null;
+  // Only a line that is true of EVERY setting on the page is said once at the top; a single row
+  // gains nothing from being summarised.
+  if (!best || mixed || counts[best] < 2) return null;
   const parts = best.split('\u0000');
-  return { scope: parts[0], effect: parts[1] };
+  return { scope: parts[0], effect: parts[1], kind: kind };
 }
 
 function control(row) {
@@ -1466,7 +1472,10 @@ function renderPane() {
   state.paneMeta = state.onlyRow ? null : commonPaneMeta(g.rows);
   const metaEl = $('#paneMeta');
   if (metaEl) {
-    metaEl.textContent = state.paneMeta ? scopeText(state.paneMeta.scope) + ' \u00b7 ' + state.paneMeta.effect : '';
+    metaEl.textContent = !state.paneMeta ? ''
+      : (state.paneMeta.scope === 'global' && state.paneMeta.kind === 'next_turn')
+        ? T('settings.pane_meta.global_next', 'Changes here apply everywhere, from your next message.')
+        : scopeText(state.paneMeta.scope) + ' \u00b7 ' + state.paneMeta.effect;
     metaEl.hidden = !state.paneMeta;
   }
   const body = $('#paneBody');

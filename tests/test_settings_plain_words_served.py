@@ -4,7 +4,8 @@ Before: every row of a page repeated the same two lines ("Applies everywhere" / 
 next message. The turn in flight keeps the old value."), the scope words were English in every
 language, and English users saw a "1849 strings" count they could do nothing with.
 
-- the General page states the shared line once, under its title, and its rows repeat nothing;
+- the General page states the shared line once, in plain words under its title, and its rows
+  repeat nothing; only a line true of EVERY setting on a page is lifted to the top;
 - a page whose rows differ keeps the line on each row (Usage & Budgets);
 - the scope words come from the catalog (German shows German);
 - the English language box carries no string count.
@@ -46,9 +47,7 @@ def test_settings_state_the_shared_effect_once_per_page(tmp_path):
                 page.wait_for_selector("#paneBody [data-row='humor_percent']", timeout=10000)
                 meta = page.locator("#paneMeta")
                 assert meta.is_visible()
-                assert meta.inner_text() == (
-                    "Applies everywhere · Applies from your next message. The turn in flight keeps the old value."
-                )
+                assert meta.inner_text() == "Changes here apply everywhere, from your next message."
                 general_rows = page.locator("#paneBody .row").count()
                 assert general_rows >= 5
                 assert page.locator("#paneBody .row-meta").count() == 0
@@ -73,7 +72,7 @@ def test_settings_state_the_shared_effect_once_per_page(tmp_path):
                 page, errors = _open(browser, daemon.base_url, html=render_vool_settings_html(ui_locale="de"))
                 page.locator(".nav-item[data-group='general']").click()
                 page.wait_for_selector("#paneBody [data-row='humor_percent']", timeout=10000)
-                assert page.locator("#paneMeta").inner_text().startswith(de.text("settings.scope.global") + " · ")
+                assert page.locator("#paneMeta").inner_text() == de.text("settings.pane_meta.global_next")
                 assert page.locator("#uiLocaleCoverage").inner_text().strip() != ""
                 assert not errors, errors
                 page.close()
