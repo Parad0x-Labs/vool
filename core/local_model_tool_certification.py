@@ -285,6 +285,14 @@ def run_local_model_tool_certification(
     # Both conditions above are exactly `certification_applies`; asserted here so the two can
     # never drift into disagreeing about which lanes are measurable.
     assert certification_applies(manifest)
+    # Each probe call is bounded by ``timeout_seconds``, a ceiling sized on GPU hosts (Settings
+    # sends 150 s). With no GPU the same 8B model is several times slower: measured under Rosetta
+    # (SSE4.2 kernel, v0.7.0 Intel DMG, 2026-10-13) the first call ran out the full 150 s with zero
+    # exchanges. The one CPU-aware rule the runtime's own local budgets use scales it here, so the
+    # route, the CLI and the Settings button all get it; a fast answer still returns at once.
+    from core.local_compute_budget import local_compute_seconds
+
+    timeout_seconds = local_compute_seconds(timeout_seconds)
 
     if exchange is None:
         from adapters.openai_compatible_adapter import OpenAICompatibleAdapter

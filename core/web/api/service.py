@@ -1971,6 +1971,7 @@ def dispatch_get(
         # state. Registration is curated by default (boot registers the bundle's models, not
         # everything a user happens to have in Ollama), so an installed-but-unregistered model is
         # invisible to every other surface -- this listing is what makes it addressable at all.
+        from core.local_compute_budget import apple_silicon_build_notice
         from core.local_model_policy import resolve_local_model_policy
         from core.local_model_tool_certification import certification_status
         from core.model_registry import ModelRegistry
@@ -2006,6 +2007,7 @@ def dispatch_get(
                 {
                     "models": models,
                     "local_models_disabled": bool(policy.local_models_disabled),
+                    "apple_silicon_notice": apple_silicon_build_notice(),
                 },
             ),
             runtime,
