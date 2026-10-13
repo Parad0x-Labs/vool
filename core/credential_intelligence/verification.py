@@ -89,6 +89,11 @@ _MAX_BODY_BYTES = 2_000_000
 _ERROR_CODE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 #: The keyless answers after which an entered endpoint is asked with the key: it demands one.
 _KEY_DEMANDED_STATUSES = (401, 403)
+#: Placements in which the URL itself carries the key: the request is never redirected or proxied, and
+#: the key is registered as an exact secret so no ledger or error quotes it.
+_URL_CARRIED_STYLES = frozenset({"url_path_token", "query_token"})
+#: The verdicts a provider's 2xx body may name (``ProviderDescriptor.body_verdict``).
+_BODY_VERDICTS = frozenset({"invalid", "unauthorized", "exhausted", "rate_limited"})
 
 _details = {
     STATUS_VERIFIED: "authorized",
@@ -346,6 +351,14 @@ def classify_verification_response(descriptor: ProviderDescriptor, *, status: in
             payload = json.loads(bytes(body or b"").decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
             return _outcome(STATUS_MALFORMED_RESPONSE, descriptor, status, host)
+        verdict = ""
+        if descriptor.body_verdict is not None:
+            try:
+                verdict = str(descriptor.body_verdict(payload) or "")
+            except Exception:
+                verdict = ""
+        if verdict in _BODY_VERDICTS:
+            return _outcome(verdict, descriptor, status, host)
         if not _shape_ok(descriptor, payload):
             return _outcome(STATUS_UNEXPECTED_SCHEMA, descriptor, status, host)
         account_state, account_detail = _account(descriptor, payload)
@@ -409,6 +422,19 @@ def _place_credential(key: str | None, descriptor: ProviderDescriptor) -> tuple[
         path_headers = {"Accept": "application/json"}
         path_headers.update(descriptor.extra_headers)
         return _merge_query(template.replace("{credential}", key), dict(descriptor.verify_query)), path_headers, None
+    if style == "query_token":
+        # The provider documents the query string as the ONLY placement (Helius, Etherscan). Like a
+        # URL-path token: never built without the key, only a URL-safe token is placed, and the
+        # caller registers it as an exact secret before the request exists.
+        if key is None or not name or not _PATH_TOKEN_RE.fullmatch(key):
+            return None
+        query_headers = {"Accept": "application/json"}
+        query_headers.update(descriptor.extra_headers)
+        query_data = None
+        if method == "POST" and descriptor.verify_body:
+            query_data = json.dumps(dict(descriptor.verify_body)).encode("utf-8")
+            query_headers["Content-Type"] = "application/json"
+        return _merge_query(descriptor.verify_endpoint, {**dict(descriptor.verify_query), name: key}), query_headers, query_data
     if not (style == "bearer" or (style == "header" and name) or (style == "body" and name and method == "POST")):
         return None
     headers = {"Accept": "application/json"}
@@ -440,7 +466,7 @@ def _ask(placed: tuple[str, dict[str, str], bytes | None], descriptor: ProviderD
     from core.remote_fetch_policy import open_remote, open_remote_url
 
     url, headers, data = placed
-    path_token = str(descriptor.auth_style or "").strip().lower() == "url_path_token"
+    path_token = str(descriptor.auth_style or "").strip().lower() in _URL_CARRIED_STYLES
     try:
         if path_token:
             # The URL itself carries the credential: a redirect is returned, never followed (it is
@@ -513,7 +539,7 @@ def verify_provider_credential(secret: str, descriptor: ProviderDescriptor,
                         detail="insecure transport: a key is only sent over https or to this machine")
     placed = _place_credential(key, descriptor)
     keyless = _place_credential(None, descriptor) if descriptor.user_endpoint else None
-    if str(descriptor.auth_style or "").strip().lower() == "url_path_token":
+    if str(descriptor.auth_style or "").strip().lower() in _URL_CARRIED_STYLES:
         if descriptor.user_endpoint:
             # An operator endpoint is asked WITHOUT the key first, and a path token has no keyless
             # form of its request: that law cannot be kept, so nothing is sent.
@@ -521,7 +547,7 @@ def verify_provider_credential(secret: str, descriptor: ProviderDescriptor,
                             detail="a URL-path credential cannot be verified at an endpoint that must first be asked without it")
         if placed is None:
             return _outcome(STATUS_REFUSED, descriptor, None, host,
-                            detail="the credential is not a path-safe token for this provider's URL path; nothing was sent")
+                            detail="the credential is not a URL-safe token for this provider's URL; nothing was sent")
         from core.secret_redaction import register_exact_secret
 
         register_exact_secret(key)  # the URL that carries it is scrubbed from every ledger and error

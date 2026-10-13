@@ -238,7 +238,9 @@
   },
   "core/memory_recall_intent.py": {
     "looks_like_private_memory_recall": "transform",
-    "field_is_the_subject": "transform"
+    "field_is_the_subject": "transform",
+    "private_memory_recall_intent": "transform",
+    "revoked_memory_recall_clauses": "transform"
   },
   "core/memory_receipts.py": {
     "enabled": "transform",

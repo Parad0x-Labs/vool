@@ -41,6 +41,7 @@ def test_cancel_mid_retrieval_ends_the_turn_and_stops_new_fetches(tmp_path):
         "VOOL_FIXTURE_TRANSPORT_MANIFEST": str(_slow_manifest(tmp_path)),
         "VOOL_FIXTURE_TRANSPORT_LOG": str(log),
         "ALLOW_BROWSER_FALLBACK": "0", "WEB_SEARCH_PROVIDER_ORDER": "google_html",
+        "VOOL_ENABLE_WEB": "1",  # Consent for this positive retrieval/cancellation fixture.
     }
     with rig.CapturingProvider(default="A comparison.") as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider, env_extra=env_extra)

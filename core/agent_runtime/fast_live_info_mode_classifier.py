@@ -167,6 +167,16 @@ def live_info_mode(agent: Any, text: str, *, interpretation: Any) -> str:
         return ""
     if _names_a_marker(lowered, _CLOCK_AND_DATE_MARKERS):
         return ""
+    # A question about what was said in this conversation names a topic, not a lookup: "what did i
+    # tell you about the weather at my wedding?" was served as the weather at a place called "My
+    # Wedding". Another ask beside the recollection is still read, alone, by this same function.
+    from core.execution.constants import conversation_recall_remainder
+
+    recall_rest = conversation_recall_remainder(text)
+    if recall_rest is not None and not any(
+        live_info_mode(None, clause, interpretation=None) for clause in recall_rest
+    ):
+        return ""
 
     # A water-temperature ask is served by the TYPED live-data lane (its plan
     # builder mints water_temperature subtasks; `execution_requirements`

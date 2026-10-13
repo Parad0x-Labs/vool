@@ -57,10 +57,16 @@ _DEFAULT_MONTHLY_USD = 25.00
 
 _POLICY_PREFIX = "model_orchestration.paid_call"
 _TERMINAL_PAID_GENERATION_ROLES = frozenset(
-    {"answer_generation", "conductor_generation", "audit_step"}
+    {"answer_generation", "conductor_generation", "audit_step", "tool_intent"}
 )
-# Roles whose reservations this module emits spend receipts for. The conductor has its own owner.
-_RECEIPT_ROLES = frozenset({"answer_generation", "audit_step"})
+# Roles whose reservations this module emits spend receipts for, with the words the receipt uses.
+# The conductor has its own owner. An audit step keeps the answer-generation wording it always had.
+_RECEIPT_ROLES = {
+    "answer_generation": "answer generation",
+    "audit_step": "answer generation",
+    "tool_intent": "tool selection",
+}
+_GENERATION_KIND = {"conductor_generation": "conductor", "audit_step": "audit", "tool_intent": "tool_selection"}
 
 
 def _positive_policy_float(key: str, default: float) -> float:
@@ -214,9 +220,12 @@ def reserve_owner_pick_paid_call(
     # A free lane needs no reservation and must not consume the paid cap.
     if provider_cost_class(manifest) != "paid_cloud" or is_verified_free_cloud_manifest(manifest):
         return _refuse("free_pin_needs_no_reservation")
-    # The pick authorizes the answering lane, not the turn's internal classification calls.
-    if str(task_kind or "").strip().lower() == "tool_intent":
-        return _refuse("internal_tool_intent_call")
+    # A tool-selection round (task_kind "tool_intent") is the picked model choosing the tool for
+    # the request the owner asked it to serve, so it reserves like the answer does, against the
+    # same caps, under its own call role. Refusing it (the rule until 2026-10-05) left a turn with
+    # a paid pin and no free tool lane with no tools at all: measured on the served daemon with
+    # openai/gpt-4.1-mini pinned, 0 of 4 tool requests ran a tool. An unpinned turn never reaches
+    # here with a manifest (``no_explicit_paid_pick`` above), so paid fallback is not widened.
 
     # CONVERGENCE BOUNDARY (the money-law migration route task 03 documented): a UsePod lane's
     # paid calls reserve, claim, dispatch and settle on the atomic money law
@@ -299,7 +308,11 @@ def _authorize(*, context: dict[str, Any], task_id: str, model_id: str, local_mo
     from core.model_orchestration import ModelOrchestrator
 
     turn_id = str(context.get("turn_id") or "").strip() or f"turn-{uuid.uuid4().hex}"
-    subtask_id = str(context.get("subtask_id") or "").strip() or "owner_explicit_model_pick"
+    # One orchestration run per paid CALL. Runs are unique on (task, turn, subtask), and a turn can
+    # now hold several paid calls of the owner's pick (tool-selection rounds, then the answer):
+    # with one fixed subtask id the second reservation in a turn failed on that constraint and the
+    # call was refused (measured 2026-10-05: the answer after a successful tool round).
+    subtask_id = str(context.get("subtask_id") or "").strip() or f"owner_explicit_model_pick:{uuid.uuid4().hex[:16]}"
     session_id = str(context.get("runtime_session_id") or context.get("session_id") or "local").strip() or "local"
 
     limits = spend_limits()
@@ -770,7 +783,7 @@ def _emit_answer_spend_receipt(
         emit_runtime_event(
             source_context,
             event_type=event_type,
-            message=f"Paid answer generation {details['spend_status']}.",
+            message=f"Paid {_RECEIPT_ROLES[role]} {details['spend_status']}.",
             details=details,
         )
     except Exception:
@@ -797,7 +810,7 @@ def _terminalize_paid_generation_orchestration(
     role = str(call_role or "").strip().lower()
     if role not in _TERMINAL_PAID_GENERATION_ROLES:
         return
-    generation_kind = {"conductor_generation": "conductor", "audit_step": "audit"}.get(role, "answer")
+    generation_kind = _GENERATION_KIND.get(role, "answer")
     escalation = getattr(authorization, "escalation", None)
     run_id = str(getattr(escalation, "run_id", "") or "")
     paid_model = str(getattr(escalation, "model_id", "") or "")

@@ -689,6 +689,7 @@ def _ensure_local_ollama_provider(
 ) -> bool:
     env_map = os.environ if env is None else env
     existing = registry.get_manifest("ollama-local", model_tag)
+    selected_base_url = default_local_provider_base_url(env_map)
     if existing is not None and not isinstance(existing, ModelProviderManifest):
         existing = None
     context_sizing = _ollama_context_sizing(
@@ -751,12 +752,13 @@ def _ensure_local_ollama_provider(
         and has_context_contract
         and has_measurement_contract
         and has_sizing_contract
+        and str(existing_runtime_config.get("base_url") or "").rstrip("/") == selected_base_url.rstrip("/")
     ):
         return False
     parameter_size = str(manifest_profile.get("parameter_count") or parameter_size_for_model(model_tag))
     license_reference = str(manifest_profile.get("license_reference") or "user-managed")
     runtime_config: dict[str, object] = {
-        "base_url": default_local_provider_base_url(),
+        "base_url": selected_base_url,
         "health_path": "/v1/models",
         "timeout_seconds": 180,
         "health_timeout_seconds": 10,

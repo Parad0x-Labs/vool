@@ -7,7 +7,16 @@ seal/finalize leaves zero rows.
 """
 from __future__ import annotations
 
+import pytest
+
 import storage.db as sdb
+from core import policy_engine
+from tests.test_fresh_install_network_defaults import isolated_policy_home as isolated_policy_home
+
+
+@pytest.fixture(autouse=True)
+def explicit_background_network_consent(isolated_policy_home):
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True})
 
 
 class _Prefs:

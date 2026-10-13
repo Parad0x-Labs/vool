@@ -22,7 +22,11 @@ from core.bug_report.synthesis import synthesize_local
 # Fields a user may drop from the outbound report. Core identity fields (environment,
 # expected, actual, fingerprint) are not removable: without them the report is not a
 # reproducible bug report, and the fingerprint is what dedup depends on.
-REMOVABLE_FIELDS = frozenset({"logs", "flags", "repro", "components", "error", "attachments"})
+REMOVABLE_FIELDS = frozenset({
+    "logs", "flags", "repro", "components", "error", "attachments",
+    # schema 2: machine shape, health snapshot, and the wrong-answer evidence parts
+    "machine", "health", "excerpt", "question", "receipt",
+})
 MAX_OUTBOUND_BYTES = 256 * 1024
 
 
@@ -98,7 +102,21 @@ def build_preview(
         "actual": draft.actual,
         "environment": draft.environment.to_dict() if draft.environment else {},
         "fingerprint": draft.fingerprint,
+        "kind": draft.kind,
     }
+    if "machine" not in removals and draft.machine:
+        payload["machine"] = dict(draft.machine)
+    if "health" not in removals and draft.health:
+        payload["health"] = dict(draft.health)
+    if draft.answer is not None:
+        answer: dict = {"reason": draft.answer.reason, "excerpt_source": draft.answer.excerpt_source}
+        if "excerpt" not in removals:
+            answer["excerpt"] = draft.answer.excerpt
+        if "question" not in removals and draft.answer.question:
+            answer["question"] = draft.answer.question
+        payload["answer"] = answer
+        if "receipt" not in removals and draft.answer.receipt is not None:
+            payload["receipt"] = draft.answer.receipt.to_dict()
     if "repro" not in removals:
         payload["repro_steps"] = list(draft.repro_steps)
     if "error" not in removals and draft.error is not None:
@@ -133,6 +151,15 @@ def build_preview(
         fields_included.append("logs")
     if "flags" not in removals:
         fields_included.append("flags")
+    for name, present in (
+        ("machine", bool(draft.machine)),
+        ("health", bool(draft.health)),
+        ("excerpt", draft.answer is not None),
+        ("question", draft.answer is not None and bool(draft.answer.question)),
+        ("receipt", draft.answer is not None and draft.answer.receipt is not None),
+    ):
+        if present and name not in removals:
+            fields_included.append(name)
 
     included_attachments: tuple[AttachmentPlan, ...] = ()
     payloads: dict[str, bytes] = {}

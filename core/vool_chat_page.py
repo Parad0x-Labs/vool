@@ -144,6 +144,7 @@ h4.chat-h, h5.chat-h, h6.chat-h { font-size:1em; color:var(--muted); }
 .chat-hr { border:0; border-top:1px solid var(--border); margin:14px 0; }
 .chat-list { margin:0 0 10px; padding-left:22px; }
 .chat-list li { margin:3px 0; }
+.chat-list .chat-list { margin:3px 0 0; }
 .chat-quote { margin:0 0 10px; padding:2px 0 2px 12px; border-left:3px solid var(--border); color:var(--muted); }
 .chat-code { margin:0 0 10px; padding:10px 12px; background:var(--bg); border:1px solid var(--border);
              border-radius:10px; overflow-x:auto; font-size:0.9em; line-height:1.45; }
@@ -958,7 +959,22 @@ body:not(.panel-open) #xpanel { display:none; }
 .xp-history-row { display:flex; gap:6px; align-items:stretch; margin-bottom:6px; }
 .xp-history-row .xp-history-card { margin-bottom:0; flex:1 1 auto; min-width:0; }
 .xp-history-row > .xp-mini { flex:0 0 auto; align-self:center; }
+/* Report on an answer: the selection bar floats over highlighted answer text; the answer form
+   lists reasons as plain radio rows. */
+.sel-bar { position:fixed; z-index:60; display:flex; gap:4px; padding:4px; background:var(--bg); border:1px solid var(--border); border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,.18); }
+.sel-bar[hidden] { display:none; }
+.br-excerpt { white-space:pre-wrap; max-height:180px; overflow:auto; border-left:3px solid var(--accent); padding:6px 10px; background:var(--field); border-radius:4px; font-size:12px; }
+.br-reasons label { display:flex; gap:8px; align-items:center; padding:3px 0; }
+.br-note { font-size:11.5px; color:var(--muted); }
+.br-mine { width:100%; border-collapse:collapse; font-size:12px; }
+.br-mine td { padding:5px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
 .br-tech { margin:6px 0; }
+#bugReportBody .br-field { display:flex; flex-direction:column; gap:4px; margin:8px 0; }
+#bugReportBody .br-field > label:first-child { font-weight:600; font-size:12.5px; }
+#bugReportBody .br-field textarea, #bugReportBody .br-field input[type="text"], #bugReportBody .br-field select { width:100%; box-sizing:border-box; min-height:30px; }
+#bugReportBody .br-field textarea { min-height:64px; resize:vertical; }
+#bugReportBody .br-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+#bugReportBody .br-pre { white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
 .br-tech summary { color:var(--muted); font-size:11px; cursor:pointer; }
 .br-tech .br-pre { margin-top:4px; }
 .xp-history-card:hover, .xp-history-card:focus { border-color:var(--accent); outline:none; }
@@ -1102,7 +1118,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <button id="councilBtn" type="button" title="Council — evidence, review and finality. Model output is not final truth." data-i18n="header.council" data-i18n-title="header.council_title">Council</button>
   <div class="ctrl" id="updateCtrl">
     <button type="button" id="updateChip" data-testid="update-chip" hidden aria-haspopup="menu" aria-expanded="false" aria-controls="updatePop" title="App updates" data-i18n-title="header.update_title"><span class="upd-ico">&#10227;</span><span id="updateChipTxt">Update</span></button>
-    <div class="popover below" id="updatePop" data-testid="update-pop" role="menu" aria-label="Update" data-i18n-aria-label="header.update_popover_title">
+    <div class="popover below right" id="updatePop" data-testid="update-pop" role="menu" aria-label="Update" data-i18n-aria-label="header.update_popover_title">
       <div class="pop-title" data-i18n="header.update_popover_title">Update</div>
       <div class="upd-ver" id="updateVersion" data-testid="update-version"></div>
       <div class="upd-notes" id="updateNotes"></div>
@@ -2433,24 +2449,24 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'msg-copy';
-  copy.textContent = 'Copy';
-  copy.title = role === 'assistant' ? 'Copy message source (raw Markdown, exactly as stored)' : 'Copy message';
+  copy.textContent = pageT('msg.copy', 'Copy');
+  copy.title = role === 'assistant' ? pageT('msg.copy_source_title', 'Copy message source (raw Markdown, exactly as stored)') : pageT('msg.copy_title', 'Copy message');
   copy.addEventListener('click', () => copyText(rawOf(), copy));
   actions.appendChild(copy);
   if (role === 'assistant') {
     const copyTextBtn = document.createElement('button');
     copyTextBtn.type = 'button';
     copyTextBtn.className = 'msg-copy msg-copy-text';
-    copyTextBtn.textContent = 'Copy text';
-    copyTextBtn.title = 'Copy as plain text (Markdown formatting removed)';
+    copyTextBtn.textContent = pageT('msg.copy_text', 'Copy text');
+    copyTextBtn.title = pageT('msg.copy_text_title', 'Copy as plain text (Markdown formatting removed)');
     copyTextBtn.addEventListener('click', () => copyText(mdToPlainText(rawOf()), copyTextBtn));
     actions.appendChild(copyTextBtn);
     if (richClipboardSupported()) {
       const copyRichBtn = document.createElement('button');
       copyRichBtn.type = 'button';
       copyRichBtn.className = 'msg-copy msg-copy-rich';
-      copyRichBtn.textContent = 'Copy rich';
-      copyRichBtn.title = 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)';
+      copyRichBtn.textContent = pageT('msg.copy_rich', 'Copy rich');
+      copyRichBtn.title = pageT('msg.copy_rich_title', 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)');
       copyRichBtn.addEventListener('click', () => copyRichMessage(rawOf(), copyRichBtn));
       actions.appendChild(copyRichBtn);
     }
@@ -2472,7 +2488,7 @@ function msgTextEl(el) { return el.querySelector('.msg-text'); }
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
-function setPinBtn(btn, on) { btn.textContent = on ? 'Pinned' : 'Pin'; btn.title = on ? 'Unpin this message' : 'Pin this message to the chat'; btn.classList.toggle('on', !!on); }
+function setPinBtn(btn, on) { btn.textContent = on ? pageT('pin.pinned', 'Pinned') : pageT('pin.pin', 'Pin'); btn.title = on ? pageT('pin.unpin_title', 'Unpin this message') : pageT('pin.pin_title', 'Pin this message to the chat'); btn.classList.toggle('on', !!on); }
 function updatePinCount() {
   const b = document.getElementById('pinBtn'); if (!b) return;
   const n = view.pins.length; const nEl = b.querySelector('.pin-n'); if (nEl) nEl.textContent = n ? String(n) : '';
@@ -2503,7 +2519,7 @@ function renderPinPanel() {
   body.innerHTML = '';
   if (!view.pins.length) {
     const e = document.createElement('div'); e.className = 'pin-empty';
-    e.textContent = 'No pinned messages in this chat yet. Hover any message and hit Pin.';
+    e.textContent = pageT('pin.empty', 'No pinned messages in this chat yet. Hover any message and hit Pin.');
     body.appendChild(e); return;
   }
   for (const p of view.pins) {
@@ -2511,8 +2527,8 @@ function renderPinPanel() {
     const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : 'You';
     const txt = document.createElement('div'); txt.className = 'pin-text'; txt.textContent = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
     const row = document.createElement('div'); row.className = 'pin-row';
-    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = 'Copy'; copy.addEventListener('click', () => copyText(p.text, copy));
-    const un = document.createElement('button'); un.type = 'button'; un.className = 'pin-btn2'; un.textContent = 'Unpin'; un.addEventListener('click', () => unpinFromPanel(p.id));
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = pageT('msg.copy', 'Copy'); copy.addEventListener('click', () => copyText(p.text, copy));
+    const un = document.createElement('button'); un.type = 'button'; un.className = 'pin-btn2'; un.textContent = pageT('pin.unpin', 'Unpin'); un.addEventListener('click', () => unpinFromPanel(p.id));
     row.appendChild(copy); row.appendChild(un);
     card.appendChild(meta); card.appendChild(txt); card.appendChild(row); body.appendChild(card);
   }
@@ -2550,7 +2566,13 @@ function fallbackCopy(text, btn, done) {
   // lands here as a visible failure, not a "Copied".
   if (copied) { if (done) done(); } else { copiedFail(btn); }
 }
-function copiedFail(btn) { btn.textContent = 'Copy failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 1200); }
+// Back to the button's OWN label (Copy, Copy text, Copy rich, in the UI language), never a
+// hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
+function copiedFail(btn) {
+  if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
+  btn.textContent = 'Copy failed';
+  setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
+}
 
 // Styled-clipboard support is probed, never assumed: a write of an HTML+plain ClipboardItem only
 // exists on some browsers/contexts. Where it is missing, no rich button is offered at all -- the
@@ -3805,6 +3827,51 @@ function renderRichText(el, text) {
     || isTableRow(line) || /^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line)
   );
 
+  // One list item: indent width, ordered or not, the number it carries (ordered only), its text.
+  const listItemAt = (line) => {
+    const o = line.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
+    if (o) return { indent: o[1].length, ordered: true, num: parseInt(o[2], 10), text: o[3] };
+    const b = line.match(/^(\s*)[-*+]\s+(.*)$/);
+    if (b) return { indent: b[1].length, ordered: false, num: 0, text: b[2] };
+    return null;
+  };
+  // A whole list from line `start`. Three shapes used to break one list into many: a blank line
+  // between items (a "loose" list), a sub-bullet indented under an item, and a list resumed after
+  // something in between. Each piece became its own <ol>, every one restarting at 1, so a numbered
+  // answer read "1. 1. 1.". Blank lines and deeper-indented items now stay inside the list, and an
+  // ordered list keeps the number it was written with (`start`), so a resumed list continues.
+  const parseList = (start) => {
+    const first = listItemAt(lines[start]);
+    const base = first.indent;
+    const sameList = (it) => it && it.ordered === first.ordered && it.indent <= base + 1 && it.indent >= base - 1;
+    const nested = (it) => it && it.indent > base + 1;
+    const blankRunEnd = (from) => { let k = from; while (k < lines.length && !lines[k].trim()) k += 1; return k; };
+    const items = [];
+    let j = start;
+    while (j < lines.length) {
+      const it = listItemAt(lines[j]);
+      if (!sameList(it)) break;
+      const parts = [it.text];
+      let inner = '';
+      j += 1;
+      while (j < lines.length) {
+        // A wrapped continuation line belongs to the item it follows, not to a new paragraph.
+        if (/^\s{2,}\S/.test(lines[j]) && !isBlockStart(lines[j])) { parts.push(lines[j].trim()); j += 1; continue; }
+        // A deeper-indented item, directly below or after blank lines, is a sub-list of this item.
+        const k = blankRunEnd(j);
+        if (k < lines.length && nested(listItemAt(lines[k]))) { const sub = parseList(k); inner += sub.html; j = sub.next; continue; }
+        break;
+      }
+      items.push('<li>' + renderInline(parts.join(' ')) + inner + '</li>');
+      // Blank lines end the list only when what follows them is not its next item.
+      const k = blankRunEnd(j);
+      if (k > j && k < lines.length && sameList(listItemAt(lines[k]))) j = k;
+    }
+    const tag = first.ordered ? 'ol' : 'ul';
+    const startAttr = first.ordered && first.num !== 1 ? ' start="' + first.num + '"' : '';
+    return { html: '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>', next: j };
+  };
+
   while (i < lines.length) {
     const line = lines[i];
 
@@ -3884,25 +3951,10 @@ function renderRichText(el, text) {
       continue;
     }
 
-    const bullet = line.match(/^(\s*)[-*+]\s+(.*)$/);
-    const numbered = line.match(/^(\s*)\d+[.)]\s+(.*)$/);
-    if (bullet || numbered) {
-      const ordered = !!numbered;
-      const items = [];
-      while (i < lines.length) {
-        const m = ordered ? lines[i].match(/^(\s*)\d+[.)]\s+(.*)$/) : lines[i].match(/^(\s*)[-*+]\s+(.*)$/);
-        if (!m) break;
-        const parts = [m[2]];
-        i += 1;
-        // A wrapped continuation line belongs to the item it follows, not to a new paragraph.
-        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !isBlockStart(lines[i])) {
-          parts.push(lines[i].trim());
-          i += 1;
-        }
-        items.push('<li>' + renderInline(parts.join(' ')) + '</li>');
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      out.push('<' + tag + ' class="chat-list">' + items.join('') + '</' + tag + '>');
+    if (listItemAt(line)) {
+      const list = parseList(i);
+      out.push(list.html);
+      i = list.next;
       continue;
     }
 
@@ -3970,7 +4022,31 @@ function renderAssistantContent(el, text, displayMetadata) {
 // render the document it is given: the record label names the server state, missing evidence renders as
 // missing, and a message with no request id (legacy rows, replay frames) gets no chip at all —
 // an absent identity is never invented, and an unbound answer never borrows another turn's proof.
+// "Report" and the thumbs-down sit beside Copy on every saved answer. Both open the same
+// wrong-answer report for THIS answer (its chat + request id); nothing is stored or sent by
+// pressing them -- the report is a local draft the person previews and approves first.
+function mountAnswerReport(host, chatId, requestId) {
+  if (!host || !chatId || !requestId || host.querySelector('.msg-report')) return;
+  const actions = host.querySelector('.msg-actions');
+  if (!actions) return;
+  host.dataset.requestId = requestId; host.dataset.chatId = chatId;
+  const report = document.createElement('button');
+  report.type = 'button'; report.className = 'msg-act msg-report';
+  report.textContent = 'Report';
+  report.title = 'Report a wrong answer or a problem with this answer';
+  report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
+  const down = document.createElement('button');
+  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
+  down.textContent = '\u{1F44E}';
+  down.title = 'Bad answer \u2014 report it'; down.setAttribute('aria-label', down.title);
+  down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
+  const pin = actions.querySelector('.msg-pin');
+  actions.insertBefore(report, pin || null);
+  actions.insertBefore(down, pin || null);
+}
+
 function mountAnswerExport(host, chatId, requestId) {
+  if (typeof mountAnswerReport === 'function') mountAnswerReport(host, chatId, requestId);
   if (!host || !chatId || !requestId || host.querySelector('.msg-export-pdf')) return;
   const actions = host.querySelector('.msg-actions');
   if (!actions) return;
@@ -9542,6 +9618,207 @@ function openBugReport(prefill) {
   loadBugReportCandidates(prefill && prefill.turnId ? prefill.turnId : '');
 }
 function closeBugReport() { if (bugReportOverlay) bugReportOverlay.hidden = true; }
+
+// ---- Wrong-answer report: one answer, chosen by the person -------------------------
+const BR_REASONS = [
+  ['wrong', 'Wrong or made up'], ['outdated', 'Out of date'], ['not_what_i_asked', "Didn't do what I asked"],
+  ['unsafe', 'Unsafe or rude'], ['other', 'Other'],
+];
+function openAnswerReport(ref) {
+  if (!bugReportOverlay || !ref || !ref.requestId) return;
+  hideSelectionBar();
+  bugReportOverlay.hidden = false;
+  brFlow.step = 'answer'; brFlow.reportId = null; brFlow.preview = null; brFlow.approved = false;
+  brFlow.removedFields = []; brFlow.removedAttachments = [];
+  brFlow.answerRef = { chatId: ref.chatId || displayedChat, requestId: ref.requestId, excerpt: String(ref.excerpt || ''), reason: ref.reason || 'wrong' };
+  brLoadDefaultDestination().then(renderAnswerReportForm);
+}
+
+function renderAnswerReportForm() {
+  const ref = brFlow.answerRef || {};
+  const excerptHtml = ref.excerpt
+    ? '<div class="br-excerpt" id="brExcerpt">' + esc(ref.excerpt.slice(0, 2000)) + '</div>'
+    : '<p class="br-status" id="brExcerpt">The whole answer will be quoted. To quote only part of it, highlight that part in the chat and press Report.</p>';
+  bugReportBody.innerHTML =
+    '<p class="br-status"><b>Report this answer.</b> Nothing is sent yet: you will see the exact report before anything leaves your computer.</p>' +
+    '<div class="br-field"><label>What will be quoted</label>' + excerptHtml + '</div>' +
+    '<div class="br-field br-reasons" role="radiogroup" aria-label="What was wrong"><label>What was wrong?</label>' +
+    BR_REASONS.map((r) => '<label><input type="radio" name="brReason" value="' + r[0] + '"' + (r[0] === ref.reason ? ' checked' : '') + '> ' + esc(r[1]) + '</label>').join('') + '</div>' +
+    '<div class="br-field"><label>Tell us more (optional)</label><textarea id="brWrong" placeholder="The total should be 3,000, not 5,000."></textarea></div>' +
+    '<div class="br-field"><label>What should it have said? (optional)</label><textarea id="brShould"></textarea></div>' +
+    '<label class="set-row"><input type="checkbox" id="brIncludeQuestion"> Include my question (off by default &mdash; check it in the preview)</label>' +
+    '<label class="set-row"><input type="checkbox" id="brIncludeReceipt" checked> Include the answer&rsquo;s receipt (model, tokens, time, steps &mdash; no content)</label>' +
+    '<p class="br-note">We remove keys, passwords, PINs, card, bank and phone numbers, emails, wallet addresses, your user name and computer name. We can&rsquo;t spot names you typed, so read the preview. Your computer&rsquo;s specs (OS, chip, memory, GPU) and the model used are added to help us investigate.</p>' +
+    '<div class="br-actions"><button type="button" id="brCreateAnswerDraft" class="set-btn primary">Build the report</button>' +
+    '<button type="button" id="brMine" class="set-btn">My reports</button></div>';
+  document.getElementById('brCreateAnswerDraft').addEventListener('click', brCreateAnswerDraft);
+  document.getElementById('brMine').addEventListener('click', renderMyReports);
+}
+
+async function brCreateAnswerDraft() {
+  const ref = brFlow.answerRef || {};
+  const picked = bugReportBody.querySelector('input[name="brReason"]:checked');
+  const body = {
+    session_id: ref.chatId || '', request_id: ref.requestId || '',
+    reason: picked ? picked.value : 'wrong',
+    excerpt: ref.excerpt || '',
+    what_was_wrong: (document.getElementById('brWrong') || {}).value || '',
+    should_have_said: (document.getElementById('brShould') || {}).value || '',
+    include_question: !!(document.getElementById('brIncludeQuestion') || {}).checked,
+    include_receipt: !!(document.getElementById('brIncludeReceipt') || {}).checked,
+  };
+  brFlow.answerRef = Object.assign({}, ref, { reason: body.reason });
+  brFlow.form = { title: '', destination: brDefaultDestination, category: 'wrong-answer', expected: body.should_have_said, actual: body.what_was_wrong, repro: '', includeError: false, includeLogs: false, includeComponents: false };
+  bugReportBody.innerHTML = '<p class="br-status">Building the report on this computer&hellip;</p>';
+  try {
+    const data = await brPost('/api/bug-report/answer-draft', body);
+    brFlow.reportId = data.report_id; brFlow.fingerprint = data.fingerprint || '';
+    brFlow.redaction = (data.draft && data.draft.redaction_summary) || null;
+    brFlow.destination = (data.draft && data.draft.destination_repo) || brDefaultDestination;
+    await renderBugReportReview();
+  } catch (e) {
+    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not build the report: ' + esc(e.message) + '</p>' +
+      '<div class="br-actions"><button type="button" class="set-btn" id="brBackAnswer">Back</button></div>';
+    document.getElementById('brBackAnswer').addEventListener('click', renderAnswerReportForm);
+  }
+}
+
+// ---- Selection bar: highlight part of an answer -> Copy or Report it ----------------
+let selBarEl = null;
+function selectionBar() {
+  if (selBarEl) return selBarEl;
+  selBarEl = document.createElement('div');
+  selBarEl.className = 'sel-bar'; selBarEl.id = 'selBar'; selBarEl.hidden = true;
+  selBarEl.setAttribute('role', 'toolbar'); selBarEl.setAttribute('aria-label', 'Selected answer text');
+  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'msg-copy'; copy.id = 'selBarCopy'; copy.textContent = 'Copy';
+  const report = document.createElement('button'); report.type = 'button'; report.className = 'msg-act'; report.id = 'selBarReport'; report.textContent = 'Report';
+  report.title = 'Report this part of the answer';
+  // mousedown would collapse the selection before click; keep it until the button acts.
+  [copy, report].forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
+  copy.addEventListener('click', () => { const s = selBarEl.dataset.text || ''; if (s) copyText(s, copy); });
+  report.addEventListener('click', () => {
+    openAnswerReport({ chatId: selBarEl.dataset.chatId, requestId: selBarEl.dataset.requestId, excerpt: selBarEl.dataset.text || '', reason: 'wrong' });
+  });
+  selBarEl.appendChild(copy); selBarEl.appendChild(report);
+  document.body.appendChild(selBarEl);
+  return selBarEl;
+}
+function hideSelectionBar() { if (selBarEl) { selBarEl.hidden = true; selBarEl.dataset.text = ''; } }
+function answerHostOf(node) {
+  const el = node && (node.nodeType === 1 ? node : node.parentElement);
+  const text = el && el.closest ? el.closest('.msg.assistant .msg-text') : null;
+  return text ? text.closest('.msg.assistant') : null;
+}
+function updateSelectionBar() {
+  const sel = window.getSelection ? window.getSelection() : null;
+  const text = sel && !sel.isCollapsed ? String(sel.toString() || '').trim() : '';
+  // The report dialog is open (the bar's own Report click ends in a mouseup): keep it hidden.
+  if (!text || (bugReportOverlay && !bugReportOverlay.hidden)) { hideSelectionBar(); return; }
+  const host = answerHostOf(sel.anchorNode);
+  // Only text inside ONE saved answer: a selection that crosses messages is not one answer.
+  if (!host || host !== answerHostOf(sel.focusNode) || !host.dataset.requestId) { hideSelectionBar(); return; }
+  const bar = selectionBar();
+  bar.dataset.text = text.slice(0, 2000);
+  bar.dataset.requestId = host.dataset.requestId;
+  bar.dataset.chatId = host.dataset.chatId || displayedChat || '';
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  bar.hidden = false;
+  const top = Math.max(6, rect.top - bar.offsetHeight - 6);
+  const left = Math.min(Math.max(6, rect.left), window.innerWidth - bar.offsetWidth - 6);
+  bar.style.top = top + 'px'; bar.style.left = left + 'px';
+}
+document.addEventListener('mouseup', () => setTimeout(updateSelectionBar, 0));
+document.addEventListener('keyup', (e) => { if (e.key === 'Escape') { hideSelectionBar(); return; } if (e.shiftKey || e.key === 'Shift') setTimeout(updateSelectionBar, 0); });
+document.addEventListener('selectionchange', () => { const s = window.getSelection ? window.getSelection() : null; if (!s || s.isCollapsed) hideSelectionBar(); });
+window.addEventListener('scroll', hideSelectionBar, true);
+
+// ---- My reports: every local draft and how it left ---------------------------------
+const BR_HOW = { browser: 'opened on GitHub', clipboard: 'copied', saved_locally: 'saved on this computer', sent_with_token: 'sent with token' };
+async function renderMyReports() {
+  bugReportBody.innerHTML = '<p class="br-status">Loading your reports&hellip;</p>';
+  let rows = [];
+  try {
+    const res = await fetch('/api/bug-report/list');
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'list unavailable');
+    rows = data.reports || [];
+  } catch (e) {
+    bugReportBody.innerHTML = '<p class="br-status br-bad">Could not load your reports: ' + esc(e.message) + '</p>';
+    return;
+  }
+  const body = rows.length ? '<table class="br-mine"><tbody>' + rows.map((r) => {
+    const how = (r.handoffs || []).map((h) => BR_HOW[h.how] || h.how).filter((v, i, a) => a.indexOf(v) === i).join(', ') || 'not sent';
+    return '<tr><td><b>' + esc(r.title || 'untitled') + '</b><br><small>' + esc(r.kind === 'wrong_answer' ? 'Wrong answer' : 'Problem') + ' &middot; ' + esc(String(r.created_at || '').replace('T', ' ').slice(0, 16)) + ' &middot; ' + esc(how) + '</small></td>' +
+      '<td><button type="button" class="set-btn br-mine-open" data-id="' + esc(r.report_id) + '">Open</button> ' +
+      '<button type="button" class="set-btn br-mine-del" data-id="' + esc(r.report_id) + '">Delete</button></td></tr>';
+  }).join('') + '</tbody></table>' : '<p class="br-status">No reports yet.</p>';
+  bugReportBody.innerHTML = '<p class="br-status"><b>My reports</b> &mdash; kept on this computer. Deleting removes the local copy; a report already filed on GitHub stays there.</p>' + body +
+    '<div class="br-actions"><button type="button" class="set-btn" id="brMineClose">Close</button></div>';
+  document.getElementById('brMineClose').addEventListener('click', closeBugReport);
+  bugReportBody.querySelectorAll('.br-mine-del').forEach((b) => b.addEventListener('click', async () => {
+    try { await brPost('/api/bug-report/delete', { report_id: b.dataset.id }); } catch (e) { toast('Delete failed: ' + e.message); }
+    renderMyReports();
+  }));
+  bugReportBody.querySelectorAll('.br-mine-open').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/bug-report/status?report_id=' + encodeURIComponent(b.dataset.id));
+      const st = await res.json();
+      if (!res.ok) throw new Error(st.error || 'not found');
+      brFlow.reportId = st.report_id; brFlow.fingerprint = st.fingerprint || ''; brFlow.destination = st.destination_repo || '';
+      brFlow.redaction = null; brFlow.approved = !!st.consent;
+      brFlow.removedFields = st.consent ? (st.consent.removed_fields || []) : [];
+      brFlow.removedAttachments = st.consent ? (st.consent.removed_attachments || []) : [];
+      await renderBugReportReview();
+    } catch (e) { toast('Could not open the report: ' + e.message); }
+  }));
+}
+
+// ---- Hand-off: open the approved report on GitHub, or copy it -----------------------
+async function brWriteClipboard(text) {
+  if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('clipboard unavailable');
+  await navigator.clipboard.writeText(text);
+}
+function brOpenExternal(url) {
+  // A plain target=_blank link: the desktop window hands it to the system browser.
+  const a = document.createElement('a');
+  a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function brOpenOnGitHub() {
+  if (!brFlow.approved) return;
+  let data;
+  try {
+    data = await brPost('/api/bug-report/handoff', { report_id: brFlow.reportId, method: 'browser' });
+  } catch (e) { toast('Could not prepare the GitHub page: ' + e.message); return; }
+  let pasteNote = '';
+  if (!data.complete) {
+    try { await brWriteClipboard(data.clipboard_text || ''); pasteNote = '<p class="br-status"><b>The report was too long for a link, so it is on your clipboard.</b> Paste it into the GitHub page.</p>'; }
+    catch (e) { pasteNote = '<p class="br-status br-bad">The report was too long for a link and the clipboard was blocked. Use &ldquo;Copy report&rdquo; or &ldquo;Save a local copy&rdquo; from the preview.</p>'; }
+  }
+  brOpenExternal(data.url);
+  bugReportBody.innerHTML =
+    '<p class="br-status br-ok"><b>GitHub opened in your browser.</b> Sign in there if asked, read the report once more, then press <b>Submit</b>. VOOL itself sent nothing.</p>' + pasteNote +
+    '<p class="br-issue"><a href="' + esc(data.url) + '" target="_blank" rel="noopener noreferrer" id="brOpenAgain">Open the GitHub page again</a> &middot; ' +
+    '<a href="' + esc(data.search_url) + '" target="_blank" rel="noopener noreferrer" id="brSearchExisting">See if someone already reported it</a></p>' +
+    '<p class="br-status">No GitHub account? Go back and use &ldquo;Copy report&rdquo; or &ldquo;Save a local copy&rdquo;.</p>' +
+    '<div class="br-actions"><button type="button" class="set-btn" id="brBackReview">Back to preview</button><button type="button" class="set-btn" id="brDoneX">Done</button></div>';
+  document.getElementById('brBackReview').addEventListener('click', renderBugReportReview);
+  document.getElementById('brDoneX').addEventListener('click', closeBugReport);
+}
+async function brCopyReport(btn) {
+  try {
+    const data = await brPost('/api/bug-report/handoff', {
+      report_id: brFlow.reportId, method: 'clipboard',
+      remove_fields: brFlow.removedFields, remove_attachments: brFlow.removedAttachments,
+    });
+    await brWriteClipboard(data.clipboard_text || '');
+    if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
+    toast('Report copied. Paste it wherever you want to send it.');
+  } catch (e) {
+    toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
+  }
+}
+
 function reportProblemForFailedRun(run) { openBugReport({ turnId: run && run.turnId ? run.turnId : '' }); }
 
 async function brPost(path, body) {
@@ -9569,6 +9846,7 @@ async function brLoadDefaultDestination() {
     const res = await fetch('/api/bug-report/destination');
     const data = await res.json();
     if (res.ok && data.ok && data.destination) brDefaultDestination = data.destination;
+    if (res.ok && data.ok) brFlow.tokenAvailable = !!data.token_available;
   } catch (e) { /* the field stays empty and the server applies its own default */ }
 }
 
@@ -9618,7 +9896,9 @@ function renderBugReportPick(selectedIdx) {
     '<div class="br-field"><label>Actual behaviour</label><textarea id="brActual">' + esc(f.actual) + '</textarea></div>' +
     '<div class="br-field"><label>Minimal reproduction &mdash; one step per line</label><textarea id="brRepro">' + esc(f.repro) + '</textarea></div>' +
     '<div class="br-actions"><button type="button" id="brCreateDraft" class="set-btn primary">Create sanitized local draft</button>' +
-    '<span class="br-status">Nothing is sent yet &mdash; a local draft is created first.</span></div>';
+    '<button type="button" id="brMine" class="set-btn">My reports</button>' +
+    '<span class="br-status">Nothing is sent yet &mdash; a local draft is created first.</span></div>' +
+    '<p class="br-note">Got a wrong answer? Press <b>Report</b> under that answer, or highlight the wrong part and press Report.</p>';
   brFlow.selected = selectedIdx;
   bugReportBody.querySelectorAll('.br-cand').forEach((el) => {
     const pick = () => { bugReportBody.querySelectorAll('.br-cand').forEach((x) => x.classList.remove('on')); el.classList.add('on'); brFlow.selected = Number(el.dataset.brIdx); };
@@ -9626,6 +9906,7 @@ function renderBugReportPick(selectedIdx) {
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
   });
   document.getElementById('brCreateDraft').addEventListener('click', brCreateDraft);
+  document.getElementById('brMine').addEventListener('click', renderMyReports);
 }
 
 function brCollectForm() {
@@ -9699,9 +9980,14 @@ async function renderBugReportReview() {
   const attHtml = (p.attachments || []).length
     ? (p.attachments || []).map((a) => '<label class="set-row"><input type="checkbox" class="br-rm-att" value="' + esc(a.name) + '"' + (brFlow.removedAttachments.indexOf(a.name) >= 0 ? ' checked' : '') + '> Remove ' + esc(a.name) + ' (' + esc(String(a.size_bytes)) + ' bytes)</label>').join('')
     : '<p class="br-status">No attachments.</p>';
-  const fieldOpts = ['logs', 'flags', 'repro', 'components', 'error'];
+  const fieldLabels = {
+    logs: 'event log', flags: 'feature flags', repro: 'steps', components: 'lanes / tools / models', error: 'error / stack',
+    machine: 'computer specs', health: 'health check', excerpt: 'quoted answer', question: 'my question', receipt: 'answer receipt',
+  };
+  const present = (p.fields_included || []).concat(brFlow.removedFields);
+  const fieldOpts = Object.keys(fieldLabels).filter((name) => present.indexOf(name) >= 0);
   const fieldHtml = fieldOpts.map((name) =>
-    '<label class="set-row"><input type="checkbox" class="br-rm-field" value="' + name + '"' + (brFlow.removedFields.indexOf(name) >= 0 ? ' checked' : '') + '> Remove ' + name + '</label>').join('');
+    '<label class="set-row"><input type="checkbox" class="br-rm-field" value="' + name + '"' + (brFlow.removedFields.indexOf(name) >= 0 ? ' checked' : '') + '> Remove ' + esc(fieldLabels[name]) + '</label>').join('');
   bugReportBody.innerHTML =
     '<p class="br-status">Local draft <b>' + esc(brFlow.reportId) + '</b> &middot; fingerprint <span class="br-sha">' + esc(brFlow.fingerprint) + '</span></p>' +
     '<div class="br-field"><label>Redaction summary (what was removed while building the draft)</label>' + countHtml + '</div>' +
@@ -9717,16 +10003,22 @@ async function renderBugReportReview() {
     '<button type="button" id="brEdit" class="set-btn">Edit details</button>' +
     '<button type="button" id="brApprove" class="set-btn"' + (brFlow.approved ? ' disabled' : '') + '>Approve these exact bytes</button>' +
     (brFlow.approved ? '<button type="button" id="brRevoke" class="set-btn">Withdraw approval</button>' : '') +
-    '<button type="button" id="brSubmit" class="set-btn primary"' + (brFlow.approved && !brFlow.submitting ? '' : ' disabled') + '>Submit report to GitHub</button>' +
+    '<button type="button" id="brOpenGitHub" class="set-btn primary"' + (brFlow.approved ? '' : ' disabled') + '>Open on GitHub</button>' +
+    '<button type="button" id="brCopyReport" class="set-btn">Copy report</button>' +
     '<button type="button" id="brExport" class="set-btn">Save a local copy instead</button>' +
+    (brFlow.tokenAvailable ? '<button type="button" id="brSubmit" class="set-btn"' + (brFlow.approved && !brFlow.submitting ? '' : ' disabled') + '>Send with my GitHub token</button>' : '') +
     '</div>' +
-    '<p class="br-status">Sending needs your explicit approval of these exact bytes. "Save a local copy" keeps the sanitized report on this machine &mdash; nothing is sent.</p>';
+    '<p class="br-status">Approve first, then &ldquo;Open on GitHub&rdquo; fills in a new report on GitHub in your browser &mdash; you press Submit there, and VOOL sends nothing itself. &ldquo;Copy report&rdquo; and &ldquo;Save a local copy&rdquo; never leave this computer.</p>' +
+    '<p class="br-note">We remove keys, passwords, PINs, card, bank and phone numbers, emails, wallet addresses, your user name and computer name. We can&rsquo;t spot names you typed &mdash; check the text above.</p>';
   bugReportBody.querySelectorAll('.br-rm-field').forEach((el) => el.addEventListener('change', brRemovalsChanged));
   bugReportBody.querySelectorAll('.br-rm-att').forEach((el) => el.addEventListener('change', brRemovalsChanged));
   document.getElementById('brEdit').addEventListener('click', brEditDraft);
   document.getElementById('brApprove').addEventListener('click', brApprove);
   if (document.getElementById('brRevoke')) document.getElementById('brRevoke').addEventListener('click', brRevoke);
-  document.getElementById('brSubmit').addEventListener('click', brSubmit);
+  if (document.getElementById('brSubmit')) document.getElementById('brSubmit').addEventListener('click', brSubmit);
+  document.getElementById('brOpenGitHub').addEventListener('click', brOpenOnGitHub);
+  const copyReportBtn = document.getElementById('brCopyReport');
+  copyReportBtn.addEventListener('click', () => brCopyReport(copyReportBtn));
   document.getElementById('brExport').addEventListener('click', brExport);
 }
 
@@ -9780,7 +10072,7 @@ async function brApprove() {
       confirm: true,
     });
     brFlow.approved = true;
-    toast('Approved. You can submit now.');
+    toast('Approved. Open it on GitHub, copy it, or save it.');
     await renderBugReportReview();
   } catch (e) { toast('Approval failed: ' + e.message); }
 }
@@ -11670,6 +11962,10 @@ if (updateChip) {
   updateChip.addEventListener('click', () => {
     updatePop.classList.toggle('open');   // the shell's popover convention: .open, not [hidden]
     updateChip.setAttribute('aria-expanded', String(updatePop.classList.contains('open')));
+    // The chip is the header's last control, at the window's right edge: anchored from its left
+    // (the old default) the menu ran past the window and was cut off. It is right-anchored now and
+    // clamped like every other menu, so it stays whole at any window size.
+    positionPopover(updatePop, updateChip);
   });
   document.addEventListener('click', (e) => {
     if (!updatePop.classList.contains('open')) return;

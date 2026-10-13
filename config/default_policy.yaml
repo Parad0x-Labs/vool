@@ -1,11 +1,9 @@
 system:
   advice_only_default: true
   local_only_mode: false
-  # Web access is on by default so live-data questions (weather, prices, news)
-  # get a real DuckDuckGo-backed answer instead of the model guessing. Disable
-  # with VOOL_DISABLE_WEB=1 (or VOOL_NO_WEB=1), or set this to false here.
-  # Local Only governs cloud AI/model calls and does not disable web tools.
-  allow_web_fallback: true
+  # Fresh installs require explicit web consent. Saved home policy values win
+  # on upgrades; VOOL_ENABLE_WEB=1 is an explicit operator override.
+  allow_web_fallback: false
   # Remote null:// dial is opt-in and off by default. Enable with
   # VOOL_ENABLE_NULL_DIAL=1 (or VOOL_ALLOW_NULL_DIAL=1), or set this to true
   # here, to let a null:// request reach the named agent's endpoint. Spend stays
@@ -114,7 +112,8 @@ curiosity:
 
 network:
   inbound_enabled: true
-  outbound_enabled: true
+  # Automatic outbound work starts off. The operator can enable it in Settings.
+  outbound_enabled: false
   max_peers: 64
   max_requests_per_minute_per_peer: 30
   max_failed_messages_before_quarantine: 3

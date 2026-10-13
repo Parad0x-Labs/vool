@@ -195,3 +195,94 @@ draft form holds the user's own typing in textarea state (their words, not diagn
 entry is the failed-card button (the sidebar is off-canvas under 720 px, by the page's existing
 design); `reportProblemForFailedRun` appears on cards of live failures only — reloaded history
 renders text, not cards, so the sidebar/settings entries are the durable affordances there.
+
+---
+
+## Amendment 2 (2026-10-12): wrong-answer reports, browser hand-off, public reports repo
+
+**Where reports go.** The built-in destination is now the public repository
+`Parad0x-Labs/vool-reports` (`core/bug_report/destination.py`). The earlier default was a private
+repository that ordinary users could not open, so a report could never reach it.
+
+**Sending without a token.** After approval, **Open on GitHub** (`POST /api/bug-report/handoff`,
+`method: "browser"`) turns the approved bytes into a prefilled new-issue link
+(`core/bug_report/handoff.py`). For the built-in repository the link fills the issue form's single
+`report` field (`template=wrong_answer.yml` / `bug_report.yml`); any other repository gets `body=`.
+VOOL opens the link in the user's browser and makes no request itself: the person reads the
+report there and presses GitHub's own Submit. A link longer than 7,500 characters carries the title
+only and the report goes to the clipboard. The same consent rule applies as for sending: no approval
+means 409, and a payload hash that changed since approval means 409. **Copy report**
+(`method: "clipboard"`) and **Save a local copy** need no approval because nothing leaves the machine.
+Sending with `NULLA_BUG_REPORT_GITHUB_TOKEN` still works and is shown only when a token is configured
+(`token_available` on `GET /api/bug-report/destination`, which reports a boolean only).
+
+**Wrong-answer reports.** Every saved answer has **Report** and 👎 next to Copy. Highlighting text
+inside one answer shows a small Copy / Report bar. Both open a form with:
+- the quote (the selected part, or the whole answer);
+- a reason (wrong, outdated, not what I asked, unsafe, other);
+- optional notes;
+- "include my question", which is **off** by default;
+- "include the receipt", which is on by default.
+
+`POST /api/bug-report/answer-draft` re-reads the answer on the server from the (chat, answer id) pair,
+through the same availability gate as transcript reading and export (`core/bug_report/answer.py`):
+- an answer that was forgotten or withheld is refused (404);
+- an excerpt that is not part of that answer is refused (400);
+- the browser never supplies the answer text.
+
+The receipt is the turn's own records from `core.proof_projection.build_turn_proof` plus typed fault
+codes: record state, model, provider, actions (name, kind, status), tokens, time, source count and
+integrity checks. A missing record shows as `unknown`.
+
+**Machine and health** (`core/bug_report/machine.py`):
+- OS release, chip, cores, RAM, GPU and its memory, the local model server version, and the install kind;
+- a health snapshot: whether the local model server answers on loopback, the installed model count,
+  whether the report's model is installed, free disk as a range, and providers cut off.
+
+Hostname, user name, serials and network addresses are never collected. Each value can be removed in
+the preview like any other field.
+
+**Wider scrubbing**, applied to every free-text field and every outbound byte, with scanner checks
+that refuse to send a match:
+- card numbers (Luhn-checked);
+- IBANs (mod-97 checked);
+- PINs, CVVs and one-time codes next to their label;
+- international and labelled phone numbers;
+- EVM, bech32 and base58 wallet addresses;
+- the local user name, computer name and home folder;
+- the personal values saved in the operator profile.
+
+Model ids such as `qwen3:8b` are now accepted as identifiers instead of being dropped.
+
+**My reports** (`GET /api/bug-report/list`, `POST /api/bug-report/delete`) lists local drafts and
+how each one left: opened on GitHub, copied, saved, or sent with a token. Drafts can be deleted.
+
+**CLI:**
+- `vool bug-report answer --session … --request-id … --reason …` creates an answer draft;
+- `vool bug-report open` prints the GitHub link and needs approval, like `submit`;
+- `vool bug-report list` shows the local drafts.
+
+**Report schema v2.** Drafts gain `kind`, `machine`, `health` and `answer`. Version-1 drafts still
+load, and unknown keys are still refused.
+
+**Proof:**
+- `tests/test_bug_report_answer_reports.py` (19 tests, network transport made to raise) plus the
+  existing bug-report suites;
+- a real-browser walk-through of `/chat` at 1280×800 and 390×844 on a seeded answer whose question
+  held a PIN, a home path and the machine's hostname, and whose answer held a phone number. It
+  covered:
+  - the Report and 👎 buttons are present;
+  - highlighting shows the bar, and the quote is prefilled;
+  - the question checkbox is off;
+  - the preview contains none of the seeded private values;
+  - Open on GitHub stays disabled until approval, then opens
+    `…/vool-reports/issues/new?template=wrong_answer.yml…` (intercepted, not sent).
+
+**Risks (additions to §4):**
+- GitHub stores issue edit history. A private detail the user typed and the reports repo's bot later
+  masks stays in that history until a maintainer deletes the revision; the bot labels such issues
+  `needs-scrub`.
+- Wrong-answer quotes are the user's own chat content by design. Scrubbing covers the patterns above,
+  not names or facts typed in prose, so the preview remains the control.
+- The browser hand-off depends on GitHub's issue-form prefill parameters. If they change, the link
+  still opens the right form, and the clipboard fallback carries the report.

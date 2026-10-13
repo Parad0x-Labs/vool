@@ -499,6 +499,14 @@ def _provider_scope():
     return named_background_effect_scope("operator.calendar_provider")
 
 
+def _readable_settings_calendars() -> bool:
+    """True when Settings has a readable calendar chosen (reads work) though no write target is."""
+    try:
+        return calendar_provider.load_read_provider_config(env={}) is not None
+    except Exception:
+        return False
+
+
 def _provider_adapter_or_refusal(action: str, *, read_only: bool = False):
     from core.operator.calendar_agenda import SelectionsUnavailableError
 
@@ -512,6 +520,8 @@ def _provider_adapter_or_refusal(action: str, *, read_only: bool = False):
             details={"reason": "selections_unavailable"},
         )
     if config is None:
+        if not read_only and _readable_settings_calendars():
+            return None, calendar_provider.missing_write_calendar_result(action)
         return None, calendar_provider.missing_configuration_result(action)
     with _provider_scope():
         try:

@@ -533,6 +533,10 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
             )
 
     if source == "selected_model_blocked" and details.get("model_was_attempted"):
+        failure = details.get("provider_failure") or {}
+        if failure.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
+            name = str(details.get("requested_model") or "Selected model")
+            return f"I couldn't get a usable model response: `{name}` did not return a usable reply. No cached or remembered text was substituted. Retry the turn."
         error = str(details.get("block_reason") or details.get("reason") or "")
         if _is_http_rate_limit(error):
             name = str(details.get("requested_model") or "Selected model")
@@ -551,7 +555,9 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
             name = provider_id.split(":", 1)[-1]
         error = str(timing.get("error") or (reasons[index] if index < len(reasons) else ""))
         lowered = error.casefold()
-        if _is_http_rate_limit(error):
+        if timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE":
+            kind = "did not return a usable reply"
+        elif _is_http_rate_limit(error):
             kind = "was refused by its provider with HTTP 429 (rate limit)"
         elif "model_load_gated_low_memory" in lowered or "low_memory" in lowered:
             kind = "was blocked by the local memory-safety admission gate"
@@ -571,7 +577,10 @@ def _typed_model_runtime_failure_hint(model_execution: Any) -> str:
         summary = clauses[0]
     else:
         summary = "; ".join(clauses[:-1]) + f"; fallback `{attempts[-1][0]}` {attempts[-1][1]}"
-    return f"{summary}. No cached or remembered text was substituted. Retry the turn."
+    prefix = "I couldn't get a usable model response: " if any(
+        timing.get("error_class") == "EMPTY_PROVIDER_RESPONSE" for timing in timings
+    ) else ""
+    return f"{prefix}{summary}. No cached or remembered text was substituted. Retry the turn."
 
 
 def _single_candidate_failure_hint(model_execution: Any) -> str:
