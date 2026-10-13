@@ -200,7 +200,9 @@ def test_a_measured_node_is_still_bounded_at_measured_times_margin(tmp_path):
         budgets={"test_sample.py": 2.0},
     )
     assert result.returncode == 124, result.stdout + result.stderr
-    assert evidence["timed_out"] and evidence["wall_seconds"] < 6
+    # The bound is measured on the supervisor's stall clock: wall time also holds interpreter
+    # startup, which has its own bound and is not part of the phase being bounded here.
+    assert evidence["timed_out"] and evidence["stalled_seconds"] < 6
     assert "exceeded 3s" in result.stdout
 
 
@@ -210,7 +212,7 @@ def test_an_unmeasured_node_keeps_the_base_bound_even_with_budgets_present(tmp_p
         budgets={"some/other_file.py": 60.0},
     )
     assert result.returncode == 124, result.stdout + result.stderr
-    assert evidence["timed_out"] and evidence["wall_seconds"] < 3
+    assert evidence["timed_out"] and evidence["stalled_seconds"] < 3
     assert "exceeded 0.8s" in result.stdout
 
 
@@ -220,7 +222,8 @@ def test_a_missing_budgets_file_degrades_to_the_base_bound(tmp_path):
         extra_watchdog_args=["--node-budgets", str(tmp_path / "absent.json")],
     )
     assert result.returncode == 124, result.stdout + result.stderr
-    assert evidence["timed_out"] and evidence["wall_seconds"] < 3
+    assert evidence["timed_out"] and evidence["stalled_seconds"] < 3
+    assert "exceeded 0.8s" in result.stdout
 
 
 def test_budget_loading_and_effective_bounds(tmp_path):
@@ -248,3 +251,53 @@ def test_budget_loading_and_effective_bounds(tmp_path):
     assert _effective_phase_timeout(600, budgets, 1.5, "other.py::test_t") == 600
     assert _effective_phase_timeout(600, {}, 1.5, "a/test_x.py::test_t") == 600
     assert _effective_phase_timeout(600, budgets, 1.5, "") == 600
+
+
+# --- startup has its own bound ---------------------------------------------------------------
+
+
+def test_slow_startup_is_not_charged_to_the_phase_budget(tmp_path):
+    """Interpreter start, pytest import, plugin and initial-conftest loading happen before the
+    child can report any phase. On a loaded host that alone took longer than the 0.8s and 2s
+    phase budgets these tests use (re-audit: six controls died as "startup / plugin loading
+    exceeded 0.8s" before reaching the phase they test). The initial conftest's 1.5s import
+    stands in for that slow startup: it must not be a stall under a 0.8s PHASE budget."""
+    result, evidence, _ = _run(
+        tmp_path, "def test_ok(): pass\n", timeout=0.8,
+        conftest="import time\ntime.sleep(1.5)\n",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert evidence["complete"] and not evidence["timed_out"]
+    assert "1 passed" in result.stdout
+
+
+def test_a_hung_startup_is_still_red_at_its_own_bound(tmp_path):
+    result, evidence, _ = _run(
+        tmp_path, "def test_ok(): pass\n", timeout=0.8,
+        conftest="import time\ntime.sleep(30)\n",
+        extra_watchdog_args=["--startup-timeout", "1.5"],
+    )
+    assert result.returncode == 124, result.stdout + result.stderr
+    assert evidence["timed_out"] and not evidence["complete"]
+    assert evidence["last_progress"]["phase"] == "startup / plugin loading"
+    assert "exceeded 1.5s" in result.stdout
+    assert evidence["wall_seconds"] < 8
+
+
+def test_the_startup_bound_never_falls_below_the_phase_bound(tmp_path):
+    from ops.pytest_watchdog import _startup_timeout
+
+    assert _startup_timeout(None, 600) == 600
+    assert _startup_timeout(None, 120) == 120
+    assert _startup_timeout(None, 0.8) == 60
+    assert _startup_timeout(1.5, 0.8) == 1.5
+    assert _startup_timeout(5, 600) == 5
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf"])
+def test_an_invalid_startup_bound_is_refused(tmp_path, value):
+    command = [sys.executable, str(WATCHDOG), "--phase-timeout", "2", "--startup-timeout", value,
+               "--output", str(tmp_path / "out"), "--", sys.executable, "-c", "pass"]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 2
+    assert "startup timeout must be positive and finite" in result.stderr
