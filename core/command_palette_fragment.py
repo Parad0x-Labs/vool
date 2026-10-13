@@ -83,6 +83,19 @@ function loadRegistry(){
   fetchJson('/api/commands/schema').then(function(data){ SCHEMA = data || null; });
 }
 function companion(){ return window.VoolCompanion || null; }
+// Every shortcut handler accepts meta OR ctrl; a label names the one the viewer's keyboard
+// carries: the ⌘ glyph on Apple platforms, Ctrl everywhere else (WebKitGTK, WebView2, browsers).
+var VP_APPLE = (function(){
+  try {
+    return /Mac|iPhone|iPad|iPod/.test(String(navigator.platform || '') || String(navigator.userAgent || ''));
+  } catch (e) { return false; }
+})();
+function vpCombo(key){ return (VP_APPLE ? '⌘' : 'Ctrl+') + key; }
+function vpKbdLabel(kbd){
+  // Registered caps are written in the Apple form ('⌘N'); only the modifier is re-labelled.
+  kbd = String(kbd || '');
+  return kbd.charAt(0) === '⌘' ? vpCombo(kbd.slice(1)) : kbd;
+}
 function register(id, label, run, kbd){
   ACTIONS.push({ id: String(id), label: String(label), run: run, kbd: kbd || '' });
 }
@@ -149,7 +162,7 @@ function renderList(){
         if (action.command) return registryRow(action.command, index);
         return '<div class="vp-item' + (index === selected ? ' vp-sel' : '') + '" role="option"' +
           ' aria-selected="' + (index === selected) + '" data-vp="' + esc(action.id) + '">' +
-          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(action.kbd) + '</span>' : '') +
+          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(vpKbdLabel(action.kbd)) + '</span>' : '') +
           '</div>';
       }).join('')
     : '<div class="vp-empty">No matching command</div>';
@@ -280,8 +293,8 @@ function isEditable(el){
 }
 function vpHintT(key, fallback){
   // The shortcut labels resolve through the page's i18n bundle; the inline English
-  // is the honest fallback until a catalog resolves them. The <kbd> key caps and the
-  // separators are structure, never translated words.
+  // is the fallback until a catalog resolves them. The <kbd> key caps (named for
+  // this platform by vpCombo) and the separators are structure, never translated words.
   try {
     if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; }
   } catch (e) {}
@@ -294,12 +307,12 @@ function vpMountHint(){
   if (!host) return;
   var hint = document.createElement('div');
   hint.id = 'vpHint';
-  hint.innerHTML = '<kbd>⌘K</kbd> ' + vpHintT('palette.hint_palette', 'palette')
-    + ' \u00b7 <kbd>⌘N</kbd> ' + vpHintT('palette.hint_new_chat', 'new chat')
-    + ' \u00b7 <kbd>⌘J</kbd> ' + vpHintT('palette.hint_activity', 'activity')
-    + ' \u00b7 <kbd>⌘/</kbd> ' + vpHintT('palette.hint_pet', 'pet appearance')
-    + ' \u00b7 <kbd>⌘F</kbd> ' + vpHintT('palette.hint_search_chats', 'search chats')
-    + ' \u00b7 <kbd>⌘,</kbd> ' + vpHintT('palette.hint_settings', 'settings')
+  hint.innerHTML = '<kbd>' + vpCombo('K') + '</kbd> ' + vpHintT('palette.hint_palette', 'palette')
+    + ' \u00b7 <kbd>' + vpCombo('N') + '</kbd> ' + vpHintT('palette.hint_new_chat', 'new chat')
+    + ' \u00b7 <kbd>' + vpCombo('J') + '</kbd> ' + vpHintT('palette.hint_activity', 'activity')
+    + ' \u00b7 <kbd>' + vpCombo('/') + '</kbd> ' + vpHintT('palette.hint_pet', 'pet appearance')
+    + ' \u00b7 <kbd>' + vpCombo('F') + '</kbd> ' + vpHintT('palette.hint_search_chats', 'search chats')
+    + ' \u00b7 <kbd>' + vpCombo(',') + '</kbd> ' + vpHintT('palette.hint_settings', 'settings')
     + ' \u00b7 <kbd>Esc</kbd> ' + vpHintT('palette.hint_esc_stop', 'stop');
   host.appendChild(hint);
 }
