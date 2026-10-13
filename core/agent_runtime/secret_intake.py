@@ -225,13 +225,53 @@ def personal_redaction_notice(kinds: tuple[str, ...]) -> str:
     )
 
 
+#: A clause boundary inside one message: a comma or semicolon, an "and (that)", or a sentence end.
+_CLAUSE_BREAK_RE = re.compile(
+    r"(\s*[,;]\s*(?:and\s+(?:that\s+)?|also\s+)?|\s+and\s+(?:that\s+|also\s+)?|(?<=[.!?])\s+)",
+    re.IGNORECASE,
+)
+#: The ask in front of a statement ("Remember that ..."). It belongs to the statement, not to the secret.
+_STATEMENT_LEAD_RE = re.compile(
+    r"^(?:please\s+)?(?:remember|note|save|store|keep\s+in\s+mind|don'?t\s+forget|memori[sz]e)(?:\s+that)?\s+",
+    re.IGNORECASE,
+)
+_PERSONAL_MARKERS = ("[redacted]", "[redacted-card-number]")
+
+
+def _without_personal_secret_clauses(remainder: str) -> str:
+    """The masked remainder without the clauses that only carried a PIN, card number or password.
+
+    Measured on a v0.7.1 film build: "Remember that my bank card PIN is 4821." answered "I didn't save
+    your PIN ..." AND "Locked in. I'll remember that.", because the masked sentence still read as a
+    statement to remember. The clause that held the secret has nothing left to keep; every other clause
+    stays, and an ask in front of a dropped clause moves to the next kept one."""
+    pieces = _CLAUSE_BREAK_RE.split(remainder)
+    clauses, breaks = pieces[0::2], pieces[1::2]
+    if not any(marker in clause for clause in clauses for marker in _PERSONAL_MARKERS):
+        return remainder
+    kept: list[str] = []
+    carried_lead = ""
+    for index, clause in enumerate(clauses):
+        if any(marker in clause for marker in _PERSONAL_MARKERS):
+            lead = _STATEMENT_LEAD_RE.match(clause)
+            if lead and not kept:
+                carried_lead = lead.group(0)
+            continue
+        if kept:
+            kept.append(breaks[index - 1])
+        elif carried_lead and not _STATEMENT_LEAD_RE.match(clause):
+            clause = carried_lead + clause
+        kept.append(clause)
+    return "".join(kept).strip()
+
+
 def _personal_redaction_intake(value: str, *, owner_local: bool) -> SecretIntake | None:
     from core.secret_redaction import redactable_personal_kinds
 
     reply = personal_redaction_notice(redactable_personal_kinds(value))
     if not reply:
         return None
-    remainder = _sanitize(value, ())
+    remainder = _without_personal_secret_clauses(_sanitize(value, ()))
     return SecretIntake(
         disposition=DISPOSITION_HANDLED if owner_local else DISPOSITION_REFUSED,
         route=ROUTE_PERSONAL_REDACTION,

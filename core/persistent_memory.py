@@ -2027,6 +2027,10 @@ def maybe_handle_memory_command(
                     )
                 )
         if added_count:
+            if (source_context or {}).get("_secret_intake_consumed"):
+                # The same reply already says a PIN, card number or password was NOT saved; a bare
+                # "I'll remember that" beside it reads as if the secret was. Say what was kept.
+                return True, f"Locked in. I’ll remember \"{'; '.join(facts).rstrip('.!?')}\"."
             return True, "Locked in. I’ll remember that."
         return True, "I already had that in memory."
 
