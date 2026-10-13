@@ -28,7 +28,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import json
-import os
 import pathlib
 import re
 import time
@@ -421,7 +420,17 @@ def _sleep(seconds: float) -> None:  # separate so tests can interrupt the wait
 
 
 def _bus_root() -> pathlib.Path:
-    return pathlib.Path(os.environ.get("VOOL_REVIEW_BUS", str(pathlib.Path.home() / "vool" / "review-bus")))
+    from core.runtime_paths import runtime_auxiliary_path, vool_env
+
+    explicit = vool_env("REVIEW_BUS")
+    return (pathlib.Path(explicit).expanduser() if explicit else
+            runtime_auxiliary_path("review-bus", legacy=pathlib.Path.home() / "vool" / "review-bus"))
+
+
+def _default_journal_path() -> pathlib.Path:
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "repl_sessions.jsonl"
 
 
 def _verdict(path: pathlib.Path) -> str | None:
@@ -582,7 +591,7 @@ def open_review(turns: list[tuple], build: str, bus: pathlib.Path | None = None,
         "",
         "Every turn of the human fuzz run. No turn has been omitted or curated.",
         f"RAW EVIDENCE (the ONLY canonical truth — this digest and transcript.md are"
-        f" navigation aids, NOT authority): {journal_path or (os.environ.get('VOOL_HOME', '/tmp/vool-kernel-repl-home') + '/repl_sessions.jsonl')}"
+        f" navigation aids, NOT authority): {journal_path or str(_default_journal_path())}"
         + (f"  ·  this run's rows carry \"run_id\": \"{run_id}\"" if run_id else "")
         + " — one JSON row per turn, each carrying the exact question, the full plain"
         " transcript (obligations, terminal state, receipts, the answer), and the"

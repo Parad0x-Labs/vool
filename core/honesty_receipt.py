@@ -265,8 +265,9 @@ def verify_honesty_chain(receipts: list[dict[str, Any]]) -> tuple[bool, str]:
 # --- Optional per-session JSONL ledger (append-only, tamper-evident by the hash chain) ---
 
 def _ledger_dir() -> Path:
-    home = os.environ.get("VOOL_HOME") or str(Path.home() / ".vool")
-    return Path(home) / "data" / "honesty_receipts"
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "data" / "honesty_receipts"
 
 
 def _ledger_path(session_id: str) -> Path:

@@ -52,7 +52,7 @@ def test_reads_plugins_and_skills(monkeypatch, tmp_path) -> None:
     assert p["category"] == "Creation"
     assert p["tools"] == ["video.generate", "video.image_to_video"]
     assert p["permissions"] == ["filesystem.write", "gpu.use"]
-    assert p["first_party"] is True  # authored by Parad0x -> gets the badge
+    assert p["first_party"] is False  # external author text is not bundled provenance
     assert p["skills"][0]["name"] == "create-product-ad"
     assert "30s product ad" in p["skills"][0]["description"]
     assert p["enabled"] is True  # nothing disabled yet -> on by default

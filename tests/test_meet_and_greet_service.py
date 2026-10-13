@@ -966,82 +966,14 @@ class MeetAndGreetServerDispatchTests(unittest.TestCase):
         self.assertIn("text/html", content_type)
         decoded = body.decode("utf-8")
         self.assertIn("VOOL Hive · Live coordination", decoded)
-        self.assertIn("Back to route index", decoded)
         self.assertIn('href="/hive?mode=overview"', decoded)
-        self.assertIn('href="/status"', decoded)
+        self.assertNotIn('href="/status"', decoded)
+        self.assertNotIn("voolbook.com", decoded)
 
-    def test_static_status_route_renders_html(self) -> None:
-        response = resolve_static_route("/status")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("VOOL Status", decoded)
-        self.assertIn("What is real. What is rough. What is not ready.", decoded)
-
-    def test_static_root_route_renders_landing_page(self) -> None:
-        response = resolve_static_route("/")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("One system. One lane.", decoded)
-        self.assertIn("Get VOOL", decoded)
-        self.assertIn('href="/feed"', decoded)
-        self.assertIn('href="/hive"', decoded)
-        self.assertNotIn("VOOL Brain Hive", decoded)
-
-    def test_static_feed_route_renders_feed_surface(self) -> None:
-        response = resolve_static_route("/feed")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("let activeTab = 'feed'", decoded)
-        self.assertIn("window.location.origin + '/feed?post='", decoded)
-
-    def test_static_agents_route_renders_agents_surface(self) -> None:
-        response = resolve_static_route("/agents")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("let activeTab = 'agents'", decoded)
-        self.assertIn('href="/feed"', decoded)
-
-    def test_static_tasks_route_renders_tasks_surface(self) -> None:
-        response = resolve_static_route("/tasks")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("let activeTab = 'tasks'", decoded)
-        self.assertIn("No task activity", decoded)
-
-    def test_static_proof_route_renders_proof_surface(self) -> None:
-        response = resolve_static_route("/proof")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("let activeTab = 'proof'", decoded)
-        self.assertIn("Verified work", decoded)
-
-    def test_static_agent_route_renders_profile_surface(self) -> None:
-        response = resolve_static_route("/agent/TestBot")
-        self.assertIsNotNone(response)
-        status_code, content_type, body = response or (500, "", b"")
-        self.assertEqual(status_code, 200)
-        self.assertIn("text/html", content_type)
-        decoded = body.decode("utf-8")
-        self.assertIn("/v1/voolbook/profile/", decoded)
-        self.assertIn("Public summary", decoded)
+    def test_retired_public_site_routes_are_not_served(self) -> None:
+        for path in ("/", "/status", "/voolbook", "/feed", "/tasks", "/agents", "/proof", "/agent/TestBot"):
+            with self.subTest(path=path):
+                self.assertIsNone(resolve_static_route(path))
 
     def test_static_task_route_renders_topic_surface(self) -> None:
         response = resolve_static_route("/task/topic-123")
@@ -1880,7 +1812,7 @@ class MeetAndGreetServerDispatchTests(unittest.TestCase):
         thread.start()
         try:
             host, port = server.server_address
-            for path in ("/v1/health", "/v1/readyz", "/", "/feed", "/tasks", "/agents", "/proof", "/hive", "/brain-hive"):
+            for path in ("/v1/health", "/v1/readyz", "/hive", "/brain-hive"):
                 with self.subTest(path=path):
                     conn = http.client.HTTPConnection(host, port, timeout=5)
                     conn.request("HEAD", path)
@@ -1890,6 +1822,15 @@ class MeetAndGreetServerDispatchTests(unittest.TestCase):
                     self.assertEqual(body, b"")
                     self.assertGreater(int(response.getheader("Content-Length") or "0"), 0)
                     conn.close()
+            for path in ("/", "/status", "/voolbook", "/feed", "/tasks", "/agents", "/proof", "/agent/TestBot"):
+                for method in ("GET", "HEAD"):
+                    with self.subTest(path=path, method=method):
+                        conn = http.client.HTTPConnection(host, port, timeout=5)
+                        conn.request(method, path)
+                        response = conn.getresponse()
+                        response.read()
+                        self.assertEqual(response.status, 404)
+                        conn.close()
         finally:
             server.shutdown()
             server.server_close()

@@ -84,6 +84,8 @@ class _Drive:
         self.gate_log = tmp_path / "gate.log"
         env_extra = {
             "PYTHONPATH": os.pathsep.join([str(SHIM), str(rig.REPO_ROOT), str(rig.READER_DEPS)]),
+            # These controlled evidence tests explicitly opt in to web retrieval.
+            "VOOL_ENABLE_WEB": "1",
             "VOOL_FIXTURE_TRANSPORT_MANIFEST": str(manifest),
             "VOOL_FIXTURE_TRANSPORT_LOG": str(self.transport_log),
             "VOOL_FIXTURE_GATE_LOG": str(self.gate_log),

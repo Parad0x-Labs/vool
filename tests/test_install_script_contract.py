@@ -212,7 +212,9 @@ def test_background_processes_run_without_visible_console_windows() -> None:
 
     # API server: pythonw.exe (no console) + log redirect, so no window in the taskbar.
     assert 'set "PYTHONW_EXE=%SCRIPT_ROOT%\\.venv\\Scripts\\pythonw.exe"' in start_launcher
-    assert '"%PYTHONW_EXE%" -m apps.vool_api_server >> "%TEMP%\\vool_api_server.log" 2>&1' in start_launcher
+    assert 'set "VOOL_LOG_DIR=%VOOL_HOME%\\logs"' in start_launcher
+    assert '"%PYTHONW_EXE%" -m apps.vool_api_server >> "%VOOL_LOG_DIR%\\vool_api_server.log" 2>&1' in start_launcher
+    assert '%TEMP%\\vool_api_server.log' not in start_launcher
 
     # OpenClaw retirement: no gateway is started, so its hidden-task env var is not set anywhere.
     assert "OPENCLAW_WINDOWS_TASK_HIDDEN_LAUNCHER" not in openclaw_launcher

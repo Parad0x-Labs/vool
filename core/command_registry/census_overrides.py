@@ -91,6 +91,8 @@ _ADAPTERS: dict[str, str] = {
     # search routes
     "http:GET:/api/search/providers": "search.providers",
     "http:POST:/api/search/test": "search.test",
+    "http:POST:/api/chain/test": "chain.test",
+    "http:POST:/api/x/setup": "x.setup",
     # memory + tasks
     "http:POST:/api/memory/forget": "memory.forget",
     "http:POST:/api/task/recovery": "tasks.recovery",
@@ -106,6 +108,8 @@ _EXTERNAL: dict[str, str] = {
     "cli-script:vool-meet": "meet satellite entry point",
     "cli-script:vool-watch": "watch satellite entry point",
     "cli-script:vool-benchmark": "developer benchmark tool",
+    "cli-script:vool-community": "registry author SDK (local lint/pack/check; no remote writes)",
+    "cli-script:vool-registry": "registry service operator entry point",
     "cli-vool:up": "OS launcher (starts services)",
     # -- wallet / commercial lane (P1 goal exclusion) -------------------------
     "cli-vool:wallet-init": "wallet lane (goal exclusion: wallet)",
@@ -340,6 +344,13 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/bug-report/destination": "bug-report lane read feed (destination state)",
     "http:POST:/api/bug-report/export": "bug-report lane operator action (local sanitized export)",
     "http:POST:/api/bug-report/revoke": "bug-report lane operator action (draft revocation)",
+    "http:POST:/api/bug-report/answer-draft": "bug-report lane operator action (wrong-answer draft)",
+    "http:POST:/api/bug-report/handoff": "bug-report lane operator action (browser/clipboard hand-off)",
+    "http:POST:/api/bug-report/delete": "bug-report lane operator action (delete a local draft)",
+    "http:GET:/api/bug-report/list": "bug-report lane read feed (my reports)",
+    "cli-vool:bug-report.answer": "bug-report lane operator action (wrong-answer draft)",
+    "cli-vool:bug-report.open": "bug-report lane operator action (browser/clipboard hand-off)",
+    "cli-vool:bug-report.list": "bug-report lane read (my reports)",
     "cli-vool:bug-report.export": "bug-report lane operator action (local sanitized export)",
     "cli-vool:bug-report.revoke": "bug-report lane operator action (draft revocation)",
     "cli-vool:bug-report.destination": "bug-report lane read (destination state)",

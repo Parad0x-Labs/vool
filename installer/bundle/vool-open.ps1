@@ -17,7 +17,11 @@ $edge = @(
   "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($edge) {
-  $profileDir = Join-Path $env:LOCALAPPDATA 'VOOL\browser'
+  $runtimeHome = $env:VOOL_HOME
+  if (-not $runtimeHome) { $runtimeHome = $env:NULLA_HOME }
+  if (-not $runtimeHome) { $runtimeHome = Join-Path $env:LOCALAPPDATA 'VOOL' }
+  $profileDir = Join-Path $runtimeHome 'browser'
+  New-Item -ItemType Directory -Force -Path $profileDir -ErrorAction Stop | Out-Null
   Start-Process -FilePath $edge -ArgumentList `
     "--app=$url", "--user-data-dir=`"$profileDir`"", "--no-first-run", "--no-default-browser-check", "--window-size=1220,860"
 } else {

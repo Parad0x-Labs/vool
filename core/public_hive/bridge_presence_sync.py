@@ -13,7 +13,10 @@ class PublicHiveBridgePresenceSyncMixin:
         capabilities: list[str],
         status: str = "idle",
         transport_mode: str = "vool_agent",
+        allow_outbound: bool = True,
     ) -> dict[str, Any]:
+        if allow_outbound is not True:
+            return {"ok": False, "status": "disabled_by_policy", "posted_to": [], "errors": []}
         return public_hive_presence.sync_presence(
             self,
             agent_name=agent_name,

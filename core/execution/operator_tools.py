@@ -79,6 +79,10 @@ def execute_operator_tool(
     )
 
 
+#: Operator tools whose contract input is ``{"text": "the request as written"}``.
+_REQUEST_TEXT_KINDS = frozenset({"check_availability", "propose_calendar_event", "update_calendar_event", "save_note"})
+
+
 def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) -> OperatorActionIntent:
     target_path = str(arguments.get("target_path") or arguments.get("path") or "").strip() or None
     destination_path = str(arguments.get("destination_path") or arguments.get("destination_dir") or "").strip() or None
@@ -93,6 +97,11 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         start_iso = str(arguments.get("start_iso") or "").strip()
         duration_minutes = max(15, int(arguments.get("duration_minutes") or 30))
         raw_text = f'schedule a meeting "{title}" on {start_iso} for {duration_minutes}m'.strip()
+    elif operator_kind in _REQUEST_TEXT_KINDS:
+        # These contracts take the request as written (``text``) and their handlers read it the
+        # way they read a chat request. Approval is never read from it: approval_requested stays
+        # False below, so a proposal or update can only stage, never apply.
+        raw_text = str(arguments.get("text") or "").strip()
     elif operator_kind == "cleanup_temp_files" and target_path:
         raw_text = f'clean temp files in "{target_path}"'
     elif operator_kind == "inspect_disk_usage" and target_path:

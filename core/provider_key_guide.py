@@ -43,6 +43,16 @@ def provider_key_guide(locale: str = "en") -> list[dict]:
                    description=text("keyguide.provider.search.description",
                                     "Find web pages and source links for live research."), url=cfg.signup_url)
               for pid, cfg in SEARCH_PROVIDERS.items()]
+    from core.chain_providers import setup_guide
+
+    chain = []
+    for row in setup_guide():
+        pid = row["provider"]
+        steps = [text(f"keyguide.provider.{pid}.step{i}", step) for i, step in enumerate(row["steps"], start=1)]
+        notes = [text(f"keyguide.provider.{pid}.note{i}", note) for i, note in enumerate(row["notes"], start=1)]
+        chain.append(dict(provider=pid, label=row["label"], slot=row["slot"], url=row["url"],
+                          description=text(f"keyguide.provider.{pid}.description", row["description"]),
+                          steps=steps, notes=notes, chains=row["chains"]))
     return [
         dict(id="models", title=text("keyguide.models.title", "AI models"),
              description=text("keyguide.models.description",
@@ -58,4 +68,9 @@ def provider_key_guide(locale: str = "en") -> list[dict]:
                              description=text("keyguide.provider.eyebrow.description",
                                               "Check external add-on contents before installing them."),
                              url="https://eyebrow.cc/dashboard")]),
+        dict(id="chain", title=text("keyguide.chain.title", "Blockchain data"),
+             description=text("keyguide.chain.description",
+                              "Add a chain-data provider for read-only wallet, token and transaction lookups in any chat. "
+                              "These keys never sign or pay."),
+             providers=chain),
     ]

@@ -134,7 +134,9 @@ def _ollama_models_payload(
     url = resolved.rstrip("/") + path
     try:
         request = urllib.request.Request(url, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(request, timeout=float(timeout_seconds)) as response:
+        from core.provider_http import urlopen
+
+        with urlopen(request, timeout=float(timeout_seconds)) as response:
             payload = json.loads(response.read().decode("utf-8", errors="replace"))
     except (OSError, urllib.error.URLError, json.JSONDecodeError, TimeoutError):
         return None

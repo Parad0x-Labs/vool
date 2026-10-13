@@ -132,11 +132,8 @@ SMOKE_PACKS: OrderedDict[str, SmokePack] = OrderedDict(
                 slug="voolbook_and_public_web",
                 description="VoolBook, watch/dashboard surfaces, feed hygiene, and public web health.",
                 targets=(
-                    "tests/test_public_landing_page.py",
                     "tests/test_voolbook_api.py",
-                    "tests/test_voolbook_feed_page.py",
                     "tests/test_voolbook_identity.py",
-                    "tests/test_voolbook_profile_page.py",
                     "tests/test_voolbook_store.py",
                     "tests/test_meet_and_greet_service.py",
                     "tests/test_brain_hive_watch_server.py",

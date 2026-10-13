@@ -37,6 +37,11 @@ class OpenRouterModel:
     # reply, which is the failure this field exists to end. Last field with a default so the
     # keyword constructions that predate it keep building.
     max_output_tokens: int = 0
+    # The catalog's own `reasoning` block. Some endpoints make reasoning mandatory: a request that
+    # disables it is refused with HTTP 400 ("Reasoning is mandatory for this endpoint and cannot be
+    # disabled", measured 2026-10-05 on z-ai/glm-5.3-flashx). Empty efforts = none published.
+    reasoning_mandatory: bool = False
+    reasoning_efforts: tuple[str, ...] = ()
 
     def estimate_cost(self, *, input_tokens: int, output_tokens: int, retries: int = 0) -> float | None:
         """The estimated spend, or None when a price this depends on was never published.
@@ -131,6 +136,7 @@ def parse_openrouter_catalog(payload: dict[str, Any], *, fetched_at: str) -> tup
         # null` would raise on .get() and, because safe_all_models swallows the parse, drop the
         # ENTIRE catalog rather than one row. Same value for every payload the cloud adapter reads.
         top_provider = dict(item.get("top_provider") or {})
+        reasoning = item.get("reasoning") if isinstance(item.get("reasoning"), dict) else {}
         models.append(
             OpenRouterModel(
                 model_id=str(item["id"]),
@@ -144,6 +150,12 @@ def parse_openrouter_catalog(payload: dict[str, Any], *, fetched_at: str) -> tup
                 output_modalities=tuple(str(value) for value in list(architecture.get("output_modalities") or [])),
                 fetched_at=fetched_at,
                 max_output_tokens=_output_cap(top_provider.get("max_completion_tokens")),
+                reasoning_mandatory=bool(reasoning.get("mandatory") is True),
+                reasoning_efforts=tuple(
+                    str(value).strip().lower()
+                    for value in list(reasoning.get("supported_efforts") or [])
+                    if str(value).strip()
+                ),
             )
         )
     return tuple(models)

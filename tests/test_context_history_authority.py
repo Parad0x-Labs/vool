@@ -813,7 +813,7 @@ def test_stable_turn_id_dominates_unicode_text_fallback() -> None:
     assert any(message.content == "cafe\u0301" for message in messages)
 
 
-def _api_to_internal_request(current: str):
+def _api_to_internal_request(current: str, *, reused_procedures: list[dict] | None = None):
     session_id = f"openclaw:history-authority:{uuid4().hex}"
     ensure_chat_namespace(session_id)
     raw_messages = [
@@ -847,7 +847,17 @@ def _api_to_internal_request(current: str):
     }
     # These independent builds must receive the same clock input. A minute
     # rollover between them changes the system prompt without changing history.
-    with mock.patch("core.prompt_normalizer.datetime", wraps=datetime) as clock:
+    # The router adds ONE thing the normalized request does not carry: learned procedure guidance
+    # ranked from this machine's procedure store (memory_first_router "PB01 hook 1"). The store is
+    # process state, so a procedure an earlier test promoted (a write + passing run_tests, e.g.
+    # tests/test_user_rules.py) made "Run the tests." rank it, and the equality below failed only
+    # in cumulative runs. The ranker's input is pinned here: empty for the equality claim, and a
+    # known procedure in `test_learned_guidance_is_the_only_provider_addition`.
+    pinned = mock.patch(
+        "core.task_router._reused_procedure_inputs",
+        return_value={"reused_procedures": list(reused_procedures)} if reused_procedures else {},
+    )
+    with pinned, mock.patch("core.prompt_normalizer.datetime", wraps=datetime) as clock:
         clock.now.return_value = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
         internal = normalize_prompt(trace_id=task.task_id, **kwargs)
         provider_request = MemoryFirstRouter()._build_request(**kwargs)
@@ -880,6 +890,40 @@ def test_api_normalization_to_provider_boundary_keeps_one_current_turn_and_adjac
     ) == 1
     assert any(message["content"] == "What makes database indexes useful?" for message in provider_request.messages)
     assert any(message["content"] == "They trade write cost for faster selected reads." for message in provider_request.messages)
+
+
+
+def test_learned_guidance_is_the_only_provider_addition() -> None:
+    """With a learned procedure ranked for the turn, the provider request is the normalized request
+    plus exactly the bounded learned-guidance block, appended to one system message, and nothing
+    else moves: history, adjacency and the single current turn are unchanged."""
+    from core.learning_integration import bounded_guidance_entries, learned_guidance_prompt_block
+
+    procedure = {
+        "procedure_id": "procedure-fixture-run-the-tests",
+        "title": "coding_operator: validate calc.py with workspace.run_tests",
+        "preconditions": ["workspace is writable"],
+        "steps": ["write the target file", "run the bounded test command"],
+    }
+    internal, provider_request, interpretation = _api_to_internal_request(
+        "Run the tests.", reused_procedures=[procedure]
+    )
+    block = learned_guidance_prompt_block(bounded_guidance_entries([procedure]))
+    assert block
+    internal_messages = internal.as_openai_messages()
+    assert len(internal_messages) == len(provider_request.messages)
+    changed = [
+        index
+        for index, (ours, theirs) in enumerate(zip(internal_messages, provider_request.messages, strict=True))
+        if ours != theirs
+    ]
+    assert len(changed) == 1
+    ours, theirs = internal_messages[changed[0]], provider_request.messages[changed[0]]
+    assert ours["role"] == theirs["role"] == "system"
+    assert theirs["content"] == ours["content"] + "\n\n" + block
+    assert [message["content"] for message in provider_request.messages].count(
+        interpretation.normalized_text
+    ) == 1
 
 
 def test_mutating_production_continuation_false_cannot_erase_same_chat_adjacency() -> None:
