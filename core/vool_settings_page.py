@@ -943,7 +943,8 @@ _SETTINGS_HTML = r"""<!doctype html>
 <title>VOOL Settings</title>
 <style>
 .key-guide-category{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0}
-.key-guide-category summary{cursor:pointer}.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
+.key-guide-category summary{cursor:pointer}.key-guide-ico{flex:0 0 28px;width:28px;height:28px;margin-right:2px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);border:1px solid var(--border);border-radius:8px;color:var(--accent);opacity:.85}.key-guide-ico svg{width:17px;height:17px;display:block}.key-guide-category[open] .key-guide-ico,.key-guide-category summary:hover .key-guide-ico{opacity:1}
+.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
 .key-guide-provider p{margin:5px 0 0}.key-guide-provider .inline{flex-shrink:0}.key-guide-link{color:var(--accent);font-size:12px}
 @media(max-width:700px){.key-guide-provider{align-items:flex-start;flex-direction:column}.key-guide-provider .inline{flex-wrap:wrap}}
 .key-setup-dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--ink);padding:20px}.key-setup-dialog::backdrop{background:rgba(0,0,0,.45)}.key-setup-steps-list{margin:8px 0 12px;padding-left:20px;line-height:1.5}
@@ -2663,6 +2664,27 @@ function openXSetupDialog(onSaved) {
   choose();
   if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
 }
+/* Decorative line icons for the provider categories: generic shapes only (no provider marks),
+   drawn in the muted accent so the list reads livelier without adding colour. Unknown ids get a
+   plain dot so a new category still lines up. */
+const KEY_GUIDE_ICONS = {
+  models: ['M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z', 'M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'],
+  search: ['M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13z', 'M15.3 15.3L20 20'],
+  security: ['M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z', 'M9 12l2.2 2.2L15.2 10'],
+  chain: ['M4 4h7v7H4z', 'M13 13h7v7h-7z', 'M11 7.5h3.5a2 2 0 0 1 2 2V13'],
+};
+function keyGuideIcon(id) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const wrap = el('span', 'key-guide-ico'); wrap.setAttribute('aria-hidden', 'true');
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.6'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('focusable', 'false');
+  (KEY_GUIDE_ICONS[id] || ['M12 10.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3z']).forEach(d => {
+    const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); svg.appendChild(path);
+  });
+  wrap.appendChild(svg); return wrap;
+}
 function widgetProviderGuide(host) {
   const input = el('input', 'inp'); input.type = 'search';
   input.placeholder = T('keyguide.search_placeholder', 'Find a provider…'); input.setAttribute('aria-label', T('keyguide.search_aria', 'Find a provider'));
@@ -2679,7 +2701,8 @@ function widgetProviderGuide(host) {
       if (!rows.length) return;
       count += rows.length;
       const section = el('details', 'key-guide-category'); section.dataset.category = group.id; section.open = !!q;
-      section.appendChild(el('summary', 'row-label', group.title + ' · ' + rows.length));
+      const head = el('summary', 'row-label'); head.appendChild(keyGuideIcon(group.id));
+      head.appendChild(document.createTextNode(group.title + ' · ' + rows.length)); section.appendChild(head);
       section.appendChild(el('p', 'subtle', group.description));
       rows.forEach(r => {
         const card = el('div', 'key-guide-provider');
