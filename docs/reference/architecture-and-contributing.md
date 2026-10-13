@@ -38,7 +38,7 @@ Principles the code enforces:
 ## Developer setup
 
 ```bash
-git clone REPOSITORY_URL vool
+git clone https://github.com/Parad0x-Labs/vool.git
 cd vool
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
@@ -52,7 +52,7 @@ docs site).
 ## Docs: one canonical source
 
 These docs are generated from **one** source: this repository's `docs/` folder (GitBook
-layout, `.gitbook.yaml` at the repo root). vool.dev/docs is built from it. To work on docs:
+layout, `.gitbook.yaml` at the repo root). The public docs site is built from it. To work on docs:
 
 ```bash
 python3 tools/docs/build_docs.py --src . --out docs-build --base /docs

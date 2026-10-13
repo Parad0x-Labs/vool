@@ -24,7 +24,8 @@ your provider. See [Data handling](../trust/data-handling.md).
 
 ## Why does my system warn me when I open it?
 
-The current builds are unsigned and the macOS build is not notarized. See
+The macOS apps are ad-hoc signed but not notarized yet, so macOS asks you to confirm the
+first open. The steps are in [Install](../getting-started/install.md#first-open-on-a-mac). See
 [Release status](../trust/release-status.md).
 
 ## Can I use my own model?

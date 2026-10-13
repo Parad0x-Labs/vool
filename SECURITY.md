@@ -25,7 +25,7 @@ We will acknowledge receipt within 72 hours and aim to provide a fix or mitigati
 
 ### Out of scope
 
-- Vulnerabilities in third-party services (Ollama, OpenClaw) that are not caused by our integration
+- Vulnerabilities in third-party services (for example Ollama) that are not caused by our integration
 - Social engineering attacks
 - Denial-of-service attacks against individual operator deployments
 - Issues in forks or modified versions of this code
@@ -42,7 +42,7 @@ through the private channels above, never a public issue.
 
 ## Supported Versions
 
-Only the latest `main` branch is actively maintained. We do not backport fixes to older tags or branches.
+Only the latest release (currently v0.7.0-beta) and the `main` branch are actively maintained. We do not backport fixes to older tags or branches.
 
 ## Disclosure
 

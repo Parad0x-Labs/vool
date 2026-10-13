@@ -6,14 +6,15 @@ This page covers the situations that never reach a fault code.
 
 ## First open on macOS
 
-The app is **ad-hoc signed, not notarized**. On first open macOS shows "unidentified
-developer": right-click VOOL.app → **Open** → **Open** (once). This is expected for the beta;
-notarization is a pending release decision, not something this build claims.
+The app is **ad-hoc signed, not notarized**, so macOS asks you to confirm the first open.
+Double-click VOOL and click **Done**, then open **System Settings → Privacy & Security** and
+click **Open Anyway** next to VOOL. On macOS 14 you can instead Control-click VOOL.app and
+choose **Open**. You only do this once.
 
 ## First run looks frozen
 
-The first run downloads a local model (a few GB). The window can sit idle for minutes — that
-is the download, not a hang. Check progress in the runtime log under
+A local model download is a few GB, and VOOL starts one only when you allow it. While it
+runs, the window can sit idle for minutes; that is the download, not a hang. Check progress in the runtime log under
 `~/.vool_runtime/logs/` (or your install receipt's home).
 
 ## Which home is the runtime using?
@@ -40,8 +41,9 @@ That is by design: the wallet is disabled by default, and the two network enviro
 (Mainnet / Test networks) never mix — a request for a network in the other environment is
 refused with nothing created or signed. Switch deliberately in Settings → Crypto → Developer
 options. The earlier claim that "mainnet is impossible by construction" predates the Crypto
-Pilot and is no longer true: mainnet rows exist (native-coin transfers; the sole mainnet token,
-USDC on Solana, exists for the x402 payment lane only). See the
+Pilot and is no longer true: mainnet rows exist for native-coin transfers, and the sole mainnet token, USDC on Solana,
+exists for the x402 payment lane only. x402 for websites is test networks only; the model
+marketplace's pay-per-call option in Settings pays on Solana Mainnet, one approval per call. See the
 [Wallet & Web0 guide](WALLET_WEB0_GUIDE.md) for what is enabled and how.
 
 ## Reporting bugs safely

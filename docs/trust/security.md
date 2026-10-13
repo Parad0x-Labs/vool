@@ -8,7 +8,9 @@ description: How VOOL protects your files and API keys — workspace boundaries,
 
 * **The workspace** bounds file access. Outside it, the runtime cannot read or write.
 * **The credential store** holds keys. Keys are not written into config files or logs.
-* **Tool confirmation** bounds changes. Modifying actions ask before running.
+* **Tool confirmation** bounds changes. In Manual mode every change asks first; in Auto mode
+  everyday edits and commands can run automatically, while deleting, overwriting, installing,
+  spending and changing settings still ask. See [Tools](../concepts/tools.md).
 
 ## Keys
 
@@ -23,10 +25,11 @@ them worth reading before installing. See [Skills and plugins](../guides/skills-
 
 ## Reporting an issue
 
-Send security reports to `security@parad0xlabs.com`. Include the version, the platform,
-and the steps to reproduce.
+Report security issues privately through
+[GitHub Security Advisories](https://github.com/Parad0x-Labs/vool/security/advisories/new),
+never in a public issue. Include the version, the platform, and the steps to reproduce.
 
 {% hint style="warning" %}
-Current builds are beta and unsigned; the macOS build is not notarized. See
+The macOS apps are ad-hoc signed and not notarized; the Linux tarball is unsigned. See
 [Release status](release-status.md).
 {% endhint %}

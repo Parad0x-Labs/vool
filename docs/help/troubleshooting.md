@@ -6,12 +6,14 @@ description: Fixes for the problems that come up most.
 
 ## macOS refuses to open the app
 
-Expected — the build is not notarized. **System Settings → Privacy & Security → Open
-Anyway**. Check the checksum first.
+Expected: the app is not notarized yet. Check the checksum first, then open **System
+Settings → Privacy & Security** and click **Open Anyway**. On macOS 14 you can instead
+Control-click VOOL and choose **Open**.
 
-## Windows SmartScreen blocks the installer
+## Windows
 
-Expected — the build is unsigned. **More info → Run anyway**, after checking the checksum.
+There is no Windows download in this release. Windows installs from source and is
+experimental; see the [install guide](../getting-started/install.md#install-from-source).
 
 ## No local models are listed
 

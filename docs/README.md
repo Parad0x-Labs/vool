@@ -1,5 +1,5 @@
 ---
-description: VOOL is a desktop AI assistant that runs AI models locally on your computer or connects to cloud models with your own key. Free, private, for Mac, Windows and Linux.
+description: VOOL is a desktop AI assistant that runs AI models locally on your computer or connects to cloud models with your own key. Free and private. Downloads for Mac (Apple Silicon and Intel) and Linux; Windows is experimental from source.
 ---
 
 # VOOL
@@ -8,7 +8,8 @@ VOOL is a desktop AI assistant. It installs as an application on your computer a
 run AI models locally on that machine, or connect to a cloud AI provider using your own
 API key. It keeps a readable record of every action it takes.
 
-It is free, works offline with local models, and runs on macOS, Windows and Linux.
+It is free and works offline with local models. There are downloads for Macs (Apple Silicon
+and Intel) and Linux x86_64; Windows is experimental and installs from source.
 
 These docs cover installing VOOL, connecting a model, and the concepts behind how it
 handles your files, your memory, and your keys.
@@ -36,8 +37,9 @@ handles your files, your memory, and your keys.
   be read back after the fact.
 
 {% hint style="warning" %}
-VOOL for macOS is out as a beta for Apple silicon. Beta installers are unsigned and the
-macOS build is not notarized — macOS will ask you to confirm on first launch. See
+VOOL 0.7.0-beta is out for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
+are not notarized yet, so macOS asks you to confirm the first time you open one; the
+[Install](getting-started/install.md#first-open-on-a-mac) page shows how. See
 [Release status](trust/release-status.md) before installing.
 {% endhint %}
 

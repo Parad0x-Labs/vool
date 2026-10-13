@@ -6,8 +6,10 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-VOOL checks for updates in the background and **never takes the running app down**. When an
-update is ready you choose to install it; the installer is gesture-gated.
+Update checks are off on a fresh install. Press **Check for updates** to allow them; after
+that VOOL checks in the background and **never takes the running app down**. When an update
+is ready you choose to install it; the installer is gesture-gated. VOOL 0.7.0 is installed
+by download, and the first update offered this way will be 0.7.1.
 
 Every update runs a verified pipeline with automatic rollback:
 
@@ -36,5 +38,6 @@ sentence.
 ## Beta channel
 
 The current release line is a **beta** (see [Release status](../trust/release-status.md)).
-Beta updates are unsigned on macOS — the OS will ask you to confirm on first launch of each
-new version.
+Updates are signed by the pinned publisher key and checked before they install. The macOS
+app itself is ad-hoc signed and not notarized, so macOS may ask you to confirm the first
+launch of a new version.

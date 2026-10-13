@@ -50,7 +50,13 @@ attempts locks the wallet for a while — deliberately, with a stated wait.
 
 ## x402 automatic payments
 
-x402 is a per-request payment protocol some AI services speak. When a paid resource uses it:
+x402 is a per-request payment protocol some AI services speak. **For websites, 0.7.0 runs it
+on test networks only** (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet), in
+Developer options; mainnet x402 for websites is planned for 0.7.1. **One exception:** the
+pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet
+Crypto Pilot wallet in USDC or SOL. Each call waits for your approval within your wallet
+limits and shows the 0.1% VOOL fee. That path has not yet been tested on a real chain.
+When a paid resource uses x402:
 
 * Payments go through the same wallet caps and approval flow.
 * Automatic payments are capped per payment; a resource above the cap is **not paid** (you can
@@ -60,7 +66,7 @@ x402 is a per-request payment protocol some AI services speak. When a paid resou
 
 ## DNA service fee
 
-The built-in accountless x402 route charges a **10 basis point** service fee on each accepted
+The model marketplace's pay-per-call x402 route charges a **0.1% (10 basis point)** service fee on each accepted
 provider payment, shown apart from the payment and apart from the network fee. Nothing else
 acquires it: ordinary sends, wallet creation, local inference and your own API-key (BYOK)
 calls carry **no** service fee. Accrued fees are collected economically (with a later native

@@ -27,8 +27,8 @@ and identities are not published.
 
 ## Telemetry
 
-Product telemetry is off by default and is a setting you control. See
-[Configuration](../reference/configuration.md).
+VOOL sends no product telemetry. A bug report leaves your machine only when you preview
+it and choose to send it; see [Bug reporting and privacy](bug-reporting.md).
 
 ## Your provider's terms apply
 
