@@ -7638,9 +7638,9 @@ function buildAttachChip(item, opts) {
   } else {
     const ico = document.createElement('span'); ico.className = 'att-ico'; ico.textContent = item.kind === 'image' ? '\u{1F5BC}' : (item.document ? '\u{1F4CB}' : '\u{1F4C4}'); chip.appendChild(ico);
   }
-  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? 'pasted text' : 'attachment'); name.title = item.name || ''; chip.appendChild(name);
+  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? pageT('attach.pasted_text', 'pasted text') : pageT('attach.attachment', 'attachment')); name.title = item.name || ''; chip.appendChild(name);
   const meta = document.createElement('span'); meta.className = 'att-meta';
-  if (item.state === 'uploading') meta.textContent = 'uploading…';
+  if (item.state === 'uploading') meta.textContent = pageT('attach.uploading', 'uploading…');
   else if (item.document) {
     // Name, type, size and shape are the chip's whole claim about the document; what the model
     // did with it (once known) rides the same line.
@@ -7653,7 +7653,7 @@ function buildAttachChip(item, opts) {
   if (item.document && item.state !== 'failed') buildDocPreview(chip, item);
   if (opts.draft && item.document && item.state === 'ready') {
     const asMessage = document.createElement('button'); asMessage.type = 'button'; asMessage.className = 'att-as-message';
-    asMessage.textContent = 'Use as message'; asMessage.title = 'Move the full text into your editable message; nothing is sent';
+    asMessage.textContent = pageT('attach.use_as_message', 'Use as message'); asMessage.title = pageT('attach.use_as_message_title', 'Move the full text into your editable message; nothing is sent');
     asMessage.addEventListener('click', () => useDocumentAsMessage(item.localId)); chip.appendChild(asMessage);
   }
   if (opts.draft && item.kind === 'image' && item.state === 'ready') {
@@ -7661,15 +7661,15 @@ function buildAttachChip(item, opts) {
     if (warning) { const warn = document.createElement('span'); warn.className = 'att-warn'; warn.textContent = warning; chip.appendChild(warn); }
   }
   if (item.state === 'failed') {
-    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || 'Upload failed.'; chip.appendChild(err);
+    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || pageT('attach.upload_failed', 'Upload failed.'); chip.appendChild(err);
     if (item.retryable) {
-      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = 'Retry'; retry.title = 'Upload this file again';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = pageT('attach.retry', 'Retry'); retry.title = pageT('attach.retry_title', 'Upload this file again');
       retry.addEventListener('click', () => retryAttachment(item.localId));
       chip.appendChild(retry);
     }
   }
   if (opts.draft) {
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = 'Remove this attachment'; x.setAttribute('aria-label', 'Remove ' + (item.name || 'attachment'));
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = pageT('attach.remove_title', 'Remove this attachment'); x.setAttribute('aria-label', pageTF('attach.remove_aria', 'Remove {name}', { name: item.name || pageT('attach.attachment', 'attachment') }));
     x.addEventListener('click', () => removeAttachment(item.localId));
     chip.appendChild(x);
   }
@@ -7682,32 +7682,32 @@ function buildAttachChip(item, opts) {
 function buildDocPreview(chip, item) {
   const cid = String(item.sessionId || displayedChat || '');
   const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'att-expand';
-  toggle.textContent = 'Preview'; toggle.title = 'Show the beginning of this document exactly as pasted'; toggle.setAttribute('aria-expanded', 'false');
+  toggle.textContent = pageT('attach.preview', 'Preview'); toggle.title = pageT('attach.preview_title', 'Show the beginning of this document exactly as pasted'); toggle.setAttribute('aria-expanded', 'false');
   const pre = document.createElement('pre'); pre.className = 'att-preview'; pre.hidden = true;
   const more = document.createElement('span'); more.className = 'att-more'; more.hidden = true;
   let loaded = false;
   function paint(text) {
     const head = text.length > DOC_PREVIEW_CHARS ? text.slice(0, DOC_PREVIEW_CHARS) : text;
     pre.textContent = head;
-    if (text.length > head.length) { more.textContent = '… ' + (text.length - head.length).toLocaleString() + ' more characters; the whole document was kept and is what the model reads.'; more.hidden = false; }
+    if (text.length > head.length) { more.textContent = pageTF('attach.doc_more_chars', '… {n} more characters; the whole document was kept and is what the model reads.', { n: (text.length - head.length).toLocaleString(appLocale()) }); more.hidden = false; }
     else more.hidden = true;
   }
   async function load() {
     if (loaded) return;
     loaded = true;
     if (typeof item.text === 'string') { paint(item.text); return; }
-    if (!item.id) { pre.textContent = 'This document has no stored copy yet.'; return; }
+    if (!item.id) { pre.textContent = pageT('attach.doc_no_copy', 'This document has no stored copy yet.'); return; }
     try {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
-      if (r.status === 410) { pre.textContent = 'This document was erased from the chat; its name and size are all that remain.'; return; }
-      if (!r.ok) { pre.textContent = 'This document is no longer available (HTTP ' + r.status + ').'; return; }
+      if (r.status === 410) { pre.textContent = pageT('attach.doc_erased', 'This document was erased from the chat; its name and size are all that remain.'); return; }
+      if (!r.ok) { pre.textContent = pageTF('attach.doc_gone_http', 'This document is no longer available (HTTP {status}).', { status: r.status }); return; }
       paint(await r.text());
-    } catch (e) { loaded = false; pre.textContent = 'The preview could not be loaded. Check the connection and try again.'; }
+    } catch (e) { loaded = false; pre.textContent = pageT('attach.doc_preview_failed', 'The preview could not be loaded. Check the connection and try again.'); }
   }
   toggle.addEventListener('click', () => {
     const open = pre.hidden;
     pre.hidden = !open; more.hidden = !open || !more.textContent;
-    toggle.textContent = open ? 'Hide' : 'Preview';
+    toggle.textContent = open ? pageT('attach.hide', 'Hide') : pageT('attach.preview', 'Preview');
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) load();
   });
@@ -7756,7 +7756,7 @@ async function addPastedDocument(text, chatId, opts) {
   if (councilOwnsComposer()) { toast(councilLockNote); return null; }
   const cid = String(chatId || displayedChat);
   const bucket = attachBucket(cid);
-  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — the pasted text was not added.'); return null; }
+  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast(pageTF('attach.limit_no_paste', 'Up to {n} attachments per message — the pasted text was not added.', { n: ATTACH_LIMITS.max_files_per_turn })); return null; }
   const item = {
     localId: 'la-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
     file: null, bytes: null, text: text, document: true, sessionId: cid, source: opts.source === 'drop' ? 'drop' : 'paste',
@@ -7838,7 +7838,7 @@ async function addAttachmentFiles(fileList, chatId) {
   const room = ATTACH_LIMITS.max_files_per_turn - bucket.length;
   let accepted = files;
   if (files.length > room) {
-    toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — ' + (files.length - Math.max(0, room)) + ' not added.');
+    toast(pageTF('attach.limit_some_not_added', 'Up to {n} attachments per message — {count} not added.', { n: ATTACH_LIMITS.max_files_per_turn, count: files.length - Math.max(0, room) }));
     accepted = files.slice(0, Math.max(0, room));
   }
   const fresh = [];
@@ -7919,7 +7919,7 @@ async function useDocumentAsMessage(localId) {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
       if (!r.ok) throw new Error('unavailable');
       text = await r.text();
-    } catch (e) { toast('Could not load the document. It is still attached.'); return; }
+    } catch (e) { toast(pageT('attach.doc_load_failed', 'Could not load the document. It is still attached.')); return; }
   }
   if (!isDisplayed(cid) || inputEl.value !== before || !attachBucket(cid).includes(item) || councilOwnsComposer()) return;
   const marker = documentMarker(item);
@@ -7927,7 +7927,7 @@ async function useDocumentAsMessage(localId) {
   removeAttachment(localId);
   inputEl.value = next;
   inputEl.dispatchEvent(new Event('input', {bubbles:true})); inputEl.focus();
-  toast('Moved into your message. Review it, then send.');
+  toast(pageT('attach.moved_to_message', 'Moved into your message. Review it, then send.'));
 }
 function retryAttachment(localId) {
   const cid = displayedChat;
@@ -7988,7 +7988,7 @@ if (composerFooterEl && typeof composerFooterEl.addEventListener === 'function')
       const images = files.filter((f) => (f.type || '').indexOf('image/') === 0);
       const texts = files.filter((f) => (f.type || '').indexOf('image/') !== 0);
       if (images.length) addAttachmentFiles(images, displayedChat);
-      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(f.name + ' could not be read as text.')); });
+      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(pageTF('attach.read_failed', '{name} could not be read as text.', { name: f.name }))); });
       return;
     }
     let text = '';
@@ -8030,9 +8030,9 @@ let dictationRecorder = null;
 const DICTATION_NOTICE_DISMISSED_KEY = 'vool_dictation_notice_dismissed_v1';
 const DICTATION_LOCALE_KEY = 'vool_dictation_locale_v1';
 const VOICE_MODE_KEY = 'vool_voice_mode_v1';
-const DICTATION_TITLE_IDLE = 'Dictate into this message — recorded and transcribed on this machine only';
-const DICTATION_TITLE_RECORDING = 'Recording — click to stop and transcribe';
-const DICTATION_TITLE_PTT = 'Hold to talk — release to transcribe into this message';
+const DICTATION_TITLE_IDLE = dictT('dictation.dictate_title', 'Dictate into this message — recorded and transcribed on this machine only');
+const DICTATION_TITLE_RECORDING = dictT('dictation.recording_stop_title', 'Recording — click to stop and transcribe');
+const DICTATION_TITLE_PTT = dictT('dictation.ptt_title', 'Hold to talk — release to transcribe into this message');
 function dictT(key, fallback, params) {
   // Localised through the page's i18n bundle when it is present; the inline English is the
   // honest fallback until a catalog resolves the key.
@@ -8060,7 +8060,7 @@ if (dictationDismissEl) dictationDismissEl.addEventListener('click', async () =>
   try {
     const response = await fetch('/api/settings/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({speech_notice_dismissed:true})});
     if (!response.ok) throw new Error('Preference was not saved');
-  } catch (e) { toast('Notice hidden for now. Could not save this choice for restart.'); }
+  } catch (e) { toast(pageT('dictation.notice_hide_failed', 'Notice hidden for now. Could not save this choice for restart.')); }
 });
 // Native private web sessions can discard browser storage on exit. The existing
 // profile preference is the durable authority; wait for it before the boot probe.
@@ -8080,7 +8080,7 @@ function setDictating(on) {
   dictateBtnEl.classList.remove('error');
   if (voiceMode()) {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_PTT;
-    dictateBtnEl.setAttribute('aria-label', on ? 'Recording — release to transcribe' : DICTATION_TITLE_PTT);
+    dictateBtnEl.setAttribute('aria-label', on ? pageT('dictation.ptt_recording_aria', 'Recording — release to transcribe') : DICTATION_TITLE_PTT);
   } else {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE;
     dictateBtnEl.setAttribute('aria-label', on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE);
@@ -8102,7 +8102,7 @@ function setDictationError(note) {
 function setTranscribing(on) {
   if (!dictateBtnEl) return;
   dictateBtnEl.classList.toggle('transcribing', on);
-  dictateBtnEl.title = on ? 'Transcribing on this machine…' : dictationIdleTitle();
+  dictateBtnEl.title = on ? pageT('dictation.transcribing_title', 'Transcribing on this machine…') : dictationIdleTitle();
 }
 async function beginDictationRecording() {
   if (dictating || !dictateBtnEl) return false;
