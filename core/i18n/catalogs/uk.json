@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Інші акаунти: лише перегляд, підключені гаманці, стара кишеня",
     "settings.row.wallet_safety.help": "Короткі прості пояснення хитрощів, що спустошують гаманці, з картинкою до кожного. Дві хвилини, один раз.",
     "settings.row.wallet_safety.label": "Будьте обережні: як люди втрачають криптовалюту",
+    "settings.row.web_lookups.label": "Веб-пошук",
+    "settings.row.web_lookups.help": "Коли ви запитуєте щось, що потребує пошуку, VOOL може шукати відповідь в інтернеті. Типово вимкнено: поки ви це не увімкнете, нічого не виходить в інтернет для пошуку. Командний рядок також може дозволити це змінною середовища.",
+    "settings.row.web_lookups.local_only_note": "Увімкнено режим «лише локально». Спершу вимкніть його.",
+    "settings.row.web_lookups.tour_note": "Цей комп'ютер ще не брав участі в огляді. Виберіть «Show me around» один раз, потім спробуйте знову.",
     "setup.autonomy.balanced_sub": "Звичайна робота йде; все, що багато видаляє чи міняє, спершу питає.",
     "setup.autonomy.balanced_title": "Питати перед ризикованими змінами",
     "setup.autonomy.hands_off_sub": "Найменше питань. Надсилання, публікація і витрати все одно завжди питають.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

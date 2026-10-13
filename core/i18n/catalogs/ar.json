@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "حسابات أخرى: مشاهدة فقط، محافظ مربوطة، الجيب القديم",
     "settings.row.wallet_safety.help": "شروح قصيرة واضحة للحيل التي تفرّغ المحافظ، مع صورة لكل واحدة. دقيقتان، مرة واحدة.",
     "settings.row.wallet_safety.label": "ابقَ آمنًا: كيف يخسر الناس عملاتهم",
+    "settings.row.web_lookups.label": "عمليات البحث في الويب",
+    "settings.row.web_lookups.help": "عندما تسأل عن شيء يحتاج إلى بحث، قد يبحث VOOL في الويب للإجابة. مغلق افتراضيًا: لا شيء يذهب إلى الإنترنت للبحث حتى تشغّل هذا. يمكن لسطر الأوامر أيضًا السماح به عبر متغير بيئة.",
+    "settings.row.web_lookups.local_only_note": "وضع المحلي فقط مفعّل. أوقفه أولًا.",
+    "settings.row.web_lookups.tour_note": "هذا الجهاز ليس جزءًا من الجولة بعد. اختر «Show me around» مرة واحدة، ثم حاول مرة أخرى.",
     "setup.autonomy.balanced_sub": "العمل المعتاد يجري؛ وكل ما يحذف الكثير أو يغيّر كثيرًا يسأل أولًا.",
     "setup.autonomy.balanced_title": "اسأل قبل التغييرات الخطرة",
     "setup.autonomy.hands_off_sub": "أقل الأسئلة. الإرسال والنشر والإنفاق تظل تسأل دائمًا.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

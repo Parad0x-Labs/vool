@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Kitos paskyros: tik stebimos, prijungtos piniginės, senasis kišenės režimas",
     "settings.row.wallet_safety.help": "Trumpi, paprasti gudrybių, ištuštinančių pinigines, paaiškinimai, po paveikslėlį kiekvienam. Dvi minutės, vieną kartą.",
     "settings.row.wallet_safety.label": "Likite saugūs: kaip žmonės praranda kriptovaliutą",
+    "settings.row.web_lookups.label": "Interneto paieška",
+    "settings.row.web_lookups.help": "Kai klastrate ko, kas reikalauja paieškos, VOOL gali ieškoti atsakymo internete. Pagal numatytąjį nustatymą išjungta: niekas neina į internetą dėl paieškos, kol to neįjungsite. Komandų eilutė taip pat gali leisti tai naudodama aplinkos kintamąjį.",
+    "settings.row.web_lookups.local_only_note": "Įjungtas tik vietinis režimas. Pirmiausia jį išjunkite.",
+    "settings.row.web_lookups.tour_note": "Šis kompiuteris dar nėra turo dalis. Pasirinkite „Show me around“ vieną kartą ir pabandykite dar kartą.",
     "setup.autonomy.balanced_sub": "Įprastas darbas vyksta; kas trina ar daug keičia — klausia.",
     "setup.autonomy.balanced_title": "Klauskite prieš rizikingus pakeitimus",
     "setup.autonomy.hands_off_sub": "Mažiausiai klausimų. Siuntimas, skelbimas ir išlaidos vis tiek visada klaus.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

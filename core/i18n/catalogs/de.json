@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Andere Konten: Nur-Ansehen, verbundene Wallets, die alte Tasche",
     "settings.row.wallet_safety.help": "Kurze, klare Erklärungen der Tricks, die Wallets leeren, je mit einem Bild. Zwei Minuten, einmal.",
     "settings.row.wallet_safety.label": "Bleib sicher: wie Leute ihr Krypto verlieren",
+    "settings.row.web_lookups.label": "Websuchen",
+    "settings.row.web_lookups.help": "Wenn du etwas fragst, das eine Recherche braucht, kann VOOL dafür im Web suchen. Standardmäßig aus: Nichts geht für Nachschlagen online, bis du es einschaltest. Die Kommandozeile kann es auch über eine Umgebungsvariable erlauben.",
+    "settings.row.web_lookups.local_only_note": "Der Nur-lokal-Modus ist an. Schalte ihn zuerst aus.",
+    "settings.row.web_lookups.tour_note": "Diese Maschine ist noch nicht Teil der Tour. Wähle einmal „Show me around“ und versuche es dann erneut.",
     "setup.autonomy.balanced_sub": "Routinarbeit läuft; was löscht oder viel ändert, fragt vorher.",
     "setup.autonomy.balanced_title": "Bei riskanten Änderungen fragen",
     "setup.autonomy.hands_off_sub": "Wenigste Fragen. Senden, Veröffentlichen und Ausgaben fragen trotzdem immer.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

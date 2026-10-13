@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "अन्य खाते: केवल-देखना, जुड़े वॉलेट, पुरानी जेब",
     "settings.row.wallet_safety.help": "वॉलेट खाली करने वाले चालों की छोटी, साफ़ व्याख्या, हर एक के साथ एक तस्वीर। दो मिनट, एक बार।",
     "settings.row.wallet_safety.label": "सुरक्षित रहें: लोग अपना क्रिप्टो कैसे गँवाते हैं",
+    "settings.row.web_lookups.label": "वेब खोज",
+    "settings.row.web_lookups.help": "जब आप कुछ ऐसा पूछते हैं जिसमें खोज ज़रूरी है, तो VOOL जवाब देने के लिए वेब पर खोज सकता है। डिफ़ॉल्ट रूप से बंद: जब तक आप इसे चालू नहीं करते, खोज के लिए कुछ भी ऑनलाइन नहीं जाता। कमांड लाइन भी एनवायरनमेंट वेरिएबल से इसे अनुमति दे सकती है।",
+    "settings.row.web_lookups.local_only_note": "केवल-लोकल मोड चालू है। पहले इसे बंद करें।",
+    "settings.row.web_lookups.tour_note": "यह मशीन अभी टूर का हिस्सा नहीं है। एक बार \"Show me around\" चुनें, फिर दोबारा कोशिश करें।",
     "setup.autonomy.balanced_sub": "रोज़मर्रा का काम चलता है; जो बहुत मिटाता या बदलता है वह पहले पूछता है।",
     "setup.autonomy.balanced_title": "जोखिम भरे बदलावों से पहले पूछें",
     "setup.autonomy.hands_off_sub": "सबसे कम सवाल। भेजना, प्रकाशित करना और खर्च फिर भी हमेशा पूछते हैं।",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

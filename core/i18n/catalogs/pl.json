@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Inne konta: tylko-podgląd, podłączone portfele, starsza kieszeń",
     "settings.row.wallet_safety.help": "Krótkie, proste wyjaśnienia sztuczek opróżniających portfele, po obrazku na każdą. Dwie minuty, raz.",
     "settings.row.wallet_safety.label": "Bądź bezpieczny: jak ludzie tracą krypto",
+    "settings.row.web_lookups.label": "Wyszukiwanie w sieci",
+    "settings.row.web_lookups.help": "Gdy zapytasz o coś, co wymaga wyszukania, VOOL może poszukać odpowiedzi w sieci. Domyślnie wyłączone: nic nie łączy się z internetem w celu wyszukiwania, dopóki tego nie włączysz. Wiersz poleceń może też zezwolić na to zmienną środowiskową.",
+    "settings.row.web_lookups.local_only_note": "Tryb tylko lokalny jest włączony. Najpierw go wyłącz.",
+    "settings.row.web_lookups.tour_note": "To urządzenie nie jest jeszcze częścią przewodnika. Wybierz raz „Show me around”, a następnie spróbuj ponownie.",
     "setup.autonomy.balanced_sub": "Zwykła praca działa; to, co usuwa lub dużo zmienia, pyta.",
     "setup.autonomy.balanced_title": "Pytaj przed ryzykownymi zmianami",
     "setup.autonomy.hands_off_sub": "Najmniej pytań. Wysyłanie, publikowanie i wydatki i tak zawsze pytają.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

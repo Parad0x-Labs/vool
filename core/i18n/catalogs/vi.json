@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Tài khoản khác: chỉ-xem, ví đã kết nối, túi cũ",
     "settings.row.wallet_safety.help": "Giải thích ngắn, dễ hiểu các thủ đoạn làm cạn ví, kèm một hình mỗi cái. Hai phút, một lần.",
     "settings.row.wallet_safety.label": "Giữ an toàn: người ta mất tiền điện tử ra sao",
+    "settings.row.web_lookups.label": "Tra cứu web",
+    "settings.row.web_lookups.help": "Khi bạn hỏi điều gì đó cần tra cứu, VOOL có thể tìm trên web để trả lời. Mặc định tắt: không có gì lên mạng để tra cứu cho đến khi bạn bật tính năng này. Dòng lệnh cũng có thể cho phép bằng biến môi trường.",
+    "settings.row.web_lookups.local_only_note": "Chế độ chỉ cục bộ đang bật. Hãy tắt nó trước.",
+    "settings.row.web_lookups.tour_note": "Máy này chưa từng có trong phần tham quan. Hãy chọn \"Show me around\" một lần rồi thử lại.",
     "setup.autonomy.balanced_sub": "Công việc thường lệ chạy; thứ gì xóa hoặc thay đổi nhiều sẽ hỏi trước.",
     "setup.autonomy.balanced_title": "Hỏi trước khi thay đổi rủi ro",
     "setup.autonomy.hands_off_sub": "Ít câu hỏi nhất. Gửi, đăng và chi tiêu vẫn luôn hỏi.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
     "addons.registry_inspect": "Tải xuống để kiểm tra"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

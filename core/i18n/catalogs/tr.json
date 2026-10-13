@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Diğer hesaplar: yalnızca-izleme, bağlı cüzdanlar, eski cep",
     "settings.row.wallet_safety.help": "Cüzdanları boşaltan düzenlerin kısa, sade açıklamaları, her birine bir resimle. İki dakika, bir kez.",
     "settings.row.wallet_safety.label": "Güvende kalın: insanlar kriptolarını nasıl kaybediyor",
+    "settings.row.web_lookups.label": "Web aramaları",
+    "settings.row.web_lookups.help": "Araştırma gerektiren bir şey sorduğunuzda VOOL, yanıtlamak için web'de arama yapabilir. Varsayılan olarak kapalıdır: bunu açana kadar arama için hiçbir şey çevrimiçi çıkmaz. Komut satırı da bir ortam değişkeniyle buna izin verebilir.",
+    "settings.row.web_lookups.local_only_note": "Yalnızca yerel mod açık. Önce onu kapatın.",
+    "settings.row.web_lookups.tour_note": "Bu makine henüz turun bir parçası değil. Bir kez \"Show me around\" seçin ve sonra tekrar deneyin.",
     "setup.autonomy.balanced_sub": "Rutin işler yürür; çok silen veya çok değiştiren her şey önce sorar.",
     "setup.autonomy.balanced_title": "Riskli değişikliklerden önce sor",
     "setup.autonomy.hands_off_sub": "En az soru. Gönderme, yayınlama ve harcama yine her zaman sorar.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
     "addons.registry_inspect": "İncelemek için indir"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

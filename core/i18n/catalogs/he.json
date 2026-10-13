@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "חשבונות אחרים: צפייה בלבד, ארנקים מחוברים, הכיס הישן",
     "settings.row.wallet_safety.help": "הסברים קצרים ופשוטים על התחבולות שמרוקנות ארנקים, עם תמונה לכל אחת. שתי דקות, פעם אחת.",
     "settings.row.wallet_safety.label": "הישארו בטוחים: איך אנשים מאבדים קריפטו",
+    "settings.row.web_lookups.label": "חיפושים באינטרנט",
+    "settings.row.web_lookups.help": "כשאתם שואלים משהו שדורש חיפוש, VOOL יכול לחפש באינטרנט כדי לענות. כבוי כברירת מחדל: שום דבר לא יוצר לאינטרנט לחיפוש עד שתפעילו זאת. שורת הפקודה יכולה גם לאפשר זאת באמצעות משתנה סביבה.",
+    "settings.row.web_lookups.local_only_note": "מצב מקומי בלבד מופעל. כבו אותו קודם.",
+    "settings.row.web_lookups.tour_note": "המכונה הזו עדיין לא חלק מהסיור. בחרו „Show me around“ פעם אחת ואז נסו שוב.",
     "setup.autonomy.balanced_sub": "עבודה שגרתית רצה; כל דבר שמוחק או משנה הרבה שואל קודם.",
     "setup.autonomy.balanced_title": "שאל לפני שינויים מסוכנים",
     "setup.autonomy.hands_off_sub": "הכי מעט שאלות. שליחה, פרסום והוצאה תמיד שואלים.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

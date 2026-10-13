@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "다른 계정: 보기 전용, 연결된 지갑, 옛 주머니",
     "settings.row.wallet_safety.help": "지갑을 비우는 수법의 짧고 분명한 설명, 각각 그림 한 장씩. 2분, 한 번.",
     "settings.row.wallet_safety.label": "안전하게: 사람들이 암호화폐를 잃는 방식",
+    "settings.row.web_lookups.label": "웹 검색",
+    "settings.row.web_lookups.help": "조회가 필요한 질문을 하면 VOOL이 답을 위해 웹을 검색할 수 있습니다. 기본값은 꺼짐입니다. 이것을 켤 때까지 조회를 위해 어떤 것도 온라인으로 나가지 않습니다. 명령줄에서도 환경 변수로 허용할 수 있습니다.",
+    "settings.row.web_lookups.local_only_note": "로컬 전용 모드가 켜져 있습니다. 먼저 끄십시오.",
+    "settings.row.web_lookups.tour_note": "이 컴퓨터는 아직 투어에 참여하지 않았습니다. \"Show me around\"를 한 번 선택한 다음 다시 시도하십시오.",
     "setup.autonomy.balanced_sub": "일상 작업은 실행되고, 많이 지우거나 바꾸는 일은 먼저 물어봅니다.",
     "setup.autonomy.balanced_title": "위험한 변경 전에 묻기",
     "setup.autonomy.hands_off_sub": "가장 적은 질문. 보내기, 게시, 지출은 여전히 항상 물어봅니다.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

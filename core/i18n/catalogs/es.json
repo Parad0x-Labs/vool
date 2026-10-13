@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "Otras cuentas: solo lectura, carteras conectadas, bolsillo heredado",
     "settings.row.wallet_safety.help": "Explicaciones cortas y llanas de los trucos que vacían carteras, con una imagen cada una. Dos minutos, una vez.",
     "settings.row.wallet_safety.label": "Mantente a salvo: cómo la gente pierde su cripto",
+    "settings.row.web_lookups.label": "Búsquedas web",
+    "settings.row.web_lookups.help": "Cuando preguntas algo que requiere una consulta, VOOL puede buscar en la web para responder. Desactivado por defecto: nada se conecta a internet para consultas hasta que lo actives. La línea de comandos también puede permitirlo con una variable de entorno.",
+    "settings.row.web_lookups.local_only_note": "El modo de solo local está activado. Desactívalo primero.",
+    "settings.row.web_lookups.tour_note": "Esta máquina aún no forma parte del recorrido. Elige «Show me around» una vez y vuelve a intentarlo.",
     "setup.autonomy.balanced_sub": "El trabajo rutinario va solo; lo que borra o cambia mucho, pregunta.",
     "setup.autonomy.balanced_title": "Preguntar antes de cambios arriesgados",
     "setup.autonomy.hands_off_sub": "Las menos preguntas. Enviar, publicar y gastar siguen preguntando siempre.",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
     "addons.registry_inspect": "Descargar para inspeccionar"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

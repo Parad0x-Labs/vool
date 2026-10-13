@@ -79,7 +79,7 @@ def runtime_capability_ledger(
             "supported": web_enabled,
             "support_level": "supported" if web_enabled else "unsupported",
             "availability_state": "ready" if web_enabled else "unavailable",
-            "unsupported_reason": "Web lookup is opt-in; enable with VOOL_ENABLE_WEB=1",
+            "unsupported_reason": "Web lookups are off by default; turn them on in Settings > Privacy & Permissions > Web lookups",
             "intents": web_intents,
             "public_tag": "web.live_lookup",
         },

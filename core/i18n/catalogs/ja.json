@@ -1120,6 +1120,10 @@
     "settings.row.wallet_legacy.label": "他のアカウント：閲覧専用、接続済みウォレット、旧ポケット",
     "settings.row.wallet_safety.help": "ウォレットを空にする手口の短く平易な解説とイラスト。2分、一度だけ。",
     "settings.row.wallet_safety.label": "安全に：人が暗号資産を失う経緯",
+    "settings.row.web_lookups.label": "ウェブ検索",
+    "settings.row.web_lookups.help": "調べる必要があることを尋ねると、VOOL は答えのためにウェブを検索することがあります。既定ではオフです。これをオンにするまで、検索のために何もオンラインに行きません。コマンドラインでも環境変数で許可できます。",
+    "settings.row.web_lookups.local_only_note": "ローカルのみモードが有効です。先にオフにしてください。",
+    "settings.row.web_lookups.tour_note": "このマシンはまだツアーに参加していません。「Show me around」を一度選んでから、もう一度お試しください。",
     "setup.autonomy.balanced_sub": "通常の作業は実行し、多くを削除・変更するものは先に確認します。",
     "setup.autonomy.balanced_title": "危険な変更の前に確認",
     "setup.autonomy.hands_off_sub": "最も質問が少ないモード。送信・投稿・支出は常に確認します。",
@@ -1863,7 +1867,7 @@
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "98007044122210e389c07807980927f1db4fd59b043de69e9a39abc3ca03c32d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
