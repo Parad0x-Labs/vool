@@ -2872,18 +2872,18 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
   nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
-  nameEl.title = proj.root ? ((proj.exists === false ? 'Folder not found: ' : '') + proj.root) : name;
+    nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = 'Reveal folder in Finder';
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = pageT('session.reveal_folder_title', 'Reveal folder in Finder');
   prev.addEventListener('click', (e) => { e.stopPropagation(); revealProject(pid); });
-  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = 'Rename project';
+  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = pageT('session.rename_project_title', 'Rename project');
   pren.addEventListener('click', (e) => { e.stopPropagation(); startProjectRename(head, nameEl, pid); });
-  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = 'Delete project (forget its memory; chats move to General)';
+  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = pageT('session.delete_project_title', 'Delete project (forget its memory; chats move to General)');
   pdel.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(pid); });
-  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = 'New chat in this project';
+  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = pageT('session.new_chat_in_project_title', 'New chat in this project');
   pnew.addEventListener('click', (e) => { e.stopPropagation(); newChatInProject(pid); });
-  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = 'Set project emoji or colour';
+  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = pageT('session.project_emoji_title', 'Set project emoji or colour');
   pemo.addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(pid, pemo); });
   pact.appendChild(pemo); pact.appendChild(pnew); pact.appendChild(prev); pact.appendChild(pren); pact.appendChild(pdel);
   head.appendChild(caret); head.appendChild(emo); head.appendChild(nameEl); head.appendChild(cnt);
@@ -2931,7 +2931,7 @@ function openAppearancePicker(anchor, current, onEmoji, onColor) {
     grid.appendChild(b);
   }
   box.appendChild(grid);
-  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = 'Clear emoji & colour';
+  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = pageT('session.clear_appearance', 'Clear emoji & colour');
   clr.addEventListener('click', (ev) => { ev.stopPropagation(); onColor(''); onEmoji(''); closeEmojiPicker(); });
   box.appendChild(clr);
   document.body.appendChild(box);
@@ -3272,7 +3272,7 @@ function renderSessions(sessions) {
   if (!active.length && !archived.length && !projectIds.length) {
     const none = document.createElement('div');
     none.className = 'side-empty';
-    none.textContent = 'No past chats yet.';
+    none.textContent = pageT('session.no_past_chats', 'No past chats yet.');
     sessionsEl.appendChild(none);
     return;
   }
@@ -3289,7 +3289,7 @@ function renderSessions(sessions) {
     const genCollapsed = !!collapsed[GEN_KEY];
     const gh = document.createElement('div'); gh.className = 'proj-head general' + (genCollapsed ? ' collapsed' : '');
     const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = genCollapsed ? '▸' : '▾';
-    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'General';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = pageT('session.general', 'General');
     // The true count of unbound chats, not how many of the capped page happen to be unbound.
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(groupCount('', general.length));
     gh.appendChild(c); gh.appendChild(n); gh.appendChild(cnt);
@@ -3314,7 +3314,7 @@ function renderSessions(sessions) {
   if (archived.length) {
     const head = document.createElement('div');
     head.className = 'arch-head';
-    head.textContent = 'Archived (' + archived.length + ')';
+    head.textContent = pageTF('session.archived_count', 'Archived ({n})', { n: archived.length });
     const box = document.createElement('div');
     box.style.display = 'none';
     head.addEventListener('click', () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; });
@@ -3328,7 +3328,7 @@ function renderSessions(sessions) {
 function startRename(item, titleEl, id) {
   const input = document.createElement('input');
   input.className = 's-rename';
-  input.value = titleEl.textContent === '(new chat)' ? '' : titleEl.textContent;
+  input.value = titleEl.textContent === pageT('session.new_chat', '(new chat)') ? '' : titleEl.textContent;
   let done = false;
   const finish = async (save) => {
     if (done) return; done = true;
@@ -4002,7 +4002,7 @@ function renderAssistantContent(el, text, displayMetadata) {
   if (vp && vp.review_flagged) {
     const warn = document.createElement('p'); warn.className = 'chat-provenance chat-verifier-flag';
     const code0 = document.createElement('code');
-    code0.textContent = '\u26a0 review flagged \u2014 double-check this answer';
+    code0.textContent = pageT('msg.review_flagged', '\u26a0 review flagged \u2014 double-check this answer');
     warn.appendChild(code0); el.appendChild(warn);
   }
   const footer = String((normalized.display_metadata && normalized.display_metadata.provenance_footer) || '').trim();
@@ -4032,13 +4032,13 @@ function mountAnswerReport(host, chatId, requestId) {
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
   const report = document.createElement('button');
   report.type = 'button'; report.className = 'msg-act msg-report';
-  report.textContent = 'Report';
-  report.title = 'Report a wrong answer or a problem with this answer';
+  report.textContent = pageT('msg.report', 'Report');
+  report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const down = document.createElement('button');
   down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
   down.textContent = '\u{1F44E}';
-  down.title = 'Bad answer \u2014 report it'; down.setAttribute('aria-label', down.title);
+  down.title = pageT('msg.report_down_title', 'Bad answer \u2014 report it'); down.setAttribute('aria-label', down.title);
   down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const pin = actions.querySelector('.msg-pin');
   actions.insertBefore(report, pin || null);
@@ -4052,7 +4052,7 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!actions) return;
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = 'Download this answer as PDF';
+  button.textContent = '\u2193'; button.title = pageT('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -4063,7 +4063,7 @@ function mountAnswerExport(host, chatId, requestId) {
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
         if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
-        status.textContent = result.cancelled ? 'Cancelled' : 'Saved';
+        status.textContent = result.cancelled ? pageT('msg.pdf_cancelled', 'Cancelled') : pageT('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
@@ -4077,9 +4077,9 @@ function mountAnswerExport(host, chatId, requestId) {
         link.href = url; link.download = 'vool-answer.pdf';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
-        status.textContent = 'Downloaded';
+        status.textContent = pageT('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || 'PDF export failed'; }
+    } catch (error) { status.textContent = error.message || pageT('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -4104,7 +4104,7 @@ async function mountProofChip(host, chatId, requestId, presentationSelection) {
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'proof-chip-head';
-  head.title = 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim';
+  head.title = pageT('msg.run_record_title', 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim');
   const cost = (typeof compact.cost === 'object' && compact.cost) || {};
   const costText = cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? (compact.cost.tokens + ' tok') : 'cost not recorded');
   const seg = (cls, text) => { const span = document.createElement('span'); span.className = cls; span.textContent = text; return span; };
@@ -4258,10 +4258,10 @@ function openImageMenu(img, x, y) {
   const local = img.dataset.local || '';
   const menu = document.createElement('div'); menu.className = 'proj-menu'; menu.id = 'imgMenu';
   const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'proj-menu-item'; b.textContent = label; b.addEventListener('click', (e) => { e.stopPropagation(); _imgMenuClose(); fn(); }); menu.appendChild(b); };
-  if (local) add('Open in Preview', () => openImageNative(local));
-  if (local) add('Show in Finder', () => revealImage(local));
-  add('Copy image', () => copyImageToClipboard(img));
-  if (local) add('Copy path', () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
+  if (local) add(pageT('msg.img_open_preview', 'Open in Preview'), () => openImageNative(local));
+  if (local) add(pageT('msg.img_show_in_finder', 'Show in Finder'), () => revealImage(local));
+  add(pageT('msg.img_copy', 'Copy image'), () => copyImageToClipboard(img));
+  if (local) add(pageT('msg.img_copy_path', 'Copy path'), () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
   document.body.appendChild(menu);
   menu.style.top = Math.min(y, window.innerHeight - 170) + 'px';
   menu.style.left = Math.min(x, window.innerWidth - 190) + 'px';
