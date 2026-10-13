@@ -412,6 +412,28 @@ def _usepod_approved_price(model_id: str) -> ModelPrice | None:
         return None
 
 
+#: Models whose provider runs its own paid tools (web search, website visits, code execution) on
+#: every call, on a direct endpoint that reports no price for those tools: tokens are all a
+#: response bills, so no cap could count the tool fees. VOOL does not pin or send to them.
+#: Through OpenRouter the account's reported ``usage.cost`` already includes such fees.
+UNPRICED_BUILTIN_TOOLS_REFUSAL = (
+    "unpriced_builtin_tools: this model runs its own paid tools at the provider, and VOOL cannot "
+    "count what they cost against your spending limits"
+)
+_UNPRICED_BUILTIN_TOOL_MODELS = {
+    # Compound systems pick and run web search, website visits and code execution themselves.
+    "groq": re.compile(r"^(?:groq/)?compound(?:[-_].*)?$", re.IGNORECASE),
+    # Search models search on every call; deep-research models run search and code tools.
+    "openai": re.compile(r"(?:search-preview|search-api|deep-research)", re.IGNORECASE),
+}
+
+
+def unpriced_builtin_tools(provider_hint: str, model_id: str) -> bool:
+    """Whether this direct-provider model runs paid tools of its own that VOOL cannot price."""
+    pattern = _UNPRICED_BUILTIN_TOOL_MODELS.get(provider_slot(provider_hint))
+    return bool(pattern and pattern.search(str(model_id or "").strip()))
+
+
 def reservation_price_refusal(provider_id: str, model_id: str) -> str:
     """Why a paid reservation for this provider/model must not be sized at all, or "".
 
@@ -628,6 +650,7 @@ __all__ = [
     "BASIS_PUBLISHED_PRICE",
     "BASIS_UNKNOWN_CEILING",
     "PRICE_TABLE_READ_ON",
+    "UNPRICED_BUILTIN_TOOLS_REFUSAL",
     "CostEstimate",
     "ModelPrice",
     "estimate_call_usd",
@@ -636,5 +659,6 @@ __all__ = [
     "reservation_price_refusal",
     "settlement_usd",
     "unknown_price_ceiling",
+    "unpriced_builtin_tools",
     "usage_tokens",
 ]

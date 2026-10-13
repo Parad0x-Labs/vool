@@ -310,6 +310,17 @@ def set_cloud_model(
     prov, resolution_error = _resolve_switch_provider(provider, prefix_provider)
     if resolution_error:
         return False, resolution_error, ""
+    from core.model_pricing import unpriced_builtin_tools
+
+    if unpriced_builtin_tools(prov, arg):
+        # The model runs paid tools of its own (web search, code execution) whose fees this
+        # endpoint never reports, so no spending limit could count them. Refused at the pin, and
+        # again by the adapter for a pin saved before this check existed.
+        return False, (
+            f"`{arg}` runs its own paid web search or code tools at the provider, and VOOL can't count "
+            "what those cost against your spending limits, so I left the cloud model unchanged. "
+            "Pick another model."
+        ), ""
 
     def _save(model_value: str) -> bool:
         cep.save_policy(replace(cep.load_policy(), model=model_value, provider=prov))
