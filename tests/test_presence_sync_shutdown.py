@@ -20,10 +20,36 @@ import threading
 import time
 from typing import Any
 
+import pytest
+
+from core import policy_engine, runtime_paths
 from core.agent_runtime import presence
 from tests.first_run_pact_rig import pact_rig
 
 _SYNC_EVENTS = ("public_hive_presence_sync_failed", "public_hive_presence_sync_error")
+
+
+@pytest.fixture(autouse=True)
+def background_network_consent(tmp_path, monkeypatch):
+    """The operator has turned background network on in the rig's home before its runtime boots.
+
+    A fresh install keeps it off and then no presence sync starts at all (that default is pinned
+    in test_fresh_install_network_defaults); the lane these tests stop is the one that consent
+    starts. Autouse, so it runs before `pact_rig` boots the runtime in the same home.
+    """
+    home = tmp_path / "pact-home"  # the home pact_rig boots its runtime in
+    old_override = runtime_paths._VOOL_HOME_OVERRIDE
+    old_binding = policy_engine._POLICY_CACHE_BINDING
+    monkeypatch.setenv("VOOL_HOME", str(home))
+    runtime_paths.configure_runtime_home(home)
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", None)
+    policy_engine.set_operator_policy_values({"network.outbound_enabled": True})
+    assert policy_engine.automatic_outbound_enabled() is True
+    try:
+        yield
+    finally:
+        runtime_paths.configure_runtime_home(old_override)
+        policy_engine._POLICY_CACHE_BINDING = old_binding
 
 
 class _GatedBridge:

@@ -40,8 +40,10 @@ from typing import Any
 
 import pytest
 
+from core import policy_engine
 from core.agent_runtime import presence
 from tests.first_run_pact_rig import pact_rig  # fixture: pytest discovers it on the module
+from tests.test_presence_sync_shutdown import background_network_consent as background_network_consent
 
 _SYNC_EVENTS = ("public_hive_presence_sync_failed", "public_hive_presence_sync_error")
 
@@ -619,6 +621,8 @@ def test_an_entered_write_overlapping_a_restart_onto_a_new_home_is_rolled_back(p
         # Run 2: another home becomes active and the runtime really restarts in this process.
         monkeypatch.setenv("VOOL_HOME", str(run2_home))
         configure_runtime_home(run2_home)
+        # The operator gave run 2's home the same background-network consent, so its sync runs.
+        policy_engine.set_operator_policy_values({"network.outbound_enabled": True})
         configure_default_db_path(next_db)
         configure_runtime_continuity_db_path(next_db)
         reset_runtime_continuity_state()
