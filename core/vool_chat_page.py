@@ -114,6 +114,15 @@ img.chat-img:hover { border-color:var(--accent); }
 .chat-provenance { margin:10px 0 0; opacity:0.72; font-size:0.92em; max-width:100%; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; }
 .chat-provenance code { border:0; background:none; padding:0; }
+/* Plain words first; the exact machine line stays one click away under "details" (and on the
+   title), so nobody mistakes a built-in reply for a model answer and nobody has to read a log.
+   A line the page cannot read with certainty is shown raw, exactly as before (provenancePlain). */
+.chat-provenance .prov-more { border:0; background:none; padding:0; margin-inline-start:2px; color:var(--muted); font:inherit;
+  text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.chat-provenance .prov-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+.chat-provenance .prov-raw[hidden] { display:none; }
+.chat-provenance.prov-open { white-space:normal; }
+.chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; overflow-wrap:anywhere; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
    beside the answer. Collapsed it is one quiet line (actions · sources · cost · STATE); opened it
    shows the expanded account. The state word is the SERVER's verdict, rendered verbatim — this
@@ -3724,6 +3733,20 @@ function agentEvidenceText(rows, nowMs) {
   }
   return out.join('\n').trim();
 }
+// The provenance "details" toggle, for both render paths. Guarded so the renderer helpers
+// around it still load where there is no document (they are also run on their own).
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
+  if (!btn) return;
+  const block = btn.closest('.chat-provenance');
+  const raw = block && block.querySelector('.prov-raw');
+  if (!raw) return;
+  const open = raw.hidden;
+  raw.hidden = !open;
+  block.classList.toggle('prov-open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  btn.textContent = open ? pageT('chat.provenance.hide_details', 'hide details') : pageT('chat.provenance.details', 'details');
+});
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
 function safeUrl(u) {
   try { const url = new URL(String(u), location.origin); return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : ''; }
@@ -3787,6 +3810,131 @@ function renderInline(html) {
 // code are stateful and regex-only versions break on the first ragged case. Escaping still happens
 // exactly once, up front, so page content can never inject markup, and only http/https URLs ever
 // become anchors.
+// The provenance line (`core/response_provenance.py`) in plain words. The machine line is the
+// record and is never changed or dropped -- it stays in the bubble behind "details" and on the
+// title -- but the first thing a person reads is what happened, not lane ids and a build number.
+//
+// FAIL CLOSED. This reads the server's line STRUCTURALLY, shape by shape, exactly as
+// `format_provenance_footer` builds it, and every segment must be one it knows. Anything else --
+// a new segment, a reordered line, a lane word with the wrong tail -- returns null, and the caller
+// shows the raw line as before. A plain sentence is only ever a translation of a line it fully
+// understood: "not written by an AI model" appears only on a `tool` line that carries the
+// server's own no-model authorship marker, and a line with tokens is never described as model-free.
+function provenancePlain(rawLine) {
+  const segs = String(rawLine || '').replace(/^`|`$/g, '').split(' | ').map((s) => s.trim());
+  if (segs.length < 2 || segs.some((s) => !s)) return null;
+  const lane = segs.shift();
+  const out = [];
+  let rest = segs;
+  const T = (k, en) => pageT('chat.provenance.' + k, en);
+  const TF = (k, en, params) => pageTF('chat.provenance.' + k, en, params);
+  const grouped = (n) => { try { return Number(n).toLocaleString(appLocale()); } catch (e) { return String(n); } };
+  const TOKENS = /^([\d,]+) tok$/;
+  // Shared tail segments, consumed in any order after the shape's head. `files` etc. are filled
+  // in as they are read; an unrecognised segment aborts the whole reading.
+  const facts = { files: 0, cost: [], costPartial: false, calls: '', failed: '', localOnly: false };
+  const lanePrefix = /^(?:(local|cloud|mixed) )?/;
+  function tail(allowed) {
+    for (const seg of rest) {
+      let m;
+      if (allowed.files && (m = /^(\d+) files?$/.exec(seg))) { facts.files = Number(m[1]); continue; }
+      if (allowed.build && /^build \S+$/.test(seg)) continue;
+      if (seg === 'local only · cloud blocked') { facts.localOnly = true; continue; }
+      if (allowed.calls && (m = /^(\d+) (?:(local|cloud|mixed) )?routing calls?$/.exec(seg))) { facts.calls = m[2] || 'unknown'; continue; }
+      if (allowed.failed && (m = /^(\d+) (?:(local|cloud|mixed) )?model attempts? failed$/.exec(seg))) { facts.failed = m[2] || 'unknown'; continue; }
+      if (allowed.usage) {
+        if (/^\d+(?:\.\d+)? output tok\/s \(request time\)$/.test(seg)) continue;
+        if (/^input ≤\S+ \/ output ≤\S+ \S+ \(at approved rates\)$/.test(seg)) continue;
+        if (/^identity: \S+$/.test(seg)) continue;
+        if (seg === 'cost unreported' || seg === 'some call costs unreported' || /^reported calls /.test(seg)) { facts.costPartial = true; continue; }
+        if ((m = /^\$(\d+\.\d+)$/.exec(seg))) { facts.cost.push(TF('charged', '{amount} charged', { amount: seg })); continue; }
+        if ((m = /^(\d+(?:\.\d+)?) (\S+) charged$/.exec(seg))) { facts.cost.push(TF('charged', '{amount} charged', { amount: m[1] + ' ' + m[2] })); continue; }
+        if ((m = /^≤(\d+(?:\.\d+)?) (\S+) \(upper bound\)$/.exec(seg))) { facts.cost.push(TF('up_to', 'up to {amount}', { amount: m[1] + ' ' + m[2] })); continue; }
+      }
+      return false;
+    }
+    return true;
+  }
+  function tokensPhrase(seg) {
+    const m = TOKENS.exec(seg);
+    if (!m) return '';
+    const n = Number(m[1].replace(/,/g, ''));
+    return TF('tokens', '{n, plural, one {{count} token} other {{count} tokens}}', { n: n, count: grouped(n) });
+  }
+  const isTokens = (seg) => TOKENS.test(seg) || seg === 'tokens unreported';
+
+  if ((lane === 'local' || lane === 'cloud' || lane === 'runtime') && rest.length >= 2 && isTokens(rest[1])) {
+    // A model wrote the answer: `<lane> | <model id> | <N tok> | ...`. `runtime` here means the
+    // turn did not record WHICH lane, so the plain words do not name one either.
+    out.push(lane === 'local' ? T('local', 'Answered by a local model')
+      : lane === 'cloud' ? T('cloud', 'Answered by a cloud model') : T('model', 'Answered by an AI model'));
+    if (rest[0] !== 'model id unrecorded') out.push(rest[0]);
+    const tok = tokensPhrase(rest[1]);
+    if (tok) out.push(tok);
+    rest = rest.slice(2);
+    if (!tail({ files: true, build: true, usage: true })) return null;
+  } else if (lane === 'runtime' && rest[0] === 'no model') {
+    // Nothing was invoked at all (`runtime | no model | [N files] | build X`).
+    out.push(T('no_model', 'No AI model used'));
+    rest = rest.slice(1);
+    if (!tail({ files: true, build: true })) return null;
+  } else if (lane === 'runtime' && rest.length >= 3 && rest[1] === 'model attempted' && rest[2] === 'no usable answer') {
+    out.push(T('no_answer', 'An AI model was tried but gave no usable answer'));
+    rest = rest.slice(3);
+    if (!tail({ files: true, build: true, failed: true, usage: true })) return null;
+  } else if (lane === 'runtime' && rest.length >= 3 && rest[1] === 'not sent' && /^refused before send: \S+$/.test(rest[2])) {
+    out.push(T('not_sent', 'Not sent: stopped before it reached the model'));
+    rest = rest.slice(3);
+    if (!tail({ files: true, build: true, failed: true })) return null;
+    // The ledger counts the refused dispatch as a failed call; the request never left, so the
+    // plain words do not call it an attempt (the raw line keeps the count).
+    facts.failed = '';
+  } else if (lane === 'tool') {
+    // `tool | [operation] | [+N more tools] | [N files] | <authorship marker> | ...`. The marker is
+    // the server's own statement that no model wrote the answer; without it, no plain words.
+    const markers = ['no model', 'no model for the answer', 'tool-generated answer'];
+    const at = rest.findIndex((s) => markers.includes(s));
+    if (at < 0) return null;
+    const head = rest.slice(0, at);
+    let operation = '';
+    for (let k = 0; k < head.length; k += 1) {
+      const seg = head[k];
+      let m;
+      if ((m = /^(\d+) files?$/.exec(seg))) { facts.files = Number(m[1]); continue; }
+      if (/^\+\d+ more tools?$/.test(seg)) continue;
+      if (k === 0 && /^[\w.:\-]+$/.test(seg)) { operation = seg; continue; }
+      return null;
+    }
+    out.push(/smalltalk|fast_path/.test(operation) ? T('quick_reply', 'Quick built-in reply') : T('builtin_tool', 'Done by a built-in tool'));
+    out.push(T('no_ai', 'not written by an AI model'));
+    rest = rest.slice(at + 1);
+    if (!tail({ files: true, build: true, calls: true, failed: true, usage: true })) return null;
+  } else {
+    return null;
+  }
+  if (facts.files) out.push(TF('files', '{n, plural, one {{n} file changed} other {{n} files changed}}', { n: facts.files }));
+  if (facts.calls) out.push(facts.calls === 'cloud' || facts.calls === 'mixed'
+    ? T('also_called_cloud', 'a cloud model was also called') : T('also_called', 'an AI model was also called'));
+  if (facts.failed) out.push(facts.failed === 'cloud' || facts.failed === 'mixed'
+    ? T('try_failed_cloud', 'a cloud model try failed') : T('try_failed', 'an AI model try failed'));
+  for (const c of facts.cost) out.push(c);
+  if (facts.costPartial) out.push(T('cost_partial', 'cost not fully reported'));
+  if (facts.localOnly) out.push(T('local_only', 'Local Only: cloud blocked'));
+  return out.join(' · ');
+}
+
+// One provenance block for the markdown path: plain words, a "details" toggle, and the exact
+// machine line (already escaped + inline-rendered by the caller) hidden until asked for. A line
+// provenancePlain cannot read is rendered raw and visible, exactly as it was before.
+function provenanceBlockHtml(rawLine, renderedLine) {
+  const bare = String(rawLine || '').replace(/^`|`$/g, '');
+  const plain = provenancePlain(bare);
+  if (!plain) return '<p class="chat-provenance">' + renderedLine + '</p>';
+  return '<p class="chat-provenance" title="' + esc(bare) + '"><span class="prov-plain">' + esc(plain)
+    + '</span> <button type="button" class="prov-more" aria-expanded="false">' + esc(pageT('chat.provenance.details', 'details')) + '</button>'
+    + '<span class="prov-raw" dir="ltr" hidden>' + renderedLine + '</span></p>';
+}
+
 function renderRichText(el, text) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
@@ -3925,7 +4073,7 @@ function renderRichText(el, text) {
     // paragraph above. Checked BEFORE the table branch on purpose -- it is pipe-separated and sits
     // directly under an action table, which is the one place a row-consuming loop could eat it.
     if (/^\s*`(?:local|cloud|tool|runtime) \| [^`]*`\s*$/.test(line)) {
-      out.push('<p class="chat-provenance">' + renderInline(line.trim()) + '</p>');
+      out.push(provenanceBlockHtml(rawLines[i].trim(), renderInline(line.trim())));
       i += 1;
       continue;
     }
@@ -4008,8 +4156,21 @@ function renderAssistantContent(el, text, displayMetadata) {
   const footer = String((normalized.display_metadata && normalized.display_metadata.provenance_footer) || '').trim();
   if (!footer) { if (vp && vp.review_flagged) { el.dataset.raw = normalized.content; } return; }
   const p = document.createElement('p'); p.className = 'chat-provenance';
+  const rawLine = footer.replace(/^`|`$/g, '');
   const code = document.createElement('code');
-  code.textContent = footer.replace(/^`|`$/g, '');
+  code.textContent = rawLine;
+  const plainText = provenancePlain(rawLine);
+  if (plainText) {
+    // Read with certainty: plain words, the raw line one click away. Otherwise (unknown shape)
+    // the raw line stays exactly as it always was -- never a guessed sentence.
+    p.title = rawLine;
+    const plain = document.createElement('span'); plain.className = 'prov-plain';
+    plain.textContent = plainText;
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'prov-more';
+    more.setAttribute('aria-expanded', 'false'); more.textContent = pageT('chat.provenance.details', 'details');
+    code.className = 'prov-raw'; code.setAttribute('dir', 'ltr'); code.hidden = true;
+    p.appendChild(plain); p.appendChild(document.createTextNode(' ')); p.appendChild(more);
+  }
   p.appendChild(code); el.appendChild(p);
   // renderRichText deliberately set this to canonical content. Keep copy/pin/history behavior on
   // that authority even though the metadata is now visible in the same bubble.
