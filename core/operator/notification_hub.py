@@ -18,7 +18,7 @@ _BASELINE = "model_news_inbox_v1"
 _NON_WORK_COMPLETIONS = frozenset({
     "smalltalk_fast_path", "empty_turn_fast_path", "help_fast_path",
     "startup_sequence_fast_path", "heartbeat_poll_fast_path", "ui_command_fast_path",
-    "user_preference_command", "bare_secret_intercept", "cloud_key_command",
+    "user_preference_command", "bare_secret_intercept", "personal_secret_intake", "cloud_key_command",
     "image_key_command", "cloud_model_command", "cloud_models_command",
     "cloud_escalation_command", "spend_brakes_command", "hive_cleanup_noop",
     "image_generate_cancelled", "hive_topic_create_cancelled",
