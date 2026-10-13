@@ -29,6 +29,11 @@ FACT = "Remember that my sister Ilona's favourite tree is the silver birch."
 QUESTION = "What is Ilona's favourite tree?"
 FORGET = "Forget what I told you about Ilona's favourite tree."
 MARKER = "birch"
+# Settings > Local models certifies with this per-call budget; the runtime multiplies it by
+# core/local_compute_budget.CPU_ONLY_FACTOR on a machine with no GPU (every Intel runner).
+CERTIFY_CALL_SECONDS = 150
+CERTIFY_MAX_CALLS = 5
+CPU_ONLY_FACTOR = 4.0
 
 
 class SmokeFailure(RuntimeError):
@@ -213,13 +218,17 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         registered = request(origin, "/api/models/local/register", {"model_name": model}, timeout=120)
         (scratch / "model-register.json").write_text(json.dumps(registered, indent=2) + "\n")
         # A registered local model may not write final answers until it passes the sealed tool
-        # probe; Settings > Local models runs it with this request and this 150 s budget.
+        # probe; Settings > Local models runs it with this request and this 150 s per-call budget.
+        # The wait covers the most the runtime itself may take: up to five probe calls (parallel
+        # call + one repair, continuation, recovery + one retry), each allowed the requested
+        # budget times the CPU-only factor on a machine with no GPU, plus a minute of slack. It
+        # is a ceiling, never a wait: the request returns as soon as the probe does.
         start = time.monotonic()
         certified = request(
             origin,
             "/api/model-tool-certification/run",
-            {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": 150},
-            timeout=400,
+            {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": CERTIFY_CALL_SECONDS},
+            timeout=CERTIFY_MAX_CALLS * CERTIFY_CALL_SECONDS * CPU_ONLY_FACTOR + 60,
         )
         seconds = round(time.monotonic() - start, 1)
         (scratch / "model-certification.json").write_text(json.dumps(certified, indent=2) + "\n")
