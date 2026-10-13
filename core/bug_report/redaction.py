@@ -79,6 +79,81 @@ _BR_LABELED_IS_RE = re.compile(
 # transcription drift) falls through. Privacy-first: catch the longer runs here too.
 _AKIA_LONG_RE = re.compile(r"\bAKIA[0-9A-Z]{16,}\b")
 
+# --- personal financial / contact identifiers (a user's own words, pasted into a report) ----------
+# Card numbers: 13-19 digits, optionally grouped by single spaces or dashes; only a run that
+# passes the Luhn check (the wallet's own card rule) is masked, so ids and counts survive.
+_CARD_CANDIDATE_RE = re.compile(r"(?<![\w-])\d(?:[ -]?\d){12,18}(?![\w-])")
+# PIN / passcode / CVV / one-time code in prose: "my PIN is 4433", "cvv: 123", "OTP 482913".
+_PIN_LABEL = (
+    r"pin(?:\s*code)?|passcode|pass\s*code|cvv2?|cvc2?|csc|security\s+code|otp"
+    r"|one[- ]time\s+(?:code|password|pin)|verification\s+code|2fa\s+code|sms\s+code"
+)
+_PIN_LABELED_RE = re.compile(
+    r"(?i)\b(" + _PIN_LABEL + r")\b(\s*(?:is|was|=|:|#|-)?\s*)(?!\[redacted)([A-Za-z0-9]{3,12})\b"
+)
+# Phone numbers: an international "+" number (8-15 digits with spaces, dashes, dots or
+# brackets), or a labelled local number ("phone 612 34567", "call me on 0612-345-67").
+_PHONE_INTL_RE = re.compile(r"(?<![\w+])\+\d[\d .()-]{6,22}\d(?![\d])")
+_PHONE_LABELED_RE = re.compile(
+    r"(?i)\b(phone|tel|telephone|mobile|cell|whatsapp|signal|call\s+me(?:\s+(?:on|at))?|text\s+me(?:\s+(?:on|at))?"
+    r"|my\s+number(?:\s+is)?)\b(\s*[:#=-]?\s*)(\(?\d[\d .()-]{5,20}\d)(?![\d])"
+)
+# IBAN: country code, two check digits, 11-30 alphanumerics (optionally in groups of four);
+# masked only when the ISO 13616 mod-97 check holds.
+_IBAN_CANDIDATE_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}(?![A-Za-z0-9])")
+# Wallet addresses: EVM, Bitcoin bech32, and base58 (Solana / legacy Bitcoin) shapes.
+_EVM_ADDRESS_RE = re.compile(r"(?<![A-Za-z0-9])0x[0-9a-fA-F]{40}(?![0-9a-fA-F])")
+_BECH32_ADDRESS_RE = re.compile(r"(?i)(?<![A-Za-z0-9])(?:bc|tb|ltc)1[02-9ac-hj-np-z]{25,87}(?![A-Za-z0-9])")
+_BASE58_ADDRESS_RE = re.compile(r"(?<![A-Za-z0-9])[1-9A-HJ-NP-Za-km-z]{32,44}(?![A-Za-z0-9])")
+
+
+def _digits_of(text: str) -> str:
+    return re.sub(r"\D", "", text)
+
+
+def _is_card_number(match_text: str) -> bool:
+    digits = _digits_of(match_text)
+    if not 13 <= len(digits) <= 19 or len(set(digits)) == 1:
+        return False
+    total = 0
+    for index, char in enumerate(reversed(digits)):
+        value = int(char)
+        if index % 2 == 1:
+            value *= 2
+            if value > 9:
+                value -= 9
+        total += value
+    return total % 10 == 0
+
+
+def _is_iban(match_text: str) -> bool:
+    compact = match_text.replace(" ", "")
+    if not 15 <= len(compact) <= 34:
+        return False
+    rearranged = compact[4:] + compact[:4]
+    try:
+        numeric = "".join(str(int(ch, 36)) for ch in rearranged)
+        return int(numeric) % 97 == 1
+    except ValueError:
+        return False
+
+
+def _is_intl_phone(match_text: str) -> bool:
+    return 8 <= len(_digits_of(match_text)) <= 15
+
+
+def _is_labeled_phone(match_text: str) -> bool:
+    return 6 <= len(_digits_of(match_text)) <= 15
+
+
+def _is_base58_address(match_text: str) -> bool:
+    return (
+        any(c.isdigit() for c in match_text)
+        and any(c.isupper() for c in match_text)
+        and any(c.islower() for c in match_text)
+    )
+
+
 # --- entropy / hex blobs --------------------------------------------------------------------------
 _ENTROPY_RUN_RE = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/=_-]{20,}(?![A-Za-z0-9+/=_-])")
 _HEX_BLOB_RE = re.compile(r"(?<![0-9a-fA-F])[0-9a-fA-F]{32,}(?![0-9a-fA-F])")
@@ -192,6 +267,38 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
 
     def _labeled_is_sub(m: re.Match) -> str:
         return f"{m.group(1)} is [redacted]"
+
+    # Personal financial / contact identifiers BEFORE the labelled-secret family, so "PIN is
+    # 4433" is attributed to its own rule and a card number never reaches the entropy rule.
+    def _conditional(rule: str, pattern: re.Pattern, check, replacement) -> None:
+        nonlocal value
+        hits = 0
+
+        def _sub(m: re.Match) -> str:
+            nonlocal hits
+            if not check(m):
+                return m.group(0)
+            hits += 1
+            return replacement(m) if callable(replacement) else replacement
+
+        value = pattern.sub(_sub, value)
+        bump(rule, hits)
+
+    _conditional("wallet_address", _EVM_ADDRESS_RE, lambda m: True, "[redacted-address]")
+    _conditional("card_number", _CARD_CANDIDATE_RE, lambda m: _is_card_number(m.group(0)), "[redacted-card]")
+    _conditional("iban", _IBAN_CANDIDATE_RE, lambda m: _is_iban(m.group(0)), "[redacted-iban]")
+    # The value must carry a digit: "the pin is 4433" is a PIN, "the pin is set" is prose.
+    _conditional(
+        "pin_code", _PIN_LABELED_RE, lambda m: any(c.isdigit() for c in m.group(3)),
+        lambda m: f"{m.group(1)}{m.group(2) or ' '}[redacted-pin]",
+    )
+    _conditional("phone", _PHONE_INTL_RE, lambda m: _is_intl_phone(m.group(0)), "[redacted-phone]")
+    _conditional(
+        "phone", _PHONE_LABELED_RE, lambda m: _is_labeled_phone(m.group(3)),
+        lambda m: f"{m.group(1)}{m.group(2) or ' '}[redacted-phone]",
+    )
+    _conditional("wallet_address", _BECH32_ADDRESS_RE, lambda m: True, "[redacted-address]")
+    _conditional("wallet_address", _BASE58_ADDRESS_RE, lambda m: _is_base58_address(m.group(0)), "[redacted-address]")
 
     apply("labeled_secret", _BR_LABELED_RE, _labeled_sub)
     apply("labeled_secret", _BR_LABELED_IS_RE, _labeled_is_sub)

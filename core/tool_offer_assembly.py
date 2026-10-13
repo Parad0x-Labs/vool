@@ -143,6 +143,7 @@ def _plugin_dirs() -> tuple[tuple[str, Path], ...]:
         from core.plugin_lifecycle import is_available, record_for
         return tuple((pid, path) for pid, path in discovered_plugin_sources()
                      if pid not in disabled and (not is_managed(pid) or available(pid, path))
+                     and (not pid.startswith("registry-") or record_for(pid) is not None)
                      and (record_for(pid) is None or is_available(pid, root=path)))
     except Exception:
         return ()
@@ -199,6 +200,11 @@ def _skill_header(skill: Any) -> str:
     shown = raw
     with contextlib.suppress(Exception):
         shown = str(Path(raw).resolve().relative_to(Path(__file__).resolve().parents[1]))
+    plugin_id = str(getattr(skill, "plugin_id", "") or "")
+    if plugin_id in ("chat-skills", "project-skills"):
+        # A chat or project skill lives in the runtime's data folder under a chat/project key:
+        # neither the machine path nor the key belongs in the prompt. Its scope and name do.
+        shown = f"{plugin_id.split('-')[0]} skill {Path(raw).parent.name}"
     return (
         f"[skill '{skill.name}' from '{skill.plugin_id or 'unknown'}' ({shown}) "
         "— guidance only; it grants no permissions]"
@@ -273,6 +279,81 @@ def skill_provenance_rows(rows: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _user_authored(skill: Any) -> bool:
+    """A skill the OPERATOR made: a chat or project skill, or one in a global pack they own.
+
+    ``local-skills`` (where chat-authored skills are installed) and packs the plugin creator made
+    (``"vool": {"origin": "user"}``) qualify; bundled first-party packs and add-on packs do not.
+    """
+    plugin_id = str(getattr(skill, "plugin_id", "") or "")
+    if plugin_id in ("chat-skills", "project-skills"):
+        return True
+    try:
+        from core.skill_tools import _removable_global_pack
+
+        return _removable_global_pack(Path(str(getattr(skill, "path", "") or "")).parents[2])
+    except Exception:
+        return False
+
+
+def _render_lexical(
+    ranked: tuple[Any, ...],
+    *,
+    remaining: int,
+    blocks: list[str],
+    provenance: list[dict[str, Any]],
+    allowed: list[str],
+    complete_only: bool,
+) -> int:
+    """Render ranked lexical skills into the turn; returns the characters still left."""
+    for skill in ranked:
+        if remaining < _MIN_SKILL_CHARS:
+            break
+        from core.addon_store import is_managed
+
+        if complete_only or is_managed(str(skill.plugin_id or "")):
+            block = render_complete_block(skill, remaining)
+            if block is None:
+                provenance.append({"name": skill.name, "plugin_id": skill.plugin_id,
+                                   "origin": "plugin", "complete": False, "chars": 0,
+                                   "reason": "instruction_budget_exceeded"})
+                continue
+            used = len(block)
+        else:
+            block, used = _render_block(skill, remaining)
+        if not block:
+            continue
+        blocks.append(block)
+        remaining -= used
+        # The recorded head version of an installed skill rides the provenance row,
+        # so "which skill VERSION influenced this turn" is answerable for
+        # user-authored skills too (typed contracts carry their own declared version).
+        version = 0
+        with contextlib.suppress(Exception):
+            from core.skill_tools import installed_skill_version_for_path
+
+            version = installed_skill_version_for_path(
+                str(getattr(skill, "path", "") or "")
+            )
+        scope_origin = {"chat-skills": "chat", "project-skills": "project"}.get(
+            str(skill.plugin_id or ""), "plugin"
+        )
+        provenance.append(
+            {
+                "name": str(skill.name),
+                "plugin_id": str(skill.plugin_id or ""),
+                "origin": scope_origin,
+                "path": str(skill.path),
+                "chars": int(used),
+                **({"version": int(version)} if version else {}),
+            }
+        )
+        for name in getattr(skill, "allowed_tools", ()) or ():
+            if name not in allowed:
+                allowed.append(str(name))
+    return remaining
+
+
 def skill_guidance_for(
     user_text: str,
     *,
@@ -280,14 +361,25 @@ def skill_guidance_for(
     limit: int = MAX_SKILLS,
     task_chars: int | None = None,
     doctrine_chars: int | None = None,
+    source_context: dict[str, Any] | None = None,
 ) -> SkillGuidance:
     """The bounded, attributed instructions the matched skills contribute for this turn.
 
-    Two sources, one budget. NATIVE skills (the repo's own library) are selected by the typed
-    law in ``core.native_skill_library`` — the turn's task class and its demand signals, never
-    user-text tokens, because a second phrase-regex pile is the defect class this seam exists
-    to avoid. PLUGIN skills keep the loader's lexical ranking. Native selections take the
-    budget first: a typed decision outranks a lexical one, and the total stays bounded.
+    Three sources, one budget, in this order:
+
+    1. Skills the OPERATOR made (this chat's, this project's, and global ones in a pack they own)
+       that the request matches lexically. A skill someone wrote for exactly this kind of request
+       is the strongest statement of how they want it done, so it is never crowded out by a
+       generic guess. Measured live 2026-10-05: a chat skill for meeting notes matched, and four
+       first-party skills selected on the task class alone filled every slot first, so the
+       operator's skill never reached the prompt. These render complete or not at all.
+    2. NATIVE skills (the repo's own library), selected by the typed law in
+       ``core.native_skill_library`` -- the turn's task class and its demand signals, never
+       user-text tokens -- with whatever budget is left.
+    3. Other PLUGIN skills (bundled and add-on packs), by the loader's lexical ranking.
+
+    With ``source_context``, chat and project skills are candidates; without it they are not: a
+    turn that cannot say which chat it belongs to must not borrow another chat's skills.
     """
     from core import plugin_skills
 
@@ -300,14 +392,65 @@ def skill_guidance_for(
     # let a caller that had asked for a smaller budget still receive the full one.
     remaining = int(MAX_SKILL_CHARS if task_chars is None else task_chars)
 
-    if str(task_class or "").strip() or str(user_text or "").strip():
+    disabled: set[str] = set()
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import disabled_skill_ids
+
+        disabled = set(disabled_skill_ids())
+
+    def _enabled(candidates: tuple[Any, ...]) -> tuple[Any, ...]:
+        # A skill disabled in the ONE disable store is not a candidate — typed contracts are
+        # filtered inside the library's selection, so the lexical path filters through the
+        # same store rather than keeping a second opinion about "off".
+        return tuple(s for s in candidates if str(s.name or "") not in disabled)
+
+    installed = loaded_skills() if str(user_text or "").strip() else ()
+    scoped: tuple[Any, ...] = ()
+    if isinstance(source_context, dict) and str(user_text or "").strip():
+        with contextlib.suppress(Exception):
+            from core.skill_scopes import scope_keys
+            from core.skill_tools import scoped_skills
+
+            scoped = scoped_skills(scope_keys(source_context))
+    # Narrowest first, and a chat/project skill shadows a global one of the same name: it is the
+    # version the operator made for this conversation.
+    shadowed = {str(s.name or "").strip().lower() for s in scoped}
+    installed = tuple(s for s in installed if str(s.name or "").strip().lower() not in shadowed)
+    user_made = _enabled(tuple(scoped) + tuple(s for s in installed if _user_authored(s)))
+    # One name, one slot: a skill bundled into a plugin the operator made is the same skill as the
+    # copy it was bundled from (measured live: the plugin's copy and the local-skills copy both
+    # matched and both were injected). The first, narrowest occurrence stands.
+    seen_names: set[str] = set()
+    unique: list[Any] = []
+    for skill in user_made:
+        key = str(skill.name or "").strip().lower()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        unique.append(skill)
+    user_made = tuple(unique)
+    others = _enabled(tuple(s for s in installed if not _user_authored(s)))
+
+    # 1. The operator's own skills.
+    if user_made:
+        ranked = plugin_skills.rank_skills(user_made, str(user_text), limit=budget)
+        remaining = _render_lexical(
+            ranked, remaining=remaining, blocks=blocks, provenance=provenance, allowed=allowed,
+            complete_only=True,
+        )
+    user_slots = sum(1 for row in provenance if row.get("complete", True))
+
+    # 2. Native skills with what is left.
+    if user_slots < budget and (str(task_class or "").strip() or str(user_text or "").strip()):
         from core.native_skill_library import guidance_for_selection, select_native_skills
 
         selection = select_native_skills(
-            task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget
+            task_class=str(task_class or ""), user_text=str(user_text or ""), limit=budget - user_slots
         )
         native_text, native_provenance, _native_permitted = guidance_for_selection(
-            selection.selected, task_chars=task_chars, doctrine_chars=doctrine_chars
+            selection.selected,
+            task_chars=remaining if user_slots else task_chars,
+            doctrine_chars=doctrine_chars,
         )
         if native_text:
             blocks.append(native_text)
@@ -324,63 +467,15 @@ def skill_guidance_for(
             # debugging-classified turn (caught by test_offer_stays_bounded_at_every_seam).
             # Skills teach workflows; they never resize the model's toolbelt.
 
-    # Count only what actually reached the prompt: a row recorded as dropped for
-    # budget is provenance, not a filled slot.
-    native_slots = sum(1 for row in provenance if row.get("complete", True))
-    if native_slots < budget and str(user_text or "").strip():
-        skills = loaded_skills()
-        if skills:
-            # A skill disabled in the ONE disable store is not a candidate — typed contracts are
-            # filtered inside the library's selection, so the lexical path filters through the
-            # same store rather than keeping a second opinion about "off".
-            with contextlib.suppress(Exception):
-                from core.native_skill_library import disabled_skill_ids
-
-                disabled = disabled_skill_ids()
-                skills = tuple(s for s in skills if str(s.name or "") not in disabled)
-            if skills:
-                ranked = plugin_skills.rank_skills(skills, str(user_text), limit=budget - native_slots)
-                for skill in ranked:
-                    if remaining < _MIN_SKILL_CHARS:
-                        break
-                    from core.addon_store import is_managed
-                    if is_managed(str(skill.plugin_id or "")):
-                        block = render_complete_block(skill, remaining)
-                        if block is None:
-                            provenance.append({"name": skill.name, "plugin_id": skill.plugin_id,
-                                               "origin": "plugin", "complete": False, "chars": 0,
-                                               "reason": "instruction_budget_exceeded"})
-                            continue
-                        used = len(block)
-                    else:
-                        block, used = _render_block(skill, remaining)
-                    if not block:
-                        continue
-                    blocks.append(block)
-                    remaining -= used
-                    # The recorded head version of an installed skill rides the provenance row,
-                    # so "which skill VERSION influenced this turn" is answerable for
-                    # user-authored skills too (typed contracts carry their own declared version).
-                    version = 0
-                    with contextlib.suppress(Exception):
-                        from core.skill_tools import installed_skill_version_for_path
-
-                        version = installed_skill_version_for_path(
-                            str(getattr(skill, "path", "") or "")
-                        )
-                    provenance.append(
-                        {
-                            "name": str(skill.name),
-                            "plugin_id": str(skill.plugin_id or ""),
-                            "origin": "plugin",
-                            "path": str(skill.path),
-                            "chars": int(used),
-                            **({"version": int(version)} if version else {}),
-                        }
-                    )
-                    for name in getattr(skill, "allowed_tools", ()) or ():
-                        if name not in allowed:
-                            allowed.append(str(name))
+    # 3. Other plugin skills. Count only what actually reached the prompt: a row recorded as
+    # dropped for budget is provenance, not a filled slot.
+    filled = sum(1 for row in provenance if row.get("complete", True))
+    if filled < budget and others:
+        ranked = plugin_skills.rank_skills(others, str(user_text), limit=budget - filled)
+        remaining = _render_lexical(
+            ranked, remaining=remaining, blocks=blocks, provenance=provenance, allowed=allowed,
+            complete_only=False,
+        )
     return SkillGuidance(text="\n\n".join(blocks), skills=tuple(provenance), allowed_tools=tuple(allowed))
 
 
@@ -485,6 +580,7 @@ def assemble_tool_offer(
         task_class=str(task_class or ""),
         task_chars=MAX_TOOL_LANE_SKILL_CHARS,
         doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
+        source_context=source_context if isinstance(source_context, dict) else None,
     )
     if guidance.allowed_tools:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)

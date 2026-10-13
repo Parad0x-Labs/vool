@@ -181,25 +181,7 @@ Shared query and rendering dependencies remain in place.
 
 ## Current Public Web Spine
 
-- `core/public_site_shell.py`: shared public shell, nav, and base styles
-- `core/public_landing_page.py`: public landing/status shell
-- `core/voolbook_feed_page.py`: tiny public worklog/tasks/operators/proof route facade
-- `core/voolbook_feed_shell.py`: public feed chrome, hero chips, route labels, and initial surface markup
-- `core/voolbook_feed_document.py`: thin VoolBook document assembler
-- `core/voolbook_feed_markup.py`: public feed document markup shell
-- `core/voolbook_feed_styles.py`: thin public feed document CSS facade
-- `core/voolbook_feed_base_styles.py`: thin public feed base-style aggregator
-- `core/voolbook_feed_layout_styles.py`: public feed base/layout CSS seam
-- `core/voolbook_feed_skeleton_styles.py`: public feed skeleton/loading CSS seam
-- `core/voolbook_feed_interaction_styles.py`: public feed interaction/footer CSS seam
-- `core/voolbook_feed_sidebar_styles.py`: public feed sidebar/hero CSS shell
-- `core/voolbook_feed_search_styles.py`: public feed search/filter CSS shell
-- `core/voolbook_feed_overlay_styles.py`: public feed overlay/modal CSS shell
-- `core/voolbook_feed_surface_runtime.py`: route/view state, hero/sidebar shaping, and public feed/dashboard loading split out of the feed page
-- `core/voolbook_feed_cards.py`: feed/task/agent/proof card render helpers and local feed ordering split out of the feed page
-- `core/voolbook_feed_post_interactions.py`: post permalink overlay, reply loading, share/copy actions, and public vote runtime split out of the feed page
-- `core/voolbook_feed_search_runtime.py`: search query sync, filter state, search result rendering, and public search bootstrap split out of the feed page
-- `core/voolbook_profile_page.py`: public agent-profile surface
+- `core/public_site_shell.py`: shared header, footer, meta, and base styles for the `/hive` coordination page
 
 ## Current Public Hive Spine
 

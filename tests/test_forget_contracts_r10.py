@@ -4,6 +4,27 @@ from tests.test_question_date_time_leg_20261002 import _hash_backend, _ingest, _
 
 pytestmark = pytest.mark.usefixtures('_hash_backend')
 
+
+@pytest.fixture(autouse=True)
+def _private_default_home(tmp_path, monkeypatch):
+    """A forget here binds its chat's default runtime home into the erasure, and a failed
+    verification fences that authority for the rest of the process, by design. Under pytest the
+    default home is one directory for the whole session, so without this the fence outlived the
+    test: the next file in the shard to write memory there failed with "forget authority lease
+    was abandoned"."""
+    from core import runtime_paths
+    from core.runtime_paths import configure_runtime_home
+    previous = runtime_paths._VOOL_HOME_OVERRIDE
+    default = tmp_path / 'default-home'
+    default.mkdir()
+    monkeypatch.setenv('VOOL_HOME', str(default))
+    monkeypatch.setenv('VOOL_WORKSPACE_ROOT', str(default / 'workspace'))
+    configure_runtime_home(default)
+    try:
+        yield default
+    finally:
+        configure_runtime_home(previous)
+
 def forget(home, chat, text):
     from core.memory.entries import resolve_memory_access_policy
     from core.persistent_memory import maybe_handle_memory_command

@@ -75,7 +75,8 @@ CREATE TABLE IF NOT EXISTS token_usage (
     output_tokens INTEGER NOT NULL,
     usd_actual    REAL,
     prompt_tokens_reported INTEGER NOT NULL DEFAULT 1,
-    output_tokens_reported INTEGER NOT NULL DEFAULT 1
+    output_tokens_reported INTEGER NOT NULL DEFAULT 1,
+    cached_prompt_tokens INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_token_usage_ts    ON token_usage(created_ts);
 CREATE INDEX IF NOT EXISTS idx_token_usage_class ON token_usage(cost_class);
@@ -120,6 +121,10 @@ def _ensure_schema(conn: Any) -> None:
             conn.execute("ALTER TABLE token_usage ADD COLUMN prompt_tokens_reported INTEGER NOT NULL DEFAULT 1")
         with contextlib.suppress(Exception):
             conn.execute("ALTER TABLE token_usage ADD COLUMN output_tokens_reported INTEGER NOT NULL DEFAULT 1")
+        # Prompt tokens the provider served from its prompt cache; NULL means it reported nothing
+        # (unknown), never a confirmed zero. Existing rows stay NULL.
+        with contextlib.suppress(Exception):
+            conn.execute("ALTER TABLE token_usage ADD COLUMN cached_prompt_tokens INTEGER")
         conn.commit()
         _SCHEMA_READY_PATHS.add(key)
 
@@ -187,6 +192,7 @@ def _record_usage_once(
     now: float | None = None,
     prompt_tokens_reported: bool = True,
     output_tokens_reported: bool = True,
+    cached_prompt_tokens: int | None = None,
 ) -> bool:
     """Record one served response's token usage. Fail-soft: returns True on success, False on
     any error (never raises), so a metering write cannot abort a chat turn. A row is skipped
@@ -218,6 +224,9 @@ def _record_usage_once(
                 ua = None
         if pt == 0 and ot == 0 and not (ua and ua > 0):
             return False
+        cached: int | None = None
+        if isinstance(cached_prompt_tokens, int) and not isinstance(cached_prompt_tokens, bool):
+            cached = min(max(0, cached_prompt_tokens), pt) if pt else max(0, cached_prompt_tokens)
         ts = _now_ts() if now is None else float(now)
         from storage.db import get_connection
 
@@ -229,8 +238,8 @@ def _record_usage_once(
                 INSERT INTO token_usage
                     (entry_id, created_at, created_ts, provider_id, model_id,
                      cost_class, prompt_tokens, output_tokens, usd_actual,
-                     prompt_tokens_reported, output_tokens_reported)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     prompt_tokens_reported, output_tokens_reported, cached_prompt_tokens)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -244,6 +253,7 @@ def _record_usage_once(
                     ua,
                     1 if prompt_tokens_reported else 0,
                     1 if output_tokens_reported else 0,
+                    cached,
                 ),
             )
             # Opportunistic prune so the table can't grow without bound. Indexed on
@@ -274,6 +284,7 @@ def record_usage(
     now: float | None = None,
     prompt_tokens_reported: bool = True,
     output_tokens_reported: bool = True,
+    cached_prompt_tokens: int | None = None,
 ) -> bool:
     """Record usage without letting transient SQLite contention abort a chat turn."""
     for attempt in range(_BUSY_RETRIES):
@@ -288,6 +299,7 @@ def record_usage(
                 now=now,
                 prompt_tokens_reported=prompt_tokens_reported,
                 output_tokens_reported=output_tokens_reported,
+                cached_prompt_tokens=cached_prompt_tokens,
             )
         except sqlite3.OperationalError as exc:
             is_busy = any(word in str(exc).lower() for word in ("busy", "locked"))
@@ -440,7 +452,9 @@ def usage_by_model(
                        COALESCE(SUM(prompt_tokens), 0) AS prompt_tokens,
                        COALESCE(SUM(output_tokens), 0) AS output_tokens,
                        COALESCE(SUM(usd_actual), 0.0)  AS usd_actual_sum,
-                       COALESCE(SUM(CASE WHEN usd_actual IS NULL THEN prompt_tokens + output_tokens ELSE 0 END), 0) AS unpriced_tokens
+                       COALESCE(SUM(CASE WHEN usd_actual IS NULL THEN prompt_tokens + output_tokens ELSE 0 END), 0) AS unpriced_tokens,
+                       COALESCE(SUM(cached_prompt_tokens), 0) AS cached_prompt_tokens,
+                       COUNT(cached_prompt_tokens)             AS cache_reported_responses
                 FROM token_usage
                 {where}
                 GROUP BY provider_id, model_id, cost_class
@@ -463,6 +477,8 @@ def usage_by_model(
                 "prompt_tokens": pt,
                 "output_tokens": ot,
                 "total_tokens": pt + ot,
+                "cached_prompt_tokens": int(row[8] or 0),
+                "cache_reported_responses": int(row[9] or 0),
             }
             if cc == COST_PAID_CLOUD:
                 usd, all_actual = _paid_usd_from_row(float(row[6] or 0.0), int(row[7] or 0), rate)
@@ -473,7 +489,7 @@ def usage_by_model(
             if prior is None:
                 merged[key] = entry
                 continue
-            for field in ("responses", "prompt_tokens", "output_tokens", "total_tokens"):
+            for field in ("responses", "prompt_tokens", "output_tokens", "total_tokens", "cached_prompt_tokens", "cache_reported_responses"):
                 prior[field] += entry[field]
             if cc == COST_PAID_CLOUD:
                 prior["usd"] = round(float(prior.get("usd") or 0.0) + float(entry.get("usd") or 0.0), 6)

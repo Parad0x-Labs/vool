@@ -149,15 +149,14 @@ def _skill_frontmatter(skill_md: Path) -> dict[str, str]:
     return values
 
 
-def _plugin_entry(plugin_dir: Path) -> dict[str, Any] | None:
+def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] | None:
     manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json")
     if not manifest:
         return None
     interface = manifest.get("interface") if isinstance(manifest.get("interface"), dict) else {}
-    author = manifest.get("author") if isinstance(manifest.get("author"), dict) else {}
-    # First-party = built by us (Parad0x / sls_0x), so the console can badge our own plugins.
-    author_blob = f"{author.get('name', '')} {author.get('url', '')} {interface.get('developerName', '')}".lower()
-    first_party = any(mark in author_blob for mark in ("parad0x", "sls_0x", "sls0x", "vool"))
+    # A manifest's author text is untrusted. Only the runtime's shipped source
+    # receives this badge; an external pack cannot obtain it by naming us.
+    first_party = bundled
     skills: list[dict[str, Any]] = []
     skills_dir = plugin_dir / "skills"
     if skills_dir.is_dir():
@@ -783,13 +782,23 @@ def read_plugin_catalog() -> dict[str, Any]:
     external_ok = root is not None and storage.get("state") == STORAGE_ACCESSIBLE
     if external_ok or bundled_roots:
         for plugin_id, plugin_dir in discovered_plugin_sources():
-            entry = _plugin_entry(plugin_dir)
+            entry = _plugin_entry(plugin_dir, bundled=plugin_dir in bundled_roots)
             if entry is None:
                 continue
             entry["enabled"] = plugin_id not in disabled
             from core.addon_store import available, is_managed
             if is_managed(plugin_id):
                 entry["enabled"] = entry["enabled"] and available(plugin_id, plugin_dir)
+            from core.plugin_lifecycle import is_available, record_for
+
+            record = record_for(plugin_id)
+            if plugin_id.startswith("registry-") and record is None:
+                entry["enabled"] = False
+                entry["registry_available"] = False
+            if record is not None and record.source.startswith("registry:"):
+                entry["enabled"] = entry["enabled"] and is_available(plugin_id, root=plugin_dir)
+                entry["registry_id"] = record.source.removeprefix("registry:")
+                entry["registry_available"] = is_available(plugin_id, root=plugin_dir)
             entry["origin"] = "bundled" if (bundled_root is not None and plugin_dir.parent == bundled_root) else "installed"
             entry["root"] = str(plugin_dir.parent.parent)
             plugins.append(entry)

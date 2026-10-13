@@ -2202,6 +2202,56 @@ def cmd_bug_report(args: argparse.Namespace) -> int:
             return 1
         return _emit(status)
 
+    if action == "answer":
+        try:
+            draft = service.create_answer_draft(
+                session_id=str(args.session or ""),
+                request_id=str(args.request_id or ""),
+                reason=str(args.reason or "wrong"),
+                excerpt=str(args.excerpt or ""),
+                what_was_wrong=str(args.wrong or ""),
+                should_have_said=str(args.should or ""),
+                include_question=bool(args.include_question),
+                include_receipt=not bool(args.no_receipt),
+                title=str(args.title or ""),
+                destination_repo=str(args.destination or ""),
+            )
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        return _emit({
+            "report_id": draft.report_id,
+            "fingerprint": draft.fingerprint,
+            "destination_repo": draft.destination_repo,
+            "next": f"vool bug-report preview {draft.report_id}",
+        })
+
+    if action == "open":
+        try:
+            handed = service.handoff(str(args.report_id), method="clipboard" if args.text else "browser")
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        if args.text:
+            if getattr(args, "json", False):
+                return _emit(handed)
+            print(handed["clipboard_text"])
+            return 0
+        payload = {"url": handed["url"], "complete": handed["complete"], "search_url": handed["search_url"]}
+        if not handed["complete"]:
+            payload["paste"] = f"the report is too long for a link: run `vool bug-report open {args.report_id} --text` and paste it"
+        return _emit(payload)
+
+    if action == "list":
+        rows = service.list_reports()
+        if getattr(args, "json", False):
+            print(_json.dumps(rows, ensure_ascii=False, sort_keys=True))
+        else:
+            for row in rows:
+                how = ", ".join(h.get("how", "") for h in row.get("handoffs", [])) or "not sent"
+                print(f"{row.get('created_at')} {row.get('report_id')} [{row.get('kind')}] {row.get('title')} ({how})")
+        return 0
+
     if action == "receipts":
         rows = service.receipts()
         if getattr(args, "json", False):
@@ -2314,6 +2364,24 @@ def build_parser() -> argparse.ArgumentParser:
     br_status.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
     br_receipts = bug_report_sub.add_parser("receipts", help="List durable submission receipts (metadata only).")
     br_receipts.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
+    br_answer = bug_report_sub.add_parser("answer", help="Report a wrong answer: a sanitized LOCAL draft quoting that one answer.")
+    br_answer.add_argument("--session", required=True, help="Chat id the answer belongs to.")
+    br_answer.add_argument("--request-id", required=True, help="The answer's request id.")
+    br_answer.add_argument("--reason", default="wrong", choices=["wrong", "outdated", "not_what_i_asked", "unsafe", "other"])
+    br_answer.add_argument("--excerpt", default="", help="Only this part of the answer (must be from the answer); default the whole answer.")
+    br_answer.add_argument("--wrong", default="", help="What was wrong, in your words.")
+    br_answer.add_argument("--should", default="", help="What it should have said.")
+    br_answer.add_argument("--include-question", action="store_true", help="Also quote your question (off by default).")
+    br_answer.add_argument("--no-receipt", action="store_true", help="Leave out the answer's receipt (model, tokens, actions).")
+    br_answer.add_argument("--title", default="", help="Short title.")
+    br_answer.add_argument("--destination", default="", help="Destination repo as owner/name (default: the configured one).")
+    br_answer.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
+    br_open = bug_report_sub.add_parser("open", help="Print the GitHub link that files the APPROVED report from your browser (no token).")
+    br_open.add_argument("report_id", help="Draft id.")
+    br_open.add_argument("--text", action="store_true", help="Print the report text to paste instead of a link.")
+    br_open.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
+    br_list = bug_report_sub.add_parser("list", help="My reports: local drafts and how each one left.")
+    br_list.add_argument("--json", action="store_true", help="Emit JSON instead of human-readable text.")
 
     sell_quote = sub.add_parser("sell-quote", help="Preview the x402 invoice for a null:// request or a .null name (read-only).")
     sell_quote.add_argument("target", help="A null:// service URI or a <name>.null")

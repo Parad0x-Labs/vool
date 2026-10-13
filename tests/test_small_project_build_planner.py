@@ -629,6 +629,7 @@ def _drive_turn(agent, prompt: str, proposal: list[str]):
         )
 
     with (
+        mock.patch.dict("os.environ", {"VOOL_LOCAL_MODELS_ENABLED": "1"}),
         mock.patch.object(builder_controller, "build_ollama_generate_fn", return_value=_generator(proposal)),
         mock.patch.object(agent, "_execute_tool_intent", side_effect=execute),
         mock.patch.object(agent, "_emit_runtime_event", return_value=None),
