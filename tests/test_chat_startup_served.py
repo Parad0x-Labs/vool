@@ -117,7 +117,9 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                     greeting = page.locator(".msg.assistant .msg-text").last.inner_text()
                     body = greeting.split("\n\n", 1)[0].strip()
                     assert any(body.startswith(prefix) for prefix in opener_prefixes), greeting
-                    assert "smalltalk_fast_path" in greeting, greeting
+                    # The raw details line now sits behind a "details" button; it is still in the message.
+                    raw = page.locator(".msg.assistant").last.text_content() or ""
+                    assert "smalltalk_fast_path" in raw, raw
                     timings[f"hi_{generation}"] = round(time.monotonic() - started, 3)
                     assert timings[f"hi_{generation}"] < 15, timings
                     # Hi uses the production deterministic greeting. A separate
