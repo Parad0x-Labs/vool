@@ -305,13 +305,11 @@ def install_nonactivating_pet_host() -> None:
         finally:
             cocoa.BrowserView.WindowHost = original_host
 
-    original_accept = getattr(cocoa.BrowserView.WebKitHost, 'acceptsFirstMouse_', None)
-    original_impl = getattr(original_accept, 'callable', None)
-
     def acceptsFirstMouse_(view, event):  # noqa: N802 -- public Cocoa selector
         if isinstance(view.window(), VoolCompanionPanel):
             return True
-        return original_impl(view, event) if callable(original_impl) else False
+        # Every other window keeps WKWebView's own first-click behaviour.
+        return objc.super(cocoa.BrowserView.WebKitHost, view).acceptsFirstMouse_(event)
 
     objc.classAddMethods(cocoa.BrowserView.WebKitHost, [
         objc.selector(acceptsFirstMouse_, selector=b'acceptsFirstMouse:', signature=b'Z@:@')])
@@ -455,6 +453,9 @@ class PetWindowTracker:
                 self._timer.invalidate()
             self._timer = None
             self._running = False
+            # A re-show starts from no reported hover/drag, so the controls never stick on.
+            self._interaction = None
+            self._pet_drag = False
             # Leave the window accepting input, so a re-show is never stuck click-through.
             self._window.setIgnoresMouseEvents_(False)
 
@@ -742,6 +743,10 @@ class PetWindowController:
         def _reset():
             import AppKit
 
+            # Only a pet that is on the desktop is reset. Ordering a hidden or returned pet's
+            # window front would put a second pet on screen beside the in-app one.
+            if not window.isVisible():
+                return None
             frame = default_pet_frame(visible_frames())
             window.setFrame_display_(AppKit.NSMakeRect(*frame), True)
             order_front_without_focus(window)

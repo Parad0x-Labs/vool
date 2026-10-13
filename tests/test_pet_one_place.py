@@ -105,3 +105,76 @@ def test_customising_the_pet_shows_a_live_preview_inside_the_panel() -> None:
     assert out["drawnIntoPreview"], "the pet is drawn into the panel's own canvas"
     assert out["afterChange"]["character"] == "spark", "the preview follows the chosen character"
     assert out["cancelled"] >= 1, "closing the panel stops the preview animation"
+
+
+class _Controller:
+    """A native controller whose pet window is not on the desktop (hidden or returned)."""
+
+    def __init__(self, _window=None, *, on_desktop: bool = False) -> None:
+        self.on_position_settled = None
+        self.on_desktop = on_desktop
+        self.adopted: list[object] = []
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def adopt(self, position=None):
+        self.adopted.append(position)
+        return {"ok": True}
+
+    def position(self):
+        return {"x": 640.0, "y": 300.0}
+
+    def reset_position(self):
+        return {"x": 1.0, "y": 2.0} if self.on_desktop else None
+
+
+def test_reset_does_not_bring_back_a_pet_that_is_not_on_the_desktop() -> None:
+    main = _FakeWindow()
+    api = _WindowApi()
+    api.set_window(main, _FakeWebview())
+    api._pet = _Controller(on_desktop=False)
+
+    assert api.reset_companion_position() == {"ok": False, "error": "not_on_desktop"}
+    assert main.scripts == [], "a refused reset must not report a desktop position to the page"
+
+    api._pet = _Controller(on_desktop=True)
+    assert api.reset_companion_position()["ok"] is True
+
+
+def test_dragging_the_pet_out_remembers_where_it_was_dropped(monkeypatch) -> None:
+    monkeypatch.setattr(vool_window.pet_native, "PetWindowController", _Controller)
+    monkeypatch.setattr(vool_window.pet_native, "cursor_position", lambda: {"x": 640.0, "y": 300.0})
+    main = _FakeWindow()
+    api = _WindowApi()
+    api.set_window(main, _FakeWebview())
+
+    assert api.detach_companion({"state": "idle", "at_pointer": True})["ok"] is True
+    assert api._pet.adopted == [{"x": 640.0, "y": 300.0}], "the pet appears where the pointer let go"
+    assert any("desktopMoved" in script and '"x":640.0' in script for script in main.scripts), (
+        "the drop spot must reach the page's one preference so a restart puts the pet back there"
+    )
+
+
+def _boot_with(stored: dict) -> dict:
+    from tests.test_companion_one_drag_finality import page_scripts
+
+    program = (
+        DOM
+        + "\nlocalStorage.setItem('vool_ninja_pos_v1', " + json.dumps(json.dumps(stored)) + ");\n"
+        + "globalThis.__detaches = 0;\n"
+        + "window.pywebview = { api: { detach_companion: () => { __detaches++; return Promise.resolve({ ok: true }); },"
+        + " sync_companion: () => Promise.resolve({ ok: true }) } };\n"
+        + "\n;(function(){\n" + "\n;\n".join(page_scripts()) + "\n})();\n"
+        + "await new Promise((r) => _st(r, 600));\n"
+        + "out({ detaches: __detaches, pos: window.VoolCompanion.pos() });\n"
+    )
+    return run_node(program, timeout=120)
+
+
+def test_a_pet_hidden_from_the_desktop_stays_hidden_after_a_restart() -> None:
+    hidden = _boot_with({"mode": "desktop", "hidden": True, "personality": "spark"})
+    assert hidden["detaches"] == 0, "a hidden desktop pet must not reappear on launch"
+    shown = _boot_with({"mode": "desktop", "hidden": False, "personality": "spark"})
+    assert shown["detaches"] >= 1, "a visible desktop pet is still restored on launch"

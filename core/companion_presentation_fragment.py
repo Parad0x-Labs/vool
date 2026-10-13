@@ -1603,24 +1603,27 @@ async function vnDetachDesktop(silent, atPointer=false) {
     vnDesktopActive = false;
     if (!silent && vnPos.mode === "desktop") vnPos.mode = vnPos.previousMode || "docked";
     vnPersistPos(); vnApplyPos();
-    if (!silent) vnNotify("Desktop companion needs the native VOOL app window.");
+    if (!silent) vnNotify("The pet can only leave the window in the VOOL app.");
     return false;
   }
   const chatId = (typeof displayedChat !== "undefined" && displayedChat) ? displayedChat : vnLastChat;
   const pres = vnResolve(VN_VIEWS.get(String(chatId||"")));
+  // The sprite leaves the window now, not when the native window is ready: otherwise the paint
+  // loop puts it back at its old spot for as long as the desktop window takes to appear.
+  if (atPointer && vnSprite) vnSprite.style.display = "none";
   try {
     const result = await api.detach_companion({...vnDesktopPayload(pres,vnSpriteState(pres)),at_pointer:atPointer});
     if (!result || result.ok !== true) throw new Error((result&&result.error)||"unavailable");
     if (vnPos.mode !== "desktop") vnPos.previousMode = vnPos.mode === "free" ? "free" : "docked";
     vnPos.mode = "desktop"; vnDesktopActive = true; vnDesktopSignature = "";
     vnPersistPos(); vnApplyPos(); vnSyncDesktop(pres,vnSpriteState(pres));
-    if (!silent) vnNotify("Companion moved to the desktop. Drag it anywhere by its pixel world.");
+    if (!silent) vnNotify("Your pet is on the desktop. Drag it anywhere, or hover it and press \u21a9 to bring it back.");
     return true;
   } catch (e) {
     vnDesktopActive = false;
     if (vnPos.mode === "desktop") vnPos.mode = vnPos.previousMode || "docked";
     vnPersistPos(); vnApplyPos();
-    if (!silent) vnNotify("Desktop companion could not open: "+((e&&e.message)||"unavailable"));
+    if (!silent) vnNotify("The pet couldn't move to the desktop, so it's staying in the chat.");
     return false;
   }
 }
@@ -1652,12 +1655,11 @@ function vnOpenMenu(x, y) {
   if (!vnMenu) return;
   vnMenu.innerHTML = "";
   const items = [
-    ["Move to desktop", function () { vnDetachDesktop(false); }],
     ["Dock inside VOOL", vnDock],
     ["Character Lab…", vnOpenCharacterLab],
     ["Toggle edge snapping", function () { vnEdgeSnap = !vnEdgeSnap; vnPos.edge = vnEdgeSnap ? "snap" : null; vnPersistPos(); }],
-    ["Hide companion", function () { if (vnPos.mode === "desktop") vnHideDesktopPet(); else vnHide(true); }],
-    ["Reset pet position", vnResetDesktopPosition],
+    ["Hide pet", function () { if (vnPos.mode === "desktop") vnHideDesktopPet(); else vnHide(true); }],
+    ["Reset position", vnResetDesktopPosition],
     ["Motion: " + vnPos.motion, vnCycleMotion],
     ["Companion: " + vnPos.personality, vnCyclePersonality],
     ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }],
@@ -1790,7 +1792,7 @@ function vnBoot() {
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden && vnLoopTimer == null && vnBooted) vnLoopTimer = requestAnimationFrame(vnLoop);
   });
-  document.addEventListener("pywebviewready", function () { if (vnPos.mode === "desktop") vnDetachDesktop(true); });
+  document.addEventListener("pywebviewready", function () { if (vnPos.mode === "desktop" && !vnPos.hidden) vnDetachDesktop(true); });
   if (typeof ResizeObserver === "function") {
     const sb = document.getElementById("sidebar");
     if (sb) new ResizeObserver(function () { vnApplyPos(); vnScheduleHitMask(); }).observe(sb);
@@ -1805,7 +1807,8 @@ function vnBoot() {
   vnSchedulePaint();
   vnPaintNow(Date.now());
   vnLoopTimer = requestAnimationFrame(vnLoop);
-  if (vnPos.mode === "desktop") setTimeout(function () { vnDetachDesktop(true); }, 250);
+  // A pet hidden from the desktop stays hidden across a restart.
+  if (vnPos.mode === "desktop" && !vnPos.hidden) setTimeout(function () { vnDetachDesktop(true); }, 250);
 }
 window.VoolCompanionBoot = vnBoot;
 // The single typed-event entry the house consumer calls. Nothing else feeds the layer.

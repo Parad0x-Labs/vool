@@ -875,10 +875,13 @@ class _WindowApi:
                 if isinstance(payload, dict) and payload.get("at_pointer") is True:
                     position = pet_native.cursor_position()
                 adopted = self._pet.adopt(position)
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    self._remember_pet_position()  # the drop spot survives a restart
                 _log(f"desktop companion window created (frameless, transparent, {adopted})")
             elif self._pet is not None and self._pet.available:
                 if isinstance(payload, dict) and payload.get("at_pointer") is True:
                     self._pet.adopt(pet_native.cursor_position())
+                    self._remember_pet_position()
                 else:
                     self._pet.show()
             else:
@@ -966,6 +969,8 @@ class _WindowApi:
             if self._pet is None:
                 return {"ok": False, "error": "not_detached"}
             position = self._pet.reset_position()
+            if position is None:
+                return {"ok": False, "error": "not_on_desktop"}
             self._remember_pet_position()
             return {"ok": True, "position": position}
         except Exception as exc:
@@ -1312,7 +1317,10 @@ def _install_native_frame_authority() -> None:
         from installer.bundle.native_frame_authority import install_macos_frame_authority
 
         install_macos_frame_authority()
-        pet_native.install_nonactivating_pet_host()
+        try:
+            pet_native.install_nonactivating_pet_host()
+        except Exception as exc:  # the pet keeps an ordinary window; the app window must still open
+            _log(f"nonactivating pet host unavailable ({exc!r})")
 
 
 class NativeWebKitProfileError(RuntimeError):
