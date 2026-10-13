@@ -79,7 +79,7 @@ Supply these metadata fields, with **no `source` field**:
 }
 ```
 
-Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
+Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
 
 The form sends a same-origin JSON request to `POST /registry/api/drafts`:
 
@@ -245,7 +245,7 @@ Installation checks the **actual released VOOL version, exact source commit and 
 
 Website browsing uses `GET /registry/api/catalog`; it returns the latest compatible approved version per stable ID. `GET /registry/api/catalog?channel=discovery` exposes existing upstream discovery with the notice that import compatibility is separate from registry admission. The initial API has no server search/category filter query contract: the frontend may filter the returned rows locally. Stars require login; browse and download do not. Download counts are served request tickets, not unique people or installation telemetry.
 
-In the local VOOL Add-ons page, choose **Reviewed registry → Browse reviewed registry → Download for inspection**. Review the full file inventory, instructions, source, licence, requested permissions and native-control overlaps. Then make an explicit choice between **Install without enabling** and **Install and enable**, or cancel. No website login is required. The website has no install endpoint into the local app and must not present a remote POST as local owner consent.
+In the local VOOL Add-ons page, choose **Skill Codex → Browse Skill Codex → Download for inspection**. Review the full file inventory, instructions, source, licence, requested permissions and native-control overlaps. Then make an explicit choice between **Install without enabling** and **Install and enable**, or cancel. No website login is required. The website has no install endpoint into the local app and must not present a remote POST as local owner consent.
 
 Native controls always prevail: budgets, spend authorization, currency handling, settings, access controls and approval. Review notices explain overlaps; they grant no authority. Valid enabled installations may work offline; new installs require fresh trust metadata, and known revocations or edited packages block offers.
 

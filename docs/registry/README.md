@@ -43,7 +43,7 @@ A skill supplies instructions, not a spending limit, currency authorization, per
 
 Inspection shows the controls a skill overlaps with, for example: “Spending instructions overlap VOOL's native budgets and spend approval. Configured limits, freezes and approval requirements prevail.” Such overlap is informational; instructions requesting an override are blocked. The signed native-boundary report records semantic overlaps, including other languages. Local keyword notices are heuristic and do not replace independent review or the actual native effect gates.
 
-The native Add-ons page offers Reviewed registry → Browse → Download for inspection → Install without enabling / Install and enable. The complete file inventory, instructions, requested permissions and source are visible before acceptance. The website cannot POST an install into the local app. Account login is not required to browse or install.
+The native Add-ons page offers Skill Codex → Browse Skill Codex → Download for inspection → Install without enabling / Install and enable. The complete file inventory, instructions, requested permissions and source are visible before acceptance. The website cannot POST an install into the local app. Account login is not required to browse or install.
 
 ## Signing and update security
 
