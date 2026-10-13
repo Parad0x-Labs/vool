@@ -75,11 +75,13 @@ Supply these metadata fields, with **no `source` field**:
   "summary": "Summarize supplied meeting notes with decisions and action owners.",
   "category": "productivity",
   "subcategory": "meetings",
-  "license": "MIT"
+  "license": "MIT",
+  "languages": ["en"],
+  "needs": []
 }
 ```
 
-Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
+Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. `languages` is required for every new upload: 1 to 30 language codes the skill works in, such as `en`, `lt` or `pt-BR`, or exactly `["any"]` when the skill does not depend on the user's language. Versions signed before this field existed show no languages. `needs` is optional: ids from the fixed list in `core/registry/requirements.py` (served at `GET /registry/api/requirements`), naming what outside the package the skill relies on: `search_web`, `llm_cloud`, `chain_data` (a Helius, Alchemy, Solscan or Etherscan key), `solana_rpc` (VOOL's Solana connection setting), `wallet`, `browser` or `files`. `lint` and `pack` print a notice when SKILL.md clearly uses one of these and `needs` leaves it out; the notice does not block. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
 
 The form sends a same-origin JSON request to `POST /registry/api/drafts`:
 
@@ -132,6 +134,7 @@ info = {
     'kind': 'skill', 'version': '1.0.0',
     'summary': 'Summarize supplied meeting notes with decisions and action owners.',
     'category': 'productivity', 'subcategory': 'meetings', 'license': 'MIT',
+    'languages': ['en'],
     'source': {'repository': os.environ['SOURCE_REPOSITORY'],
                'commit': commit, 'path': 'meeting-brief'}
 }

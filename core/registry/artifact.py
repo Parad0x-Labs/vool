@@ -21,6 +21,7 @@ from core.registry.codec import (
     require,
     unbase64,
 )
+from core.registry.requirements import check_languages, check_needs
 
 SCHEMA = "vool.registry.artifact.v1"
 _PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
@@ -50,9 +51,15 @@ def path_name(value: str) -> str:
 
 
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) - {"title"} == {
+    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs"} == {
         "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
         "invalid package metadata fields")
+    # Optional in signed entries so earlier packages stay valid; new uploads must
+    # declare languages (registry intake and the author tool enforce that).
+    if "languages" in value:
+        check_languages(value["languages"])
+    if "needs" in value:
+        check_needs(value["needs"])
     if "title" in value:
         # Optional display name; plain text only.
         title = value["title"]

@@ -9,7 +9,7 @@ from starlette.testclient import TestClient
 
 from core.registry.admission import admit
 from core.registry.artifact import inspect, native_identity, pack
-from core.registry.codec import RegistryError, digest
+from core.registry.codec import RegistryError, canonical, decode, digest
 from core.registry.trust import TrustedCatalog
 from registry_service import community
 from registry_service.api import PREFIX, create_app
@@ -42,7 +42,7 @@ def package(tmp_path, package_id, *, version="1.0.0", category="productivity", s
         "---\nname: " + name + "\ndescription: " + summary + "\n---\nUse only the text the user provides.\n")
     (root / "LICENSE").write_text("Test fixture licence.\n")
     info = {"id": package_id, "kind": "skill", "version": version, "summary": summary, "category": category,
-            "subcategory": subcategory, "license": "MIT",
+            "subcategory": subcategory, "license": "MIT", "languages": ["en"],
             "source": {"repository": package_id.split("/")[0] + "/skills", "commit": "b" * 40, "path": name}}
     if title:
         info["title"] = title
@@ -345,7 +345,7 @@ def git_repo(tmp_path, files, *, links=()):
 
 SKILL = "---\nname: notes\ndescription: Summarize meeting notes into decisions\n---\nUse only the notes the user provides.\n"
 METADATA = {"id": "alice/notes", "kind": "skill", "version": "1.0.0", "summary": "Summarize meeting notes",
-            "category": "productivity", "subcategory": "meetings", "license": "MIT"}
+            "category": "productivity", "subcategory": "meetings", "license": "MIT", "languages": ["en"]}
 
 
 def import_body(**change):
@@ -692,4 +692,76 @@ def test_publisher_link_route_refuses_when_github_is_not_configured(tmp_path):
         client.cookies.set("vool_registry", token)
         response = client.post(PREFIX + "/publisher-link", json={"namespace": "alice"}, headers=mutation(csrf))
         assert response.status_code == 400 and "not configured" in response.json()["error"]
+    catalog.close()
+
+
+# -- languages, needs, requirements and tested builds ------------------------------------------
+
+
+def test_rows_carry_signed_languages_needs_package_requirements_and_tested_builds(tmp_path):
+    from tests.registry.audit_helpers import package as tool_package
+
+    policy, keys, root = trust_fixture()
+    store = Store(tmp_path / "private" / "accounts.sqlite")
+    catalog = TrustedCatalog(root, tmp_path / "trust" / "state", now=NOW)
+    notes = package(tmp_path, "alice/notes")
+    (tmp_path / "tool").mkdir()
+    _, source, info = tool_package(tmp_path / "tool", publisher="bob", tools=True, permissions=["external_messages"])
+    manifest_path = source / ".codex-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text())
+    # One registry package and one plugin the registry does not list.
+    manifest["requires"] = [native_identity("alice/notes"), "mail-tools"]
+    manifest_path.write_text(json.dumps(manifest))
+    mailer = pack(source, {**info, "languages": ["en", "lt"], "needs": ["search_web"]}, tmp_path / "tool" / "pack2")
+
+    entries = []
+    for raw in (notes, mailer):
+        evidence = evidence_fixture(raw, policy)
+        pins = {item: "d" * 64 for item in inspect(raw)["manifest"]["requires"]}
+        evidence["dependencies"] = pins
+        evidence["reports"]["dependencies"]["result"] = {"pins": pins}
+        check = next(item for item in evidence["checks"] if item["name"] == "dependencies")
+        check["report_sha256"] = digest(evidence["reports"]["dependencies"])
+        entry = admit(inspect(raw), policy, evidence, now=NOW)
+        entry.update(schema="vool.registry.admission.v1", issued_at=NOW - 60, expires=NOW + 7200)
+        entries.append(signed(entry, keys["admission"]))
+    authorization = {"schema": "vool.registry.catalog_authorization.v1", "root_version": 1, "epoch": 1,
+                     "issued_at": NOW, "expires": NOW + 7200, "entries_sha256": digest(entries),
+                     "revoked_sha256": digest([])}
+    catalog.accept(signed({"schema": "vool.registry.catalog.v1", "root_version": 1, "sequence": 1, "issued_at": NOW,
+                           "expires": NOW + 3600, "entries": entries, "revoked": [],
+                           "authorization": signed(authorization, keys["admission"])}, keys["catalog"]), now=NOW)
+    for raw in (notes, mailer):
+        meta = inspect(raw)["metadata"]
+        store.publish(catalog, meta["id"], meta["version"], TARGET, raw, now=NOW)
+    app = create_app(store, Auth(store, ORIGIN, []), catalog, TARGET, clock=lambda: NOW)
+    tested = catalog.resolve("bob/echo", "1.0.0", target=TARGET, now=NOW)["targets"]
+    assert tested and all(set(item) == {"version", "commit", "platform"} for item in tested)
+
+    with TestClient(app, base_url=ORIGIN) as client:
+        listed = client.get(PREFIX + "/requirements").json()["requirements"]
+        assert [item["id"] for item in listed] == [
+            "search_web", "llm_cloud", "chain_data", "solana_rpc", "wallet", "browser", "files"]
+        assert all(set(item) == {"id", "label", "kind", "providers"} for item in listed)
+        assert {item["id"]: item["kind"] for item in listed}["solana_rpc"] == "vool"
+        assert "Helius" in {item["id"]: item for item in listed}["chain_data"]["providers"]
+
+        rows = {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        assert rows["bob/echo"]["languages"] == ["en", "lt"] and rows["bob/echo"]["needs"] == ["search_web"]
+        assert rows["bob/echo"]["requirements"] == {
+            "network": True, "credentials": ["binding-mail"], "permissions": ["external_messages"],
+            "dependencies": ["alice/notes", "mail-tools"]}
+        assert rows["bob/echo"]["targets"] == tested
+        assert rows["alice/notes"]["languages"] == ["en"] and "needs" not in rows["alice/notes"]
+        assert rows["alice/notes"]["requirements"] == {
+            "network": False, "credentials": [], "permissions": [], "dependencies": []}
+        assert client.get(PREFIX + "/profiles/bob").json()["packages"] == [rows["bob/echo"]]
+
+        # A version stored before requirements were recorded gets them from its stored package.
+        with store.connection() as db:
+            stored = decode(db.execute("SELECT inspection FROM public_versions WHERE package_id='bob/echo'").fetchone()[0])
+            del stored["requirements"]
+            db.execute("UPDATE public_versions SET inspection=? WHERE package_id='bob/echo'", (canonical(stored),))
+        again = {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        assert again["bob/echo"]["requirements"] == rows["bob/echo"]["requirements"]
     catalog.close()

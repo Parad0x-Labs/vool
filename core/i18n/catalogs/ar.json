@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "تصفّح دليل المهارات",
     "addons.registry_network": "يطلب هذا الزر السجل العام. لا تُرسل الحسابات أو المحادثات أو الملفات المحلية أو مفاتيح المزودين.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
-    "addons.registry_inspect": "تنزيل للفحص"
+    "addons.registry_inspect": "تنزيل للفحص",
+    "addons.registry_languages": "اللغات",
+    "addons.registry_any_language": "أي لغة",
+    "addons.registry_needs": "يتطلب",
+    "addons.registry_needs_none": "لا شيء خارج VOOL",
+    "addons.registry_tested": "تم اختباره مع",
+    "addons.registry_need_search_web": "البحث على الويب",
+    "addons.registry_need_llm_cloud": "نموذج ذكاء اصطناعي سحابي",
+    "addons.registry_need_chain_data": "بيانات سلسلة الكتل",
+    "addons.registry_need_solana_rpc": "اتصال Solana",
+    "addons.registry_need_wallet": "محفظة VOOL",
+    "addons.registry_need_browser": "المتصفح",
+    "addons.registry_need_files": "ملفاتك"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Відкрити кодекс навичок",
     "addons.registry_network": "Ця кнопка запитує публічний реєстр. Облікові записи, розмови, локальні файли та ключі провайдерів не надсилаються.",
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
-    "addons.registry_inspect": "Завантажити для перегляду"
+    "addons.registry_inspect": "Завантажити для перегляду",
+    "addons.registry_languages": "Мови",
+    "addons.registry_any_language": "Будь-яка мова",
+    "addons.registry_needs": "Потрібно",
+    "addons.registry_needs_none": "Нічого поза VOOL",
+    "addons.registry_tested": "Перевірено з",
+    "addons.registry_need_search_web": "Вебпошук",
+    "addons.registry_need_llm_cloud": "Хмарна модель ШІ",
+    "addons.registry_need_chain_data": "Дані блокчейну",
+    "addons.registry_need_solana_rpc": "Підключення до Solana",
+    "addons.registry_need_wallet": "Гаманець VOOL",
+    "addons.registry_need_browser": "Браузер",
+    "addons.registry_need_files": "Ваші файли"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

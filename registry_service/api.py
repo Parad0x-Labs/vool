@@ -13,8 +13,10 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
+from core.registry.artifact import native_identity
 from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
+from core.registry.requirements import public_requirements
 from registry_service import community
 from registry_service.auth import Auth
 from registry_service.curation import labels, load_curation
@@ -125,6 +127,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         if catalog.current is None:
             require(False, "approved catalog is not configured")
         require(now() < catalog.current["expires"], "catalog freshness expired")
+        # Dependencies are native plugin ids; name the ones that are registry packages by package id.
+        packages = {native_identity(envelope["signed"]["metadata"]["id"]): envelope["signed"]["metadata"]["id"]
+                    for envelope in catalog.current["entries"]}
         for envelope in catalog.current["entries"]:
             value = envelope["signed"]
             info = value["metadata"]
@@ -135,8 +140,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
                 continue
             stats = await run_in_threadpool(store.stats, info["id"])
             creator = await run_in_threadpool(store.public_profile, info["id"].split("/")[0])
+            requirements = boundaries["requirements"]
             rows.append({**info, **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
                          "creator": creator, "publication": approved["publication"],
+                         "requirements": {**requirements, "dependencies": sorted(
+                             packages.get(item, item) for item in requirements["dependencies"])},
+                         "targets": approved["targets"],
                          "authority_notice": boundaries["authority_notice"],
                          "native_control_overlaps": boundaries["native_control_overlaps"],
                          "discovery_only": False, "import_ready": True,
@@ -199,6 +208,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     async def categories(request):
         return JSONResponse({"categories": public_taxonomy()})
+
+    async def requirements(request):
+        return JSONResponse({"requirements": public_requirements()})
 
     async def signed_catalog(request):
         from core.registry.codec import decode
@@ -327,7 +339,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
-        Route(PREFIX + "/categories", categories),
+        Route(PREFIX + "/categories", categories), Route(PREFIX + "/requirements", requirements),
         Route(PREFIX + "/profiles/{namespace}", profile_page),
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
         Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),

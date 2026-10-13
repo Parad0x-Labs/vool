@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "浏览技能宝典",
     "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
-    "addons.registry_inspect": "下载以检查"
+    "addons.registry_inspect": "下载以检查",
+    "addons.registry_languages": "语言",
+    "addons.registry_any_language": "任何语言",
+    "addons.registry_needs": "需要",
+    "addons.registry_needs_none": "无需 VOOL 之外的服务",
+    "addons.registry_tested": "已测试版本",
+    "addons.registry_need_search_web": "网页搜索",
+    "addons.registry_need_llm_cloud": "云端 AI 模型",
+    "addons.registry_need_chain_data": "链上数据",
+    "addons.registry_need_solana_rpc": "Solana 连接",
+    "addons.registry_need_wallet": "VOOL 钱包",
+    "addons.registry_need_browser": "浏览器",
+    "addons.registry_need_files": "你的文件"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

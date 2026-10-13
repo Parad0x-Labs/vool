@@ -53,6 +53,7 @@ def artifact_fixture(tmp_path, *, executable=False):
         (root / "tool.py").chmod(0o755)
     info = {"id": "alice/echo", "kind": "plugin" if executable else "skill", "version": "1.0.0",
             "summary": "Summarize a message", "category": "productivity", "subcategory": "notes-summaries", "license": "MIT",
+            "languages": ["en"],
             "source": {"repository": "alice/skills", "commit": "b" * 40, "path": "echo"}}
     raw = pack(root, info, tmp_path / "scratch")
     return raw, root, info

@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Parcourir le codex des compétences",
     "addons.registry_network": "Ce bouton consulte le registre public. Aucun compte, conversation, fichier local ou clé de fournisseur n'est envoyé.",
     "addons.registry_empty": "Aucune version listée ne correspond à cette compilation précise de VOOL et à votre recherche.",
-    "addons.registry_inspect": "Télécharger pour inspecter"
+    "addons.registry_inspect": "Télécharger pour inspecter",
+    "addons.registry_languages": "Langues",
+    "addons.registry_any_language": "Toutes les langues",
+    "addons.registry_needs": "Nécessite",
+    "addons.registry_needs_none": "Rien en dehors de VOOL",
+    "addons.registry_tested": "Testé avec",
+    "addons.registry_need_search_web": "Recherche web",
+    "addons.registry_need_llm_cloud": "Modèle d'IA dans le cloud",
+    "addons.registry_need_chain_data": "Données blockchain",
+    "addons.registry_need_solana_rpc": "Connexion Solana",
+    "addons.registry_need_wallet": "Portefeuille VOOL",
+    "addons.registry_need_browser": "Navigateur",
+    "addons.registry_need_files": "Vos fichiers"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

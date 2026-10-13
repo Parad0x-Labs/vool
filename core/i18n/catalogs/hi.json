@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "कौशल कोडेक्स ब्राउज़ करें",
     "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
-    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
+    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
+    "addons.registry_languages": "भाषाएँ",
+    "addons.registry_any_language": "कोई भी भाषा",
+    "addons.registry_needs": "ज़रूरतें",
+    "addons.registry_needs_none": "VOOL के बाहर कुछ नहीं",
+    "addons.registry_tested": "इसके साथ परखा गया",
+    "addons.registry_need_search_web": "वेब खोज",
+    "addons.registry_need_llm_cloud": "क्लाउड AI मॉडल",
+    "addons.registry_need_chain_data": "ब्लॉकचेन डेटा",
+    "addons.registry_need_solana_rpc": "Solana कनेक्शन",
+    "addons.registry_need_wallet": "VOOL वॉलेट",
+    "addons.registry_need_browser": "ब्राउज़र",
+    "addons.registry_need_files": "आपकी फ़ाइलें"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

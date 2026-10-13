@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Duyệt bộ sưu tập kỹ năng",
     "addons.registry_network": "Nút này yêu cầu kho công khai. Không gửi tài khoản, cuộc trò chuyện, tệp cục bộ hoặc khóa của nhà cung cấp.",
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
-    "addons.registry_inspect": "Tải xuống để kiểm tra"
+    "addons.registry_inspect": "Tải xuống để kiểm tra",
+    "addons.registry_languages": "Ngôn ngữ",
+    "addons.registry_any_language": "Mọi ngôn ngữ",
+    "addons.registry_needs": "Cần",
+    "addons.registry_needs_none": "Không cần gì ngoài VOOL",
+    "addons.registry_tested": "Đã thử với",
+    "addons.registry_need_search_web": "Tìm kiếm web",
+    "addons.registry_need_llm_cloud": "Mô hình AI đám mây",
+    "addons.registry_need_chain_data": "Dữ liệu blockchain",
+    "addons.registry_need_solana_rpc": "Kết nối Solana",
+    "addons.registry_need_wallet": "Ví VOOL",
+    "addons.registry_need_browser": "Trình duyệt",
+    "addons.registry_need_files": "Tệp của bạn"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

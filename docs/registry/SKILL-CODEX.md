@@ -10,6 +10,16 @@ Each row adds `published_at` (first listed version), `origin`, `featured`, `edit
 
 Rows carry the optional `title` when the author set one; show it as plain text and fall back to the package name. For a signed-in viewer every catalog and profile row also has `starred: true|false`; signed out, the field is absent.
 
+## Languages, needs and tested builds
+
+All of these come from the signed entry, so the website and the app show the same facts.
+
+- `languages` and `needs` are the author's signed metadata. Versions signed before the fields existed have neither; show nothing for them rather than a guess.
+- `requirements: {network, credentials, permissions, dependencies}` is read from the package itself, not declared by the author. `network` is true when one of the package's own tools reaches the network. `credentials` lists credential binding names only, never values. `dependencies` names registry packages by package id and other required plugins by their plugin id.
+- `targets: [{version, commit, platform}]` lists the VOOL builds the signed entry was tested with. `platform` is one of `macos-arm64`, `macos-x86_64`, `linux-x86_64` or `windows-x86_64`.
+
+`GET /registry/api/requirements` returns `{requirements: [{id, label, kind, providers}]}`. `kind` is `provider` when the need is met by one of the listed services' keys in VOOL, or `vool` when VOOL itself provides it or the user allows it. A skill that needs a keyed Solana data service such as Helius declares `chain_data`; `solana_rpc` means it uses VOOL's own Solana connection, whatever RPC address the user set.
+
 `GET /registry/api/categories` returns the fixed ten-category list with display labels. `GET /registry/api/profiles/{namespace}` returns `{profile, origin, packages}`, where packages are that publisher's listed catalog rows.
 
 ## Curation

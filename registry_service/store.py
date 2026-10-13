@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require, version_key
 from core.registry.intake import secret_findings
+from core.registry.requirements import package_requirements, require_for_new_version
 
 
 class Store:
@@ -321,6 +322,7 @@ class Store:
             namespace = self._check_upload_slot(db, account, _slot, now)
         artifact = inspect(raw)
         require(namespace == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
+        require_for_new_version(artifact["metadata"])
         with self.connection() as db:
             published = [row[0] for row in db.execute("SELECT version FROM public_versions WHERE package_id=?",
                                                       (artifact["metadata"]["id"],))]
@@ -562,6 +564,7 @@ class Store:
         inspection["native_control_overlaps"] = notices(
             set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in inspection["native_control_overlaps"]})
         require(not inspection["conflicts"], "native control override instructions block publication")
+        inspection["requirements"] = package_requirements(artifact["manifest"], entry["dependencies"])
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             previous = db.execute("SELECT sha256 FROM public_versions WHERE package_id=? AND version=?", (package_id, version)).fetchone()
@@ -592,9 +595,15 @@ class Store:
 
     def public_inspection(self, sha256: str) -> dict:
         with self.connection() as db:
-            row = db.execute("SELECT inspection FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
+            row = db.execute("SELECT inspection,artifact,entry FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
         require(row and row[0], "approved artifact inspection not found")
-        return decode(row[0])
+        inspection = decode(row[0])
+        if "requirements" not in inspection:
+            # Versions published before requirements were recorded: read them from the stored package once.
+            inspection["requirements"] = package_requirements(inspect(row[1])["manifest"], decode(row[2])["dependencies"])
+            with self.connection() as db:
+                db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
+        return inspection
 
     def star(self, account: str, package_id: str, enabled: bool, *, now: int) -> dict:
         require(type(enabled) is bool, "star value must be boolean")

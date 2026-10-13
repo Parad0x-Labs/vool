@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Fertigkeiten-Codex durchsuchen",
     "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
-    "addons.registry_inspect": "Zur Prüfung herunterladen"
+    "addons.registry_inspect": "Zur Prüfung herunterladen",
+    "addons.registry_languages": "Sprachen",
+    "addons.registry_any_language": "Jede Sprache",
+    "addons.registry_needs": "Benötigt",
+    "addons.registry_needs_none": "Nichts außerhalb von VOOL",
+    "addons.registry_tested": "Getestet mit",
+    "addons.registry_need_search_web": "Websuche",
+    "addons.registry_need_llm_cloud": "Cloud-KI-Modell",
+    "addons.registry_need_chain_data": "Blockchain-Daten",
+    "addons.registry_need_solana_rpc": "Solana-Verbindung",
+    "addons.registry_need_wallet": "VOOL-Wallet",
+    "addons.registry_need_browser": "Webbrowser",
+    "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

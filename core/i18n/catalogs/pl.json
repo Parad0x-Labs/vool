@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Przeglądaj kodeks umiejętności",
     "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
-    "addons.registry_inspect": "Pobierz do sprawdzenia"
+    "addons.registry_inspect": "Pobierz do sprawdzenia",
+    "addons.registry_languages": "Języki",
+    "addons.registry_any_language": "Dowolny język",
+    "addons.registry_needs": "Wymaga",
+    "addons.registry_needs_none": "Nic poza VOOL",
+    "addons.registry_tested": "Testowano z",
+    "addons.registry_need_search_web": "Wyszukiwanie w sieci",
+    "addons.registry_need_llm_cloud": "Model AI w chmurze",
+    "addons.registry_need_chain_data": "Dane blockchain",
+    "addons.registry_need_solana_rpc": "Połączenie z Solaną",
+    "addons.registry_need_wallet": "Portfel VOOL",
+    "addons.registry_need_browser": "Przeglądarka",
+    "addons.registry_need_files": "Twoje pliki"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

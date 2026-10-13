@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Explorar o códice de habilidades",
     "addons.registry_network": "Este botão consulta o registro público. Contas, conversas, arquivos locais e chaves de provedores não são enviados.",
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
-    "addons.registry_inspect": "Baixar para inspecionar"
+    "addons.registry_inspect": "Baixar para inspecionar",
+    "addons.registry_languages": "Idiomas",
+    "addons.registry_any_language": "Qualquer idioma",
+    "addons.registry_needs": "Precisa de",
+    "addons.registry_needs_none": "Nada fora do VOOL",
+    "addons.registry_tested": "Testado com",
+    "addons.registry_need_search_web": "Pesquisa na web",
+    "addons.registry_need_llm_cloud": "Modelo de IA na nuvem",
+    "addons.registry_need_chain_data": "Dados de blockchain",
+    "addons.registry_need_solana_rpc": "Conexão Solana",
+    "addons.registry_need_wallet": "Carteira VOOL",
+    "addons.registry_need_browser": "Navegador",
+    "addons.registry_need_files": "Seus arquivos"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -10,10 +10,12 @@ from pathlib import Path
 from core.plugin_package import PackageError, execution_directory
 from core.registry.artifact import inspect, materialize, metadata, native_identity, pack
 from core.registry.codec import RegistryError, canonical, decode, require
+from core.registry.requirements import require_for_new_version
 
 
 def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     metadata(info)
+    require_for_new_version(info)
     require(bool(license_bytes.strip()) and len(license_bytes) <= 1024 * 1024, "licence text required")
     destination.mkdir()  # Never overwrite an existing project.
     publisher, name = info["id"].split("/")
@@ -46,6 +48,7 @@ def preflight(raw: bytes, scratch: Path) -> dict:
     from core.registry.validation import native_format_findings
 
     artifact = inspect(raw)
+    require_for_new_version(artifact["metadata"])
     findings = secret_findings(artifact["files"])
     boundaries = analyze(artifact["files"])
     findings.extend(boundaries["conflicts"])
@@ -53,8 +56,12 @@ def preflight(raw: bytes, scratch: Path) -> dict:
         root = owned / "package"
         materialize(raw, root)
         findings.extend(native_format_findings(root, artifact))
+    from core.registry.requirements import undeclared_needs
+
     return {"status": "blocked" if findings else "preflight_passed", "artifact_sha256": artifact["sha256"],
             "native_digest": artifact["native_digest"], "findings": findings,
+            # Advisory: the instructions look like they use something "needs" leaves out.
+            "needs_notices": undeclared_needs(artifact["metadata"], artifact["files"]),
             "admitted": False, **boundaries,
             "notice": "Local format and secret preflight only; required independent review and release CI remain."}
 
