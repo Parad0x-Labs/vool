@@ -91,6 +91,8 @@ _ADAPTERS: dict[str, str] = {
     # search routes
     "http:GET:/api/search/providers": "search.providers",
     "http:POST:/api/search/test": "search.test",
+    "http:POST:/api/chain/test": "chain.test",
+    "http:POST:/api/x/setup": "x.setup",
     # memory + tasks
     "http:POST:/api/memory/forget": "memory.forget",
     "http:POST:/api/task/recovery": "tasks.recovery",

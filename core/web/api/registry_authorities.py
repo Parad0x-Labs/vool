@@ -350,6 +350,36 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
 
     _raw_provider_field = str(body.get("provider") or "").strip().lower()
     _raw_name_field = str(body.get("name") or "").strip()
+    # Chain-data keys (Helius/Alchemy/Solscan/Etherscan) are saved ONLY through the verified intake flow
+    # (/api/intake/*); this door takes their removal and nothing else, through the store's journaled
+    # delete so the binding row and the key leave together. Same closed whitelist: a chain slot is
+    # accepted because it is in the chain table.
+    from core.chain_providers import all_slots as _chain_slots
+    from core.chain_providers import config_for as _chain_config_for
+    from core.chain_providers import provider_for_slot as _chain_provider_for_slot
+
+    if _raw_name_field in set(_chain_slots()) or _raw_provider_field.startswith("chain."):
+        chain_cfg = _chain_config_for(_chain_provider_for_slot(_raw_name_field) or _raw_provider_field)
+        if chain_cfg is None or (_raw_name_field and _raw_name_field != chain_cfg.credential_slot):
+            return apply_runtime_headers(json_response(400, {"error": "unsupported credential name"}), runtime)
+        if body.get("delete") is not True:
+            return apply_runtime_headers(json_response(400, {
+                "error": "chain-data keys are saved through Settings → API Keys → Save key, which verifies them first"}), runtime)
+        from core.credential_intelligence.provider_registry import default_registry as _chain_registry
+        from core.credential_intelligence.store import CredentialStore as _ChainStore
+        from core.credential_intelligence.store import StorageUnavailableError as _ChainStorageError
+
+        try:
+            outcome = _ChainStore(_chain_registry()).delete(chain_cfg.registry_id)
+        except _ChainStorageError as exc:
+            return apply_runtime_headers(json_response(503, {"error": str(exc)}), runtime)
+        removed = bool(outcome.removed)
+        if not removed and has_credential(chain_cfg.credential_slot):
+            # a key stored without a binding row (an older or hand-made entry): remove the key itself
+            removed = bool(delete_credential(chain_cfg.credential_slot))
+        return apply_runtime_headers(json_response(200, {
+            "name": chain_cfg.credential_slot, "provider": chain_cfg.provider_id, "connected": has_credential(chain_cfg.credential_slot),
+            "removed": removed, **({"note": outcome.note} if outcome.note and not removed else {})}), runtime)
     if _raw_provider_field in SEARCH_PROVIDERS or _raw_name_field in set(_search_slots()):
         from core.credential_store import (
             delete_credential as _sdelete,

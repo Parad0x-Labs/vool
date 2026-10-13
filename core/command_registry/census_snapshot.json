@@ -1884,6 +1884,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/chain/test": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chain/test",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "chain.test",
+      "surface": "http"
+    },
     "http:POST:/api/chat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/chat",
@@ -2759,6 +2766,13 @@
       "registry_command_id": "wallet.x402.retry",
       "surface": "http"
     },
+    "http:POST:/api/x/setup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/setup",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.setup",
+      "surface": "http"
+    },
     "http:POST:/gate/unlock": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /gate/unlock",
@@ -3001,7 +3015,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 294,
-    "GENERATED_ADAPTER": 125,
+    "GENERATED_ADAPTER": 127,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
