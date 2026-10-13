@@ -268,7 +268,9 @@ def test_searching_never_sends_a_turn_or_calls_anything(page_ctx) -> None:
         }"""
     )
     page.wait_for_timeout(200)
-    new_requests = seen[before:]
+    # The wallet strip's own status poll (every 2500 ms since load) is page traffic, not search's:
+    # landing inside this window made the check fail by timing alone.
+    new_requests = [(m, u) for m, u in seen[before:] if (m, u) != ("GET", "http://vool.test/api/wallet/status")]
     assert new_requests == [], f"searching issued requests: {new_requests}"
 
 
