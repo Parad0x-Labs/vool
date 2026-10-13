@@ -7015,7 +7015,7 @@ function wireReceiptActions(body, list) {
       const text = btn.getAttribute('data-copy') === 'hash'
         ? String(rc.content_hash || '')
         : JSON.stringify(rc, null, 2);
-      if (!text) { toast('That receipt carries no hash to copy.'); return; }
+      if (!text) { toast(pageT('receipts.no_hash_toast', 'That receipt carries no hash to copy.')); return; }
       copyText(text, btn);
     });
   });
@@ -7074,12 +7074,12 @@ function renderQueue(items) {
     const label = document.createElement('span');
     label.className = 'qchip-text';
     const queuedAttachmentCount = ((item.payload && item.payload.attachments) || []).length;
-    label.textContent = (running ? 'Running: ' : (item.payload && item.payload.price_wait ? 'Waiting for price · ' + item.payload.price_wait.model_id + ': ' : ('Queued ' + pos + ': '))) + preview + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
+    label.textContent = (running ? pageTF('queue.item_running', 'Running: {preview}', { preview: preview }) : (item.payload && item.payload.price_wait ? pageTF('queue.item_price_wait', 'Waiting for price · {model}: {preview}', { model: item.payload.price_wait.model_id, preview: preview }) : pageTF('queue.item_queued', 'Queued {pos}: {preview}', { pos: pos, preview: preview }))) + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
     label.title = preview;
     chip.appendChild(label);
     if (!running) {
       const x = document.createElement('button');
-      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = 'Cancel this queued message';
+      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = pageT('queue.cancel_title', 'Cancel this queued message');
       x.addEventListener('click', async function () { await queueOp('cancel', displayedChat, { queue_item_id: item.queue_item_id }); refreshQueue(); });
       chip.appendChild(x);
     }
@@ -7089,8 +7089,8 @@ function renderQueue(items) {
   if (hiddenCount > 0) {
     const more = document.createElement('button');
     more.type = 'button'; more.className = 'qchip qchip-more'; more.id = 'queueMore';
-    more.textContent = '+' + hiddenCount + ' queued';
-    more.title = 'Show all queued messages'; more.setAttribute('aria-expanded', 'false');
+    more.textContent = pageTF('queue.more_hidden', '+{n} queued', { n: hiddenCount });
+    more.title = pageT('queue.show_all_title', 'Show all queued messages'); more.setAttribute('aria-expanded', 'false');
     more.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, true);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7099,8 +7099,8 @@ function renderQueue(items) {
   } else if (expanded && pending.length > QUEUE_VISIBLE_LIMIT) {
     const less = document.createElement('button');
     less.type = 'button'; less.className = 'qchip qchip-more'; less.id = 'queueMore';
-    less.textContent = 'Show less';
-    less.title = 'Collapse the queue'; less.setAttribute('aria-expanded', 'true');
+    less.textContent = pageT('queue.show_less', 'Show less');
+    less.title = pageT('queue.collapse_title', 'Collapse the queue'); less.setAttribute('aria-expanded', 'true');
     less.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, false);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7267,7 +7267,7 @@ async function runTurn(text, queueItemId, opts) {
       // confirm remains the fallback so an unmounted fragment can never brick sending.
       const ok = window.VoolPriceGate
         ? await window.VoolPriceGate.review({ kind: 'per-send', id: String(selectedModel), label: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel })
-        : window.confirm('Use the PAID model "' + ((CLOUD_MODEL_LABELS[selectedModel]) || selectedModel) + '" for this turn? It may charge your account each turn. VOOL spend caps still apply.');
+        : window.confirm(pageTF('model.confirm_paid', 'Use the PAID model "{name}" for this turn? It may charge your account each turn. VOOL spend caps still apply.', { name: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel }));
       if (!ok) {
         finishRun(run, 'cancelled', pageT('run.cancelled_paid', 'Cancelled \u2014 paid model not confirmed'));
         releaseComposer(run);
@@ -7490,7 +7490,7 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   try { balance = await postJsonWithin('/api/cloud/usepod/balance', {}, 20000); } catch (e) { balance = null; }
   const blocker = usepodBalanceBlocker(balance);
   if (!blocker) return true;
-  toast(blocker + ' Nothing was sent.');
+  toast(blocker + pageT('usepod.nothing_sent', ' Nothing was sent.'));
   openSettingsInFrame('models/usepod/spend');
   return false;
 }
@@ -7507,10 +7507,10 @@ async function send() {
   if (!text && !draft.length) return;
   // Attachments gate the send BEFORE the typed text is cleared: nothing is sent, nothing is
   // lost, and a second press after the upload is fixed sends the message exactly once.
-  if (draft.some((i) => i.state === 'uploading')) { toast('Wait for the attachments to finish uploading.'); return; }
-  if (draft.some((i) => i.state === 'failed')) { toast('Remove or retry the failed attachment before sending.'); return; }
+  if (draft.some((i) => i.state === 'uploading')) { toast(pageT('attach.toast_wait_uploading', 'Wait for the attachments to finish uploading.')); return; }
+  if (draft.some((i) => i.state === 'failed')) { toast(pageT('attach.toast_failed_present', 'Remove or retry the failed attachment before sending.')); return; }
   // A message that is only the documents' markers carries no words of the user's own.
-  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast('Add a message saying what to do with the ' + (draft.some((i) => i.document) ? 'document' : 'attachment') + '.'); inputEl.focus(); return; }
+  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast(pageTF('attach.toast_say_what', 'Add a message saying what to do with the {kind}.', { kind: draft.some((i) => i.document) ? pageT('attach.document', 'document') : pageT('attach.attachment', 'attachment') })); inputEl.focus(); return; }
   const selected = effectiveModel(chatId, text);
   if (String(selected).startsWith('usepod:') && !isChatBusy(chatId)) {
     if (spendingPreflightPending) return;
@@ -7526,17 +7526,17 @@ async function send() {
   if (String(selected).startsWith('usepod:')) {
     let target;
     try { target = await postJsonWithin('/api/cloud/usepod/price-wait/check', {model_id:String(selected).slice(7)}, 20000); }
-    catch (e) { toast('Price check unavailable. Your draft is unchanged.'); return; }
+    catch (e) { toast(pageT('send.price_check_unavailable', 'Price check unavailable. Your draft is unchanged.')); return; }
     if (!isDisplayed(chatId) || inputEl.value !== draftText || effectiveModel(chatId, text) !== selected) return;
     if (target && target.enabled) {
       const queued = await queueOp('enqueue', chatId, {text, attachments:attachments.map(a=>a.id), price_wait_model:String(selected).slice(7), idempotency_key:'price-' + Date.now()});
-      if (!queued || !queued.item) { toast('Could not save this task to the price queue. Your draft is unchanged.'); return; }
+      if (!queued || !queued.item) { toast(pageT('send.price_queue_save_failed', 'Could not save this task to the price queue. Your draft is unchanged.')); return; }
       // Same wakeup contract as the busy branch below: the arrival must survive an empty claim
       // that was already on the wire when this item landed.
       chatState(chatId).queueArrivals++;
       inputEl.value = ''; if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
       const owner = chatState(chatId); attachments.forEach(a=>{owner.queuedAttachmentMeta[a.id]=a;});owner.attachments=[];renderAttachStrip();
-      await refreshQueue(); toast(target.ready ? 'Price is available. Starting within your UsePod budget.' : 'Task saved. Waiting for your price; keep VOOL open.');
+      await refreshQueue(); toast(target.ready ? pageT('send.price_ready_start', 'Price is available. Starting within your UsePod budget.') : pageT('send.task_saved_waiting', 'Task saved. Waiting for your price; keep VOOL open.'));
       pumpQueue(chatId); return;
     }
   }
@@ -7597,12 +7597,12 @@ function attachHintText() {
   const L = ATTACH_LIMITS;
   // The audio mention follows the server's own accept list: where the speech dependency is
   // absent, audio uploads are refused typed and the picker never advertised them.
-  const families = 'text, code, PNG, JPEG, GIF, WebP' + ((L.accept && /audio/.test(L.accept)) ? ', audio' : '');
-  return 'Up to ' + L.max_files_per_turn + ' files · ' + fmtBytes(L.max_bytes_per_file) + ' each · ' + fmtBytes(L.max_bytes_per_turn) + ' per message · ' + families;
+  const families = pageT('attach.families', 'text, code, PNG, JPEG, GIF, WebP') + ((L.accept && /audio/.test(L.accept)) ? ', ' + pageT('attach.audio_family', 'audio') : '');
+  return pageTF('attach.hint', 'Up to {max_files} files · {per_file} each · {per_message} per message · {families}', { max_files: L.max_files_per_turn, per_file: fmtBytes(L.max_bytes_per_file), per_message: fmtBytes(L.max_bytes_per_turn), families: families });
 }
 function reflectAttachHint() {
   if (attachHintEl) attachHintEl.textContent = attachHintText();
-  if (attachBtnEl) attachBtnEl.title = 'Attach files or photos to this message — ' + attachHintText();
+  if (attachBtnEl) attachBtnEl.title = pageT('attach.title_prefix', 'Attach files or photos to this message — ') + attachHintText();
 }
 async function loadAttachmentLimits() {
   // The rules come from the server's own tables, so the picker's accept list and the hint can
