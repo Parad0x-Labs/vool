@@ -1405,7 +1405,7 @@ body:not(.panel-open) #xpanel { display:none; }
       </div>
       <div class="export-preview" id="exportPreview">Counting…</div>
       <details class="export-more"><summary>What&rsquo;s in the file</summary>
-        <div class="export-note">Every message, not just what is on screen, with no hidden cut-off. Times are assistant completion times only (send times are not kept). Attached files are listed by name, kind and size, never file bytes. Not included: model reasoning, tool/activity traces, and anything VOOL does not keep.</div>
+        <div class="export-note">Every message, not just what is on screen, with no hidden cut-off. Times are assistant completion times only (send times are not kept). Attached files are listed by name, kind and size, never file bytes. Left out: model reasoning, tool/activity traces and anything VOOL does not keep.</div>
       </details>
 
       <div class="export-status" id="exportStatus" role="status"></div>
