@@ -62,8 +62,8 @@ _SETUP_HTML = r"""<!doctype html>
 <style>
 __VOOL_PALETTE_CSS__
 /* The light palette is a HOST choice (?theme=light, or data-theme set on <html>), not the OS setting:
-   the chat and Settings surfaces are dark-only today, and a framed page that followed the OS would
-   sit light inside a dark window (seen 2026-09-07 in the frame overlay). Same tokens, both ways. */
+   a framed page that followed the OS would sit light inside a dark window (seen 2026-09-07 in the
+   frame overlay). Settings > Appearance "Light" turns it on; "Match system" leaves setup dark. */
 :root[data-theme="light"] { --bg:#f4f5f8; --panel:#ffffff; --field:#eef0f4; --ink:#14171c; --muted:#5b6472; --accent:#655642; --accent-ink:#ffffff;
           --accent-soft:rgba(101,86,66,.18); --border:#d9dde5; --ok:#15803d; --bad:#b91c1c; --mk-bg:#e9ecf1; --mk-border:#c9cfda; --shadow:rgba(0,0,0,.14); }
 * { box-sizing:border-box; }

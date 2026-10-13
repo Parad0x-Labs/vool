@@ -5,7 +5,11 @@
   the open chat window follows at once without a reload, and a fresh load is served already in the
   chosen look (no dark flash: the server writes the attribute on ``<html>``).
 - Light and Match system use real light colours, and Match system follows the operating system.
-- A tampered cookie falls back to the default instead of breaking the page.
+- Text size reaches the assistant's replies, not only the person's own bubbles.
+- Light leaves no dark-only spot behind: no dark panel, and toasts stay readable.
+- A tampered cookie falls back to the default instead of breaking the page; another app's cookie on
+  the same host does not make the server and the page disagree; a broken value still shows the
+  controls so the person can reset it.
 """
 from __future__ import annotations
 
@@ -24,11 +28,23 @@ DARK_SPOTS = """() => [...document.querySelectorAll('body *')].filter(el => {
   return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2] < 60;
 }).map(el => el.tagName + (el.id ? '#' + el.id : '') + '.' + String(el.className || ''))"""
 LOG_FONT = "parseFloat(getComputedStyle(document.getElementById('log')).fontSize)"
+REPLY_FONT = "parseFloat(getComputedStyle(document.querySelector('.msg.assistant')).fontSize)"
+TOAST_COLOURS = """() => { toast('Copied'); const cs = getComputedStyle(document.getElementById('nToast'));
+  return [cs.color, cs.backgroundColor]; }"""
 
 
 def _luma(css_rgb: str) -> float:
     parts = [float(p) for p in css_rgb[css_rgb.index("(") + 1:css_rgb.index(")")].split(",")[:3]]
     return 0.2126 * parts[0] + 0.7152 * parts[1] + 0.0722 * parts[2]
+
+
+def _contrast(fg: str, bg: str) -> float:
+    def lum(css):
+        parts = [float(p) / 255 for p in css[css.index("(") + 1:css.index(")")].split(",")[:3]]
+        parts = [p / 12.92 if p <= 0.03928 else ((p + 0.055) / 1.055) ** 2.4 for p in parts]
+        return 0.2126 * parts[0] + 0.7152 * parts[1] + 0.0722 * parts[2]
+    hi, lo = sorted((lum(fg), lum(bg)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
 
 
 def _guard(page, base_url):
@@ -97,6 +113,10 @@ def test_theme_and_text_size_switch_live_and_survive_a_reload(tmp_path):
                 chat.locator("#send").click()
                 chat.wait_for_function("view.run && view.run.released", timeout=30000)
                 _shot(chat, "chat-light.png")
+                # Larger text reaches the reply itself, not only the person's own words.
+                assert chat.evaluate(REPLY_FONT) == 15 * 1.25
+                fg, bg = chat.evaluate(TOAST_COLOURS)
+                assert _contrast(fg, bg) >= 4.5, (fg, bg)
                 # No part of the light page keeps a dark-theme panel (setup line, model lane, pet
                 # caption). Images keep their own colours.
                 dark_spots = chat.evaluate(DARK_SPOTS)
@@ -115,6 +135,7 @@ def test_theme_and_text_size_switch_live_and_survive_a_reload(tmp_path):
                 chat.wait_for_function("document.documentElement.getAttribute('data-theme') === null", timeout=5000)
                 assert chat.evaluate(BG) == dark_bg
                 assert chat.evaluate(LOG_FONT) == normal_font
+                assert chat.evaluate(REPLY_FONT) == 15
                 assert not chat_errors and not settings_errors, (chat_errors, settings_errors)
                 context.close()
 
@@ -122,6 +143,27 @@ def test_theme_and_text_size_switch_live_and_survive_a_reload(tmp_path):
                 with urlopen_cookie(daemon.base_url + "/chat", 'vool_appearance="><script>x</script>') as html:
                     assert "<script>x" not in html
                     assert '<html lang="en" dir="ltr">' in html
+                # Another local app's cookie (a JSON value) ahead of ours: the server still serves
+                # the person's choice, as the page script reads it.
+                with urlopen_cookie(daemon.base_url + "/chat", 'prefs={"a":1}; vool_appearance=light.125') as html:
+                    assert '<html lang="en" dir="ltr" data-theme="light" style="--vool-text-scale:1.25">' in html
+
+                # A broken value in the cookie still shows the controls, at the default, so the
+                # person can put it right from Settings.
+                context = browser.new_context(viewport={"width": 1280, "height": 800})
+                host = daemon.base_url.split("//", 1)[1].split(":", 1)[0]
+                context.add_cookies([{"name": "vool_appearance", "value": "light%E0.125", "domain": host, "path": "/"}])
+                settings = context.new_page()
+                settings_errors = _guard(settings, daemon.base_url)
+                settings.goto(daemon.base_url + "/settings#companion", wait_until="domcontentloaded")
+                settings.locator(".nav-item[data-group='companion']").click()
+                theme = settings.locator("select[name='appearanceTheme']")
+                theme.wait_for(timeout=10000)
+                assert theme.input_value() == "dark"
+                theme.select_option("light")
+                assert settings.evaluate("document.documentElement.getAttribute('data-theme')") == "light"
+                assert not settings_errors, settings_errors
+                context.close()
             finally:
                 browser.close()
                 manager.stop()
@@ -141,3 +183,14 @@ class urlopen_cookie:
 
     def __exit__(self, *exc):
         return False
+
+
+def test_cookie_reading_ignores_other_cookies_and_bad_values():
+    from core.ui_palette import appearance_from_cookie_header
+
+    assert appearance_from_cookie_header(None) == ("dark", 100)
+    assert appearance_from_cookie_header("vool_appearance=system.112") == ("system", 112)
+    for other in ('x={"a":1}', "foo=bar baz", "bad cookie", 'x="unterminated'):
+        assert appearance_from_cookie_header(f"{other}; vool_appearance=light.125") == ("light", 125), other
+    assert appearance_from_cookie_header("my_vool_appearance=light.125") == ("dark", 100)
+    assert appearance_from_cookie_header("vool_appearance=light%E0.125") == ("dark", 100)

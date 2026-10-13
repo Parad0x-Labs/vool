@@ -1,6 +1,8 @@
 """Shared dark UI colors. Character artwork and semantic status colors stay separate."""
 from __future__ import annotations
 
+from urllib.parse import unquote
+
 DARK_PALETTE_CSS = """:root {
   color-scheme: dark;
   --bg:#141416; --chat:#101216; --panel:#1b1b1e; --panel-solid:#1b1b1e;
@@ -31,6 +33,9 @@ _LIGHT_TOKENS = """
   --accent-rgb:106,89,65; --accent-soft:rgba(var(--accent-rgb),.12);
   --success:#15803d; --ok:var(--success); --bad:#b42318; --warn:#a15c07;
   --mk-bg:#ebe8e3; --mk-border:#cdc7be; --shadow:rgba(0,0,0,.12); --bg-elev:#ffffff;
+  /* Tokens the dark page never defines (its rules fall back to a fixed dark colour): the toast,
+     the Skills & Plugins store. */
+  --bg2:#ffffff; --fg:#1f1d1a; --surface:#ffffff; --warning:#a15c07;
 """
 
 # The few chat-page parts that paint a fixed dark colour instead of a palette token. Selectors keep
@@ -47,6 +52,8 @@ _LIGHT_FIXED_RULES = (
     (".pop-prov .pp-free", "color:var(--success);"),
     (".pop-prov .pp-unknown, :LIGHT .council-live .cl-state, :LIGHT .council-cell .cv.none", "color:var(--accent);"),
     ("#input::placeholder", "color:var(--muted);"),
+    # Contacts' primary button writes a fixed dark ink for the bright dark-theme accent.
+    (".vc-btn.vc-primary", "color:var(--accent-ink);"),
     ("#companionLayer .vn-bubble-title", "color:var(--ink);"),
     ("#companionLayer .vn-caption", "background:rgba(255,255,255,.94); border-color:var(--border);"),
     # The pet's status tones are pale for a dark backdrop; on light, darken the same hue.
@@ -86,15 +93,18 @@ def parse_appearance(raw: str | None) -> tuple[str, int]:
 
 
 def appearance_from_cookie_header(raw_cookie: str | None) -> tuple[str, int]:
-    from http.cookies import SimpleCookie
-
-    jar = SimpleCookie()
-    try:
-        jar.load(str(raw_cookie or ""))
-    except Exception:
-        return parse_appearance("")
-    morsel = jar.get(APPEARANCE_COOKIE)
-    return parse_appearance(morsel.value if morsel else "")
+    # Read only our own cookie, the way the page script does: a parser that stops at the first
+    # cookie it cannot read (another local app's JSON value, a space) would serve the default look
+    # while the page itself reads the person's choice.
+    for part in str(raw_cookie or "").split(";"):
+        name, sep, value = part.strip().partition("=")
+        if sep and name == APPEARANCE_COOKIE:
+            try:  # decoded like the page's decodeURIComponent: a broken escape means no choice
+                value = unquote(value.strip().strip('"'), errors="strict")
+            except UnicodeDecodeError:
+                value = ""
+            return parse_appearance(value)
+    return parse_appearance("")
 
 
 def appearance_html_attrs(appearance: tuple[str, int] | None) -> str:
@@ -123,7 +133,9 @@ APPEARANCE_JS = """
   }
   function read() {
     var m = String(document.cookie || '').match(new RegExp('(?:^|;\\\\s*)' + NAME + '=([^;]*)'));
-    var parts = (m ? decodeURIComponent(m[1]) : '').split('.');
+    var raw = m ? m[1] : '';
+    try { raw = decodeURIComponent(raw); } catch (err) { raw = ''; }
+    var parts = raw.split('.');
     return clean({ theme: parts[0], text: parts[1] });
   }
   function apply(v) {
