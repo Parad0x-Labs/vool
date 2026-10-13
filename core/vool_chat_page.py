@@ -75,8 +75,8 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .text-prompt label { display:block; margin-bottom:10px; font-weight:600; }
 .text-prompt input { box-sizing:border-box; width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:10px; font:inherit; }
 .text-prompt input:focus { outline:2px solid var(--accent); outline-offset:2px; }
-.confirm-prompt .confirm-title { font-weight:600; margin-bottom:8px; }
-.confirm-prompt .confirm-detail { color:var(--muted); line-height:1.5; margin:0 0 14px; white-space:pre-line; }
+.confirm-prompt .confirm-title { font-weight:600; margin-bottom:8px; overflow-wrap:anywhere; }
+.confirm-prompt .confirm-detail { color:var(--muted); line-height:1.5; margin:0 0 14px; white-space:pre-line; overflow-wrap:anywhere; }
 .confirm-prompt .confirm-yes { border-color:var(--bad); color:var(--ink); }
 .plugin-card { border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--bg); }
 .plugin-card .p-head { display:flex; align-items:baseline; gap:8px; }
@@ -2704,6 +2704,9 @@ function requestTextInput(message, initialValue = '') {
 // native shell's web view may not implement at all). Resolves true only on the explicit confirm
 // button; Cancel, Esc and closing all resolve false. Focus starts on Cancel, so a stray Enter
 // never deletes anything. Caller text is set as text, never as HTML.
+// A chat or project name inside a question: its own trailing full stop or question mark dropped
+// (no "“Plans.”?"), and isolated so a right-to-left sentence never moves its punctuation.
+function confirmName(name) { return '\u2068' + String(name || '').trim().replace(/[\s.!?,;:\u2026\u3002\uff01\uff1f]+$/u, '') + '\u2069'; }
 function requestConfirm(title, detail, confirmLabel) {
   if (document.getElementById('confirmPromptDialog')) return Promise.resolve(false);
   const previousFocus = document.activeElement;
@@ -2727,7 +2730,10 @@ function requestConfirm(title, detail, confirmLabel) {
     const finish = (value) => {
       if (settled) return; settled = true;
       dialog.close(); dialog.remove();
+      // Back to where the person was; a control that is hidden again (sidebar row actions show only
+      // on hover) cannot take focus, so the message box takes it instead of nothing.
       if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      if (!document.activeElement || document.activeElement === document.body) { try { inputEl.focus(); } catch (e) {} }
       resolve(value);
     };
     dialog.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); finish(true); });
@@ -2779,7 +2785,7 @@ async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
   const name = proj.name || pageT('dialog.this_project', 'this project');
   if (!await requestConfirm(
-    pageTF('dialog.delete_project_title', 'Delete project “{name}”?', { name: name }),
+    pageTF('dialog.delete_project_title', 'Delete project “{name}”?', { name: confirmName(name) }),
     pageT('dialog.delete_project_detail', 'VOOL will forget everything it learned in it, and its chats move back to General. Your files are untouched.'),
     pageT('dialog.delete', 'Delete'))) return;
   try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
@@ -2896,7 +2902,7 @@ async function deleteSession(sid, title) {
   if (!sid) return;
   const name = title || pageT('dialog.this_chat', 'this chat');
   if (!await requestConfirm(
-    pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: name }),
+    pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: confirmName(name) }),
     pageT('dialog.delete_chat_detail', 'This permanently removes the chat and everything VOOL learned in it.'),
     pageT('dialog.delete', 'Delete'))) return;
   try { await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, delete: true }) }); } catch (e) {}

@@ -65,6 +65,15 @@ def test_deleting_a_chat_asks_in_the_calm_dialog(tmp_path):
                 page.keyboard.press("Escape")
                 page.wait_for_selector("#confirmPromptDialog", state="detached", timeout=5000)
                 assert chat in _session_ids(daemon.base_url)
+                # Focus goes somewhere useful after closing, never back to nothing.
+                assert page.evaluate("document.activeElement && document.activeElement !== document.body")
+                # The name drops its own trailing punctuation and is isolated for right-to-left text;
+                # a long unbroken name wraps inside the dialog instead of running out of it.
+                assert page.evaluate("confirmName('Plans.')") == "\u2068Plans\u2069"
+                width = page.evaluate("""() => { requestConfirm('Delete “' + 'x'.repeat(300) + '”?', 'd', 'Delete');
+                    const d = document.getElementById('confirmPromptDialog'); const r = [d.scrollWidth, d.clientWidth];
+                    d.querySelector('[data-cancel]').click(); return r; }""")
+                assert width[0] <= width[1] + 1, width
 
                 open_dialog()
                 page.keyboard.press("Enter")   # focus is on Cancel
