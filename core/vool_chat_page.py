@@ -3840,7 +3840,11 @@ function renderRichText(el, text) {
   // something in between. Each piece became its own <ol>, every one restarting at 1, so a numbered
   // answer read "1. 1. 1.". Blank lines and deeper-indented items now stay inside the list, and an
   // ordered list keeps the number it was written with (`start`), so a resumed list continues.
-  const parseList = (start) => {
+  // `contStart` is the message-level continuation: when the model restarts at "1." after an
+  // earlier ordered list in the same message, the new list continues from there instead of
+  // reading "1." again. The return's `resumeAt` says what the NEXT such list should continue at
+  // (start + item count, because item numbers render positionally).
+  const parseList = (start, contStart) => {
     const first = listItemAt(lines[start]);
     const base = first.indent;
     const sameList = (it) => it && it.ordered === first.ordered && it.indent <= base + 1 && it.indent >= base - 1;
@@ -3868,9 +3872,19 @@ function renderRichText(el, text) {
       if (k > j && k < lines.length && sameList(listItemAt(lines[k]))) j = k;
     }
     const tag = first.ordered ? 'ol' : 'ul';
-    const startAttr = first.ordered && first.num !== 1 ? ' start="' + first.num + '"' : '';
-    return { html: '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>', next: j };
+    const startValue = first.ordered
+      ? (first.num !== 1 ? first.num : (contStart > 1 ? contStart : 1))
+      : 1;
+    const startAttr = first.ordered && startValue !== 1 ? ' start="' + startValue + '"' : '';
+    const html = '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>';
+    return { html: html, next: j, resumeAt: first.ordered ? startValue + items.length : 0 };
   };
+
+  // What an ordered list restarted at "1." should continue from (0 = nothing to continue).
+  // Paragraphs and code blocks between lists keep it — the model writes numbered steps split by
+  // commentary, and each piece restarting at 1 read "1. 1. 1.". Any other block (a heading, a
+  // rule, a table, a quote, another kind of list) starts the numbering over.
+  let olResumeAt = 0;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -3910,12 +3924,14 @@ function renderRichText(el, text) {
       const level = heading[1].length;
       out.push('<h' + level + ' class="chat-h">' + renderInline(heading[2]) + '</h' + level + '>');
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
     if (/^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line)) {
       out.push('<hr class="chat-hr">');
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
@@ -3927,6 +3943,7 @@ function renderRichText(el, text) {
     if (/^\s*`(?:local|cloud|tool|runtime) \| [^`]*`\s*$/.test(line)) {
       out.push('<p class="chat-provenance">' + renderInline(line.trim()) + '</p>');
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
@@ -3938,6 +3955,7 @@ function renderRichText(el, text) {
       const head = header.map(c => '<th scope="col">' + renderInline(c) + '</th>').join('');
       const rows = body.map(r => '<tr>' + r.map(c => '<td>' + renderInline(c) + '</td>').join('') + '</tr>').join('');
       out.push('<div class="chat-table-wrap"><table class="chat-table"><caption class="sr-only">Data table</caption><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>');
+      olResumeAt = 0;
       continue;
     }
 
@@ -3948,13 +3966,18 @@ function renderRichText(el, text) {
       // reading it.
       while (i < lines.length && /^\s*(?:&gt;|>)\s?/.test(lines[i])) { body.push(lines[i].replace(/^\s*(?:&gt;|>)\s?/, '')); i += 1; }
       out.push('<blockquote class="chat-quote">' + renderInline(body.join('<br>')) + '</blockquote>');
+      olResumeAt = 0;
       continue;
     }
 
     if (listItemAt(line)) {
-      const list = parseList(i);
+      const firstItem = listItemAt(line);
+      // Only a restart at "1." continues: a number the model wrote out (2., 5., …) is kept
+      // exactly as written.
+      const list = parseList(i, firstItem.ordered && firstItem.num === 1 ? olResumeAt : 0);
       out.push(list.html);
       i = list.next;
+      olResumeAt = list.resumeAt;
       continue;
     }
 
