@@ -120,7 +120,7 @@ def configured_client() -> Client:
     try:
         root = decode(anchor.read_bytes(), 65536)
     except OSError:
-        raise RegistryError("reviewed registry is not configured in this release") from None
+        raise RegistryError("Skill Codex is not open yet in this version of VOOL") from None
     return Client(root, runtime_target())
 
 
