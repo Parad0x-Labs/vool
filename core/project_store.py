@@ -95,24 +95,63 @@ def project_root(project_id: str) -> str | None:
     return root if root and os.path.isdir(root) else None
 
 
+# Folders that hold a whole computer's worth of files: binding VOOL to one of them is the same as
+# binding it to the whole disk. Compared by real path, so a symlink spelling cannot slip past.
+_SYSTEM_ROOTS = (
+    "/Applications", "/Library", "/System", "/Users", "/Volumes", "/bin", "/boot", "/dev", "/etc",
+    "/home", "/lib", "/opt", "/private", "/proc", "/sbin", "/sys", "/tmp", "/usr", "/var",
+)
+
+
+def _real(path: str) -> str:
+    try:
+        return os.path.realpath(path)
+    except (OSError, ValueError):
+        return path
+
+
+def _too_broad_root(resolved: str) -> str:
+    """A plain refusal when ``resolved`` is the home folder, the folder holding every home, or a system folder; else ''."""
+    home = _real(os.path.expanduser("~"))
+    if home and home not in {"~", os.sep} and resolved == home:
+        return "that is your whole home folder. Pick one folder inside it, like Documents."
+    if home and home not in {"~", os.sep} and resolved == _real(os.path.dirname(home)):
+        return "that folder holds every user's files. Pick one folder inside your home folder, like Documents."
+    if home and resolved == _real(os.path.join(home, "Library")):
+        return "that is a system folder. Pick a normal folder, like Documents."
+    if any(resolved == _real(p) for p in _SYSTEM_ROOTS):
+        return "that is a system folder. Pick a normal folder, like Documents."
+    return ""
+
+
 def create_project(name: str, root: str) -> tuple[bool, Any]:
     """Register a folder as a project. Returns (True, project) or (False, error_message).
 
     Idempotent by real path: adding the same folder twice returns the existing project (name refreshed).
-    The root must be an existing absolute directory; the filesystem root '/' is refused as a guard.
+    The root must be an existing absolute directory (or start with ``~``). A relative path is refused
+    instead of being resolved against the server's own working directory (which would bind VOOL to its
+    install folder), and so are the filesystem root, the whole home folder, the folder that holds every user's home, and the
+    operating system's own folders. Error messages are plain sentences that start in
+    lower case (the callers prefix them) and name the resolved path where it helps.
     """
-    resolved = _normalize_root(root)
-    if not resolved:
-        return False, "a project folder is required"
+    raw = str(root or "").strip()
+    if not raw:
+        return False, "a project folder is required. Type its path or choose one."
+    if not raw.startswith("~") and not os.path.isabs(raw):
+        return False, "type the whole folder path, starting with / or ~ (for example ~/Documents)."
+    resolved = _normalize_root(raw)
     # ``_normalize_root`` returns the drive root on Windows (``C:\\``), so comparing
     # with ``os.path.sep`` only protects POSIX. A filesystem root is its own parent on
     # every platform and must never become a project boundary.
     if Path(resolved).parent == Path(resolved):
-        return False, "refusing to use the whole filesystem as a project"
+        return False, "pick one folder, not the whole filesystem."
+    refusal = _too_broad_root(resolved)
+    if refusal:
+        return False, refusal
     if not os.path.exists(resolved):
-        return False, "that folder does not exist"
+        return False, f"that folder does not exist: {resolved}. Check the spelling."
     if not os.path.isdir(resolved):
-        return False, "a project must be a folder"
+        return False, f"that is a file, and a project must be a folder: {resolved}."
     clean_name = " ".join(str(name or "").split()).strip()[:_NAME_MAX] or os.path.basename(resolved) or resolved
     pid = _project_id_for(resolved)
     with _PROJECTS_LOCK:

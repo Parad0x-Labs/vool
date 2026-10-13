@@ -6,25 +6,27 @@ Arweave content and loads it in a sandboxed frame, with an address bar, back/
 forward, favorites, and history. Also keeps a collapsible null:// task-dispatch
 panel for the compute market.
 
-Served at GET /web0 (and /null-browser) on the always-on VOOL API server (11435).
-Resolution goes to GET /api/web0/resolve?name=…; task dispatch to POST /api/null,
-both same-origin.
+Served at GET /web0 (and /null-browser) by the VOOL API server on whatever port it runs.
+Resolution goes to GET /api/web0/resolve?name=…; task dispatch to POST /api/null, both on the
+origin that served the page (falling back to localhost:11435 when that origin has no VOOL API).
 """
 from __future__ import annotations
 
 from core.ui_palette import DARK_PALETTE_CSS
 
-_PAGE = """\
-<!doctype html>
+# A raw string: the page script carries "\n" escapes inside JS string literals, and a plain
+# Python string turned them into real line breaks, which stopped the whole script from parsing.
+_PAGE = r"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>web0.null · VOOL .null browser</title>
+<title>VOOL · Open a .null site</title>
 <style>
 __VOOL_PALETTE_CSS__
   :root { --panel2:var(--field); --green:#4c4; --amber:#da3; --red:#f44;
-    --purple:#a8f; --radius:6px; --font:"Courier New",monospace; }
+    --purple:#a8f; --radius:6px; --font:-apple-system,"Inter",system-ui,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,Menlo,monospace; }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   html,body{height:100%;}
   body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;
@@ -50,7 +52,7 @@ __VOOL_PALETTE_CSS__
   #opentab:disabled{opacity:.35;cursor:default;}
   .favbar{display:flex;gap:6px;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--border);
     background:var(--panel);min-height:34px;align-items:center;}
-  .favbar .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-right:4px;}
+  .favbar .lbl{font-size:12px;color:var(--muted);margin-right:4px;}
   .chip{background:var(--panel2);border:1px solid var(--border);border-radius:20px;
     padding:3px 10px;font-size:12px;color:var(--text);cursor:pointer;transition:border-color .15s;}
   .chip:hover{border-color:var(--accent);}
@@ -62,14 +64,15 @@ __VOOL_PALETTE_CSS__
   #frame{width:100%;height:100%;border:0;background:#fff;}
   #placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:10px;color:var(--muted);text-align:center;padding:24px;}
-  #placeholder h2{color:var(--accent);font-size:18px;letter-spacing:1px;}
+  #placeholder h2{color:var(--ink);font-size:20px;font-weight:650;}
+  #placeholder details{font-size:12px;max-width:520px;line-height:1.7;}
+  #placeholder summary{cursor:pointer;color:var(--muted);}
   #placeholder .hint{font-size:12px;max-width:520px;line-height:1.7;}
   .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);
     border-radius:50%;animation:spin .6s linear infinite;display:none;}
   @keyframes spin{to{transform:rotate(360deg);}}
   .adv{border-top:1px solid var(--border);background:var(--panel);}
-  .adv summary{cursor:pointer;padding:8px 12px;font-size:11px;color:var(--muted);
-    text-transform:uppercase;letter-spacing:.6px;list-style:none;}
+  .adv summary{cursor:pointer;padding:8px 12px;font-size:12px;color:var(--muted);list-style:none;}
   .adv summary::-webkit-details-marker{display:none;}
   .adv .body{padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
   .adv .row{display:flex;gap:8px;}
@@ -77,7 +80,7 @@ __VOOL_PALETTE_CSS__
     color:var(--text);font-family:var(--font);font-size:12px;border-radius:var(--radius);padding:7px 10px;outline:none;}
   .adv button{background:var(--accent);color:#000;border:none;border-radius:var(--radius);
     padding:7px 14px;font-family:var(--font);font-size:12px;font-weight:bold;cursor:pointer;white-space:nowrap;}
-  #dispatch-out{background:#000;border:1px solid var(--border);border-radius:var(--radius);
+  #dispatch-out{font-family:var(--mono);background:#000;border:1px solid var(--border);border-radius:var(--radius);
     padding:10px;min-height:60px;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.6;}
 </style>
 </head>
@@ -87,48 +90,63 @@ __VOOL_PALETTE_CSS__
   <button class="navbtn" id="fwd" title="Forward">&#9654;</button>
   <button class="navbtn" id="reload" title="Reload">&#8635;</button>
   <input id="addr" type="text" value="web0.null" autocomplete="off" spellcheck="false"
-         placeholder="type a .null name, e.g. web0.null"/>
+         placeholder="A .null name, for example web0.null" aria-label=".null name"/>
   <div class="spinner" id="spin"></div>
   <button id="go">Go</button>
-  <button id="star" title="Bookmark this name">&#9733;</button>
-  <button id="opentab" title="Open this .null site in a real browser tab. Wallets like Phantom don't inject into the sandboxed preview frame (anti-phishing), so use this to connect a wallet." disabled>&#8599;</button>
+  <button id="star" title="Add to favourites" aria-label="Add to favourites">&#9733;</button>
+  <button id="opentab" title="Open this site in a normal browser tab. Use this when the site needs your wallet: wallets cannot connect inside the preview here." aria-label="Open in a browser tab" disabled>&#8599;</button>
 </div>
 
-<div class="favbar" id="favbar"><span class="lbl">favorites</span></div>
+<div class="favbar" id="favbar"><span class="lbl">Favourites</span></div>
 
 <div class="status" id="status" style="display:none">
-  <span>name: <b id="s-name">-</b></span>
-  <span>owner: <b id="s-owner">-</b></span>
-  <span>arweave: <b id="s-tx">-</b></span>
-  <span id="s-x402-wrap" style="display:none">x402: <b id="s-x402">-</b></span>
+  <span>Site: <b id="s-name">-</b></span>
+  <span>Owner: <b id="s-owner">-</b></span>
+  <span>Stored copy: <b id="s-tx">-</b></span>
+  <span id="s-x402-wrap" style="display:none">Payments: <b id="s-x402">-</b></span>
 </div>
 
 <div class="stage">
   <iframe id="frame" sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
           referrerpolicy="no-referrer" style="display:none"></iframe>
   <div id="placeholder">
-    <h2>&#8709; web0</h2>
-    <div class="hint">The agent-native web. Type a <b>.null</b> name and press Go — it resolves
-      on Solana, follows the pointer to Arweave, and loads the page here. No server, no DNS.
-      Try the default <b>web0.null</b>. Names with no content yet show a note instead.</div>
+    <h2>Open a .null site</h2>
+    <div class="hint">Type its name, for example <b>web0.null</b>, and press Go.</div>
+    <details><summary>How it works</summary>
+      A .null name is looked up on the Solana network, which points to the site's pages stored on
+      Arweave. VOOL fetches them and shows them here, in a preview that cannot touch your wallet.
+      A name with no pages yet shows a note instead.</details>
   </div>
 </div>
 
 <details class="adv">
-  <summary>&#9881; advanced &middot; null:// task dispatch</summary>
+  <summary>Advanced: send a task to a null:// address</summary>
   <div class="body">
     <div class="row">
       <input id="uri-input" type="text" value="null://task/hello"
              placeholder="null://task/code-review?price=0.001" autocomplete="off" spellcheck="false"/>
-      <button id="dispatch-btn">Dispatch &#8599;</button>
+      <button id="dispatch-btn">Send</button>
     </div>
-    <textarea id="prompt-area" rows="2" placeholder="Optional natural-language prompt"></textarea>
-    <div id="dispatch-out">Ready. Enter a null:// URI and Dispatch.</div>
+    <textarea id="prompt-area" rows="2" placeholder="Optional: describe the task in your own words"></textarea>
+    <div id="dispatch-out">Type a null:// address and press Send.</div>
   </div>
 </details>
 
 <script>
-const VOOL_API = window.__VOOL_API__ || (window.location.port === "11435" ? "" : "http://localhost:11435");
+// Talk to the server that served this page (whatever its port). A page opened from a file, or
+// from a server without the VOOL API (the Meet server also serves /web0), falls back to the
+// default local API port. window.__VOOL_API__ overrides both.
+const VOOL_FALLBACK_API = "http://localhost:11435";
+let VOOL_API = window.__VOOL_API__ || (/^https?:$/.test(window.location.protocol) ? "" : VOOL_FALLBACK_API);
+async function voolFetch(path, options){
+  const resp = await fetch(VOOL_API + path, options);
+  const isJson = (resp.headers.get("content-type") || "").includes("json");
+  if(!isJson && VOOL_API === "" && !window.__VOOL_API__){
+    VOOL_API = VOOL_FALLBACK_API;
+    return fetch(VOOL_API + path, options);
+  }
+  return resp;
+}
 const LS_FAV = "web0.favorites.v1", LS_HIST = "web0.history.v1";
 let stack = [], stackPos = -1;
 let currentGatewayUrl = "";   // real top-level URL of the loaded .null site (for "open in a real tab")
@@ -147,8 +165,8 @@ function renderFavs(){
   const favs = loadJSON(LS_FAV, []);
   const bar = document.getElementById("favbar");
   bar.innerHTML = "";
-  const lbl = document.createElement("span"); lbl.className="lbl"; lbl.textContent="favorites"; bar.appendChild(lbl);
-  if(!favs.length){ const s=document.createElement("span"); s.style.cssText="font-size:11px;color:#555"; s.textContent="none yet — press ★"; bar.appendChild(s); return; }
+  const lbl = document.createElement("span"); lbl.className="lbl"; lbl.textContent="Favourites"; bar.appendChild(lbl);
+  if(!favs.length){ const s=document.createElement("span"); s.style.cssText="font-size:12px;color:var(--muted)"; s.textContent="None yet. Press ★ to add the site you are on."; bar.appendChild(s); return; }
   favs.forEach(name=>{
     const c = document.createElement("span"); c.className="chip";
     c.appendChild(document.createTextNode(name + ".null"));
@@ -195,11 +213,12 @@ async function open_(name, record){
   document.getElementById("addr").value = name+".null";
   spin.style.display="inline-block"; setNav(); syncStar();
   try{
-    const resp = await fetch(VOOL_API + "/api/web0/resolve?name=" + encodeURIComponent(name));
+    const resp = await voolFetch("/api/web0/resolve?name=" + encodeURIComponent(name));
     const data = await resp.json();
     if(!data.ok){
       frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
-      ph.querySelector(".hint").textContent = (data.error||"could not resolve") + " — " + name + ".null";
+      ph.querySelector("h2").textContent = "Couldn't open " + name + ".null";
+      ph.querySelector(".hint").textContent = "Check the name and try again. If it is right, the site may not exist yet.";
       return;
     }
     document.getElementById("s-name").textContent = data.name+".null";
@@ -215,12 +234,14 @@ async function open_(name, record){
     }else{
       frame.style.display="none"; ph.style.display="flex";
       currentGatewayUrl = ""; document.getElementById("opentab").disabled = true;
-      ph.querySelector(".hint").textContent = name+".null is registered (owner "+(data.owner||"").slice(0,8)+"…) but has no Arweave content pointer yet.";
+      ph.querySelector("h2").textContent = name + ".null has no pages yet";
+      ph.querySelector(".hint").textContent = "The name belongs to someone, but they have not published a site under it yet.";
     }
   }catch(e){
     frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
     currentGatewayUrl = ""; document.getElementById("opentab").disabled = true;
-    ph.querySelector(".hint").textContent = "Network error resolving "+name+".null: "+e.message;
+    ph.querySelector("h2").textContent = "Couldn't reach " + name + ".null";
+    ph.querySelector(".hint").textContent = "VOOL or the internet connection did not answer. Check that VOOL is running and you are online, then press Go again.";
   }finally{ spin.style.display="none"; }
 }
 
@@ -252,14 +273,14 @@ async function dispatch(){
   const uri=document.getElementById("uri-input").value.trim();
   const prompt=document.getElementById("prompt-area").value.trim();
   const out=document.getElementById("dispatch-out");
-  if(!uri){ out.textContent="Enter a null:// URI first."; return; }
-  out.textContent="Dispatching…";
+  if(!uri){ out.textContent="Type a null:// address first."; return; }
+  out.textContent="Sending…";
   try{
     const body={uri}; if(prompt) body.prompt=prompt;
-    const resp=await fetch(VOOL_API+"/api/null",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const resp=await voolFetch("/api/null",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await resp.json();
-    out.textContent = resp.ok ? (data.result || "(empty response)") : ("Error "+resp.status+": "+(data.error||JSON.stringify(data)));
-  }catch(e){ out.textContent="Network error: "+e.message; }
+    out.textContent = resp.ok ? (data.result || "No answer came back.") : ("That didn't work: " + (data.message || data.error || "the task was refused."));
+  }catch(e){ out.textContent="VOOL did not answer. Check that it is running, then try again."; }
 }
 document.getElementById("dispatch-btn").onclick=dispatch;
 
