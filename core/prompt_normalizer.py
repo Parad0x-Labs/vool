@@ -1023,6 +1023,7 @@ def _build_conversational_request(
             "conflicting owner, product expansion, or project description."
         )
     tool_observation_message = _runtime_tool_observation_message(source_context)
+    followup_message = _followup_context_message(source_context)
     user = InternalMessage(
         role="user",
         content=user_text,
@@ -1036,6 +1037,8 @@ def _build_conversational_request(
         _label_payload_messages(
             [tool_observation_message], _PAYLOAD_ACTIVITY_RECEIPTS, "tool_observations"
         )
+    if followup_message is not None:
+        _label_payload_messages([followup_message], _PAYLOAD_ACTIVITY_RECEIPTS, "followup_notes")
     historical_context_messages = [
         *correction_messages,
         *history_messages,
@@ -1142,6 +1145,8 @@ def _build_conversational_request(
     messages.extend(capsule_messages)
     if tool_observation_message is not None:
         messages.append(tool_observation_message)
+    if followup_message is not None:
+        messages.append(followup_message)
     messages.append(user)
 
     # Canonical transcript assembly precedes final budget and memory policy.
@@ -1382,6 +1387,21 @@ _MIN_OBSERVATION_SHARE_CHARS = 400
 
 # Said in the observation itself, so a model reading a slice cannot mistake it for a whole file.
 _CLIP_NOTICE_TEMPLATE = " …[clipped here; {dropped} more characters not shown]"
+
+
+def _followup_context_message(source_context: dict[str, Any] | None) -> InternalMessage | None:
+    """What the user added while a task worked, as this model call must see it.
+
+    The running task sees the notes attached to it (core/followup_continuity.py); a side answer to a
+    question asked mid-task sees what the running task is and how far it got, and that it must not
+    start or redo it. Nothing for every other turn, so their payloads are unchanged.
+    """
+    from core.followup_continuity import render_prompt_context
+
+    content = render_prompt_context(source_context)
+    if not content:
+        return None
+    return InternalMessage(role="context", content=content, metadata={"followup_continuity": True})
 
 
 def _runtime_tool_observation_message(

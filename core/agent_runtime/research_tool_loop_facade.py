@@ -1049,6 +1049,19 @@ class ResearchToolLoopFacadeMixin:
         )
         return True
 
+    def _pick_up_followup_notes(self, loop_source_context: dict[str, Any], *, step_count: int) -> None:
+        from core.followup_continuity import drain_notes_into_context
+
+        for note in drain_notes_into_context(loop_source_context):
+            text = " ".join(str(note.get("text") or "").split())
+            self._emit_runtime_event(
+                loop_source_context,
+                event_type="followup_note_applied",
+                message=f"Picked up your note: {text[:160]}",
+                status="note_applied",
+                step_count=step_count,
+            )
+
     @_within_turn_navigation
     def _maybe_execute_model_tool_intent(
         self,
@@ -1296,6 +1309,9 @@ class ResearchToolLoopFacadeMixin:
         self._toolloop_candidate_fp: tuple[str, ...] | None = None
 
         while pending_tool_payload or model_rounds < max_rounds:
+            # A step boundary: notes the user attached to this task while it worked join the
+            # request here (core/followup_continuity.py), and every later model call sees them.
+            self._pick_up_followup_notes(loop_source_context, step_count=len(executed_steps))
             # Replaying the pending approval uses its already-recorded decision round. It must
             # still execute at the limit, and must not spend a second model call. New decisions
             # increment here so every continue/return path remains bounded.

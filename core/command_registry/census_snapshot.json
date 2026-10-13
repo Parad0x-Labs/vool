@@ -1940,6 +1940,13 @@
       "registry_command_id": "chat.dictation",
       "surface": "http"
     },
+    "http:POST:/api/chat/followup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/followup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.followup",
+      "surface": "http"
+    },
     "http:POST:/api/chat/pin": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/chat/pin",
@@ -3043,7 +3050,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 297,
-    "GENERATED_ADAPTER": 128,
+    "GENERATED_ADAPTER": 129,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
