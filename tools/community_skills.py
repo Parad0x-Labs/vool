@@ -53,8 +53,12 @@ def preflight(raw: bytes, scratch: Path) -> dict:
         root = owned / "package"
         materialize(raw, root)
         findings.extend(native_format_findings(root, artifact))
+    from core.registry.requirements import undeclared_needs
+
     return {"status": "blocked" if findings else "preflight_passed", "artifact_sha256": artifact["sha256"],
             "native_digest": artifact["native_digest"], "findings": findings,
+            # Advisory: the instructions look like they use something "needs" leaves out.
+            "needs_notices": undeclared_needs(artifact["metadata"], artifact["files"]),
             "admitted": False, **boundaries,
             "notice": "Local format and secret preflight only; required independent review and release CI remain."}
 

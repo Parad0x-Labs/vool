@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 
 from core.plugin_package import DIGEST_SCHEMA, MAX_FILES, capture_package
 from core.registry.categories import is_listed
+from core.registry.requirements import check_languages, check_needs
 from core.registry.codec import (
     COMMIT,
     HEX,
@@ -50,9 +51,15 @@ def path_name(value: str) -> str:
 
 
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) - {"title"} == {
+    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs"} == {
         "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
         "invalid package metadata fields")
+    # Optional in signed entries so earlier packages stay valid; new uploads must
+    # declare languages (registry intake and the author tool enforce that).
+    if "languages" in value:
+        check_languages(value["languages"])
+    if "needs" in value:
+        check_needs(value["needs"])
     if "title" in value:
         # Optional display name; plain text only.
         title = value["title"]

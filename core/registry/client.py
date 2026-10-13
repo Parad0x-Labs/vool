@@ -75,8 +75,11 @@ class Client:
             except RegistryError:
                 continue
             rows.append({**info, "reviewed": True, "import_ready": True, "discovery_only": False,
-                         "sha256": entry["artifact_sha256"]})
-        return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target}
+                         "sha256": entry["artifact_sha256"], "targets": entry["targets"]})
+        from core.registry.requirements import public_requirements
+
+        return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target,
+                "requirements": public_requirements()}
 
     def prepare(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
         require(approved is True, "explicit package download consent required")
