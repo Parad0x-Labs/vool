@@ -1272,7 +1272,7 @@ body:not(.panel-open) #xpanel { display:none; }
     <span id="attachHint" class="att-hint"></span>
   </div>
   <div class="composer-row">
-    <textarea id="input" aria-label="Message VOOL" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
+    <textarea id="input" dir="auto" aria-label="Message VOOL" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
     <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#127897;</span></button>
     <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#128266;</span></button>
     <button id="send" data-i18n="composer.send">Send</button>
@@ -2571,6 +2571,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   if (role === 'user' && Array.isArray(attachments) && attachments.length) el.appendChild(buildMsgAttachments(attachments));
   const span = document.createElement('span');
   span.className = 'msg-text';
+  span.dir = 'auto';   // right-to-left messages keep their own direction and punctuation
   if (role === 'assistant') { renderAssistantContent(span, text, displayMetadata); } else { span.textContent = text; span.dataset.raw = text; }
   el.appendChild(span);
   // The Proof Chip hangs off the assistant bubble by this message's canonical request id.
@@ -3092,7 +3093,7 @@ function makeSessionItem(s, archived, nested) {
   applyAccent(item, s.color);   // subtle bg tint + left accent bar when a colour is set
   const emo = document.createElement('span'); emo.className = 's-emoji'; if (s.emoji) emo.textContent = s.emoji;
   const title = document.createElement('span');
-  title.className = 's-title';
+  title.className = 's-title'; title.dir = 'auto';
   title.textContent = s.title || '(new chat)';
   title.title = s.title || '';
   title.addEventListener('click', () => openSession(s.session_id));
