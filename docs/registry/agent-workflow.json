@@ -1,0 +1,56 @@
+{
+  "schema": "vool.author.workflow.v1",
+  "purpose": "Descriptive author/assistant workflow; grants no authority or admission",
+  "source_contract": {
+    "metadata_fields": ["id", "kind", "version", "summary", "category", "subcategory", "license", "source"],
+    "optional_metadata_fields": ["title"],
+    "private_draft_omits": ["source"],
+    "github_source_fields": ["repository", "commit", "path"],
+    "source_commit": "Actual full 40-hex upstream authored-content commit",
+    "publication_commit": "Separately reviewed community-repository commit containing packages/<artifact_sha256>.json",
+    "native_digest": "Complete native inventory digest; distinct from transport checksum"
+  },
+  "inputs_required": ["author_owned_workspace", "stable_namespace", "original_or_licensed_content", "complete_license_text", "version", "submission_route"],
+  "local_sdk": {
+    "commands": [
+      {"argv": ["vool-community", "init", "DESTINATION", "--metadata", "METADATA_JSON", "--license-file", "LICENSE_FILE"], "preconditions": ["destination_absent", "real_provenance", "rights_confirmed"]},
+      {"argv": ["vool-community", "lint", "SOURCE", "--scratch", "SCRATCH"], "preconditions": ["complete_explicit_distribution", "scratch_outside_source"]},
+      {"argv": ["vool-community", "pack", "SOURCE", "--scratch", "SCRATCH", "--output", "ARTIFACT"], "preconditions": ["output_absent", "output_outside_source", "preflight_clean"]},
+      {"argv": ["vool-community", "check", "ARTIFACT", "--scratch", "SCRATCH"], "postconditions": ["admitted_false", "record_exit_code", "record_transport_sha256", "record_native_digest"]},
+      {"argv": ["vool-community", "submission-link", "ARTIFACT", "--github-user", "GITHUB_USER", "--branch", "BRANCH"], "postconditions": ["comparison_url_only", "no_remote_write"]}
+    ],
+    "candidate_execution": false,
+    "silent_file_exclusions": false,
+    "preflight_is_admission": false
+  },
+  "api": {
+    "prefix": "/registry/api",
+    "mutations": {"same_origin": true, "browser_session_cookie": true, "csrf_header": "X-Vool-CSRF"},
+    "draft": {"method": "POST", "path": "/drafts", "content_type": "application/json", "body_fields": ["metadata", "skill_markdown", "license_text"], "max_body_utf8_bytes": 32768},
+    "artifact": {"method": "POST", "path": "/submissions", "content_type": "application/vnd.vool.registry+json", "unaltered_canonical_bytes": true},
+    "consent": {"method": "POST", "path": "/submissions/{id}/consent", "body_fields": ["sha256", "public"], "public_value": true, "eligible_states": ["preflighted", "reviewed"], "unchanged_checksum_required": true},
+    "status": {"method": "GET", "path": "/submissions/{id}"},
+    "anonymous_catalog": {"method": "GET", "path": "/catalog"},
+    "anonymous_discovery": {"method": "GET", "path": "/catalog?channel=discovery"}
+  },
+  "states": {
+    "quarantined": {"public": false, "action": "Wait for signed review; inspect status before retrying upload"},
+    "held": {"public": false, "action": "Fix source or await missing independent coverage; submit new bytes if changed"},
+    "rejected": {"public": false, "payload": "discarded_on_detected_secrets", "action": "Remove secrets; rotate actual exposed credential through provider; resubmit"},
+    "preflighted": {"public": false, "admission": false, "action": "Obtain explicit public-history consent for exact checksum"},
+    "reviewed": {"public": false, "catalog_admission_from_state_alone": false, "action": "Verify exact signed evidence and consent before export"},
+    "ready_for_github": {"public_may_follow_authorized_export": true, "admission": false, "action": "Publisher exports exact consented bytes; independent PR/review remains required"},
+    "published": {"public": true, "authority": "Verified signed catalog with exact target, freshness and revocation checks"},
+    "expired": {"retention_seconds": 604800, "payload_and_review_removed": true, "action": "Submit a fresh candidate for fresh review"}
+  },
+  "owner_authorizations": [
+    {"action": "private_upload", "binds": ["destination", "artifact_or_draft_content"]},
+    {"action": "public_git_push_or_pr", "binds": ["repository", "branch", "exact_artifact_sha256", "license"]},
+    {"action": "permanent_public_history_consent", "binds": ["submission_id", "artifact_sha256"]},
+    {"action": "native_download", "binds": ["package_id", "version"]},
+    {"action": "native_install", "binds": ["package_id", "version", "review_id", "enable_choice"]}
+  ],
+  "updates": {"stable_id": true, "published_version_immutable": true, "manifest_metadata_versions_match": true, "new_bytes_need_new_review_and_consent": true, "preserve_edited_local_installation": true},
+  "invariants": ["native_authority_prevails", "no_tokens_in_packages", "no_fabricated_scanner_or_signer_evidence", "unknown_is_not_approval", "missing_rights_provenance_compatibility_or_consent_refuses_dependent_action", "public_metrics_do_not_admit_packages", "website_cannot_install_into_local_app"],
+  "receipt_required": ["exact_source_identity", "file_inventory", "license", "commands_and_exit_codes", "transport_sha256", "native_digest", "preflight_findings", "validation_limits", "remaining_owner_decisions"]
+}

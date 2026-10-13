@@ -311,6 +311,11 @@ def load_manifest(path: Path) -> LoadedPlugin:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise PluginManifestError(f"{path}: could not be read as JSON ({exc})") from exc
+    return parse_manifest(raw, path=path)
+
+
+def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
+    """Build the same inert contracts from an already decoded manifest."""
     _require(isinstance(raw, dict), f"{path}: manifest must be a JSON object")
 
     plugin_id = str(raw.get("name") or "").strip()

@@ -53,6 +53,7 @@ def render_addon_store_fragment() -> str:
 const tr=(key,fallback)=>{const k='addons.'+key;const v=window.VOOLT?window.VOOLT(k):k;return v===k?fallback:v;};
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 let tab='discover',data=null,category='',ecosystem='',limit=24,remote=null,sort='name',availability='ready',selected=null,review=null,busy=false,error='',generation=0,localCheck=null;
+let registryData=null,registryReview=null;
 const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,'');
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
 async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error)throw new Error((j.message||tr('request_failed','The request could not finish.'))+' ['+(j.error||r.status)+']');return j;}
@@ -77,13 +78,13 @@ function nav(){
  let n=document.getElementById('addonNav');if(!n){n=node('nav',undefined,'addon-nav');n.id='addonNav';n.setAttribute('aria-label',tr('navigation','Add-on navigation'));search.before(n);}
  let bar=document.getElementById('addonSearchBar');if(!bar){bar=node('div');bar.id='addonSearchBar';search.before(bar);bar.append(search);search.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&tab==='discover'){ev.preventDefault();ev.stopPropagation();remoteFind();}});}
  let remoteButton=document.getElementById('addonGitHubSearch');if(!remoteButton){remoteButton=button(tr('github_search','Search GitHub'),remoteFind);remoteButton.id='addonGitHubSearch';bar.append(remoteButton);}remoteButton.disabled=busy;remoteButton.hidden=tab!=='discover';
- n.replaceChildren();[['discover',tr('browse','Browse')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;remote=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
+ n.replaceChildren();[['discover',tr('browse','Browse')],['registry',tr('registry_tab','Skill Codex')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;registryReview=null;remote=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
  n.append(node('p',tr('nav_note','Skills teach VOOL new approaches. Plugins add tools and connections.'),'addon-nav-note'));
- bar.hidden=tab==='security'||!!selected||!!review;search.hidden=false;search.placeholder=tr('search_store','Search skills, plugins or paste a GitHub repository…');
+ bar.hidden=tab==='security'||!!selected||!!review||!!registryReview;search.hidden=false;search.placeholder=tr('search_store','Search skills, plugins or paste a GitHub repository…');
  const title=document.getElementById('pluginsTitle');if(title){
   title.textContent=tr('store_title','Skills & Plugins');
-  let back=document.getElementById('addonBack');if(!back){back=button('',()=>{if(busy)return;if(review){review=null;selected=null;}else if(selected){selected=null;}else{remote=null;}error='';refresh();});back.id='addonBack';title.before(back);}
-  back.hidden=tab!=='discover'||!(review||selected||remote);back.disabled=busy;
+  let back=document.getElementById('addonBack');if(!back){back=button('',()=>{if(busy)return;if(registryReview){registryReview=null;}else if(review){review=null;selected=null;}else if(selected){selected=null;}else{remote=null;}error='';refresh();});back.id='addonBack';title.before(back);}
+  back.hidden=!(tab==='registry'&&registryReview)&&(tab!=='discover'||!(review||selected||remote));back.disabled=busy;
   back.textContent=review||selected?tr('back_list','← Back to list'):tr('back_directory','← Back to directory');
  }
 }
@@ -106,6 +107,7 @@ function render(query){
  const host=document.getElementById('pluginsBody');if(!host)return false;host.replaceChildren();nav();host.classList.remove('addon-library-grid');
  if(tab==='security'){security(host);return true;}
  if(error){const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.append(p);}
+ if(tab==='registry'){renderRegistry(host,query);return true;}
  if(!data){host.append(error?button(tr('retry','Try again'),()=>{error='';load();}):node('p',tr('loading','Loading…')));return true;}
  if(tab==='installed'){renderLibrary(host,query);return true;}
  if(review){renderReview(host);return true;}if(selected){renderDetail(host,selected);return true;}if(remote){renderRemote(host);return true;}
@@ -130,6 +132,30 @@ function render(query){
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
  host.append(node('p',tr('scope','Directory entries are not endorsements. Compatibility and licence checks come before scanning. Executable plugins and MCP servers require an adapter.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
+}
+function nativeControlNotice(host,value){
+ host.append(node('p',value.authority_notice||tr('native_authority','Skills contribute instructions. VOOL native rules, owner settings, spending limits, currency handling, permissions and approvals always take precedence.'),'addon-risk-note'));
+ (value.native_control_overlaps||[]).forEach(item=>host.append(node('p',item.message,'addon-meta')));
+}
+function renderRegistry(host,query){
+ hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.'));
+ if(registryReview){
+  const r=registryReview,info=r.metadata;
+  host.append(node('h3',info.id+' · '+info.version),node('p',info.summary));nativeControlNotice(host,r);
+  const details=node('details');details.append(node('summary',tr('registry_evidence','Exact files, permissions and source')),
+   node('pre',JSON.stringify({sha256:r.sha256,source:info.source,permissions:r.permissions,tools:r.tools,credential_bindings:r.credential_bindings,dependencies:r.dependencies,files:r.files},null,2)));host.append(details);
+  Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));host.append(item);});
+  const acts=node('div',undefined,'addon-actions');host.append(acts);
+  const accept=enabled=>action(async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:enabled});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();});
+  acts.append(button(tr('registry_install_only','Install without enabling'),()=>accept(false)),button(tr('registry_enable','Install and enable'),()=>accept(true),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));return;
+ }
+ host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
+ host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
+ if(!registryData)return;
+ const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory].join(' ')).includes(key(query)));
+ if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
+ const grid=node('div',undefined,'addon-grid');host.append(grid);
+ rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
 }
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.

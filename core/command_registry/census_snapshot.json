@@ -204,6 +204,13 @@
       "registry_command_id": "",
       "surface": "cli-script"
     },
+    "cli-script:vool-community": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "tools.community_skills:main",
+      "note": "registry author SDK (local lint/pack/check; no remote writes)",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
     "cli-script:vool-daemon": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "apps.vool_daemon:main",
@@ -215,6 +222,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "apps.meet_and_greet_server:main",
       "note": "meet satellite entry point",
+      "registry_command_id": "",
+      "surface": "cli-script"
+    },
+    "cli-script:vool-registry": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "registry_service.cli:main",
+      "note": "registry service operator entry point",
       "registry_command_id": "",
       "surface": "cli-script"
     },
@@ -3014,7 +3028,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 294,
+    "EXTERNAL_TRANSPORT_ONLY": 296,
     "GENERATED_ADAPTER": 127,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

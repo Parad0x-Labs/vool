@@ -1850,7 +1850,18 @@
     "xsetup.cancelled": "Cancelled. Nothing was saved.",
     "xsetup.title": "X (Twitter)",
     "xsetup.entry_note": "X uses several keys. The guided setup says what to paste where and checks them with one read.",
-    "xsetup.open": "Connect X"
+    "xsetup.open": "Connect X",
+    "addons.registry_tab": "Skill Codex",
+    "addons.registry_title": "Skills and plugins from their creators",
+    "addons.registry_intro": "Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.",
+    "addons.native_authority": "Skills contribute instructions. VOOL native rules, owner settings, spending limits, currency handling, permissions and approvals always take precedence.",
+    "addons.registry_evidence": "Exact files, permissions and source",
+    "addons.registry_install_only": "Install without enabling",
+    "addons.registry_enable": "Install and enable",
+    "addons.registry_refresh": "Browse Skill Codex",
+    "addons.registry_network": "This button requests the public registry. No account, chats, local files or provider keys are sent.",
+    "addons.registry_empty": "No listed versions match this exact VOOL build and search.",
+    "addons.registry_inspect": "Download for inspection"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -519,6 +519,29 @@ def usage_tokens(usage: Any) -> tuple[int, int]:
     )
 
 
+def cached_prompt_tokens(usage: Any) -> int | None:
+    """Prompt tokens the provider served from its prompt cache, or None when it reported none.
+
+    OpenAI-compatible providers and OpenRouter say ``prompt_tokens_details.cached_tokens``,
+    Anthropic says ``cache_read_input_tokens``, DeepSeek says ``prompt_cache_hit_tokens``. A
+    reported 0 is a real miss and is returned as 0; an absent field stays None (unknown).
+    """
+    try:
+        block = dict(usage or {})
+    except Exception:
+        return None
+    details = block.get("prompt_tokens_details")
+    candidates = (
+        details.get("cached_tokens") if isinstance(details, dict) else None,
+        block.get("cache_read_input_tokens"),
+        block.get("prompt_cache_hit_tokens"),
+    )
+    for value in candidates:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
+            return int(value)
+    return None
+
+
 def provider_reported_usd(usage: Any) -> float | None:
     """The out-of-pocket USD the provider itself reported, or None when it reported none.
 

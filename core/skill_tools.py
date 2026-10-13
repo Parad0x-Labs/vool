@@ -27,7 +27,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from core.plugin_skills import parse_skill
+from core.plugin_skills import parse_skill, parse_skill_content
 
 # Where an unactivated skill is written. Deliberately not under the plugins tree: a half-written
 # skill must not be loadable, and `create` is not an authorisation to change behaviour.
@@ -192,21 +192,85 @@ def _installed_effective_digests(exclude_slug: str) -> dict[str, str]:
     return found
 
 
+def _scoped_effective_digests(keys: dict[str, str] | None, *, exclude_dir: Path | None = None) -> dict[str, str]:
+    """Head instruction digest of every active chat/project skill for these keys: {label: digest}.
+
+    Labelled ``<scope>:<slug>`` so a collision names which scope already holds the instructions.
+    The destination being (re)installed is excluded: overwriting a skill with itself is an edit.
+    """
+    found: dict[str, str] = {}
+    excluded = exclude_dir.resolve() if exclude_dir is not None else None
+    for scope, active in _scope_active_dirs(keys):
+        if not active.is_dir():
+            continue
+        for skill_dir in sorted(active.iterdir()):
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.is_file():
+                continue
+            with contextlib.suppress(OSError):
+                if excluded is not None and skill_dir.resolve() == excluded:
+                    continue
+                versions = list(_read_history(skill_dir).get("versions") or [])
+                digest = str((versions[-1] if versions else {}).get("instruction_sha256") or "").strip()
+                found[f"{scope}:{skill_dir.name}"] = digest or _instruction_digest_for_bytes(skill_md.read_bytes())
+    return found
+
+
+def _ensure_scope_record(root: Path, scope: str, keys: dict[str, str] | None) -> None:
+    """Record which chat or project a scope folder belongs to, once, next to its skills.
+
+    The folder name may be a digest of the key; the record keeps the real key so a listing can
+    say whose skills these are without reversing anything.
+    """
+    record = root / "scope.json"
+    if record.exists():
+        return
+    root.mkdir(parents=True, exist_ok=True)
+    payload = {"scope": scope, "key": str((keys or {}).get(scope) or ""), "created_at": _utcnow()}
+    record.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def _utcnow() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _installed_skill_dir_by_name(name: str) -> Path | None:
+def _scoped_dirs(scope: str, keys: dict[str, str] | None) -> tuple[Path, Path] | None:
+    """(staged root, active root) of one chat's or project's skills, or None when unavailable."""
+    from core.skill_scopes import ACTIVE_DIRNAME, STAGED_DIRNAME, scope_root
+
+    root = scope_root(scope, keys)
+    if root is None:
+        return None
+    return root / STAGED_DIRNAME, root / ACTIVE_DIRNAME
+
+
+def _scope_active_dirs(keys: dict[str, str] | None) -> list[tuple[str, Path]]:
+    """The active chat and project skill roots for these keys, narrowest first."""
+    found: list[tuple[str, Path]] = []
+    for scope in ("chat", "project"):
+        dirs = _scoped_dirs(scope, keys)
+        if dirs is not None:
+            found.append((scope, dirs[1]))
+    return found
+
+
+def _installed_skill_dir_by_name(name: str, keys: dict[str, str] | None = None) -> Path | None:
     """The INSTALLED skill directory this human name or slug means, or None.
 
     Staging is deliberately not searched: versions exist only for activated skills, and a
-    rollback against a draft would silently no-op the operator's intent.
+    rollback against a draft would silently no-op the operator's intent. With scope keys, this
+    chat's and this project's active skills are searched first (narrowest wins), then the global
+    plugins tree.
     """
     slug = _slug(name)
     if not slug:
         return None
+    for _scope, active in _scope_active_dirs(keys):
+        candidate = active / slug
+        if (candidate / "SKILL.md").is_file():
+            return candidate
     root = plugins_root() / "plugins"
     with contextlib.suppress(OSError):
         for candidate in sorted(root.glob(f"*/skills/{slug}")):
@@ -215,9 +279,9 @@ def _installed_skill_dir_by_name(name: str) -> Path | None:
     return None
 
 
-def skill_history(name: str) -> dict[str, Any]:
+def skill_history(name: str, keys: dict[str, str] | None = None) -> dict[str, Any]:
     """The recorded versions of an installed skill: head, entries, where they live."""
-    skill_dir = _installed_skill_dir_by_name(name)
+    skill_dir = _installed_skill_dir_by_name(name, keys)
     if skill_dir is None:
         return {
             "status": "not_found",
@@ -248,7 +312,7 @@ def installed_skill_version_for_path(path: str) -> int:
     return int(_read_history(skill_dir).get("head_version") or 0)
 
 
-def rollback_skill(name: str, *, version: int) -> dict[str, Any]:
+def rollback_skill(name: str, *, version: int, keys: dict[str, str] | None = None) -> dict[str, Any]:
     """Restore a prior version of an installed skill, byte for byte, as the new head.
 
     The bytes come from the immutable snapshot; the restore itself is a new head move recorded
@@ -257,7 +321,7 @@ def rollback_skill(name: str, *, version: int) -> dict[str, Any]:
     turns load) and belongs to `skill.rollback`, gated like `skill.install`.
     """
     name = str(name or "").strip()
-    skill_dir = _installed_skill_dir_by_name(name)
+    skill_dir = _installed_skill_dir_by_name(name, keys)
     if skill_dir is None:
         return {
             "status": "not_found",
@@ -375,12 +439,22 @@ def create_skill(
     allowed_tools: tuple[str, ...] | list[str] = (),
     triggers: tuple[str, ...] | list[str] = (),
     overwrite: bool = False,
+    scope: str = "global",
+    keys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Write a staged `SKILL.md`. Loads nothing and changes no behaviour."""
+    """Write a staged `SKILL.md`. Loads nothing and changes no behaviour.
+
+    ``scope`` picks the staging area: ``global`` drafts where it always has, ``chat`` and
+    ``project`` draft inside that chat's or project's own skills folder (``keys`` names which),
+    so a draft is installed later into the scope it was written for.
+    """
 
     slug = _slug(name)
     if not slug:
         return {"status": "invalid_arguments", "reason": "name is required"}
+    scope = str(scope or "global").strip().lower()
+    if scope not in ("chat", "project", "global"):
+        return {"status": "invalid_arguments", "reason": f"unknown scope {scope!r}; use chat, project or global"}
     if not str(description or "").strip():
         # Not pedantry: `match_corpus` is name + description + triggers, so a skill without one is a
         # skill that can never rank, and writing it would be writing something inert.
@@ -391,7 +465,19 @@ def create_skill(
     if not str(body or "").strip():
         return {"status": "invalid_arguments", "reason": "body is required - it is the instructions"}
 
-    directory = staging_root() / slug
+    if scope == "global":
+        directory = staging_root() / slug
+    else:
+        from core.skill_scopes import scope_unavailable_reason
+
+        dirs = _scoped_dirs(scope, keys)
+        if dirs is None:
+            return {
+                "status": "scope_unavailable",
+                "reason": scope_unavailable_reason(scope, keys) or f"no {scope} to keep the skill in",
+                "scope": scope,
+            }
+        directory = dirs[0] / slug
     target = directory / "SKILL.md"
     if target.exists() and not overwrite:
         return {
@@ -401,25 +487,27 @@ def create_skill(
         }
     try:
         directory.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            render_skill_markdown(
-                name=name, description=description, body=body,
-                allowed_tools=allowed_tools, triggers=triggers,
-            ),
-            encoding="utf-8",
-        )
+        rendered = render_skill_markdown(
+            name=name, description=description, body=body,
+            allowed_tools=allowed_tools, triggers=triggers,
+        ).encode("utf-8")
+        target.write_bytes(rendered)
     except OSError as exc:
         return {"status": "error", "reason": f"{type(exc).__name__}: could not write the skill"}
     return {
         "status": "ok",
         "path": str(target),
         "slug": slug,
+        "scope": scope,
+        # The digest of the exact bytes drafted: an activation can bind to it, so what goes live
+        # is what the operator was shown, not whatever sits at this path by then.
+        "sha256": hashlib.sha256(rendered).hexdigest(),
         "staged": True,
         "next": "validate it, then install it to make it active",
     }
 
 
-def resolve_skill_markdown(path: str) -> Path:
+def resolve_skill_markdown(path: str, keys: dict[str, str] | None = None) -> Path:
     """The `SKILL.md` this identifier means: a file, a directory, or a skill NAME.
 
     Found by a QA drive on 2026-07-30. ``create`` returns ``slug: "qa-echo"`` and signs off with
@@ -442,7 +530,7 @@ def resolve_skill_markdown(path: str) -> Path:
     if len(candidate.parts) == 1 and not raw.startswith(("/", "~", ".")):
         slug = _slug(raw)
         if slug:
-            for found in _skill_locations(slug):
+            for found in _skill_locations(slug, keys):
                 if found.is_file():
                     return found
             # Nothing on disk: name the staging path, so the "not found" says where it would go.
@@ -450,18 +538,26 @@ def resolve_skill_markdown(path: str) -> Path:
     return candidate
 
 
-def _skill_locations(slug: str) -> list[Path]:
+def _skill_locations(slug: str, keys: dict[str, str] | None = None) -> list[Path]:
     """Where a skill of this slug could live, IN SEARCH ORDER: staging, native, then installed.
 
     Order is behaviour, not tidiness. A redraft of an already-installed skill is the copy the
     operator is validating; resolving to the installed one instead reports on the previous version
     and calls it current. The native root sits between them: a first-party package is the shipped
     source of truth, so a bare name resolves to it in preference to a stale installed copy.
+
+    With scope keys, this chat's skills (draft, then active) come first, then this project's,
+    then everything above: the narrowest scope is the one the operator is working in.
     """
 
     from core.native_skill_library import native_skills_root
 
-    locations = [staging_root() / slug / "SKILL.md"]
+    locations: list[Path] = []
+    for scope in ("chat", "project"):
+        dirs = _scoped_dirs(scope, keys)
+        if dirs is not None:
+            locations.extend([dirs[0] / slug / "SKILL.md", dirs[1] / slug / "SKILL.md"])
+    locations.append(staging_root() / slug / "SKILL.md")
     locations.append(native_skills_root() / slug / "SKILL.md")
     # Installed skills sit at plugins/<plugin_id>/skills/<slug>/SKILL.md.
     with contextlib.suppress(OSError):
@@ -469,7 +565,7 @@ def _skill_locations(slug: str) -> list[Path]:
     return locations
 
 
-def validate_skill(path: str) -> dict[str, Any]:
+def validate_skill(path: str, keys: dict[str, str] | None = None, *, candidate_contracts: tuple = ()) -> dict[str, Any]:
     """Parse with the REAL loader and report what would stop this skill working.
 
     "It parsed" is the easy half and the less useful one. A skill with no description never ranks,
@@ -477,11 +573,20 @@ def validate_skill(path: str) -> dict[str, Any]:
     matches — both parse perfectly.
     """
 
-    candidate = resolve_skill_markdown(path)
+    candidate = resolve_skill_markdown(path, keys)
     if not candidate.is_file():
         return {"status": "not_found", "reason": f"no SKILL.md at {candidate}", "path": str(candidate)}
 
-    skill = parse_skill(candidate)
+    try:
+        with candidate.open("rb") as source:
+            raw = source.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise ValueError("skill exceeds the validation byte limit")
+        preview_markdown = raw.decode("utf-8")
+    except (OSError, UnicodeError, ValueError):
+        return {"status": "invalid", "path": str(candidate),
+                "problems": ["the complete skill could not be read within the validation limit"]}
+    skill = parse_skill_content(preview_markdown, path=candidate)
     if skill is None:
         return {
             "status": "invalid",
@@ -493,6 +598,21 @@ def validate_skill(path: str) -> dict[str, Any]:
         }
 
     problems: list[str] = []
+    from core.registry.rules import analyze
+
+    boundaries = analyze({"SKILL.md": raw})
+    problems.extend(conflict["reason"] for conflict in boundaries["conflicts"])
+    full_match = re.match(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", preview_markdown, re.DOTALL)
+    full_body = full_match.group(2).strip() if full_match else ""
+    if len(full_body) > _MAX_BODY_CHARS:
+        problems.append(f"body exceeds {_MAX_BODY_CHARS} characters; the loader would truncate instructions")
+    try:
+        import yaml
+
+        if not isinstance(yaml.safe_load(full_match.group(1)), dict):
+            problems.append("frontmatter must be a YAML object")
+    except Exception:
+        problems.append("frontmatter could not be validated as YAML")
     if not skill.name.strip():
         problems.append("name is empty")
     if not skill.description.strip():
@@ -517,6 +637,9 @@ def validate_skill(path: str) -> dict[str, Any]:
             # conversational path was a skill with no allowed-tools at all. Registry
             # entries never override a builtin contract of the same name.
             contracts = runtime_tool_contract_map()
+            for contract in candidate_contracts:
+                if str(contract.source or "").startswith("plugin:"):
+                    contracts.setdefault(str(contract.intent), contract)
             for contract in registered_tools():
                 if str(contract.source or "").startswith("plugin:"):
                     contracts.setdefault(str(contract.intent), contract)
@@ -527,7 +650,7 @@ def validate_skill(path: str) -> dict[str, Any]:
                 if actions:
                     required_actions[tool] = actions
         except Exception:
-            unknown_tools = []
+            problems.append("tool contracts are unavailable; allowed-tools could not be validated")
         if unknown_tools:
             problems.append(
                 "allowed-tools names tools this runtime does not have: " + ", ".join(unknown_tools)
@@ -548,18 +671,18 @@ def validate_skill(path: str) -> dict[str, Any]:
                 )
 
     # The activation preview: the file's EXACT bytes, so the operator approves what will be
-    # loaded rather than a paraphrase of it. Read after validation, never reconstructed.
-    try:
-        preview_markdown = candidate.read_text(encoding="utf-8")
-    except OSError:
-        preview_markdown = ""
-
+    # loaded rather than a paraphrase of it. These are the bytes read once above and validated.
+    preview_bytes = raw
     return {
         "status": "ok" if not problems else "invalid",
         "path": str(candidate),
+        "sha256": hashlib.sha256(preview_bytes).hexdigest() if preview_bytes else "",
         "name": skill.name,
         "description": skill.description,
         "body_characters": len(skill.body),
+        "full_body_characters": len(full_body),
+        "authority_notice": boundaries["authority_notice"],
+        "native_control_overlaps": boundaries["native_control_overlaps"],
         "allowed_tools": list(skill.allowed_tools),
         "unknown_tools": unknown_tools,
         "triggers": list(skill.triggers),
@@ -607,15 +730,57 @@ def _ensure_plugin_manifest(plugin_dir: Path, plugin_id: str) -> None:
         pass
 
 
-def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool = False) -> dict[str, Any]:
-    """Move a validated skill into the active plugins tree, where the loader will find it.
+def install_skill(
+    path: str,
+    *,
+    plugin_id: str = "local-skills",
+    overwrite: bool = False,
+    scope: str = "global",
+    keys: dict[str, str] | None = None,
+    expected_sha256: str = "",
+    origin: str = "install",
+) -> dict[str, Any]:
+    """Move a validated skill into the active tree of its scope, where the loader will find it.
 
     Re-validates rather than trusting that `validate` was called: they are separate tool calls and a
     model can skip one. Installing something that can never rank is worse than refusing, because the
     operator is then told a capability exists that will never fire.
+
+    ``scope`` ``global`` installs into the plugins tree exactly as before; ``chat`` and ``project``
+    install into that chat's or project's own skills folder, which only turns in that chat (or in
+    chats bound to that project) load. ``expected_sha256`` binds the activation to the bytes the
+    operator was shown: when the draft at that path no longer has that digest, nothing is installed.
     """
 
-    source = resolve_skill_markdown(path)
+    scope = str(scope or "global").strip().lower()
+    if scope not in ("chat", "project", "global"):
+        return {"status": "invalid_arguments", "reason": f"unknown scope {scope!r}; use chat, project or global"}
+    scoped_dirs = None
+    if scope != "global":
+        from core.skill_scopes import scope_unavailable_reason
+
+        scoped_dirs = _scoped_dirs(scope, keys)
+        if scoped_dirs is None:
+            return {
+                "status": "scope_unavailable",
+                "reason": scope_unavailable_reason(scope, keys) or f"no {scope} to install the skill into",
+                "scope": scope,
+            }
+
+    source = resolve_skill_markdown(path, keys)
+    expected = str(expected_sha256 or "").strip().lower()
+    if expected and source.is_file():
+        try:
+            actual = hashlib.sha256(source.read_bytes()).hexdigest()
+        except OSError:
+            actual = ""
+        if actual != expected:
+            return {
+                "status": "refused",
+                "reason": "the draft changed after it was shown, so it was not activated; review it again",
+                "path": str(source),
+                "problems": ["draft digest differs from the one that was reviewed"],
+            }
     verdict = validate_skill(str(source))
     # A skill that is not THERE has not failed validation. Saying "the skill does not validate" about
     # a missing file names the wrong problem and sends the reader to fix the skill's contents.
@@ -637,7 +802,10 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
 
     slug = _slug(str(verdict.get("name") or source.parent.name))
     clean_plugin = _slug(plugin_id) or "local-skills"
-    destination_dir = plugins_root() / "plugins" / clean_plugin / "skills" / slug
+    if scoped_dirs is not None:
+        destination_dir = scoped_dirs[1] / slug
+    else:
+        destination_dir = plugins_root() / "plugins" / clean_plugin / "skills" / slug
     destination = destination_dir / "SKILL.md"
     with _ACTIVATION_LOCK:
         if destination.exists() and not overwrite:
@@ -654,9 +822,13 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
         # under a fresh slug). Refused typed, with the collision named.
         try:
             incoming_effective = _instruction_digest_for_bytes(Path(source).read_bytes())
+            installed = _installed_effective_digests(slug)
+            # This chat's and this project's skills are installed skills too: the same
+            # instructions behind a chat name and a global name are still one set behind two.
+            installed.update(_scoped_effective_digests(keys, exclude_dir=destination_dir))
             collisions = {
                 other: digest
-                for other, digest in _installed_effective_digests(slug).items()
+                for other, digest in installed.items()
                 if digest and digest == incoming_effective
             }
         except OSError:
@@ -676,8 +848,26 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
             }
         try:
             destination_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(source, destination)
-            _ensure_plugin_manifest(plugins_root() / "plugins" / clean_plugin, clean_plugin)
+            # The copy lands beside the destination first and its digest is checked THERE: the
+            # bytes verified are the bytes that go live, so a rewrite of the draft between the
+            # check and the copy cannot slip through.
+            tmp = destination.with_name(destination.name + ".tmp")
+            shutil.copyfile(source, tmp)
+            data = tmp.read_bytes()
+            if expected and hashlib.sha256(data).hexdigest() != expected:
+                with contextlib.suppress(OSError):
+                    tmp.unlink()
+                return {
+                    "status": "refused",
+                    "reason": "the draft changed after it was shown, so it was not activated; review it again",
+                    "path": str(source),
+                    "problems": ["draft digest differs from the one that was reviewed"],
+                }
+            tmp.replace(destination)
+            if scoped_dirs is None:
+                _ensure_plugin_manifest(plugins_root() / "plugins" / clean_plugin, clean_plugin)
+            else:
+                _ensure_scope_record(scoped_dirs[1].parent, scope, keys)
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not install the skill"}
 
@@ -686,7 +876,7 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
         # verified BY READING IT BACK — an install whose version did not persist is an error, not
         # an unversioned success (an activation the history cannot account for is unauditable).
         try:
-            recorded = _record_version(destination_dir, source="install")
+            recorded = _record_version(destination_dir, source=str(origin or "install"))
             persisted = _read_history(destination_dir)
             head = int(persisted.get("head_version") or 0)
             if head != int(recorded.get("version") or 0):
@@ -701,15 +891,18 @@ def install_skill(path: str, *, plugin_id: str = "local-skills", overwrite: bool
         return {
             "status": "ok",
             "path": str(destination),
-            "plugin_id": clean_plugin,
+            "plugin_id": clean_plugin if scoped_dirs is None else f"{scope}-skills",
+            "scope": scope,
             "name": verdict.get("name"),
+            "slug": slug,
+            "sha256": hashlib.sha256(data).hexdigest(),
             "version": recorded["version"],
             "active": True,
             "note": "the loader picks this up on the next turn; no restart is needed",
         }
 
 
-def list_skills(workspace: str = "") -> dict[str, Any]:
+def list_skills(workspace: str = "", keys: dict[str, str] | None = None) -> dict[str, Any]:
     """Every skill this runtime can see, grounded in the files that define them.
 
     Four places a skill lives, reported separately because they mean different things:
@@ -751,8 +944,17 @@ def list_skills(workspace: str = "") -> dict[str, Any]:
             ("SKILL.md", "*/SKILL.md", "*/*/SKILL.md", "*/*/*/SKILL.md"),
         )
 
-    staged = _scan(staging_root(), ("*/SKILL.md",))
-    installed = _scan(plugins_root() / "plugins", ("*/skills/*/SKILL.md",))
+    staged = [dict(row, scope="global") for row in _scan(staging_root(), ("*/SKILL.md",))]
+    installed = [dict(row, scope="global") for row in _scan(plugins_root() / "plugins", ("*/skills/*/SKILL.md",))]
+    # This chat's and this project's own skills: active ones are reported per scope, drafts join
+    # the staged list carrying the scope they will be installed into.
+    scoped: dict[str, list[dict[str, Any]]] = {"chat": [], "project": []}
+    for scope in ("chat", "project"):
+        dirs = _scoped_dirs(scope, keys)
+        if dirs is None:
+            continue
+        staged.extend(dict(row, scope=scope) for row in _scan(dirs[0], ("*/SKILL.md",)))
+        scoped[scope] = [dict(row, scope=scope) for row in _scan(dirs[1], ("*/SKILL.md",))]
     # Every skill the ONE authority loads (native + plugin-typed + MCP), through the canonical
     # inventory — this reader projects it, it does not keep a second loader.
     from core.native_skill_library import skill_inventory as _canonical_inventory
@@ -774,7 +976,138 @@ def list_skills(workspace: str = "") -> dict[str, Any]:
         "workspace": str(workspace_root) if workspace_skills else str(workspace or ""),
         "workspace_skills": workspace_skills,
         "native_skills": native,
+        "chat_skills": scoped["chat"],
+        "project_skills": scoped["project"],
         "staged_skills": staged,
         "installed_skills": installed,
-        "total": len(workspace_skills) + len(native) + len(staged) + len(installed),
+        "total": len(workspace_skills) + len(native) + len(staged) + len(installed)
+        + len(scoped["chat"]) + len(scoped["project"]),
+    }
+
+
+def scoped_skills(keys: dict[str, str] | None) -> tuple[Any, ...]:
+    """Every ACTIVE skill of this chat and of its project, parsed by the real loader.
+
+    Chat skills first, then project skills: on a name collision the narrower one is the one the
+    operator meant for this conversation. ``plugin_id`` carries the scope (``chat-skills`` /
+    ``project-skills``) so provenance says where an influence came from.
+    """
+    found: list[Any] = []
+    for scope, active in _scope_active_dirs(keys):
+        if not active.is_dir():
+            continue
+        with contextlib.suppress(OSError):
+            for skill_dir in sorted(active.iterdir()):
+                skill_md = skill_dir / "SKILL.md"
+                if not skill_md.is_file():
+                    continue
+                skill = _parse_cached(skill_md, f"{scope}-skills")
+                if skill is not None:
+                    found.append(skill)
+    return tuple(found)
+
+
+_PARSE_CACHE: dict[tuple[str, float, str], Any] = {}
+_PARSE_LOCK = threading.Lock()
+
+
+def _parse_cached(path: Path, plugin_id: str) -> Any:
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    key = (str(path), mtime, plugin_id)
+    with _PARSE_LOCK:
+        cached = _PARSE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    skill = parse_skill(path, plugin_id=plugin_id)
+    if skill is not None:
+        with _PARSE_LOCK:
+            if len(_PARSE_CACHE) > 512:
+                _PARSE_CACHE.clear()
+            _PARSE_CACHE[key] = skill
+    return skill
+
+
+def _removable_global_pack(pack_dir: Path) -> bool:
+    """Whether a global pack holds skills the operator authored (and may therefore remove).
+
+    ``local-skills`` is where chat-authored skills have always been installed; a pack the plugin
+    creator made carries ``"vool": {"origin": "user"}`` in its manifest. Bundled first-party packs
+    and add-on-store packs are not the operator's drafts: they are managed elsewhere.
+    """
+    if pack_dir.name == "local-skills":
+        return True
+    try:
+        manifest = json.loads((pack_dir / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(manifest, dict) and dict(manifest.get("vool") or {}).get("origin") == "user"
+
+
+def remove_skill(name: str, *, scope: str = "", keys: dict[str, str] | None = None) -> dict[str, Any]:
+    """Turn an installed user skill off by moving it out of the loader's tree. Nothing is deleted.
+
+    The whole skill folder (SKILL.md and its version history) moves to a ``removed`` folder of its
+    scope with a timestamp, so it can be brought back by hand and its history is intact. With no
+    ``scope`` the narrowest match wins (this chat, this project, then global). First-party and
+    add-on-store skills are refused: they are not the operator's drafts to remove.
+    """
+    slug = _slug(name)
+    if not slug:
+        return {"status": "invalid_arguments", "reason": "name is required"}
+    wanted = str(scope or "").strip().lower()
+    if wanted and wanted not in ("chat", "project", "global"):
+        return {"status": "invalid_arguments", "reason": f"unknown scope {wanted!r}; use chat, project or global"}
+
+    from core.skill_scopes import REMOVED_DIRNAME
+
+    target: Path | None = None
+    target_scope = ""
+    removed_root: Path | None = None
+    for candidate_scope, active in _scope_active_dirs(keys):
+        if wanted and candidate_scope != wanted:
+            continue
+        if (active / slug / "SKILL.md").is_file():
+            target, target_scope, removed_root = active / slug, candidate_scope, active.parent / REMOVED_DIRNAME
+            break
+    if target is None and wanted in ("", "global"):
+        with contextlib.suppress(OSError):
+            for candidate in sorted((plugins_root() / "plugins").glob(f"*/skills/{slug}")):
+                if not (candidate / "SKILL.md").is_file():
+                    continue
+                pack = candidate.parent.parent
+                if not _removable_global_pack(pack):
+                    return {
+                        "status": "refused",
+                        "reason": f"`{slug}` belongs to the {pack.name!r} package, which VOOL manages; "
+                        "turn it off in the skills settings instead",
+                    }
+                target, target_scope, removed_root = candidate, "global", plugins_root() / "removed-skills"
+                break
+    if target is None or removed_root is None:
+        where = f"in {wanted}" if wanted else "in this chat, this project or globally"
+        return {"status": "not_found", "reason": f"no installed skill named {name!r} {where}"}
+
+    stamp = _utcnow().replace(":", "").replace("-", "")
+    destination = removed_root / f"{slug}-{stamp}"
+    with _ACTIVATION_LOCK:
+        try:
+            removed_root.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(target), str(destination))
+        except OSError as exc:
+            return {"status": "error", "reason": f"{type(exc).__name__}: could not move the skill out"}
+    if target_scope == "global":
+        with contextlib.suppress(Exception):
+            from core.plugin_catalog import invalidate_storage_listing
+
+            invalidate_storage_listing()
+    return {
+        "status": "ok",
+        "name": slug,
+        "scope": target_scope,
+        "moved_to": str(destination),
+        "active": False,
+        "note": "it no longer loads from the next turn; its files and versions were kept",
     }

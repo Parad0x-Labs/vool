@@ -116,6 +116,11 @@ def empty_reply_diagnostics(data: Any, *, max_tokens_sent: Any = None) -> dict[s
         "prompt_tokens": _int_or_none(usage.get("prompt_tokens")),
         "completion_tokens": _int_or_none(usage.get("completion_tokens")),
         "total_tokens": _int_or_none(usage.get("total_tokens")),
+        "cached_prompt_tokens": _int_or_none(
+            (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+            if isinstance(usage.get("prompt_tokens_details"), dict)
+            else None
+        ),
         "reasoning_tokens": _int_or_none(details.get("reasoning_tokens")),
         "max_tokens_sent": _int_or_none(max_tokens_sent),
         "content_present": _text_size(message.get("content")) > 0,
