@@ -191,8 +191,10 @@ _PIN_LABEL = (
 #: Word secrets: any value token, minus ordinary words that describe the secret instead of being it.
 _WORD_VALUE_LABEL = r"(?:password|passwd|pwd|passphrase|passcode|login\s+code)"
 #: "password for my email is ...": up to four short words between the label and its verb.
-_LABEL_OBJECT = r"(?:\s+(?:for|to|of|on|at)(?:\s+[\w'@.-]{1,40}){1,4}?)?"
-_LABEL_VERB = r"(?:\s*[:=#]\s*|\s+(?:is|was|are|were)\s*:?\s*|\s+-\s+)"
+#: Label, object, verb and value stay on one line: "password is" ending a line does not own
+#: the first word of the next one.
+_LABEL_OBJECT = r"(?:[ \t]+(?:for|to|of|on|at)(?:[ \t]+[\w'@.-]{1,40}){1,4}?)?"
+_LABEL_VERB = r"(?:[ \t]*[:=#][ \t]*|[ \t]+(?:is|was|are|were)[ \t]*:?[ \t]*|[ \t]+-[ \t]+)"
 _PIN_VALUE_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])(" + _PIN_LABEL + r")" + _LABEL_OBJECT + _LABEL_VERB
     + r"[\"'“‘]?(\d(?:[ -]?\d){2,11})(?![\d])"

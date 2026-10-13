@@ -69,6 +69,9 @@ def test_named_personal_secrets_are_masked(text, masked, kinds):
     "the meeting is at 15:00 on 2026-10-12",
     "Price 1299.99 for 4 units",
     "invoice 4111 1111 1111 1112 is due",
+    # A label ending its line does not own the next line's first word (bug-report text whose
+    # value was already masked and the marker removed).
+    "admin password is  \nsession cookie  \n",
 ])
 def test_ordinary_numbers_and_words_stay(text):
     assert redact_secrets(text) == text
