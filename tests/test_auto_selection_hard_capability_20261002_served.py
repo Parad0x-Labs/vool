@@ -53,19 +53,22 @@ PROBE = "hard-capability-probe"
 # operator's request or the command's arguments (the data lives only in a workspace file), so the
 # marker can reach a later provider payload or the shipped answer only by the command having run
 # and its sealed result having been carried forward. Two different sandbox-whitelisted commands
-# over two different files, both in the model-routed "run the command" wording: a bare file read
-# is served by a deterministic fast path with no model, so it cannot exercise selection.
+# over two different files, in the model-routed "run the command" wording (task_router classifies
+# it shell_guidance, which offers the command tool). The files deliberately carry extensions the
+# front door's direct-read lane does not bind (``_FILE_TOKEN`` in
+# core.agent_runtime.fast_paths_utility: toml/json/yaml/md/txt/py/ts/js...) and the wording avoids
+# integration words such as "inbox", so the turn reaches a model tool step instead of a fast path.
 CARRY_CASES = {
     "head": {
-        "command": "head -n 1 ledger/carry-note.txt",
-        "file": "ledger/carry-note.txt",
+        "command": "head -n 1 ledger/carry-note.log",
+        "file": "ledger/carry-note.log",
         "content": "ledger-total-4817-teal\nsecond line stays unread\n",
         "marker": "ledger-total-4817-teal",
         "answer": "The first line is",
     },
     "grep": {
-        "command": "grep -h quartz inbox/notes.txt",
-        "file": "inbox/notes.txt",
+        "command": "grep -h quartz archive/notes.csv",
+        "file": "archive/notes.csv",
         "content": "amber line\ninvoice-7c2e-quartz paid\nslate line\n",
         "marker": "invoice-7c2e-quartz",
         "answer": "The matching line names",
