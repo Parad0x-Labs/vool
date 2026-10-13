@@ -19,7 +19,8 @@ from __future__ import annotations
 def render_goal_progress_fragment() -> str:
     return """
 <style>
-  .vool-goal-card{position:fixed;right:16px;bottom:104px;width:340px;max-width:calc(100vw - 24px);
+  .vool-goal-card{position:fixed;right:16px;bottom:120px;width:340px;max-width:calc(100vw - 24px);
+    max-height:min(62vh,calc(100vh - 160px));overflow-y:auto;
     background:var(--vgc-bg,#1c1c1e);color:var(--vgc-fg,#f2f2f7);border:1px solid var(--vgc-border,#3a3a3c);
     border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.35);z-index:60;font:13px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     overflow:hidden}
@@ -197,6 +198,7 @@ def render_goal_progress_fragment() -> str:
     if (['queued','planning','running','waiting_approval','paused','interrupted'].indexOf(view.state) >= 0) btn(t('goal.stop','Stop'), false, function(){ post('stop'); });
     if (running) schedulePoll(3000); else schedulePoll(0);
     renderElapsedTick();
+    anchorAboveComposer();
   }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function renderElapsedTick(){
@@ -243,6 +245,9 @@ def render_goal_progress_fragment() -> str:
   }
   function applyView(goal, forChatId){
     if (String(goal.session_id||'') !== sameChat()) return;  // a foreign chat's goal never paints here
+    // The chat binding travels WITH the canonical view, so controls fired from an
+    // event-stream update carry the same session a hydration fetch would.
+    chatId = String(goal.session_id||'');
     var wasOpen = el ? el.classList.contains('vgc-open') : null;
     var prevRevision = view ? view.revision : null;
     var prevId = view ? view.goal_id : null;
@@ -258,6 +263,17 @@ def render_goal_progress_fragment() -> str:
       $('vgcCompletedToggle').setAttribute('aria-expanded','false');
     }
     render();
+  }
+  function anchorAboveComposer(){
+    // Presentation-only DOM read: keep the card ABOVE the composer whatever height the
+    // composer takes at this width. Never touches the composer itself.
+    try {
+      var composer = document.getElementById('input');
+      if (composer && el) {
+        var top = composer.getBoundingClientRect().top;
+        if (top > 80) el.style.bottom = Math.max(120, Math.round(window.innerHeight - top + 12)) + 'px';
+      }
+    } catch(e){}
   }
   function ensureEl(){
     if (el) return;
@@ -278,7 +294,8 @@ def render_goal_progress_fragment() -> str:
     $('vgcActivity').addEventListener('click', function(){
       try { if (window.VoolPageActions) window.VoolPageActions.openPanel(); } catch(e){}
     });
-    document.addEventListener('visibilitychange', function(){ if (!document.hidden) fetchState(); });
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) { anchorAboveComposer(); fetchState(); } });
+    window.addEventListener('resize', anchorAboveComposer);
   }
   window.VoolGoalCard = Object.freeze({
     consume: function(goalView, summary){
