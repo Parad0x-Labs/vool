@@ -184,7 +184,9 @@ def test_more_ways_a_person_asks_not_to_be_recorded(text, rest):
 @pytest.mark.parametrize(
     "text",
     ["what is private chat?", "how do I make this private", "I told him don't record this",
-     "Remind me to tell Sam we should talk privately"],
+     "Remind me to tell Sam we should talk privately", "don't save it as a PDF, save it as docx",
+     "I don't want this saved as a draft", "keep this between us and the client",
+     "subject line: Don't save this", "tell my wife: keep this between us", "Save again"],
 )
 def test_a_mention_at_the_end_of_a_sentence_is_not_a_command(text):
     assert parse_private_command(text) is None, text
@@ -229,3 +231,26 @@ def test_a_privacy_request_the_switch_did_not_read_tells_the_model_it_is_not_on(
 
 def test_a_failed_switch_names_no_error_type():
     assert "{" not in private_chat.REPLY_FAILED and "{" not in private_chat.REPLY_FAILED_ON
+
+
+@pytest.mark.parametrize(
+    ("text", "asks"),
+    [("bitte nicht speichern", True), ("не сохраняй это", True), ("don't remember that", True),
+     ("don't save this file yet", False), ("dont log me out", False), ("my private key file", False)],
+)
+def test_only_a_request_about_the_chat_gets_the_not_on_note(text, asks):
+    assert private_chat.looks_like_privacy_request(text) is asks, text
+
+
+def test_a_message_sent_from_a_tab_that_still_shows_private_is_not_saved(monkeypatch):
+    monkeypatch.setattr(private_chat, "is_private", lambda sid: False)
+    context: dict = {}
+    assert private_chat.observe_private_door(
+        "the cake is from Larkspur", session_id="openclaw:" + "u" * 20, source_context=context,
+        page_believes_private=True,
+    ) is True
+    assert context[private_chat.PRIVATE_TURN_KEY] is True
+    plain: dict = {}
+    assert private_chat.observe_private_door(
+        "the cake is from Larkspur", session_id="openclaw:" + "u" * 20, source_context=plain
+    ) is False

@@ -434,6 +434,8 @@ header a:hover { text-decoration:underline; }
   .private-banner .pb-text, .private-banner .pb-end-long { display:none; }
   .private-banner .pb-short, .private-banner .pb-end-short { display:inline; }
 }
+/* Narrowest phones: the ghost and its button say it; the word goes so the row never scrolls. */
+@container composer (max-width:400px) { .private-banner .pb-short { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
@@ -2240,6 +2242,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // The ids of the attachments THIS turn staged, and only when there are any: a text-only turn
     // carries no attachment field at all, so its body is byte-identical to a build without them.
     ...(run.attachments && run.attachments.length ? { attachments: run.attachments.map((a) => String(a.id)) } : {}),
+    // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
+    // still keeps this message unsaved, because the person sent it believing it would be.
+    ...(owner.privateChat ? { private_chat: true } : {}),
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -2593,12 +2598,15 @@ function reflectPrivate() {
   const ghost = document.getElementById('privateBannerGhost');
   if (ghost && !ghost.innerHTML) ghost.innerHTML = GHOST_SVG;
   const on = !!view.privateChat;
+  if (!on) document.querySelectorAll('#log .private-note').forEach((n) => n.remove());
   if (banner.hidden === on) {
     banner.hidden = !on;
-    // Said once when it changes, so a screen reader hears it; showing a hidden node is not enough.
+    // Said once when it changes within the same chat, so a screen reader hears it; showing a
+    // hidden node is not enough. Moving to another chat is not "saving again".
     const say = document.getElementById('privateAnnounce');
-    if (say) say.textContent = on ? pageT('private.banner', 'Private chat: nothing is saved') : pageT('private.saving_again', 'Saving again from here');
+    if (say && reflectPrivate.chat === displayedChat) say.textContent = on ? pageT('private.banner', 'Private chat: nothing is saved') : pageT('private.saving_again', 'Saving again from here');
   }
+  reflectPrivate.chat = displayedChat;
 }
 function endPrivateChat() {
   const chatId = displayedChat;
@@ -3743,6 +3751,7 @@ async function restoreCurrent() {
       if (isDisplayed(chatId)) renderChat(chatId);
     } else if (isDisplayed(chatId)) {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      privateReloadNote(target);
     }
   } catch (e) { if (isDisplayed(chatId) && !target.run && !target.history.length) showEmpty(); }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat

@@ -36,9 +36,10 @@ def _certify(daemon: ServedDaemon) -> dict[str, Any]:
         return json.loads(response.read().decode())
 
 
-def _stream(daemon: ServedDaemon, text: str, session: str) -> tuple[str, dict[str, Any]]:
+def _stream(daemon: ServedDaemon, text: str, session: str, **extra: Any) -> tuple[str, dict[str, Any]]:
     """One streamed turn, as the chat page sends it: the answer and the turn's response.commit."""
-    body = {"messages": [{"role": "user", "content": text}], "stream": True, "session_id": session, "model": MODEL}
+    body = {"messages": [{"role": "user", "content": text}], "stream": True, "session_id": session, "model": MODEL,
+            **extra}
     request = Request(f"{daemon.base_url}/api/chat", data=json.dumps(body).encode(),
                       headers={"Content-Type": "application/json"}, method="POST")
     answer, commit = "", {}
@@ -136,6 +137,13 @@ def test_private_chat_keeps_nothing_and_recording_comes_back(tmp_path):
             # The turn that ends private chat was sent while it was on: it is marked, and says it is off now.
             assert off_commit.get("display_metadata", {}).get("private_chat") is True
             assert off_commit["display_metadata"].get("private_chat_on") is False
+
+            # A tab that had not heard private chat ended still shows it, and sends its next message
+            # believing it won't be saved: it isn't, and the commit tells that tab saving is back.
+            _, stale_commit = _stream(daemon, f"From the other tab: the cake is from {SECRET} Bakery.", chat,
+                                      private_chat=True)
+            assert stale_commit.get("display_metadata", {}).get("private_chat") is True
+            assert stale_commit["display_metadata"].get("private_chat_on") is False
 
             _, after_commit = _stream(daemon, "My cat likes tuna.", chat)
             assert "private_chat" not in after_commit.get("display_metadata", {})

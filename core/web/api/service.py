@@ -7222,7 +7222,12 @@ def _dispatch_post_inner(
         # turn: a chat already private, or a message turning it on, makes this whole request private.
         from core.private_chat import observe_private_door
 
-        observe_private_door(user_text, session_id=session_id, source_context=inbound_source_context)
+        observe_private_door(
+            user_text,
+            session_id=session_id,
+            source_context=inbound_source_context,
+            page_believes_private=body.get("private_chat") is True,
+        )
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,
