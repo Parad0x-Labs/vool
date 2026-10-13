@@ -8,13 +8,12 @@ check therefore reads "a menu is open" on every page load, and the run stopper n
 These tests execute the REAL cascade, extracted verbatim from the served page, under a
 minimal DOM whose three shells mirror the real boot state, and dispatch a real Escape keydown
 through the listeners the cascade registers. No browser is needed for the ownership question;
-rendered-browser coverage lives in the palette browser suite.
+the last test drives the real served page in Chromium.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import shutil
 import subprocess
 import tempfile
@@ -149,10 +148,49 @@ def test_class_hidden_shell_does_not_count_as_open() -> None:
     assert _press_esc("css-hidden-lab") == 1
 
 
-def test_the_cascade_reads_visibility_not_presence() -> None:
-    """Guard against the check regressing to a presence-only querySelector."""
-    assert re.search(
-        r"querySelectorAll\('\.vool-ninja-menu, \.vool-ninja-pop, \.vool-character-lab'\)",
-        _cascade_source(),
-    )
-    assert "getComputedStyle" in _cascade_source()
+_STOP_SPY = """() => {
+  const real = window.VoolPageActions;
+  window.__escStops = 0;
+  // A live run is simulated at the page-actions seam only; the palette's real Esc cascade,
+  // the real companion shells and the real stylesheet all run unchanged.
+  window.VoolPageActions = Object.assign({}, real, {
+    hasLiveRun: () => true,
+    stopDisplayedRun: () => { window.__escStops += 1; return true; },
+    toast: () => {},
+  });
+}"""
+
+
+def test_served_chat_page_esc_stops_the_run_and_defers_to_the_open_lab(tmp_path) -> None:
+    """The real /chat page in Chromium: with the companion booted (its shells present and
+    hidden) a bare Esc from the composer reaches the run stopper; with the character lab
+    open, Esc belongs to the lab and the run is not stopped."""
+    import tests._reader_served_rig as rig
+    from tests.served_browser import launch_chromium
+
+    with rig.CapturingProvider() as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
+        daemon.start(timeout=120)
+        manager, browser = launch_chromium()
+        try:
+            page = browser.new_page(viewport={"width": 1280, "height": 800})
+            errors: list[str] = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+            page.wait_for_selector("#input")
+            page.wait_for_selector(".vool-ninja-menu", state="attached")
+            page.wait_for_selector(".vool-character-lab", state="attached")
+            page.evaluate(_STOP_SPY)
+            page.locator("#input").focus()
+            page.keyboard.press("Escape")
+            assert page.evaluate("window.__escStops") == 1
+
+            page.evaluate("VoolCompanion.openCharacterLab()")
+            page.wait_for_selector(".vool-character-lab", state="visible")
+            page.keyboard.press("Escape")
+            assert page.evaluate("window.__escStops") == 1
+            assert not errors, errors
+        finally:
+            browser.close()
+            manager.stop()
+            daemon.stop()
