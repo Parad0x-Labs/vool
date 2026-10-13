@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "Ieškokite vardo, slapyvardžio ar adreso",
     "contacts.title": "Kontaktai",
     "council.locked": "Vyksta Taryba — modelis laikinai užrakintas.",
+    "dialog.cancel": "Atšaukti",
+    "dialog.delete": "Ištrinti",
+    "dialog.delete_chat_detail": "Pokalbis ir viskas, ką VOOL jame išmoko, bus ištrinta visam laikui.",
+    "dialog.delete_chat_title": "Ištrinti „{name}“?",
+    "dialog.delete_project_detail": "VOOL pamirš viską, ką jame išmoko, o jo pokalbiai grįš į „Bendra“. Tavo failai nepaliečiami.",
+    "dialog.delete_project_title": "Ištrinti projektą „{name}“?",
+    "dialog.this_chat": "šį pokalbį",
+    "dialog.this_project": "šį projektą",
     "dictation.could_not_start": "Šioje naršyklėje nepavyko paleisti įrašymo. Vietoj to surinkite žinutę klaviatūra.",
     "dictation.dictate_title": "Diktuoti į šią žinutę — įrašoma ir konvertuojama į tekstą tik šiame kompiuteryje",
     "dictation.did_not_complete": "Diktavimas nebuvo užbaigtas. Patikrinkite ryšį ir bandykite dar kartą.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X naudoja kelis raktus. Vedlys parodo, ką kur įklijuoti, ir patikrina juos vienu skaitymu.",
     "xsetup.open": "Prijungti X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "חיפוש לפי שם, כינוי או כתובת",
     "contacts.title": "אנשי קשר",
     "council.locked": "המועצה בישיבה — נעילת הדגם מוחזקת.",
+    "dialog.cancel": "ביטול",
+    "dialog.delete": "מחיקה",
+    "dialog.delete_chat_detail": "פעולה זו מוחקת לצמיתות את הצ׳אט ואת כל מה ש-VOOL למד בו.",
+    "dialog.delete_chat_title": "למחוק את „{name}”?",
+    "dialog.delete_project_detail": "VOOL ישכח את כל מה שלמד בו, והצ׳אטים שלו יחזרו ל„כללי”. הקבצים שלך לא ייפגעו.",
+    "dialog.delete_project_title": "למחוק את הפרויקט „{name}”?",
+    "dialog.this_chat": "הצ׳אט הזה",
+    "dialog.this_project": "הפרויקט הזה",
     "dictation.could_not_start": "לא הצלחנו להתחיל הקלטה בדפדפן הזה. הקלד את ההודעה במקום זאת.",
     "dictation.dictate_title": "הכתב להודעה הזו — ההקלטה והתמלול מתבצעים במחשב הזה בלבד",
     "dictation.did_not_complete": "ההכתבה לא הושלמה. בדוק את החיבור ונסה שוב.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X משתמש בכמה מפתחות. ההגדרה המודרכת מסבירה מה להדביק איפה ובודקת אותם בקריאה אחת.",
     "xsetup.open": "חיבור X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

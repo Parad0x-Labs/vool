@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "ابحث بالاسم أو الكنية أو العنوان",
     "contacts.title": "جهات الاتصال",
     "council.locked": "المجلس منعقد — تثبيت النموذج مُمسك.",
+    "dialog.cancel": "إلغاء",
+    "dialog.delete": "حذف",
+    "dialog.delete_chat_detail": "سيؤدي هذا إلى حذف المحادثة وكل ما تعلمه VOOL فيها نهائيًا.",
+    "dialog.delete_chat_title": "حذف «{name}»؟",
+    "dialog.delete_project_detail": "سينسى VOOL كل ما تعلمه فيه، وستعود محادثاته إلى «عام». ملفاتك لن تُمس.",
+    "dialog.delete_project_title": "حذف المشروع «{name}»؟",
+    "dialog.this_chat": "هذه المحادثة",
+    "dialog.this_project": "هذا المشروع",
     "dictation.could_not_start": "تعذّر بدء التسجيل في هذا المتصفح. اكتب رسالتك بدلًا من ذلك.",
     "dictation.dictate_title": "إملاء في هذه الرسالة — التسجيل والنقل النصي يحدثان على هذا الجهاز فقط",
     "dictation.did_not_complete": "لم يكتمل الإملاء. تحقق من الاتصال وحاول مجددًا.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "يستخدم X عدة مفاتيح. يوضح الإعداد الموجَّه ما تلصقه وأين، ويتحقق منها بقراءة واحدة.",
     "xsetup.open": "ربط X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

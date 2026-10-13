@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "이름, 별명 또는 주소로 검색",
     "contacts.title": "연락처",
     "council.locked": "협의회 진행 중 — 모델 고정이 유지됩니다.",
+    "dialog.cancel": "취소",
+    "dialog.delete": "삭제",
+    "dialog.delete_chat_detail": "이 채팅과 VOOL이 여기서 배운 모든 내용이 영구적으로 삭제됩니다.",
+    "dialog.delete_chat_title": "“{name}”을(를) 삭제할까요?",
+    "dialog.delete_project_detail": "VOOL은 여기서 배운 모든 것을 잊고, 채팅은 일반으로 돌아갑니다. 파일은 그대로 남습니다.",
+    "dialog.delete_project_title": "프로젝트 “{name}”을(를) 삭제할까요?",
+    "dialog.this_chat": "이 채팅",
+    "dialog.this_project": "이 프로젝트",
     "dictation.could_not_start": "이 브라우저에서는 녹음을 시작할 수 없습니다. 대신 메시지를 직접 입력하세요.",
     "dictation.dictate_title": "이 메시지에 받아쓰기 — 이 컴퓨터에서만 녹음 및 전사됩니다",
     "dictation.did_not_complete": "받아쓰기가 완료되지 않았습니다. 연결을 확인하고 다시 시도하세요.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X는 여러 키를 사용합니다. 안내 설정이 무엇을 어디에 붙여 넣을지 알려 주고 한 번의 읽기로 확인합니다.",
     "xsetup.open": "X 연결"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

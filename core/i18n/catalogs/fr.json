@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "Rechercher par nom, alias ou adresse",
     "contacts.title": "Contacts",
     "council.locked": "Conseil en séance — le modèle est verrouillé.",
+    "dialog.cancel": "Annuler",
+    "dialog.delete": "Supprimer",
+    "dialog.delete_chat_detail": "Cela supprime définitivement la discussion et tout ce que VOOL y a appris.",
+    "dialog.delete_chat_title": "Supprimer « {name} » ?",
+    "dialog.delete_project_detail": "VOOL oubliera tout ce qu’il y a appris et ses discussions reviendront dans Général. Tes fichiers restent intacts.",
+    "dialog.delete_project_title": "Supprimer le projet « {name} » ?",
+    "dialog.this_chat": "cette discussion",
+    "dialog.this_project": "ce projet",
     "dictation.could_not_start": "L'enregistrement n'a pas pu démarrer dans ce navigateur. Saisissez votre message.",
     "dictation.dictate_title": "Dictez dans ce message — enregistré et transcrit sur cette machine uniquement",
     "dictation.did_not_complete": "La dictée ne s'est pas terminée. Vérifiez la connexion et réessayez.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X utilise plusieurs clés. La configuration guidée indique quoi coller où et les vérifie par une lecture.",
     "xsetup.open": "Connecter X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

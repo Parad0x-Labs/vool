@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "名前、別名またはアドレスで検索",
     "contacts.title": "連絡先",
     "council.locked": "カウンシル開催中 — モデルのピンは保持されています。",
+    "dialog.cancel": "キャンセル",
+    "dialog.delete": "削除",
+    "dialog.delete_chat_detail": "このチャットと、VOOLがそこで学んだことがすべて完全に削除されます。",
+    "dialog.delete_chat_title": "「{name}」を削除しますか？",
+    "dialog.delete_project_detail": "VOOLはそこで学んだことをすべて忘れ、チャットは「一般」に戻ります。ファイルはそのままです。",
+    "dialog.delete_project_title": "プロジェクト「{name}」を削除しますか？",
+    "dialog.this_chat": "このチャット",
+    "dialog.this_project": "このプロジェクト",
     "dictation.could_not_start": "このブラウザでは録音を開始できませんでした。代わりにメッセージを入力してください。",
     "dictation.dictate_title": "このメッセージに音声入力 — このマシン上でのみ録音・文字起こしされます",
     "dictation.did_not_complete": "音声入力が完了しませんでした。接続を確認して再試行してください。",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X は複数のキーを使います。ガイド付き設定が何をどこに貼るかを示し、1 回の読み取りで確認します。",
     "xsetup.open": "X を接続"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

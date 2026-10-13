@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "按姓名、别名或地址搜索",
     "contacts.title": "联系人",
     "council.locked": "议会进行中 — 模型锁定已保持。",
+    "dialog.cancel": "取消",
+    "dialog.delete": "删除",
+    "dialog.delete_chat_detail": "这会永久删除该聊天以及 VOOL 在其中学到的一切。",
+    "dialog.delete_chat_title": "删除“{name}”？",
+    "dialog.delete_project_detail": "VOOL 会忘记在其中学到的一切，其聊天将移回“常规”。你的文件不受影响。",
+    "dialog.delete_project_title": "删除项目“{name}”？",
+    "dialog.this_chat": "此聊天",
+    "dialog.this_project": "此项目",
     "dictation.could_not_start": "无法在此浏览器中开始录音。请改为键入消息。",
     "dictation.dictate_title": "向此消息听写 — 仅在此机器上录音并转写",
     "dictation.did_not_complete": "听写未完成。请检查连接后重试。",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X 使用多个密钥。引导设置会说明在哪里粘贴什么,并通过一次读取来检查。",
     "xsetup.open": "连接 X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

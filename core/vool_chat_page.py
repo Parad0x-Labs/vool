@@ -75,6 +75,9 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .text-prompt label { display:block; margin-bottom:10px; font-weight:600; }
 .text-prompt input { box-sizing:border-box; width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:10px; font:inherit; }
 .text-prompt input:focus { outline:2px solid var(--accent); outline-offset:2px; }
+.confirm-prompt .confirm-title { font-weight:600; margin-bottom:8px; }
+.confirm-prompt .confirm-detail { color:var(--muted); line-height:1.5; margin:0 0 14px; white-space:pre-line; }
+.confirm-prompt .confirm-yes { border-color:var(--bad); color:var(--ink); }
 .plugin-card { border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--bg); }
 .plugin-card .p-head { display:flex; align-items:baseline; gap:8px; }
 .plugin-card .p-name { font-weight:700; color:var(--ink); }
@@ -2697,6 +2700,43 @@ function requestTextInput(message, initialValue = '') {
     dialog.showModal(); input.focus(); input.select();
   });
 }
+// A yes/no question in VOOL's own calm dialog, not the browser's plain confirm box (which the
+// native shell's web view may not implement at all). Resolves true only on the explicit confirm
+// button; Cancel, Esc and closing all resolve false. Focus starts on Cancel, so a stray Enter
+// never deletes anything. Caller text is set as text, never as HTML.
+function requestConfirm(title, detail, confirmLabel) {
+  if (document.getElementById('confirmPromptDialog')) return Promise.resolve(false);
+  const previousFocus = document.activeElement;
+  const dialog = document.createElement('dialog');
+  dialog.id = 'confirmPromptDialog'; dialog.className = 'modal text-prompt confirm-prompt';
+  dialog.setAttribute('aria-labelledby', 'confirmPromptTitle');
+  dialog.setAttribute('aria-describedby', 'confirmPromptDetail');
+  dialog.innerHTML = '<form method="dialog"><div class="modal-body">'
+    + '<div id="confirmPromptTitle" class="confirm-title"></div>'
+    + '<p id="confirmPromptDetail" class="confirm-detail"></p>'
+    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel></button>'
+    + '<button type="submit" class="set-btn confirm-yes"></button></div></div></form>';
+  dialog.querySelector('.confirm-title').textContent = String(title || '');
+  dialog.querySelector('.confirm-detail').textContent = String(detail || '');
+  const cancel = dialog.querySelector('[data-cancel]');
+  cancel.textContent = pageT('dialog.cancel', 'Cancel');
+  dialog.querySelector('.confirm-yes').textContent = String(confirmLabel || 'OK');
+  document.body.appendChild(dialog);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return; settled = true;
+      dialog.close(); dialog.remove();
+      if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      resolve(value);
+    };
+    dialog.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); finish(true); });
+    cancel.addEventListener('click', () => finish(false));
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish(false); });
+    dialog.addEventListener('keydown', (e) => { if (e.key === 'Escape') e.stopPropagation(); });
+    dialog.showModal(); cancel.focus();
+  });
+}
 async function nativePickFolder() {
   // Native picker cancellation is final. An unavailable picker returns undefined so browsers
   // and unsupported hosts can ask for a typed path.
@@ -2737,7 +2777,11 @@ async function createProjectFlow(assignSid) {
 }
 async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
-  if (!confirm('Delete project "' + (proj.name || 'this project') + '"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).')) return;
+  const name = proj.name || pageT('dialog.this_project', 'this project');
+  if (!await requestConfirm(
+    pageTF('dialog.delete_project_title', 'Delete project “{name}”?', { name: name }),
+    pageT('dialog.delete_project_detail', 'VOOL will forget everything it learned in it, and its chats move back to General. Your files are untouched.'),
+    pageT('dialog.delete', 'Delete'))) return;
   try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
   await refreshProjects();
   await loadSessions();   // its chats now fall back to General; its memory is purged server-side
@@ -2850,7 +2894,11 @@ function makeSessionItem(s, archived, nested) {
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
-  if (!confirm('Delete "' + (title || 'this chat') + '"? This permanently removes the chat and everything VOOL learned in it.')) return;
+  const name = title || pageT('dialog.this_chat', 'this chat');
+  if (!await requestConfirm(
+    pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: name }),
+    pageT('dialog.delete_chat_detail', 'This permanently removes the chat and everything VOOL learned in it.'),
+    pageT('dialog.delete', 'Delete'))) return;
   try { await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, delete: true }) }); } catch (e) {}
   if (sid === displayedChat) {
     // Deleting the chat you are IN has to leave you somewhere, so a replacement is opened. It must

@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "Tìm theo tên, biệt danh hoặc địa chỉ",
     "contacts.title": "Danh bạ",
     "council.locked": "Hội đồng đang họp — ghim mô hình đang bị giữ.",
+    "dialog.cancel": "Hủy",
+    "dialog.delete": "Xóa",
+    "dialog.delete_chat_detail": "Thao tác này xóa vĩnh viễn cuộc trò chuyện và mọi thứ VOOL đã học trong đó.",
+    "dialog.delete_chat_title": "Xóa “{name}”?",
+    "dialog.delete_project_detail": "VOOL sẽ quên mọi thứ đã học trong đó và các cuộc trò chuyện chuyển về mục Chung. Tệp của bạn không bị động đến.",
+    "dialog.delete_project_title": "Xóa dự án “{name}”?",
+    "dialog.this_chat": "cuộc trò chuyện này",
+    "dialog.this_project": "dự án này",
     "dictation.could_not_start": "Không thể bắt đầu ghi âm trên trình duyệt này. Hãy gõ tin nhắn của bạn thay thế.",
     "dictation.dictate_title": "Đọc thành tiếng vào tin nhắn này — chỉ ghi âm và chuyển thành văn bản trên máy này",
     "dictation.did_not_complete": "Đọc thành tiếng chưa hoàn tất. Kiểm tra kết nối và thử lại.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X dùng nhiều khóa. Thiết lập có hướng dẫn cho biết dán gì vào đâu và kiểm tra chúng bằng một lần đọc.",
     "xsetup.open": "Kết nối X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

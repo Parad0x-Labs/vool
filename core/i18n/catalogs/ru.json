@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "Поиск по имени, псевдониму или адресу",
     "contacts.title": "Контакты",
     "council.locked": "Совет работает — выбор модели зафиксирован.",
+    "dialog.cancel": "Отмена",
+    "dialog.delete": "Удалить",
+    "dialog.delete_chat_detail": "Чат и всё, что VOOL в нём узнал, будут удалены навсегда.",
+    "dialog.delete_chat_title": "Удалить «{name}»?",
+    "dialog.delete_project_detail": "VOOL забудет всё, что узнал в нём, а его чаты вернутся в «Общее». Ваши файлы не затрагиваются.",
+    "dialog.delete_project_title": "Удалить проект «{name}»?",
+    "dialog.this_chat": "этот чат",
+    "dialog.this_project": "этот проект",
     "dictation.could_not_start": "Не удалось начать запись в этом браузере. Вместо этого введите сообщение текстом.",
     "dictation.dictate_title": "Диктовка в это сообщение — запись и расшифровка только на этом компьютере",
     "dictation.did_not_complete": "Диктовка не была завершена. Проверьте соединение и попробуйте ещё раз.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X использует несколько ключей. Пошаговая настройка подскажет, что куда вставить, и проверит их одним чтением.",
     "xsetup.open": "Подключить X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

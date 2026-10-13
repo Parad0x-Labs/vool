@@ -472,6 +472,14 @@
     "contacts.search_placeholder": "Szukaj po imieniu, pseudonimie lub adresie",
     "contacts.title": "Kontakty",
     "council.locked": "Trwa sesja Rady — wybór modelu jest zablokowany.",
+    "dialog.cancel": "Anuluj",
+    "dialog.delete": "Usuń",
+    "dialog.delete_chat_detail": "Spowoduje to trwałe usunięcie czatu i wszystkiego, czego VOOL się w nim nauczył.",
+    "dialog.delete_chat_title": "Usunąć „{name}”?",
+    "dialog.delete_project_detail": "VOOL zapomni wszystko, czego się w nim nauczył, a jego czaty wrócą do Ogólnych. Twoje pliki pozostaną nietknięte.",
+    "dialog.delete_project_title": "Usunąć projekt „{name}”?",
+    "dialog.this_chat": "ten czat",
+    "dialog.this_project": "ten projekt",
     "dictation.could_not_start": "Nagrywanie nie może się rozpocząć w tej przeglądarce. Zamiast tego wpisz wiadomość.",
     "dictation.dictate_title": "Dyktowanie do tej wiadomości — nagrywanie i transkrypcja tylko na tym komputerze",
     "dictation.did_not_complete": "Dyktowanie nie zostało ukończone. Sprawdź połączenie i spróbuj ponownie.",
@@ -1852,7 +1860,7 @@
     "xsetup.entry_note": "X używa kilku kluczy. Konfiguracja z przewodnikiem mówi, co gdzie wkleić, i sprawdza je jednym odczytem.",
     "xsetup.open": "Połącz X"
   },
-  "source_catalog_sha256": "58457325aa9cf23b9ae31aaff4bcb5979b64e0438b5d11d4b9eeeb84472d1ea3",
+  "source_catalog_sha256": "6ed8b64eb3848577895320359781dbf55cc34bf9e3339b6bb72c4929f2155e50",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
