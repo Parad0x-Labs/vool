@@ -6,9 +6,9 @@ Arweave content and loads it in a sandboxed frame, with an address bar, back/
 forward, favorites, and history. Also keeps a collapsible null:// task-dispatch
 panel for the compute market.
 
-Served at GET /web0 (and /null-browser) on the always-on VOOL API server (11435).
-Resolution goes to GET /api/web0/resolve?name=…; task dispatch to POST /api/null,
-both same-origin.
+Served at GET /web0 (and /null-browser) by the VOOL API server on whatever port it runs.
+Resolution goes to GET /api/web0/resolve?name=…; task dispatch to POST /api/null, both on the
+origin that served the page (falling back to localhost:11435 when that origin has no VOOL API).
 """
 from __future__ import annotations
 
@@ -133,7 +133,20 @@ __VOOL_PALETTE_CSS__
 </details>
 
 <script>
-const VOOL_API = window.__VOOL_API__ || (window.location.port === "11435" ? "" : "http://localhost:11435");
+// Talk to the server that served this page (whatever its port). A page opened from a file, or
+// from a server without the VOOL API (the Meet server also serves /web0), falls back to the
+// default local API port. window.__VOOL_API__ overrides both.
+const VOOL_FALLBACK_API = "http://localhost:11435";
+let VOOL_API = window.__VOOL_API__ || (/^https?:$/.test(window.location.protocol) ? "" : VOOL_FALLBACK_API);
+async function voolFetch(path, options){
+  const resp = await fetch(VOOL_API + path, options);
+  const isJson = (resp.headers.get("content-type") || "").includes("json");
+  if(!isJson && VOOL_API === "" && !window.__VOOL_API__){
+    VOOL_API = VOOL_FALLBACK_API;
+    return fetch(VOOL_API + path, options);
+  }
+  return resp;
+}
 const LS_FAV = "web0.favorites.v1", LS_HIST = "web0.history.v1";
 let stack = [], stackPos = -1;
 let currentGatewayUrl = "";   // real top-level URL of the loaded .null site (for "open in a real tab")
@@ -200,7 +213,7 @@ async function open_(name, record){
   document.getElementById("addr").value = name+".null";
   spin.style.display="inline-block"; setNav(); syncStar();
   try{
-    const resp = await fetch(VOOL_API + "/api/web0/resolve?name=" + encodeURIComponent(name));
+    const resp = await voolFetch("/api/web0/resolve?name=" + encodeURIComponent(name));
     const data = await resp.json();
     if(!data.ok){
       frame.style.display="none"; status.style.display="none"; ph.style.display="flex";
@@ -264,7 +277,7 @@ async function dispatch(){
   out.textContent="Sending…";
   try{
     const body={uri}; if(prompt) body.prompt=prompt;
-    const resp=await fetch(VOOL_API+"/api/null",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const resp=await voolFetch("/api/null",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     const data=await resp.json();
     out.textContent = resp.ok ? (data.result || "No answer came back.") : ("That didn't work: " + (data.message || data.error || "the task was refused."));
   }catch(e){ out.textContent="VOOL did not answer. Check that it is running, then try again."; }
