@@ -468,11 +468,20 @@ def parse_housekeeping(text: str) -> Plan | None:
 
 
 def covers_unit(unit_text: str) -> bool:
-    """Per-unit probe: this fragment alone reads as housekeeping."""
+    """Per-unit probe: this fragment alone reads as housekeeping.
+
+    A fragment whose every action points at "it" or "them" names no chat of its own: in "create a
+    folder on the desktop. Name it X" the pronoun is the folder. Such a unit is ours only when the
+    whole message is housekeeping, which `binds_message` decides."""
     try:
-        return parse_housekeeping(unit_text) is not None
+        plan = parse_housekeeping(unit_text)
     except Exception:
         return False
+    if plan is None:
+        return False
+    return not all(
+        action.target is not None and action.target.kind in ("pronoun", "plural") for action in plan.actions
+    )
 
 
 def binds_message(text: str, units: Any) -> frozenset[str]:

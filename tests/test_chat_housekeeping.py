@@ -122,6 +122,19 @@ def test_a_whole_housekeeping_message_binds_every_demand_unit() -> None:
     assert not lane_may_claim_whole_turn("rename this chat to Budget and explain inflation", "chat_housekeeping")
 
 
+def test_a_pronoun_fragment_of_another_request_is_not_a_chat_rename() -> None:
+    """"Name it X" after "create a folder on the desktop" names the folder, not this chat: claiming
+    the fragment took the folder request off the approval lane (manual mode never asked)."""
+    from core.agent_runtime.demand_ownership import lane_may_claim_whole_turn
+
+    assert not lane.covers_unit("Name it NULLATEST")
+    assert not lane_may_claim_whole_turn(
+        "can you create a folder on the desktop for me? Name it NULLATEST", "chat_housekeeping"
+    )
+    assert lane.covers_unit("rename this chat to Budget 2026")
+    assert lane.covers_unit("pin 2")
+
+
 # ---------------------------------------------------------------------------------------------
 # Search
 # ---------------------------------------------------------------------------------------------
