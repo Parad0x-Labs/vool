@@ -1,0 +1,1423 @@
+# VOOL app map
+# schema vool.app-map.v1 — one row per user-facing feature; every reference in a row
+# is checked against the code by ops/app_map_check.py (run from the repo root).
+# Labels are judgement calls copied from the internal draft; the checker only proves
+# the references are real. "source_commit" is the commit the rows were checked on.
+schema: vool.app-map.v1
+source_commit: d1fc4d4d6012f54cfffa70f19cd1d4b019e65d13
+rows:
+  # ── Chat and models ──────────────────────────────────────────────────────
+  - id: send-a-message
+    title: Send a message and get a streamed answer
+    area: chat-models
+    ui: [input, send]
+    wired: ["/api/chat", "/chat"]
+    default: []
+    tests: [tests/test_vool_api_server.py, tests/test_a_streamed_turn_always_terminates.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: stop-a-running-answer
+    title: Stop a running answer
+    area: chat-models
+    ui: []
+    wired: ["/api/chat/cancel"]
+    default: []
+    tests: [tests/test_turn_cancel.py, tests/test_cancellation_reaches_the_tool_loop.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The stop control sits on the working card and is built without an element id; no stop button in the composer itself.
+  - id: queue-messages
+    title: Queue messages while an answer is running
+    area: chat-models
+    ui: [queue]
+    wired: ["/api/chat/queue"]
+    default: []
+    tests: [tests/test_message_queue.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: attach-files
+    title: Attach files and photos to a message
+    area: chat-models
+    ui: [attachBtn, attachInput, attachStrip, attachChips]
+    wired: ["/api/chat/attachments", "/api/chat/attachments/documents", "/api/chat/attachments/limits", "/api/chat/attachments/preview", "/api/chat/attachments/remove"]
+    default: []
+    tests: [tests/test_chat_attachments_api.py, tests/test_chat_attachments_authority.py, tests/test_chat_attachments_delivery.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: 8 files per turn, 10 MB each, 25 MB per turn; the raw upload door /api/chat/attachments/upload is served outside the route census.
+  - id: export-a-chat
+    title: Export a chat as Markdown, text or PDF
+    area: chat-models
+    ui: [exportBtn, exportOverlay, exportFormat, exportGo]
+    wired: ["/api/chat/export"]
+    default: []
+    tests: [tests/test_chat_export_api.py, tests/test_chat_pdf_export.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Per-answer PDF download is a class-built button without an element id.
+  - id: pin-messages
+    title: Pin messages in a chat
+    area: chat-models
+    ui: [pinBtn, pinOverlay]
+    wired: ["/api/chat/pin", "/api/chat/pins"]
+    default: []
+    tests: [tests/test_message_pins.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: chat-history
+    title: Chat history, rename, archive and delete
+    area: chat-models
+    ui: [newChat, sessions]
+    wired: ["/api/chat/history", "/api/chat/session", "/api/chat/sessions"]
+    default: []
+    tests: [tests/test_chat_and_project_delete.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: projects
+    title: Projects tie chats to a folder
+    area: chat-models
+    ui: [newProject]
+    wired: ["/api/projects", "/api/projects/delete", "/api/projects/emoji", "/api/projects/reveal"]
+    default: []
+    tests: [tests/test_projects_endpoint.py, tests/test_project_context_isolation.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: search-in-chat
+    title: Search inside the open chat
+    area: chat-models
+    ui: [searchBtn, searchBar, searchInput]
+    wired: []
+    default: []
+    tests: [tests/test_chat_activity_search.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Runs in the page; no route involved.
+  - id: files-panel
+    title: Files panel lists everything VOOL generated
+    area: chat-models
+    ui: [filesBtn, filesOverlay, filesSearch, filesSort, filesBody]
+    wired: ["/api/files", "/api/files/raw", "/api/files/open"]
+    default: []
+    tests: [tests/test_generated_files.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Opens generated files on the computer; workspace files are not listed; the panel search box behaviour is undetermined.
+  - id: model-picker
+    title: Model picker with an automatic local-first lane
+    area: chat-models
+    ui: [modelBtn, modelPop, modelLbl, modelWhere, modelConnections, modelConnect]
+    wired: ["/api/cloud/model", "/api/cloud/models", "/api/cloud/status", "/api/cloud/auto-model", "/api/connections"]
+    default: []
+    tests: [tests/test_v050_auto_local_only_mode.py, tests/test_local_only_zero_public_egress.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: pin-paid-model
+    title: Pin a paid cloud model behind a price confirmation
+    area: chat-models
+    ui: [model_pin]
+    wired: ["/api/cloud/acceptances", "/api/cloud/price-history"]
+    default: []
+    tests: [tests/test_pinned_paid_build_served_lifecycle.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: cloud-spend-caps
+    title: Fixed cloud spend caps with a read-only display
+    area: chat-models
+    ui: []
+    wired: ["/api/cloud/spend-limits"]
+    default: []
+    tests: [tests/test_paid_call_settlement_ledger.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Caps (0.25 per call, 1 per task, 5 per day, 25 per month) are code constants; no route or setting changes them.
+  - id: daily-token-budget
+    title: Daily cloud token budget as guidance only
+    area: settings
+    ui: [daily_token_budget]
+    wired: []
+    default:
+      - key: daily_token_budget
+        file: user_preferences
+        expected: 0
+    tests: []
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Enforces nothing; the default 0 means unlimited.
+  - id: usage-view
+    title: Usage view of cloud and local work
+    area: settings
+    ui: [usage, usageTabs]
+    wired: ["/api/runtime/usage"]
+    default: []
+    tests: [tests/test_usage_meter.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: own-provider-keys
+    title: Bring your own provider keys
+    area: chat-models
+    ui: [cloud_keys, provider_guide, orProvider, orKey, orSave, orTest, orRemove]
+    wired: ["/api/cloud/providers", "/api/cloud/keys", "/api/cloud/test", "/api/settings/credentials", "/api/oauth/status", "/api/auth/*"]
+    default: []
+    tests: [tests/test_cloud_providers.py, tests/test_multiprovider_key_entry.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: custom-endpoint
+    title: Custom OpenAI-compatible endpoint
+    area: chat-models
+    ui: [cloud_keys]
+    wired: []
+    default: []
+    tests: [tests/test_openai_compatible_adapter.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off until a base URL and key are saved in the keys card.
+  - id: usepod-marketplace
+    title: UsePod model marketplace
+    area: chat-models
+    ui: [usepod]
+    wired: ["/api/cloud/usepod/discovery", "/api/cloud/usepod/x402/unresolved", "/api/cloud/usepod/*"]
+    default: []
+    tests: [tests/usepod/test_usepod_registration.py, tests/usepod/test_usepod_served_flow.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off until a UsePod key is saved.
+  - id: local-models
+    title: Register local models served on this machine
+    area: chat-models
+    ui: [local_models]
+    wired: ["/api/models/local", "/api/models/local/register"]
+    default: []
+    tests: [tests/test_local_ollama_inventory.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Bundled models register at boot.
+  - id: certify-local-model
+    title: Certify a local model for tool use
+    area: chat-models
+    ui: [local_models]
+    wired: ["/api/model-tool-certification", "/api/model-tool-certification/run"]
+    default: []
+    tests: [tests/test_local_model_tool_certification.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Manual step with a 150 s timeout; models stay uncertified until it is run.
+  - id: install-profiles
+    title: Install profiles for local-only or local-max setups
+    area: settings
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_runtime_install_profiles.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Installer flag and CLI only; automatic selection always resolves to local-only.
+  - id: model-radar
+    title: Discover models with the model radar
+    area: chat-models
+    ui: [discoverModelsBtn, mrPrefsBtn]
+    wired: ["/api/model-radar/feed", "/api/model-radar/preferences", "/api/model-radar/dismiss", "/api/model-radar/try-once", "/api/model-radar/viewed", "/api/discovery", "/api/discovery/refresh", "/api/cloud/market-events"]
+    default: []
+    tests: [tests/test_model_radar_api.py, tests/test_model_radar_authority.py, tests/test_model_radar_ui.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Polls a cloud catalog by default; whether the local-only lane stops the poll is undetermined.
+  - id: guided-setup
+    title: Guided setup for a fresh profile
+    area: settings
+    ui: [setupLine, setupLineOpen, setup_progress]
+    wired: ["/setup", "/api/setup/state", "/api/onboarding/state"]
+    default: []
+    tests: [tests/test_setup_page.py, tests/test_setup_served.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: app-language
+    title: App language for the interface
+    area: settings
+    ui: [uiLocaleSelect]
+    wired: []
+    default: []
+    tests: [tests/i18n/test_app_language_completion.py, tests/i18n/test_localization_completion_laws.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: 17 languages; catalogs are machine-generated.
+  - id: answer-language
+    title: Answer language control
+    area: settings
+    ui: [answer_language]
+    wired: []
+    default: []
+    tests: [tests/test_response_language_control.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: dictation-and-voice
+    title: Dictation and voice conversation
+    area: chat-models
+    ui: [dictateBtn, voiceModeBtn]
+    wired: ["/api/chat/dictation"]
+    default: []
+    tests: [tests/test_dictation_ui_states.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Buttons are hard-disabled and labelled unavailable in this beta; the routes and page logic behind them are live.
+  - id: command-palette
+    title: Command palette over real page actions
+    area: chat-models
+    ui: [vpPalette, vpInput, vpList]
+    wired: []
+    default: []
+    tests: [tests/command_registry/test_palette_browser.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: talk-style
+    title: Talk style, humour level and character
+    area: settings
+    ui: [communication_style, humor_percent, character_mode, style_notes]
+    wired: []
+    default:
+      - key: communication_style
+        file: user_preferences
+        expected: casual
+      - key: humor_percent
+        file: user_preferences
+        expected: 20
+    tests: [tests/test_talk_style_reaches_the_served_prompt.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: deep-reasoning
+    title: Deep reasoning and workflow summaries
+    area: settings
+    ui: [deep_reasoning, show_workflow]
+    wired: []
+    default:
+      - key: deep_reasoning
+        file: user_preferences
+        expected: false
+      - key: show_workflow
+        file: user_preferences
+        expected: false
+    tests: []
+    label: IMPLEMENTED
+    target_release: 0.7.0
+  - id: signed-chat-backup
+    title: Signed chat backup and restore
+    area: settings
+    ui: [session_export, session_import, sbEncrypt, sbExportBtn, sbImportBtn]
+    wired: ["/api/session/bundle/export", "/api/session/bundle/import", "/api/session/bundle/preview", "/api/session/bundle/inspect-import", "/api/session/bundle/upload", "/api/session/bundle/download"]
+    default: []
+    tests: [tests/session_portability/test_signing_trust.py, tests/session_portability/test_import_atomicity.py, tests/session_portability/test_ui_surface.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Export dialog defaults to encrypting with a passphrase.
+  - id: council
+    title: Council review by several models
+    area: chat-models
+    ui: [councilBtn, councilOverlay, vccSeats, vccConvene]
+    wired: ["/api/council/convene", "/api/council/resume", "/api/council/seat", "/api/council/stop", "/api/council/events", "/api/council/runs", "/api/council/scorecard", "/api/council/lock", "/api/council/status"]
+    default: []
+    tests: [tests/test_council_api.py, tests/test_council_chat_card.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Needs cloud provider keys.
+  - id: local-chat-server
+    title: Other apps can use VOOL as a local chat server
+    area: chat-models
+    ui: []
+    wired: ["/v1/chat/completions"]
+    default: []
+    tests: [tests/test_local_only_zero_public_egress.py, tests/test_vool_api_server.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Local loopback only.
+
+  # ── Memory, rules, receipts, permissions ────────────────────────────────
+  - id: remember-in-chat
+    title: Remember a fact from chat
+    area: memory-permissions
+    ui: ["chat", learned_facts]
+    wired: []
+    default: []
+    tests: [tests/test_persistent_memory_and_preferences.py, tests/test_memory_roundtrip_production.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Facts stay in their chat; asked from another chat, the store refuses.
+  - id: operator-profile
+    title: What VOOL remembers about you across chats
+    area: memory-permissions
+    ui: [profile_items]
+    wired: ["/api/profile", "/api/profile/export", "/api/profile/*", profile.remember, profile.list, profile.forget]
+    default: []
+    tests: [tests/test_operator_profile_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The only path for facts across chats; name, timezone, style and signature.
+  - id: standing-instructions
+    title: Standing instructions that reach new chats
+    area: memory-permissions
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_standing_instructions_reach_new_chats_served.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: memory-recall
+    title: Recall of saved facts in answers
+    area: memory-permissions
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_memory_paraphrase_recall.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: memory-forget
+    title: Forget, with no record left
+    area: memory-permissions
+    ui: [vsMemorySec]
+    wired: ["/api/memory/forget"]
+    default: []
+    tests: [tests/test_memory_forget_served_p0.py, tests/test_memory_policies.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: memory-lanes
+    title: Private and shared memory lanes
+    area: memory-permissions
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_memory_policies.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Chosen by chat command; private by default; no lane indicator in the interface.
+  - id: memory-edit-pause-export
+    title: Edit, move, pause and export memory
+    area: memory-permissions
+    ui: [profilePauseBtn, profileExportBtn]
+    wired: ["/api/memory/entries", "/api/profile/*"]
+    default: []
+    tests: [tests/test_operator_profile_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The pause switch is checked by the operator-profile code only; the chat fact store has no pause check on this commit.
+  - id: learned-summary
+    title: Summary of what VOOL learned
+    area: memory-permissions
+    ui: []
+    wired: [cli-vool:summary, "chat-repl:/summary"]
+    default: []
+    tests: [tests/test_vool_user_summary.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Terminal command and REPL command only; no in-app view.
+  - id: user-rules
+    title: User rules set from chat
+    area: memory-permissions
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_user_rules_served_workflow.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: No settings list; a second rule store (standing instructions) also exists.
+  - id: long-chat-compaction
+    title: Long-chat compaction
+    area: memory-permissions
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/gauntlet/test_memory_compression_structure.py, tests/gauntlet/test_memory_compression_cache.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Compresses above 20 messages; the user is not told.
+  - id: signed-receipts
+    title: Signed receipts per answer with a receipts tab
+    area: memory-permissions
+    ui: [panelBtn]
+    wired: ["/api/runtime/receipts"]
+    default: []
+    tests: [tests/test_receipt_chain_claim_accuracy.py, tests/test_receipts_per_clause_dating_and_ordinals_20261007.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Receipts is a tab in the activity panel; the receipt validator's own tests use names this file does not repeat.
+  - id: proof-chip
+    title: Proof chip with per-answer evidence
+    area: memory-permissions
+    ui: []
+    wired: ["/api/chat/proof"]
+    default: []
+    tests: [tests/test_proof_chip_ui.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The chip is rendered per message without an element id.
+  - id: activity-trace
+    title: Activity trace of the running turn
+    area: settings
+    ui: [advanced_surfaces]
+    wired: ["/trace", "/api/runtime/events", "/api/runtime/sessions", "/api/runtime/changes", "/api/runtime/unresolved-effects", "/api/runtime/unresolved-effects/resolve"]
+    default: []
+    tests: [tests/test_runtime_task_events.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: modes
+    title: Modes from manual to bypass
+    area: memory-permissions
+    ui: [modeBtn, modePop, modeLbl]
+    wired: ["/api/mode"]
+    default: []
+    tests: [tests/test_mode_permission_policy.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Starts in manual; the default lives in core/mode_permission_policy.py, not in the two default files.
+  - id: approve-or-deny
+    title: Approve or deny each action
+    area: memory-permissions
+    ui: [permBar, permOnce, permTask, permRequest, permReview, permDeny]
+    wired: ["/api/mode"]
+    default:
+      - key: execution.require_explicit_user_approval_for_execution
+        file: default_policy
+        expected: true
+    tests: [tests/test_manual_mode_approval_is_actionable.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: autonomy-levels
+    title: Autonomy from hands-off to strict
+    area: memory-permissions
+    ui: [autonomy_mode]
+    wired: []
+    default:
+      - key: autonomy_mode
+        file: user_preferences
+        expected: hands_off
+    tests: [tests/test_autonomy_override.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: chat-folder-approval
+    title: Standing approval for one chat folder
+    area: memory-permissions
+    ui: [permChat, permProject]
+    wired: ["/api/mode"]
+    default: []
+    tests: [tests/test_project_approval_scope_and_resume.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off by default; granted per chat through the mode route.
+  - id: learned-procedures
+    title: Learned procedures and lessons from corrections
+    area: memory-permissions
+    ui: []
+    wired: ["/api/learning/procedures", "/api/learning/procedures/*"]
+    default: []
+    tests: [tests/test_learning_loop_p1.py, tests/test_memory_learning.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Served routes only; no page for it.
+  - id: lora-fine-tuning
+    title: LoRA fine-tuning jobs
+    area: memory-permissions
+    ui: []
+    wired: ["/api/adaptation/jobs", "/api/adaptation/job-events", "/api/adaptation/evals", "/api/adaptation/loop", "/api/adaptation/loop/tick", "/api/adaptation/status"]
+    default:
+      - key: adaptation.enabled
+        file: default_policy
+        expected: true
+      - key: adaptation.base_model_ref
+        file: default_policy
+        expected: ""
+    tests: [tests/test_adaptation_pipeline.py, tests/test_adaptation_autopilot.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Enabled but no base model ships, so it likely does nothing on a default install.
+  - id: context-pages
+    title: Context pages to see, withhold or erase evidence
+    area: memory-permissions
+    ui: []
+    wired: ["/api/context/pages"]
+    default: []
+    tests: [tests/test_context_pages.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Served routes only; no page control.
+  - id: dont-record-this
+    title: Ask VOOL not to record a turn
+    area: memory-permissions
+    ui: []
+    wired: []
+    default: []
+    tests: []
+    label: PROPOSED
+    target_release: unknown
+    note: Known 0.7.0 limit.
+
+  # ── Tools and actions ───────────────────────────────────────────────────
+  - id: workspace-read
+    title: Read and search workspace files
+    area: tools
+    ui: ["chat"]
+    wired: [workspace.identity, workspace.list_files, workspace.list_tree, workspace.read_file, workspace.search_text, workspace.symbol_search, workspace.git_status, workspace.git_diff, workspace.git_summary]
+    default:
+      - key: filesystem.allow_read_workspace
+        file: default_policy
+        expected: true
+    tests: [tests/test_workspace_read_binding.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: workspace-write
+    title: Create and edit files, with rollback
+    area: tools
+    ui: ["chat"]
+    wired: [workspace.write_file, workspace.replace_in_file, workspace.apply_unified_diff, workspace.ensure_directory, workspace.rollback_last_change]
+    default:
+      - key: filesystem.allow_write_workspace
+        file: default_policy
+        expected: true
+      - key: execution.require_explicit_user_approval_for_execution
+        file: default_policy
+        expected: true
+    tests: [tests/test_simple_file_write_routing.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Asks first in manual mode.
+  - id: machine-files
+    title: Read and move files elsewhere on the computer
+    area: tools
+    ui: ["chat"]
+    wired: [machine.read_file, machine.write_file, machine.list_directory, machine.find_file, machine.find_folder, machine.find_largest, machine.disk_usage, machine.display_inspect, machine.ensure_directory, machine.event_log_errors, machine.host_state, machine.inspect_specs, machine.list_processes, machine.move_path]
+    default:
+      - key: filesystem.deny_paths
+        file: default_policy
+        expected: ["/etc", "/boot", "/sys", "/proc", "/System", "/Library", "C:\\Windows", "C:\\Program Files", "C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"]
+      - key: execution.allow_machine_writes
+        file: default_policy
+        expected: true
+    tests: [tests/test_machine_tools.py, tests/test_machine_tools_adversarial.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: run-command
+    title: Run a command in a sandbox
+    area: tools
+    ui: ["chat"]
+    wired: [sandbox.run_command]
+    default:
+      - key: execution.allow_sandbox_execution
+        file: default_policy
+        expected: true
+      - key: execution.allow_network_access_during_execution
+        file: default_policy
+        expected: false
+    tests: [tests/test_job_runner.py, tests/test_job_runner_mac_hardening.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Approval required; no network in the sandbox; on Windows the tool always refuses.
+  - id: run-tests-lint
+    title: Run tests, lint and formatter in the workspace
+    area: tools
+    ui: ["chat"]
+    wired: [workspace.run_tests, workspace.run_lint, workspace.run_formatter]
+    default: []
+    tests: [tests/test_job_runner.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: code-assistant
+    title: Code assistant tasks with review
+    area: tools
+    ui: ["chat"]
+    wired: [code.task.open, code.task.identify, code.task.propose, code.task.approve, code.task.step, code.task.report, code.task.rollback, code.task.cancel, code.task.pr_description, code.review_evidence]
+    default: []
+    tests: [tests/code_assistant/test_contract.py, tests/code_assistant/test_review.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: repo-ops
+    title: "Repository work: git, issues, pull requests, CI"
+    area: tools
+    ui: ["chat"]
+    wired: [repo.bind, repo.session.open, repo.inspect, repo.diagnose, repo.diff, repo.git, repo.issue, repo.issue.comments, repo.pr.create, repo.pr.update, repo.pr.comment, repo.pr.request, repo.pr.authorize, repo.push, repo.push.request, repo.push.authorize, repo.ci.jobs, repo.ci.log, repo.ci.artifacts, repo.ci.cancel, repo.ci.rerun, repo.receipt, repo.review, repo.step, repo.verify_remote, "/api/repoops/session", "/api/repoops/sessions", "/api/repoops/authorize-push", "/api/repoops/authorize-forge-action"]
+    default: []
+    tests: [tests/repoops/test_repoops.py, tests/repoops/test_pr_lifecycle.py, tests/repoops/test_push_dispatch_authority_r5.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Reads are on; the push and action approval routes have no page caller.
+  - id: web-tools
+    title: Web search, research and fetch
+    area: tools
+    ui: ["chat"]
+    wired: [web.search, web.research, web.fetch]
+    default:
+      - key: system.allow_web_fallback
+        file: default_policy
+        expected: false
+    tests: [tests/test_execution_web_tools.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off on a fresh install and nothing in the app turns the web switch on; only the environment variable or a direct policy write does.
+  - id: search-api-key
+    title: Your own search API key
+    area: tools
+    ui: [wsProvider, wsKey, wsSave, wsTest]
+    wired: ["/api/search/providers", "/api/search/test", "/api/search/detect"]
+    default: []
+    tests: [tests/test_search_api_byok.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Unused while the web switch is off.
+  - id: browser-automation
+    title: Browser automation tools
+    area: tools
+    ui: []
+    wired: []
+    default:
+      - key: system.allow_web_fallback
+        file: default_policy
+        expected: false
+      - key: web.playwright_enabled
+        file: default_policy
+        expected: false
+    tests: [tests/test_vool_browser_gate.py, tests/test_vool_browser_availability_truth.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Needs both the web switch and the browser engine; neither can be enabled in the app.
+  - id: browser-render
+    title: Render a page for the model
+    area: tools
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_browser_render_flag.py]
+    label: PROPOSED
+    target_release: unknown
+    note: Always answers unavailable on this commit.
+  - id: demo-planner
+    title: Plan a demo slideshow from a repository page
+    area: tools
+    ui: ["chat"]
+    wired: [demo.plan]
+    default:
+      - key: system.allow_web_fallback
+        file: default_policy
+        expected: false
+    tests: [tests/test_demo_planner.py, tests/test_demo_plan_edit.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Reads a remote page, so it stays off with the web switch.
+  - id: pdf-reading
+    title: Read PDFs from attachments
+    area: tools
+    ui: ["chat"]
+    wired: [pdf.extract_text, pdf.ocr]
+    default: []
+    tests: [tests/test_pdf_and_skill_tools.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: On this commit the reader works on macOS only; other systems refuse the file.
+  - id: chat-visuals
+    title: Charts and diagrams in answers
+    area: tools
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_chat_visuals_browser.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: media-studio
+    title: Media Studio editor and chat media edits
+    area: tools
+    ui: []
+    wired: ["/media-editor", "/media-editor/preview", "/media-editor/project", "/media-editor/proxy", "/media-editor/*", media.open, media.inspect, media.edit, media.undo, media.redo, media.export]
+    default: []
+    tests: [tests/test_media_product_served.py, tests/test_media_edit_graph.py, tests/test_media_ingestion.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Opened from the skills and plugins window through a class-built link without an element id.
+  - id: image-generation
+    title: Cloud image generation with your own key
+    area: tools
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_image_gen_byok.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off until a key is saved; the model tool for it exists in the runtime tool file but is absent from the tool golden pin.
+  - id: local-picture-making
+    title: Local picture making without a cloud key
+    area: tools
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_local_media_render.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: The render plugin does not ship; tests stand in for the engine.
+  - id: video-generation
+    title: Video generation with creative sets
+    area: tools
+    ui: []
+    wired: [set.save, set.use]
+    default: []
+    tests: [tests/test_media_tools.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: The generation switch lives only in the policy file and is absent from the shipped policy; the creative-set tools are pinned.
+  - id: mcp-connections
+    title: Connect external tool servers by config file
+    area: tools
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_mcp_bridge.py, tests/test_mcp_client.py, tests/test_mcp_env_is_an_allowlist.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Configured by hand-editing a json file; off until then.
+  - id: plugins
+    title: Plugins listed and switchable
+    area: tools
+    ui: [pluginsBtn, pluginsOverlay]
+    wired: ["/api/plugins", "/api/plugins/enable", "/api/plugins/lifecycle", "/api/plugins/rescan"]
+    default: []
+    tests: [tests/test_plugin_catalog.py, tests/test_plugin_executor.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Cards read installed and enabled while the tools behind them are refused until an environment flag is set.
+  - id: addon-store
+    title: Add-on store with import and scan
+    area: tools
+    ui: [addonNav, addonSearchBar, addonBack]
+    wired: ["/api/addons"]
+    default: []
+    tests: [tests/test_addon_store.py, tests/test_addon_store_browser.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Scanning needs a provider key.
+  - id: skill-codex
+    title: Skill Codex registry tab
+    area: tools
+    ui: [addonNav, addonGitHubSearch]
+    wired: []
+    default: []
+    tests: [tests/registry/test_native_inventory.py, tests/registry/test_protocol.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Always answers that the registry is not open yet; no trusted-root file ships.
+  - id: native-skills
+    title: Built-in skill library
+    area: tools
+    ui: [pluginsBtn]
+    wired: ["/api/skills", "/api/skills/enable"]
+    default: []
+    tests: [tests/test_native_skill_library.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: All 26 on; the enable route has no caller in the app.
+  - id: agent-skills
+    title: Skills the agent writes, installs and shares
+    area: tools
+    ui: ["chat"]
+    wired: [skill.create, skill.validate, skill.install, skill.list, skill.inspect, skill.export, skill.import, skill.pack, skill.remove, skill.rollback]
+    default: []
+    tests: [tests/test_skill_lifecycle_versions.py, tests/test_skill_lifecycle_sabotage.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: agent-teams
+    title: Agent teams working one task
+    area: tools
+    ui: [vpPalette]
+    wired: []
+    default: []
+    tests: [tests/test_agent_team_core.py, tests/test_agent_team_commands.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Reached from the command palette; labelled preview and gated by approval.
+  - id: orchestration
+    title: Queen, coder and verifier orchestration
+    area: tools
+    ui: ["chat"]
+    wired: [orchestration.execute_envelope]
+    default: []
+    tests: [tests/test_orchestration_phase1.py, tests/test_orchestration_execution_phase1.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: live-prices
+    title: Live prices and currency conversion
+    area: tools
+    ui: ["chat"]
+    wired: []
+    default:
+      - key: system.allow_web_fallback
+        file: default_policy
+        expected: false
+    tests: [tests/test_live_data_change_attribution.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off with the web switch.
+  - id: report-a-problem
+    title: Report a problem with a safe local draft
+    area: tools
+    ui: [reportBtn, reportSettingsBtn, bugReportOverlay]
+    wired: ["/api/bug-report/candidates", "/api/bug-report/destination", "/api/bug-report/list", "/api/bug-report/receipts", "/api/bug-report/status", "/api/bug-report/draft", "/api/bug-report/preview", "/api/bug-report/update", "/api/bug-report/approve", "/api/bug-report/revoke", "/api/bug-report/export", "/api/bug-report/handoff", "/api/bug-report/submit", "/api/bug-report/delete", "/api/bug-report/answer-draft"]
+    default: []
+    tests: [tests/test_bug_report_api.py, tests/test_bug_report_approval.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The draft stays local; sending needs consent and an access token.
+
+  # ── Crypto and payments ─────────────────────────────────────────────────
+  - id: crypto-switch
+    title: Turn the crypto wallet on or off
+    area: crypto
+    ui: [wallet_enabled, vwOffRow, vwEnableBtn]
+    wired: ["/api/wallet/status"]
+    default:
+      - key: wallet_enabled
+        file: user_preferences
+        expected: false
+    tests: [tests/wallet/test_wallet_experimental_switch.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-chains
+    title: Chain list for the wallet
+    area: crypto
+    ui: [crypto_networks]
+    wired: []
+    default: []
+    tests: [tests/wallet/test_wallet_chains.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Five chain keys ship, each with a main and a test variant; once the wallet is on, the network default is the main setting.
+  - id: wallet-environment-switch
+    title: Network environment switch in developer options
+    area: crypto
+    ui: [vwCxDev]
+    wired: ["/api/wallet/environment"]
+    default: []
+    tests: [tests/wallet/test_crypto_pilot_registry.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Fresh installs resolve to the main network; the derivation lives in the wallet environment module.
+  - id: wallet-create-backup
+    title: Create a wallet with a one-time backup
+    area: crypto
+    ui: [vwHomeCreate, vwCxBackup]
+    wired: ["/api/wallet/setup/create", "/api/wallet/setup/reveal", "/api/wallet/setup/acknowledge", "/api/wallet/setup/cancel", "/api/wallet/setup/resume", "/api/wallet/recovery/backup"]
+    default: []
+    tests: [tests/wallet/test_crypto_pilot_custody.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-receive-balance
+    title: Receive address, QR code and balance
+    area: crypto
+    ui: [vwHomeReceive, vwHomeBalance]
+    wired: ["/api/wallet/balance", "/api/wallet/wallets/{id}"]
+    default: []
+    tests: [tests/wallet/test_wallet_home_served.py, tests/wallet/test_wallet_home_fragment.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-send
+    title: Send with preview, quote and approval
+    area: crypto
+    ui: [vwHomeSend, vwSheetApprove]
+    wired: ["/api/wallet/propose", "/api/wallet/quote", "/api/wallet/approve", "/api/wallet/reject", "/api/wallet/transfers/refresh", "/api/wallet/proposals/{id}"]
+    default: []
+    tests: [tests/wallet/test_crypto_pilot_transfer_served.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: chat-payment-proposals
+    title: Chat proposes a payment, never approves one
+    area: crypto
+    ui: ["chat"]
+    wired: []
+    default:
+      - key: wallet_enabled
+        file: user_preferences
+        expected: false
+    tests: [tests/wallet/test_wallet_model_tools.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Only while the wallet is on; the proposal tools are absent from the tool golden pin.
+  - id: pay-saved-contact
+    title: Pay a saved contact
+    area: crypto
+    ui: [vwHomePickContact]
+    wired: []
+    default: []
+    tests: [tests/contacts/test_contacts_wallet_proposals.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-spending-caps
+    title: Wallet spending caps
+    area: crypto
+    ui: [vwLimits]
+    wired: ["/api/wallet/limits"]
+    default: []
+    tests: [tests/wallet/test_wallet_limits_and_approval_ui_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Reached from the legacy other-accounts widget, not the main wallet card.
+  - id: wallet-approval-methods
+    title: Approve with PIN, password or fingerprint
+    area: crypto
+    ui: [vwApproval, vwApprovalMethod]
+    wired: ["/api/wallet/approval-method"]
+    default: []
+    tests: [tests/wallet/test_wallet_approval_methods.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: PIN is the default method.
+  - id: wallet-receipts-history
+    title: Wallet receipts and payment history
+    area: crypto
+    ui: [vwReceipts]
+    wired: ["/api/wallet/receipts", "/api/wallet/transfers"]
+    default: []
+    tests: [tests/wallet/test_wallet_refusal_receipts.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Readable while the wallet is off.
+  - id: stuck-transfer
+    title: Stop, resend or discard a stuck transfer
+    area: crypto
+    ui: [vwExitSheet]
+    wired: ["/api/wallet/transfers/stop-waiting", "/api/wallet/transfers/resend", "/api/wallet/transfers/discard"]
+    default: []
+    tests: [tests/wallet/test_crypto_pilot_exits.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: emergency-freeze
+    title: Emergency spend freeze from chat
+    area: crypto
+    ui: ["chat"]
+    wired: ["chat-family:brakes"]
+    default: []
+    tests: [tests/test_vool_agent_brake.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-recovery
+    title: Forgot PIN and wallet recovery
+    area: crypto
+    ui: [vwRecovery]
+    wired: ["/api/wallet/recovery/options", "/api/wallet/recovery/device"]
+    default: []
+    tests: [tests/wallet/test_crypto_pilot_recovery.py, tests/wallet/test_crypto_pilot_recovery_served.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: wallet-export-key
+    title: Export a wallet key
+    area: crypto
+    ui: [vwExportBtn]
+    wired: ["/api/wallet/export"]
+    default: []
+    tests: [tests/wallet/test_wallet_export_device_bound.py, tests/wallet/test_wallet_export_ui_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Legacy pocket wallets only; pilot wallets refuse export.
+  - id: watch-only-external
+    title: Watch-only addresses and external wallets
+    area: crypto
+    ui: [vwWatchBtn, vwHomePhantom]
+    wired: ["/api/wallet/watch-only", "/api/wallet/external", "/api/wallet/external/submit"]
+    default: []
+    tests: [tests/wallet/test_wallet_external_signing.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: legacy-phrase-wallet
+    title: Legacy phrase wallet
+    area: crypto
+    ui: [vwRestoreBtn]
+    wired: ["/api/wallet/pocket/create", "/api/wallet/pocket/restore", "/api/wallet/pocket/terms"]
+    default: []
+    tests: [tests/wallet/test_wallet_mnemonic.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Refused on the main network setting.
+  - id: x402-generic
+    title: Pay per request over the generic x402 lane
+    area: crypto
+    ui: []
+    wired: [pay.x402, "/api/wallet/x402/propose", "/api/wallet/x402/fetch", "/api/wallet/x402/retry", "/api/wallet/facilitators", "/api/wallet/facilitator/discover"]
+    default: []
+    tests: [tests/wallet/test_wallet_x402_flow.py, tests/wallet/test_wallet_x402_v2.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: No page; test networks only on this commit — the main network entry refuses.
+  - id: usepod-x402
+    title: x402 payments through the UsePod lane
+    area: crypto
+    ui: [usepod]
+    wired: ["/api/wallet/usepod/status", "/api/wallet/usepod/topup"]
+    default: []
+    tests: [tests/usepod/test_usepod_x402_money_seam.py, tests/usepod/test_usepod_transport_x402.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Prepaid by default; the per-request lane needs the wallet on and the main network setting.
+  - id: service-fee
+    title: Service fee on x402 payments
+    area: crypto
+    ui: [vwDnaFees]
+    wired: ["/api/wallet/dna-fees", "/api/wallet/dna-fees/policy"]
+    default: []
+    tests: [tests/wallet/test_dna_fee_collection_lane.py, tests/wallet/test_dna_fee_settings_ui_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Fixed rate.
+  - id: scam-safety-cards
+    title: Scam-safety cards for the wallet
+    area: crypto
+    ui: [wallet_safety]
+    wired: ["/api/wallet/safety"]
+    default: []
+    tests: [tests/wallet/test_wallet_scam_school.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: chain-data-keys
+    title: Chain data keys for read-only lookups
+    area: crypto
+    ui: [cloud_keys]
+    wired: [web.chain_lookup, "/api/chain/test"]
+    default: []
+    tests: [tests/test_chain_data_keys.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: No key means no lookup; works with the web switch off; the local-only lane blocks it; own wallet balance does not use these keys.
+  - id: zcash-invoices
+    title: Watch-only private invoices
+    area: crypto
+    ui: []
+    wired: ["/api/zcash/*"]
+    default:
+      - key: zcash_invoices_enabled
+        file: user_preferences
+        expected: false
+    tests: [tests/test_zcash_lane.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: An environment variable gates the lane in code; the preference key exists but no settings control does.
+  - id: payment-channels
+    title: Choose payment channels
+    area: crypto
+    ui: []
+    wired: []
+    default: []
+    tests: []
+    label: PROPOSED
+    target_release: unknown
+    note: Refused by the pay-kit lane on this commit.
+  - id: web0-browser
+    title: Local site builder pages
+    area: other
+    ui: []
+    wired: ["/web0", "/null-browser", "/api/web0/resolve", web0.create_project, web0.add_block, web0.add_gated_section, web0.fill_slots, web0.compile_preview, web0.open_builder_draft, web0.encrypt_whole_site, web0.publish]
+    default: []
+    tests: [tests/test_web0_service_integration.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Served locally; linked from the advanced settings rows.
+  - id: null-name-lane
+    title: Name registration and remote dial preview
+    area: crypto
+    ui: []
+    wired: ["/api/null", "/v1/null"]
+    default: []
+    tests: [tests/test_null_protocol.py, tests/test_null_dial.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Terminal preview lane; the routes refuse on this commit.
+  - id: earnings-credits
+    title: Earnings page and credit exchange
+    area: crypto
+    ui: []
+    wired: ["/api/credits/balance", "/api/credits/settle", "/v1/credits/balance", "/v1/credits/settle", "/api/money/contract", "/api/money/funding", "/api/money/grants", "/api/money/grants/revoke", "/api/money/liabilities", "/api/money/liabilities/{id}", "/api/money/projection", "/api/money/rules", "/api/money/reconcile", sell.quote, marketplace.search_listings, marketplace.purchase_knowledge]
+    default: []
+    tests: [tests/legacy/test_credit_dex.py, tests/test_knowledge_marketplace_buy.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Simulated; reached only by the meet server, not part of the app.
+
+  # ── Personal assistant, companion, platform ─────────────────────────────
+  - id: email-tools
+    title: Email read, search, draft and send
+    area: other
+    ui: [emailAccounts]
+    wired: ["/api/email/accounts", "/api/email/recovery", "/api/email/recovery/check", "/api/email/recovery/acknowledge"]
+    default: []
+    tests: [tests/test_email_account_selection.py, tests/test_email_action_routing.py, tests/test_email_draft_state.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The read and send switches exist only as policy-engine keys that are absent from the shipped policy file; the model tools for email are absent from the tool golden pin.
+  - id: add-email-account
+    title: Add an email account from the app
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: []
+    label: ASSUMED
+    target_release: unknown
+    note: Settings text points to an account setup that does not exist on this commit.
+  - id: calendar-accounts
+    title: Calendar accounts and sync
+    area: other
+    ui: [calendar_accounts_panel]
+    wired: ["/api/calendar/accounts", "/api/calendar/accounts/add", "/api/calendar/accounts/disconnect", "/api/calendar/accounts/discover", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/reconnect", "/api/calendar/accounts/select", "/api/calendar/sync"]
+    default: []
+    tests: [tests/pa_beta_gate/test_v5_served_calendar_effect_phase.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The account card is built without element ids.
+  - id: agenda-chat
+    title: Agenda, availability and scheduling in chat
+    area: other
+    ui: ["chat"]
+    wired: [operator.check_availability, operator.list_calendars, operator.inspect_calendar_event, operator.propose_calendar_event, operator.schedule_calendar_event, operator.search_calendar_event, operator.show_agenda, operator.update_calendar_event, "/api/calendar/alerts", "/api/calendar/alerts/policy"]
+    default:
+      - key: execution.allow_safe_local_actions
+        file: default_policy
+        expected: true
+    tests: [tests/pa_beta_gate/test_served_calendar_notes_workflows.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Local calendar work is on; provider writes ask first.
+  - id: reminders-notes
+    title: Reminders, notes and note-app reading
+    area: other
+    ui: ["chat"]
+    wired: [operator.list_reminders, operator.save_note, operator.find_notes, operator.show_note, operator.apple_note_list, operator.apple_note_read, "/api/reminders"]
+    default: []
+    tests: [tests/pa_beta_gate/test_pc_reminders.py, tests/pa_beta_gate/test_notes_vertical.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: contacts
+    title: Contacts book
+    area: other
+    ui: [contactsBtn, vcOverlay, vcList, vcAdd]
+    wired: ["/api/contacts", "/api/contacts/detail", "/api/contacts/options", "/api/contacts/resolve", "/api/contacts/suggestions", "/api/contacts/create", "/api/contacts/update", "/api/contacts/delete", "/api/contacts/credential", "/api/contacts/credential/change", "/api/contacts/credential/enroll", "/api/contacts/credential/reset", "/api/contacts/import/sources", "/api/contacts/import/preview", "/api/contacts/import/connect", "/api/contacts/import/apply", "/api/contacts/import/remove", "/api/contacts/operations", "/api/contacts/operations/detail", "/api/contacts/operations/cancel", "/api/contacts/operations/commit", "/api/contacts/operations/confirm", "/api/contacts/suggestions/accept", "/api/contacts/suggestions/dismiss", contacts.save, contacts.search, contacts.resolve, contacts.update, contacts.delete]
+    default: []
+    tests: [tests/contacts/test_contacts_served_journey.py, tests/contacts/test_contacts_imports.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Opened from the sidebar button; the draft called it palette-only, the sidebar button exists too.
+  - id: notification-bell
+    title: Notification bell and hub
+    area: other
+    ui: [vfBell, vfBadge]
+    wired: ["/api/notifications", "/api/notifications/read", "/api/notifications/action", "/api/notifications/migrate"]
+    default: []
+    tests: [tests/test_notification_hub.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: native-notifications
+    title: System notifications, sound and quiet hours
+    area: other
+    ui: [notifications_panel]
+    wired: ["/api/notifications/native/status", "/api/notifications/native/authorize", "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test", "/api/notifications/preferences", "/api/notifications/audio"]
+    default: []
+    tests: [tests/pa_beta_gate/test_pc_native_notifications.py, tests/test_notification_audio.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: System delivery starts off, sound on, quiet hours off; the settings card is built without element ids.
+  - id: x-post-drafting
+    title: Draft posts for the short-post network
+    area: other
+    ui: ["chat"]
+    wired: []
+    default: []
+    tests: [tests/test_x_editorial_engine.py, tests/test_x_editorial_served.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Copy-ready text only.
+  - id: connect-x-keys
+    title: Connect keys for the short-post network
+    area: settings
+    ui: []
+    wired: ["/api/x/setup"]
+    default: []
+    tests: [tests/test_x_guided_setup.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: The keys feed a trend lane that stays off; no visible effect.
+  - id: posting-to-x
+    title: Posting directly to the short-post network
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: []
+    label: PROPOSED
+    target_release: unknown
+    note: Settings says it is not in this version.
+  - id: chat-bridges
+    title: Chat bridges to messaging apps
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_telegram_chat_bridge.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Manual process with environment settings; not a product feature yet.
+  - id: mobile-companion
+    title: Phone companion pairing and API
+    area: other
+    ui: []
+    wired: ["/api/mobile/companion", "/api/mobile/devices", "/api/mobile/devices/revoke", "/api/mobile/pairing/start", "/api/mobile/pairing/claim", "/api/mobile/pairing/challenge", "/api/mobile/pairing/status", "/api/mobile/pairing/page", "/api/mobile/info", "/api/mobile/receipts"]
+    default: []
+    tests: [tests/mobile/test_mobile_companion_api.py, tests/mobile/test_mobile_e2e_journey.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: API binds to the loopback address; no build, no store app, no pairing button.
+  - id: desktop-pet
+    title: Desktop pet move, return and hide
+    area: other
+    ui: [vcdPetOnOff, vcdDetach]
+    wired: []
+    default: []
+    tests: [tests/test_native_companion_window.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Native window only; drag-out of the docked pet is broken on this commit.
+  - id: pet-appearance
+    title: Pet appearance, character lab and world
+    area: other
+    ui: [petAppearanceBtn]
+    wired: []
+    default: []
+    tests: [tests/test_companion_context_boundary.py, tests/test_companion_no_ground.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: scene-lab
+    title: Scene lab panel
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_ui_fragments.py]
+    label: PROPOSED
+    target_release: unknown
+    note: The fragment exists but is not mounted; a test pins that.
+  - id: updates
+    title: Check for updates, install and roll back
+    area: settings
+    ui: [updates, updateChip, updateCheckBtn, updateRollbackBtn]
+    wired: ["/api/update/status", "/api/update/check", "/api/update/install", "/api/update/restart", "/api/update/rollback"]
+    default: []
+    tests: [tests/updater/test_decision.py, tests/updater/test_manual_rollback.py, tests/updater/test_platforms_macos.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: A signed feed is configured but this release ships no manifest, so checks find nothing until the next release; macOS and Linux only.
+  - id: macos-app-packaging
+    title: macOS app builds
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_macos_app_packaging.py]
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Built on a Mac; no CI job builds the installer; the second-architecture build is checked only under translation.
+  - id: linux-bundle
+    title: Linux bundle
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_linux_bundle_packaging.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: windows-source-install
+    title: Windows source install
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: []
+    label: IMPLEMENTED
+    target_release: 0.7.0
+    note: Experimental; the check suite runs with the install step skipped; no uninstaller for the source install.
+  - id: start-at-login
+    title: Start at login and restart on crash
+    area: settings
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_vool_stop.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Always on after install; no in-app switch.
+  - id: build-info-diagnostics
+    title: Build info, install doctor and machine checks in chat
+    area: settings
+    ui: [build, buildInfo, buildCopy]
+    wired: ["/api/runtime/version", operator.inspect_processes, operator.inspect_services, operator.inspect_disk_usage, operator.cleanup_temp_files, operator.move_path, operator.list_tools, machine.inspect_specs]
+    default: []
+    tests: [tests/test_installer_doctor.py, tests/test_machine_diagnostics.py]
+    label: TESTED
+    target_release: 0.7.0
+  - id: research-networking
+    title: Peer mesh, distributed table and research hive
+    area: other
+    ui: []
+    wired: []
+    default: []
+    tests: [tests/test_production_research_boundary.py]
+    label: TESTED
+    target_release: 0.7.0
+    note: Off unless an environment variable turns the research network on; the shipped policy leaves mesh inbound on but the research gate closed.
+  - id: hive-task-read
+    title: Read available research tasks
+    area: other
+    ui: ["chat"]
+    wired: [hive.list_available]
+    default:
+      - key: accept_hive_tasks
+        file: user_preferences
+        expected: true
+    tests: [tests/test_execution_hive_tools.py]
+    label: UNKNOWN
+    target_release: unknown
+    note: The follow-up tracker is on by default and points at a shipped watcher address; whether it reaches the network on a fresh install is undetermined; the outbound-fetch consent check is the only remaining gate.
+
+# Deliberate non-features: census routes and pinned tools that no row claims,
+# each with the reason they are not user features.
+internal:
+  - reason: Page shells, redirects and static asset transports that carry the mapped interface.
+    routes: ["/", "/chat-assets/*", "/settings", "/healthz"]
+  - reason: Working-task rail page opened from the chat working card.
+    routes: ["/task-rail"]
+  - reason: Command registry projection and dispatch door (registry-owned, machine lane).
+    routes: ["/api/commands", "/api/commands/*", "/api/commands/dispatch"]
+  - reason: Local model server compatibility endpoints in the style of the local runner API.
+    routes: ["/api/generate", "/api/show", "/api/tags"]
+  - reason: Machine-lane mirrors of app routes for external tools; not app features.
+    routes: ["/v1/models", "/v1/healthz", "/v1/runtime/capabilities", "/v1/runtime/changes", "/v1/runtime/usage", "/v1/runtime/version", "/v1/wallet/info"]
+  - reason: Live self-report of what this machine can do; per-machine tooling feed, not a feature.
+    routes: ["/api/runtime/capabilities"]
+  - reason: Runtime control-plane status feed for operators.
+    routes: ["/api/runtime/control-plane/status"]
+  - reason: Diagnostic snapshot of operator state for support.
+    routes: ["/api/runtime/operator-snapshot"]
+  - reason: Cloud lane diagnostics feed.
+    routes: ["/api/cloud/diagnostics"]
+  - reason: Preference read and write door shared by every settings card; the cards are the mapped rows.
+    routes: ["/api/settings/prefs"]
+  - reason: First-run pact read kept after its page was retired; a direct policy write can still flip the web switch here.
+    routes: ["/api/onboarding/pact"]
+  - reason: Remaining onboarding writes without a page caller.
+    routes: ["/api/onboarding/*"]
+  - reason: Research intake quarantine (security lane for shared research intake).
+    routes: ["/api/intake/quarantine/list", "/api/intake/*"]
+  - reason: Recovery door for tasks interrupted by a crash.
+    routes: ["/api/task/recovery"]
+  - reason: Product-edition gate unlock door.
+    routes: ["/gate/unlock"]
+  - reason: School edition pages; not the personal app.
+    routes: ["/school", "/school/api/state", "/school/student", "/school/api/*"]
+  - reason: Frozen prose demand-routing inside chat turns; product law keeps these out of the command surface. The spend freeze is mapped as a row; the rest are not features.
+    census: ["chat-family:cloud", "chat-family:help", "chat-family:new-family", "chat-family:prefs", "chat-family:secret-intake", "chat-family:slash-refusal", "chat-family:trace-family"]
+  - reason: Terminal REPL session commands; operator and development doors, not app features.
+    census: ["chat-repl:/balance", "chat-repl:/capabilities", "chat-repl:/credits", "chat-repl:/dial", "chat-repl:/exit", "chat-repl:/manifest", "chat-repl:/quit", "chat-repl:/quote", "chat-repl:/resolve", "chat-repl:/status", "chat-repl:/web"]
+  - reason: Blackbox turn-record diagnostics for development.
+    census: ["cli-module:core.blackbox:rollback", "cli-module:core.blackbox:status", "cli-module:core.blackbox:turns", "cli-module:core.blackbox:verify"]
+  - reason: Service entry scripts that start, stop or drive the app from a terminal.
+    census: ["cli-script:vool", "cli-script:vool-agent", "cli-script:vool-api", "cli-script:vool-benchmark", "cli-script:vool-community", "cli-script:vool-daemon", "cli-script:vool-meet", "cli-script:vool-registry", "cli-script:vool-watch"]
+  - reason: Operator command line for development, maintenance and release work; not in-app features.
+    census: ["cli-vool:<command dispatch>", "cli-vool:adapt-autopilot", "cli-vool:adapt-corpus", "cli-vool:adapt-corpus-export", "cli-vool:adapt-corpus-import", "cli-vool:adapt-evals", "cli-vool:adapt-job-create", "cli-vool:adapt-job-events", "cli-vool:adapt-job-run", "cli-vool:adapt-jobs", "cli-vool:adapt-loop-status", "cli-vool:adapt-loop-tick", "cli-vool:adapt-promote", "cli-vool:adaptation-status", "cli-vool:bug-report", "cli-vool:bug-report.answer", "cli-vool:bug-report.approve", "cli-vool:bug-report.destination", "cli-vool:bug-report.draft", "cli-vool:bug-report.export", "cli-vool:bug-report.list", "cli-vool:bug-report.open", "cli-vool:bug-report.preview", "cli-vool:bug-report.receipts", "cli-vool:bug-report.revoke", "cli-vool:bug-report.status", "cli-vool:bug-report.submit", "cli-vool:commands --check", "cli-vool:commands --json", "cli-vool:control-sync", "cli-vool:credits", "cli-vool:dial", "cli-vool:help", "cli-vool:identities", "cli-vool:install-profile", "cli-vool:manifest", "cli-vool:model-tool-certification", "cli-vool:nullpass", "cli-vool:providers", "cli-vool:receipts", "cli-vool:register", "cli-vool:release-status", "cli-vool:resolve", "cli-vool:sell-quote", "cli-vool:session-bundle", "cli-vool:session-bundle.export", "cli-vool:session-bundle.import", "cli-vool:session-bundle.inspect", "cli-vool:session-bundle.preview", "cli-vool:spend-freeze", "cli-vool:spend-policy", "cli-vool:spend-set-cap", "cli-vool:spend-unfreeze", "cli-vool:stage-trainable-base", "cli-vool:trainable-base-status", "cli-vool:up", "cli-vool:update", "cli-vool:wallet-address", "cli-vool:wallet-buy-credits", "cli-vool:wallet-export", "cli-vool:wallet-init", "cli-vool:wallet-move-cold", "cli-vool:wallet-status", "cli-vool:wallet-topup-hot", "cli-vool:web", "cli-vool:x402-pay"]
+  - reason: Operating-system launcher entries that install, start, stop, probe or verify the app.
+    census: ["launcher:Install_And_Run_VOOL.bat", "launcher:Install_And_Run_VOOL.command", "launcher:Install_And_Run_VOOL.ps1", "launcher:Install_And_Run_VOOL.sh", "launcher:Install_VOOL.bat", "launcher:Install_VOOL.command", "launcher:Install_VOOL.sh", "launcher:OpenClaw_VOOL.bat", "launcher:Open_Chat.bat", "launcher:Open_Web0.bat", "launcher:Probe_VOOL_Stack.bat", "launcher:Probe_VOOL_Stack.sh", "launcher:Stage_Trainable_Base.bat", "launcher:Stage_Trainable_Base.command", "launcher:Stage_Trainable_Base.sh", "launcher:Start_VOOL.bat", "launcher:Stop_VOOL.bat", "launcher:Talk_To_VOOL.bat", "launcher:Test_VOOL_Windows_Gauntlet.cmd", "launcher:Test_VOOL_Windows_Stack.cmd", "launcher:Verify_VOOL.bat", "launcher:Verify_VOOL.sh", "launcher:run.bat", "launcher:run.sh", "launcher:vool_background.cmd", "launcher:vool_background.vbs"]
+  - reason: "Model-turn machinery: answer without tools, or expand a tool family mid-turn."
+    tools: [respond.direct, capability.expand_family]
