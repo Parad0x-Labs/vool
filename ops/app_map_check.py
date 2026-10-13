@@ -22,6 +22,7 @@ Standard library plus PyYAML only. Run from the repo root:
 from __future__ import annotations
 
 import ast
+import contextlib
 import glob
 import json
 import re
@@ -37,10 +38,12 @@ GOLDEN_PATH = ROOT / "tests" / "gauntlet" / "tool_surface_golden.json"
 PREFS_PATH = ROOT / "core" / "user_preferences.py"
 POLICY_PATH = ROOT / "config" / "default_policy.yaml"
 
+# Resolved against ROOT, not the working directory, so a run from elsewhere
+# reads the same sources. A listed source that cannot be read is a problem.
 PAGE_SOURCES = [
     "core/vool_chat_page.py",
     "core/vool_settings_page.py",
-    *sorted(glob.glob("core/*_fragment.py")),
+    *sorted(Path(p).relative_to(ROOT).as_posix() for p in glob.glob(str(ROOT / "core" / "*_fragment.py"))),
 ]
 
 # Element id declarations matched in the page sources: HTML attributes, JS
@@ -60,6 +63,12 @@ LABELS = {"TESTED", "IMPLEMENTED", "PROPOSED", "ASSUMED", "UNKNOWN"}
 DEFAULT_FILES = {"user_preferences", "default_policy"}
 NON_HTTP_SURFACES = {"chat-family", "chat-repl", "cli-module", "cli-script", "cli-vool", "launcher"}
 KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ROW_REQUIRED = ("id", "title", "area", "ui", "wired", "default", "tests", "label", "target_release")
+ROW_KEYS = {*ROW_REQUIRED, "note"}
+ROW_LISTS = ("ui", "wired", "default", "tests")
+DEFAULT_KEYS = {"key", "file", "expected"}
+INTERNAL_LISTS = ("routes", "census", "tools")
+INTERNAL_KEYS = {"reason", *INTERNAL_LISTS}
 
 problems: list[str] = []
 
@@ -101,7 +110,8 @@ def page_ids() -> dict[str, set[str]]:
         found: set[str] = set()
         try:
             text = (ROOT / rel).read_text(encoding="utf-8")
-        except OSError:
+        except OSError as exc:
+            problem(f"page source {rel} cannot be read: {exc}")
             continue
         for pattern in UI_PATTERNS:
             found.update(m.group(1) for m in pattern.finditer(text))
@@ -116,9 +126,11 @@ def prefs_defaults() -> dict[str, object]:
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "UserPreferences":
             for stmt in node.body:
-                if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
-                    if isinstance(stmt.value, ast.Constant):
-                        defaults[stmt.target.id] = stmt.value.value
+                if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.value is not None:
+                    # A non-literal default (e.g. field(default_factory=...)) is left out,
+                    # so a row naming it is reported instead of compared against a guess.
+                    with contextlib.suppress(ValueError):
+                        defaults[stmt.target.id] = ast.literal_eval(stmt.value)
             break
     return defaults
 
@@ -131,6 +143,18 @@ def policy_value(key: str):
             return None, False
         node = node[part]
     return node, True
+
+
+def same_value(left, right) -> bool:
+    """Strict equality: True is not 1, 0 is not False, 0 is not 0.0."""
+    return json.dumps(left, sort_keys=True) == json.dumps(right, sort_keys=True)
+
+
+def valid_test_path(value) -> bool:
+    if not isinstance(value, str) or not value.startswith("tests/") or not value.endswith(".py"):
+        return False
+    parts = Path(value).parts
+    return ".." not in parts and (ROOT / value).is_file()
 
 
 def classify_wired(entry: str) -> str:
@@ -153,6 +177,9 @@ def check_reference(kind: str, value: str, owner: str, routes: set[str], other: 
 
 def main() -> int:
     map_data = load_yaml(MAP_PATH)
+    if not isinstance(map_data, dict):
+        print(f"PROBLEM {MAP_PATH.relative_to(ROOT)} is not a mapping")
+        return 1
     routes, other = census_refs()
     tools = golden_tools()
     ids_by_file = page_ids()
@@ -176,7 +203,19 @@ def main() -> int:
     seen_ids: set[str] = set()
 
     for row in rows:
+        if not isinstance(row, dict):
+            problem(f"row {row!r} is not a mapping")
+            continue
         rid = row.get("id", "<missing id>")
+        for key in ROW_REQUIRED:
+            if key not in row:
+                problem(f"row {rid}: missing field {key!r}")
+        for key in sorted(set(row) - ROW_KEYS):
+            problem(f"row {rid}: unknown field {key!r}")
+        for key in ROW_LISTS:
+            if key in row and not isinstance(row[key], list):
+                problem(f"row {rid}: field {key!r} must be a list")
+                row[key] = []
         if not KEBAB_RE.match(str(rid)):
             problem(f"row id {rid!r} is not kebab-case")
         if rid in seen_ids:
@@ -212,6 +251,9 @@ def main() -> int:
                 wired_tools.add(str(entry))
 
         for default in row.get("default") or []:
+            if not isinstance(default, dict) or set(default) != DEFAULT_KEYS:
+                problem(f"row {rid}: default entry {default!r} must have exactly key, file and expected")
+                continue
             key = default.get("key")
             file_name = default.get("file")
             expected = default.get("expected")
@@ -221,7 +263,7 @@ def main() -> int:
             if file_name == "user_preferences":
                 if key not in prefs:
                     problem(f"row {rid}: default key {key!r} is not a UserPreferences field")
-                elif prefs[key] != expected:
+                elif not same_value(prefs[key], expected):
                     problem(
                         f"row {rid}: default {key!r} expected {expected!r} but "
                         f"core/user_preferences.py has {prefs[key]!r}"
@@ -230,20 +272,34 @@ def main() -> int:
                 value, found = policy_value(str(key))
                 if not found:
                     problem(f"row {rid}: default key {key!r} is absent from config/default_policy.yaml")
-                elif value != expected:
+                elif not same_value(value, expected):
                     problem(
                         f"row {rid}: default {key!r} expected {expected!r} but "
                         f"config/default_policy.yaml has {value!r}"
                     )
 
         for test_path in row.get("tests") or []:
-            if not (ROOT / test_path).exists():
-                problem(f"row {rid}: test file {test_path!r} does not exist")
+            if not valid_test_path(test_path):
+                problem(f"row {rid}: test file {test_path!r} is not an existing tests/*.py file")
 
+    # A reference is either a feature (some row's wired) or deliberately internal, never both.
+    row_refs = wired_routes | wired_census | wired_tools
+    internal_refs: set[str] = set()
     for entry in internal:
+        if not isinstance(entry, dict):
+            problem(f"internal entry {entry!r} is not a mapping")
+            continue
         reason = entry.get("reason", "")
-        if not str(reason).strip():
+        if not isinstance(reason, str) or not reason.strip():
             problem("internal entry without a reason")
+        for key in sorted(set(entry) - INTERNAL_KEYS):
+            problem(f"internal entry {reason!r}: unknown field {key!r}")
+        if not any(entry.get(key) for key in INTERNAL_LISTS):
+            problem(f"internal entry {reason!r}: lists no routes, census ids or tools")
+        for key in INTERNAL_LISTS:
+            if key in entry and not isinstance(entry[key], list):
+                problem(f"internal entry {reason!r}: field {key!r} must be a list")
+                entry[key] = []
         for route in entry.get("routes") or []:
             if route not in routes:
                 problem(f"internal: route {route!r} is not in the route census")
@@ -256,6 +312,12 @@ def main() -> int:
             if tool not in tools:
                 problem(f"internal: tool {tool!r} is not in the tool golden pin")
             wired_tools.add(tool)
+        for ref in [*(entry.get("routes") or []), *(entry.get("census") or []), *(entry.get("tools") or [])]:
+            if ref in row_refs:
+                problem(f"internal: {ref!r} is also wired by a row; it is either a feature or internal")
+            if ref in internal_refs:
+                problem(f"internal: {ref!r} is listed twice")
+            internal_refs.add(ref)
 
     unmapped_routes = sorted(routes - wired_routes)
     unmapped_census = sorted(other - wired_census)
