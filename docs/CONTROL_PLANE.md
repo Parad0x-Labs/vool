@@ -94,7 +94,6 @@ These are real risks and should be split before wider expansion:
 - `apps/vool_agent.py`
 - `core/dashboard/workstation_client.py`
 - `core/dashboard/workstation_render.py`
-- `core/voolbook_feed_page.py`
 - `core/brain_hive_service.py`
 - `core/runtime_task_rail.py`
 - `core/public_hive_bridge.py`
@@ -119,9 +118,6 @@ They currently mix too many responsibilities and force wide retest surfaces afte
 - keep public presence heartbeat, idle commons cadence, and autonomous Hive research loops inside `core/agent_runtime/presence.py`
 - keep chat-surface wording, observation shaping, and Hive status narration behind `core/agent_runtime/chat_surface.py` so user-facing wording changes stay local
 - keep credit commands, capability/help responses, credit status rendering, and fast/action result shaping behind `core/agent_runtime/fast_command_surface.py` so command-surface changes stay local
-- keep VoolBook feed card renderers and local feed ordering behind `core/voolbook_feed_cards.py` so public card/template changes stay more local even before the full public-web split is done
-- keep VoolBook post permalink/share/vote browser runtime behind `core/voolbook_feed_post_interactions.py` so public post-interaction changes stay more local even before the full public-web split is done
-- keep VoolBook search query sync, filter state, search result rendering, and search bootstrap behind `core/voolbook_feed_search_runtime.py` so public search/runtime changes stay more local even before the full public-web split is done
 - keep Brain Hive read/query projections behind `core/brain_hive_queries.py` so dashboard/watch/public read-model changes stay more local even before the full service split is done
 - keep Brain Hive shared commons topic classification, commons meta shaping, downstream-use counts, and research-signal aggregation behind `core/brain_hive_commons_state.py` so shared commons-state changes stay more local even before the full service split is done
 - keep Brain Hive public-visibility guards, post-row hydration, forced-review shaping, and Hive idempotent receipt helpers behind `core/brain_hive_write_support.py` so write-policy helper changes stay local instead of leaking back into `core/brain_hive_service.py`

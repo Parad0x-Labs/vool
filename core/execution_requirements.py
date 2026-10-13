@@ -955,6 +955,29 @@ def _compute_requirements(
             reason_codes=tuple(reasons),
         )
 
+    # Asking what was said earlier in this conversation is answered from the conversation and memory.
+    # The live arms below read the topic of the recollection ("the latest bitcoin news", "the weather
+    # at my wedding") as a lookup; an ask beside the recollection still arms them on its own reading.
+    from core.execution.constants import conversation_recall_remainder
+
+    recall_rest = conversation_recall_remainder(text)
+    if recall_rest is not None and not any(
+        (rest := _compute_requirements(clause, task_class="unknown")).current_information_required
+        or rest.tools_required
+        for clause in recall_rest
+    ):
+        reasons.append("conversation_recall")
+        return ExecutionRequirements(
+            answer_mode="DIRECT",
+            external_evidence_required=False,
+            current_information_required=False,
+            user_material_supplied=supplied,
+            tools_required=False,
+            allowed_toolsets=(),
+            inference_allowed=not no_guessing,
+            reason_codes=tuple(reasons),
+        )
+
     # A live instrument reads the PRESENT. A past-anchored market/weather ask
     # ("What was the BTC price at its 2021 peak?") classified LIVE_DATA on the
     # base and was answered with the CURRENT reading by the wrong instrument;

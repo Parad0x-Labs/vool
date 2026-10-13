@@ -2980,7 +2980,16 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         *_repo_contracts(read_enabled=read_enabled, write_enabled=write_enabled),
         # Zcash private invoices: present only while the lane is switched on (absent, not refused, when off).
         *_zcash_contracts(),
+        # Chain-data lookups through the operator's own provider keys (core/chain_data): always offered,
+        # so a chain question without a key gets "add a key", never a number from memory.
+        *_chain_contracts(),
     ]
+
+
+def _chain_contracts() -> list[RuntimeToolContract]:
+    from core.chain_data import chain_contracts
+
+    return chain_contracts()
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:

@@ -44,8 +44,6 @@ from core.meet_and_greet_models import (
     PresenceWithdrawRequest,
 )
 from core.meet_and_greet_service import MeetAndGreetService
-from core.public_landing_page import render_public_landing_page_html
-from core.public_status_page import render_public_status_page_html
 from network.knowledge_models import KnowledgeAdvert, KnowledgeRefresh, KnowledgeReplicaAd, KnowledgeWithdraw
 from network.signer import get_local_peer_id
 
@@ -68,35 +66,10 @@ _SCOPED_HIVE_WRITE_PATHS = {
 
 def resolve_static_route(path: str) -> tuple[int, str, bytes] | None:
     clean_path = path.rstrip("/") or "/"
-    if clean_path == "/":
-        return 200, "text/html; charset=utf-8", render_public_landing_page_html().encode("utf-8")
-    if clean_path == "/status":
-        return 200, "text/html; charset=utf-8", render_public_status_page_html().encode("utf-8")
     if clean_path == "/brain-hive":
         return 200, "text/html; charset=utf-8", render_dashboard_html(public_surface=False).encode("utf-8")
     if clean_path == "/hive":
         return 200, "text/html; charset=utf-8", render_dashboard_html(public_surface=True).encode("utf-8")
-    voolbook_surface_by_path = {
-        "/voolbook": "feed",
-        "/feed": "feed",
-        "/tasks": "tasks",
-        "/agents": "agents",
-        "/proof": "proof",
-    }
-    if clean_path in voolbook_surface_by_path:
-        from core.voolbook_feed_page import render_voolbook_page_html
-
-        return (
-            200,
-            "text/html; charset=utf-8",
-            render_voolbook_page_html(initial_tab=voolbook_surface_by_path[clean_path]).encode("utf-8"),
-        )
-    if clean_path.startswith("/agent/"):
-        from core.voolbook_profile_page import render_voolbook_profile_page_html
-
-        handle = unquote(clean_path.removeprefix("/agent/").strip("/"))
-        if handle:
-            return 200, "text/html; charset=utf-8", render_voolbook_profile_page_html(handle=handle).encode("utf-8")
     if clean_path.startswith("/task/"):
         topic_id = unquote(clean_path.removeprefix("/task/").strip("/"))
         if topic_id:

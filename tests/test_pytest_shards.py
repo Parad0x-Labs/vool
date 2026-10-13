@@ -153,11 +153,11 @@ def test_tracked_collection_gap_catches_a_deleted_or_omitted_suite() -> None:
     )
 
 
-def test_repository_tracked_scope_includes_beta_and_excludes_legacy_script() -> None:
+def test_repository_tracked_scope_includes_test_kit_and_excludes_legacy_script() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     targets = tracked_test_targets(repo_root)
 
-    assert "Beta2_Website/tests/test_beta_website.py" in targets
+    assert "test-kit/test_cp2_controls.py" in targets
     assert "tests/legacy/test_cas.py" not in targets
 
 

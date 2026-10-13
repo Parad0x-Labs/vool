@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -28,6 +29,9 @@ from pathlib import Path
 # Services currently being started, so a second concurrent request waits instead of spawning a duplicate.
 _STARTING: set[str] = set()
 _LOCK = threading.Lock()
+# The child each service was last started as, by THIS process. Stopping a service signals only this
+# recorded process (and its own session's group), never whatever else matches a name or a port.
+_SPAWNED: dict[str, object] = {}
 
 
 @dataclass(frozen=True)
@@ -134,10 +138,44 @@ def ensure_service(svc: LocalService, *, sleep: Callable[[float], None] = time.s
         # Keep the handle: it is the only way to tell "crashed" from "still loading". A test seam
         # may return something without poll(), in which case we fall back to timing out.
         proc = child if callable(getattr(child, "poll", None)) else None
+        if proc is not None:
+            with _LOCK:
+                _SPAWNED[svc.name] = proc
         return _await_ready(svc, sleep=sleep, proc=proc)
     finally:
         with _LOCK:
             _STARTING.discard(svc.name)
 
 
-__all__ = ["LocalService", "ensure_service"]
+def stop_started_service(name: str, *, sig: int = signal.SIGTERM) -> bool:
+    """Signal the service ``name`` only if THIS process started it and it is still running.
+
+    The target is the recorded child: its process group when the child leads its own session
+    (it was spawned with ``start_new_session``), else the recorded PID alone. A service started by
+    someone else, or by an earlier VOOL run, is never touched, and neither is any other process
+    that happens to match its name or port. Returns True if a signal was sent. Never raises.
+    """
+    with _LOCK:
+        proc = _SPAWNED.get(name)
+    if proc is None:
+        return False
+    try:
+        if proc.poll() is not None:  # exited (and reaped): its PID may already belong to another process
+            with _LOCK:
+                if _SPAWNED.get(name) is proc:
+                    _SPAWNED.pop(name, None)
+            return False
+        pid = int(proc.pid)
+    except Exception:
+        return False
+    try:
+        if os.getpgid(pid) == pid:
+            os.killpg(pid, sig)
+        else:
+            os.kill(pid, sig)
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+    return True
+
+
+__all__ = ["LocalService", "ensure_service", "stop_started_service"]

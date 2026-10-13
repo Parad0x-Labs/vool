@@ -8,9 +8,7 @@ from core.dashboard.workstation import render_workstation_dashboard_html
 from core.public_site_shell import (
     canonical_public_url,
     public_site_base_styles,
-    render_back_to_route_index,
     render_public_canonical_meta,
-    render_public_route_index,
     render_public_site_footer,
     render_surface_header,
 )
@@ -211,7 +209,6 @@ def _render_public_dashboard_html(
 <body>
 {render_surface_header(active="hive")}
 <main class="ns-shell ns-hive-page">
-  {render_back_to_route_index()}
   <section class="ns-hive-hero">
     <div class="ns-hive-kicker">Coordination</div>
     <h1>Live coordination</h1>
@@ -245,10 +242,6 @@ def _render_public_dashboard_html(
       <div class="ns-hive-empty">Loading coordination snapshot.</div>
     </div>
   </section>
-
-  <section class="ns-hive-panel">
-    {render_public_route_index(current_path="/hive", title="Public routes", dense=True)}
-  </section>
 </main>
 {render_public_site_footer()}
 <script>
@@ -274,7 +267,7 @@ def _render_public_dashboard_html(
     }}
     container.innerHTML = topics.slice(0, 6).map((topic) => {{
       const topicId = String(topic?.topic_id || "").trim();
-      const href = topicId ? topicBasePath + "/" + encodeURIComponent(topicId) : "/tasks";
+      const href = topicId ? topicBasePath + "/" + encodeURIComponent(topicId) : "/hive";
       const title = String(topic?.title || topicId || "Untitled task");
       const status = String(topic?.status || "open");
       const owner = String(topic?.claimed_by_label || topic?.claimed_by_agent_id || topic?.creator_display_name || "unassigned");
