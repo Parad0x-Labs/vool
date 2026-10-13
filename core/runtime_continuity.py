@@ -3032,12 +3032,35 @@ def list_queued_messages(session_id: str, *, statuses: tuple[str, ...] = _QUEUE_
     return [_queue_row_to_dict(row) for row in rows]
 
 
+def chat_turn_active(session_id: str) -> bool:
+    """True while a chat turn's worker is genuinely executing for this session.
+
+    The live-turn registry (``core.live_turns``) is the one existing truth for "a turn is
+    running right now": entry lifetime is the WORKER's, not the HTTP stream's, so a turn the
+    page keeps running in the background -- or one whose client tab just closed -- still holds
+    the chat's slot. The queue and the chat door consult it so the one-slot-per-chat law the
+    page enforces in-page also holds across tabs and windows.
+    """
+    from core.live_turns import live_session_ids
+
+    clean = str(session_id or "").strip()
+    return bool(clean) and clean in live_session_ids()
+
+
 def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str = "", expected_queue_item_id: str = "") -> dict[str, Any] | None:
     """Atomically claim the oldest pending message for a session (pending -> in_flight). The
     compare-and-swap UPDATE (WHERE status='pending') guarantees exactly-once dispatch: two
-    racing claimers (double pump, two tabs, reconnect) cannot both win the same item."""
+    racing claimers (double pump, two tabs, reconnect) cannot both win the same item.
+
+    While a turn is executing for this session the claim answers None instead: an item handed
+    out now would run a SECOND concurrent turn on a chat whose slot is taken. The running
+    turn's completion is the wakeup that claims it next (the claiming page's release pump, or
+    any page's heartbeat for the orphaned case) -- callers distinguish "empty" from "slot
+    busy" with :func:`chat_turn_active`."""
     clean = str(session_id or "").strip()
     if not clean:
+        return None
+    if chat_turn_active(clean):
         return None
     with _LOCK:
         conn = _conn()

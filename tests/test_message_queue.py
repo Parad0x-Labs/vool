@@ -203,6 +203,37 @@ class QueueEndpointTests(unittest.TestCase):
         cancel = self._parse(self._post({"op": "cancel", "session_id": sid, "queue_item_id": pending_id}))
         self.assertTrue(cancel["cancelled"])
 
+    def test_claim_refuses_while_a_turn_is_live_and_resumes_after(self) -> None:
+        """The one-slot-per-chat law at the queue's own door: while a turn worker is live for a
+        session, a claim answers empty with `turn_active` (the page exits its pump instead of
+        spinning), the item stays pending, another session's slot is untouched, and the claim
+        proceeds the moment the turn ends."""
+        from core.live_turns import register_turn, unregister_turn
+        from core.runtime_continuity import chat_turn_active
+
+        sid = "openclaw:slot-law"
+        enqueue_message(session_id=sid, payload={"text": "held"})
+        enqueue_message(session_id="s:other", payload={"text": "free"})
+        register_turn(sid, "t-slot-1")
+        try:
+            self.assertTrue(chat_turn_active(sid))
+            self.assertIsNone(claim_next_message(sid))  # the authority itself refuses
+            refused = self._parse(self._post({"op": "claim", "session_id": sid}))
+            self.assertIsNone(refused["item"])
+            self.assertTrue(refused["turn_active"])
+            self.assertEqual(list_queued_messages(sid)[0]["status"], "pending")  # untouched
+            self.assertTrue(self._parse(self._get(sid))["turn_active"])  # the read agrees
+            # A different chat's slot is independent.
+            other = self._parse(self._post({"op": "claim", "session_id": "s:other"}))
+            self.assertEqual(other["item"]["payload"]["text"], "free")
+            self.assertFalse(other.get("turn_active", False))
+        finally:
+            unregister_turn(sid, "t-slot-1")
+        self.assertFalse(chat_turn_active(sid))
+        claim = self._parse(self._post({"op": "claim", "session_id": sid}))
+        self.assertEqual(claim["item"]["payload"]["text"], "held")
+        self.assertFalse(claim.get("turn_active", False))
+
     def test_endpoint_rejects_bad_input(self) -> None:
         self.assertEqual(self._post({"op": "enqueue", "session_id": "", "text": "x"}).status, 400)
         self.assertEqual(self._post({"op": "enqueue", "session_id": "s", "text": ""}).status, 400)

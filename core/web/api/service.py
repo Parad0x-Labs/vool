@@ -2646,14 +2646,20 @@ def dispatch_get(
         # Pending/in-flight queued messages for a session -- restores the queue after a
         # UI refresh, app restart, or daemon reconnect (persisted server-side).
         # Queued user messages are the operator's own content; the read is
-        # owner-local like the queue's write path.
+        # owner-local like the queue's write path. `turn_active` is the chat's slot
+        # truth (a turn worker is executing now), so a page that sees its own state as
+        # idle can still decide run-now vs enqueue correctly when ANOTHER tab holds
+        # the slot.
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        from core.runtime_continuity import list_queued_messages
+        from core.runtime_continuity import chat_turn_active, list_queued_messages
 
         session_id = str((query.get("session") or [""])[0] or "").strip()
         items = list_queued_messages(session_id) if session_id else []
-        return apply_runtime_headers(json_response(200, {"session_id": session_id, "queue": items}), runtime)
+        payload: dict[str, Any] = {"session_id": session_id, "queue": items}
+        if session_id:
+            payload["turn_active"] = chat_turn_active(session_id)
+        return apply_runtime_headers(json_response(200, payload), runtime)
 
     if normalized_path == "/api/bug-report/status":
         # Bug-report draft status (owner-local read of the local store).
@@ -4766,6 +4772,7 @@ def _dispatch_post_inner(
 
         from core.runtime_continuity import (
             cancel_queue_item,
+            chat_turn_active,
             claim_next_message,
             complete_queue_item,
             enqueue_message,
@@ -4843,6 +4850,11 @@ def _dispatch_post_inner(
                 if not gate.get("ready"):
                     return apply_runtime_headers(json_response(200, {"item": None, "waiting": gate}), runtime)
             item = claim_next_message(q_session, expected_queue_item_id=expected, lease_owner=str(body.get("lease_owner") or "").strip()[:80], turn_id=str(body.get("turn_id") or "").strip()[:80])
+            if item is None and chat_turn_active(q_session):
+                # An empty claim because the chat's slot is taken, not because the queue is:
+                # the claiming page must not treat this as "nothing will ever arrive". The
+                # running turn's completion is the wakeup that claims the item next.
+                return apply_runtime_headers(json_response(200, {"item": None, "turn_active": True}), runtime)
             return apply_runtime_headers(json_response(200, {"item": item}), runtime)
         if op == "complete":
             qid = str(body.get("queue_item_id") or "").strip()
@@ -7046,6 +7058,32 @@ def _dispatch_post_inner(
             # existing desktop namespace by presenting a guessed canonical id.
             allow_canonical_resume=owner_local,
         )
+        # ---- One slot per chat, server-enforced -------------------------------------------
+        # The queue's "busy decides run-now vs enqueue" law used to live only in the page's own
+        # buckets, so a second tab with the same chat open could start a SECOND concurrent turn
+        # on the same session -- the durable queue was bypassed entirely and "exactly once, in
+        # order" had no meaning across tabs. The live-turn registry is the slot's truth; a
+        # turn POST that loses the race is refused with a typed 409 the page reroutes into the
+        # queue. Two exemptions are the contract, not accidents: the agent brake stays usable
+        # at every moment (stopping work must never wait for an idle chat), and non-owner-local
+        # callers keep their existing remote API semantics -- the queue door they would need is
+        # loopback-only anyway. Checked before anything is spent (attachments, modes, gates).
+        from core.vool_agent_brake import is_brake_command
+
+        if owner_local and not is_brake_command(user_text):
+            from core.runtime_continuity import chat_turn_active as _chat_turn_active
+
+            if _chat_turn_active(session_id):
+                return apply_runtime_headers(
+                    json_response(
+                        409,
+                        {
+                            "error": "chat_turn_active",
+                            "detail": "This chat is already running a turn. The message was not started.",
+                        },
+                    ),
+                    runtime,
+                )
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,

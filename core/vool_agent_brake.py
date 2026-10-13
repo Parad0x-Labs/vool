@@ -62,6 +62,18 @@ _STOPALL_RE = re.compile(
 )
 
 
+def is_brake_command(user_text: str) -> bool:
+    """True when this text is one of the brake commands -- WITHOUT applying anything.
+
+    ``maybe_handle_agent_brake`` both matches and acts (it freezes/unfreezes/shuts down at
+    match time), so a caller that must exempt brake commands from an earlier gate cannot call
+    it there without firing the brake twice or prematurely. This predicate reads the SAME
+    compiled patterns the handler does, so the exemption can never drift from the handling.
+    """
+    text = str(user_text or "")
+    return bool(_STOPALL_RE.match(text) or _STOP_RE.match(text) or _START_RE.match(text))
+
+
 def _response(text: str, *, intent: str, success: bool = True) -> dict[str, Any]:
     return {
         "response": text,
