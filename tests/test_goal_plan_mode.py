@@ -97,7 +97,7 @@ def test_planning_turn_carries_the_authority_deny_and_plan_mode_holds() -> None:
 
     agent = _PlanProbeAgent()
     with mock.patch("core.web.api.runtime.run_agent", agent):
-        from tests.test_goal_served_workflow import _Resp, _asgi, _shared_app
+        from tests.test_goal_served_workflow import _asgi, _Resp, _shared_app
 
         status, body = _asgi(
             _shared_app(), "POST", "/api/chat",

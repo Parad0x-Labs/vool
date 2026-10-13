@@ -333,9 +333,8 @@ def test_goal_start_plans_executes_and_completes_with_real_effects() -> None:
         assert (public["completed"], public["total"]) == (2, 2)
         assert public["elapsed_seconds"] >= 0.0
         # The durable ledger carries the goal events AND the steps' real tool events.
-        from core.runtime_continuity import list_runtime_session_events
-
         import core.runtime_continuity as _rc
+        from core.runtime_continuity import list_runtime_session_events
 
         canonical = created["session_id"]
         rows = list_runtime_session_events(canonical, after_seq=0, limit=200)
