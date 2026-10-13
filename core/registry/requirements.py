@@ -75,3 +75,16 @@ def undeclared_needs(metadata: dict, files: dict[str, bytes]) -> list[dict]:
     return [{"need": need, "label": NEEDS[need][0],
              "reason": f"SKILL.md looks like it uses {NEEDS[need][0].lower()}; add \"{need}\" to needs if it does"}
             for need, pattern in _SIGNS.items() if need not in declared and re.search(pattern, text)]
+
+
+def package_requirements(manifest: dict, dependencies: object) -> dict:
+    """What the signed package itself asks VOOL for, read from its manifest rather than declared.
+
+    Dependencies are the native plugin ids the manifest requires; callers holding a catalog
+    can name registry packages by their package id instead."""
+    from core.registry.validation import manifest_authority
+
+    authority = manifest_authority(manifest)
+    return {"network": any(tool["handler"]["network"] for tool in authority["tools"]),
+            "credentials": authority["credential_bindings"], "permissions": authority["permissions"],
+            "dependencies": sorted(dependencies)}
