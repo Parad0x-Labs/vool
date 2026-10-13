@@ -1763,7 +1763,10 @@ def _machine_find_largest(
     hidden_count = 0
     entries: list[dict[str, Any]] = []
     for entry in raw_entries:
-        if _is_under_other_git_project(Path(str(entry.get("path") or "")), workspace_root=workspace_root):
+        measured_path = str(entry.get("path") or "").strip()
+        # An absent path is not the current directory. Classify only the
+        # measurement's own path, never invented host filesystem provenance.
+        if measured_path and Path(measured_path).is_absolute() and _is_under_other_git_project(Path(measured_path), workspace_root=workspace_root):
             hidden_count += 1
             continue
         entries.append(entry)
@@ -1777,6 +1780,13 @@ def _machine_find_largest(
             handled=True, ok=False, status="no_results",
             response_text=f"I couldn't scan {root} for its largest {noun}, so I won't guess.{hidden_note}",
             details={
+                "result_type": result_type,
+                "requested_drive": requested_drive,
+                "root": root,
+                "searched_roots": [root],
+                "elapsed_ms": elapsed_ms,
+                "entries": [],
+                "complete": bool(result.get("complete")),
                 "hidden_other_project_results": hidden_count,
                 "observation": _tool_observation(intent="machine.find_largest", tool_surface="machine", ok=False, status="no_results", root=root, hidden_other_project_results=hidden_count),
             },
@@ -3346,6 +3356,10 @@ def _dispatch_runtime_tool(
             from core.zcash.tools import run_tool as _zcash_tool
 
             return _zcash_tool(intent, arguments, source_context)
+        if intent == "web.chain_lookup":
+            from core.chain_data import run_tool as _chain_tool
+
+            return _chain_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":

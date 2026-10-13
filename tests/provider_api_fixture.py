@@ -109,12 +109,16 @@ def _gmail_message_model(entry: dict[str, Any], state: _State, thread_id: str) -
         headers.append({"name": "In-Reply-To", "value": entry["in_reply_to"]})
     if entry.get("references"):
         headers.append({"name": "References", "value": entry["references"]})
+    payload = {"headers": headers, "mimeType": "text/plain",
+               "body": {"data": base64.urlsafe_b64encode(entry["body"].encode()).decode().rstrip("=")}}
+    if entry.get("payload"):
+        # A documented multipart tree (users.messages, format=full): nested parts, attachments.
+        payload = {**entry["payload"], "headers": headers}
     return {
         "id": entry.get("provider_id") or state.next_id("gm-"),
         "threadId": entry.get("thread_id") or thread_id,
         "snippet": entry["body"][:120],
-        "payload": {"headers": headers, "mimeType": "text/plain",
-                    "body": {"data": base64.urlsafe_b64encode(entry["body"].encode()).decode().rstrip("=")}},
+        "payload": payload,
     }
 
 

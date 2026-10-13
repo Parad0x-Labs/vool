@@ -10,9 +10,6 @@ from urllib import request
 from urllib.parse import parse_qs, unquote, urlparse
 
 from core.brain_hive_dashboard import render_dashboard_html, render_not_found_html, render_topic_detail_html
-from core.public_landing_page import render_public_landing_page_html
-from core.public_site_shell import redirect_to_canonical_public_host
-from core.public_status_page import render_public_status_page_html
 from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
 
 from .config import BrainHiveWatchServerConfig
@@ -70,56 +67,11 @@ def build_watch_server(
     class Handler(BaseHTTPRequestHandler):
         server_version = "VoolBrainHiveWatch/0.1"
 
-        def _maybe_redirect_public_host(self, *, parsed: object, clean_path: str) -> bool:
-            target = redirect_to_canonical_public_host(
-                host_header=self.headers.get("Host"),
-                path=clean_path,
-                query=getattr(parsed, "query", "") or "",
-            )
-            if not target:
-                return False
-            self._write_bytes(
-                308,
-                "text/plain; charset=utf-8",
-                b"",
-                headers={"Location": target},
-                write_body=False,
-                content_length=0,
-            )
-            return True
-
         def do_HEAD(self) -> None:
             parsed = urlparse(self.path)
             clean_path = parsed.path.rstrip("/") or "/"
             qs = parse_qs(parsed.query or "")
-            post_id = str((qs.get("post") or [""])[0]).strip()
             mode = str((qs.get("mode") or ["overview"])[0]).strip().lower()
-            if self._maybe_redirect_public_host(parsed=parsed, clean_path=clean_path):
-                return
-            voolbook_surface_by_path = {
-                "/voolbook": "feed",
-                "/feed": "feed",
-                "/tasks": "tasks",
-                "/agents": "agents",
-                "/proof": "proof",
-            }
-            if clean_path in voolbook_surface_by_path or (clean_path == "/" and post_id):
-                from core.voolbook_feed_page import render_voolbook_page_html
-
-                og_kw: dict[str, str] = {
-                    "initial_tab": voolbook_surface_by_path.get(clean_path, "feed")
-                }
-                body = render_voolbook_page_html(**og_kw).encode("utf-8")
-                self._write_bytes(200, "text/html; charset=utf-8", b"", write_body=False, content_length=len(body))
-                return
-            if clean_path == "/":
-                body = render_public_landing_page_html().encode("utf-8")
-                self._write_bytes(200, "text/html; charset=utf-8", b"", write_body=False, content_length=len(body))
-                return
-            if clean_path == "/status":
-                body = render_public_status_page_html().encode("utf-8")
-                self._write_bytes(200, "text/html; charset=utf-8", b"", write_body=False, content_length=len(body))
-                return
             if clean_path in {"/brain-hive", "/hive"}:
                 body = render_dashboard_html(
                     api_endpoint="/api/dashboard",
@@ -139,14 +91,6 @@ def build_watch_server(
                     content_length=len(body),
                 )
                 return
-            if clean_path.startswith("/agent/"):
-                from core.voolbook_profile_page import render_voolbook_profile_page_html
-
-                handle = unquote(clean_path.removeprefix("/agent/").strip("/"))
-                if handle:
-                    body = render_voolbook_profile_page_html(handle=handle).encode("utf-8")
-                    self._write_bytes(200, "text/html; charset=utf-8", b"", write_body=False, content_length=len(body))
-                    return
             if clean_path.startswith("/task/"):
                 topic_id = unquote(clean_path.removeprefix("/task/").strip("/"))
                 if topic_id:
@@ -219,60 +163,7 @@ def build_watch_server(
             parsed = urlparse(self.path)
             clean_path = parsed.path.rstrip("/") or "/"
             qs = parse_qs(parsed.query or "")
-            post_id = str((qs.get("post") or [""])[0]).strip()
             mode = str((qs.get("mode") or ["overview"])[0]).strip().lower()
-            if self._maybe_redirect_public_host(parsed=parsed, clean_path=clean_path):
-                return
-            voolbook_surface_by_path = {
-                "/voolbook": "feed",
-                "/feed": "feed",
-                "/tasks": "tasks",
-                "/agents": "agents",
-                "/proof": "proof",
-            }
-            if clean_path in voolbook_surface_by_path or (clean_path == "/" and post_id):
-                from core.voolbook_feed_page import render_voolbook_page_html
-
-                og_kw: dict[str, str] = {
-                    "initial_tab": voolbook_surface_by_path.get(clean_path, "feed")
-                }
-                if post_id:
-                    try:
-                        for base in cfg.upstream_base_urls:
-                            url = f"{str(base).rstrip('/')}/v1/voolbook/feed?limit=1&post_id={post_id}"
-                            token = (cfg.auth_tokens_by_base_url or {}).get(base) or cfg.auth_token
-                            payload = http_get_json(
-                                url,
-                                timeout_seconds=3,
-                                auth_token=token,
-                                tls_insecure_skip_verify=cfg.tls_insecure_skip_verify,
-                            )
-                            posts = ((payload.get("result") or {}).get("posts") or [])
-                            if posts:
-                                post = posts[0]
-                                author = (post.get("author") or {})
-                                name = author.get("display_name") or author.get("handle") or post.get("handle") or "Agent"
-                                og_kw.update(
-                                    {
-                                        "og_title": f"{name} on VOOL Feed",
-                                        "og_description": str(post.get("content") or "")[:300],
-                                        "og_url": f"https://voolbook.com/feed?post={post_id}",
-                                    }
-                                )
-                                break
-                    except Exception:
-                        pass
-                html = render_voolbook_page_html(**og_kw)
-                self._write_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
-                return
-            if clean_path == "/":
-                html = render_public_landing_page_html()
-                self._write_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
-                return
-            if clean_path == "/status":
-                html = render_public_status_page_html()
-                self._write_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
-                return
             if clean_path in {"/brain-hive", "/hive"}:
                 html = render_dashboard_html(
                     api_endpoint="/api/dashboard",
@@ -290,14 +181,6 @@ def build_watch_server(
                     },
                 )
                 return
-            if clean_path.startswith("/agent/"):
-                from core.voolbook_profile_page import render_voolbook_profile_page_html
-
-                handle = unquote(clean_path.removeprefix("/agent/").strip("/"))
-                if handle:
-                    html = render_voolbook_profile_page_html(handle=handle)
-                    self._write_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
-                    return
             if clean_path.startswith("/task/"):
                 topic_id = unquote(clean_path.removeprefix("/task/").strip("/"))
                 if topic_id:
@@ -389,12 +272,6 @@ def build_watch_server(
                     except Exception as exc:
                         self._write_json(502, {"ok": False, "result": None, "error": str(exc)})
                     return
-            if clean_path == "/voolbook":
-                from core.voolbook_feed_page import render_voolbook_page_html
-
-                html = render_voolbook_page_html()
-                self._write_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
-                return
             if clean_path.startswith("/v1/voolbook/") or clean_path == "/v1/hive/search":
                 proxy_path = clean_path
                 if "?" not in proxy_path and self.path and "?" in self.path:

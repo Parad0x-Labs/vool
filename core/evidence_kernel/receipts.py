@@ -127,8 +127,9 @@ def signed_body(d: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _ledger_dir() -> Path:
-    home = os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME") or str(Path.home() / ".vool")
-    return Path(home) / "data" / "receipts_v2"
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "data" / "receipts_v2"
 
 
 def ledger_path(kind: str, session_id: str) -> Path:

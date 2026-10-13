@@ -752,12 +752,34 @@ def _validate_timezone(tz_name: str) -> str:
 
 
 def load_user_timezone() -> str:
-    """Load the persisted user timezone, or ``""`` if unset.
+    """Load the user's timezone, or ``""`` if none is known.
 
-    The caller should treat ``""`` as "use UTC fallback", never infer a
-    permanent timezone from a single model answer.
+    The stored preference wins; otherwise the Operator Profile timezone the user told VOOL
+    (the only timezone a product surface writes) of the turn in flight, else of the machine
+    owner. The caller should treat ``""`` as "use UTC fallback", never infer a permanent
+    timezone from a single model answer.
     """
-    return _validate_timezone(str(getattr(load_preferences(), "timezone", "") or ""))
+    stored = _validate_timezone(str(getattr(load_preferences(), "timezone", "") or ""))
+    return stored or _profile_timezone()
+
+
+def _profile_timezone() -> str:
+    """The active, servable Operator Profile timezone, or ``""``. Never raises: a profile store
+    that cannot be read leaves the caller on its own fallback, it does not break scheduling."""
+    try:
+        from core import operator_profile
+        from core.operator_profile_turn import current_turn_scope
+
+        principal, session_id, project_id = current_turn_scope()
+        principal = str(principal or operator_profile.OWNER_PRINCIPAL)
+        if operator_profile.is_paused(principal):
+            return ""
+        item = operator_profile.resolve(principal, "timezone", session_id=session_id, project_id=project_id)
+    except Exception:
+        return ""
+    if item is None:
+        return ""
+    return _validate_timezone(str(getattr(item, "value_text", "") or getattr(item, "value", "") or ""))
 
 
 def save_user_timezone(tz_name: str) -> bool:

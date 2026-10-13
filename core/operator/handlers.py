@@ -9,7 +9,7 @@ from core.execution.constants import machine_process_sort
 from core.reasoning_engine import Plan
 
 from .models import OperatorActionIntent, OperatorActionResult
-from .when import format_due_time
+from .when import format_due_time, has_passed
 
 
 def _percent(value: Any) -> float:
@@ -815,6 +815,22 @@ def _learned_plan(summary: str, steps: list[str], *, confidence: float = 0.9) ->
     )
 
 
+def _passed_due_time_result(when: Any, *, kind: str) -> OperatorActionResult:
+    """A reminder can only be due in the future: a time already passed is refused, not fired at once."""
+    wall = format_due_time(when.due_at_utc, when.tz_name, when.due_wall)
+    action = "move that reminder" if kind == "move_reminder" else "set that reminder"
+    problem = (
+        f"{wall} has already passed, so I did not {action}. "
+        "Give me a time in the future, for example 'tomorrow at 9:00' or 'in 20 minutes'."
+    )
+    return OperatorActionResult(
+        ok=False,
+        status="invalid_request",
+        response_text=problem,
+        details={"kind": kind, "problem": problem, "due_at_utc": when.due_at_utc, "reason": "due_time_passed"},
+    )
+
+
 def handle_schedule_reminder(
     intent: OperatorActionIntent,
     *,
@@ -832,6 +848,8 @@ def handle_schedule_reminder(
             response_text=when.problem,
             details={"kind": "schedule_reminder", "problem": when.problem},
         )
+    if has_passed(when):
+        return _passed_due_time_result(when, kind="schedule_reminder")
     note = _reminder_note_from_text(intent.raw_text)
     repeat_every = _reminder_repeat_from_text(intent.raw_text)
     record = schedule_reminder_fn(
@@ -994,6 +1012,8 @@ def handle_move_reminder(
             response_text=when.problem,
             details={"kind": "move_reminder", "problem": when.problem},
         )
+    if has_passed(when):
+        return _passed_due_time_result(when, kind="move_reminder")
     target = _select_reminder_target(
         intent,
         session_id=session_id,
@@ -1054,12 +1074,32 @@ _WHEN_TAIL_RE = re.compile(
 )
 
 
+_LEADING_WHEN_RE = re.compile(
+    r"^(?:"
+    r"(?:on|at|in|by|every|next|this)\s+"
+    r"|(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|morning|afternoon|evening|daily|weekly|day|week)\b[\s,]*"
+    r"|20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?[\s,]*"
+    r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
+    r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
+    r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"
+    r"|(?:utc|gmt)(?:[+-]\d{1,2}(?::?\d{2})?)?\b[\s,]*"
+    r"|time\b[\s,]*"
+    r")+(?:to|about|that)\s+(?P<note>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def _reminder_note_from_text(text: str) -> str:
-    """The reminder's SUBJECT: the words after 'remind me to/about', with the trailing
-    when-clause stripped so the note reads as the thing to do, not the schedule."""
+    """The reminder's SUBJECT: the words after 'remind me to/about', with the when-clause
+    stripped whether it trails the subject ('to call mom at 5pm') or leads it ('tomorrow at
+    9am to call mom'), so the note reads as the thing to do, not the schedule."""
     raw = str(text or "").strip()
     match = _REMINDER_NOTE_RE.search(raw)
     note = (match.group("note") if match else raw).strip()
+    leading = _LEADING_WHEN_RE.match(note)
+    if leading:
+        note = leading.group("note").strip()
     tail = _WHEN_TAIL_RE.search(note)
     if tail:
         note = note[: tail.start()].strip()

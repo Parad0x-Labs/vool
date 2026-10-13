@@ -7,7 +7,7 @@ import threading
 import time
 import unittest
 from unittest.mock import patch
-from urllib import request
+from urllib import error, request
 
 from apps.brain_hive_watch_server import (
     BrainHiveWatchServerConfig,
@@ -30,6 +30,19 @@ from core.brain_hive_dashboard import (
 from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.watch.app import create_watch_app
 from tests.asgi_harness import asgi_request
+
+# The voolbook.com public site pages were retired; these paths must not render.
+RETIRED_PUBLIC_SITE_PATHS = (
+    "/",
+    "/status",
+    "/voolbook",
+    "/feed",
+    "/tasks",
+    "/agents",
+    "/proof",
+    "/agent/TestBot",
+    "/?post=post-123",
+)
 
 
 class BrainHiveWatchServerTests(unittest.TestCase):
@@ -131,6 +144,48 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["x-request-id"], "req-watch-123")
         self.assertEqual(headers["x-correlation-id"], "req-watch-123")
+
+    def test_create_watch_app_serves_hive_and_404s_retired_public_site_routes(self) -> None:
+        cfg = BrainHiveWatchServerConfig(
+            host="127.0.0.1",
+            port=8788,
+            upstream_base_urls=("http://127.0.0.1:8766",),
+        )
+        upstream_calls: list[object] = []
+
+        app = create_watch_app(
+            config=cfg,
+            workstation_version="test-version",
+            validate_tls_config=lambda inner_cfg: None,
+            requires_public_tls=lambda host: False,
+            watch_tls_enabled=lambda inner_cfg: False,
+            fetch_dashboard_from_upstreams=lambda *args, **kwargs: {},
+            fetch_topic_from_upstreams=lambda *args, **kwargs: {},
+            fetch_topic_posts_from_upstreams=lambda *args, **kwargs: [],
+            proxy_voolbook_get=lambda *args, **kwargs: {},
+            http_get_json=lambda *args, **kwargs: upstream_calls.append(args) or {},
+            normalize_base_url=lambda url: url.rstrip("/"),
+            ssl_context_for_url=lambda *args, **kwargs: None,
+        )
+
+        for path in RETIRED_PUBLIC_SITE_PATHS:
+            route, _, query = path.partition("?")
+            for method in ("GET", "HEAD"):
+                with self.subTest(path=path, method=method):
+                    status, _, body = asgi_request(app, method=method, path=route, query_string=query.encode("ascii"))
+                    self.assertEqual(status, 404)
+                    self.assertNotIn(b"voolbook.com", body)
+        status, headers, _ = asgi_request(app, method="GET", path="/feed", headers={"Host": "www.voolbook.com"})
+        self.assertEqual(status, 404)
+        self.assertNotIn("location", headers)
+        self.assertEqual(upstream_calls, [])
+
+        for path, marker in (("/hive", b"Live coordination"), ("/brain-hive", b"VOOL Brain Hive"), ("/task/topic-123", b"Agent work flow")):
+            with self.subTest(path=path):
+                status, _, body = asgi_request(app, method="GET", path=path)
+                self.assertEqual(status, 200)
+                self.assertIn(marker, body)
+                self.assertNotIn(b"voolbook.com", body)
 
     def test_serve_runs_uvicorn_with_factory_app_and_tls_settings(self) -> None:
         cfg = BrainHiveWatchServerConfig(
@@ -628,7 +683,8 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         self.assertIn("/api/dashboard", html)
         self.assertIn("/task", html)
         self.assertIn("VOOL Brain Hive · Live dashboard", html)
-        self.assertIn('rel="canonical" href="https://voolbook.com/hive"', html)
+        self.assertNotIn("voolbook.com", html)
+        self.assertNotIn('href="/feed"', html)
         self.assertIn("VOOL Operator Workstation", html)
         self.assertIn("Verified work", html)
         self.assertIn("workstation v1", html)
@@ -650,11 +706,9 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         self.assertNotIn("footerCopyToken", html)
         self.assertNotIn("footerTokenLink", html)
         self.assertIn("Follow VOOL on X", html)
-        self.assertIn('data-nb-route="feed">Feed<', html)
-        self.assertIn('data-nb-route="tasks">Tasks<', html)
-        self.assertIn('data-nb-route="agents">Agents<', html)
-        self.assertIn('data-nb-route="proof">Proof<', html)
         self.assertIn('data-nb-route="hive">Hive<', html)
+        for retired in ("feed", "tasks", "agents", "proof"):
+            self.assertNotIn(f'data-nb-route="{retired}"', html)
         self.assertIn("/hive", html)
         self.assertIn("Active learnings", html)
         self.assertIn("learningProgramList", html)
@@ -709,9 +763,11 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         self.assertIn("VOOL Hive · Live coordination", html)
         self.assertIn('<header class="ns-header">', html)
         self.assertIn('href="/hive?mode=fabric" data-mode-link="fabric" aria-current="page"', html)
-        self.assertIn("Back to route index", html)
         self.assertIn("Live coordination", html)
-        self.assertIn("Public routes", html)
+        self.assertNotIn("Back to route index", html)
+        self.assertNotIn("voolbook.com", html)
+        for retired in ('href="/feed"', 'href="/tasks"', 'href="/agents"', 'href="/proof"', 'href="/status"', 'href="/"'):
+            self.assertNotIn(retired, html)
         self.assertNotIn("VOOL Operator Workstation", html)
         self.assertNotIn('data-workstation-surface="brain-hive"', html)
         self.assertNotIn('<nav class="nb-topbar"', html)
@@ -1032,7 +1088,7 @@ class BrainHiveWatchServerTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=1)
 
-    def test_watch_server_root_renders_landing_page(self) -> None:
+    def test_watch_server_retired_public_site_routes_return_404(self) -> None:
         server = build_server(
             BrainHiveWatchServerConfig(
                 host="127.0.0.1",
@@ -1044,35 +1100,17 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         thread.start()
         try:
             port = int(server.server_address[1])
-            with request.urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
-                body = response.read().decode("utf-8")
-                self.assertIn("One system. One lane.", body)
-                self.assertIn("Get VOOL", body)
-                self.assertNotIn("VOOL Brain Hive", body)
-        finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=1)
-
-    def test_watch_server_feed_route_renders_feed_surface(self) -> None:
-        server = build_server(
-            BrainHiveWatchServerConfig(
-                host="127.0.0.1",
-                port=0,
-                upstream_base_urls=("http://127.0.0.1:8766",),
-            )
-        )
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        try:
-            port = int(server.server_address[1])
-            with request.urlopen(f"http://127.0.0.1:{port}/feed", timeout=5) as response:
-                body = response.read().decode("utf-8")
-                self.assertIn("let activeTab = 'feed'", body)
-                self.assertIn("window.location.origin + '/feed?post='", body)
-                self.assertIn('href="/feed" data-tab="feed" class="is-active" aria-current="page">Worklog<', body)
-                self.assertIn('href="/#public-routes">Back to route index</a>', body)
-                self.assertIn('href="/feed?view=recent">Recent<', body)
+            for path in RETIRED_PUBLIC_SITE_PATHS:
+                for method in ("GET", "HEAD"):
+                    with self.subTest(path=path, method=method):
+                        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                        conn.request(method, path)
+                        response = conn.getresponse()
+                        body = response.read()
+                        self.assertEqual(response.status, 404)
+                        if method == "GET":
+                            self.assertNotIn(b"voolbook.com", body)
+                        conn.close()
         finally:
             server.shutdown()
             server.server_close()
@@ -1091,13 +1129,7 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         try:
             port = int(server.server_address[1])
             route_expectations = (
-                ("/", "One system. One lane."),
-                ("/agents", "let activeTab = 'agents'"),
-                ("/tasks", "let activeTab = 'tasks'"),
-                ("/proof", "let activeTab = 'proof'"),
-                ("/status", "VOOL Status"),
-                ("/hive", "Back to route index"),
-                ("/agent/TestBot", "Public summary"),
+                ("/hive", "Live coordination"),
                 ("/task/topic-123", "Agent work flow"),
             )
             for path, marker in route_expectations:
@@ -1124,17 +1156,10 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         try:
             port = int(server.server_address[1])
             for path in (
-                "/",
-                "/feed",
-                "/tasks",
-                "/agents",
-                "/proof",
-                "/status",
                 "/hive",
                 "/hive?mode=fabric",
                 "/brain-hive",
                 "/task/topic-123",
-                "/agent/TestBot",
                 "/health",
                 "/api/dashboard",
             ):
@@ -1152,7 +1177,7 @@ class BrainHiveWatchServerTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=1)
 
-    def test_watch_server_redirects_alternate_public_host_to_canonical_host(self) -> None:
+    def test_watch_server_no_longer_redirects_the_retired_public_host(self) -> None:
         server = build_server(
             BrainHiveWatchServerConfig(
                 host="127.0.0.1",
@@ -1164,14 +1189,15 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         thread.start()
         try:
             port = int(server.server_address[1])
-            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-            conn.request("GET", "/feed?view=recent", headers={"Host": "www.voolbook.com"})
-            response = conn.getresponse()
-            body = response.read()
-            self.assertEqual(response.status, 308)
-            self.assertEqual(response.getheader("Location"), "https://voolbook.com/feed?view=recent")
-            self.assertEqual(body, b"")
-            conn.close()
+            for path, status in (("/feed?view=recent", 404), ("/hive", 200)):
+                with self.subTest(path=path):
+                    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    conn.request("GET", path, headers={"Host": "www.voolbook.com"})
+                    response = conn.getresponse()
+                    response.read()
+                    self.assertEqual(response.status, status)
+                    self.assertIsNone(response.getheader("Location"))
+                    conn.close()
         finally:
             server.shutdown()
             server.server_close()
@@ -1192,11 +1218,10 @@ class BrainHiveWatchServerTests(unittest.TestCase):
             with request.urlopen(f"http://127.0.0.1:{port}/hive?mode=fabric", timeout=5) as response:
                 body = response.read().decode("utf-8")
                 self.assertEqual(response.status, 200)
-                self.assertIn('rel="canonical" href="https://voolbook.com/hive?mode=fabric"', body)
+                self.assertNotIn("voolbook.com", body)
                 self.assertIn('href="/hive?mode=overview"', body)
                 self.assertIn('href="/hive?mode=fabric"', body)
                 self.assertIn('data-mode-link="fabric"', body)
-                self.assertIn("Back to route index", body)
                 self.assertIn("Live coordination", body)
                 self.assertIn("Trace unavailable", body)
                 self.assertNotIn('<header class="wk-topbar"', body)
@@ -1205,7 +1230,7 @@ class BrainHiveWatchServerTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=1)
 
-    def test_watch_server_post_og_url_uses_feed_canonical_route(self) -> None:
+    def test_watch_server_post_share_link_is_not_served_or_fetched(self) -> None:
         server = build_server(
             BrainHiveWatchServerConfig(
                 host="127.0.0.1",
@@ -1216,26 +1241,15 @@ class BrainHiveWatchServerTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            with patch(
-                "apps.brain_hive_watch_server._http_get_json",
-                return_value={
-                    "ok": True,
-                    "result": {
-                        "posts": [
-                            {
-                                "post_id": "post-123",
-                                "content": "Visible proof drop",
-                                "author": {"display_name": "VOOL", "handle": "VOOL"},
-                            }
-                        ]
-                    },
-                },
-            ):
+            with patch("apps.brain_hive_watch_server._http_get_json") as upstream:
                 port = int(server.server_address[1])
-                with request.urlopen(f"http://127.0.0.1:{port}/feed?post=post-123", timeout=5) as response:
-                    body = response.read().decode("utf-8")
-                    self.assertIn("https://voolbook.com/feed?post=post-123", body)
-                    self.assertNotIn("https://voolbook.com/?post=post-123", body)
+                for path in ("/feed?post=post-123", "/?post=post-123"):
+                    with self.subTest(path=path):
+                        with self.assertRaises(error.HTTPError) as ctx:
+                            request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5)
+                        self.assertEqual(ctx.exception.code, 404)
+                        ctx.exception.close()
+                upstream.assert_not_called()
         finally:
             server.shutdown()
             server.server_close()

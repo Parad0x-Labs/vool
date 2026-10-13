@@ -2441,6 +2441,19 @@ class VoolAgent(
             # question: the model answers the question and never sees the key).
             raw_turn_text = secret_intake.remainder
             effective_input = secret_intake.remainder
+            # Every downstream demand reader must see the intake's safe text.
+            # Rebuild all interpretation fields without writing a second turn;
+            # rebinding only effective_input leaves raw/user_demand text unsafe.
+            try:
+                interpreted = adapt_user_input(
+                    secret_intake.remainder,
+                    session_id=session_id,
+                    persist=False,
+                    turn_id=turn_request.turn_id,
+                    user_demand_text=secret_intake.remainder,
+                )
+            except Exception:
+                return _guard_final_result(_secret_intake_failure_result())
             try:
                 from dataclasses import replace as _dc_replace
 
@@ -5372,13 +5385,15 @@ class VoolAgent(
             from core.conductor.receipts import plan_receipt
             from core.conductor.registry import NodeContext
             from core.conductor.scheduler import DEFAULT_PLAN_DEADLINE_S
+            from core.local_compute_budget import local_compute_seconds
             from core.provider_call_deadline import bind_provider_deadline
 
             # One owner, one clock: planning and node execution are phases of the same conductor
             # turn.  The provider deadline is deliberately earlier, leaving cleanup time for the
             # adapter to raise, the router to emit model.call_failed, and the API to close the turn
-            # trace.  A manifest's generous 180s timeout may never extend this 75s turn.
-            conductor_turn_deadline = runtime_active_clock.monotonic() + DEFAULT_PLAN_DEADLINE_S
+            # trace.  A manifest's generous 180s timeout may never extend this 75s turn (scaled
+            # once on a CPU-only machine, see core.local_compute_budget).
+            conductor_turn_deadline = runtime_active_clock.monotonic() + local_compute_seconds(DEFAULT_PLAN_DEADLINE_S)
             # The dict the CALLER owns, kept before the rebinding below. `bind_provider_deadline`
             # documents itself as returning "a context copy", so from the next statement on
             # `source_context` names a copy -- and evidence written to a copy is exactly the defect
@@ -5403,7 +5418,7 @@ class VoolAgent(
 
             planner_phase_context = bind_provider_deadline(
                 source_context,
-                turn_deadline_monotonic=runtime_active_clock.monotonic() + PLANNER_PHASE_CAP_S,
+                turn_deadline_monotonic=runtime_active_clock.monotonic() + local_compute_seconds(PLANNER_PHASE_CAP_S),
                 reason="conductor planner phase cap",
             )
             # Planned against the RAW text: `core.input_normalizer` collapses newlines, and a
@@ -6121,6 +6136,7 @@ class VoolAgent(
                 )
             except Exception:
                 prior_events = []
+            from core.local_compute_budget import local_compute_seconds
             from core.provider_call_deadline import bind_provider_deadline
 
             probe_context = bind_provider_deadline(
@@ -6128,8 +6144,9 @@ class VoolAgent(
                 # Measured: the FIRST judgment call on a freshly loaded author thinks for
                 # 20-30 s; every later one answers in ~4 s. 20 s fail-opened the first
                 # Springfield probe straight into the inventing answer (served, run-a),
-                # so the budget is the measured cold ceiling plus margin.
-                turn_deadline_monotonic=runtime_active_clock.monotonic() + 35.0,
+                # so the budget is the measured cold ceiling plus margin -- on a GPU; a
+                # CPU-only machine gets it scaled (core.local_compute_budget).
+                turn_deadline_monotonic=runtime_active_clock.monotonic() + local_compute_seconds(35.0),
                 reason="ambiguity probe deadline",
             )
             from core.agent_runtime.turn_planner_hook import (
