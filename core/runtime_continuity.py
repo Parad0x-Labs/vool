@@ -1571,6 +1571,13 @@ def create_runtime_attempt(
             "utf-8", errors="ignore"
         )
     request_hash = _request_hash(redacted)
+    # Private chat (core.private_chat): the attempt row keeps its identity and lifecycle, never the
+    # request's words -- a later "retry that" or "why did that fail" finds nothing to quote.
+    from core.private_chat import turn_is_private
+
+    if turn_is_private(None, clean_session_id):
+        snapshot, raw_bytes, truncated = "", 0, False
+        request_hash = _request_hash("")
     clean_parent_id = str(parent_attempt_id or "").strip()
     # Validate against the RAW input, before any fallback blending: `resolved_trigger_turn` below
     # falls back to `origin_user_turn_id` when `trigger_user_turn_id` is empty -- correct for a
@@ -3072,10 +3079,26 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dic
         try:
             now = _utcnow()
             conn.execute("UPDATE message_queue SET status = ?, updated_at = ?, completed_at = ? WHERE queue_item_id = ?", (valid, now, now, clean))
+            _blank_private_queue_text(conn, clean)
             conn.commit()
         finally:
             conn.close()
     return get_queue_item(clean)
+
+
+def _blank_private_queue_text(conn: Any, queue_item_id: str) -> None:
+    """Private chat (core.private_chat): a queued message is held only until it has run or was
+    cancelled; then its words are dropped. Fail closed: an unreadable switch blanks it too."""
+    row = conn.execute("SELECT session_id FROM message_queue WHERE queue_item_id = ?", (queue_item_id,)).fetchone()
+    if row is None:
+        return
+    from core.private_chat import is_private
+
+    if is_private(str(row["session_id"] or "")):
+        conn.execute(
+            "UPDATE message_queue SET payload_json = ? WHERE queue_item_id = ? AND status != 'pending' AND status != 'in_flight'",
+            ("{}", queue_item_id),
+        )
 
 
 def cancel_queue_item(queue_item_id: str, *, session_id: str = "") -> bool:
@@ -3096,6 +3119,8 @@ def cancel_queue_item(queue_item_id: str, *, session_id: str = "") -> bool:
                     "UPDATE message_queue SET status = 'cancelled', updated_at = ?, completed_at = ? WHERE queue_item_id = ? AND status = 'pending'",
                     (now, now, clean),
                 )
+            if int(cur.rowcount or 0) == 1:
+                _blank_private_queue_text(conn, clean)
             conn.commit()
             return int(cur.rowcount or 0) == 1
         finally:

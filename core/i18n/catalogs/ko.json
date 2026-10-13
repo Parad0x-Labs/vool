@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "스킬 코덱스 탐색",
     "addons.registry_network": "이 버튼은 공개 레지스트리를 요청합니다. 계정, 채팅, 로컬 파일이나 공급자 키는 전송하지 않습니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
-    "addons.registry_inspect": "확인용으로 다운로드"
+    "addons.registry_inspect": "확인용으로 다운로드",
+    "private.banner": "비공개 채팅: 아무것도 저장되지 않습니다",
+    "private.end": "기록 다시 켜기",
+    "private.end_title": "다음 메시지부터 이 채팅을 다시 저장합니다",
+    "private.msg_title": "비공개: 이 메시지는 저장되지 않았습니다",
+    "private.wait": "현재 답변이 끝날 때까지 기다린 후 다시 시도하세요."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Fertigkeiten-Codex durchsuchen",
     "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
-    "addons.registry_inspect": "Zur Prüfung herunterladen"
+    "addons.registry_inspect": "Zur Prüfung herunterladen",
+    "private.banner": "Privater Chat: nichts wird gespeichert",
+    "private.end": "Aufzeichnung wieder einschalten",
+    "private.end_title": "Diesen Chat ab der nächsten Nachricht wieder speichern",
+    "private.msg_title": "Privat: Diese Nachricht wurde nicht gespeichert",
+    "private.wait": "Warte, bis die aktuelle Antwort fertig ist, und versuche es dann erneut."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Przeglądaj kodeks umiejętności",
     "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
-    "addons.registry_inspect": "Pobierz do sprawdzenia"
+    "addons.registry_inspect": "Pobierz do sprawdzenia",
+    "private.banner": "Prywatny czat: nic nie jest zapisywane",
+    "private.end": "Włącz ponownie zapisywanie",
+    "private.end_title": "Zapisuj ten czat ponownie od następnej wiadomości",
+    "private.msg_title": "Prywatne: ta wiadomość nie została zapisana",
+    "private.wait": "Poczekaj, aż bieżąca odpowiedź się zakończy, i spróbuj ponownie."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

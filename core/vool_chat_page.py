@@ -410,6 +410,20 @@ header a:hover { text-decoration:underline; }
 /* Always visible (not hover-gated like .msg-actions) but visually secondary: small, muted, no
    seconds. A user bubble gets it at send time; an assistant bubble gets it once the turn truly
    ends (finishRun -> setMsgTime), never while still streaming. */
+/* Private chat (core.private_chat): a small, quiet ghost on every message that was not saved. */
+.msg.is-private { border-style:dashed; }
+.msg-ghost { position:absolute; top:-8px; left:-8px; width:20px; height:20px; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--muted); pointer-events:auto; }
+.msg-ghost svg { display:block; }
+.msg.is-private .msg-pin, .msg.is-private .msg-report, .msg.is-private .msg-thumbs-down,
+.msg.is-private .msg-export-pdf, .msg.is-private .msg-export-status, .msg.is-private .proof-chip { display:none; }
+.private-banner { display:inline-flex; flex:0 1 auto; min-width:24px; align-items:center; gap:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.private-banner[hidden] { display:none; }
+.private-banner .pb-ghost { display:inline-flex; }
+.private-banner .pb-text { overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+.private-banner button { flex:0 0 auto; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0 8px; font-size:11px; cursor:pointer; }
+.private-banner button:hover { color:var(--ink); border-color:var(--accent); }
+@container composer (max-width:470px) { .private-banner .pb-text { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
@@ -1176,6 +1190,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
+    <div id="privateBanner" class="private-banner" role="status" hidden><span class="pb-ghost" id="privateBannerGhost" aria-hidden="true"></span><span class="pb-text" data-i18n="private.banner">Private chat: nothing is saved</span><button type="button" id="privateEnd" title="Save this chat again from the next message" data-i18n="private.end" data-i18n-title="private.end_title">Turn recording back on</button></div>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
@@ -2479,12 +2494,58 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   actions.appendChild(pin);
   el.appendChild(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
+  if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
   logEl.scrollTop = logEl.scrollHeight;
   return el;
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// ---- Private chat (core.private_chat) ----
+// "private chat" / "don't record this" turns it on; "turn recording back on" ends it. The server owns
+// the switch: the page learns it from the turn's commit (display_metadata.private_chat and
+// private_chat_on) and from the transcript read (private_chat). Every message of a private turn --
+// the user's and VOOL's -- wears the ghost, and loses the actions that would save a copy (pin,
+// report, export). Nothing from those turns is in the server's transcript, so a reload shows the
+// chat without them: that is the record being what the ghost said it would be.
+const GHOST_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">'
+  + '<path fill="currentColor" fill-rule="evenodd" d="M8 1.5C5.2 1.5 3 3.7 3 6.5V14l1.7-1.2L6.3 14 8 12.8 9.7 14l1.6-1.2L13 14V6.5c0-2.8-2.2-5-5-5zM5.6 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0zM8.5 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0z"/></svg>';
+function markPrivateMsg(el) {
+  if (!el || el.classList.contains('is-private')) return;
+  el.classList.add('is-private');
+  const g = document.createElement('span');
+  g.className = 'msg-ghost';
+  g.innerHTML = GHOST_SVG;
+  const label = pageT('private.msg_title', 'Private: this message was not saved');
+  g.title = label; g.setAttribute('role', 'img'); g.setAttribute('aria-label', label);
+  el.insertBefore(g, el.firstChild);
+}
+// Applies one committed private turn to its chat: both bubbles and both transcript entries get the
+// mark, and the chat's switch follows what the server says it is now.
+function applyPrivateCommit(run, meta) {
+  if (!run || !meta || !meta.private_chat) return;
+  const owner = ownerOf(run);
+  run.private = true;
+  if (run.userHistoryIndex >= 0 && owner.history[run.userHistoryIndex]) owner.history[run.userHistoryIndex].private = true;
+  withRunDom(run, () => { markPrivateMsg(run.userMsgEl); markPrivateMsg(run.assistantMsgEl); });
+  owner.privateChat = !!meta.private_chat_on;
+  if (isDisplayed(run.chatId)) reflectPrivate();
+}
+function reflectPrivate() {
+  const banner = document.getElementById('privateBanner');
+  if (!banner) return;
+  const ghost = document.getElementById('privateBannerGhost');
+  if (ghost && !ghost.innerHTML) ghost.innerHTML = GHOST_SVG;
+  banner.hidden = !view.privateChat;
+}
+function endPrivateChat() {
+  const chatId = displayedChat;
+  if (!chatState(chatId).privateChat) return;
+  if (isChatBusy(chatId) || councilOwnsComposer()) { toast(pageT('private.wait', 'Wait for the current answer to finish, then try again.')); return; }
+  // The command stays in English on purpose: it is the words the server's switch reads.
+  runTurn('turn recording back on', null, { chatId: chatId });
+}
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
@@ -3396,6 +3457,7 @@ function renderChat(chatId) {
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
+    if (m.private) markPrivateMsg(el);
     if (m.role === 'assistant') councilRows.push({ el: el, textEl: msgTextEl(el), text: m.content });
     // Re-hang a finished run's card on the exact bubble it produced, matched by the index recorded
     // when its answer was appended -- never by comparing text, so two identical answers in one chat
@@ -3457,6 +3519,7 @@ async function openSession(id) {
     try {
       const r = await fetch('/api/chat/history?session=' + encodeURIComponent(id));
       const data = await r.json();
+      chatState(id).privateChat = !!(data && data.private_chat);
       if (isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
         if (m.role === 'assistant') {
           const normalized = splitAssistantDisplayContent(m.content, m.display_metadata);
@@ -3594,6 +3657,8 @@ async function restoreCurrent() {
   try {
     const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
     const data = await r.json();
+    target.privateChat = !!(data && data.private_chat);
+    if (isDisplayed(chatId)) reflectPrivate();
     // The operator may have sent a turn while this snapshot was in flight.
     // Appending OLD user messages after it changes the model's last question.
     // The live bucket wins; persisted history remains intact on the server.
@@ -4408,6 +4473,8 @@ function reflectComposer() {
   // The attachment strip belongs to the chat on screen exactly like the Send button does. The
   // typeof guard keeps function-slicing harnesses (which lift this function alone) running.
   if (typeof renderAttachStrip === 'function') renderAttachStrip();
+  // The private-chat banner belongs to the chat on screen too (core.private_chat).
+  if (typeof reflectPrivate === 'function') reflectPrivate();
   // "Queue" is wider than "Send", so the reserve is re-read whenever the label changes.
   syncComposerTail();
 }
@@ -7186,16 +7253,22 @@ async function runTurn(text, queueItemId, opts) {
   // spent the draft, the queue item that owned them, or the resend of a failed turn -- and then
   // ride the run. Nothing after this line re-reads the composer's strip.
   const turnAttachments = Array.isArray(opts.attachments) ? opts.attachments.map((a) => Object.assign({}, a)) : [];
+  let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
-    if (isDisplayed(chatId)) addMsg('user', text, sentAt, null, turnAttachments);
+    userMsgEl = isDisplayed(chatId) ? addMsg('user', text, sentAt, null, turnAttachments) : null;
     recordUserMessage(chatId, text, sentAt, turnAttachments);
+    userHistoryIndex = owner.history.length - 1;
+    // A chat already private marks the message as it leaves; a message that turns private on is
+    // marked when the server's commit says so.
+    if (owner.privateChat) { owner.history[userHistoryIndex].private = true; markPrivateMsg(userMsgEl); }
     ensureSessionInSidebar(chatId, text);
     // The draft is spent: its chips now live on the bubble, and the strip is clear for the next
     // message of THIS chat.
     if (turnAttachments.length) { owner.attachments = []; if (isDisplayed(chatId)) renderAttachStrip(); }
   }
   const run = adoptRun(chatId, newRun(chatId));
+  run.userMsgEl = userMsgEl; run.userHistoryIndex = userHistoryIndex;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -7335,6 +7408,7 @@ async function runTurn(text, queueItemId, opts) {
           continue;
         }
         if (obj && obj.vool_response_commit && applyResponseCommit(run, obj.vool_response_commit)) {
+          applyPrivateCommit(run, run.displayMetadata);
           // Deltas are intentionally speculative. The terminal server commit is the only content
           // allowed into the transcript, persistence-parity view, and next-turn model history.
           hasResponseCommit = true;
@@ -8703,6 +8777,7 @@ function initComposerControls() {
   if (bypassClose) bypassClose.addEventListener('click', closeBypassModal); if (bypassCancel) bypassCancel.addEventListener('click', closeBypassModal);
   const bypassLink = document.getElementById('bypassLink'); if (bypassLink) bypassLink.addEventListener('click', linkBypassWorkspace);
   if (bypassConfirm) bypassConfirm.addEventListener('click', confirmBypass); if (bypassRevoke) bypassRevoke.addEventListener('click', revokeBypass);
+  const privateEnd = document.getElementById('privateEnd'); if (privateEnd) privateEnd.addEventListener('click', endPrivateChat);
   const bypassDurationSel = document.getElementById('bypassDuration'), bypassScopeSel = document.getElementById('bypassScope');
   if (bypassDurationSel) bypassDurationSel.addEventListener('change', () => {
     const custom = document.getElementById('bypassCustomField'); if (custom) custom.hidden = bypassDurationSel.value !== 'custom';

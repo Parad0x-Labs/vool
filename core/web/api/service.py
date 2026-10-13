@@ -1567,8 +1567,16 @@ def dispatch_get(
                             **(artifact_meta if isinstance(artifact_meta, dict) else {}),
                         }
                     messages.append(assistant_message)
+        # Private chat (core.private_chat): the page shows the ghost while the chat is private.
+        # Present only when it is, so an ordinary chat's history is byte-identical.
+        history_payload: dict[str, Any] = {"session_id": session_id, "messages": messages}
+        if session_id:
+            from core.private_chat import is_private
+
+            if is_private(session_id):
+                history_payload["private_chat"] = True
         return apply_runtime_headers(
-            json_response(200, {"session_id": session_id, "messages": messages}),
+            json_response(200, history_payload),
             runtime,
         )
 
@@ -3682,6 +3690,14 @@ def _flush_staged_transcript_rows(request_id: str) -> None:
         flush_staged_conversation_events(str(request_id or ""))
     except Exception:
         logging.getLogger(__name__).exception("staged transcript rows were not flushed at request end")
+    # Private chat (core.private_chat): at request end, drop the words the turn's working ledgers
+    # had to hold while it ran.
+    try:
+        from core.private_chat import end_private_request
+
+        end_private_request(str(request_id or ""))
+    except Exception:
+        logging.getLogger(__name__).exception("private chat request-end scrub failed")
 
 
 def _flush_staged_transcript_after(request_id: str, stream: Iterable[bytes]) -> Iterator[bytes]:
@@ -7202,6 +7218,11 @@ def _dispatch_post_inner(
             # existing desktop namespace by presenting a guessed canonical id.
             allow_canonical_resume=owner_local,
         )
+        # Private chat (core.private_chat), decided at the door before anything below can record the
+        # turn: a chat already private, or a message turning it on, makes this whole request private.
+        from core.private_chat import observe_private_door
+
+        observe_private_door(user_text, session_id=session_id, source_context=inbound_source_context)
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,

@@ -2129,9 +2129,19 @@ def release_turn(*, session_id: str, turn_id: str, outcomes: dict[str, str] | No
     """
     resolved = {str(k): str(v) for k, v in dict(outcomes or {}).items()}
     released = 0
+    # Private chat (core.private_chat): what a private turn attached leaves nothing behind -- not
+    # the bytes (a document included), not the manifest naming it.
+    from core.private_chat import is_private
+
+    private = is_private(session_id)
     with _LOCK:
         for record in _bound_records(session_id, turn_id):
             if record.get("state") != "bound":
+                continue
+            if private:
+                _forget_bytes(record["id"])
+                _unlink_no_follow(_manifest_path(record["id"]))
+                released += 1
                 continue
             # A document's bytes stay with the chat; only its state moves on.
             if _retained(record):

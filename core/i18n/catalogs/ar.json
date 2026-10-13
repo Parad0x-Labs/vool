@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "تصفّح دليل المهارات",
     "addons.registry_network": "يطلب هذا الزر السجل العام. لا تُرسل الحسابات أو المحادثات أو الملفات المحلية أو مفاتيح المزودين.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
-    "addons.registry_inspect": "تنزيل للفحص"
+    "addons.registry_inspect": "تنزيل للفحص",
+    "private.banner": "محادثة خاصة: لا يتم حفظ أي شيء",
+    "private.end": "أعد تشغيل التسجيل",
+    "private.end_title": "احفظ هذه المحادثة مجددًا بدءًا من الرسالة التالية",
+    "private.msg_title": "خاصة: لم يتم حفظ هذه الرسالة",
+    "private.wait": "انتظر حتى ينتهي الرد الحالي، ثم حاول مرة أخرى."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

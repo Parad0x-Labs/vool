@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "कौशल कोडेक्स ब्राउज़ करें",
     "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
-    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
+    "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
+    "private.banner": "निजी चैट: कुछ भी सहेजा नहीं जाता",
+    "private.end": "रिकॉर्डिंग फिर से चालू करें",
+    "private.end_title": "अगले संदेश से इस चैट को फिर से सहेजें",
+    "private.msg_title": "निजी: यह संदेश सहेजा नहीं गया",
+    "private.wait": "मौजूदा जवाब पूरा होने तक रुकें, फिर दोबारा कोशिश करें।"
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

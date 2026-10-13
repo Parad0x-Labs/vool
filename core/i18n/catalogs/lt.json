@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Naršyti įgūdžių kodeksą",
     "addons.registry_network": "Šis mygtukas užklausia viešą registrą. Paskyros, pokalbiai, vietiniai failai ir tiekėjų raktai nesiunčiami.",
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
-    "addons.registry_inspect": "Atsisiųsti peržiūrai"
+    "addons.registry_inspect": "Atsisiųsti peržiūrai",
+    "private.banner": "Privatus pokalbis: niekas neišsaugoma",
+    "private.end": "Vėl įjungti įrašymą",
+    "private.end_title": "Vėl saugoti šį pokalbį nuo kitos žinutės",
+    "private.msg_title": "Privatu: ši žinutė nebuvo išsaugota",
+    "private.wait": "Palaukite, kol baigsis dabartinis atsakymas, ir bandykite dar kartą."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

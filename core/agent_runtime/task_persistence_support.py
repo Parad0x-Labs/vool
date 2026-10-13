@@ -96,6 +96,11 @@ class TaskPersistenceSupportMixin:
         origin_task_id: str | None = None,
         origin_session_id: str | None = None,
     ) -> None:
+        # Private chat (core.private_chat): a private turn teaches nothing that is kept.
+        from core.private_chat import turn_is_private
+
+        if turn_is_private(None, origin_session_id):
+            return
         policy = session_memory_policy(origin_session_id)
         requested_share_scope = str(policy.get("share_scope") or "local_only")
         restricted_terms = list(policy.get("restricted_terms") or [])

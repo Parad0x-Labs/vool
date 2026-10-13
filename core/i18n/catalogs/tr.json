@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Beceri Kodeksine göz at",
     "addons.registry_network": "Bu düğme herkese açık kaydı sorgular. Hesaplar, sohbetler, yerel dosyalar veya sağlayıcı anahtarları gönderilmez.",
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
-    "addons.registry_inspect": "İncelemek için indir"
+    "addons.registry_inspect": "İncelemek için indir",
+    "private.banner": "Özel sohbet: hiçbir şey kaydedilmez",
+    "private.end": "Kaydı yeniden aç",
+    "private.end_title": "Bu sohbeti bir sonraki mesajdan itibaren yeniden kaydet",
+    "private.msg_title": "Özel: bu mesaj kaydedilmedi",
+    "private.wait": "Mevcut yanıtın bitmesini bekleyin, ardından yeniden deneyin."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

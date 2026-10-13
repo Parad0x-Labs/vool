@@ -113,7 +113,7 @@ _PAYLOAD_SEGMENTS_KEY = "prompt_payload_segments"
 # (VOOL 13.2% cached prompt tokens vs 74-87% for agents with a stable prefix). These segments
 # therefore travel in a second system message placed AFTER the history, and the leading system
 # message carries only text that is the same from turn to turn. (Ported from 00ba5bd.)
-_PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog"})
+_PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog", "private_chat"})
 TURN_DIRECTIVES_METADATA_KEY = "turn_directives"
 
 
@@ -787,6 +787,16 @@ def _build_conversational_request(
         _user_rules_block = rules_prompt_block(chat_id=_rules_keys["chat"], project_id=_rules_keys["project"])
     if _user_rules_block:
         system_segments.append(("user_rules", _PAYLOAD_SYSTEM_BOOTSTRAP, _user_rules_block))
+    # Private chat (core.private_chat): nothing from this chat is saved, so the model must never
+    # promise to remember. Per turn, because the switch can change between turns.
+    _private_block = ""
+    with contextlib.suppress(Exception):
+        from core.private_chat import private_prompt_block, turn_is_private
+
+        if turn_is_private(source_context):
+            _private_block = private_prompt_block()
+    if _private_block:
+        system_segments.append(("private_chat", _PAYLOAD_SYSTEM_BOOTSTRAP, _private_block))
 
     system_content = _join_system_segments(
         [segment for segment in system_segments if segment[0] not in _PER_TURN_SYSTEM_SEGMENTS]

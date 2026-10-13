@@ -742,7 +742,7 @@ def ensure_memory_files() -> None:
     _ensure_memory_files(ensure_policy_table=_ensure_session_policy_table)
 
 
-def _memory_persistence_suppressed(source_context: dict[str, Any] | None) -> bool:
+def _memory_persistence_suppressed(source_context: dict[str, Any] | None, session_id: str | None = None) -> bool:
     """True when this turn must execute but persist NOTHING to the shared memory store.
 
     Test/audit/eval drivers set source_context['memory_scope']='ephemeral' (or export
@@ -761,6 +761,12 @@ def _memory_persistence_suppressed(source_context: dict[str, Any] | None) -> boo
     if scope in {"ephemeral", "audit", "test", "probe", "none"}:
         return True
     if ctx.get("persist_memory") is False or bool(ctx.get("ephemeral_memory")):
+        return True
+    # Private chat (core.private_chat): the turn was stamped private at the front door, or its chat
+    # is private now. A chat whose switch cannot be read counts as private (fail closed).
+    from core.private_chat import turn_is_private
+
+    if turn_is_private(ctx, session_id):
         return True
     return str(os.environ.get("VOOL_EPHEMERAL_MEMORY") or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -852,7 +858,7 @@ def append_conversation_event(
     ``core.finalization.finalize_answer`` with the committed bytes -- see the staging note above.
     ``persist_now`` is the explicit opt-out for a caller that owns its own commit semantics.
     """
-    if _memory_persistence_suppressed(source_context):
+    if _memory_persistence_suppressed(source_context, session_id):
         return
     declared = bool((source_context or {}).get(TRANSCRIPT_COMMIT_BOUNDARY_KEY)) if isinstance(source_context, dict) else False
     request_id = "" if (persist_now or not declared) else _current_request_lineage()
@@ -1014,7 +1020,7 @@ def _write_conversation_event(
     # Audit/test/eval turns execute fully but must never enter the shared live memory store, or
     # cross-session/global recall will replay them into a real user's later prompt (this is how the
     # "vool_audit_probe.txt / HELLO2" audit strings leaked into a live chat turn).
-    if _memory_persistence_suppressed(source_context):
+    if _memory_persistence_suppressed(source_context, session_id):
         return
     ensure_memory_files()
     from core.reply_control_sanitizer import strip_reply_control_tokens
@@ -1816,6 +1822,13 @@ def maybe_handle_memory_command(
             return False, ""
         if _capture_object_is_another_lanes_effect(capture_match.group("verb"), text):
             return False, ""
+    if capture_match or _CORRECTION_RE.match(text):
+        # Private chat (core.private_chat): nothing from a private chat is saved, an explicit
+        # "remember" included. Said plainly instead of claiming a save that never happens.
+        from core.private_chat import REPLY_REMEMBER_REFUSED, turn_is_private
+
+        if turn_is_private(source_context, session_id):
+            return True, REPLY_REMEMBER_REFUSED
     independent_operations = []
     parsed_forget = _FORGET_RE.match(text)
     if parsed_forget:

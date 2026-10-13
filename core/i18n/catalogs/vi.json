@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Duyệt bộ sưu tập kỹ năng",
     "addons.registry_network": "Nút này yêu cầu kho công khai. Không gửi tài khoản, cuộc trò chuyện, tệp cục bộ hoặc khóa của nhà cung cấp.",
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
-    "addons.registry_inspect": "Tải xuống để kiểm tra"
+    "addons.registry_inspect": "Tải xuống để kiểm tra",
+    "private.banner": "Trò chuyện riêng tư: không có gì được lưu",
+    "private.end": "Bật lại ghi",
+    "private.end_title": "Lưu lại cuộc trò chuyện này từ tin nhắn tiếp theo",
+    "private.msg_title": "Riêng tư: tin nhắn này không được lưu",
+    "private.wait": "Hãy đợi câu trả lời hiện tại hoàn tất rồi thử lại."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

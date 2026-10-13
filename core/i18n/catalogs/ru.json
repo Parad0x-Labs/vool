@@ -1861,9 +1861,14 @@
     "addons.registry_refresh": "Открыть кодекс навыков",
     "addons.registry_network": "Эта кнопка запрашивает публичный реестр. Аккаунты, переписки, локальные файлы и ключи провайдеров не отправляются.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
-    "addons.registry_inspect": "Скачать для просмотра"
+    "addons.registry_inspect": "Скачать для просмотра",
+    "private.banner": "Приватный чат: ничего не сохраняется",
+    "private.end": "Снова включить запись",
+    "private.end_title": "Снова сохранять этот чат со следующего сообщения",
+    "private.msg_title": "Приватно: это сообщение не сохранено",
+    "private.wait": "Дождитесь окончания текущего ответа и попробуйте снова."
   },
-  "source_catalog_sha256": "96957557e54e7e84181f8c3e38ae74c22b54a4084bd6459c64ad55634b15f037",
+  "source_catalog_sha256": "52c31f219a8050f879ef69954c92df7bf3a739920011d6d51044a9839e830a16",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
