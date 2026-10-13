@@ -627,6 +627,7 @@ def _build_conversational_request(
         system_segments.extend([
             ("persona", _PAYLOAD_SYSTEM_BOOTSTRAP, f"You are {persona_name}."),
             ("plain_task_instruction", _PAYLOAD_SYSTEM_BOOTSTRAP, task_instruction),
+            ("style_guide", _PAYLOAD_SYSTEM_BOOTSTRAP, style_guide),
             (
                 "no_side_effect_claim",
                 _PAYLOAD_SYSTEM_BOOTSTRAP,

@@ -554,8 +554,9 @@ def fence_spawned_daemons_from_live_ollama():
     _local_stub_hosts = ["127.0.0.1", "localhost", "::1"]
     if sys.platform == "darwin":
         for interface in ("en0", "en1", "en2", "en3"):
+            # Unattended children intentionally omit /usr/sbin from PATH.
             probe = subprocess.run(
-                ["ipconfig", "getifaddr", interface], capture_output=True, text=True, timeout=5
+                ["/usr/sbin/ipconfig", "getifaddr", interface], capture_output=True, text=True, timeout=5
             )
             address = probe.stdout.strip()
             if probe.returncode == 0 and address:

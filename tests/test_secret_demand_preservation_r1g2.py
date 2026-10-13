@@ -351,6 +351,33 @@ def _dialogue_text(session_id: str) -> str:
     return " ".join(str(row.get("content") or "") for row in rows)
 
 
+def test_unprovable_sanitized_interpretation_reaches_no_child_or_model(harness):
+    from core.agent_runtime import agent as agent_module
+
+    real_adapt = agent_module.adapt_user_input
+    captured = _capture_surfaces(harness)
+
+    def _unavailable_safe_interpretation(text, **kwargs):
+        if "please explain what a jwt is" in text and CLOUD_KEY not in text:
+            raise RuntimeError("safe interpretation unavailable")
+        return real_adapt(text, **kwargs)
+
+    with _incident_mocks(), contextlib.ExitStack() as stack:
+        for patch in captured.pop("_patches"):
+            stack.enter_context(patch)
+        stack.enter_context(mock.patch.object(
+            agent_module, "adapt_user_input", side_effect=_unavailable_safe_interpretation
+        ))
+        result = harness.agent.run_once(
+            _CONFIG_PASTE, source_context=dict(_REMOTE_CONTEXT),
+            session_id_override=harness.session_id,
+        )
+    assert result.get("reason") == "secret_intake_failed", result
+    assert captured["child_inputs"] == [] and captured["model_inputs"] == []
+    assert CLOUD_KEY not in str(result) and CLOUD_KEY not in _dialogue_text(harness.session_id)
+    assert all(CLOUD_KEY not in sample for samples in captured.values() for sample in samples)
+
+
 @pytest.mark.parametrize("text,secret", [
     (_CLOUD_MIXED, CLOUD_KEY),
     (_IMAGE_MIXED, IMAGE_KEY),
