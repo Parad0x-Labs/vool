@@ -179,6 +179,13 @@ _LIST_PINNED_RE = re.compile(
 )
 
 _S_LOC = re.compile(rf"\b(?:where|which|wich|whcih|whihc|what|in\s+which|in\s+what)\s+(?:{_CHAT_N}|project)s?\b")
+#: "which project am I working in", "what project is this?": where the operator IS now, which the
+#: workspace identity answer owns. A location ask is a search only about what was said or done.
+_S_HERE_NOW = re.compile(
+    r"\b(?:am\s+i|are\s+(?:we|you|u))\s+(?:currently\s+|now\s+|still\s+)?"
+    r"(?:in|on|at|inside|working|using|bound|scoped|set)\b"
+    r"|\bis\s+(?:this|that)\s*[?.!]*$"
+)
 _S_WHERE = re.compile(
     r"\bwhere\s+(?:did\s+|do\s+|have\s+|had\s+)?(?:we|i|you|u)\s+(?:were\s+|was\s+|have\s+|had\s+)?"
     r"(?:talk|talked|talking|discuss|discussed|discussing|mention|mentioned|mentioning|chat|chatted|"
@@ -367,6 +374,8 @@ def _fold_simple(text: str) -> str:
 def looks_like_search(clause: str) -> bool:
     """Whether a clause asks WHERE something was said or done across the operator's chats."""
     f = _fold_simple(clause)
+    if _S_LOC.search(f) and _S_HERE_NOW.search(f) and not _S_PAST.search(f):
+        return False
     if _S_LOC.search(f) or _S_WHERE.search(f) or _S_FORGOT.search(f) or _S_ALL.search(f):
         return True
     if _S_FIND.search(f) and _S_PAST.search(f):
