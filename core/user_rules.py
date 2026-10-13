@@ -68,9 +68,11 @@ __all__ = [
     "remove_rules",
     "resolve_rules",
     "review_reply",
+    "rules_command_owns_forget",
     "rules_prompt_block",
     "sandbox_git_refusal",
     "scope_keys_for",
+    "turn_answered_rules_command",
 ]
 
 SCOPES = ("global", "project", "chat")
@@ -1676,6 +1678,55 @@ def _is_inside_repo(path: Path) -> bool:
 #: Set on a turn's source_context when this lane answered it; the reply guard leaves that reply
 #: alone (it quotes the user's own rules back to them).
 RULES_TURN_MARKER = "_user_rules_command"
+#: The turn facts the rules lane files: a write ("rules.add" / "rules.remove") or any other answer it gave.
+RULES_TURN_TOOLS = frozenset({"rules.add", "rules.remove", "rules.answer"})
+
+
+def _record_turn_fact(tool: str, *, session_id: str, source_context: Mapping[str, Any] | None,
+                      detail: dict[str, Any]) -> None:
+    """File the rules command as a turn-scoped execution fact (core.execution_truth).
+
+    The agent answers on a copy of the turn context, so the receipt and the marker it writes there
+    never reach the served boundary that re-checks the sealed reply (K-08). The execution ledger is
+    keyed by the turn itself and is what that re-check reads, so "Saved rule N" stays backed and the
+    rules answer stays exempt from word masking on both passes.
+    """
+    try:
+        from core.execution_truth import KIND_TOOL, record_execution, resolve_turn_key
+
+        context = dict(source_context or {})
+        # The agent's copy carries its own turn id; the served boundary resolves the same turn by its
+        # request id. File the fact under both so either side finds it.
+        keys = {resolve_turn_key(context, None), str(context.get("request_id") or "").strip()} - {""}
+        for turn_key in sorted(keys):
+            record_execution(session_id=str(session_id or ""), turn_key=turn_key, kind=KIND_TOOL, name=tool,
+                             ok=True, status="executed", detail=detail,
+                             dedupe=f"{tool}:{json.dumps(detail, sort_keys=True, default=str)}")
+    except Exception:
+        pass
+
+
+def rules_command_owns_forget(text: str) -> bool:
+    """Whether a "forget/remove the rule ..." turn is wholly a rules removal (no second forget in it)."""
+    command = parse_rule_command(text)
+    return (command is not None and command.action in {"remove_about", "remove_numbers", "remove_all"}
+            and not re.search(r"\b(?:forget|erase)\b", command.needle or "", re.IGNORECASE))
+
+
+def turn_answered_rules_command(session_id: str | None, source_context: Mapping[str, Any] | None) -> bool:
+    """Whether the rules lane itself answered this turn (marker on this context, or its turn fact)."""
+    if isinstance(source_context, Mapping) and source_context.get(RULES_TURN_MARKER):
+        return True
+    try:
+        from core.execution_truth import facts_for_turn, resolve_turn_key
+
+        turn_key = resolve_turn_key(dict(source_context or {}), None)
+        if not turn_key:
+            return False
+        return any(fact.name in RULES_TURN_TOOLS and fact.ok
+                   for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()))
+    except Exception:
+        return False
 
 
 def _record_receipt(kind: str, rules: list[UserRule], *, session_id: str, source_context: dict[str, Any] | None) -> None:
@@ -1698,6 +1749,8 @@ def _record_receipt(kind: str, rules: list[UserRule], *, session_id: str, source
             receipts = []
             source_context["tool_receipts"] = receipts
         receipts.append(receipt)
+    _record_turn_fact(tool, session_id=session_id, source_context=source_context,
+                      detail={"rule_ids": execution["rule_ids"], "kind": kind})
     try:
         from core.runtime_continuity import build_tool_receipt_key, store_tool_receipt
 
@@ -1719,6 +1772,45 @@ def _record_receipt(kind: str, rules: list[UserRule], *, session_id: str, source
         )
     except Exception:
         pass
+
+
+def _take_back_standing(text: str, *, session_id: str, source_context: Mapping[str, Any] | None,
+                        project_id: str) -> list[str]:
+    """"Forget the rule about X" with no rule here about X: take back the owner's standing instructions
+    about X (core.standing_instructions), the rules the owner gave in plain words ("from now on ...").
+
+    Same guards as that store's own take-back: the owner's own words only, in the turn's workspace.
+    """
+    command = parse_rule_command(text)
+    if command is None or command.action != "remove_about":
+        return []
+    try:
+        from core import operator_profile
+        from core import standing_instructions as standing
+        from core.request_trust import request_is_owner_local, turn_is_owner_authored
+
+        context = dict(source_context or {})
+        if not (request_is_owner_local(context) and turn_is_owner_authored(context)):
+            return []
+        principal = operator_profile.principal_for_request(context)
+        if not principal:
+            return []
+        project = str(project_id or context.get("_trusted_project_id") or "")
+        workspace = standing.workspace_key(context, project)
+        words = standing._topic(command.needle)
+        removed = standing._remove_matching(principal, workspace, words)
+    except Exception:
+        return []
+    if removed:
+        _record_turn_fact("rules.remove", session_id=session_id, source_context=source_context,
+                          detail={"standing_instructions": removed, "kind": "taken_back"})
+    return removed
+
+
+def _taken_back_report(removed: list[str]) -> str:
+    quoted = "; ".join(f"\"{text}\"" for text in removed)
+    noun = "instruction" if len(removed) == 1 else "instructions"
+    return f"Took back your standing {noun}: {quoted}. {'It no longer applies' if len(removed) == 1 else 'They no longer apply'}."
 
 
 def observe_rules_turn(
@@ -1758,10 +1850,21 @@ def observe_rules_turn(
     if handled is None:
         return None
     reply, changed, kind = handled
+    if kind == "none":
+        taken_back = _take_back_standing(raw_user_input, session_id=session_id, source_context=source_context,
+                                         project_id=str(getattr(access_policy, "project_id", "") or ""))
+        if taken_back:
+            reply = _taken_back_report(taken_back)
+            kind = "taken_back"
     if isinstance(source_context, dict):
         source_context[RULES_TURN_MARKER] = kind
     if kind in {"saved", "removed"} and changed:
         _record_receipt(kind, changed, session_id=session_id, source_context=source_context)
+    else:
+        # A listing or a refusal quotes the user's rules back; it writes nothing, but the served
+        # re-check must still know this answer came from the rules lane.
+        _record_turn_fact("rules.answer", session_id=session_id, source_context=source_context,
+                          detail={"kind": kind})
     return {
         "result": agent._fast_path_result(
             session_id=session_id,

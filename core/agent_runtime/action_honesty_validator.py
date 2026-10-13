@@ -1503,9 +1503,15 @@ def _enforce_user_rule_words(
     if not response.strip() or not str(session_id or "").strip():
         return output
     try:
-        from core.user_rules import RULE_NOTE_RE, RULES_TURN_MARKER, override_note, review_reply, scope_keys_for
+        from core.user_rules import (
+            RULE_NOTE_RE,
+            override_note,
+            review_reply,
+            scope_keys_for,
+            turn_answered_rules_command,
+        )
 
-        if isinstance(source_context, dict) and source_context.get(RULES_TURN_MARKER):
+        if turn_answered_rules_command(session_id, source_context):
             return output
         keys = scope_keys_for(source_context) if isinstance(source_context, dict) and (
             source_context.get("chat_id") or source_context.get("session_id")
@@ -1782,6 +1788,20 @@ def _verify_audit_claims_against_evidence(
             )
     return output
 
+def _rules_lane_owns_forget(
+    user_input: str, *, session_id: str | None, source_context: dict[str, object] | None
+) -> bool:
+    """"Forget the rule about X" is a rules command, not a memory forget: the rules lane answered it from
+    the rules store and filed its own turn fact. Only a whole-turn rules removal that names no second
+    forget qualifies; anything else still needs a verified memory forget outcome."""
+    try:
+        from core.user_rules import rules_command_owns_forget, turn_answered_rules_command
+
+        return rules_command_owns_forget(user_input) and turn_answered_rules_command(session_id, source_context)
+    except Exception:
+        return False
+
+
 def enforce_final_action_honesty(
     result: dict[str, Any],
     *,
@@ -1812,7 +1832,7 @@ def enforce_final_action_honesty(
     if requires_forget_outcome(
         output, user_input=user_input, effective_input=effective_input,
         source_context=source_context,
-    ):
+    ) and not _rules_lane_owns_forget(user_input, session_id=session_id, source_context=source_context):
         output["response"] = (
             "Forget could not be verified on this turn. Please retry the forget."
         )
@@ -1937,7 +1957,7 @@ def _final_claim_kind(
     if requires_forget_outcome(
         result, user_input=user_input, effective_input=effective_input,
         source_context=source_context,
-    ):
+    ) and not _rules_lane_owns_forget(user_input, session_id=session_id, source_context=source_context):
         return "forget"
     response = str(result.get("response") or "").strip()
     if response and len(response) < 220 and _FALSE_PROGRESS_CLAIM_RE.search(response):
