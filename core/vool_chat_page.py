@@ -2130,7 +2130,7 @@ function ensureSessionInSidebar(chatId, firstMessage) {
   const title = String(firstMessage || '').split('\n')[0].trim().slice(0, 60);
   _pendingSessions.set(chatId, {
     session_id: chatId,
-    title: title || '(new chat)',
+    title: title || pageT('session.new_chat', '(new chat)'),
     project_id: view.projectId || '',
     archived: false,
     pending: true,
@@ -4069,7 +4069,7 @@ function mountAnswerExport(host, chatId, requestId) {
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || 'PDF export failed');
+          throw new Error(refusal.message || refusal.error || pageT('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
@@ -4420,7 +4420,7 @@ function startRunTimers(run) {
   run.timer = setInterval(() => {
     if (run.ended) return;
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
-    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
   // Poll the runtime ledger so the Activity panel shows the real timeline (scope, classify, model,
   // tools, timeouts, terminal), scoped to this turn. Only while the panel is open AND this run's
