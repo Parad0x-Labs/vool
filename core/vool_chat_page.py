@@ -3904,6 +3904,18 @@ function agentEvidenceText(rows, nowMs) {
   return out.join('\n').trim();
 }
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
+// A chat file download link, or null: same origin, path exactly /api/chat/deliverable, an id of
+// the server's own shape and a chat named. Never widens to other relative or javascript: links.
+function deliverableLink(target) {
+  try {
+    const url = new URL(String(target), location.origin);
+    if (url.origin !== location.origin || url.pathname !== '/api/chat/deliverable') return null;
+    const id = url.searchParams.get('id') || '', session = url.searchParams.get('session') || '';
+    // Both values land in attributes: only the shapes the server mints, never a quote or a bracket.
+    if (!/^dlv_[0-9a-f]{32}$/.test(id) || !/^openclaw:[0-9a-f]{20}$/.test(session)) return null;
+    return { href: url.href, id: id, session: session };
+  } catch (e) { return null; }
+}
 function safeUrl(u) {
   try { const url = new URL(String(u), location.origin); return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : ''; }
   catch (e) { return ''; }
@@ -3927,6 +3939,15 @@ function renderInline(html) {
     else if (t.charAt(0) === '/') { local = t; src = '/api/files/raw?path=' + encodeURIComponent(local); }
     if (!src) return m;
     return '<img class="chat-img" src="' + esc(src) + '" alt="' + esc(alt || 'image') + '" loading="lazy" data-local="' + esc(local) + '" title="Click to open in Preview - right-click for more">';
+  });
+  // A file the assistant built in this chat: [label](/api/chat/deliverable?id=dlv_...&session=...).
+  // The ONLY relative link that ever becomes an anchor: same origin, that exact path, a well-formed
+  // file id and a chat. Anything else stays plain text. A click saves it (see the log's click handler).
+  html = html.replace(/\[([^\]\n]+)\]\((\/api\/chat\/deliverable\?[^\s)]+)\)/g, (m, label, target) => {
+    const file = deliverableLink(target.replace(/&amp;/g, '&'));
+    if (!file) return m;
+    return '<a class="chat-deliverable" href="' + esc(file.href) + '" data-deliverable-id="' + esc(file.id)
+      + '" data-deliverable-session="' + esc(file.session) + '">' + label + '</a>';
   });
   html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, label, url) => {
     const safe = safeUrl(url.replace(/&amp;/g, '&'));
@@ -4450,6 +4471,20 @@ if (logEl) {
   logEl.addEventListener('click', (e) => {
     const img = e.target.closest && e.target.closest('img.chat-img');
     if (img && img.dataset.local) { e.preventDefault(); openImageNative(img.dataset.local); }
+    // A built file: the desktop app saves it through its native save sheet (its web view does not
+    // download); a browser follows the same-origin link and downloads it.
+    const fileLink = e.target.closest && e.target.closest('a.chat-deliverable');
+    if (fileLink) {
+      const nativeApi = window.pywebview && window.pywebview.api;
+      if (nativeApi && typeof nativeApi.save_deliverable === 'function') {
+        e.preventDefault();
+        Promise.resolve(nativeApi.save_deliverable(fileLink.dataset.deliverableSession, fileLink.dataset.deliverableId))
+          .then((result) => {
+            if (result && !result.ok && !result.cancelled) fileLink.title = result.message || 'The file could not be saved.';
+          })
+          .catch(() => { fileLink.title = 'The file could not be saved.'; });
+      }
+    }
     // Code-block Copy is delegated here once, so message re-renders can never drop it. The
     // clipboard payload is the ORIGINAL source span the renderer carried on the wrapper —
     // never the DOM's textContent, which innerHTML parsing normalizes (CRLF becomes LF).
