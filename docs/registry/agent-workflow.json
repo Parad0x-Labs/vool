@@ -3,6 +3,7 @@
   "purpose": "Descriptive author/assistant workflow; grants no authority or admission",
   "source_contract": {
     "metadata_fields": ["id", "kind", "version", "summary", "category", "subcategory", "license", "source"],
+    "optional_metadata_fields": ["title"],
     "private_draft_omits": ["source"],
     "github_source_fields": ["repository", "commit", "path"],
     "source_commit": "Actual full 40-hex upstream authored-content commit",

@@ -78,7 +78,7 @@ function nav(){
  let n=document.getElementById('addonNav');if(!n){n=node('nav',undefined,'addon-nav');n.id='addonNav';n.setAttribute('aria-label',tr('navigation','Add-on navigation'));search.before(n);}
  let bar=document.getElementById('addonSearchBar');if(!bar){bar=node('div');bar.id='addonSearchBar';search.before(bar);bar.append(search);search.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&tab==='discover'){ev.preventDefault();ev.stopPropagation();remoteFind();}});}
  let remoteButton=document.getElementById('addonGitHubSearch');if(!remoteButton){remoteButton=button(tr('github_search','Search GitHub'),remoteFind);remoteButton.id='addonGitHubSearch';bar.append(remoteButton);}remoteButton.disabled=busy;remoteButton.hidden=tab!=='discover';
- n.replaceChildren();[['discover',tr('browse','Browse')],['registry',tr('registry_tab','Reviewed registry')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;registryReview=null;remote=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
+ n.replaceChildren();[['discover',tr('browse','Browse')],['registry',tr('registry_tab','Skill Codex')],['installed',tr('my_addons','My add-ons')],['security',tr('security_tab','Security')]].forEach(([id,label])=>{const b=button(label,()=>{if(busy)return;tab=id;selected=null;review=null;registryReview=null;remote=null;error='';refresh();});b.setAttribute('aria-pressed',String(tab===id));n.append(b);});
  n.append(node('p',tr('nav_note','Skills teach VOOL new approaches. Plugins add tools and connections.'),'addon-nav-note'));
  bar.hidden=tab==='security'||!!selected||!!review||!!registryReview;search.hidden=false;search.placeholder=tr('search_store','Search skills, plugins or paste a GitHub repository…');
  const title=document.getElementById('pluginsTitle');if(title){
@@ -138,7 +138,7 @@ function nativeControlNotice(host,value){
  (value.native_control_overlaps||[]).forEach(item=>host.append(node('p',item.message,'addon-meta')));
 }
 function renderRegistry(host,query){
- hero(host,tr('registry_title','Reviewed skills and plugins'),tr('registry_intro','Public reviews apply to an exact version and VOOL build. Download for inspection, then choose whether to install and enable it.'));
+ hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.'));
  if(registryReview){
   const r=registryReview,info=r.metadata;
   host.append(node('h3',info.id+' · '+info.version),node('p',info.summary));nativeControlNotice(host,r);
@@ -149,13 +149,13 @@ function renderRegistry(host,query){
   const accept=enabled=>action(async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:enabled});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();});
   acts.append(button(tr('registry_install_only','Install without enabling'),()=>accept(false)),button(tr('registry_enable','Install and enable'),()=>accept(true),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));return;
  }
- host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse reviewed registry'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
+ host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
  host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
  if(!registryData)return;
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory].join(' ')).includes(key(query)));
- if(!rows.length)host.append(node('p',tr('registry_empty','No approved versions match this exact VOOL build and search.')));
+ if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.id),node('p',e.summary),node('small',e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
+ rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
 }
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.

@@ -104,7 +104,7 @@ Render content/handles as untrusted text and vetted HTTPS links. Display publica
 
 ## Local install handoff
 
-Provide concise instructions to open VOOL's local Add-ons page and choose Reviewed registry → Browse → Download for inspection → Install without enabling / Install and enable. No native website install bridge exists. Never POST to guessed localhost addresses, embed a fetch URL/trust root, or copy a website session into the app.
+Provide concise instructions to open VOOL's local Add-ons page and choose Skill Codex → Browse Skill Codex → Download for inspection → Install without enabling / Install and enable. No native website install bridge exists. Never POST to guessed localhost addresses, embed a fetch URL/trust root, or copy a website session into the app.
 
 The local page owns explicit network/download consent, full content/permission inspection, exact checksum review and local install/enable choice. Native rules, budgets, currency handling, settings, permissions and approvals remain authoritative. Overlap notices are informative and grant no access. An edited package must be preserved, and revocation/compatibility refusal needs an clear explanation.
 

@@ -21,7 +21,7 @@ def initialize(destination: Path, info: dict, license_bytes: bytes) -> None:
     (destination / ".codex-plugin").mkdir()
     manifest = {"name": plugin_id, "version": info["version"], "description": info["summary"],
                 "skills": "./skills/", "requires": [], "permissions": [],
-                "author": {"name": publisher}, "interface": {"displayName": name}}
+                "author": {"name": publisher}, "interface": {"displayName": info.get("title", name)}}
     (destination / ".codex-plugin" / "plugin.json").write_bytes(canonical(manifest))
     skill = destination / "skills" / name
     skill.mkdir(parents=True)

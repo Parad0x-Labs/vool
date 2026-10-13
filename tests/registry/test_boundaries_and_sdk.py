@@ -131,3 +131,27 @@ def test_off_list_category_is_refused_by_sdk_and_listed_taxonomy_is_served(tmp_p
         served = client.get(PREFIX + "/categories").json()["categories"]
     assert [row["id"] for row in served] == list(TAXONOMY)
     assert {"id": "meetings", "label": "Meetings"} in served[1]["subcategories"]
+
+
+def test_optional_title_is_kept_as_plain_display_text_and_bad_titles_are_refused(tmp_path, capsys):
+    import json
+
+    _, _, info = artifact_fixture(tmp_path)
+    licence = tmp_path / "licence.txt"
+    licence.write_text("Test fixture licence.")
+    meta = tmp_path / "titled.json"
+    meta.write_bytes(canonical({**info, "title": "Meeting Notes Helper"}))
+    source, scratch = tmp_path / "titled", tmp_path / "sdk-scratch"
+    assert main(["init", str(source), "--metadata", str(meta), "--license-file", str(licence)]) == 0
+    manifest = json.loads((source / ".codex-plugin" / "plugin.json").read_text())
+    assert manifest["interface"]["displayName"] == "Meeting Notes Helper"
+    output = tmp_path / "titled.vool.json"
+    assert main(["pack", str(source), "--scratch", str(scratch), "--output", str(output)]) == 0
+    assert inspect(output.read_bytes())["metadata"]["title"] == "Meeting Notes Helper"
+    capsys.readouterr()
+    for bad in ("", " Padded", "x" * 61, "<b>Bold</b>", "Tab\there", 7):
+        meta.write_bytes(canonical({**info, "title": bad}))
+        target = tmp_path / ("bad-" + str(abs(hash(str(bad)))))
+        assert main(["init", str(target), "--metadata", str(meta), "--license-file", str(licence)]) == 1
+        assert "invalid title" in capsys.readouterr().out
+        assert not target.exists()

@@ -50,9 +50,14 @@ def path_name(value: str) -> str:
 
 
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) == {
+    require(isinstance(value, dict) and set(value) - {"title"} == {
         "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
         "invalid package metadata fields")
+    if "title" in value:
+        # Optional display name; plain text only.
+        title = value["title"]
+        require(isinstance(title, str) and title == title.strip() and 0 < len(title) <= 60 and
+                all(ord(char) >= 32 and char not in "<>" for char in title), "invalid title")
     parts = str(value["id"]).split("/")
     require(len(parts) == 2 and all(IDENTITY.fullmatch(part) for part in parts), "invalid stable package id")
     require(parts[0] not in {"vool", "parad0x-labs", "official", "native"}, "reserved publisher namespace")
