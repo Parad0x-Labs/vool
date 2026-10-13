@@ -972,6 +972,7 @@
     "receipts.no": "لا",
     "receipts.unavailable": "الإيصالات غير متاحة.",
     "receipts.yes": "نعم",
+    "receipts.no_hash_toast": "لا يحمل هذا الإيصال بصمة لنسخها.",
     "recovery.cancel": "إلغاء المهمة",
     "recovery.cancel_failed_prefix": "تعذّر إلغاء المهمة المستعادة: ",
     "recovery.default_preview": "يمكن متابعة العمل المحفوظ من نقطة التحقق الخاصة به.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

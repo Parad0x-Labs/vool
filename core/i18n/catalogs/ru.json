@@ -972,6 +972,7 @@
     "receipts.no": "нет",
     "receipts.unavailable": "Квитанции недоступны.",
     "receipts.yes": "да",
+    "receipts.no_hash_toast": "В этой квитанции нет хеша для копирования.",
     "recovery.cancel": "Отменить задачу",
     "recovery.cancel_failed_prefix": "Не удалось отменить восстановленную задачу: ",
     "recovery.default_preview": "Сохранённую работу можно продолжить с её контрольной точки.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
     "addons.registry_inspect": "Скачать для просмотра"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

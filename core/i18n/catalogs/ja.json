@@ -972,6 +972,7 @@
     "receipts.no": "いいえ",
     "receipts.unavailable": "レシートは利用できません。",
     "receipts.yes": "はい",
+    "receipts.no_hash_toast": "このレシートにはコピーできるハッシュがありません。",
     "recovery.cancel": "タスクをキャンセル",
     "recovery.cancel_failed_prefix": "復元されたタスクをキャンセルできませんでした: ",
     "recovery.default_preview": "保存された作業は、チェックポイントから再開できます。",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

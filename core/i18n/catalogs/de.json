@@ -972,6 +972,7 @@
     "receipts.no": "nein",
     "receipts.unavailable": "Belege nicht verfügbar.",
     "receipts.yes": "ja",
+    "receipts.no_hash_toast": "Dieser Beleg enthält keinen Hash zum Kopieren.",
     "recovery.cancel": "Aufgabe abbrechen",
     "recovery.cancel_failed_prefix": "Wiederhergestellte Aufgabe konnte nicht abgebrochen werden: ",
     "recovery.default_preview": "Gespeicherte Arbeit kann ab ihrem Prüfpunkt fortgesetzt werden.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

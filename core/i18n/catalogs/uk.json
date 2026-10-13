@@ -972,6 +972,7 @@
     "receipts.no": "ні",
     "receipts.unavailable": "Квитанції недоступні.",
     "receipts.yes": "так",
+    "receipts.no_hash_toast": "У цій квитанції немає хешу для копіювання.",
     "recovery.cancel": "Скасувати завдання",
     "recovery.cancel_failed_prefix": "Не вдалося скасувати відновлене завдання: ",
     "recovery.default_preview": "Збережену роботу можна продовжити з її контрольної точки.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Немає опублікованих версій для цієї конкретної збірки VOOL і вашого пошуку.",
     "addons.registry_inspect": "Завантажити для перегляду"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

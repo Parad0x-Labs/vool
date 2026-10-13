@@ -972,6 +972,7 @@
     "receipts.no": "ne",
     "receipts.unavailable": "Kvitai neprieinami.",
     "receipts.yes": "taip",
+    "receipts.no_hash_toast": "Šiame kvite nėra hašo, kurį būtų galima nukopijuoti.",
     "recovery.cancel": "Atšaukti užduotį",
     "recovery.cancel_failed_prefix": "Nepavyko atšaukti atkurtos užduoties: ",
     "recovery.default_preview": "Išsaugotą darbą galima tęsti nuo jo kontrolinio taško.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

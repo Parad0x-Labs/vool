@@ -972,6 +972,7 @@
     "receipts.no": "no",
     "receipts.unavailable": "Recibos no disponibles.",
     "receipts.yes": "sí",
+    "receipts.no_hash_toast": "Ese recibo no tiene ningún hash para copiar.",
     "recovery.cancel": "Cancelar tarea",
     "recovery.cancel_failed_prefix": "No se pudo cancelar la tarea recuperada: ",
     "recovery.default_preview": "El trabajo guardado puede continuarse desde su punto de control.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Ninguna versión publicada coincide con esta compilación exacta de VOOL y tu búsqueda.",
     "addons.registry_inspect": "Descargar para inspeccionar"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

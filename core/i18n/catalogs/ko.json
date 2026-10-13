@@ -972,6 +972,7 @@
     "receipts.no": "아니오",
     "receipts.unavailable": "영수증을 사용할 수 없습니다.",
     "receipts.yes": "예",
+    "receipts.no_hash_toast": "이 영수증에는 복사할 해시가 없습니다.",
     "recovery.cancel": "작업 취소",
     "recovery.cancel_failed_prefix": "복구된 작업을 취소할 수 없었습니다: ",
     "recovery.default_preview": "저장된 작업은 체크포인트에서 이어서 할 수 있습니다.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

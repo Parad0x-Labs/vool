@@ -972,6 +972,7 @@
     "receipts.no": "否",
     "receipts.unavailable": "回执不可用。",
     "receipts.yes": "是",
+    "receipts.no_hash_toast": "该回执没有可复制的哈希。",
     "recovery.cancel": "取消任务",
     "recovery.cancel_failed_prefix": "无法取消已恢复的任务: ",
     "recovery.default_preview": "已保存的工作可以从其检查点继续。",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

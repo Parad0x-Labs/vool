@@ -1307,6 +1307,7 @@
     "receipts.no": "no",
     "receipts.unavailable": "Receipts unavailable.",
     "receipts.yes": "yes",
+    "receipts.no_hash_toast": "That receipt carries no hash to copy.",
     "recovery.cancel": "Cancel task",
     "recovery.cancel_failed_prefix": "Could not cancel recovered task: ",
     "recovery.default_preview": "Saved work can be continued from its checkpoint.",

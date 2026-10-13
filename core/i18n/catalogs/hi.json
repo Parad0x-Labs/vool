@@ -972,6 +972,7 @@
     "receipts.no": "नहीं",
     "receipts.unavailable": "रसीदें अनुपलब्ध हैं।",
     "receipts.yes": "हाँ",
+    "receipts.no_hash_toast": "इस रसीद में कॉपी करने के लिए कोई हैश नहीं है।",
     "recovery.cancel": "कार्य रद्द करें",
     "recovery.cancel_failed_prefix": "पुनर्प्राप्त कार्य रद्द नहीं हो सका: ",
     "recovery.default_preview": "सहेया गया कार्य उसके चेकपॉइंट से आगे जारी रखा जा सकता है।",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",

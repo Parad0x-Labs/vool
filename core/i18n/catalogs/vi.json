@@ -972,6 +972,7 @@
     "receipts.no": "không",
     "receipts.unavailable": "Biên nhận không khả dụng.",
     "receipts.yes": "có",
+    "receipts.no_hash_toast": "Biên nhận này không có hash để sao chép.",
     "recovery.cancel": "Hủy tác vụ",
     "recovery.cancel_failed_prefix": "Không thể hủy tác vụ đã khôi phục: ",
     "recovery.default_preview": "Công việc đã lưu có thể tiếp tục từ điểm kiểm tra của nó.",
@@ -1979,7 +1980,7 @@
     "addons.registry_empty": "Không có phiên bản nào được liệt kê phù hợp với bản dựng VOOL cụ thể này và tìm kiếm của bạn.",
     "addons.registry_inspect": "Tải xuống để kiểm tra"
   },
-  "source_catalog_sha256": "20352f368d3e667e1739a52be15fffa1111462069becbf221cd7e31f9126f90e",
+  "source_catalog_sha256": "50ccb8e2992de5e69e4d66fa1492098a3746132076fe4e30f71ed11b1c0a64b5",
   "generator": [
     [
       "engine",
