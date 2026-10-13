@@ -8,7 +8,6 @@ from pathlib import Path, PurePosixPath
 
 from core.plugin_package import DIGEST_SCHEMA, MAX_FILES, capture_package
 from core.registry.categories import is_listed
-from core.registry.requirements import check_languages, check_needs
 from core.registry.codec import (
     COMMIT,
     HEX,
@@ -22,6 +21,7 @@ from core.registry.codec import (
     require,
     unbase64,
 )
+from core.registry.requirements import check_languages, check_needs
 
 SCHEMA = "vool.registry.artifact.v1"
 _PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
