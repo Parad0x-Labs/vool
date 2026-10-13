@@ -421,6 +421,7 @@ def _delegated_route_adapters() -> dict[str, str]:
     try:
         from core.command_registry.groups.delegated_routes import (
             chat_action_command_map,
+            goal_action_command_map,
             inline_route_command_map,
             route_command_map,
         )
@@ -428,6 +429,7 @@ def _delegated_route_adapters() -> dict[str, str]:
         merged = route_command_map()
         merged.update(inline_route_command_map())
         merged.update(chat_action_command_map())
+        merged.update(goal_action_command_map())
         return merged
     except Exception:  # pragma: no cover - import cycle safety
         return {}

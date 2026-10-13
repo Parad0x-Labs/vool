@@ -364,6 +364,7 @@ def register(reg: CommandRegistry) -> None:
         ROUTE_COMMANDS[f"http:POST:{path}"] = command_id
     register_inline(reg)
     register_chat_actions(reg)
+    register_goal_actions(reg)
 
 
 # ---------------------------------------------------------------------------
@@ -731,6 +732,74 @@ def _probe_chat_actions(_context: dict) -> tuple[bool, str]:
         return bool(message_pins), ""
     except Exception as exc:  # pragma: no cover
         return False, f"chat action authorities unreachable: {exc}"
+
+
+
+# ---- Explicit /goal workflow routes (owner-local; core/web/api/goal_api.py owns the doors) ----
+
+def _goal_state(inp: RouteInput, _ctx: Any) -> Any:
+    from core.web.api.goal_api import goal_state_payload
+
+    session = str((inp.query or {}).get("session") or (inp.body or {}).get("session_id") or "").strip()
+    if not session:
+        return HandlerFault(
+            fault_code="usage", summary="state requires a session",
+            detail={"legacy_status": 400, "ok": False, "error": "missing session"},
+        )
+    return HandlerOk(data=goal_state_payload(session), summary="goal state")
+
+
+def _goal_control_route(action: str):
+    def _handler(inp: RouteInput, _ctx: Any) -> Any:
+        from core.web.api.goal_api import goal_control
+
+        body = dict(inp.body or {})
+        session = str(body.get("session_id") or "").strip()
+        if not session:
+            return HandlerFault(
+                fault_code="usage", summary=f"{action} requires session_id",
+                detail={"legacy_status": 400, "ok": False, "error": "missing session_id"},
+            )
+        status, payload = goal_control(action, body, session)
+        if status == 200:
+            return HandlerOk(data=payload, summary=f"goal {action}: {payload.get('state', 'ok')}")
+        return HandlerFault(
+            fault_code="conflict" if status == 403 else "usage",
+            summary=str(payload.get("error") or f"goal {action} refused"),
+            detail={"legacy_status": status, **payload},
+        )
+    return _handler
+
+
+GOAL_ACTIONS: tuple[tuple[str, str, str, str, Any], ...] = (
+    ("goal.state", "/api/goal/state", "read_only", "Show the chat's explicit goal state", _goal_state),
+    ("goal.pause", "/api/goal/pause", "mutating", "Pause the chat's goal: no new step dispatch", _goal_control_route("pause")),
+    ("goal.resume", "/api/goal/resume", "mutating", "Resume the chat's paused or interrupted goal", _goal_control_route("resume")),
+    ("goal.stop", "/api/goal/stop", "destructive", "Stop the chat's goal; dispatched effects stay for reconciliation", _goal_control_route("stop")),
+    ("goal.retry", "/api/goal/retry", "mutating", "Re-dispatch the goal's waiting step under the current approvals", _goal_control_route("retry")),
+)
+
+
+def goal_action_command_map() -> dict[str, str]:
+    return {f"http:{'GET' if cid == 'goal.state' else 'POST'}:{path}": cid for cid, path, _e, _d, _fn in GOAL_ACTIONS}
+
+
+def register_goal_actions(reg: CommandRegistry) -> None:
+    reg.add_group(GroupSpec(group_id="goal", description="explicit /goal workflow controls (owner-local)"))
+    availability = Availability(
+        probe="core.command_registry.groups.delegated_routes:_probe_chat_actions"
+    )
+    for command_id, _path, effects, description, fn in GOAL_ACTIONS:
+        dotted = _register_handler("_h_" + command_id.replace(".", "_"), fn)
+        reg.add(
+            CommandSpec(
+                command_id=command_id, group="goal", description=description,
+                input_schema=RouteInput, effects=effects,
+                capabilities=frozenset({"change_settings"}),
+                permission=_AUTHORITY, availability=availability,
+                handler=Handler(dotted), exit_codes=(0, 2, 21, 22, 30, 42),
+            )
+        )
 
 
 CHAT_ACTIONS: tuple[tuple[str, str, str, str, Any], ...] = (
