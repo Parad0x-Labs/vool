@@ -14,6 +14,7 @@ class UserPreferences:
     humor_percent: int = 20
     user_address: str = ""  # how VOOL addresses the user (a name/handle), e.g. "Alex", "boss", "ser"
     deep_reasoning: bool = False  # local thinking model reasons before answering — OFF by default (fast chat)
+    show_answer_details: bool = False  # the provenance line under answers — OFF by default (no dev text for normal users)
     character_mode: str = ""
     tone_hint: str = "direct"
     boundaries_mode: str = "user_defined"
@@ -188,6 +189,7 @@ def load_preferences() -> UserPreferences:
             humor_percent=_clamp_pct(int(raw.get("humor_percent", 20))),
             user_address=str(raw.get("user_address", "")).strip()[:60],
             deep_reasoning=bool(raw.get("deep_reasoning", False)),
+            show_answer_details=bool(raw.get("show_answer_details", False)),
             character_mode=str(raw.get("character_mode", "")).strip()[:120],
             tone_hint=str(raw.get("tone_hint", "direct")).strip()[:32] or "direct",
             boundaries_mode=_normalize_boundaries(str(raw.get("boundaries_mode", "user_defined"))),
@@ -226,6 +228,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["boundaries_mode"] = _normalize_boundaries(str(payload.get("boundaries_mode", "user_defined")))
     payload["autonomy_mode"] = _normalize_autonomy(str(payload.get("autonomy_mode", "hands_off")))
     payload["communication_style"] = _normalize_communication_style(str(payload.get("communication_style", "casual")))
+    payload["show_answer_details"] = bool(payload.get("show_answer_details", False))
     payload["show_workflow"] = bool(payload.get("show_workflow", False))
     payload["hive_followups"] = bool(payload.get("hive_followups", True))
     payload["idle_research_assist"] = bool(payload.get("idle_research_assist", True))
