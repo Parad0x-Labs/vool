@@ -46,6 +46,73 @@ class GoalJourneyProvider(BodyAwareScriptedProvider):
         # gate never refuses a generation on this shared machine, plus the bundle's own
         # default tag so the startup availability check stays green.
         super().__init__({MODEL_A: "ok", "qwen3:4b": "ok"})
+        # Rebuild the HTTP handler with the CORRECT response shape per Ollama dialect: the
+        # parent always answers /api/generate bodies with /api/chat shapes, which the
+        # generate-side adapters read as an empty answer ("produced nothing usable").
+        import http.server
+        from tests._blackbox_served_rig import free_port
+
+        rig = self
+        self.port = free_port()
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *_args: Any) -> None:
+                return
+
+            def _send(self, payload: dict[str, Any], status: int = 200) -> None:
+                body = json.dumps(payload).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self) -> None:
+                if self.path.startswith("/api/version"):
+                    return self._send({"version": "0.0.0-stub"})
+                if self.path.startswith("/api/tags"):
+                    return self._send({"models": [{"name": name} for name in rig.table]})
+                if self.path.startswith("/api/ps"):
+                    return self._send({"models": [{"name": name, "size": 0, "size_vram": 0} for name in rig.table]})
+                return self._send({"ok": True})
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b"{}"
+                try:
+                    body = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    body = {}
+                model = str(body.get("model") or "")
+                if self.path.startswith("/api/pull"):
+                    # Ollama's pull status stream: one success line ends the startup check.
+                    stream = json.dumps({"status": "success"}).encode("utf-8") + b"\n"
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/x-ndjson")
+                    self.send_header("Content-Length", str(len(stream)))
+                    self.end_headers()
+                    self.wfile.write(stream)
+                    return
+                reply = rig.reply(model, body)
+                if self.path.startswith("/api/generate"):
+                    # The generate dialect: the answer rides the top-level `response` field.
+                    if isinstance(reply, dict):
+                        text = str(reply.get("content") or "")
+                    else:
+                        text = str(reply)
+                    return self._send({"model": model, "response": text, "done": True, "done_reason": "stop"})
+                if isinstance(reply, dict):
+                    message = {"role": "assistant", "content": reply.get("content", ""), "tool_calls": reply["tool_calls"]}
+                    return self._send({"model": model, "done": True, "done_reason": "stop", "message": message})
+                return self._send(
+                    {"model": model, "done": True, "done_reason": "stop",
+                     "message": {"role": "assistant", "content": str(reply)}, "prompt_eval_count": 40, "eval_count": 30}
+                )
+
+        self._server = http.server.ThreadingHTTPServer(("127.0.0.1", self.port), _Handler)
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self.step2_delay = 0.0
         self._lock = threading.Lock()
         self._step2_answers = 0
@@ -181,6 +248,12 @@ def journey(tmp_path_factory):
             "OLLAMA_HOST": provider.base_url,
             "VOOL_OLLAMA_URL": provider.base_url,
             "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat",
+            # The provider HTTP worker must reach the stub DIRECTLY: an inherited shell
+            # proxy would route the loopback provider call through a dead proxy.
+            "http_proxy": "",
+            "https_proxy": "",
+            "all_proxy": "",
+            "no_proxy": "127.0.0.1,localhost",
         },
     )
     provider.__enter__()

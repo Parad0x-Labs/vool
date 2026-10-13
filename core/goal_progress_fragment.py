@@ -312,7 +312,14 @@ def render_goal_progress_fragment() -> str:
       applyView(goalView, cid);
     },
     refresh: function(){ fetchState(); },
-    chatChanged: function(){ view = null; if (el) el.classList.add('vgc-hidden'); fetchState(); },
+    chatChanged: function(){
+      // The displayed chat id can MERELY canonicalize mid-conversation (local id -> server
+      // id for the same chat). Hiding here raced that switch and flickered the card away;
+      // the canonical state fetch is the truth: it shows the goal if the chat has one and
+      // hides the card if it does not.
+      view = null;
+      fetchState();
+    },
     _test: { parseElapsed: fmtElapsed, stateLabel: stateLabel }
   });
   // Hydrate after boot; re-hydrate on chat switches by watching the displayed chat id.

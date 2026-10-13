@@ -69,6 +69,11 @@ class _GoalServer:
         self.chat_bodies: list[dict[str, Any]] = []
         self.state_views: dict[str, dict[str, Any] | None] = {}
         self.state_fetches: list[str] = []
+        #: The live goal from the last /api/chat goal turn: served for a chat id the server
+        #: has canonicalized (the page's fetch may use the server-side id while the body
+        #: carried the local one). Explicit per-chat seeds always win; no seed at all means
+        #: this single-chat hermetic world has exactly the one live goal.
+        self.last_goal_view: dict[str, Any] | None = None
 
     def route(self, route) -> None:
         request = route.request
@@ -80,6 +85,8 @@ class _GoalServer:
             session = urllib.parse.unquote(url.split("session=", 1)[1]) if "session=" in url else ""
             self.state_fetches.append(session)
             view = self.state_views.get(session)
+            if view is None and not self.state_views and self.last_goal_view is not None:
+                view = self.last_goal_view
             route.fulfill(status=200, content_type="application/json", body=json.dumps({"goal": view}))
             return
         if "/api/goal/" in url:
@@ -115,6 +122,7 @@ class _GoalServer:
                                 "message": {"role": "assistant", "content": ""}, "done": True, "done_reason": "stop"}),
                     "",
                 ]
+                self.last_goal_view = view
                 route.fulfill(status=200, content_type="application/x-ndjson", body="\n".join(lines))
                 return
             lines = [
