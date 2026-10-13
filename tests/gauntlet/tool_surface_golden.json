@@ -1,5 +1,5 @@
 {
-  "intent_count": 132,
+  "intent_count": 133,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -135,7 +135,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 132,
+  "native_definition_count": 133,
   "tools": {
     "capability.expand_family": {
       "arguments": [
