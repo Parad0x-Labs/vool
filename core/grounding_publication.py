@@ -479,6 +479,12 @@ def _trim_unsupported_spans(line: str, unsupported_segments: list[str]) -> str |
         if span is None:
             return None
         start, end = span
+        # Trimming may preserve complete neighbouring sentences, never the tail
+        # of the sentence whose unsupported prefix was just removed.
+        tail = out[end:].lstrip()
+        if tail and (not needle.endswith((".", "!", "?"))
+                     or tail.startswith((",", ";")) or re.match(r"and\b", tail, re.I)):
+            return None
         out = out[:start] + " " + out[end:]
     # Emphasis markers that wrapped a removed sentence are now empty pairs or lone tokens.
     out = re.sub(r"(\*\*|__|\*|`)\s*\1", " ", out)
@@ -980,6 +986,79 @@ def _claim_map_with_exemptions(
     return _dc_replace(claim_map, claims=claims, coverage=coverage)
 
 
+def _aggregate_claim_support(content: str, rows: list[dict[str, Any]], claim_map: Any, request: str) -> Any:
+    """Credit a count/list only after every listed atom is bound to source content."""
+    from collections import defaultdict, deque
+    from dataclasses import replace
+
+    from core.claim_support import _build_sources, _entity_in_source, match_claims
+    from core.model_output_guard import _NUMBER_SMALL, _NUMBER_TENS, _duration_quantity
+
+    sources = _build_sources(rows)
+    changes = {}
+    pending = defaultdict(deque)
+    for claim in claim_map.claims:
+        pending[claim.text].append(claim)
+    number_word = r"(?:\d+|" + "|".join((*_NUMBER_SMALL, *_NUMBER_TENS)) + ")"
+    for line, segments in _segments_by_line(content):
+        line_claims = [pending[segment].popleft() for segment in segments if pending[segment]]
+        # Counts explicitly enumerate their operands; bare name lists answer a which-ask.
+        count_match = re.match(rf"^[^:]*?\b({number_word})(?:\s+[a-zA-Z]+(?:\s+[a-zA-Z]+){{0,3}})?:\s*(.+)$", line, re.I)
+        if count_match and re.search(r"\bhow many\b", request, re.I):
+            expected, body, rule = _duration_quantity(count_match.group(1)), count_match.group(2), "count over supported rows"
+        elif re.search(r"\bwhich\b", request, re.I) and re.fullmatch(
+                r"[^\W\d_][\w' -]+(?:,\s*|\s+and\s+)[^\W\d_][\w', -]+[.]?", line):
+            expected, body, rule = None, line, "list over supported rows"
+        else:
+            continue
+        atoms = [re.sub(r"^(?:(?:and|a|an|the)\s+)+", "", atom.strip(), flags=re.I).rstrip(" .")
+                 for atom in re.split(r",\s*(?![^()]*\))|\s+and\s+", body)]
+        atoms = [atom for atom in atoms if atom]
+        if len(atoms) < 2:
+            continue
+        supporters = set()
+        valid = len(set(atom.casefold() for atom in atoms)) == len(atoms)
+        for atom in atoms:
+            atom_map = match_claims(answer=atom, notes=rows, request_text=request)
+            witnesses = set()
+            if not atom_map.claims or any(claim.status != "supported" for claim in atom_map.claims):
+                valid = False
+            for claim in atom_map.claims:
+                claim_witnesses = set()
+                anchor = claim.anchors
+                for source in sources:
+                    # Every value and every named item must be in its own supporting row.
+                    # The ordinary matcher intentionally accepts one matching value/entity;
+                    # that is insufficient for the operands of an aggregate.
+                    if (set(anchor.numerics) <= source.numerics
+                            and set(anchor.dates) <= {day.isoformat() for day in source.dates}
+                            and all(_entity_in_source(entity, source) for entity in anchor.entities)
+                            and all(quote in source.folded for quote in anchor.quotes)
+                            and set(anchor.terms) <= source.terms
+                            and (anchor.entities or anchor.terms)):
+                        claim_witnesses.add(source.source_id)
+                if not claim_witnesses:
+                    valid = False
+                witnesses |= claim_witnesses
+            if not witnesses:
+                valid = False
+            supporters |= witnesses
+        if expected is not None and expected != len(atoms):
+            valid = False
+        for claim in line_claims:
+            changes[claim.claim_id] = replace(
+                    claim, status="supported" if valid else "unsupported",
+                    supporting_sources=tuple(sorted(supporters)) if valid else (),
+                    reasons=(rule,) if valid else ("unsupported_aggregate_operand_or_count",))
+    if not changes:
+        return claim_map
+    claims = tuple(changes.get(claim.claim_id, claim) for claim in claim_map.claims)
+    supported = any(claim.status == "supported" for claim in claims)
+    unsupported = any(claim.status == "unsupported" for claim in claims)
+    coverage = "partial" if supported and unsupported else "full" if supported else "none"
+    return replace(claim_map, claims=claims, coverage=coverage)
+
+
 def publication_verdict(lifecycle: GroundingLifecycle, content: str) -> PublicationVerdict:
     """Decide what a current-information turn may publish, from the lifecycle and the bytes.
 
@@ -1074,6 +1153,7 @@ def publication_verdict(lifecycle: GroundingLifecycle, content: str) -> Publicat
         )
 
     claim_map = match_claims(answer=text, notes=rows, request_text=lifecycle.request_text)
+    claim_map = _aggregate_claim_support(text, rows, claim_map, lifecycle.request_text)
     # F43 — stable knowledge under the runtime's authoring policy. An unsupported claim the
     # plan rendered from an OPEN-authority knowledge node may publish WITHOUT sources, but
     # only when the authorship policy's own verdict (stamped on the entry at publish time,

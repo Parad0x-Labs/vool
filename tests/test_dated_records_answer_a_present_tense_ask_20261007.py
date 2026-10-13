@@ -6,6 +6,7 @@ import pytest
 from core.bootstrap_context import seal_request_evidence
 from core.execution_requirements import begin_synthesis_freeze, escalate_current_requirement, requirements_for
 from core.grounding_lifecycle import record_model_authorship, record_retrieved, reset_for_tests
+from core.context_retrieval import reset_retrieval_telemetry
 from core.grounding_publication import _REFUSAL_LEAD, gate_publishable_content
 
 CLOCK_TEXT = "The current date and time is Saturday 12 July 2025, 12:00 (UTC)."
@@ -21,6 +22,8 @@ PURCHASES = [
 
 def deliver(question, records, answer, *, early=False, frozen=False):
     reset_for_tests()
+    # each call is a new turn: no sealed record of an earlier call (same synthetic ids) may stand in for this one's
+    reset_retrieval_telemetry()
     context = {"chat_id": "synthetic-record-session", "current_turn_id": "synthetic-record-turn", "turn_id": "synthetic-record-turn"}
     if early or frozen:
         requirements_for(question, source_context=context)
