@@ -10,6 +10,7 @@ The pages own no state — every control names a /school/api/* authority.
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
 _BASE_CSS = """
@@ -89,6 +90,10 @@ function tell(text, sayId){
 }
 function toast(text){ const t=document.getElementById('toast'); t.textContent=text; t.classList.remove('hidden');
   setTimeout(()=>t.classList.add('hidden'), 6000); }
+// Names, titles and notes are typed by people: they go into markup only escaped. Ids minted by the
+// server also land inside onclick handlers, so they are reduced to the characters ids are made of.
+function esc(v){ return String(v==null?'':v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function sid(v){ return String(v==null?'':v).replace(/[^A-Za-z0-9_.:-]/g,''); }
 function el(id){ return document.getElementById(id); }
 function show(id, on){ el(id).classList.toggle('hidden', !on); }
 """
@@ -175,7 +180,7 @@ def _student_redirect_note() -> str:
 
 def _admin_page(session) -> str:
     body = f"""
-<div class="banner"><b>VOOL School · Admin</b><span class="dim">{session.display_name}</span>
+<div class="banner"><b>VOOL School · Admin</b><span class="dim">{html.escape(str(session.display_name))}</span>
   <span style="flex:1"></span><a href="/school/student">student view</a> · <button onclick="logout()">Sign out</button></div>
 <div class="wrap">
   <h1 id="schoolname">School</h1>
@@ -215,26 +220,26 @@ function draw(){
   el('schoolname').textContent=STATE.school.name||'School';
   const u=el('users'); u.innerHTML='<tr><th>name</th><th>role</th><th>user id</th><th></th></tr>';
   (STATE.users||[]).forEach(x=>{ u.insertAdjacentHTML('beforeend',
-    `<tr><td>${x.display_name}</td><td>${x.role}</td><td class="code">${x.user_id}</td>`+
-    `<td>${x.revoked?'<span class="chip off">revoked</span>':'<button class="danger" onclick="revoke(\\''+x.user_id+'\\')">revoke</button>'}</td></tr>`); });
+    `<tr><td>${esc(x.display_name)}</td><td>${esc(x.role)}</td><td class="code">${sid(x.user_id)}</td>`+
+    `<td>${x.revoked?'<span class="chip off">revoked</span>':'<button class="danger" onclick="revoke(\\''+sid(x.user_id)+'\\')">revoke</button>'}</td></tr>`); });
   const t=el('classteacher'); t.innerHTML='';
-  (STATE.users||[]).filter(x=>x.role==='TEACHER'&&!x.revoked).forEach(x=>t.insertAdjacentHTML('beforeend',`<option value="${x.user_id}">${x.display_name}</option>`));
+  (STATE.users||[]).filter(x=>x.role==='TEACHER'&&!x.revoked).forEach(x=>t.insertAdjacentHTML('beforeend',`<option value="${sid(x.user_id)}">${esc(x.display_name)}</option>`));
   const c=el('classes'); c.innerHTML='';
   (STATE.classes||[]).forEach(k=>{
-    c.insertAdjacentHTML('beforeend',`<div class="card"><b>${k.name}</b> <span class="dim">${k.class_id}</span>
+    c.insertAdjacentHTML('beforeend',`<div class="card"><b>${esc(k.name)}</b> <span class="dim">${sid(k.class_id)}</span>
       <table><tr><th>student</th><th>id</th></tr>`+
-      (STATE._enrolled[k.class_id]||[]).map(s=>`<tr><td>${s.display_name}</td><td class="code">${s.user_id}</td></tr>`).join('')+
-      `</table><div class="row"><select id="enr_${k.class_id}"></select><button onclick="enroll('${k.class_id}')">Enroll student</button></div></div>`);
+      (STATE._enrolled[k.class_id]||[]).map(s=>`<tr><td>${esc(s.display_name)}</td><td class="code">${sid(s.user_id)}</td></tr>`).join('')+
+      `</table><div class="row"><select id="enr_${sid(k.class_id)}"></select><button onclick="enroll('${sid(k.class_id)}')">Enroll student</button></div></div>`);
     const sel=el('enr_'+k.class_id);
-    (STATE.users||[]).filter(x=>x.role==='STUDENT'&&!x.revoked).forEach(s=>sel.insertAdjacentHTML('beforeend',`<option value="${s.user_id}">${s.display_name}</option>`));
+    (STATE.users||[]).filter(x=>x.role==='STUDENT'&&!x.revoked).forEach(s=>sel.insertAdjacentHTML('beforeend',`<option value="${sid(s.user_id)}">${esc(s.display_name)}</option>`));
   });
   const p=el('providers'); p.innerHTML='<tr><th>provider</th><th>model</th><th>locality</th><th>enabled</th></tr>';
-  (STATE.providers||[]).forEach(x=>p.insertAdjacentHTML('beforeend',`<tr><td>${x.provider_id}</td><td class="code">${x.model_id}</td><td>${x.locality}</td><td>${x.enabled?'✓':'—'}</td></tr>`));
+  (STATE.providers||[]).forEach(x=>p.insertAdjacentHTML('beforeend',`<tr><td>${esc(x.provider_id)}</td><td class="code">${esc(x.model_id)}</td><td>${esc(x.locality)}</td><td>${x.enabled?'✓':'—'}</td></tr>`));
   const a=el('audit'); a.innerHTML='<tr><th>when</th><th>action</th><th>actor</th></tr>';
-  (STATE.audit||[]).slice(0,50).forEach(x=>a.insertAdjacentHTML('beforeend',`<tr><td class="dim">${x.ts}</td><td>${x.action}</td><td class="code">${x.actor_user_id.slice(0,12)}</td></tr>`));
+  (STATE.audit||[]).slice(0,50).forEach(x=>a.insertAdjacentHTML('beforeend',`<tr><td class="dim">${esc(x.ts)}</td><td>${esc(x.action)}</td><td class="code">${esc(x.actor_user_id.slice(0,12))}</td></tr>`));
 }
 async function addUser(){ const d=await api('/school/api/user.create',{role:el('newrole').value,display_name:el('newname').value});
-  show('newcode',true); el('newcode').innerHTML=`Access code for <b>${d.display_name}</b> (shown once): <span class="code">${d.access_code}</span>`;
+  show('newcode',true); el('newcode').innerHTML=`Access code for <b>${esc(d.display_name)}</b> (shown once): <span class="code">${esc(d.access_code)}</span>`;
   el('newname').value=''; refresh(); }
 async function revoke(id){ await api('/school/api/user.revoke',{user_id:id}).catch(e=>{}); refresh(); }
 async function addClass(){ await api('/school/api/class.create',{name:el('classname').value,teacher_user_id:el('classteacher').value}); el('classname').value=''; refresh(); }
@@ -252,7 +257,7 @@ refresh();
 
 def _teacher_page(session) -> str:
     body = f"""
-<div class="banner"><b>VOOL School · Teacher</b><span class="dim">{session.display_name}</span>
+<div class="banner"><b>VOOL School · Teacher</b><span class="dim">{html.escape(str(session.display_name))}</span>
   <span style="flex:1"></span><a href="/school/student">student view</a> · <button onclick="logout()">Sign out</button></div>
 <div class="wrap"><h1>Classes</h1><div id="classes"></div></div>"""
     script = """
@@ -261,7 +266,7 @@ async function refresh(){ STATE=await get('/school/api/state'); draw(); }
 function policyChips(p){ if(!p||!Object.keys(p).length) return '<span class="dim">default policy</span>';
   const fam=(p.tool_families&&p.tool_families.length)?p.tool_families.join(', '):'none';
   return `<span class="chip ${fam.includes('web')?'on':'off'}">web: ${fam.includes('web')?'allowed':'blocked'}</span>`+
-   `<span class="chip">help ceiling: L${p.max_assistance==null?'10':p.max_assistance}</span>`+
+   `<span class="chip">help ceiling: L${esc(p.max_assistance==null?'10':p.max_assistance)}</span>`+
    `<span class="chip">${p.locality==='local_only'?'local model only':'cloud allowed'}</span>`+
    (p.assessment?'<span class="chip warn">assessment</span>':''); }
 function draw(){
@@ -270,49 +275,49 @@ function draw(){
     const l=k.active_lesson;
     c.insertAdjacentHTML('beforeend', `
     <div class="card">
-      <div class="row"><b style="font-size:16px">${k.name}</b>
+      <div class="row"><b style="font-size:16px">${esc(k.name)}</b>
         ${l?'<span class="chip on">lesson active</span>':'<span class="chip off">no active lesson</span>'}
         <span style="flex:1"></span>
-        ${l?`<button class="danger" onclick="endLesson('${l.lesson_id}')">End lesson</button>`
-           :`<button class="primary" onclick="show('start_${k.class_id}',true)">Start lesson</button>`}</div>
-      ${l?`<div class="card"><div class="row">Lesson: <b>${l.title}</b> ${policyChips(l.policy)}</div>
-        <div class="row">Join code: <span class="code">${l.join_code}</span> <span class="dim">(students: redeem in the student page)</span></div>
-        <div class="row"><button onclick="show('asg_${k.class_id}',true)">Send assignment</button></div>
-        <div id="asg_${k.class_id}" class="card hidden">
-          <input id="asgt_${k.class_id}" placeholder="assignment title" style="width:100%">
-          <textarea id="asgb_${k.class_id}" placeholder="instructions for students"></textarea>
+        ${l?`<button class="danger" onclick="endLesson('${sid(l.lesson_id)}')">End lesson</button>`
+           :`<button class="primary" onclick="show('start_${sid(k.class_id)}',true)">Start lesson</button>`}</div>
+      ${l?`<div class="card"><div class="row">Lesson: <b>${esc(l.title)}</b> ${policyChips(l.policy)}</div>
+        <div class="row">Join code: <span class="code">${esc(l.join_code)}</span> <span class="dim">(students: redeem in the student page)</span></div>
+        <div class="row"><button onclick="show('asg_${sid(k.class_id)}',true)">Send assignment</button></div>
+        <div id="asg_${sid(k.class_id)}" class="card hidden">
+          <input id="asgt_${sid(k.class_id)}" placeholder="assignment title" style="width:100%">
+          <textarea id="asgb_${sid(k.class_id)}" placeholder="instructions for students"></textarea>
           <div class="row"><label>Assistance ceiling for this assignment (optional)</label>
-            <select id="asgl_${k.class_id}"><option value="">inherit lesson</option>
+            <select id="asgl_${sid(k.class_id)}"><option value="">inherit lesson</option>
             ${Array.from({length:11},(_,i)=>`<option value="${i}">L${i}</option>`).join('')}</select>
-            <label><input type="checkbox" id="asga_${k.class_id}"> assessment mode</label></div>
-          <div class="row"><button class="primary" onclick="sendAssignment('${k.class_id}','${l.lesson_id}')">Send to class</button></div></div>
-        <table id="asgs_${k.class_id}"></table></div>`:''}
-      <div id="start_${k.class_id}" class="card hidden">
-        <div class="row"><input id="t_${k.class_id}" placeholder="lesson title" style="flex:1"></div>
+            <label><input type="checkbox" id="asga_${sid(k.class_id)}"> assessment mode</label></div>
+          <div class="row"><button class="primary" onclick="sendAssignment('${sid(k.class_id)}','${sid(l.lesson_id)}')">Send to class</button></div></div>
+        <table id="asgs_${sid(k.class_id)}"></table></div>`:''}
+      <div id="start_${sid(k.class_id)}" class="card hidden">
+        <div class="row"><input id="t_${sid(k.class_id)}" placeholder="lesson title" style="flex:1"></div>
         <div class="row">
-          <label><input type="checkbox" id="web_${k.class_id}" checked> allow web</label>
+          <label><input type="checkbox" id="web_${sid(k.class_id)}" checked> allow web</label>
           <label>AI help ceiling
-            <select id="lvl_${k.class_id}">
+            <select id="lvl_${sid(k.class_id)}">
               <option value="4">L4 guiding questions</option><option value="2">L2 recall only</option>
               <option value="6">L6 analogous examples</option><option value="8">L8 guided solution</option>
               <option value="10">L10 full help</option></select></label>
-          <label><input type="checkbox" id="cloud_${k.class_id}" checked> allow cloud model</label>
-          <label><input type="checkbox" id="assess_${k.class_id}"> assessment mode</label></div>
-        <div class="row"><button class="primary" onclick="startLesson('${k.class_id}')">Start</button></div></div>
+          <label><input type="checkbox" id="cloud_${sid(k.class_id)}" checked> allow cloud model</label>
+          <label><input type="checkbox" id="assess_${sid(k.class_id)}"> assessment mode</label></div>
+        <div class="row"><button class="primary" onclick="startLesson('${sid(k.class_id)}')">Start</button></div></div>
       <table><tr><th>student</th><th>id</th></tr>
-        ${(k.students||[]).map(s=>`<tr><td>${s.display_name}</td><td class="code">${s.user_id}</td></tr>`).join('')}</table>
+        ${(k.students||[]).map(s=>`<tr><td>${esc(s.display_name)}</td><td class="code">${sid(s.user_id)}</td></tr>`).join('')}</table>
       ${k.help_queue&&k.help_queue.length?`<h2>Help queue</h2><table><tr><th>when</th><th>student</th><th>note</th></tr>
-        ${k.help_queue.map(h=>`<tr><td class="dim">${h.ts}</td><td>${h.student}</td><td>${h.note||''}</td></tr>`).join('')}</table>`:''}
-      <div id="subs_${k.class_id}"></div>
+        ${k.help_queue.map(h=>`<tr><td class="dim">${esc(h.ts)}</td><td>${esc(h.student)}</td><td>${esc(h.note||'')}</td></tr>`).join('')}</table>`:''}
+      <div id="subs_${sid(k.class_id)}"></div>
     </div>`);
     if(l){
       const at=el('asgs_'+k.class_id); at.innerHTML='';
-      (k.assignments||[]).forEach(a=>at.insertAdjacentHTML('beforeend',`<tr><td>${a.title}</td><td class="dim">${a.assignment_id.slice(0,14)}</td></tr>`));
+      (k.assignments||[]).forEach(a=>at.insertAdjacentHTML('beforeend',`<tr><td>${esc(a.title)}</td><td class="dim">${esc(a.assignment_id.slice(0,14))}</td></tr>`));
       const st=el('subs_'+k.class_id); st.innerHTML='';
       (k.submissions||[]).forEach(s=>st.insertAdjacentHTML('beforeend',
-        `<div class="card"><div class="row"><b>${s.student_display_name}</b><span class="dim">${s.assignment_title}</span>
-         <span class="chip ${s.status==='acknowledged'?'on':'warn'}">${s.status}</span>
-         <span style="flex:1"></span><button onclick="ack('${s.submission_id}')">Acknowledge</button></div>
+        `<div class="card"><div class="row"><b>${esc(s.student_display_name)}</b><span class="dim">${esc(s.assignment_title)}</span>
+         <span class="chip ${s.status==='acknowledged'?'on':'warn'}">${esc(s.status)}</span>
+         <span style="flex:1"></span><button onclick="ack('${sid(s.submission_id)}')">Acknowledge</button></div>
          <div class="dim">assistance: ${s.assistance.turns||0} turns · ${s.assistance.violations||0} refusals to dump answers · answer revealed: ${s.assistance.answer_revealed?'yes':'no'} · help requested: ${s.assistance.help_requested||0}×</div>
          <details><summary class="dim">work</summary><div class="msg bot">${(s.work_text||'').replace(/</g,'&lt;')}</div></details></div>`));
     }
@@ -368,14 +373,14 @@ let STATE=null;
 async function refresh(){ try{ STATE=await get('/school/api/state'); }catch(e){ if(e.status===403){location.reload();return;} throw e; } draw(); }
 function draw(){
   const p=STATE.policy||{};
-  el('banner').innerHTML=`<b>${STATE.class||'—'}${STATE.lesson?' · '+STATE.lesson.title:''}</b>`+
+  el('banner').innerHTML=`<b>${esc(STATE.class||'—')}${STATE.lesson?' · '+esc(STATE.lesson.title):''}</b>`+
     `<span class="chip ${p.tool_families&&p.tool_families.includes('web')?'on':'off'}">web: ${p.tool_families&&p.tool_families.includes('web')?'allowed':'blocked'}</span>`+
-    `<span class="chip">AI help: ${(STATE.assistance_level_name||'').toLowerCase().replace('_',' ')}</span>`+
+    `<span class="chip">AI help: ${esc((STATE.assistance_level_name||'').toLowerCase().replace('_',' '))}</span>`+
     `<span class="chip">${p.locality==='local_only'?'school local model':'cloud allowed'}</span>`+
     (p.assessment?'<span class="chip warn">assessment</span>':'')+
-    `<span style="flex:1"></span><span class="dim">${STATE.me.display_name}</span>`;
+    `<span style="flex:1"></span><span class="dim">${esc(STATE.me.display_name)}</span>`;
   el('assignment').innerHTML=STATE.assignment?
-    `<h2 style="margin-top:0">Assignment</h2><b>${STATE.assignment.title}</b><div class="msg bot">${(STATE.assignment.body||'').replace(/</g,'&lt;')}</div>`:
+    `<h2 style="margin-top:0">Assignment</h2><b>${esc(STATE.assignment.title)}</b><div class="msg bot">${(STATE.assignment.body||'').replace(/</g,'&lt;')}</div>`:
     `<span class="dim">No assignment right now.</span>`;
   const q=STATE.quota||{};
   el('quota').textContent=`today: ${q.requests_used||0}/${q.requests_cap||'—'} requests · ${Math.round((q.tokens_used||0)/1000)}k/${Math.round((q.tokens_cap||0)/1000)}k tokens`;
@@ -400,9 +405,9 @@ async function prepareHandIn(){
   const d=await api('/school/api/handin.prepare',{assignment_id:STATE.assignment.assignment_id,work_text:el('work').value});
   const w=d.will_share||{};
   el('handin').innerHTML=`<h2 style="margin-top:0">Hand in — check what will be shared</h2>
-    <table><tr><th>shared</th><td>${w.student_display_name} · ${w.class} · ${w.assignment}</td></tr>
+    <table><tr><th>shared</th><td>${esc(w.student_display_name)} · ${esc(w.class)} · ${esc(w.assignment)}</td></tr>
     <tr><th>assistance summary</th><td>${w.assistance_summary.turns||0} AI turns · ${w.assistance_summary.violations||0} refused answer dumps · answer revealed: ${w.assistance_summary.answer_revealed?'yes':'no'}</td></tr></table>
-    <div class="dim">${d.not_shared}</div>
+    <div class="dim">${esc(d.not_shared)}</div>
     <div class="row"><button class="primary" onclick="submitHandIn()">Yes, hand in</button>
     <button onclick="show('handin',false)">Cancel</button></div>`;
   show('handin',true);
@@ -410,7 +415,7 @@ async function prepareHandIn(){
 async function submitHandIn(){
   const d=await api('/school/api/handin.submit',{assignment_id:STATE.assignment.assignment_id,work_text:el('work').value});
   el('handin').innerHTML=`<h2 style="margin-top:0">Handed in ✓</h2>
-    <div>Submission <span class="code">${(d.submission||{}).submission_id}</span> · status: ${(d.submission||{}).status}</div>
+    <div>Submission <span class="code">${esc((d.submission||{}).submission_id)}</span> · status: ${esc((d.submission||{}).status)}</div>
     ${d.idempotent?'<div class="dim">This was already handed in — nothing duplicated.</div>':''}
     <div class="dim">Receipt signed and stored; your teacher will acknowledge it.</div>`;
 }
