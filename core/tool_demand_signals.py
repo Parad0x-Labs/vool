@@ -434,6 +434,56 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    # -- X reads and actions with the user's own keys (core/x_api.py, core/x_actions.py) ----
+    # Verb+noun anchored like the rest of this table: searching X, who called a token, an
+    # account's posts, or acting on X. A passing mention of X or Twitter seats nothing. An action
+    # seat is a PROPOSAL only; nothing reaches X until the user approves it in Settings.
+    (
+        "x.token_callers",
+        "x",
+        re.compile(
+            r"\b(?:who|which\s+(?:accounts?|people|influencers?|kols?))\b[^.?!]{0,40}?"
+            r"\b(?:called|calls|shill(?:ed|s|ing)?|posted|tweeted|pushed|mentioned)\b[^.?!]{0,60}?"
+            r"(?:\$[A-Za-z][A-Za-z0-9_]{0,14}\b|\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
+            r"|\b(?:tokens?|coins?|memecoins?|ca|contract\s+address)\b)"
+            r"|\b(?:callers?|kols?|shillers?)\b[^.?!]{0,30}?\b(?:of|for|behind)\b[^.?!]{0,40}?"
+            r"(?:\$[A-Za-z]|\b0x[a-fA-F0-9]{6}|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b|\b(?:tokens?|coins?)\b)",
+            re.I,
+        ),
+    ),
+    (
+        "x.search",
+        "x",
+        re.compile(
+            r"\b(?:search|find|look\s+up|look\s+for|check|scan|monitor|track|pull|show\s+me)\b[^.?!]{0,60}?"
+            r"\b(?:on|in|from|across)\s+(?:x|twitter)\b(?!\.)"
+            r"|\b(?:search|check|scan)\s+(?:x|twitter)\s+(?:for|about)\b"
+            r"|\b(?:tweets?|(?:x|twitter)\s+posts?)\s+(?:about|mentioning|on|for|with)\s+"
+            r"(?:\$[A-Za-z]|\b0x[a-fA-F0-9]{6}|[1-9A-HJ-NP-Za-km-z]{32,44}\b|(?:this|that|the)\s+(?:token|coin|ca)\b)",
+            re.I,
+        ),
+    ),
+    (
+        "x.user_posts",
+        "x",
+        re.compile(
+            r"(?<![\w@])@[A-Za-z0-9_]{1,15}(?:'s|’s)?\s+(?:(?:past|previous|old|recent|latest|last)\s+)?"
+            r"(?:tweets|posts|timeline|calls|replies|mentions|likes|followers)\b"
+            r"|\b(?:his|her|their|its)\s+(?:past|previous|old|earlier)\s+(?:calls|tweets|posts)\b",
+            re.I,
+        ),
+    ),
+    (
+        "x.action.propose",
+        "x",
+        re.compile(
+            r"\b(?:post|tweet|publish|reply|retweet|repost|quote)\b[^.?!]{0,60}?\b(?:on|to)\s+(?:x|twitter)\b(?!\.)"
+            r"|\b(?:tweet|retweet|repost)\s+(?:this|that|it)\b"
+            r"|\b(?:follow|unfollow)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:like|retweet|repost|reply\s+to|quote)\s+(?:this|that|the)\s+(?:tweet|post)\b",
+            re.I,
+        ),
+    ),
     # -- mcp (family-level: server tools are dynamic) ------------------------------
     # matched separately below via the mcp.<server>. prefix vocabulary
 )
