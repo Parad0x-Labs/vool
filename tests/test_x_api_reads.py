@@ -256,6 +256,19 @@ def test_page_size_is_clamped_to_what_is_left(fake_x):
     assert fake_x.requests[-1]["query"]["max_results"] == "20"  # half of 40: authors ride along
 
 
+def test_lookups_by_list_reserve_their_worst_case_before_sending(fake_x):
+    from core import x_usage
+
+    _connect()
+    x_usage.set_limits(monthly_reads=10)
+    sent_before = len(fake_x.requests)
+    # 6 accounts with their pinned posts could carry 12 reads: more than the 10 left.
+    many = _run("x.user", {"usernames": "a1,a2,a3,a4,a5,a6"})
+    assert not many.ok and many.status == "usage_limit_reached" and "Nothing was sent to X" in many.response_text
+    assert len(fake_x.requests) == sent_before
+    assert x_usage.snapshot()["reads"] == 0  # a refused reservation holds nothing
+
+
 def test_unreadable_meter_pauses_reads(fake_x):
     from core.runtime_paths import data_path
 

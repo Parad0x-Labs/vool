@@ -106,7 +106,7 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
         if intent == "x.action.propose":
             outcome = x_actions.propose(args, source_context=source_context)
         else:
-            outcome = x_actions.status_for_model(str(args.get("action_id") or ""))
+            outcome = x_actions.status_for_model(str(args.get("action_id") or ""), source_context=source_context)
         return _result(intent, outcome, keys=("action",))
     from core.runtime_execution_tools import RuntimeExecutionResult
 
@@ -116,13 +116,15 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
 def _usage_text(snap: dict[str, Any]) -> str:
     if not snap.get("ok"):
         return str(snap.get("message") or "The X usage meter could not be read.")
-    limit = snap.get("monthly_reads")
-    limit_txt = f"of your {limit} limit" if limit is not None else "(no limit set)"
-    actions = snap.get("monthly_actions")
-    actions_txt = f"of {actions}" if actions is not None else "(no limit)"
-    return (f"X usage for {snap['month']}: {snap['reads']} reads {limit_txt} "
-            f"({snap['posts_read']} posts, {snap['users_read']} accounts) in {snap['requests']} requests; "
-            f"{snap['actions']} actions sent {actions_txt}. X bills these to your X developer account.")
+    from datetime import datetime
+
+    month = datetime.strptime(snap["month"], "%Y-%m").strftime("%B")
+    reads, actions = snap["reads"], snap["actions"]
+    limit, alimit = snap.get("monthly_reads"), snap.get("monthly_actions")
+    reads_txt = f"{reads:,} posts and accounts" + (f" (of your {limit:,} limit)" if limit is not None else " (no limit set)")
+    sent_txt = f"{actions:,} posts, replies, likes and follows" + (f" (of {alimit:,})" if alimit is not None else " (no limit set)")
+    return (f"In {month} VOOL has read {reads_txt} on X and sent {sent_txt}. "
+            "X charges these to your X developer account.")
 
 
 __all__ = ["X_ACTION_INTENTS", "X_INTENTS", "X_READ_INTENTS", "run_x_tool"]

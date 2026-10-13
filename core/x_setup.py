@@ -252,7 +252,7 @@ def finish_account(session_id: object) -> dict[str, Any]:
     saved["account"] = entry["account"]
     _write_saved(saved)
     return {"ok": True, "account": entry["account"]["username"],
-            "message": f"Connected as @{entry['account']['username']}. VOOL only reads with these keys; it does not post."}
+            "message": f"Connected as @{entry['account']['username']}. VOOL reads with these keys; anything it would post, like or follow waits for your approval first."}
 
 
 def cancel_account(session_id: object) -> dict[str, Any]:

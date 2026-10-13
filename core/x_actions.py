@@ -2,17 +2,20 @@
 
 The money rule applies: the model can only PROPOSE an action (``propose``). Nothing goes to X until
 the user approves that exact action in the app (``approve``, reached only through the owner-local
-Settings route ``/api/x/setup``, never through a tool argument). Declined, expired and failed
+Settings route ``/api/x/activity``, never through a tool argument). Declined, expired and failed
 actions are never retried on their own.
 
 * A proposal freezes what will be sent (kind, text, target post or account) and its hash. Approval
   sends exactly that; nothing about it can change after it is shown.
 * Targets are read from X when proposed (the post being liked or replied to, the account being
   followed), so the approval card shows what the action touches, not just an id.
-* Every send counts against the user's monthly action limit (``core.x_usage``), checked before
-  the request goes out.
-* A send that times out may still have reached X: it is marked ``unknown`` and never re-sent
-  automatically; the card says to check X before trying again.
+* Every send counts against the user's monthly action limit (``core.x_usage``), counted under the
+  same lock that marks the action as sending, so parallel approvals cannot run past the limit.
+* Approval needs the action's hash, which only the Settings panel is shown; the model's view of an
+  action leaves it out. Post text with invisible direction or zero-width characters is refused, so
+  the card shows exactly what will be posted.
+* A send whose answer is lost (timeout, dropped connection, X server error) may still have reached
+  X: it is marked ``unknown`` and never re-sent automatically; the card says to check X first.
 * Proposals expire after 24 hours. At most 20 can wait at once.
 """
 from __future__ import annotations
@@ -36,12 +39,15 @@ KINDS = ("post", "reply", "quote", "delete", "like", "unlike", "repost", "unrepo
 _TEXT_KINDS = {"post", "reply", "quote"}
 _POST_KINDS = {"reply", "quote", "delete", "like", "unlike", "repost", "unrepost"}
 _USER_KINDS = {"follow", "unfollow"}
+SENDING_STALE_S = 600
 _lock = threading.RLock()
+# Characters that reorder or hide text, so what the card shows would not be what X shows.
+_HIDDEN_CHARS = frozenset(chr(c) for c in (*range(0x200B, 0x2010), *range(0x202A, 0x202F), *range(0x2066, 0x206A), 0xFEFF))
 
 _VERBS = {
-    "post": "Post on X", "reply": "Reply on X", "quote": "Quote a post on X", "delete": "Delete your post on X",
-    "like": "Like a post", "unlike": "Remove your like", "repost": "Repost", "unrepost": "Undo your repost",
-    "follow": "Follow an account", "unfollow": "Unfollow an account",
+    "post": "Post on X", "reply": "Reply to", "quote": "Quote a post by", "delete": "Delete your post",
+    "like": "Like a post by", "unlike": "Remove your like from a post by", "repost": "Repost a post by",
+    "unrepost": "Undo your repost of a post by", "follow": "Follow", "unfollow": "Unfollow",
 }
 
 
@@ -77,6 +83,11 @@ def _expire(state: dict[str, Any], now: float) -> None:
         if action.get("state") == "pending" and now - float(action.get("created_at") or 0) > EXPIRY_S:
             action["state"] = "expired"
             action["updated_at"] = now
+        elif action.get("state") == "sending" and now - float(action.get("updated_at") or 0) > SENDING_STALE_S:
+            # VOOL stopped mid-send: it may have reached X, so it is never sent again on its own.
+            action["state"] = "unknown"
+            action["updated_at"] = now
+            action["message"] = "VOOL stopped while sending this. It may or may not have reached X: check X before trying again."
     # Keep the store small: the newest 200 finished actions.
     done = sorted((a for a in state["actions"].values() if a.get("state") != "pending"),
                   key=lambda a: float(a.get("updated_at") or 0))
@@ -88,20 +99,24 @@ def _digest(payload: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def public(action: dict[str, Any]) -> dict[str, Any]:
-    keep = ("id", "kind", "text", "state", "created_at", "updated_at", "target", "result", "message", "summary", "hash")
-    return {k: action.get(k) for k in keep if action.get(k) not in (None, "", {})}
+def public(action: dict[str, Any], *, for_settings: bool = False) -> dict[str, Any]:
+    """An action as shown. Only the Settings panel gets the hash that approval needs."""
+    keep = ("id", "kind", "text", "state", "created_at", "updated_at", "target", "result", "message", "summary")
+    shown = {k: action.get(k) for k in keep if action.get(k) not in (None, "", {})}
+    if for_settings and action.get("state") == "pending":
+        shown["hash"] = action.get("hash")
+    return shown
 
 
 def summary(action: dict[str, Any]) -> str:
     target = action.get("target") or {}
-    verb = _VERBS.get(str(action.get("kind")), str(action.get("kind")))
-    if action.get("kind") in _USER_KINDS:
-        return f"{verb}: @{target.get('username')}"
-    if action.get("kind") == "post":
+    kind = str(action.get("kind"))
+    verb = _VERBS.get(kind, kind)
+    if kind in _USER_KINDS:
+        return f"{verb} @{target.get('username')}"
+    if kind in {"post", "delete"}:
         return verb
-    who = f"@{target.get('author')}" if target.get("author") else "a post"
-    return f"{verb} ({who})"
+    return f"{verb} @{target.get('author')}" if target.get("author") else verb
 
 
 def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None = None):
@@ -128,6 +143,9 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             return _result(False, "invalid_arguments", "Say what the post should say. Nothing was proposed.")
         if len(text) > MAX_TEXT:
             return _result(False, "invalid_arguments", f"That text is longer than {MAX_TEXT} characters. Nothing was proposed.")
+        if any(ch in _HIDDEN_CHARS for ch in text):
+            return _result(False, "invalid_arguments", "That text has invisible characters that change how it reads, "
+                           "so it could look different on X than on the approval card. Nothing was proposed.")
         payload["text"] = text
     try:
         if kind in _POST_KINDS:
@@ -172,50 +190,50 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         _save(state)
     note = x_usage.action_refusal()
     message = (f"{action['summary']} is ready and waiting for your approval. Nothing has been sent to X. "
-               "Approve or decline it in Settings > API Keys > X (or the X approval note in chat).")
+               "Approve or decline it in Settings > API Keys > X.")
     if note:
         message += " Note: " + note
     return _result(True, "awaiting_approval", message, public(action))
 
 
-def pending() -> list[dict[str, Any]]:
+def _current() -> dict[str, Any]:
+    """The store with expiry applied (and saved). Raises RuntimeError when it can't be read."""
     with _lock:
-        try:
-            state = _load()
-        except RuntimeError:
-            return []
+        state = _load()
+        before = json.dumps(state, sort_keys=True)
         _expire(state, time.time())
-        if state["actions"]:
+        if json.dumps(state, sort_keys=True) != before:
             _save(state)
-        return [public(a) for a in sorted(state["actions"].values(), key=lambda a: float(a.get("created_at") or 0))
-                if a.get("state") == "pending"]
+        return state
+
+
+def pending() -> list[dict[str, Any]]:
+    state = _current()
+    return [public(a, for_settings=True) for a in sorted(state["actions"].values(), key=lambda a: float(a.get("created_at") or 0))
+            if a.get("state") == "pending"]
 
 
 def recent(limit: int = 10) -> list[dict[str, Any]]:
-    with _lock:
-        try:
-            state = _load()
-        except RuntimeError:
-            return []
+    state = _current()
     done = [a for a in state["actions"].values() if a.get("state") != "pending"]
     done.sort(key=lambda a: float(a.get("updated_at") or 0), reverse=True)
     return [public(a) for a in done[:limit]]
 
 
-def status_for_model(action_id: str = ""):
-    with _lock:
-        try:
-            state = _load()
-        except RuntimeError:
-            return _result(False, "store_unreadable", "VOOL could not read its list of X actions.")
-        _expire(state, time.time())
-    actions = state["actions"]
+def status_for_model(action_id: str = "", *, source_context: dict[str, Any] | None = None):
+    """The state of an action this chat proposed (the newest one when no id is given)."""
+    try:
+        state = _current()
+    except RuntimeError:
+        return _result(False, "store_unreadable", "VOOL could not read its list of X actions.")
+    session = str((source_context or {}).get("session_id") or "")
+    actions = [a for a in state["actions"].values() if str(a.get("session") or "") == session]
     if action_id:
-        action = actions.get(action_id)
+        action = next((a for a in actions if a.get("id") == action_id), None)
     else:
-        action = max(actions.values(), key=lambda a: float(a.get("created_at") or 0), default=None)
+        action = max(actions, key=lambda a: float(a.get("created_at") or 0), default=None)
     if not action:
-        return _result(False, "not_found", "No such X action.")
+        return _result(False, "not_found", "No such X action in this chat.")
     words = {"pending": "is waiting for your approval", "declined": "was declined; nothing was sent",
              "expired": "expired without approval; nothing was sent", "sent": "was sent",
              "failed": "failed; nothing was sent", "sending": "is being sent",
@@ -263,13 +281,19 @@ def _request_for(action: dict[str, Any]) -> tuple[str, str, dict[str, Any] | Non
     raise ValueError(kind)
 
 
-def _finish(action_id: str, **fields: Any) -> dict[str, Any]:
+def _finish(action: dict[str, Any], **fields: Any) -> dict[str, Any]:
+    """Record how a send ended. If the store can't be written, the outcome is still returned."""
     with _lock:
-        state = _load()
-        action = state["actions"][action_id]
-        action.update(updated_at=time.time(), **fields)
-        _save(state)
-        return action
+        try:
+            state = _load()
+            stored = state["actions"][action["id"]]
+            stored.update(updated_at=time.time(), **fields)
+            _save(state)
+            return stored
+        except (RuntimeError, OSError, KeyError):
+            outcome = {**action, **fields, "updated_at": time.time()}
+            outcome["message"] = str(fields.get("message") or "") + " (VOOL could not save this result.)"
+            return outcome
 
 
 def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
@@ -292,20 +316,22 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
             _save(state)
             return {"ok": False, "state": "not_pending",
                     "message": "That X action is no longer waiting for approval (sent, declined or expired). Nothing was sent."}
-        if expected_hash is not None and str(expected_hash) != action.get("hash"):
-            return {"ok": False, "state": "changed", "message": "That X action changed after it was shown. Nothing was sent."}
-        if _digest(action["payload"]) != action.get("hash"):
+        if str(expected_hash or "") != action.get("hash") or _digest(action["payload"]) != action.get("hash"):
             return {"ok": False, "state": "changed", "message": "That X action does not match what was shown. Nothing was sent."}
-        refusal = x_usage.action_refusal()
-        if refusal:
-            return {"ok": False, "state": "usage_limit_reached", "message": refusal}
         saved = x_api._saved()
         account = saved.get("account") if isinstance(saved.get("account"), dict) else {}
         if not all(saved.get(name) for name in FIELDS) or str(account.get("id") or "") != action["account"]["id"]:
             return {"ok": False, "state": "account_changed",
                     "message": "The connected X account is not the one this action was prepared for. Nothing was sent."}
+        refusal = x_usage.reserve_action()
+        if refusal:
+            return {"ok": False, "state": "usage_limit_reached", "message": refusal}
         action.update(state="sending", updated_at=time.time())
-        _save(state)
+        try:
+            _save(state)
+        except OSError:
+            x_usage.unreserve_action()
+            return {"ok": False, "state": "store_unreadable", "message": "VOOL could not save this X action. Nothing was sent."}
     method, path, body = _request_for(action)
     keys = OAuth1Keys(**{name: saved[name] for name in FIELDS})
     for name in FIELDS:
@@ -315,7 +341,6 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
     headers = {"Authorization": oauth1_authorization(method, url, keys), "Accept": "application/json"}
     if data is not None:
         headers["Content-Type"] = "application/json"
-    x_usage.record_action()
     try:
         from core.effect_gateway import named_background_effect_scope
 
@@ -325,10 +350,11 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
                                        credential_headers=("Authorization",))
             raw = response.read(256 * 1024) or b""
     except RemoteFetchRefusedError:
-        action = _finish(action["id"], state="pending", message="VOOL is not allowed to go online right now (for example Local Only is on). Nothing was sent; you can approve again later.")
+        x_usage.unreserve_action()
+        action = _finish(action, state="pending", message="VOOL is not allowed to go online right now (for example Local Only is on). Nothing was sent; you can approve again later.")
         return {"ok": False, "state": "refused", "message": action["message"], "action": public(action)}
     except CredentialRedirectRefusedError:
-        action = _finish(action["id"], state="failed", message="X answered with a redirect; VOOL did not follow it. Nothing was sent.")
+        action = _finish(action, state="failed", message="X answered with a redirect; VOOL did not follow it. Nothing was sent.")
         return {"ok": False, "state": "failed", "message": action["message"], "action": public(action)}
     except urllib.error.HTTPError as exc:
         try:
@@ -340,16 +366,18 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         if err.status == "plan_refused":
             message += (" To act on X, your X app needs \"Read and write\" permission (developer.x.com > your app > "
                         "User authentication settings); then generate new Access Tokens and reconnect X in Settings.")
-        action = _finish(action["id"], state="failed", message=message + " Nothing was sent.")
+        if int(exc.code or 0) >= 500:
+            # X may have done it before failing to answer.
+            action = _finish(action, state="unknown", message=message + " It may or may not have gone out: check X before trying again.")
+            return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
+        action = _finish(action, state="failed", message=message + " X did not do it.")
         return {"ok": False, "state": err.status, "message": action["message"], "action": public(action)}
     except Exception as exc:
-        from core.credential_intelligence.verification import is_timeout_error
-
-        if is_timeout_error(exc):
-            action = _finish(action["id"], state="unknown",
-                             message="X did not answer in time. It may or may not have gone out: check X before trying again.")
+        if _never_connected(exc):
+            action = _finish(action, state="failed", message="Could not reach X from this machine. Nothing was sent.")
         else:
-            action = _finish(action["id"], state="failed", message="Could not reach X from this machine. Nothing was sent.")
+            action = _finish(action, state="unknown",
+                             message="X's answer was lost. It may or may not have gone out: check X before trying again.")
         return {"ok": False, "state": action["state"], "message": action["message"], "action": public(action)}
     try:
         answer = json.loads(raw.decode("utf-8")) if raw else {}
@@ -357,15 +385,25 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         answer = {}
     result: dict[str, Any] = {}
     data_part = answer.get("data") if isinstance(answer, dict) else None
-    if isinstance(data_part, dict) and data_part.get("id") and action["kind"] in _TEXT_KINDS:
+    if isinstance(data_part, dict) and action["kind"] in _TEXT_KINDS and x_api._ID_RE.fullmatch(str(data_part.get("id") or "")):
+        handle = str(action["account"].get("username") or "")
         result = {"post_id": str(data_part["id"]),
-                  "url": x_api.post_url(action["account"].get("username") or "i", str(data_part["id"]))}
+                  "url": x_api.post_url(handle if x_api._HANDLE_RE.fullmatch(handle) else "i", str(data_part["id"]))}
     elif isinstance(data_part, dict):
-        result = {k: v for k, v in data_part.items() if isinstance(v, (bool, str, int))}
-    action = _finish(action["id"], state="sent", result=result, message="Sent to X.")
+        result = {k: v for k, v in data_part.items() if isinstance(v, (bool, int)) and k != "url"}
+    action = _finish(action, state="sent", result=result, message="Sent to X.")
     return {"ok": True, "action": public(action), "message": f"{action['summary']}: sent." + (f" {result['url']}" if result.get("url") else "")}
 
 
+
+
+def _never_connected(exc: BaseException) -> bool:
+    """True only when the request provably never reached X (no connection was made)."""
+    import socket
+    import urllib.error
+
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    return isinstance(reason, (ConnectionRefusedError, socket.gaierror))
 
 
 # --------------------------------------------------------------------------- Settings route
@@ -373,7 +411,12 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
 
 def overview() -> dict[str, Any]:
     """What the Settings X panel shows: usage, limits, actions waiting and the last few results."""
-    return {"ok": True, "usage": x_usage.snapshot(), "pending": pending(), "recent": recent()}
+    try:
+        return {"ok": True, "usage": x_usage.snapshot(), "pending": pending(), "recent": recent(), "store": "ok"}
+    except RuntimeError:
+        return {"ok": True, "usage": x_usage.snapshot(), "pending": [], "recent": [], "store": "unreadable",
+                "store_message": "VOOL could not read its list of X actions, so anything waiting can't be shown "
+                                 "or sent. Nothing will be sent until this is fixed."}
 
 
 def handle(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -389,7 +432,7 @@ def handle(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         if action == "reset_usage":
             return 200, x_usage.reset_meter()
         if action == "approve":
-            out = approve(body.get("action_id"), expected_hash=body.get("hash") or None)
+            out = approve(body.get("action_id"), expected_hash=body.get("hash"))
             return (200 if out.get("ok") else 400), out
         if action == "decline":
             out = decline(body.get("action_id"))

@@ -132,9 +132,6 @@ def _http_failure(status: int, body: dict[str, Any] | None) -> XReadError:
 def _request(path: str, params: dict[str, Any] | None = None, *, user_context: bool = False,
              saved: dict[str, Any] | None = None) -> dict[str, Any]:
     """One read-only GET to the pinned X origin. Counts usage; raises XReadError on any failure."""
-    import urllib.error
-
-    from core.remote_fetch_policy import CredentialRedirectRefusedError, RemoteFetchRefusedError, open_remote_url
     from core.secret_redaction import register_exact_secret
 
     saved = _saved() if saved is None else saved
@@ -143,9 +140,34 @@ def _request(path: str, params: dict[str, Any] | None = None, *, user_context: b
     authorization, secrets_in_use = _auth(saved, "GET", url, user_context=user_context)
     for value in secrets_in_use:
         register_exact_secret(value)
-    refusal = x_usage.refusal()
+    worst_case = _worst_case(clean)
+    refusal = x_usage.reserve_reads(worst_case)
     if refusal:
         raise XReadError("usage_limit_reached", refusal)
+    try:
+        return _send_read(path, url, authorization)
+    finally:
+        x_usage.release_reads(worst_case)
+
+
+def _worst_case(params: dict[str, Any]) -> int:
+    """The most items (posts, accounts, lists) one answer can carry, held against the limit first."""
+    try:
+        items = int(params.get("max_results") or 0)
+    except (TypeError, ValueError):
+        items = 0
+    for key in ("ids", "usernames"):
+        if params.get(key):
+            items = max(items, len(str(params[key]).split(",")))
+    expansions = [e for e in str(params.get("expansions") or "").split(",") if e]
+    return max(1, items) * (1 + len(expansions))
+
+
+def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
+    import urllib.error
+
+    from core.remote_fetch_policy import CredentialRedirectRefusedError, RemoteFetchRefusedError, open_remote_url
+
     x_usage.record_request(path)
     try:
         response = open_remote_url(
@@ -190,7 +212,7 @@ def _request(path: str, params: dict[str, Any] | None = None, *, user_context: b
         if "Not Found" in title or "not-found" in str((err or {}).get("type") or ""):
             raise XReadError("not_found", "X has no such post, account or list. " + str((err or {}).get("detail") or "")[:200])
         raise XReadError("unexpected_response", "X answered with an error: " + str((err or {}).get("detail") or title)[:300])
-    x_usage.record_read(posts=_count_posts(payload), users=_count_users(payload))
+    x_usage.record_read(posts=_count_posts(payload), users=_count_users(payload), other=_count_other(payload))
     return payload
 
 
@@ -216,6 +238,14 @@ def _count_users(payload: dict[str, Any]) -> int:
     includes = payload.get("includes") if isinstance(payload.get("includes"), dict) else {}
     n += len(includes.get("users") or [])
     return n
+
+
+def _count_other(payload: dict[str, Any]) -> int:
+    """Items that are neither posts nor accounts (lists): X bills them as reads too."""
+    data = payload.get("data")
+    rows = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+    return sum(1 for row in rows if isinstance(row, dict) and "text" not in row and "username" not in row
+               and ("name" in row or "member_count" in row))
 
 
 def _guard(fn):

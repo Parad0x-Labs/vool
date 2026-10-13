@@ -5,6 +5,9 @@ the posts and accounts each answer carried, and the actions it sent (posts, like
 calendar month (UTC). Nothing leaves the machine: the meter is a small JSON file under the VOOL
 data folder.
 
+Reads reserve their worst case before the request goes out (``reserve_reads``) and settle to what X
+actually returned afterwards, and an action is counted before it is sent (``reserve_action``), both
+under one lock, so parallel calls cannot run past a limit between the check and the count.
 The user sets a monthly limit on items read, posts and accounts together (Settings > API Keys > X). Reads are refused BEFORE the
 request is sent once the limit is reached, and page sizes are clamped to what is left, so VOOL can
 never run past the number the user chose. A missing or unreadable meter fails closed: VOOL refuses
@@ -25,6 +28,7 @@ DEFAULT_MONTHLY_READS = 1000
 DEFAULT_MONTHLY_ACTIONS = 50
 MAX_LIMIT = 10_000_000
 _lock = threading.RLock()
+_reserved_reads = 0  # in-flight worst cases, held until each read settles
 
 
 class UsageUnreadable(Exception):
@@ -40,7 +44,7 @@ def _path():
 
 
 def _blank(month: str, limits: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {"month": month, "requests": 0, "posts_read": 0, "users_read": 0, "actions": 0,
+    return {"month": month, "requests": 0, "posts_read": 0, "users_read": 0, "other_read": 0, "actions": 0,
             "by_endpoint": {}, "limits": dict(limits or {
                 "monthly_reads": DEFAULT_MONTHLY_READS,
                 "monthly_actions": DEFAULT_MONTHLY_ACTIONS})}
@@ -59,7 +63,7 @@ def _load() -> dict[str, Any]:
         raise UsageUnreadable()
     if state.get("month") != month:
         history = list(state.get("history") or [])[-11:]
-        history.append({k: state.get(k) for k in ("month", "requests", "posts_read", "users_read", "actions")})
+        history.append({k: state.get(k) for k in ("month", "requests", "posts_read", "users_read", "other_read", "actions")})
         fresh = _blank(month, state["limits"])
         fresh["history"] = history
         return fresh
@@ -93,7 +97,7 @@ def snapshot() -> dict[str, Any]:
                     "message": "VOOL could not read its X usage meter, so X reads are paused. Reset the meter in Settings > API Keys > X."}
     limits = state["limits"]
     read_limit = _limit(limits.get("monthly_reads", DEFAULT_MONTHLY_READS))
-    reads = int(state.get("posts_read") or 0) + int(state.get("users_read") or 0)
+    reads = sum(int(state.get(k) or 0) for k in ("posts_read", "users_read", "other_read")) + _reserved_reads
     action_limit = _limit(limits.get("monthly_actions", DEFAULT_MONTHLY_ACTIONS))
     return {
         "ok": True, "month": state["month"], "requests": int(state.get("requests") or 0),
@@ -162,9 +166,56 @@ def record_request(path: str) -> None:
     _bump(requests=1, endpoint=_endpoint_family(path))
 
 
-def record_read(*, posts: int = 0, users: int = 0) -> None:
-    if posts or users:
-        _bump(posts_read=max(0, posts), users_read=max(0, users))
+def record_read(*, posts: int = 0, users: int = 0, other: int = 0) -> None:
+    if posts or users or other:
+        _bump(posts_read=max(0, posts), users_read=max(0, users), other_read=max(0, other))
+
+
+def reserve_reads(worst_case: int) -> str:
+    """Hold ``worst_case`` reads against the limit before a request is sent. '' when held, else
+    the refusal to show. Every successful reserve must be settled with ``release_reads``."""
+    global _reserved_reads
+    worst_case = max(1, int(worst_case))
+    with _lock:
+        snap = snapshot()
+        if not snap.get("ok"):
+            return snap["message"]
+        left = snap["reads_left"]
+        if left is not None and worst_case > left:
+            if left <= 0:
+                return refusal() or "Your X read limit for this month is used up. Nothing was sent to X."
+            return (f"That X read could return up to {worst_case} posts and accounts, and only {left} are left under "
+                    "your monthly limit. Nothing was sent to X. Ask for fewer, or raise the limit in Settings > API Keys > X.")
+        _reserved_reads += worst_case
+    return ""
+
+
+def release_reads(worst_case: int) -> None:
+    global _reserved_reads
+    with _lock:
+        _reserved_reads = max(0, _reserved_reads - max(1, int(worst_case)))
+
+
+def reserve_action() -> str:
+    """Count one action before it is sent. '' when counted, else the refusal to show."""
+    with _lock:
+        refused = action_refusal()
+        if refused:
+            return refused
+        record_action()
+    return ""
+
+
+def unreserve_action() -> None:
+    """Give back an action that was counted but provably never left this machine."""
+    with _lock:
+        try:
+            state = _load()
+        except UsageUnreadable:
+            return
+        state["actions"] = max(0, int(state.get("actions") or 0) - 1)
+        state["requests"] = max(0, int(state.get("requests") or 0) - 1)
+        _save(state)
 
 
 def record_action() -> None:
@@ -178,6 +229,12 @@ def set_limits(*, monthly_reads: Any = "keep", monthly_actions: Any = "keep") ->
             return None
         if isinstance(value, bool):
             raise ValueError
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError
+            value = int(value)
+        if isinstance(value, str) and not value.strip().isdigit():
+            raise ValueError
         number = int(value)
         if number < 0 or number > MAX_LIMIT:
             raise ValueError
@@ -187,7 +244,11 @@ def set_limits(*, monthly_reads: Any = "keep", monthly_actions: Any = "keep") ->
         try:
             state = _load()
         except UsageUnreadable:
-            state = _blank(_month())
+            # Saving limits must never zero a meter VOOL could not read: that would hand back the
+            # whole month's budget without the user choosing to.
+            return {"ok": False, "state": "unreadable",
+                    "message": "VOOL could not read its X usage count, so your limits were not changed. "
+                               "Use \"Start counting from zero\" first if you want to reset it."}
         limits = dict(state.get("limits") or {})
         try:
             if monthly_reads != "keep":
@@ -213,5 +274,20 @@ def reset_meter() -> dict[str, Any]:
     return {"ok": True, **snapshot()}
 
 
-__all__ = ["DEFAULT_MONTHLY_ACTIONS", "DEFAULT_MONTHLY_READS", "action_refusal", "reads_left",
-           "record_action", "record_read", "record_request", "refusal", "reset_meter", "set_limits", "snapshot"]
+__all__ = [
+    "DEFAULT_MONTHLY_ACTIONS",
+    "DEFAULT_MONTHLY_READS",
+    "action_refusal",
+    "reads_left",
+    "record_action",
+    "record_read",
+    "record_request",
+    "refusal",
+    "release_reads",
+    "reserve_action",
+    "reserve_reads",
+    "reset_meter",
+    "set_limits",
+    "snapshot",
+    "unreserve_action",
+]
