@@ -5,7 +5,10 @@ native host, which starts and owns the bundled runtime and Ollama), and drives t
 door: one plain reply, then remember, recall, forget and recall-after-forget on a fresh profile.
 Then it stops the native host with SIGTERM and requires the owned API to go away.
 
-Every step writes its raw reply under --scratch; a failed step stops the run (fail closed).
+Every step writes its raw reply under --scratch. A failed prerequisite (hardware, signature,
+bundle identity, runtime start, model pull or certification) stops the run at once, because nothing
+after it can run. Each chat check runs whatever an earlier check said, so one slow answer cannot hide
+the others; the run prints a PASS/FAIL table of every step and still exits non-zero if any failed.
 """
 
 from __future__ import annotations
@@ -66,15 +69,31 @@ class Run:
         self.scratch = scratch
         self.steps: list[dict] = []
 
-    def record(self, name: str, ok: bool, detail: object) -> None:
+    def record(self, name: str, ok: bool, detail: object, fatal: bool = True) -> None:
         self.steps.append({"step": name, "ok": ok, "detail": detail})
         (self.scratch / "steps.json").write_text(json.dumps(self.steps, indent=2) + "\n")
         print(
             f"{'PASS' if ok else 'FAIL'} {name}: {detail if isinstance(detail, str) else json.dumps(detail)[:400]}",
             flush=True,
         )
-        if not ok:
+        if not ok and fatal:
             raise SmokeFailure(f"{name}: {detail}")
+
+    def check(self, name: str, step) -> None:
+        """Run one chat check and record it without stopping the run; an error in it is its FAIL."""
+        try:
+            ok, detail = step()
+        except (SmokeFailure, OSError, ValueError, urllib.error.URLError) as error:
+            ok, detail = False, f"{type(error).__name__}: {error}"
+        self.record(name, ok, detail, fatal=False)
+
+    def summary(self) -> list[str]:
+        """Print every step as a PASS/FAIL table; the names of the failed ones."""
+        width = max(len(step["step"]) for step in self.steps)
+        print("----- smoke steps -----", flush=True)
+        for step in self.steps:
+            print(f"{'PASS' if step['ok'] else 'FAIL'}  {step['step'].ljust(width)}", flush=True)
+        return [step["step"] for step in self.steps if not step["ok"]]
 
     def chat(self, origin: str, name: str, message: str, model: str, timeout: float) -> str:
         body = {
@@ -239,21 +258,35 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
             {"state": certified.get("state"), "stages": stages},
         )
 
-        plain = run.chat(origin, "plain", "Calculate 23 * 19", model, chat_timeout)
-        run.record("plain reply", "437" in plain, plain[:300])
-        said = run.chat(origin, "remember", FACT, model, chat_timeout)
-        entries = request(origin, f"/api/memory/entries?session={SESSION}")
-        (scratch / "memory-after-remember.json").write_text(json.dumps(entries, indent=2) + "\n")
-        stored = MARKER in json.dumps(entries).lower()
-        run.record("remember stored the fact", stored, said[:300])
-        recalled = run.chat(origin, "recall", QUESTION, model, chat_timeout)
-        run.record("recall answers from memory", MARKER in recalled.lower(), recalled[:300])
-        forgot = run.chat(origin, "forget", FORGET, model, chat_timeout)
-        entries = request(origin, f"/api/memory/entries?session={SESSION}")
-        (scratch / "memory-after-forget.json").write_text(json.dumps(entries, indent=2) + "\n")
-        run.record("forget removed the entry", MARKER not in json.dumps(entries).lower(), forgot[:300])
-        after = run.chat(origin, "recall-after-forget", QUESTION, model, chat_timeout)
-        run.record("recall after forget does not return the fact", MARKER not in after.lower(), after[:300])
+        def plain():
+            text = run.chat(origin, "plain", "Calculate 23 * 19", model, chat_timeout)
+            return "437" in text, text[:300]
+
+        def remember():
+            said = run.chat(origin, "remember", FACT, model, chat_timeout)
+            entries = request(origin, f"/api/memory/entries?session={SESSION}")
+            (scratch / "memory-after-remember.json").write_text(json.dumps(entries, indent=2) + "\n")
+            return MARKER in json.dumps(entries).lower(), said[:300]
+
+        def recall():
+            recalled = run.chat(origin, "recall", QUESTION, model, chat_timeout)
+            return MARKER in recalled.lower(), recalled[:300]
+
+        def forget():
+            forgot = run.chat(origin, "forget", FORGET, model, chat_timeout)
+            entries = request(origin, f"/api/memory/entries?session={SESSION}")
+            (scratch / "memory-after-forget.json").write_text(json.dumps(entries, indent=2) + "\n")
+            return MARKER not in json.dumps(entries).lower(), forgot[:300]
+
+        def recall_after_forget():
+            after = run.chat(origin, "recall-after-forget", QUESTION, model, chat_timeout)
+            return MARKER not in after.lower(), after[:300]
+
+        run.check("plain reply", plain)
+        run.check("remember stored the fact", remember)
+        run.check("recall answers from memory", recall)
+        run.check("forget removed the entry", forget)
+        run.check("recall after forget does not return the fact", recall_after_forget)
     finally:
         early_exit = process.poll()
         if early_exit is not None:
@@ -288,8 +321,13 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
     except (OSError, ValueError, urllib.error.URLError):
         pass
     else:
-        run.record("owned runtime stopped with the app", False, "the API still answers after the native host exited")
-    run.record("app quit on SIGTERM", process.returncode is not None, f"exit {process.returncode}")
+        run.record(
+            "owned runtime stopped with the app", False, "the API still answers after the native host exited", fatal=False
+        )
+    run.record("app quit on SIGTERM", process.returncode is not None, f"exit {process.returncode}", fatal=False)
+    failed = run.summary()
+    if failed:
+        raise SmokeFailure(f"{len(failed)} of {len(run.steps)} steps failed: {', '.join(failed)}")
     digest = hashlib.sha256(dmg.read_bytes()).hexdigest()
     print(f"PASS: {dmg.name} sha256 {digest} on {host['cpu']} macOS {host['macos']}, commit {expected}")
 
