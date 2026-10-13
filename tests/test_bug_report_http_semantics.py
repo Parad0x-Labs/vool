@@ -260,8 +260,8 @@ def test_destination_endpoint_returns_the_builtin_default():
     assert resp.status == 200
     body = json.loads(resp.body)
     assert body["ok"] is True
-    assert body["destination"] == "Parad0x-Labs/vool-feedback"
-    assert body["builtin"] == "Parad0x-Labs/vool-feedback"
+    assert body["destination"] == "Parad0x-Labs/vool-reports"
+    assert body["builtin"] == "Parad0x-Labs/vool-reports"
 
 
 def test_destination_env_override_is_respected(monkeypatch):

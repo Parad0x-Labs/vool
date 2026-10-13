@@ -13,6 +13,9 @@ repaired owning contract, plus a genuinely different case and the refusal contro
    turn re-emits the identical call and a consumed grant must still cover its exact fingerprint.
 4. An internal tool-selection routing call under an explicit paid pin was reported as "Selected
    model could not run (internal_tool_intent_call)" -- a provider failure that never happened.
+   Since 2026-10-05 (owner decision) the pinned paid model runs its own tool-selection rounds,
+   each reserved against the paid caps under the `tool_intent` call role, so that refusal no
+   longer exists at all.
 """
 from __future__ import annotations
 
@@ -455,32 +458,41 @@ def _run_internal_tool_intent(paid_pin_lane, monkeypatch):
     return decision, events
 
 
-def test_internal_tool_intent_is_not_reported_as_the_selected_model_failing(paid_pin_lane, monkeypatch):
-    """The reservation's own law -- the pick authorizes answering, not internal classification
-    calls -- must not surface as "Selected model could not run"."""
+def test_a_pinned_paid_tool_selection_round_reserves_under_its_own_role(paid_pin_lane, monkeypatch):
+    """The pinned paid model runs its own tool-selection round: it is booked against the paid caps
+    as a `tool_intent` call, and nothing narrates a refusal that no longer exists."""
     decision, events = _run_internal_tool_intent(paid_pin_lane, monkeypatch)
-    assert decision.source != "selected_model_blocked"
     assert str((decision.details or {}).get("block_reason") or "") != "internal_tool_intent_call"
     for event in events:
-        message = str(event.get("message") or "")
-        assert "could not run (internal_tool_intent_call)" not in message
-    assert any(
-        "Internal tool-selection step" in str(event.get("message") or "")
-        for event in events
-    ), "the ledger must name the internal routing lane distinctly"
+        assert "internal_tool_intent_call" not in str(event.get("message") or "")
+    reserved = [
+        event for event in events
+        if str(event.get("event_type") or "") == "paid_call.reserved"
+    ]
+    assert reserved, "the pinned model's tool-selection round must be reserved before any spend"
+    assert all("Paid tool selection reserved" in str(event.get("message") or "") for event in reserved)
 
 
-def test_reservation_refusal_code_is_stable_for_internal_calls(paid_pin_lane):
-    """The typed refusal the router keys on, pinned so the repair cannot drift silently."""
+def test_tool_selection_reserves_only_for_an_explicit_paid_pick(paid_pin_lane):
+    """The pin authorizes its own tool rounds; an unpinned turn (no manifest) still never spends."""
     from core.paid_call_reservation import reserve_owner_pick_paid_call
 
-    denial: dict[str, str] = {}
-    reservation = reserve_owner_pick_paid_call(
+    pinned = reserve_owner_pick_paid_call(
         manifest=paid_pin_lane,
         task=SimpleNamespace(task_id="t"),
         source_context={"_owner_local": True},
         task_kind="tool_intent",
+        call_role="tool_intent",
+    )
+    assert pinned is not None
+    denial: dict[str, str] = {}
+    unpinned = reserve_owner_pick_paid_call(
+        manifest=None,
+        task=SimpleNamespace(task_id="t"),
+        source_context={"_owner_local": True},
+        task_kind="tool_intent",
+        call_role="tool_intent",
         denial=denial,
     )
-    assert reservation is None
-    assert denial["reason"] == "internal_tool_intent_call"
+    assert unpinned is None
+    assert denial["reason"] == "no_explicit_paid_pick"

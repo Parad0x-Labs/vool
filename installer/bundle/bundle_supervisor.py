@@ -13,6 +13,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from core.runtime_paths import native_runtime_home
+
 _POLL_SECONDS = 2.0
 _STARTUP_TIMEOUT_SECONDS = 60.0
 _MAX_BACKOFF_SECONDS = 30.0
@@ -33,8 +35,7 @@ class BundleSupervisor:
     def __init__(self, root: Path, *, env: dict[str, str] | None = None) -> None:
         self.root = root.resolve()
         self.env = dict(os.environ if env is None else env)
-        local_app_data = Path(self.env.get("LOCALAPPDATA") or Path.home())
-        self.home = Path(self.env.get("VOOL_HOME") or local_app_data / "VOOL").expanduser()
+        self.home = native_runtime_home(self.env)
         self.run_dir = self.home / "run"
         self.log_dir = self.home / "logs"
         self.state_path = self.run_dir / "bundle-supervisor.json"
@@ -405,8 +406,7 @@ def main() -> int:
     args = parser.parse_args()
     root = Path(args.root).resolve()
     if args.stop:
-        local_app_data = Path(os.environ.get("LOCALAPPDATA") or Path.home())
-        home = Path(os.environ.get("VOOL_HOME") or local_app_data / "VOOL")
+        home = native_runtime_home()
         run_dir = home / "run"
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "stop").write_text("stop\n", encoding="utf-8")

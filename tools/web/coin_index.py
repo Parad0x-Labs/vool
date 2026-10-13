@@ -56,10 +56,17 @@ import re
 import threading
 import time
 import urllib.request
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
-from core.remote_fetch_policy import remote_fetch_forbidden
+from core.remote_fetch_policy import (
+    RemoteFetchRefusedError,
+    effective_web_available,
+    open_remote,
+    remote_fetch_forbidden,
+)
 from core.runtime_paths import active_vool_home
 
 # Rank ceiling. See the module docstring for the measurements behind this number -- it is the
@@ -101,6 +108,17 @@ _TOKEN_RE = re.compile(r"[a-z0-9]{2,12}")
 _lock = threading.Lock()
 _memory_index: dict[str, str] | None = None
 _memory_stamp: float = 0.0
+_CACHE_ONLY = ContextVar("coin_index_cache_only", default=False)
+
+
+@contextmanager
+def cached_index_only():
+    """Read known identities during classification without retrieving new ones."""
+    token = _CACHE_ONLY.set(True)
+    try:
+        yield
+    finally:
+        _CACHE_ONLY.reset(token)
 
 
 def _cache_path() -> Path:
@@ -144,13 +162,25 @@ def _write_disk_cache(symbols: dict[str, str]) -> None:
 
 
 def _fetch_index() -> dict[str, str]:
-    """symbol -> coin id for the top `_MAX_RANK` coins. {} on any failure."""
-    if remote_fetch_forbidden():
+    """Resolve the remote index under existing consent and the owning effect ledger.
+
+    Transport/data failures return {}; the door's typed permission refusal is
+    retained so the cache can distinguish refusal from a failed network attempt.
+    This resolver never creates a turn or background scope to authorize itself.
+    """
+    if remote_fetch_forbidden() or not effective_web_available():
         return {}
     request = urllib.request.Request(_INDEX_URL, headers={"User-Agent": "VOOL-PRICE/1.0"})
     try:
-        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_S) as response:
+        with open_remote(
+            request,
+            timeout=_FETCH_TIMEOUT_S,
+            provider_id="coingecko",
+            keyed_or_keyless="keyless",
+        ) as response:
             rows = json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
+    except RemoteFetchRefusedError:
+        raise
     except Exception:
         return {}
     if not isinstance(rows, list):
@@ -189,7 +219,22 @@ def _index() -> dict[str, str]:
             _memory_index = cached
             _memory_stamp = time.time()
             return _memory_index
-        fetched = _fetch_index()
+        # Cached identities are local reads even when web is off. A cold index
+        # may refresh only after consent; a refusal is not an API outage and must
+        # not suppress a newly permitted turn for the negative-cache TTL.
+        from core.agent_runtime.answer_coverage import interpretation_in_progress
+
+        # Lane admission describes the user's demand; it cannot perform a
+        # retrieval on the way to deciding what the user actually authorized.
+        # Cached identities remain readable and a later active lookup may retry.
+        if _CACHE_ONLY.get() or interpretation_in_progress():
+            return {}
+        if remote_fetch_forbidden() or not effective_web_available():
+            return {}
+        try:
+            fetched = _fetch_index()
+        except RemoteFetchRefusedError:
+            return {}
         if fetched:
             _write_disk_cache(fetched)
             _memory_index = fetched

@@ -646,8 +646,9 @@ def _frontmatter_of(path: Path) -> dict[str, Any]:
 
 
 def _enabled_store_path() -> Path:
-    home = Path(os.environ.get("VOOL_HOME") or (Path.home() / ".vool_runtime"))
-    return home / "config" / "skills_enabled.json"
+    from core.runtime_paths import active_vool_home
+
+    return active_vool_home() / "config" / "skills_enabled.json"
 
 
 def _read_disabled_ids() -> set[str]:

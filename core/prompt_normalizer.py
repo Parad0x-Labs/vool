@@ -627,6 +627,7 @@ def _build_conversational_request(
         system_segments.extend([
             ("persona", _PAYLOAD_SYSTEM_BOOTSTRAP, f"You are {persona_name}."),
             ("plain_task_instruction", _PAYLOAD_SYSTEM_BOOTSTRAP, task_instruction),
+            ("style_guide", _PAYLOAD_SYSTEM_BOOTSTRAP, style_guide),
             (
                 "no_side_effect_claim",
                 _PAYLOAD_SYSTEM_BOOTSTRAP,
@@ -823,6 +824,17 @@ def _build_conversational_request(
             else EXPANDED_HISTORY_MESSAGES
         ),
     )
+    if (source_context or {}).get("runtime_retry_of") or (source_context or {}).get("turn_routing_retry"):
+        from core.attempt_followup import classify_followup_intent
+
+        ordinary_history: list[InternalMessage] = []
+        control_exchange = False
+        for message in history_messages:
+            if message.role == "user":
+                control_exchange = classify_followup_intent(message.content) is not None
+            if not control_exchange:
+                ordinary_history.append(message)
+        history_messages = ordinary_history
     # The stipulated-frame rule ("answer inside the frame, never replace named people") is right
     # only when the user set up a frame. Sent on every turn, it told the reader to answer inside
     # the premise of an ordinary question -- including a false premise that names the wrong

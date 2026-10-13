@@ -713,6 +713,13 @@ def chat_surface_model_wording_result(
     tool_backing_sources: list[str] | None = None,
     response_postprocessor: Callable[[str], str] | None = None,
 ) -> dict[str, Any]:
+    # Bind every consumer at this boundary to the authored demand. The incoming
+    # interpretation preserves its original layout before routing normalization.
+    user_input = str(
+        getattr(interpretation, "user_demand_text", "")
+        or getattr(interpretation, "raw_text", "")
+        or user_input
+    )
     task = agent._resolve_runtime_task(
         effective_input=user_input,
         session_id=session_id,

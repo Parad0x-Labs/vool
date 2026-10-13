@@ -54,6 +54,21 @@ from tools.web.web_research import (
 _FAKE_INDEX = {"arb": "arbitrum", "sui": "sui", "ltc": "litecoin", "btc": "bitcoin"}
 
 
+@pytest.fixture(autouse=True)
+def consented_index_fetch_scope(monkeypatch):
+    """Direct fetch controls represent a web-enabled owner with an effect ledger."""
+    from core import policy_engine
+    from core.effect_gateway import named_background_effect_scope
+
+    monkeypatch.setenv("VOOL_ENABLE_WEB", "1")
+    monkeypatch.delenv("VOOL_DISABLE_WEB", raising=False)
+    monkeypatch.delenv("VOOL_NO_WEB", raising=False)
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", None)
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE_BINDING", None)
+    with named_background_effect_scope("test.unlisted_ticker_index"):
+        yield
+
+
 @pytest.fixture
 def injected_index(monkeypatch):
     """Pin the index to a known set so no assertion depends on live market caps."""

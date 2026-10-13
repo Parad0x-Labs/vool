@@ -1487,6 +1487,27 @@ def looks_like_current_chat_recall(text: str) -> bool:
     return bool(_CURRENT_CHAT_RECALL_RE.search(" ".join(str(text or "").split())))
 
 
+def _asks_only_what_was_said(text: str) -> bool:
+    """Whether the turn asks what was said in this conversation, with no lookup asked beside it.
+
+    Measured 2026-10-06 on 9adff83 with pack 2 applied: "what did I tell you about the latest
+    Bitcoin news?" and "what did I tell you about my research project?" were classified `research`
+    on the words "latest" and "research", and the turn answered from the live web lane.
+    """
+    from core.execution.constants import conversation_recall_remainder
+
+    rest = conversation_recall_remainder(text)
+    if rest is None:
+        return False
+    return not any(
+        looks_like_live_recency_lookup(clause)
+        or looks_like_explicit_lookup_request(clause)
+        or looks_like_public_entity_lookup_request(clause)
+        or _bare_lookup_marker_claims_this_turn(clause)
+        for clause in rest
+    )
+
+
 def looks_like_ordinary_conceptual_question(text: str) -> bool:
     """Keep everyday conceptual questions in conversation without swallowing topic lookups."""
     return bool(_ORDINARY_CONCEPTUAL_QUESTION_RE.search(" ".join(str(text or "").split())))
@@ -2351,6 +2372,13 @@ def classify(user_input: str, context: dict[str, Any] | None = None) -> dict[str
     elif any(k in text for k in ["run ", "execute ", "command", "shell", "terminal"]):
         task_class = "shell_guidance"
         confidence_hint = 0.72
+
+    if task_class in {"unknown", "research", "chat_research"} and _asks_only_what_was_said(raw_text):
+        # Ahead of the model fallback as well: asked to pick a category, the local model reads "what
+        # did i tell you about bitcoin?" as research, and research buys the web lane and a paid arm
+        # for an answer that only the conversation holds.
+        task_class = "chat_conversation"
+        confidence_hint = 0.88
 
     if task_class == "unknown" and not _skip_model_classification_for_context(context):
         model_class = _classify_via_model(user_input)

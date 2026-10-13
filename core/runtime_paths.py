@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
+import sys
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -19,18 +22,25 @@ DOCS_DIR = (PROJECT_ROOT / "docs").resolve()
 PROJECT_CONFIG_DIR = (PROJECT_ROOT / "config").resolve()
 WORKSPACE_DIR = (PROJECT_ROOT / "workspace").resolve()
 _VOOL_HOME_OVERRIDE: Path | None = None
+_VOOL_HOME_ENV_AT_OVERRIDE = ""
+_CONFIGURED_HOME_OVERRIDE: Path | None = None
 _RUNTIME_HOME_GENERATION = 0
+_RUNTIME_HOME_ENV_LAST_SEEN: str | None = None
 
 
 def runtime_home_generation() -> int:
     """Monotonic count of in-process runtime-home authority changes.
 
     Hot caches that must never outlive a home switch (the A8 digest-key cache)
-    compare this number instead of re-resolving the home's filesystem path on
-    every call: ``configure_runtime_home`` is the one owner that can move the
-    active home underneath a running process, so its count IS the home's
-    identity between resolutions.
+    compare this number instead of re-resolving filesystem paths on every call.
+    Explicit environment changes also advance it, so a bootstrap binding and a
+    digest-key cache cannot silently survive a later profile selection.
     """
+    global _RUNTIME_HOME_GENERATION, _RUNTIME_HOME_ENV_LAST_SEEN
+    selected = _runtime_env_home(os.environ)
+    if _RUNTIME_HOME_ENV_LAST_SEEN is not None and selected != _RUNTIME_HOME_ENV_LAST_SEEN:
+        _RUNTIME_HOME_GENERATION += 1
+    _RUNTIME_HOME_ENV_LAST_SEEN = selected
     return _RUNTIME_HOME_GENERATION
 
 
@@ -60,9 +70,12 @@ def user_runtime_default() -> Path:
 
 
 def configure_runtime_home(path: str | Path | None) -> None:
-    global _VOOL_HOME_OVERRIDE, _RUNTIME_HOME_GENERATION
+    global _VOOL_HOME_OVERRIDE, _VOOL_HOME_ENV_AT_OVERRIDE, _RUNTIME_HOME_GENERATION, _RUNTIME_HOME_ENV_LAST_SEEN, _CONFIGURED_HOME_OVERRIDE
     _RUNTIME_HOME_GENERATION += 1
     _VOOL_HOME_OVERRIDE = None if path is None else Path(path).expanduser().resolve()
+    _CONFIGURED_HOME_OVERRIDE = _VOOL_HOME_OVERRIDE
+    _VOOL_HOME_ENV_AT_OVERRIDE = _runtime_env_home(os.environ)
+    _RUNTIME_HOME_ENV_LAST_SEEN = _VOOL_HOME_ENV_AT_OVERRIDE
 
 
 def discover_installed_runtime_home(
@@ -88,10 +101,13 @@ def discover_installed_runtime_home(
 
 def active_vool_home(env: Mapping[str, str] | None = None) -> Path:
     if env is None:
-        if _VOOL_HOME_OVERRIDE is not None:
+        # An in-process override owns a deliberate home switch (session import, an
+        # embedder). A later explicit environment change selects a new profile and
+        # must not be silently pinned to a home captured by an earlier bootstrap.
+        if _runtime_override_is_active(os.environ):
             return _VOOL_HOME_OVERRIDE.resolve()
         env_map = os.environ
-        env_home = str(env_map.get("VOOL_HOME") or env_map.get("NULLA_HOME") or "").strip()
+        env_home = _runtime_env_home(env_map)
         if env_home:
             return Path(env_home).expanduser().resolve()
         installed_home = discover_installed_runtime_home()
@@ -101,7 +117,7 @@ def active_vool_home(env: Mapping[str, str] | None = None) -> Path:
 
     env_map = env
     explicit_env_home = "VOOL_HOME" in env_map or "NULLA_HOME" in env_map
-    env_home = str(env_map.get("VOOL_HOME") or env_map.get("NULLA_HOME") or "").strip()
+    env_home = _runtime_env_home(env_map)
     if env_home:
         return Path(env_home).expanduser().resolve()
     if _VOOL_HOME_OVERRIDE is not None and not explicit_env_home:
@@ -112,12 +128,126 @@ def active_vool_home(env: Mapping[str, str] | None = None) -> Path:
     return VOOL_HOME.resolve()
 
 
+def _runtime_env_home(env: Mapping[str, str]) -> str:
+    return str(env.get("VOOL_HOME") or "").strip() or str(env.get("NULLA_HOME") or "").strip()
+
+
+def _runtime_override_is_active(env: Mapping[str, str]) -> bool:
+    # Explicit in-process assignments are a supported embedding seam. Only an
+    # override bound through configure_runtime_home can expire after a later
+    # environment selection; a newly assigned override has its own authority.
+    return _VOOL_HOME_OVERRIDE is not None and (
+        _VOOL_HOME_OVERRIDE is not _CONFIGURED_HOME_OVERRIDE
+        or _runtime_env_home(env) == _VOOL_HOME_ENV_AT_OVERRIDE
+    )
+
+
 def active_data_dir() -> Path:
     return (active_vool_home() / "data").resolve()
 
 
 def active_config_home_dir() -> Path:
     return (active_vool_home() / "config").resolve()
+
+
+def runtime_home_is_isolated(env: Mapping[str, str] | None = None) -> bool:
+    """Whether the active profile is separate from a conventional installed home.
+
+    Existing installations keep their external Desktop packs and native compatibility
+    locks. A custom profile must never inherit those resources from the login home.
+    This includes in-process overrides and install receipts, not only environment vars.
+    """
+    env_map = os.environ if env is None else env
+    user_home = Path.home()
+    support = user_home / "Library" / "Application Support"
+    defaults = {
+        VOOL_HOME.resolve(),
+        (PROJECT_ROOT / ".vool_local").resolve(),
+        (PROJECT_ROOT / ".nulla_local").resolve(),
+        (user_home / ".vool_runtime").resolve(),
+        (user_home / ".nulla_runtime").resolve(),
+        (support / "VOOL" / "runtime").resolve(),
+        (support / "NULLA" / "runtime").resolve(),
+    }
+    if sys.platform == "win32":
+        local = Path(str(env_map.get("LOCALAPPDATA") or user_home)).expanduser()
+        defaults.update({(local / "VOOL").resolve(), (local / "NULLA").resolve()})
+    return active_vool_home(env).resolve() not in defaults
+
+
+def runtime_auxiliary_path(*parts: str, legacy: str | Path | None = None) -> Path:
+    """Resolve product-owned auxiliary state without leaking a custom profile.
+
+    ``legacy`` preserves an existing default-install location; explicit custom homes
+    always own the corresponding state beneath their own root.
+    """
+    if legacy is not None and not runtime_home_is_isolated():
+        return Path(legacy).expanduser().resolve()
+    return active_vool_home().joinpath(*parts).resolve()
+
+
+def native_runtime_home(env: Mapping[str, str] | None = None) -> Path:
+    """Native launch home, resolved before the launcher opens logs or starts a child."""
+    env_map = os.environ if env is None else env
+    if env is None and _runtime_override_is_active(env_map):
+        return _VOOL_HOME_OVERRIDE.resolve()
+    explicit = _runtime_env_home(env_map)
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    if sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+        canonical, legacy = base / "VOOL" / "runtime", base / "NULLA" / "runtime"
+        return (legacy if not canonical.exists() and legacy.exists() else canonical).resolve()
+    if sys.platform == "win32":
+        base = Path(str(env_map.get("LOCALAPPDATA") or Path.home())).expanduser()
+        canonical, legacy = base / "VOOL", base / "NULLA"
+        return (legacy if not canonical.exists() and legacy.exists() else canonical).resolve()
+    return user_runtime_default().resolve()
+
+
+def native_lock_base(env: Mapping[str, str] | None = None) -> Path:
+    """Keep default current/legacy singleton names; isolate custom profile locks."""
+    if runtime_home_is_isolated(env):
+        return (active_vool_home(env) / "run" / "native").resolve()
+    env_map = os.environ if env is None else env
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
+    if sys.platform == "win32":
+        return Path(str(env_map.get("LOCALAPPDATA") or Path.home())).expanduser()
+    return Path(str(env_map.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")).expanduser()
+
+
+def native_state_dir(env: Mapping[str, str] | None = None) -> Path:
+    if runtime_home_is_isolated(env):
+        return (active_vool_home(env) / "logs").resolve()
+    return native_lock_base(env) / "VOOL"
+
+
+def runtime_temp_dir() -> Path:
+    path = active_vool_home() / "tmp"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def runtime_home_identity(env: Mapping[str, str] | None = None) -> str:
+    """Non-secret profile identity for local health and native ownership checks.
+
+    Hash the canonical selected root rather than exposing a personal filesystem
+    path in the unauthenticated health stamp. Identity is not authorization to
+    signal a process; native hosts may stop only children they actually created.
+    """
+    canonical = os.path.normcase(str(active_vool_home(env)))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def runtime_child_scratch_root(kind: str) -> Path:
+    """Profile-scoped child scratch outside the sandbox's read-denied key home.
+
+    TMPDIR remains the caller's authority for its placement. Naming by profile
+    prevents an isolated install from inheriting another profile's child files.
+    """
+    identity = hashlib.sha256(str(active_vool_home()).encode("utf-8")).hexdigest()[:24]
+    return Path(tempfile.gettempdir()) / f"vool-{kind}-scratch" / identity
 
 
 def active_workspace_dir() -> Path:
@@ -128,7 +258,7 @@ def active_workspace_dir() -> Path:
     # VOOL_PROJECT_ROOT (the app launchers export it). Runtime-generated state must never
     # materialize inside that tree — the workspace resolves beneath the active vool home like
     # every other writable state, so a read-only .app bundle stays byte-identical while running.
-    if str(vool_env("PROJECT_ROOT") or "").strip():
+    if str(vool_env("PROJECT_ROOT") or "").strip() or runtime_home_is_isolated():
         return (active_vool_home() / "workspace").resolve()
     return WORKSPACE_DIR.resolve()
 
@@ -154,7 +284,13 @@ def resolve_workspace_root(explicit: str | Path | None = None) -> Path:
     if str(vool_env("PROJECT_ROOT") or "").strip():
         return (active_vool_home() / "workspace").resolve()
     try:
-        return Path.cwd().resolve()
+        working_directory = Path.cwd().resolve()
+        # An isolated runtime launched from its source tree owns generated state
+        # beneath its profile. A dev invocation in a selected working directory
+        # keeps that directory as the user's project workspace.
+        if working_directory == PROJECT_ROOT and runtime_home_is_isolated():
+            return (active_vool_home() / "workspace").resolve()
+        return working_directory
     except FileNotFoundError:
         return PROJECT_ROOT.resolve()
 
@@ -164,7 +300,7 @@ def ensure_runtime_dirs() -> None:
     # .app bundle) may be read-only, and dirs like PROJECT_ROOT/docs simply don't exist there.
     # Creating them must never break boot; writes to the active home remain load-bearing and
     # fail loudly on their own if that home is somehow unusable.
-    for path in (active_vool_home(), active_data_dir(), active_config_home_dir(), DOCS_DIR, active_workspace_dir()):
+    for path in (active_vool_home(), active_data_dir(), active_config_home_dir(), active_workspace_dir()):
         with contextlib.suppress(OSError):
             path.mkdir(parents=True, exist_ok=True)
 

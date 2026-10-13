@@ -15,14 +15,15 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from core.runtime_paths import active_vool_home, runtime_auxiliary_path
+
 # Sidecar index: which chat (session) + prompt produced each generated file, so the Files panel can
 # group/sort "by chat". Written at save time; a file with no index entry simply has no chat attached.
 _INDEX_LOCK = threading.Lock()
 
 
 def _index_path() -> Path:
-    home = Path(os.environ.get("VOOL_HOME") or (Path.home() / ".vool_runtime"))
-    return home / "data" / "generated_files_index.json"
+    return active_vool_home() / "data" / "generated_files_index.json"
 
 
 def _load_index() -> dict[str, dict[str, Any]]:
@@ -63,7 +64,7 @@ _MAX_FILES = 1000
 
 def _default_roots() -> list[Path]:
     """Where VOOL writes generated media/docs. Renders land in ~/Pictures/VOOL-Renders today."""
-    roots = [Path.home() / "Pictures" / "VOOL-Renders"]
+    roots = [runtime_auxiliary_path("generated", legacy=Path.home() / "Pictures" / "VOOL-Renders")]
     extra = str(os.environ.get("VOOL_FILES_DIRS") or "").strip()
     if extra:
         for part in extra.split(os.pathsep):

@@ -304,8 +304,10 @@ def _claims_market_quote(clause: str) -> bool:
     # btc" clause was owned by NO registered family: invisible to the arbitration, so any other
     # lane could end the turn on top of it.
     from core.agent_runtime.fast_live_info_price import price_assets_named
+    from tools.web.coin_index import cached_index_only
 
-    return bool(price_assets_named(clause))
+    with cached_index_only():
+        return bool(price_assets_named(clause))
 
 
 def _claims_memory_recall(clause: str) -> bool:

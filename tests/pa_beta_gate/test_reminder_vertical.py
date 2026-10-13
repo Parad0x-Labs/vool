@@ -203,9 +203,11 @@ def test_reminder_lifecycle_schedule_list_move_cancel(isolated_home):
     _, listed = _run_turn("what reminders do I have", session_id=sid)
     assert listed.ok and "visa application" in listed.response_text
 
-    _, moved = _run_turn("move the reminder to 2026-09-20 14:00", session_id=sid)
+    # A date that stays in the future: a reminder cannot be moved to a time already passed.
+    year = datetime.now(timezone.utc).year + 1
+    _, moved = _run_turn(f"move the reminder to {year}-09-20 14:00", session_id=sid)
     assert moved.ok and moved.status == "executed"
-    assert _rows(sid)[0]["due_at_utc"].startswith("2026-09-20T11:00")  # 14:00 host(+03:00)
+    assert _rows(sid)[0]["due_at_utc"].startswith(f"{year}-09-20T11:00")  # 14:00 host(+03:00)
 
     _, cancelled = _run_turn("cancel the reminder", session_id=sid)
     assert cancelled.ok and cancelled.status == "executed"
