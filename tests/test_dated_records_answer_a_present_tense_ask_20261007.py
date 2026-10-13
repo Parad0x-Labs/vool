@@ -4,9 +4,9 @@ from __future__ import annotations
 import pytest
 
 from core.bootstrap_context import seal_request_evidence
+from core.context_retrieval import reset_retrieval_telemetry
 from core.execution_requirements import begin_synthesis_freeze, escalate_current_requirement, requirements_for
 from core.grounding_lifecycle import record_model_authorship, record_retrieved, reset_for_tests
-from core.context_retrieval import reset_retrieval_telemetry
 from core.grounding_publication import _REFUSAL_LEAD, gate_publishable_content
 
 CLOCK_TEXT = "The current date and time is Saturday 12 July 2025, 12:00 (UTC)."
