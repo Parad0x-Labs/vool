@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require
 from core.registry.intake import secret_findings
+from core.registry.requirements import require_for_new_version
 
 
 class Store:
@@ -240,6 +241,7 @@ class Store:
             namespace = self._check_upload_slot(db, account, _slot, now)
         artifact = inspect(raw)
         require(namespace == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
+        require_for_new_version(artifact["metadata"])
         findings = secret_findings(artifact["files"])
         identifier = secrets.token_hex(16)
         with self.connection() as db:

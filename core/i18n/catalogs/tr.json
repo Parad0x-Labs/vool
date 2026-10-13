@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Beceri Kodeksine göz at",
     "addons.registry_network": "Bu düğme herkese açık kaydı sorgular. Hesaplar, sohbetler, yerel dosyalar veya sağlayıcı anahtarları gönderilmez.",
     "addons.registry_empty": "Bu belirli VOOL derlemesi ve arama için listelenmiş bir sürüm yok.",
-    "addons.registry_inspect": "İncelemek için indir"
+    "addons.registry_inspect": "İncelemek için indir",
+    "addons.registry_languages": "Diller",
+    "addons.registry_any_language": "Her dil",
+    "addons.registry_needs": "Gerekenler",
+    "addons.registry_needs_none": "VOOL dışında hiçbir şey",
+    "addons.registry_tested": "Test edildiği sürüm",
+    "addons.registry_need_search_web": "Web araması",
+    "addons.registry_need_llm_cloud": "Bulut yapay zekâ modeli",
+    "addons.registry_need_chain_data": "Blokzincir verileri",
+    "addons.registry_need_solana_rpc": "Solana bağlantısı",
+    "addons.registry_need_wallet": "VOOL cüzdanı",
+    "addons.registry_need_browser": "Tarayıcı",
+    "addons.registry_need_files": "Dosyalarınız"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

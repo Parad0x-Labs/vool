@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "스킬 코덱스 탐색",
     "addons.registry_network": "이 버튼은 공개 레지스트리를 요청합니다. 계정, 채팅, 로컬 파일이나 공급자 키는 전송하지 않습니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
-    "addons.registry_inspect": "확인용으로 다운로드"
+    "addons.registry_inspect": "확인용으로 다운로드",
+    "addons.registry_languages": "언어",
+    "addons.registry_any_language": "모든 언어",
+    "addons.registry_needs": "필요 항목",
+    "addons.registry_needs_none": "VOOL 외에는 필요 없음",
+    "addons.registry_tested": "테스트된 버전",
+    "addons.registry_need_search_web": "웹 검색",
+    "addons.registry_need_llm_cloud": "클라우드 AI 모델",
+    "addons.registry_need_chain_data": "블록체인 데이터",
+    "addons.registry_need_solana_rpc": "Solana 연결",
+    "addons.registry_need_wallet": "VOOL 지갑",
+    "addons.registry_need_browser": "브라우저",
+    "addons.registry_need_files": "내 파일"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

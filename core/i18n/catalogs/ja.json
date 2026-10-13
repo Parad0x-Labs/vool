@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "スキルコーデックスを見る",
     "addons.registry_network": "このボタンは公開レジストリに問い合わせます。アカウント、チャット、ローカルファイル、プロバイダーのキーは送信されません。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
-    "addons.registry_inspect": "確認用にダウンロード"
+    "addons.registry_inspect": "確認用にダウンロード",
+    "addons.registry_languages": "言語",
+    "addons.registry_any_language": "すべての言語",
+    "addons.registry_needs": "必要なもの",
+    "addons.registry_needs_none": "VOOL 以外は不要",
+    "addons.registry_tested": "テスト済みのバージョン",
+    "addons.registry_need_search_web": "ウェブ検索",
+    "addons.registry_need_llm_cloud": "クラウド AI モデル",
+    "addons.registry_need_chain_data": "ブロックチェーンデータ",
+    "addons.registry_need_solana_rpc": "Solana 接続",
+    "addons.registry_need_wallet": "VOOL ウォレット",
+    "addons.registry_need_browser": "ブラウザー",
+    "addons.registry_need_files": "あなたのファイル"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

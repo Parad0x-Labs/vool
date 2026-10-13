@@ -43,7 +43,7 @@ _SIGNS = {
 def check_languages(value: object) -> list[str]:
     require(isinstance(value, list) and (value == ["any"] or (
         0 < len(value) <= MAX_LANGUAGES and
-        all(isinstance(code, str) and bool(_LANGUAGE.fullmatch(code)) for code in value) and
+        all(isinstance(code, str) and bool(_LANGUAGE.fullmatch(code)) and code != "any" for code in value) and
         len(set(value)) == len(value))),
         "languages must be 1 to 30 language codes such as en or pt-BR, or exactly [\"any\"]")
     return value
@@ -54,6 +54,12 @@ def check_needs(value: object) -> list[str]:
             len(set(value)) == len(value),
             "needs must use ids from the registry requirements list")
     return value
+
+
+def require_for_new_version(info: dict) -> None:
+    """New uploads must say which languages they work in; earlier signed packages may not."""
+    require(isinstance(info, dict) and "languages" in info,
+            "languages required: list the language codes the skill works in, such as [\"en\"], or [\"any\"]")
 
 
 def public_requirements() -> list[dict]:

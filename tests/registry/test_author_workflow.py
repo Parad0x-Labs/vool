@@ -64,7 +64,7 @@ def test_documented_example_init_edit_lint_pack_check_and_update(tmp_path, capsy
     # This local repository string exercises syntax; no remote provenance is claimed.
     info = {"id": "example-author/meeting-brief", "kind": "skill", "version": "1.0.0",
             "summary": "Summarize supplied meeting notes with decisions and action owners.",
-            "category": "productivity", "subcategory": "meetings", "license": "MIT",
+            "category": "productivity", "subcategory": "meetings", "license": "MIT", "languages": ["en"],
             "source": {"repository": "example-author/meeting-notes", "commit": commit, "path": "meeting-brief"}}
     metadata = tmp_path / "metadata.json"
     metadata.write_bytes(canonical(info))
@@ -122,7 +122,7 @@ def test_complete_example_private_form_review_and_exact_consent(tmp_path):
         headers = {"Origin": "https://registry.test", "X-Vool-CSRF": csrf}
         body = {"metadata": {"id": "example-author/meeting-brief", "kind": "skill", "version": "1.0.0",
                 "summary": "Summarize supplied meeting notes with decisions and action owners.",
-                "category": "productivity", "subcategory": "meetings", "license": "MIT"},
+                "category": "productivity", "subcategory": "meetings", "license": "MIT", "languages": ["en"]},
                 "skill_markdown": (example / "SKILL.md").read_text(),
                 "license_text": (example / "LICENSE").read_text()}
         with TestClient(app, base_url="https://registry.test") as client:

@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "Открыть кодекс навыков",
     "addons.registry_network": "Эта кнопка запрашивает публичный реестр. Аккаунты, переписки, локальные файлы и ключи провайдеров не отправляются.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
-    "addons.registry_inspect": "Скачать для просмотра"
+    "addons.registry_inspect": "Скачать для просмотра",
+    "addons.registry_languages": "Языки",
+    "addons.registry_any_language": "Любой язык",
+    "addons.registry_needs": "Требуется",
+    "addons.registry_needs_none": "Ничего вне VOOL",
+    "addons.registry_tested": "Проверено с",
+    "addons.registry_need_search_web": "Веб-поиск",
+    "addons.registry_need_llm_cloud": "Облачная модель ИИ",
+    "addons.registry_need_chain_data": "Данные блокчейна",
+    "addons.registry_need_solana_rpc": "Подключение к Solana",
+    "addons.registry_need_wallet": "Кошелёк VOOL",
+    "addons.registry_need_browser": "Браузер",
+    "addons.registry_need_files": "Ваши файлы"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

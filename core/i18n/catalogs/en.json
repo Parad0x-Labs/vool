@@ -1797,7 +1797,19 @@
     "addons.registry_refresh": "Browse Skill Codex",
     "addons.registry_network": "This button requests the public registry. No account, chats, local files or provider keys are sent.",
     "addons.registry_empty": "No listed versions match this exact VOOL build and search.",
-    "addons.registry_inspect": "Download for inspection"
+    "addons.registry_inspect": "Download for inspection",
+    "addons.registry_languages": "Languages",
+    "addons.registry_any_language": "Any language",
+    "addons.registry_needs": "Needs",
+    "addons.registry_needs_none": "Nothing outside VOOL",
+    "addons.registry_tested": "Tested with",
+    "addons.registry_need_search_web": "Web search",
+    "addons.registry_need_llm_cloud": "Cloud AI model",
+    "addons.registry_need_chain_data": "Chain data",
+    "addons.registry_need_solana_rpc": "Solana connection",
+    "addons.registry_need_wallet": "VOOL wallet",
+    "addons.registry_need_browser": "Browser",
+    "addons.registry_need_files": "Your files"
   },
   "html_keys": [
     "bypass.modal_limits",

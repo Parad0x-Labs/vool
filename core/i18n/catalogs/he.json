@@ -1797,9 +1797,21 @@
     "addons.registry_refresh": "עיון בקודקס המיומנויות",
     "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
-    "addons.registry_inspect": "הורדה לבדיקה"
+    "addons.registry_inspect": "הורדה לבדיקה",
+    "addons.registry_languages": "שפות",
+    "addons.registry_any_language": "כל שפה",
+    "addons.registry_needs": "דורש",
+    "addons.registry_needs_none": "שום דבר מחוץ ל-VOOL",
+    "addons.registry_tested": "נבדק עם",
+    "addons.registry_need_search_web": "חיפוש באינטרנט",
+    "addons.registry_need_llm_cloud": "מודל בינה מלאכותית בענן",
+    "addons.registry_need_chain_data": "נתוני בלוקצ'יין",
+    "addons.registry_need_solana_rpc": "חיבור Solana",
+    "addons.registry_need_wallet": "ארנק VOOL",
+    "addons.registry_need_browser": "דפדפן",
+    "addons.registry_need_files": "הקבצים שלך"
   },
-  "source_catalog_sha256": "b4fef9e7c6995a0b57d2a8d4547aad9b70525d5ba8fc291ec0db5b146610454c",
+  "source_catalog_sha256": "4105d7f3e5361139b96507c64feea865582c56a3bfc5ab5615bc5791a4c3f4fe",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

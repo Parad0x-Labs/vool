@@ -37,7 +37,7 @@ def render_addon_store_fragment() -> str:
 .addon-detail-head{display:flex;gap:16px;align-items:center}.addon-detail-head .addon-icon{width:68px;height:68px;font-size:28px}.addon-detail-head h2{font-size:27px;letter-spacing:-.6px;margin:0 0 5px}.addon-detail-head p{margin:0;color:var(--muted);font-size:12px}
 .addon-detail{max-width:680px}.addon-detail>p{line-height:1.7;font-size:14px}.addon-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:18px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:24px 0;font-size:13px}.addon-facts dt{color:var(--muted);font-size:11px;margin-bottom:8px}.addon-facts dd{margin:0}
 .addon-detail h3{font-size:14px;margin:22px 0 10px}.addon-detail details{margin:20px 0;color:var(--muted);font-size:12px;line-height:1.7}.addon-detail summary{cursor:pointer}.addon-detail a{color:inherit}.addon-detail pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font-size:11px}
-.addon-meta{font-size:12px;color:var(--muted);line-height:1.6}.addon-error{padding:14px;border:1px solid #76563d;background:rgba(173,110,50,.08);color:var(--warning,#ffbd67);font-size:13px;line-height:1.5;margin-bottom:16px}
+.addon-meta{font-size:12px;color:var(--muted);line-height:1.6}.addon-facts{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:12px;line-height:1.5}.addon-facts dt{color:var(--muted)}.addon-facts dd{margin:0;overflow-wrap:anywhere}.addon-error{padding:14px;border:1px solid #76563d;background:rgba(173,110,50,.08);color:var(--warning,#ffbd67);font-size:13px;line-height:1.5;margin-bottom:16px}
 .addon-review{padding:20px;border:1px solid var(--border);border-radius:6px;margin:20px 0}.addon-review h3{margin:0 0 10px}.addon-review p{line-height:1.6;font-size:13px}.addon-review.blocked{border-color:#88544b;background:rgba(172,65,45,.055)}
 .addon-localcheck{padding:18px 20px;border:1px dashed var(--border,#38414b);border-radius:6px;margin:20px 0}.addon-localcheck>h3{margin:0 0 10px;font-size:14px}.addon-localcheck p{line-height:1.6;font-size:13px}.addon-localcheck .addon-findings strong{display:block;margin-bottom:5px}.addon-localcheck details{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.7}.addon-localcheck summary{cursor:pointer}
 .addon-detail .addon-risk-explanation{margin:14px 0 0;padding:12px 14px;border:1px solid var(--border);border-radius:4px}.addon-risk-explanation summary{color:var(--ink);font-weight:600}.addon-risk-explanation .addon-meta{font-size:11px}.addon-risk-explanation p:last-child{margin-bottom:0}
@@ -137,11 +137,23 @@ function nativeControlNotice(host,value){
  host.append(node('p',value.authority_notice||tr('native_authority','Skills contribute instructions. VOOL native rules, owner settings, spending limits, currency handling, permissions and approvals always take precedence.'),'addon-risk-note'));
  (value.native_control_overlaps||[]).forEach(item=>host.append(node('p',item.message,'addon-meta')));
 }
+function registryFacts(e){
+ // Author-declared languages and needs, and the builds the signed entry was tested on.
+ const needs={search_web:tr('registry_need_search_web','Web search'),llm_cloud:tr('registry_need_llm_cloud','Cloud AI model'),chain_data:tr('registry_need_chain_data','Chain data'),solana_rpc:tr('registry_need_solana_rpc','Solana connection'),wallet:tr('registry_need_wallet','VOOL wallet'),browser:tr('registry_need_browser','Browser'),files:tr('registry_need_files','Your files')};
+ const platforms={'macos-arm64':'macOS Apple Silicon','macos-x86_64':'macOS Intel','linux-x86_64':'Linux','windows-x86_64':'Windows'};
+ const facts=node('dl',undefined,'addon-facts');
+ const add=(label,value)=>{if(value){facts.append(node('dt',label),node('dd',value));}};
+ if(Array.isArray(e.languages))add(tr('registry_languages','Languages'),e.languages[0]==='any'?tr('registry_any_language','Any language'):e.languages.join(', '));
+ if(Array.isArray(e.needs))add(tr('registry_needs','Needs'),e.needs.length?e.needs.map(id=>needs[id]||id).join(', '):tr('registry_needs_none','Nothing outside VOOL'));
+ const builds={};(e.targets||[]).forEach(t=>{(builds[t.version]=builds[t.version]||[]).push(platforms[t.platform]||t.platform);});
+ add(tr('registry_tested','Tested with'),Object.entries(builds).map(([version,list])=>'VOOL '+version+' ('+list.join(', ')+')').join('; '));
+ return facts;
+}
 function renderRegistry(host,query){
  hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.'));
  if(registryReview){
   const r=registryReview,info=r.metadata;
-  host.append(node('h3',info.id+' · '+info.version),node('p',info.summary));nativeControlNotice(host,r);
+  host.append(node('h3',info.id+' · '+info.version),node('p',info.summary),registryFacts({...info,targets:r.targets}));nativeControlNotice(host,r);
   const details=node('details');details.append(node('summary',tr('registry_evidence','Exact files, permissions and source')),
    node('pre',JSON.stringify({sha256:r.sha256,source:info.source,permissions:r.permissions,tools:r.tools,credential_bindings:r.credential_bindings,dependencies:r.dependencies,files:r.files},null,2)));host.append(details);
   Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));host.append(item);});
@@ -155,7 +167,7 @@ function renderRegistry(host,query){
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
+ rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+e.category+' · '+e.subcategory+' · '+e.version+' · '+e.license),registryFacts(e),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
 }
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.
