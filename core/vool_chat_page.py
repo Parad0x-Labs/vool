@@ -4557,13 +4557,13 @@ function buildCard(run, host) {
 }
 
 const HUMAN_ACTIVITY_STATES = {
-  Planning: 'Planning', Searching: 'Searching', Reading: 'Reading', Editing: 'Editing',
-  Running: 'Running', Testing: 'Testing', 'Waiting for permission': 'Waiting for approval',
+  Planning: pageT('run.stage_planning', 'Planning'), Searching: pageT('run.stage_searching', 'Searching'), Reading: pageT('run.stage_reading', 'Reading'), Editing: pageT('run.stage_editing', 'Editing'),
+  Running: pageT('run.stage_running', 'Running'), Testing: pageT('run.stage_testing', 'Testing'), 'Waiting for permission': pageT('run.stage_waiting_approval', 'Waiting for approval'),
 };
 function humanActivityState(run) {
   if (run.permission) return 'Waiting for approval';
   const stage = String(run.stage || '').trim();
-  return HUMAN_ACTIVITY_STATES[stage] || 'Working';
+  return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
 }
 function recordedModelProvider(model) {
   if (!model) return '';
@@ -4634,10 +4634,10 @@ function renderCard(run) {
   const stageText = run.action || run.stage || '';
   r.stage.textContent = stageText;
   r.stage.title = stageText;
-  if (!run.ended) r.title.textContent = run.pricePaused ? 'Paused — waiting for your price' : 'VOOL is working';
+  if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
-  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   r.steps.textContent = run.steps.length ? stepsRollupText(run.steps) : '';
   r.mode.textContent = MODE_LABELS[run.activeMode] || MODE_LABELS.manual;
   r.mode.classList.toggle('bypass', run.activeMode === 'bypass_permissions');
@@ -4648,16 +4648,16 @@ function renderCard(run) {
     r.model.textContent = compactLabel(compactModelBadge(run.model));
     const _identity = modelIdentityDetails(run.model);
     if (!_identity.length) _identity.push(modelProviderPresentation(run.model));
-    r.model.title = _identity.join(' | ') || 'Recorded model identity';
+    r.model.title = _identity.join(' | ') || pageT('run.model_identity_title', 'Recorded model identity');
   }
-  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? (usd + ' used') : '';
+  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? pageTF('run.cost_used', '{cost} used', { cost: usd }) : '';
   const recent = run.steps.slice(-3).map((s) => (s.status === 'completed' ? '✓ ' : (s.status === 'failed' ? '× ' : '• ')) + (s.summary || s.tool || 'Action'));
   r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
-  if (run.status === 'running') r.title.textContent = run.verifying ? 'Answer ready · model review running…' : humanActivityState(run);
+  if (run.status === 'running') r.title.textContent = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
-  r.sr.textContent = (run.permission ? 'Waiting for approval. ' : '') + (run.action || run.stage || '');
+  r.sr.textContent = (run.permission ? pageT('run.sr_waiting', 'Waiting for approval. ') : '') + (run.action || run.stage || '');
 }
 
 const REVIEW_STATE_BY_RAW_TYPE = Object.freeze({
@@ -4768,7 +4768,7 @@ function applyResultSummary(run) {
   r.summary.textContent = parts.join(' · ');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';
-  r.sr.textContent = parts.join(' · ') || 'Done';
+  r.sr.textContent = parts.join(' · ') || pageT('run.sr_done', 'Done');
   // Routing, approval, failure, review and ledger events are meaningful even when no tool completed.
   const hasActivity = hasMeaningfulActivity(run);
   if (r.view) r.view.style.display = hasActivity ? '' : 'none';
@@ -6406,18 +6406,18 @@ function scopeSessionSet() {
   return set;
 }
 function scopeWhere() {
-  if (panelScope === 'chat') return 'this chat';
-  if (panelScope === 'project') return 'project ' + currentProjectName();
+  if (panelScope === 'chat') return pageT('panel.scope_chat', 'this chat');
+  if (panelScope === 'project') return pageTF('panel.scope_project', 'project {name}', { name: currentProjectName() });
   return 'VOOL';
 }
 // "No receipts for this chat yet." / "...for project Lumen yet." / "...anywhere in VOOL yet."
 function emptyScopeText(kind) {
-  if (panelScope === 'all') return 'No ' + kind + ' recorded anywhere in VOOL yet.';
-  return 'No ' + kind + ' for ' + scopeWhere() + ' yet.';
+  if (panelScope === 'all') return pageTF('panel.empty_all', 'No {kind} recorded anywhere in VOOL yet.', { kind: kind });
+  return pageTF('panel.empty_scoped', 'No {kind} for {scope} yet.', { kind: kind, scope: scopeWhere() });
 }
 function chatTitleFor(sid) {
   const chat = _lastSessions.find((s) => s.session_id === sid) || {};
-  return chat.title || String(sid || '').slice(-8) || 'Chat';
+  return chat.title || String(sid || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
 }
 function scopeKey() { return panelScope + '|' + displayedChat + '|' + (view.projectId || ''); }
 // Durable per-chat ledgers for a wider scope. Chat scope needs none of this: the open chat's own
@@ -6522,7 +6522,7 @@ function renderActivityHistoryHtml() {
     const bounded = h.bounded_execution || {};
     const task = h.request_preview || item.request_preview || h.title || 'Task';
     const status = h.request_state_label || h.status || item.status || 'unknown';
-    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || 'Chat';
+    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
     const evidence = [];
     if (h.latest_tool) evidence.push('last action ' + h.latest_tool);
     if (Array.isArray(h.changed_paths) && h.changed_paths.length) evidence.push(h.changed_paths.length + ' file' + (h.changed_paths.length === 1 ? '' : 's') + ' changed');
@@ -6616,15 +6616,15 @@ function wireActivityPanelActions() {
   }));
   xpBodyEl.querySelectorAll('[data-recovery]').forEach((button) => button.addEventListener('click', async () => {
     const action = button.getAttribute('data-recovery');
-    if (action === 'review') { toast('Showing the saved task timeline and receipts below.'); return; }
+    if (action === 'review') { toast(pageT('recovery.toast_timeline', 'Showing the saved task timeline and receipts below.')); return; }
     if (action === 'resume') { const sid = displayedChat; if (!isChatBusy(sid)) { view.recoveredTask = null; renderPanel(); await runTurn('Continue the interrupted task from its saved checkpoint.', null, { chatId: sid }); } return; }
     if (action === 'cancel') {
       button.disabled = true;
       try {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
         const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-        view.recoveredTask = null; toast('Interrupted task cancelled.'); await loadActivityHistory();
-      } catch (e) { button.disabled = false; toast('Could not cancel recovered task: ' + e.message); }
+        view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
+      } catch (e) { button.disabled = false; toast(pageT('recovery.cancel_failed_prefix', 'Could not cancel recovered task: ') + e.message); }
     }
   }));
 }
@@ -6705,7 +6705,7 @@ function renderPanelBody() {
   // The one Copy control names the tab it will actually copy ("Copy Activity", "Copy Event log").
   const copyBtn = document.getElementById('xpCopy');
   if (copyBtn) {
-    const copyLabel = 'Copy ' + (panelTab || 'Activity') + ' (' + scopeWhere() + ')';
+    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTab || pageT('panel.tab_activity', 'Activity'), scope: scopeWhere() });
     copyBtn.title = copyLabel; copyBtn.setAttribute('aria-label', copyLabel);
   }
   const run = view.run, body = xpBodyEl;
@@ -6725,11 +6725,11 @@ function renderPanelBody() {
       // claimed. It used to be the last turn only.
       restored += renderChatActivity(view, { live: false });
       restored += renderActivityHistoryHtml();
-      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>';
+      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>';
       xpBodyEl.dataset.activityRendered = '1';
       wireActivityPanelActions(); return;
     }
-    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>'; return;
+    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>'; return;
   }
   let html = '';
   if (panelTab === 'Steps') {
@@ -6777,11 +6777,11 @@ function renderPanelBody() {
     html = renderRecoveryHtml() + html + renderActivityHistoryHtml();
   } else if (panelTab === 'Changes' || panelTab === 'Files') {
     const paths = Object.keys(run.files);
-    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('file changes')) + '</div>'; return; }
+    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_file_changes', 'file changes'))) + '</div>'; return; }
     paths.forEach((p) => { html += '<div class="xp-row ok"><span class="ic">✎</span><div class="bd mono">' + esc(p) + '</div></div>'; });
   } else if (panelTab === 'Tests') {
     const t = run.tests;
-    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('test runs')) + '</div>'; return; }
+    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_test_runs', 'test runs'))) + '</div>'; return; }
     html = '<div class="xp-note">' + esc(t.done + (t.total ? (' of ' + t.total) : '') + ' tests complete' + (t.failed ? (' · ' + t.failed + ' failed') : '')) + '</div>';
   } else if (panelTab === 'Preview') {
     if (run.preview) { html = '<div class="xp-note">Preview: <span class="mono">' + esc(run.preview) + '</span></div>'; }
@@ -6891,10 +6891,10 @@ function renderAgents(body) {
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
     if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">Reading activity for ' + esc(scopeWhere()) + '\u2026</div>'; return; }
-    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
-  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   // The event log is a flat list -- there is nothing to disclose -- so it gets the control that
   // actually applies to it. Copy all still reads from the data, not from what happens to be scrolled.
   let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">Copy all</button></div>';
@@ -6924,7 +6924,7 @@ async function renderReceipts(body) {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
     const d = await r.json();
     const list = d.receipts || [];
-    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
       ? 'Receipts consistent — every receipt shown is individually valid and correctly linked to the one before it. This does not prove the history is complete: receipts deleted from the end leave no trace. This does not prove the answer is correct.'
       : (d.chain_verified === false
@@ -6955,7 +6955,7 @@ async function renderScopedReceipts(body) {
     } catch (e) { /* one unreadable chat must not empty the panel */ }
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
-  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')
     + ' in ' + esc(scopeWhere()) + '. Each chain is verified within its own chat.'
