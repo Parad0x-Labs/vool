@@ -3283,7 +3283,7 @@ def _dispatch_runtime_tool(
             from core.zcash.tools import run_tool as _zcash_tool
 
             return _zcash_tool(intent, arguments, source_context)
-        if intent == "chain.lookup":
+        if intent == "web.chain_lookup":
             from core.chain_data import run_tool as _chain_tool
 
             return _chain_tool(intent, arguments, source_context)

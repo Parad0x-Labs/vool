@@ -60,7 +60,7 @@ def _save(provider_id: str, key: str):
 def _lookup(**arguments):
     from core.runtime_execution_tools import execute_runtime_tool
 
-    return execute_runtime_tool("chain.lookup", arguments, source_context={})
+    return execute_runtime_tool("web.chain_lookup", arguments, source_context={})
 
 
 def _store(slot: str, key: str) -> None:
@@ -182,7 +182,7 @@ def test_a_paste_that_is_not_url_safe_is_never_sent_for_a_url_carried_key(vault_
 def test_the_lookup_tool_is_offered_read_only_in_every_chat():
     from core.runtime_tool_contracts import runtime_tool_contract_map
 
-    contract = runtime_tool_contract_map()["chain.lookup"]
+    contract = runtime_tool_contract_map()["web.chain_lookup"]
     assert contract.supported and contract.read_only and contract.renders_final_answer
     assert contract.approval_requirement == "none"
     assert "use_network_access" in contract.permission_actions
@@ -427,3 +427,17 @@ def test_guide_lists_the_chain_providers_with_their_setup_steps():
     assert any("Networks tab" in step for step in rows["alchemy"]["steps"])
     assert any("LaserStream" in note for note in rows["helius"]["notes"])
     assert rows["alchemy"]["chains"] == ["Solana", "Ethereum", "Base", "BNB Smart Chain", "Robinhood Chain"]
+
+
+@pytest.mark.parametrize(("text", "seated"), [
+    (f"what is the SOL balance of {SOL_ADDRESS}", True),
+    (f"show the token holders of {USDC_MINT}", True),
+    (f"look up transaction {EVM_TX} on base", True),
+    ("use my helius key to check that wallet", True),
+    ("what is my wallet balance", False),  # VOOL's own wallet answers that, not a chain lookup
+    ("tell me the history of rome", False),
+])
+def test_chain_questions_seat_the_lookup_and_others_do_not(text, seated):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert ("web.chain_lookup" in resolve_demand_signals(text).explicit_intents) is seated

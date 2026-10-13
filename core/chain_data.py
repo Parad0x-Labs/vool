@@ -1,6 +1,6 @@
 """Read-only blockchain lookups for any chat, through the operator's own chain-data keys.
 
-One model-facing tool, ``chain.lookup``: a wallet's native balance, its token balances, its recent
+One model-facing tool, ``web.chain_lookup``: a wallet's native balance, its token balances, its recent
 transactions, a token's facts, a token's largest holders, or one transaction, on Solana, Ethereum,
 Base, BNB Smart Chain or Robinhood Chain, served by Helius, Alchemy, Solscan or Etherscan
 (``core/chain_providers.py``).
@@ -32,7 +32,7 @@ from typing import Any
 
 from core import chain_providers as cp
 
-INTENT = "chain.lookup"
+INTENT = "web.chain_lookup"
 SURFACE = "chain"
 REQUEST_TIMEOUT_S = 15.0
 MAX_RESPONSE_BYTES = 2_000_000

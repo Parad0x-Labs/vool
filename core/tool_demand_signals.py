@@ -136,7 +136,7 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("zcash.payment.history", "wallet", re.compile(r"\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b[^.?!]{0,60}?\b(?:zec|zcash)\b|\b(?:zec|zcash)\b[^.?!]{0,60}?\b(?:pa(?:y|ys|id)|payments?|received|history|export)\b", re.I)),
     # -- chain-data lookups (core/chain_data; read-only, through the operator's own provider keys) --
     # a provider's name, an on-chain read word near a chain or address word, or a raw EVM address/hash
-    ("chain.lookup", "web", re.compile(
+    ("web.chain_lookup", "web", re.compile(
         r"\b(?:helius|alchemy|solscan|etherscan|basescan|bscscan)\b"
         r"|\b(?:balances?|holders?|holdings|token\s+info|transactions?|txs?|history|portfolio|supply)\b[^.?!]{0,60}?"
         r"\b(?:sol|solana|eth|ethereum|base|bnb|bsc|robinhood\s+chain|on[- ]?chain|address|token|mint|contract)\b"
