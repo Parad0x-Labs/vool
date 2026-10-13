@@ -94,8 +94,11 @@ def _ndjson(answer: str, commit: dict) -> str:
 class _PageServer:
     """The controlled server: the shipped page plus one scripted turn."""
 
-    def __init__(self, answer: str, *, selection: dict | None = SELECTION, request_id: str | None = "req-browser-1") -> None:
+    def __init__(self, answer: str, *, selection: dict | None = SELECTION, request_id: str | None = "req-browser-1",
+                 html: str = HTML, update_status: dict | None = None) -> None:
         self.answer = answer
+        self.html = html
+        self.update_status = update_status
         self.selection = selection
         self.request_id = request_id
         self.chat_bodies: list[dict[str, Any]] = []
@@ -104,7 +107,10 @@ class _PageServer:
         request = route.request
         url = request.url
         if request.resource_type == "document":
-            route.fulfill(status=200, content_type="text/html", body=HTML)
+            route.fulfill(status=200, content_type="text/html", body=self.html)
+            return
+        if "/api/update/status" in url and self.update_status is not None:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(self.update_status))
             return
         if url.endswith("/api/chat") and request.method == "POST":
             self.chat_bodies.append(json.loads(request.post_data or "{}"))
@@ -146,8 +152,9 @@ def browser():
 
 
 def _open(browser, answer: str, *, selection: dict | None = SELECTION, request_id: str | None = "req-browser-1",
-          viewport: dict[str, int] | None = None, reduced_motion: str | None = None):
-    server = _PageServer(answer, selection=selection, request_id=request_id)
+          viewport: dict[str, int] | None = None, reduced_motion: str | None = None,
+          html: str = HTML, update_status: dict | None = None):
+    server = _PageServer(answer, selection=selection, request_id=request_id, html=html, update_status=update_status)
     kwargs: dict[str, Any] = {}
     if reduced_motion:
         kwargs["reduced_motion"] = reduced_motion
@@ -239,6 +246,59 @@ def test_b2_copy_fidelity_raw_and_plain_text(browser) -> None:
         page.click(".msg.assistant .msg-copy-text")
         plain = page.evaluate("() => window.__copied || ''")
         assert "| A | €10 | basic |" in plain, "Copy text keeps pipe rows verbatim"
+        assert errors == []
+    finally:
+        context.close()
+
+
+def test_b2_message_actions_speak_the_ui_language(browser) -> None:
+    """In the Japanese UI the message row said Copy / Copy text / Pin in English.
+
+    The catalog already carried msg.copy and pin.* in every shipped language; the row built its
+    buttons from English literals and never asked for them.
+    """
+    from core.i18n.catalog import catalog_for
+
+    ja = catalog_for("ja")
+    context, page, _server, errors = _open(browser, TABLE_ANSWER, html=render_vool_chat_html(ui_locale="ja"))
+    try:
+        _send(page)
+        labels = page.evaluate(
+            "() => [...document.querySelectorAll('.msg.assistant .msg-actions button')].map(b => [b.className, b.textContent, b.title])"
+        )
+        by_class = {cls.split()[-1]: (text, title) for cls, text, title in labels}
+        assert by_class["msg-copy"] == (ja.text("msg.copy"), ja.text("msg.copy_source_title"))
+        assert by_class["msg-copy-text"] == (ja.text("msg.copy_text"), ja.text("msg.copy_text_title"))
+        assert by_class["msg-pin"] == (ja.text("pin.pin"), ja.text("pin.pin_title"))
+        assert by_class["msg-copy"][0] != "Copy"
+        # A copy that fails returns to the button's own label, not to an English "Copy".
+        page.evaluate("() => { const b = document.querySelector('.msg.assistant .msg-copy-text'); copiedFail(b); copiedFail(b); }")
+        page.wait_for_timeout(1400)
+        assert page.text_content(".msg.assistant .msg-copy-text") == ja.text("msg.copy_text")
+        assert errors == []
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [1280, 900, 520])
+def test_the_update_menu_stays_inside_the_window(browser, width) -> None:
+    """The Update chip is the header's last control; its menu hung off the right edge, cut off."""
+    status = {"phase": "available", "current_version": "0.7.0", "latest_version": "0.7.1", "notes": "Fixes."}
+    context, page, _server, errors = _open(
+        browser, PROSE_ANSWER, viewport={"width": width, "height": 700}, update_status=status
+    )
+    try:
+        page.evaluate("() => { document.getElementById('updateChip').hidden = false; }")
+        page.click("#updateChip")
+        box = page.evaluate(
+            """() => { const r = document.getElementById('updatePop').getBoundingClientRect();
+                 return { left: r.left, right: r.right, top: r.top, bottom: r.bottom,
+                          vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight }; }"""
+        )
+        assert box["right"] - box["left"] > 200, box
+        assert box["left"] >= 0 and box["right"] <= box["vw"], box
+        assert box["top"] >= 0 and box["bottom"] <= box["vh"], box
+        assert page.is_visible("#updateCheckBtn")
         assert errors == []
     finally:
         context.close()

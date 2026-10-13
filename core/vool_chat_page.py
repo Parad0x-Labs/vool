@@ -144,6 +144,7 @@ h4.chat-h, h5.chat-h, h6.chat-h { font-size:1em; color:var(--muted); }
 .chat-hr { border:0; border-top:1px solid var(--border); margin:14px 0; }
 .chat-list { margin:0 0 10px; padding-left:22px; }
 .chat-list li { margin:3px 0; }
+.chat-list .chat-list { margin:3px 0 0; }
 .chat-quote { margin:0 0 10px; padding:2px 0 2px 12px; border-left:3px solid var(--border); color:var(--muted); }
 .chat-code { margin:0 0 10px; padding:10px 12px; background:var(--bg); border:1px solid var(--border);
              border-radius:10px; overflow-x:auto; font-size:0.9em; line-height:1.45; }
@@ -1102,7 +1103,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <button id="councilBtn" type="button" title="Council — evidence, review and finality. Model output is not final truth." data-i18n="header.council" data-i18n-title="header.council_title">Council</button>
   <div class="ctrl" id="updateCtrl">
     <button type="button" id="updateChip" data-testid="update-chip" hidden aria-haspopup="menu" aria-expanded="false" aria-controls="updatePop" title="App updates" data-i18n-title="header.update_title"><span class="upd-ico">&#10227;</span><span id="updateChipTxt">Update</span></button>
-    <div class="popover below" id="updatePop" data-testid="update-pop" role="menu" aria-label="Update" data-i18n-aria-label="header.update_popover_title">
+    <div class="popover below right" id="updatePop" data-testid="update-pop" role="menu" aria-label="Update" data-i18n-aria-label="header.update_popover_title">
       <div class="pop-title" data-i18n="header.update_popover_title">Update</div>
       <div class="upd-ver" id="updateVersion" data-testid="update-version"></div>
       <div class="upd-notes" id="updateNotes"></div>
@@ -2433,24 +2434,24 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = 'msg-copy';
-  copy.textContent = 'Copy';
-  copy.title = role === 'assistant' ? 'Copy message source (raw Markdown, exactly as stored)' : 'Copy message';
+  copy.textContent = pageT('msg.copy', 'Copy');
+  copy.title = role === 'assistant' ? pageT('msg.copy_source_title', 'Copy message source (raw Markdown, exactly as stored)') : pageT('msg.copy_title', 'Copy message');
   copy.addEventListener('click', () => copyText(rawOf(), copy));
   actions.appendChild(copy);
   if (role === 'assistant') {
     const copyTextBtn = document.createElement('button');
     copyTextBtn.type = 'button';
     copyTextBtn.className = 'msg-copy msg-copy-text';
-    copyTextBtn.textContent = 'Copy text';
-    copyTextBtn.title = 'Copy as plain text (Markdown formatting removed)';
+    copyTextBtn.textContent = pageT('msg.copy_text', 'Copy text');
+    copyTextBtn.title = pageT('msg.copy_text_title', 'Copy as plain text (Markdown formatting removed)');
     copyTextBtn.addEventListener('click', () => copyText(mdToPlainText(rawOf()), copyTextBtn));
     actions.appendChild(copyTextBtn);
     if (richClipboardSupported()) {
       const copyRichBtn = document.createElement('button');
       copyRichBtn.type = 'button';
       copyRichBtn.className = 'msg-copy msg-copy-rich';
-      copyRichBtn.textContent = 'Copy rich';
-      copyRichBtn.title = 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)';
+      copyRichBtn.textContent = pageT('msg.copy_rich', 'Copy rich');
+      copyRichBtn.title = pageT('msg.copy_rich_title', 'Copy with formatting (sanitized HTML + plain text — the receiving app decides how it renders)');
       copyRichBtn.addEventListener('click', () => copyRichMessage(rawOf(), copyRichBtn));
       actions.appendChild(copyRichBtn);
     }
@@ -2472,7 +2473,7 @@ function msgTextEl(el) { return el.querySelector('.msg-text'); }
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
-function setPinBtn(btn, on) { btn.textContent = on ? 'Pinned' : 'Pin'; btn.title = on ? 'Unpin this message' : 'Pin this message to the chat'; btn.classList.toggle('on', !!on); }
+function setPinBtn(btn, on) { btn.textContent = on ? pageT('pin.pinned', 'Pinned') : pageT('pin.pin', 'Pin'); btn.title = on ? pageT('pin.unpin_title', 'Unpin this message') : pageT('pin.pin_title', 'Pin this message to the chat'); btn.classList.toggle('on', !!on); }
 function updatePinCount() {
   const b = document.getElementById('pinBtn'); if (!b) return;
   const n = view.pins.length; const nEl = b.querySelector('.pin-n'); if (nEl) nEl.textContent = n ? String(n) : '';
@@ -2503,7 +2504,7 @@ function renderPinPanel() {
   body.innerHTML = '';
   if (!view.pins.length) {
     const e = document.createElement('div'); e.className = 'pin-empty';
-    e.textContent = 'No pinned messages in this chat yet. Hover any message and hit Pin.';
+    e.textContent = pageT('pin.empty', 'No pinned messages in this chat yet. Hover any message and hit Pin.');
     body.appendChild(e); return;
   }
   for (const p of view.pins) {
@@ -2511,8 +2512,8 @@ function renderPinPanel() {
     const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : 'You';
     const txt = document.createElement('div'); txt.className = 'pin-text'; txt.textContent = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
     const row = document.createElement('div'); row.className = 'pin-row';
-    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = 'Copy'; copy.addEventListener('click', () => copyText(p.text, copy));
-    const un = document.createElement('button'); un.type = 'button'; un.className = 'pin-btn2'; un.textContent = 'Unpin'; un.addEventListener('click', () => unpinFromPanel(p.id));
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = pageT('msg.copy', 'Copy'); copy.addEventListener('click', () => copyText(p.text, copy));
+    const un = document.createElement('button'); un.type = 'button'; un.className = 'pin-btn2'; un.textContent = pageT('pin.unpin', 'Unpin'); un.addEventListener('click', () => unpinFromPanel(p.id));
     row.appendChild(copy); row.appendChild(un);
     card.appendChild(meta); card.appendChild(txt); card.appendChild(row); body.appendChild(card);
   }
@@ -2550,7 +2551,13 @@ function fallbackCopy(text, btn, done) {
   // lands here as a visible failure, not a "Copied".
   if (copied) { if (done) done(); } else { copiedFail(btn); }
 }
-function copiedFail(btn) { btn.textContent = 'Copy failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 1200); }
+// Back to the button's OWN label (Copy, Copy text, Copy rich, in the UI language), never a
+// hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
+function copiedFail(btn) {
+  if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
+  btn.textContent = 'Copy failed';
+  setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
+}
 
 // Styled-clipboard support is probed, never assumed: a write of an HTML+plain ClipboardItem only
 // exists on some browsers/contexts. Where it is missing, no rich button is offered at all -- the
@@ -3805,6 +3812,51 @@ function renderRichText(el, text) {
     || isTableRow(line) || /^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line)
   );
 
+  // One list item: indent width, ordered or not, the number it carries (ordered only), its text.
+  const listItemAt = (line) => {
+    const o = line.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
+    if (o) return { indent: o[1].length, ordered: true, num: parseInt(o[2], 10), text: o[3] };
+    const b = line.match(/^(\s*)[-*+]\s+(.*)$/);
+    if (b) return { indent: b[1].length, ordered: false, num: 0, text: b[2] };
+    return null;
+  };
+  // A whole list from line `start`. Three shapes used to break one list into many: a blank line
+  // between items (a "loose" list), a sub-bullet indented under an item, and a list resumed after
+  // something in between. Each piece became its own <ol>, every one restarting at 1, so a numbered
+  // answer read "1. 1. 1.". Blank lines and deeper-indented items now stay inside the list, and an
+  // ordered list keeps the number it was written with (`start`), so a resumed list continues.
+  const parseList = (start) => {
+    const first = listItemAt(lines[start]);
+    const base = first.indent;
+    const sameList = (it) => it && it.ordered === first.ordered && it.indent <= base + 1 && it.indent >= base - 1;
+    const nested = (it) => it && it.indent > base + 1;
+    const blankRunEnd = (from) => { let k = from; while (k < lines.length && !lines[k].trim()) k += 1; return k; };
+    const items = [];
+    let j = start;
+    while (j < lines.length) {
+      const it = listItemAt(lines[j]);
+      if (!sameList(it)) break;
+      const parts = [it.text];
+      let inner = '';
+      j += 1;
+      while (j < lines.length) {
+        // A wrapped continuation line belongs to the item it follows, not to a new paragraph.
+        if (/^\s{2,}\S/.test(lines[j]) && !isBlockStart(lines[j])) { parts.push(lines[j].trim()); j += 1; continue; }
+        // A deeper-indented item, directly below or after blank lines, is a sub-list of this item.
+        const k = blankRunEnd(j);
+        if (k < lines.length && nested(listItemAt(lines[k]))) { const sub = parseList(k); inner += sub.html; j = sub.next; continue; }
+        break;
+      }
+      items.push('<li>' + renderInline(parts.join(' ')) + inner + '</li>');
+      // Blank lines end the list only when what follows them is not its next item.
+      const k = blankRunEnd(j);
+      if (k > j && k < lines.length && sameList(listItemAt(lines[k]))) j = k;
+    }
+    const tag = first.ordered ? 'ol' : 'ul';
+    const startAttr = first.ordered && first.num !== 1 ? ' start="' + first.num + '"' : '';
+    return { html: '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>', next: j };
+  };
+
   while (i < lines.length) {
     const line = lines[i];
 
@@ -3884,25 +3936,10 @@ function renderRichText(el, text) {
       continue;
     }
 
-    const bullet = line.match(/^(\s*)[-*+]\s+(.*)$/);
-    const numbered = line.match(/^(\s*)\d+[.)]\s+(.*)$/);
-    if (bullet || numbered) {
-      const ordered = !!numbered;
-      const items = [];
-      while (i < lines.length) {
-        const m = ordered ? lines[i].match(/^(\s*)\d+[.)]\s+(.*)$/) : lines[i].match(/^(\s*)[-*+]\s+(.*)$/);
-        if (!m) break;
-        const parts = [m[2]];
-        i += 1;
-        // A wrapped continuation line belongs to the item it follows, not to a new paragraph.
-        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !isBlockStart(lines[i])) {
-          parts.push(lines[i].trim());
-          i += 1;
-        }
-        items.push('<li>' + renderInline(parts.join(' ')) + '</li>');
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      out.push('<' + tag + ' class="chat-list">' + items.join('') + '</' + tag + '>');
+    if (listItemAt(line)) {
+      const list = parseList(i);
+      out.push(list.html);
+      i = list.next;
       continue;
     }
 
@@ -11670,6 +11707,10 @@ if (updateChip) {
   updateChip.addEventListener('click', () => {
     updatePop.classList.toggle('open');   // the shell's popover convention: .open, not [hidden]
     updateChip.setAttribute('aria-expanded', String(updatePop.classList.contains('open')));
+    // The chip is the header's last control, at the window's right edge: anchored from its left
+    // (the old default) the menu ran past the window and was cut off. It is right-anchored now and
+    // clamped like every other menu, so it stays whole at any window size.
+    positionPopover(updatePop, updateChip);
   });
   document.addEventListener('click', (e) => {
     if (!updatePop.classList.contains('open')) return;
