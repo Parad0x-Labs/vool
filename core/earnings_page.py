@@ -95,7 +95,7 @@ __VOOL_PALETTE_CSS__
     <div class="card">
       <div class="card-title">Credit Balance</div>
       <div class="card-value" id="credit-balance">—</div>
-      <div class="card-sub">VOOL credits (simulated)</div>
+      <div class="card-sub" title="Credits are counted in VOOL's own ledger on this computer. They are not a coin on a blockchain.">VOOL credits (kept by VOOL, not on a blockchain)</div>
     </div>
     <div class="card">
       <div class="card-title">SOL Balance</div>
@@ -105,7 +105,7 @@ __VOOL_PALETTE_CSS__
     <div class="card">
       <div class="card-title">USDC Balance</div>
       <div class="card-value" id="usdc-balance">—</div>
-      <div class="card-sub">on-chain USDC (mainnet)</div>
+      <div class="card-sub">USDC on the main network (real money)</div>
     </div>
     <div class="card">
       <div class="card-title">Price / Token</div>
@@ -220,6 +220,17 @@ function tierBadge(t) {
   return `<span class="badge ${cls}">${t||"drone"}</span>`;
 }
 
+// Every table answers a failed load the same way: one row that says so, with a Retry button.
+function failRow(tbodyId, cols) {
+  document.getElementById(tbodyId).innerHTML =
+    "<tr><td colspan='" + cols + "' class='empty'>Couldn't load this. <button class='claim-btn' onclick='refresh()'>Retry</button></td></tr>";
+}
+function balanceFailed(id) {
+  const box = document.getElementById(id);
+  box.textContent = "—";
+  box.title = "Couldn't load this right now. It refreshes on its own every 10 seconds.";
+}
+
 async function claimTask(taskId, btn) {
   btn.disabled = true;
   btn.textContent = "…";
@@ -252,7 +263,10 @@ async function refresh() {
     const pk = w.pubkey || "—";
     document.getElementById("wallet-pubkey").textContent = pk.slice(0,8)+"…"+pk.slice(-8);
     document.getElementById("wallet-pubkey").title = pk;
-  } catch(e) { /* ignore */ }
+  } catch(e) {
+    balanceFailed("sol-balance"); balanceFailed("usdc-balance");
+    document.getElementById("wallet-pubkey").textContent = "Couldn't load the wallet";
+  }
 
   // Credits
   try {
@@ -271,7 +285,10 @@ async function refresh() {
           <td style="color:var(--muted);font-size:10px">${(e.timestamp||"").slice(0,16).replace("T"," ")}</td>
         </tr>`).join("");
     }
-  } catch(e) { /* ignore */ }
+  } catch(e) {
+    balanceFailed("credit-balance");
+    failRow("ledger-tbody", 4);
+  }
 
   // Tasks
   try {
@@ -295,7 +312,7 @@ async function refresh() {
       }).join("");
     }
   } catch(e) {
-    document.getElementById("task-tbody").innerHTML = "<tr><td colspan='7' class='empty'>Error loading tasks</td></tr>";
+    failRow("task-tbody", 7);
   }
 
   // Workers
@@ -324,7 +341,10 @@ async function refresh() {
           <td><span class="badge ${w.active?'badge-green':'badge-muted'}">${w.active?"live":"expired"}</span></td>
         </tr>`).join("");
     }
-  } catch(e) { /* ignore */ }
+  } catch(e) {
+    document.getElementById("worker-count").textContent = "workers: —";
+    failRow("workers-tbody", 7);
+  }
 
   document.getElementById("last-refresh").textContent =
     "refreshed " + new Date().toLocaleTimeString();
