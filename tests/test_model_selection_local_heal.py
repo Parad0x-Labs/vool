@@ -19,8 +19,14 @@ from core.model_selection_policy import (
 from storage.model_provider_manifest import ModelProviderManifest
 
 
+_CAPS = ["summarize", "format", "structured_json", "code_complex"]
+# A tool-selection step requires a lane that declares tool selection (structured_json AND
+# tool_intent are its hard contract); VOOL's general local lane and the OpenRouter chat lanes do.
+_TOOL_CAPS = [*_CAPS, "tool_intent"]
+
+
 def _local(model: str, *, provider: str = "ollama-local", enabled: bool = True,
-           license_name: str | None = "Apache-2.0") -> ModelProviderManifest:
+           license_name: str | None = "Apache-2.0", capabilities: list[str] | None = None) -> ModelProviderManifest:
     return ModelProviderManifest(
         provider_name=provider,
         model_name=model,
@@ -30,7 +36,7 @@ def _local(model: str, *, provider: str = "ollama-local", enabled: bool = True,
         license_reference=("https://ollama.com/library/" + model) if license_name else None,
         weight_location="external",
         runtime_dependency="ollama",
-        capabilities=["summarize", "format", "structured_json", "code_complex"],
+        capabilities=list(capabilities or _CAPS),
         runtime_config={"base_url": "http://127.0.0.1:11434"},
         metadata={"deployment_class": "local", "orchestration_role": "queen", "tokens_per_second": 8.0},
         enabled=enabled,
@@ -51,7 +57,7 @@ def _paid(model: str = "gpt-4o") -> ModelProviderManifest:
     )
 
 
-def _free_cloud(model: str = "tencent/hy3:free") -> ModelProviderManifest:
+def _free_cloud(model: str = "tencent/hy3:free", *, capabilities: list[str] | None = None) -> ModelProviderManifest:
     return ModelProviderManifest(
         provider_name="openrouter-byok",
         model_name=model,
@@ -59,7 +65,7 @@ def _free_cloud(model: str = "tencent/hy3:free") -> ModelProviderManifest:
         adapter_type="openai_compatible",
         license_name="Provider",
         license_reference="user-managed",
-        capabilities=["summarize", "format", "structured_json", "code_complex"],
+        capabilities=list(capabilities or _CAPS),
         runtime_config={"base_url": "https://openrouter.ai/api/v1"},
         metadata={"deployment_class": "remote", "cost_class": "paid_cloud"},
     )
@@ -197,7 +203,7 @@ def test_ordinary_tool_intent_prefers_verified_free_cloud_over_weaker_local(monk
     monkeypatch.setattr(
         openrouter_catalog, "safe_all_models", lambda **_kwargs: ((_verified_free_catalog_row(),), 0.0)
     )
-    manifests = [_local("qwen3:8b"), _free_cloud()]
+    manifests = [_local("qwen3:8b", capabilities=_TOOL_CAPS), _free_cloud(capabilities=_TOOL_CAPS)]
     ranked = rank_providers(manifests, _req(task_kind="tool_intent"))
 
     assert ranked, "both manifests are eligible; ranking must not come back empty"
@@ -218,7 +224,7 @@ def test_local_only_mode_still_excludes_the_free_cloud_lane_entirely(monkeypatch
     monkeypatch.setattr(
         openrouter_catalog, "safe_all_models", lambda **_kwargs: ((_verified_free_catalog_row(),), 0.0)
     )
-    manifests = [_local("qwen3:8b"), _free_cloud()]
+    manifests = [_local("qwen3:8b", capabilities=_TOOL_CAPS), _free_cloud(capabilities=_TOOL_CAPS)]
     ranked = rank_providers(manifests, _req(task_kind="tool_intent"))
 
     assert [m.model_name for m in ranked] == ["qwen3:8b"]

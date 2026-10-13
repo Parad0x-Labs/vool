@@ -74,7 +74,7 @@ _STUB_SEED = textwrap.dedent(
         adapter_type="openai_compatible", license_name="Apache-2.0",
         license_reference="https://ollama.com/library/qwen3",
         weight_location="external", runtime_dependency="ollama",
-        capabilities=["summarize", "classify", "format", "extract", "structured_json"],
+        capabilities=["summarize", "classify", "format", "extract", "structured_json", "tool_intent"],
         runtime_config={{"base_url": "{base_url}", "timeout_seconds": 60}},
         metadata={{
             "runtime_family": "ollama", "cost_class": "free_local",

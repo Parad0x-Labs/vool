@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from core import policy_engine
 from core.local_model_bundles import model_parameter_billions
-from core.model_capabilities import capability_score, required_capabilities
+from core.model_capabilities import capability_score, normalize_capabilities, required_capabilities
 from core.model_health import circuit_is_open
 from core.model_trust import provider_base_trust
 from storage.model_provider_manifest import ModelProviderManifest
@@ -112,6 +112,44 @@ def reported_cost_class(manifest: ModelProviderManifest) -> str:
     return provider_cost_class(manifest)
 
 
+# Required capabilities that are the turn's CONTRACT rather than a skill description: a structured
+# output (structured_json), a tool selection (tool_intent), media it must read (multimodal). A
+# manifest that does not declare one cannot serve a turn that requires it, whatever else it covers
+# and however few alternatives exist. Measured on 57fdc03, an "availability" fallback handed a tool
+# step to a model declaring no tool selection, a JSON turn to a JSON-less model and an external
+# image to a text-only model. The other required tags (summarize, classify, format, extract,
+# code_*, long_context) describe what a model is good at; they rank candidates through
+# `capability_score` and never remove one.
+#
+# `structured_json` is a contract only where the OUTPUT is structured: the output contract owner
+# (`core.model_output_contracts`) rejects non-JSON for json_object, action_plan and summary_block,
+# and JSON mode is sent only to endpoints that declare it. A task kind that merely lists
+# structured_json under a plain_text output asks for prose, and on a tool-selection turn the
+# runtime builds the intent itself, from the provider's native tool call (`canonical_intent_text`)
+# or by parsing the prompted tool dialect (measured on the served usepod lane: tool_dialect
+# native, JSON mode off, a real tool executed). There `tool_intent` is the contract.
+HARD_REQUIRED_CAPABILITIES = frozenset({"structured_json", "tool_intent", "multimodal"})
+STRUCTURED_OUTPUT_MODES = frozenset({"json_object", "action_plan", "summary_block"})
+
+
+def missing_hard_capabilities(
+    manifest: ModelProviderManifest,
+    required: object,
+    *,
+    output_mode: str = "plain_text",
+) -> tuple[str, ...]:
+    """The turn's hard-contract capabilities this manifest does not declare, sorted."""
+    if not isinstance(required, (set, frozenset, list, tuple)) or not required:
+        return ()
+    hard = set(HARD_REQUIRED_CAPABILITIES)
+    if str(output_mode or "").strip().lower() not in STRUCTURED_OUTPUT_MODES:
+        hard.discard("structured_json")
+    declared = set(normalize_capabilities(manifest.capabilities))
+    return tuple(
+        sorted({str(capability) for capability in required if capability in hard and capability not in declared})
+    )
+
+
 def _hard_exclusion_reason(
     manifest: ModelProviderManifest,
     request: ModelSelectionRequest,
@@ -152,6 +190,9 @@ def _hard_exclusion_reason(
         return "paid_not_permitted"
     if required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
         return "no_required_capability"
+    missing_contract = missing_hard_capabilities(manifest, required, output_mode=request.output_mode)
+    if missing_contract:
+        return "missing_required_capability:" + ",".join(missing_contract)
     if provider_base_trust(manifest) < request.min_trust:
         return "below_min_trust"
     return ""
@@ -242,6 +283,10 @@ def rank_providers(
     (``source="no_provider_available"``). The relaxed pass still enforces every hard constraint
     (enabled, license, capability, trust, local-only, paid gating), so it never fails open to a paid
     cloud lane — it only degrades the model-tag preference.
+
+    Neither pass relaxes a hard capability (``HARD_REQUIRED_CAPABILITIES``): a pinned model that
+    does not declare one is excluded from that step, and an empty result goes to the caller's
+    existing refusal (selected model blocked / no provider) instead of a model that cannot do it.
     """
     strict = _rank_once(manifests, request, relax_model_preference=False)
     ranked = strict or _rank_once(manifests, request, relax_model_preference=True)
@@ -291,12 +336,23 @@ def explain_provider_exclusions(
     required = required_capabilities(request.task_kind, request.output_mode)
     rows: list[dict[str, str]] = []
     for manifest in manifests:
+        reason = _hard_exclusion_reason(manifest, request, required=required)
+        complete = (
+            ""
+            if not required
+            else ("1" if required.issubset(set(normalize_capabilities(manifest.capabilities))) else "0")
+        )
         rows.append(
             {
                 "provider_id": str(manifest.provider_id),
                 "model": str(manifest.model_name),
                 "enabled": "1" if manifest.enabled else "0",
-                "status": _hard_exclusion_reason(manifest, request, required=required) or "eligible",
+                "status": reason or "eligible",
+                # Completeness against every required tag, preferences included: "" when the turn
+                # requires nothing, else whether all of them are declared. A missing HARD tag is
+                # already the status itself (`missing_required_capability:<tags>`); a "0" on an
+                # eligible row means only that a preference tag is absent, which ranks lower.
+                "required_capability_complete": complete,
             }
         )
     return rows
