@@ -283,10 +283,11 @@ def read(
 
     units: list[ReaderUnit] = []
     # Folders are entries too (`zip -r` and friends write them), but "what is in this archive"
-    # is a question about files: count those, and mention folders separately when any exist.
+    # is a question about files: count only those as members, and mention folders separately.
     files = [m for m in members if not m.is_dir]
     folders = [m for m in members if m.is_dir]
-    listing_lines = [f"{len(files)} file(s) in {name}" + (f" ({len(folders)} folder(s))" if folders else "") + ":"]
+    folder_note = f" (plus {len(folders)} folder{'' if len(folders) == 1 else 's'})" if folders else ""
+    listing_lines = [f"{len(files)} member(s) in {name}{folder_note}:"]
     total_size = 0
     nested: list[str] = []
     for member in members:

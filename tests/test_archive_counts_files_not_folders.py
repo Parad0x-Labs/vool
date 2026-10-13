@@ -3,7 +3,7 @@
 `zip -r` (and every archiver that stores the folder itself) puts a folder ENTRY in the
 archive, so one folder plus three files used to be announced as "4 member(s) in pack.zip"
 -- and a folder-only zip claimed members it did not hold. The headline and both meta
-counts now say files, folders are mentioned only when any exist, and folders stay in the
+counts now count files only, folders are mentioned only when any exist, and folders stay in the
 listing marked as directories.
 """
 from __future__ import annotations
@@ -62,7 +62,7 @@ def _rar_with_folder_entry() -> bytes:
 def test_a_zip_with_a_folder_entry_counts_the_three_files():
     result = readers.read(_zip(folder_entry=True), name="pack.zip", extension=".zip")
     listing = result.units[0].text
-    assert "3 file(s) in pack.zip (1 folder(s)):" in listing
+    assert "3 member(s) in pack.zip (plus 1 folder):" in listing
     # Folders stay listed and marked, so "what is in this archive" keeps its full answer.
     assert "docs/ (directory)" in listing
     assert result.meta["members"] == 3 and result.meta["folders"] == 1
@@ -72,7 +72,7 @@ def test_a_zip_with_a_folder_entry_counts_the_three_files():
 def test_a_zip_without_folder_entries_does_not_mention_folders():
     result = readers.read(_zip(folder_entry=False), name="pack.zip", extension=".zip")
     listing = result.units[0].text
-    assert "3 file(s) in pack.zip:" in listing
+    assert "3 member(s) in pack.zip:" in listing
     assert "folder" not in listing
     assert result.meta["members"] == 3 and result.meta["folders"] == 0
 
@@ -81,6 +81,6 @@ def test_a_zip_without_folder_entries_does_not_mention_folders():
 def test_a_rar_with_a_folder_entry_counts_the_three_files():
     result = readers.read(_rar_with_folder_entry(), name="pack.rar", extension=".rar")
     listing = result.units[0].text
-    assert "3 file(s) in pack.rar (1 folder(s)):" in listing
+    assert "3 member(s) in pack.rar (plus 1 folder):" in listing
     assert "(directory)" in listing
     assert result.meta["members"] == 3 and result.meta["folders"] == 1
