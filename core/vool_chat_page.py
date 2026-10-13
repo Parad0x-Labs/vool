@@ -4455,13 +4455,41 @@ function attachRunDom(run, host) {
   paintRunState(run);
 }
 
+// An answer is shown formatted while it streams: headings, lists, bold and code look the way they
+// will at the end instead of popping from raw Markdown on the last token. Repaints are batched
+// (at most one per STREAM_PAINT_MS) and use the same renderer as the final answer. The element is
+// marked data-streaming meanwhile so half-written charts and diagrams are never hydrated; the
+// final render (server commit or stream end) clears the mark and paints the canonical text.
+const STREAM_PAINT_MS = 120;
+function paintStreamingText(run) {
+  if (!run.textEl) return;
+  run.textEl.dataset.streaming = '1';
+  renderRichText(run.textEl, run.text);
+}
+function scheduleStreamPaint(run) {
+  if (run.streamPaintTimer) return;
+  run.streamPaintTimer = setTimeout(() => {
+    run.streamPaintTimer = null;
+    if (run.ended) return;
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      paintStreamingText(run);
+      logEl.scrollTop = logEl.scrollHeight;
+    });
+  }, STREAM_PAINT_MS);
+}
+function endStreamPaint(run) {
+  if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+  if (run.textEl) delete run.textEl.dataset.streaming;
+}
+
 // Replay everything the run already knows onto fresh refs: answer text, live card, and -- for a
 // turn that ended while its chat was off screen -- its terminal state.
 function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else run.textEl.textContent = run.text;
+      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else paintStreamingText(run);
     } else if (run.assistantMsgEl) {
       run.assistantMsgEl.classList.add('pending');
       run.textEl.textContent = '…';
@@ -7342,6 +7370,7 @@ async function runTurn(text, queueItemId, opts) {
           const committedUsage = run.displayMetadata && run.displayMetadata.usage;
           const committedTokens = Number(committedUsage && committedUsage.output_tokens) || 0;
           run.tokens = committedTokens || Math.round(assistant.length / 4);
+          endStreamPaint(run);
           withRunDom(run, () => {
             if (!run.textEl) return;
             run.assistantMsgEl.classList.remove('pending');
@@ -7363,10 +7392,9 @@ async function runTurn(text, queueItemId, opts) {
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
             run.assistantMsgEl.classList.remove('pending');
-            run.textEl.textContent = assistant;
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
           });
+          if (!hasResponseCommit) scheduleStreamPaint(run);
         }
       }
     }
@@ -7386,6 +7414,9 @@ async function runTurn(text, queueItemId, opts) {
       finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
     }
   }
+  // The stream is over: no batched repaint may land after the terminal paint below (or the error
+  // and stop text the catch above just wrote).
+  endStreamPaint(run);
   if (!hasResponseCommit && assistant) {
     // Compatibility with an older server: retain the response, but still migrate any appended
     // provenance footer out of canonical conversation content before it is recorded.
