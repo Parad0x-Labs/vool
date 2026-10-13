@@ -222,22 +222,68 @@ def parse_availability_window(
 def parse_duration_minutes(text: str) -> int | None:
     """The requested duration in minutes, exactly as asked. No minimum is imposed.
 
-    Matches "30-minute", "free30-minute" (no space), "15 mins", "for 45m", "a half-hour"
-    wherever they appear; a bare date/time never matches (no unit word follows it).
+    Matches "30-minute", "free30-minute" (no space), "15 mins", "for 45m", "a half-hour",
+    "1.5 hours", "1h30", "1 hour 30 minutes" wherever they appear; a bare date/time never
+    matches (no unit word follows it).
     """
     raw = str(text or "")
+    compound = re.search(
+        r"(?<![\d.])(\d+)\s*(?:hours?|hrs?|h)\s*(?:and\s+)?(\d{1,2})\s*(?:minutes?|mins?|m)\b"
+        r"|(?<![\d.:])(\d+)h(\d{2})\b",
+        raw, re.IGNORECASE,
+    )
+    if compound:
+        hours, minutes = (compound.group(1), compound.group(2)) if compound.group(1) else (compound.group(3), compound.group(4))
+        return int(hours) * 60 + int(minutes)
     match = re.search(
-        r"(\d+)\s*[-\s]?\s*(minutes?|mins?|hours?|hrs?|h\b|m\b)"
+        r"(?<![\d.])(\d+(?:\.\d+)?)\s*[-\s]?\s*(minutes?|mins?|hours?|hrs?|h\b|m\b)"
         r"|\b(?:a|an)\s+half(?:-|\s)?hour\b",
         raw, re.IGNORECASE,
     )
-    if not match:
-        return None
-    if not match.group(1):
-        return 30
-    value = int(match.group(1))
-    unit = match.group(2).lower()
-    return value * 60 if unit.startswith("h") else value
+    if match:
+        if not match.group(1):
+            return 30
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+        return round(value * 60) if unit.startswith("h") else round(value)
+    return None
+
+
+_RANGE_END_RE = re.compile(r"\s*(?:to|until|till|til|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b(?![:.]?\d)", re.IGNORECASE)
+
+
+def parse_event_length_minutes(text: str) -> int | None:
+    """An event's length as asked: an explicit duration, else the clock range it names.
+
+    "18:30 to 20:00", "from 6pm until 8pm" and "18:30-20:00" run from the start clock to
+    the end clock; an end at or before the start runs past midnight. A range end that is not
+    a clock time (no minutes and no am/pm, e.g. "18:30 to 5 people") is not read as one.
+    The availability check keeps `parse_duration_minutes`: there a range is a window, not a length.
+    """
+    duration = parse_duration_minutes(text)
+    if duration is not None:
+        return duration
+    from core.operator.when import _TIME_RE, _clock_from_match
+
+    raw = str(text or "")
+    for start in _TIME_RE.finditer(raw):
+        end = _RANGE_END_RE.match(raw, start.end())
+        if end is None or (end.group(2) is None and end.group(3) is None):
+            continue
+        end_hour, end_minute, meridiem = int(end.group(1)), int(end.group(2) or 0), str(end.group(3) or "").lower()
+        if meridiem:
+            if not 1 <= end_hour <= 12:
+                return None
+            end_hour = (end_hour % 12) + (12 if meridiem == "pm" else 0)
+        if not (0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+            return None
+        try:
+            start_hour, start_minute = _clock_from_match(start)
+        except ValueError:
+            return None
+        minutes = (end_hour * 60 + end_minute) - (start_hour * 60 + start_minute)
+        return minutes if minutes > 0 else minutes + 24 * 60
+    return None
 
 
 def _event_interval(event: CalEvent) -> tuple[datetime, datetime]:
@@ -899,7 +945,7 @@ def propose_event(
             details={},
         )
     start = datetime.fromisoformat(when.due_at_utc)
-    duration = parse_duration_minutes(intent.raw_text) or slot_duration_minutes or 30
+    duration = parse_event_length_minutes(intent.raw_text) or slot_duration_minutes or 30
     end = start + timedelta(minutes=duration)
     try:
         calendar_id, calendar_name = resolve_calendar(config, adapter, named=intent.target_label)

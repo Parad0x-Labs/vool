@@ -46,6 +46,25 @@ _IN_RELATIVE_RE = re.compile(
     r"\bin\s+(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b",
     re.IGNORECASE,
 )
+# A calendar date in words: "5 November", "5th of Nov", "November 5th", with an optional year.
+# The day number must stand alone (not part of a clock time like "18:30" or a decimal), so
+# "may" or "march" next to a clock time is never a date.
+_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3, "apr": 4, "april": 4,
+    "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7, "aug": 8, "august": 8,
+    "sep": 9, "sept": 9, "september": 9, "oct": 10, "october": 10, "nov": 11, "november": 11,
+    "dec": 12, "december": 12,
+}
+_MONTH_WORD = r"(?P<{name}>" + "|".join(sorted(_MONTHS, key=len, reverse=True)) + r")\b\.?"
+_DAY_NUMBER = r"(?<![\d:.\-/])(?P<{name}>\d{{1,2}})(?:st|nd|rd|th)?(?![\d:]|\.\d|\s*(?:am|pm)\b)"
+_YEAR = r"(?:,?\s+(?P<{name}>20\d{{2}})\b(?!:))?"
+_WORD_DATE_RE = re.compile(
+    r"\b" + _DAY_NUMBER.format(name="day_a") + r"\s+(?:of\s+)?" + _MONTH_WORD.format(name="month_a") + _YEAR.format(name="year_a")
+    + r"|\b" + _MONTH_WORD.format(name="month_b") + r"\s+(?:the\s+)?" + _DAY_NUMBER.format(name="day_b") + _YEAR.format(name="year_b"),
+    re.IGNORECASE,
+)
+# A month and year with no day ("May 2026") names no single date: asked about, never dropped.
+_MONTH_YEAR_RE = re.compile(r"\b" + _MONTH_WORD.format(name="month") + r",?\s+20\d{2}\b(?!:)", re.IGNORECASE)
 _DAY_RE = re.compile(r"\b(yesterday|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.IGNORECASE)
 _WEEKDAY_ORDER = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
@@ -175,6 +194,16 @@ def _parse_when_expression(
             hour, minute = int(iso.group(4)), int(iso.group(5))
         return _resolve_wall(year, month, day, hour, minute, zone, tz_name, basis=iso.group(0), now=now, kind="absolute")
 
+    word_date = _WORD_DATE_RE.search(text)
+    if word_date:
+        return _resolve_word_date(word_date, text, zone, tz_name, now=now)
+    month_year = _MONTH_YEAR_RE.search(text)
+    if month_year:
+        return WhenResolution(
+            ok=False, tz_name=tz_name,
+            problem=f"Which day in {month_year.group(0).strip()}? Give me the date and a clock time (for example '5 {month_year.group(0).strip()} at 9:00').",
+        )
+
     day_match = _DAY_RE.search(text)
     time_match = _TIME_RE.search(text)
     if time_match:
@@ -219,8 +248,53 @@ def time_expression_spans(text: str) -> tuple[tuple[int, int], ...]:
     request takes is the event's time, and any other time a request names defers the action.
     """
     value = str(text or "")
-    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _TIME_RE, _DAY_RE)
+    patterns = (_IN_RELATIVE_RE, _ISO_DATETIME_RE, _WORD_DATE_RE, _TIME_RE, _DAY_RE)
     return tuple(sorted({match.span() for pattern in patterns for match in pattern.finditer(value)}))
+
+
+def _resolve_word_date(
+    match: re.Match, text: str, zone: Any, tz_name: str, *, now: datetime,
+) -> WhenResolution:
+    """A date written in words. With no year it is this year's date, read as said: a date
+    already behind us stays in the past (a caller that needs a future instant refuses it via
+    `has_passed`) instead of being rolled into next year. A weekday or day word that names a
+    different day than the date is a contradiction to ask about, never one to pick from."""
+    day = int(match.group("day_a") or match.group("day_b"))
+    month = _MONTHS[(match.group("month_a") or match.group("month_b")).lower()]
+    year_text = match.group("year_a") or match.group("year_b")
+    zone_now = now.astimezone(zone)
+    year = int(year_text) if year_text else zone_now.year
+    said = match.group(0).strip()
+    try:
+        target = datetime(year, month, day).date()
+    except ValueError:
+        return WhenResolution(ok=False, problem=f"{said} is not a real date. Check the day and month and tell me again.", tz_name=tz_name)
+    rest = text[:match.start()] + " " + text[match.end():]
+    for day_word in _DAY_RE.finditer(rest):
+        if _date_for_day_word_on(day_word.group(1), target, zone_now) is False:
+            return WhenResolution(
+                ok=False, tz_name=tz_name,
+                problem=f"{target:%A %d %B %Y} is not {day_word.group(1)}. Which day did you mean?",
+            )
+    time_match = _TIME_RE.search(rest)
+    if time_match is None:
+        return WhenResolution(ok=False, problem=f"Which time on {said}? Give me a clock time too (for example '{said} at 9:00').", tz_name=tz_name)
+    try:
+        hour, minute = _clock_from_match(time_match)
+    except ValueError as exc:
+        return WhenResolution(ok=False, problem=str(exc))
+    return _resolve_wall(
+        target.year, target.month, target.day, hour, minute,
+        zone, tz_name, basis=f"{said} {time_match.group(0).strip()}", now=now, kind="absolute",
+    )
+
+
+def _date_for_day_word_on(day_word: str, target: Any, zone_now: datetime) -> bool:
+    """Whether a day word ("Thursday", "tomorrow") agrees with a written date."""
+    word = day_word.strip().lower()
+    if word in _WEEKDAY_ORDER:
+        return target.weekday() == _WEEKDAY_ORDER.index(word)
+    return _date_for_day_word(word, zone_now) == target
 
 
 def _resolve_zone(text: str, host_zone: Any) -> tuple[str, Any]:
