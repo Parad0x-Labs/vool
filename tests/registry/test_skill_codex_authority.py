@@ -147,8 +147,8 @@ def test_clean_upload_is_checked_signed_listed_and_installs_in_vool(world, tmp_p
     world.http.cookies.set("vool_registry", token)
     assert world.http.get(PREFIX + "/submissions/" + submission["id"]).json()["state"] == "published"
     world.http.cookies.clear()
-    licence = decode(world.store.public_artifact(submission["sha256"])[0])
-    assert licence  # the stored package is the exact signed bytes
+    raw, entry = world.store.public_artifact(submission["sha256"])
+    assert hashlib.sha256(raw).hexdigest() == submission["sha256"] == entry["artifact_sha256"]  # the exact signed bytes
 
     # VOOL itself: the app trusts only the Mac's root, verifies every signature and installs for review.
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "runtime"))
@@ -487,6 +487,19 @@ def test_the_list_stays_fresh_for_a_week_without_the_mac_then_installs_stop(worl
     assert "alice/notes" in rows(world)
 
 
+def test_the_list_outlasts_the_mac_being_off_for_six_days(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    world.mac.run_once()
+    world.clock.t += DAY + 300  # the Mac's next runs, a day later, before it is switched off
+    world.mac.run_once()
+    last_run = world.clock.t
+    assert world.mac.state["authorized_until"] - last_run > 6 * DAY - 300
+    world.clock.t = last_run + 6 * DAY - 300
+    world.online.refresh(now=world.clock.t)  # raises once the Mac's list has run out
+    assert "alice/notes" in rows(world)
+
+
 def test_a_restart_starts_from_the_newest_list_even_when_it_went_stale(world, tmp_path):
     from registry_service.cli import load_service
 
@@ -649,6 +662,66 @@ def test_an_unexpected_error_on_one_skill_refuses_it_and_the_others_go_on(world,
     world.http.cookies.set("vool_registry", token)
     assert world.http.get(PREFIX + "/submissions/" + strange["id"]).json()["findings"][0]["reason"] == \
         "Our checks couldn't read this skill. Make it plainer, then upload it again."
+
+
+def test_checks_that_break_on_a_package_refuse_it_with_a_plain_reason_on_server_and_mac(world, monkeypatch, capsys):
+    from core.registry import checks
+
+    alice, token, csrf = creator(world, "101", "alice")
+    waiting = draft(world, token, csrf, "alice/notes").json()
+    assert waiting["state"] == "checking"
+    real = checks._quality
+
+    def broken(artifact, texts, *, official):
+        if "STRANGE" in "".join(texts.values()):
+            raise IndexError("a rule nobody planned for")
+        return real(artifact, texts, official=official)
+
+    monkeypatch.setattr(checks, "_quality", broken)
+    response = draft(world, token, csrf, "alice/strange", SKILL + "\nKeep a STRANGE word list.\n")
+    assert response.status_code == 201, response.text
+    assert response.json()["state"] == "refused" and response.json()["findings"] == [
+        {"check": "archive", "path": "package", "reason": checks.UNREADABLE}]
+    def newer(artifact, texts, *, official):
+        raise IndexError("a newer rule nobody planned for")
+
+    # The Mac checks the waiting upload again with rules that now break on it: refused, logged, never signed.
+    monkeypatch.setattr(checks, "_quality", newer)
+    report = world.mac.run_once()
+    assert report["refused"] == ["alice/notes 1.0.0"] and report["admitted"] == []
+    assert "Refused " + waiting["sha256"] + " after an unexpected IndexError" in capsys.readouterr().err
+    assert world.store.submission(alice, waiting["id"])["findings"][0]["reason"] == checks.UNREADABLE
+
+
+def test_an_upload_waiting_on_the_months_budget_waits_up_to_35_days(world):
+    alice, token, csrf = creator(world, "101", "alice")
+    world.model.answers["Ask before"] = NoAnswer("the review service is down")
+    first = draft(world, token, csrf, "alice/notes").json()
+    other = draft(world, token, csrf, "alice/notes-two").json()
+    assert world.mac.run_once()["waiting"] == ["alice/notes 1.0.0", "alice/notes-two 1.0.0"]
+    world.clock.t += 20 * DAY
+    world.store.prune(now=world.clock.t)
+    assert world.store.submission(alice, first["id"])["state"] == "checking"
+    del world.model.answers["Ask before"]
+    world.mac.run_once()
+    assert world.store.submission(alice, first["id"])["state"] == "published"
+    world.clock.t += 16 * DAY  # past 35 days, a second upload still waiting would expire
+    world.store.prune(now=world.clock.t)
+    assert world.store.submission(alice, other["id"])["state"] == "published"
+    stuck = draft(world, *world.store.session(alice, now=world.clock.t), "alice/notes-three").json()
+    world.clock.t += 36 * DAY
+    world.store.prune(now=world.clock.t)
+    assert world.store.submission(alice, stuck["id"])["state"] == "expired"
+
+
+def test_status_reads_the_months_spend_without_the_review_key(world, monkeypatch, capsys):
+    import time
+
+    monkeypatch.delenv("VOOL_AUTHORITY_OPENROUTER_KEY", raising=False)
+    (world.tmp / "mac" / "spend.json").write_text(json.dumps({time.strftime("%Y-%m", time.gmtime()): 0.25}))
+    assert mac_authority.main(["status", "--dir", str(world.tmp / "mac")]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["review_spent_this_month"] == 0.25 and status["skills"] == 0
 
 
 def test_a_stranger_is_turned_away_before_a_large_body_is_read(world):
