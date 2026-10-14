@@ -37,7 +37,7 @@ OTHER_LANGUAGE_TURNS: list[tuple[str | None, str, tuple[str, ...]]] = [
     ("de", "speichere mein passwort nie im browser", ("mein password", "i am browser")),
     ("de", "speichere die datei im ordner dokumente", ("i am ordner",)),
     ("es", "guarda este archivo en mis documentos", ("mis documents",)),
-    ("es", "¿podemos hablar en privado?", ("¿ podemos",)),
+    ("es", "¿podemos mover la reunión al viernes?", ("¿ podemos",)),
     ("pt", "guarda este ficheiro nos documentos", ("nos documents",)),
     ("ar", "سجّل الاجتماع غدًا", ("سج ّ ل",)),
     ("hi", "निजी चैट कैसे काम करती है?", ("न ि ज ी",)),
