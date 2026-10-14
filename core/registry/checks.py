@@ -318,6 +318,7 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
                 findings.append(_finding("instructions-primary", name, "Write the name and description in plain words, "
                                          "without backslash codes.", line=_line(text, at), quote=_quote(text, at, at + 1)))
         plain, folded, plain_starts, folded_starts = _flat(lines)
+        seen = set()  # one finding per rule and line, however many ways the line trips it
         for rule, pattern, reason in _RULES:
             subject, starts = (plain, plain_starts) if rule == "letters" else (folded, folded_starts)
             for match in pattern.finditer(subject):
@@ -327,6 +328,9 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
                 if rule == "injection" and _SILENT.match(match.group(0)) and _NEGATED_BEFORE.search(before[-12:]):
                     continue
                 index = bisect.bisect_right(starts, match.start()) - 1
+                if (rule, index) in seen:
+                    continue
+                seen.add((rule, index))
                 findings.append(_finding("instructions-primary", name, reason,
                                          line=index + 1 if numbered else None,
                                          quote=" ".join(lines[index].split()) if lines else None))
