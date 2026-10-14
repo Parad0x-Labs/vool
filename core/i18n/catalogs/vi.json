@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Không có gì đang chờ bạn duyệt",
     "xact.waiting_title": "Đang chờ bạn duyệt ({count})",
     "xsetup.approval_note": "VOOL đọc bằng các khóa này. Với khóa của chính tài khoản bạn, nó cũng có thể đăng, thích, theo dõi hoặc gửi tin nhắn thay bạn, nhưng chỉ sau khi bạn duyệt từng việc ở đây trong Cài đặt.",
-    "xsetup.step2_help_write": "Trong Access Token and Secret, chọn “Generate”. Chúng thuộc về tài khoản X bạn đang đăng nhập. Để VOOL có thể đăng thay bạn (chỉ sau khi bạn duyệt), trước tiên hãy đặt User authentication settings của ứng dụng thành “Read and write and Direct message”, rồi tạo token."
+    "xsetup.step2_help_write": "Trong Access Token and Secret, chọn “Generate”. Chúng thuộc về tài khoản X bạn đang đăng nhập. Để VOOL có thể đăng thay bạn (chỉ sau khi bạn duyệt), trước tiên hãy đặt User authentication settings của ứng dụng thành “Read and write and Direct message”, rồi tạo token.",
+    "plugins.status.built_in": "Tích hợp sẵn",
+    "plugins.status.installed": "Đã cài đặt",
+    "plugins.status.off": "Tắt",
+    "plugins.status.on": "Bật",
+    "plugins.status.unknown": "Không rõ trạng thái"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

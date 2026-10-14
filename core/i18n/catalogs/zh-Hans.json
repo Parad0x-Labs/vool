@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "没有等待你批准的内容",
     "xact.waiting_title": "等待你批准({count})",
     "xsetup.approval_note": "VOOL 使用这些密钥读取。使用你自己账号的密钥时,它还可以替你发帖、点赞、关注或发送私信,但只会在你于此处的“设置”中逐一批准之后进行。",
-    "xsetup.step2_help_write": "在 Access Token and Secret 下选择“Generate”。它们属于你当前登录的 X 账号。若要让 VOOL 替你发帖(仅在你批准之后),请先将应用的 User authentication settings 设为“Read and write and Direct message”,然后再生成令牌。"
+    "xsetup.step2_help_write": "在 Access Token and Secret 下选择“Generate”。它们属于你当前登录的 X 账号。若要让 VOOL 替你发帖(仅在你批准之后),请先将应用的 User authentication settings 设为“Read and write and Direct message”,然后再生成令牌。",
+    "plugins.status.built_in": "内置",
+    "plugins.status.installed": "已安装",
+    "plugins.status.off": "关闭",
+    "plugins.status.on": "开启",
+    "plugins.status.unknown": "状态未知"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Nic nie czeka na Twoje zatwierdzenie",
     "xact.waiting_title": "Czeka na Twoje zatwierdzenie ({count})",
     "xsetup.approval_note": "VOOL czyta za pomocą tych kluczy. Z kluczami Twojego własnego konta może też publikować, polubiać, obserwować lub wysyłać wiadomości za Ciebie, ale dopiero po tym, jak zatwierdzisz każde działanie tutaj, w Ustawieniach.",
-    "xsetup.step2_help_write": "W sekcji Access Token and Secret wybierz „Generate”. Należą do konta X, na którym jesteś zalogowany. Aby VOOL mógł publikować za Ciebie (tylko po Twoim zatwierdzeniu), najpierw ustaw User authentication settings swojej aplikacji na „Read and write and Direct message”, a potem wygeneruj tokeny."
+    "xsetup.step2_help_write": "W sekcji Access Token and Secret wybierz „Generate”. Należą do konta X, na którym jesteś zalogowany. Aby VOOL mógł publikować za Ciebie (tylko po Twoim zatwierdzeniu), najpierw ustaw User authentication settings swojej aplikacji na „Read and write and Direct message”, a potem wygeneruj tokeny.",
+    "plugins.status.built_in": "Wbudowane",
+    "plugins.status.installed": "Zainstalowane",
+    "plugins.status.off": "Wyłączone",
+    "plugins.status.on": "Włączone",
+    "plugins.status.unknown": "Status nieznany"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -327,6 +327,16 @@ document.addEventListener('keydown', function(ev){
 // ---- the Esc cascade ---------------------------------------------------------------------
 // Capture phase runs before every legacy bubble listener: snapshot what was open AT PRESS TIME.
 var escSawOpenSurface = false;
+// The companion shells (.vool-ninja-menu/-pop, .vool-character-lab) sit in the page from boot,
+// hidden with display:none. Present-but-hidden must not count as "a menu is open": only a
+// surface the user can actually see owns Escape.
+function surfaceReallyOpen(el){
+  if (!el || el.hidden) return false;
+  if (el.style && el.style.display === 'none') return false;
+  var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+  if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+  return true;
+}
 function anyLegacySurfaceOpen(){
   if (!overlay.hidden) return true;
   var ids = ['settingsOverlay', 'councilOverlay', 'pluginsOverlay', 'bypassOverlay', 'pinOverlay'];
@@ -335,7 +345,10 @@ function anyLegacySurfaceOpen(){
     if (el && !el.hidden) return true;
   }
   if (document.querySelector('.pop.open')) return true;
-  if (document.querySelector('.vool-ninja-menu, .vool-ninja-pop, .vool-character-lab')) return true;
+  var companions = document.querySelectorAll('.vool-ninja-menu, .vool-ninja-pop, .vool-character-lab');
+  for (var j = 0; j < companions.length; j++) {
+    if (surfaceReallyOpen(companions[j])) return true;
+  }
   return false;
 }
 document.addEventListener('keydown', function(ev){

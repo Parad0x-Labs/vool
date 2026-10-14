@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Ничего не ждёт вашего одобрения",
     "xact.waiting_title": "Ждёт вашего одобрения ({count})",
     "xsetup.approval_note": "VOOL читает с этими ключами. С ключами вашего собственного аккаунта он также может публиковать, ставить лайки, подписываться или отправлять сообщения за вас, но только после того, как вы одобрите каждое действие здесь, в Настройках.",
-    "xsetup.step2_help_write": "В разделе Access Token and Secret нажмите «Generate». Они относятся к аккаунту X, в который вы вошли. Чтобы VOOL мог публиковать за вас (только после вашего одобрения), сначала переключите User authentication settings вашего приложения на «Read and write and Direct message», а затем создайте токены."
+    "xsetup.step2_help_write": "В разделе Access Token and Secret нажмите «Generate». Они относятся к аккаунту X, в который вы вошли. Чтобы VOOL мог публиковать за вас (только после вашего одобрения), сначала переключите User authentication settings вашего приложения на «Read and write and Direct message», а затем создайте токены.",
+    "plugins.status.built_in": "Встроено",
+    "plugins.status.installed": "Установлено",
+    "plugins.status.off": "Отключено",
+    "plugins.status.on": "Включено",
+    "plugins.status.unknown": "Состояние неизвестно"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

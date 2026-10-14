@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "आपकी स्वीकृति के लिए कुछ भी प्रतीक्षा में नहीं है",
     "xact.waiting_title": "आपकी स्वीकृति की प्रतीक्षा में ({count})",
     "xsetup.approval_note": "VOOL इन कुंजियों से पढ़ता है। आपके अपने खाते की कुंजियों से यह आपके लिए पोस्ट, लाइक, फ़ॉलो या संदेश भी भेज सकता है, लेकिन तभी जब आप यहाँ सेटिंग्स में हर एक को स्वीकृत करें।",
-    "xsetup.step2_help_write": "Access Token and Secret के नीचे \"Generate\" चुनें। ये उस X खाते के हैं जिससे आपने साइन इन किया है। VOOL को आपके लिए पोस्ट करने देने के लिए (केवल आपकी स्वीकृति के बाद), पहले अपने ऐप की User authentication settings को \"Read and write and Direct message\" पर सेट करें, फिर टोकन बनाएँ।"
+    "xsetup.step2_help_write": "Access Token and Secret के नीचे \"Generate\" चुनें। ये उस X खाते के हैं जिससे आपने साइन इन किया है। VOOL को आपके लिए पोस्ट करने देने के लिए (केवल आपकी स्वीकृति के बाद), पहले अपने ऐप की User authentication settings को \"Read and write and Direct message\" पर सेट करें, फिर टोकन बनाएँ।",
+    "plugins.status.built_in": "अंतर्निहित",
+    "plugins.status.installed": "स्थापित",
+    "plugins.status.off": "बंद",
+    "plugins.status.on": "चालू",
+    "plugins.status.unknown": "स्थिति अज्ञात"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Onayınızı bekleyen bir şey yok",
     "xact.waiting_title": "Onayınızı bekliyor ({count})",
     "xsetup.approval_note": "VOOL bu anahtarlarla okur. Kendi hesabınızın anahtarlarıyla sizin için paylaşım, beğeni, takip veya mesaj gönderme de yapabilir, ancak yalnızca her birini burada, Ayarlar’da onayladıktan sonra.",
-    "xsetup.step2_help_write": "Access Token and Secret altında “Generate” seçin. Giriş yaptığınız X hesabına aittirler. VOOL’un sizin için paylaşım yapabilmesi için (yalnızca onayınızdan sonra) önce uygulamanızın User authentication settings ayarını “Read and write and Direct message” yapın, ardından token’ları oluşturun."
+    "xsetup.step2_help_write": "Access Token and Secret altında “Generate” seçin. Giriş yaptığınız X hesabına aittirler. VOOL’un sizin için paylaşım yapabilmesi için (yalnızca onayınızdan sonra) önce uygulamanızın User authentication settings ayarını “Read and write and Direct message” yapın, ardından token’ları oluşturun.",
+    "plugins.status.built_in": "Yerleşik",
+    "plugins.status.installed": "Yüklü",
+    "plugins.status.off": "Kapalı",
+    "plugins.status.on": "Açık",
+    "plugins.status.unknown": "Durum bilinmiyor"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Nada aguardando sua aprovação",
     "xact.waiting_title": "Aguardando sua aprovação ({count})",
     "xsetup.approval_note": "O VOOL lê com estas chaves. Com as chaves da sua própria conta, ele também pode publicar, curtir, seguir ou enviar mensagens por você, mas só depois que você aprovar cada ação aqui em Configurações.",
-    "xsetup.step2_help_write": "Em Access Token and Secret, escolha “Generate”. Eles pertencem à conta do X com que você entrou. Para o VOOL publicar por você (só depois da sua aprovação), primeiro mude as User authentication settings do seu app para “Read and write and Direct message” e depois gere os tokens."
+    "xsetup.step2_help_write": "Em Access Token and Secret, escolha “Generate”. Eles pertencem à conta do X com que você entrou. Para o VOOL publicar por você (só depois da sua aprovação), primeiro mude as User authentication settings do seu app para “Read and write and Direct message” e depois gere os tokens.",
+    "plugins.status.built_in": "Integrado",
+    "plugins.status.installed": "Instalado",
+    "plugins.status.off": "Desativado",
+    "plugins.status.on": "Ativado",
+    "plugins.status.unknown": "Estado desconhecido"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

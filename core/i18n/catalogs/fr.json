@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Rien n’attend votre approbation",
     "xact.waiting_title": "En attente de votre approbation ({count})",
     "xsetup.approval_note": "VOOL lit avec ces clés. Avec les clés de votre propre compte, il peut aussi publier, aimer, suivre ou envoyer des messages pour vous, mais seulement après que vous avez approuvé chaque action ici, dans les Réglages.",
-    "xsetup.step2_help_write": "Sous Access Token and Secret, choisissez « Generate ». Ils appartiennent au compte X avec lequel vous êtes connecté. Pour que VOOL puisse publier pour vous (seulement après votre approbation), réglez d’abord les User authentication settings de votre app sur « Read and write and Direct message », puis générez les jetons."
+    "xsetup.step2_help_write": "Sous Access Token and Secret, choisissez « Generate ». Ils appartiennent au compte X avec lequel vous êtes connecté. Pour que VOOL puisse publier pour vous (seulement après votre approbation), réglez d’abord les User authentication settings de votre app sur « Read and write and Direct message », puis générez les jetons.",
+    "plugins.status.built_in": "Intégré",
+    "plugins.status.installed": "Installé",
+    "plugins.status.off": "Désactivé",
+    "plugins.status.on": "Activé",
+    "plugins.status.unknown": "État inconnu"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

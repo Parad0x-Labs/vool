@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "لا شيء ينتظر موافقتك",
     "xact.waiting_title": "بانتظار موافقتك ({count})",
     "xsetup.approval_note": "يقرأ VOOL بهذه المفاتيح. وباستخدام مفاتيح حسابك الخاص يمكنه أيضًا النشر أو الإعجاب أو المتابعة أو إرسال الرسائل نيابةً عنك، ولكن فقط بعد أن توافق على كل إجراء هنا في الإعدادات.",
-    "xsetup.step2_help_write": "تحت Access Token and Secret، اختر \"Generate\". إنها تخص حساب X الذي سجّلت الدخول به. للسماح لـ VOOL بالنشر نيابةً عنك (فقط بعد موافقتك)، اضبط أولًا User authentication settings لتطبيقك على \"Read and write and Direct message\"، ثم أنشئ الرموز."
+    "xsetup.step2_help_write": "تحت Access Token and Secret، اختر \"Generate\". إنها تخص حساب X الذي سجّلت الدخول به. للسماح لـ VOOL بالنشر نيابةً عنك (فقط بعد موافقتك)، اضبط أولًا User authentication settings لتطبيقك على \"Read and write and Direct message\"، ثم أنشئ الرموز.",
+    "plugins.status.built_in": "مدمج",
+    "plugins.status.installed": "مثبت",
+    "plugins.status.off": "معطل",
+    "plugins.status.on": "مفعل",
+    "plugins.status.unknown": "الحالة غير معروفة"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

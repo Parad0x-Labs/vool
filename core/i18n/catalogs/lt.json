@@ -2003,9 +2003,14 @@
     "xact.waiting_none_title": "Nieko nelaukia jūsų patvirtinimo",
     "xact.waiting_title": "Laukia jūsų patvirtinimo ({count})",
     "xsetup.approval_note": "Su šiais raktais VOOL skaito. Su savo paskyros raktais jis taip pat gali jūsų vardu skelbti, pažymėti „patinka“, sekti ar siųsti žinutes, bet tik kai patvirtinate kiekvieną veiksmą čia, Nustatymuose.",
-    "xsetup.step2_help_write": "Skiltyje Access Token and Secret pasirinkite „Generate“. Jie priklauso X paskyrai, kuria esate prisijungę. Kad VOOL galėtų skelbti jūsų vardu (tik jums patvirtinus), pirmiausia savo programos User authentication settings nustatykite į „Read and write and Direct message“, tada sugeneruokite prieigos raktus."
+    "xsetup.step2_help_write": "Skiltyje Access Token and Secret pasirinkite „Generate“. Jie priklauso X paskyrai, kuria esate prisijungę. Kad VOOL galėtų skelbti jūsų vardu (tik jums patvirtinus), pirmiausia savo programos User authentication settings nustatykite į „Read and write and Direct message“, tada sugeneruokite prieigos raktus.",
+    "plugins.status.built_in": "Integruotas",
+    "plugins.status.installed": "Įdiegtas",
+    "plugins.status.off": "Išjungta",
+    "plugins.status.on": "Įjungta",
+    "plugins.status.unknown": "Būsena nežinoma"
   },
-  "source_catalog_sha256": "d1ca5429f42035a5d00d77f8d553d8499744c4bdc6c399e66240785cdf24651b",
+  "source_catalog_sha256": "6cca366958363a9b88f8573bed3dcd68cbf959761a2b2a8b47776b9d98cca80b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

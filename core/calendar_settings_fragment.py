@@ -45,14 +45,15 @@ function CT(key, fallback){
   try { if (typeof VOOLT === 'function') { var t = VOOLT(key); if (t && t !== key) return t; } } catch (e) {}
   return fallback;
 }
+/* The {param}-carrying twin: the page's formatter resolves the locale's placeholders; the
+   inline English fallback formats identically when no bundle ships, so a placeholder never
+   reaches the panel raw. */
 function CTF(key, fallback, params){
+  var t = CT(key, fallback);
   try {
-    if (typeof VOOLT === 'function' && typeof VOOLFMT === 'function') {
-      var t = VOOLT(key);
-      if (t && t !== key) return VOOLFMT(t, params || {});
-    }
+    if (typeof VOOLFMT === 'function') return VOOLFMT(t, params || {});
   } catch (e) {}
-  return fallback;
+  return String(t).replace(/\{(\w+)\}/g, function(m, name){ return (params && params[name] != null) ? String(params[name]) : m; });
 }
 function stateText(status, raw){
   var key = {configured: 'vcs.state.configured', connected: 'vcs.state.connected', stale: 'vcs.state.stale',
@@ -96,7 +97,9 @@ function mountInto(host){
   function load(){
     return request('GET', '/api/calendar/accounts').then(function(j){
       if (!j.ok) { say(CTF('vcs.status.unavailable', 'Calendar accounts are unavailable: {reason}', {reason: (j.error || j.detail || ('HTTP ' + j.http_status))}), true); return; }
-      view = j; paint();
+      // The loading line has done its job once the accounts are on screen; act() paints its
+      // own result text after load() resolves, so clearing here cannot eat a pending message.
+      view = j; paint(); say('');
     }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
   function act(url, body, done){
@@ -123,7 +126,7 @@ function mountInto(host){
     head.appendChild(h('strong', null, account.label || capability.label || account.provider));
     head.appendChild(h('span', 'vcs-chip vcs-' + account.status, stateText(account.status, account.status)));
     card.appendChild(head);
-    card.appendChild(h('div', 'vcs-detail', (capability.label || account.provider) + (account.credential_binding ? ' · ' + CT('vcs.detail.binding', 'credential binding {binding}', {binding: account.credential_binding}) : '')));
+    card.appendChild(h('div', 'vcs-detail', (capability.label || account.provider) + (account.credential_binding ? ' · ' + CTF('vcs.detail.binding', 'credential binding {binding}', {binding: account.credential_binding}) : '')));
     if (account.recovery) card.appendChild(h('div', 'vcs-recovery', account.recovery));
     if (account.status_detail) card.appendChild(h('div', 'vcs-detail', account.status_detail));
     if (account.status === 'disconnected') {
