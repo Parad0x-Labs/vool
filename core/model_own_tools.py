@@ -432,8 +432,14 @@ def searched_call_cost_estimate(*, provider_id: str, model_id: str, usage: Any) 
     if base.basis == BASIS_NO_USAGE:
         return None
     prompt_tokens, completion_tokens = usage_tokens(usage)
+    # The floor is the tokens at the published input rate plus the search; a cache write is already
+    # inside the reported cost, so the reservation's worst-case write surcharge is not added here.
     tokens = estimate_call_usd(
-        provider_id=provider_id, model_id=model_id, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
+        provider_id=provider_id,
+        model_id=model_id,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        include_cache_write=False,
     )
     fee = provider_search_fee_usd(usage)
     floor = float(tokens.usd) + fee

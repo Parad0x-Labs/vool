@@ -39,7 +39,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 TASKS_PATH = HERE / "tasks.json"
-FIXTURE_WORKSPACE = HERE / "fixtures" / "workspace"
+FIXTURE_WORKSPACE = HERE / "fixtures" / "files"
 OPENROUTER = "https://openrouter.ai/api/v1"
 TURN_TIMEOUT_S = 300.0
 # Held before every billable turn until a real turn cost is known; then 2x the largest seen.
@@ -533,6 +533,10 @@ def cmd_vool(args: argparse.Namespace) -> int:
     except CapReached as stop:
         status, exit_code = f"cap_stop: {stop}", EXIT_CAP
         print(status, flush=True)
+    except Exception as exc:
+        # A crash is never recorded as "complete": the manifest says what broke and the exit is non-zero.
+        status, exit_code = f"crashed: {type(exc).__name__}: {exc}", EXIT_HARNESS
+        print(status, file=sys.stderr, flush=True)
     finally:
         with contextlib.suppress(Exception):
             usage_report = client.get("/api/runtime/usage?range=today&per_model=1", timeout_s=20.0).response_json()
@@ -670,6 +674,10 @@ def cmd_cli(args: argparse.Namespace) -> int:
     except CapReached as stop:
         status, exit_code = f"cap_stop: {stop}", EXIT_CAP
         print(status, flush=True)
+    except Exception as exc:
+        # A crash is never recorded as "complete": the manifest says what broke and the exit is non-zero.
+        status, exit_code = f"crashed: {type(exc).__name__}: {exc}", EXIT_HARNESS
+        print(status, file=sys.stderr, flush=True)
     finally:
         _write_json(arm_dir / f"{attempt}-status.json", {"status": status, "finished_at": _now(), "ledger": _read_json(root / "spend.json", {})})
         if args.route == "openrouter":

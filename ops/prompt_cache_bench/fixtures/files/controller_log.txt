@@ -1,0 +1,16 @@
+2026-10-10 06:40:01 INFO  run start zones=tomatoes,herbs
+2026-10-10 06:40:02 INFO  valve 2 open (tomatoes) for 9 min
+2026-10-10 06:49:03 INFO  valve 2 closed
+2026-10-10 06:49:04 INFO  valve 4 open (herbs) for 4 min
+2026-10-10 06:53:05 INFO  valve 4 closed
+2026-10-10 19:15:00 INFO  rain forecast 5.1 mm > 3.5 mm, evening run skipped
+2026-10-11 06:40:01 INFO  run start zones=tomatoes,herbs
+2026-10-11 06:40:02 WARN  valve 2 pressure low (0.6 bar), retrying
+2026-10-11 06:40:12 ERROR valve 2 failed to open after 3 attempts
+2026-10-11 06:40:13 INFO  valve 4 open (herbs) for 4 min
+2026-10-11 06:44:14 INFO  valve 4 closed
+2026-10-11 19:15:00 INFO  run start zones=tomatoes,herbs
+2026-10-11 19:15:01 INFO  valve 2 open (tomatoes) for 9 min
+2026-10-11 19:24:02 INFO  valve 2 closed
+2026-10-11 19:24:03 INFO  valve 4 open (herbs) for 4 min
+2026-10-11 19:28:04 INFO  valve 4 closed

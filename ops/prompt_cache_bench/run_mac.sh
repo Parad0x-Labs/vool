@@ -6,7 +6,7 @@
 # through VOOL's credential store in memory; it is never printed or written. Hard stop: CAP_USD.
 set -euo pipefail
 PHASE="${1:?baseline|after|grade}"
-: "${PY:?set PY to a python that has VOOL's dependencies}"
+: "${PY:?set PY to a python with the VOOL dependencies}"
 : "${RUN_ROOT:?set RUN_ROOT to a scratch folder outside this clone}"
 CAP_USD="${CAP_USD:-20}"
 REPEATS="${REPEATS:-2}"

@@ -85,6 +85,10 @@ def cache_breakpoint_plan(*, openrouter_lane: bool, model_id: str, local_runtime
     The same answer feeds the wire (:func:`apply_cache_breakpoints`) and the reservation
     (``core.paid_call_reservation``), so a call that may write the cache is always reserved at the
     write price.
+
+    The flag is read from the process environment, which VOOL sets once at boot and never changes
+    while serving, so the reservation and the send see the same answer. Settlement still charges the
+    provider-reported cost (or the reported writes) rather than trusting the reservation.
     """
     from core.runtime_flags import flag_enabled
 
@@ -97,6 +101,17 @@ def cache_breakpoint_plan(*, openrouter_lane: bool, model_id: str, local_runtime
     if not _is_anthropic_model(model_id):
         return CachePlan(False, "model_caches_automatically_or_not_at_all")
     return CachePlan(True, "anthropic_on_openrouter", cache_placement(), ANTHROPIC_CACHE_WRITE_MULTIPLIER)
+
+
+def reservation_cache_plan(model_id: str) -> CachePlan:
+    """The plan a RESERVATION holds: any lane that could mark this model, so never less than the wire.
+
+    The adapter decides the wire from the manifest (OpenRouter lane or an ``openrouter.ai`` base
+    URL); the reservation only sees a provider string, which cannot always tell those routes
+    apart. Holding the write price for every route of a markable model keeps the reservation at or
+    above what the call can cost.
+    """
+    return cache_breakpoint_plan(openrouter_lane=True, model_id=model_id)
 
 
 def _marked_parts(content: Any) -> list[dict[str, Any]] | None:
@@ -196,4 +211,5 @@ __all__ = [
     "cache_breakpoint_plan",
     "cache_placement",
     "cache_write_prompt_tokens",
+    "reservation_cache_plan",
 ]
