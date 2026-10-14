@@ -1551,6 +1551,34 @@ class MemoryFirstRouter:
             selected_evidence = finalize_request_evidence(cloud_evidence, list(cloud_request.messages),
                                                          evidence_messages=[])
         _publish_selected_request_evidence(source_context, selected_evidence)
+        # The served answer goes on the turn's ledger too, as every other lane's does. Without it a
+        # local model refused before its call stayed the turn's only author, and the gate withheld
+        # this answer as if nothing had served. Authorship is asked of the broker's own route.
+        from core.turn_model_call_ledger import record_served_usage
+
+        manifest_of = getattr(self._cloud_broker, "author_manifest", None)
+        served_manifest = None
+        if callable(manifest_of):
+            with contextlib.suppress(Exception):
+                served_manifest = manifest_of(result.provider_id, result.model_id)
+        usage_summary = {
+            "provider_id": f"{result.provider_id}:{result.model_id}",
+            "model_id": result.model_id,
+            "cost_class": cost_class,
+            "prompt_tokens": normalized.usage_input,
+            "output_tokens": normalized.usage_output,
+            "usd_actual": float(result.actual_usd or 0.0) if result.actual_usd else None,
+            "prompt_tokens_reported": normalized.usage_input_reported,
+            "output_tokens_reported": normalized.usage_output_reported,
+        }
+        record_turn_usage(usage_summary)
+        record_served_usage(
+            source_context,
+            usage_summary,
+            # A tool-intent response is a tool CHOICE, not served bytes: metered, not authored.
+            authored=_effective_output_mode(result.response, output_mode) != "tool_intent",
+            author_manifest=served_manifest,
+        )
         return ModelExecutionDecision(
             source="free_cloud_boost",
             task_hash=task_hash,
