@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "In deinem Eingabefeld steht schon etwas. Sende oder leere es zuerst.",
     "msg.retry_files_again": "Deine Worte stehen wieder im Feld. Hänge die Dateien erneut an und sende dann.",
     "msg.retry_nothing": "Diese Nachricht bestand nur aus Anhängen. Hänge sie erneut an, um noch einmal zu fragen.",
-    "msg.retry_title": "Dieselbe Frage noch einmal als neue Nachricht stellen"
+    "msg.retry_title": "Dieselbe Frage noch einmal als neue Nachricht stellen",
+    "dialog.cancel": "Abbrechen",
+    "dialog.delete": "Löschen",
+    "dialog.delete_chat_detail": "Damit werden der Chat und alles, was VOOL darin gelernt hat, dauerhaft entfernt.",
+    "dialog.delete_chat_title": "„{name}“ löschen?",
+    "dialog.delete_project_detail": "VOOL vergisst alles, was es darin gelernt hat, und die Chats wandern zurück nach „Allgemein“. Deine Dateien bleiben unberührt.",
+    "dialog.delete_project_title": "Projekt „{name}“ löschen?",
+    "dialog.this_chat": "diesen Chat",
+    "dialog.this_project": "dieses Projekt"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

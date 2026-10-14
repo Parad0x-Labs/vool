@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "메시지 입력창에 이미 내용이 있어요. 먼저 보내거나 지워 주세요.",
     "msg.retry_files_again": "입력란에 문장을 되돌려 놓았습니다. 파일을 다시 첨부한 다음 보내세요.",
     "msg.retry_nothing": "그 메시지에는 첨부 파일만 있었어요. 다시 물어보려면 다시 첨부해 주세요.",
-    "msg.retry_title": "같은 질문을 새 메시지로 다시 보내기"
+    "msg.retry_title": "같은 질문을 새 메시지로 다시 보내기",
+    "dialog.cancel": "취소",
+    "dialog.delete": "삭제",
+    "dialog.delete_chat_detail": "이 채팅과 VOOL이 여기서 배운 모든 내용이 영구적으로 삭제됩니다.",
+    "dialog.delete_chat_title": "“{name}”을(를) 삭제할까요?",
+    "dialog.delete_project_detail": "VOOL은 여기서 배운 모든 것을 잊고, 채팅은 일반으로 돌아갑니다. 파일은 그대로 남습니다.",
+    "dialog.delete_project_title": "프로젝트 “{name}”을(를) 삭제할까요?",
+    "dialog.this_chat": "이 채팅",
+    "dialog.this_project": "이 프로젝트"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

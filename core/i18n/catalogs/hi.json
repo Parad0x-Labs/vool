@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "आपके संदेश बॉक्स में पहले से कुछ है। पहले उसे भेजें या मिटाएँ।",
     "msg.retry_files_again": "आपके शब्द बॉक्स में वापस आ गए हैं। फ़ाइलें फिर से जोड़ें, फिर भेजें।",
     "msg.retry_nothing": "उस संदेश में सिर्फ़ अटैचमेंट थे। दोबारा पूछने के लिए उन्हें फिर से जोड़ें।",
-    "msg.retry_title": "यही सवाल नए संदेश के रूप में दोबारा पूछें"
+    "msg.retry_title": "यही सवाल नए संदेश के रूप में दोबारा पूछें",
+    "dialog.cancel": "रद्द करें",
+    "dialog.delete": "मिटाएँ",
+    "dialog.delete_chat_detail": "इससे यह चैट और इसमें VOOL ने जो कुछ सीखा, सब हमेशा के लिए हट जाएगा।",
+    "dialog.delete_chat_title": "“{name}” मिटाएँ?",
+    "dialog.delete_project_detail": "VOOL इसमें सीखी हर बात भूल जाएगा, और इसकी चैट वापस सामान्य में चली जाएँगी। आपकी फ़ाइलें नहीं छुई जाएँगी।",
+    "dialog.delete_project_title": "प्रोजेक्ट “{name}” मिटाएँ?",
+    "dialog.this_chat": "यह चैट",
+    "dialog.this_project": "यह प्रोजेक्ट"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

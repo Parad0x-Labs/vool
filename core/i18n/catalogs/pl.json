@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "W polu wiadomości coś już jest. Najpierw to wyślij albo wyczyść.",
     "msg.retry_files_again": "Twoje słowa wróciły do pola. Dołącz pliki ponownie, a potem wyślij.",
     "msg.retry_nothing": "Ta wiadomość zawierała tylko załączniki. Dołącz je ponownie, aby zapytać jeszcze raz.",
-    "msg.retry_title": "Zadaj to samo pytanie jeszcze raz jako nową wiadomość"
+    "msg.retry_title": "Zadaj to samo pytanie jeszcze raz jako nową wiadomość",
+    "dialog.cancel": "Anuluj",
+    "dialog.delete": "Usuń",
+    "dialog.delete_chat_detail": "Spowoduje to trwałe usunięcie czatu i wszystkiego, czego VOOL się w nim nauczył.",
+    "dialog.delete_chat_title": "Usunąć „{name}”?",
+    "dialog.delete_project_detail": "VOOL zapomni wszystko, czego się w nim nauczył, a jego czaty wrócą do Ogólnych. Twoje pliki pozostaną nietknięte.",
+    "dialog.delete_project_title": "Usunąć projekt „{name}”?",
+    "dialog.this_chat": "ten czat",
+    "dialog.this_project": "ten projekt"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "入力欄にすでに内容があります。先に送信するか消してください。",
     "msg.retry_files_again": "入力欄に文章を戻しました。ファイルをもう一度添付してから送信してください。",
     "msg.retry_nothing": "そのメッセージは添付ファイルだけでした。もう一度聞くには添付し直してください。",
-    "msg.retry_title": "同じ質問を新しいメッセージとしてもう一度送る"
+    "msg.retry_title": "同じ質問を新しいメッセージとしてもう一度送る",
+    "dialog.cancel": "キャンセル",
+    "dialog.delete": "削除",
+    "dialog.delete_chat_detail": "このチャットと、VOOLがそこで学んだことがすべて完全に削除されます。",
+    "dialog.delete_chat_title": "「{name}」を削除しますか？",
+    "dialog.delete_project_detail": "VOOLはそこで学んだことをすべて忘れ、チャットは「一般」に戻ります。ファイルはそのままです。",
+    "dialog.delete_project_title": "プロジェクト「{name}」を削除しますか？",
+    "dialog.this_chat": "このチャット",
+    "dialog.this_project": "このプロジェクト"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

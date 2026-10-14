@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "Ô nhập đã có nội dung. Hãy gửi hoặc xóa trước.",
     "msg.retry_files_again": "Nội dung của bạn đã trở lại ô nhập. Hãy đính kèm lại các tệp rồi gửi.",
     "msg.retry_nothing": "Tin nhắn đó chỉ có tệp đính kèm. Hãy đính kèm lại để hỏi lại.",
-    "msg.retry_title": "Hỏi lại câu này dưới dạng tin nhắn mới"
+    "msg.retry_title": "Hỏi lại câu này dưới dạng tin nhắn mới",
+    "dialog.cancel": "Hủy",
+    "dialog.delete": "Xóa",
+    "dialog.delete_chat_detail": "Thao tác này xóa vĩnh viễn cuộc trò chuyện và mọi thứ VOOL đã học trong đó.",
+    "dialog.delete_chat_title": "Xóa “{name}”?",
+    "dialog.delete_project_detail": "VOOL sẽ quên mọi thứ đã học trong đó và các cuộc trò chuyện chuyển về mục Chung. Tệp của bạn không bị động đến.",
+    "dialog.delete_project_title": "Xóa dự án “{name}”?",
+    "dialog.this_chat": "cuộc trò chuyện này",
+    "dialog.this_project": "dự án này"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

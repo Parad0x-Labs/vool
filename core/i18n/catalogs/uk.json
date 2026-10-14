@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "У полі повідомлення вже щось є. Спершу надішліть або очистьте його.",
     "msg.retry_files_again": "Ваш текст знову в полі введення. Прикріпіть файли ще раз і надішліть.",
     "msg.retry_nothing": "У тому повідомленні були лише вкладення. Додайте їх знову, щоб запитати ще раз.",
-    "msg.retry_title": "Поставити те саме запитання ще раз новим повідомленням"
+    "msg.retry_title": "Поставити те саме запитання ще раз новим повідомленням",
+    "dialog.cancel": "Скасувати",
+    "dialog.delete": "Видалити",
+    "dialog.delete_chat_detail": "Чат і все, що VOOL у ньому дізнався, буде видалено назавжди.",
+    "dialog.delete_chat_title": "Видалити «{name}»?",
+    "dialog.delete_project_detail": "VOOL забуде все, що дізнався в ньому, а його чати повернуться до «Загального». Ваші файли не зачіпаються.",
+    "dialog.delete_project_title": "Видалити проєкт «{name}»?",
+    "dialog.this_chat": "цей чат",
+    "dialog.this_project": "цей проєкт"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

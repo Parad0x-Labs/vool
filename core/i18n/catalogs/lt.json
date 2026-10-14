@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "Žinutės laukelyje jau kažkas yra. Pirmiausia išsiųsk arba išvalyk.",
     "msg.retry_files_again": "Jūsų žodžiai grąžinti į laukelį. Vėl pridėkite failus ir tada siųskite.",
     "msg.retry_nothing": "Toje žinutėje buvo tik priedai. Pridėk juos dar kartą, kad paklaustum iš naujo.",
-    "msg.retry_title": "Užduoti tą patį klausimą dar kartą nauja žinute"
+    "msg.retry_title": "Užduoti tą patį klausimą dar kartą nauja žinute",
+    "dialog.cancel": "Atšaukti",
+    "dialog.delete": "Ištrinti",
+    "dialog.delete_chat_detail": "Pokalbis ir viskas, ką VOOL jame išmoko, bus ištrinta visam laikui.",
+    "dialog.delete_chat_title": "Ištrinti „{name}“?",
+    "dialog.delete_project_detail": "VOOL pamirš viską, ką jame išmoko, o jo pokalbiai grįš į „Bendra“. Tavo failai nepaliečiami.",
+    "dialog.delete_project_title": "Ištrinti projektą „{name}“?",
+    "dialog.this_chat": "šį pokalbį",
+    "dialog.this_project": "šį projektą"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

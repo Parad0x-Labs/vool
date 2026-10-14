@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "בתיבת ההודעה כבר יש משהו. שלח או נקה אותה קודם.",
     "msg.retry_files_again": "המילים שלך חזרו לתיבה. צרף שוב את הקבצים ואז שלח.",
     "msg.retry_nothing": "ההודעה הזו כללה רק קבצים מצורפים. צרף אותם שוב כדי לשאול שוב.",
-    "msg.retry_title": "לשאול את אותה שאלה שוב כהודעה חדשה"
+    "msg.retry_title": "לשאול את אותה שאלה שוב כהודעה חדשה",
+    "dialog.cancel": "ביטול",
+    "dialog.delete": "מחיקה",
+    "dialog.delete_chat_detail": "פעולה זו מוחקת לצמיתות את הצ׳אט ואת כל מה ש-VOOL למד בו.",
+    "dialog.delete_chat_title": "למחוק את „{name}”?",
+    "dialog.delete_project_detail": "VOOL ישכח את כל מה שלמד בו, והצ׳אטים שלו יחזרו ל„כללי”. הקבצים שלך לא ייפגעו.",
+    "dialog.delete_project_title": "למחוק את הפרויקט „{name}”?",
+    "dialog.this_chat": "הצ׳אט הזה",
+    "dialog.this_project": "הפרויקט הזה"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "Ta zone de saisie contient déjà quelque chose. Envoie-le ou efface-le d’abord.",
     "msg.retry_files_again": "Vos mots sont de retour dans la zone de saisie. Joignez à nouveau les fichiers, puis envoyez.",
     "msg.retry_nothing": "Ce message ne contenait que des pièces jointes. Joins-les à nouveau pour reposer la question.",
-    "msg.retry_title": "Reposer la même question dans un nouveau message"
+    "msg.retry_title": "Reposer la même question dans un nouveau message",
+    "dialog.cancel": "Annuler",
+    "dialog.delete": "Supprimer",
+    "dialog.delete_chat_detail": "Cela supprime définitivement la discussion et tout ce que VOOL y a appris.",
+    "dialog.delete_chat_title": "Supprimer « {name} » ?",
+    "dialog.delete_project_detail": "VOOL oubliera tout ce qu’il y a appris et ses discussions reviendront dans Général. Tes fichiers restent intacts.",
+    "dialog.delete_project_title": "Supprimer le projet « {name} » ?",
+    "dialog.this_chat": "cette discussion",
+    "dialog.this_project": "ce projet"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

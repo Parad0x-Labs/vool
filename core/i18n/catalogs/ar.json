@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "مربع الرسائل يحتوي على شيء بالفعل. أرسله أو امسحه أولًا.",
     "msg.retry_files_again": "عادت كلماتك إلى المربع. أرفق الملفات مرة أخرى، ثم أرسل.",
     "msg.retry_nothing": "تلك الرسالة كانت مرفقات فقط. أرفقها مرة أخرى لتسأل من جديد.",
-    "msg.retry_title": "اطرح السؤال نفسه مرة أخرى كرسالة جديدة"
+    "msg.retry_title": "اطرح السؤال نفسه مرة أخرى كرسالة جديدة",
+    "dialog.cancel": "إلغاء",
+    "dialog.delete": "حذف",
+    "dialog.delete_chat_detail": "سيؤدي هذا إلى حذف المحادثة وكل ما تعلمه VOOL فيها نهائيًا.",
+    "dialog.delete_chat_title": "حذف «{name}»؟",
+    "dialog.delete_project_detail": "سينسى VOOL كل ما تعلمه فيه، وستعود محادثاته إلى «عام». ملفاتك لن تُمس.",
+    "dialog.delete_project_title": "حذف المشروع «{name}»؟",
+    "dialog.this_chat": "هذه المحادثة",
+    "dialog.this_project": "هذا المشروع"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

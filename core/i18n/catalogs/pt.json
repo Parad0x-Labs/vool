@@ -2350,9 +2350,17 @@
     "msg.retry_box_busy": "Sua caixa de mensagem já tem algo. Envie ou apague primeiro.",
     "msg.retry_files_again": "Suas palavras voltaram para a caixa. Anexe os arquivos novamente e depois envie.",
     "msg.retry_nothing": "Essa mensagem tinha só anexos. Anexe-os de novo para perguntar outra vez.",
-    "msg.retry_title": "Fazer a mesma pergunta de novo como uma nova mensagem"
+    "msg.retry_title": "Fazer a mesma pergunta de novo como uma nova mensagem",
+    "dialog.cancel": "Cancelar",
+    "dialog.delete": "Excluir",
+    "dialog.delete_chat_detail": "Isso remove para sempre a conversa e tudo o que o VOOL aprendeu nela.",
+    "dialog.delete_chat_title": "Excluir “{name}”?",
+    "dialog.delete_project_detail": "O VOOL vai esquecer tudo o que aprendeu nele, e as conversas voltam para Geral. Seus arquivos não são tocados.",
+    "dialog.delete_project_title": "Excluir o projeto “{name}”?",
+    "dialog.this_chat": "esta conversa",
+    "dialog.this_project": "este projeto"
   },
-  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
+  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
