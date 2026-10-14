@@ -127,7 +127,7 @@ def test_the_settings_row_is_wired_to_the_boundary_authority() -> None:
     html = render_vool_settings_html()
     assert "widgetAutomaticChecks" in html
     # the row's widget posts this exact key through the shared boundary command
-    assert "{ key: 'automatic_checks', value: want }" in html
+    assert "key: 'automatic_checks', field: 'outbound_enabled'" in html
     assert BOUNDARY_WRITE in html
     assert BOUNDARY_READ in html
 
@@ -271,10 +271,28 @@ def _serve_settings(pact_rig):
     return server
 
 
-ROW_URL = "/settings#permissions/automatic_checks"
+LOCAL_ONLY_NOTE = (
+    "Local-only mode is on for this whole computer, so this stays off. "
+    "Settings has no switch to turn local-only mode off."
+)
+# Both boundary switches on Privacy & Permissions share one widget; each must hold the same
+# promises. (row id, accessible name, live field, policy key, help sentence that must show)
+ROWS = [
+    ("automatic_checks", "Go online on its own", "outbound_enabled", "network.outbound_enabled",
+     "Off by default."),
+    ("web_lookups", "Web lookups", "allow_web_fallback", "system.allow_web_fallback",
+     "Off by default"),
+]
 
 
-def test_the_served_row_switches_on_and_off_and_shows_the_local_only_veto(pact_rig) -> None:
+def _row_url(row_id: str) -> str:
+    return f"/settings#permissions/{row_id}"
+
+
+@pytest.mark.parametrize("row_id,name,field,policy_key,help_text", ROWS)
+def test_the_served_row_switches_on_and_off_and_shows_the_local_only_veto(
+    pact_rig, row_id, name, field, policy_key, help_text,
+) -> None:
     from core import policy_engine
     from tests.served_browser import launch_chromium
 
@@ -284,13 +302,13 @@ def test_the_served_row_switches_on_and_off_and_shows_the_local_only_veto(pact_r
     try:
         page = browser.new_page(viewport={"width": 390, "height": 844})
         page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(f"http://127.0.0.1:{server.server_port}{ROW_URL}")
-        row = page.locator('[data-row="automatic_checks"]')
-        sw = row.get_by_role("switch", name="Go online on its own", exact=True)
+        page.goto(f"http://127.0.0.1:{server.server_port}{_row_url(row_id)}")
+        row = page.locator(f'[data-row="{row_id}"]')
+        sw = row.get_by_role("switch", name=name, exact=True)
         sw.wait_for()
-        assert "Off by default." in row.inner_text()
+        assert help_text in row.inner_text()
         assert sw.get_attribute("aria-checked") == "false" and sw.is_enabled()
-        assert not row.get_by_text("Local-only mode is on. Turn it off first.").is_visible()
+        assert not row.get_by_text(LOCAL_ONLY_NOTE).is_visible()
         # no horizontal scroll at phone width
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
@@ -298,12 +316,12 @@ def test_the_served_row_switches_on_and_off_and_shows_the_local_only_veto(pact_r
         page.keyboard.press("Space")
         row.get_by_text("Saved", exact=True).wait_for()
         assert sw.get_attribute("aria-checked") == "true"
-        assert policy_engine.automatic_outbound_enabled() is True
+        assert policy_engine.get(policy_key) is True
 
         sw.click()
         row.get_by_text("Saved", exact=True).wait_for()
         assert sw.get_attribute("aria-checked") == "false"
-        assert policy_engine.get("network.outbound_enabled") is False
+        assert policy_engine.get(policy_key) is False
 
         # Local-only mode turned on elsewhere: the row shows off, cannot be switched, and says why.
         policy_engine.set_operator_policy_values({"system.local_only_mode": True})
@@ -311,15 +329,18 @@ def test_the_served_row_switches_on_and_off_and_shows_the_local_only_veto(pact_r
         sw.wait_for()
         assert sw.get_attribute("aria-checked") == "false"
         assert sw.is_disabled()
-        assert row.get_by_text("Local-only mode is on. Turn it off first.").is_visible()
-        assert policy_engine.get("network.outbound_enabled") is False
+        assert row.get_by_text(LOCAL_ONLY_NOTE, exact=True).is_visible()
+        assert policy_engine.get(policy_key) is False
         assert policy_engine.local_only_mode() is True
         assert not errors, errors
     finally:
         browser.close(); manager.stop(); server.shutdown(); server.server_close()
 
 
-def test_the_served_row_refused_by_local_only_mid_click_says_so_and_stays_off(pact_rig) -> None:
+@pytest.mark.parametrize("row_id,name,field,policy_key,help_text", ROWS)
+def test_the_served_row_refused_by_local_only_mid_click_says_so_and_stays_off(
+    pact_rig, row_id, name, field, policy_key, help_text,
+) -> None:
     """The page was opened before local-only mode was turned on elsewhere: the click is refused
     by the authority, the row re-reads and shows the real (off, locked) state in plain words."""
     from core import policy_engine
@@ -331,17 +352,17 @@ def test_the_served_row_refused_by_local_only_mid_click_says_so_and_stays_off(pa
     try:
         page = browser.new_page()
         page.on("pageerror", lambda e: errors.append(str(e)))
-        page.goto(f"http://127.0.0.1:{server.server_port}{ROW_URL}")
-        row = page.locator('[data-row="automatic_checks"]')
-        sw = row.get_by_role("switch", name="Go online on its own", exact=True)
+        page.goto(f"http://127.0.0.1:{server.server_port}{_row_url(row_id)}")
+        row = page.locator(f'[data-row="{row_id}"]')
+        sw = row.get_by_role("switch", name=name, exact=True)
         sw.wait_for()
         policy_engine.set_operator_policy_values({"system.local_only_mode": True})
         sw.click()
-        row.get_by_text("Not saved — Local-only mode is on. Turn it off first.", exact=True).wait_for()
+        row.get_by_text("Not saved — " + LOCAL_ONLY_NOTE, exact=True).wait_for()
         assert sw.get_attribute("aria-checked") == "false"
         assert sw.is_disabled()
         assert "invalid_transition" not in row.inner_text()
-        assert policy_engine.get("network.outbound_enabled") is False
+        assert policy_engine.get(policy_key) is False
         assert not errors, errors
     finally:
         browser.close(); manager.stop(); server.shutdown(); server.server_close()
@@ -353,7 +374,10 @@ def _answer_with(status: int, body: str):
     return handler
 
 
-def test_the_served_row_never_guesses_a_state_it_could_not_read(pact_rig) -> None:
+@pytest.mark.parametrize("row_id,name,field,policy_key,help_text", ROWS)
+def test_the_served_row_never_guesses_a_state_it_could_not_read(
+    pact_rig, row_id, name, field, policy_key, help_text,
+) -> None:
     """A consent switch fails closed: a failed or incomplete read draws no switch, shows no raw
     error code, and sends nothing."""
     from core import policy_engine
@@ -365,20 +389,50 @@ def test_the_served_row_never_guesses_a_state_it_could_not_read(pact_rig) -> Non
     posts: list[str] = []
     try:
         for status, body in ((500, '{"ok": false, "error": "policy_unreadable"}'),
+                             (403, '{"ok": false, "error": "owner_local_required"}'),
                              (200, '{"ok": true, "local_only_mode": false}'),
-                             (200, '{"ok": true, "outbound_enabled": "yes", "local_only_mode": false}')):
+                             (200, '{"ok": true, "%s": "yes", "local_only_mode": false}' % field),
+                             (200, '{"ok": true, "%s": false}' % field)):
             page = browser.new_page()
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.on("request", lambda r: posts.append(r.url) if r.method == "POST" else None)
             page.route("**/api/onboarding/pact?view=boundary", _answer_with(status, body))
-            page.goto(f"http://127.0.0.1:{server.server_port}{ROW_URL}")
-            row = page.locator('[data-row="automatic_checks"]')
+            page.goto(f"http://127.0.0.1:{server.server_port}{_row_url(row_id)}")
+            row = page.locator(f'[data-row="{row_id}"]')
             row.get_by_text("VOOL could not read this setting. Reopen Settings to try again.", exact=True).wait_for()
             assert row.get_by_role("switch").count() == 0
-            assert "policy_unreadable" not in row.inner_text() and "HTTP" not in row.inner_text()
+            text = row.inner_text()
+            assert "policy_unreadable" not in text and "owner_local_required" not in text
+            assert "HTTP" not in text and "Unavailable" not in text
             page.close()
         assert posts == []
-        assert policy_engine.get("network.outbound_enabled") is False
+        assert policy_engine.get(policy_key) is False
+        assert not errors, errors
+    finally:
+        browser.close(); manager.stop(); server.shutdown(); server.server_close()
+
+
+def test_a_failed_write_that_cannot_be_confirmed_locks_the_switch_instead_of_guessing(pact_rig) -> None:
+    """The write is answered but the read-back fails: the row says it could not confirm, and the
+    switch is not left showing a state nobody read."""
+    from core import policy_engine
+    from tests.served_browser import launch_chromium
+
+    server = _serve_settings(pact_rig)
+    manager, browser = launch_chromium()
+    errors: list[str] = []
+    try:
+        page = browser.new_page()
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"http://127.0.0.1:{server.server_port}{_row_url('web_lookups')}")
+        row = page.locator('[data-row="web_lookups"]')
+        sw = row.get_by_role("switch", name="Web lookups", exact=True)
+        sw.wait_for()
+        page.route("**/api/onboarding/pact?view=boundary", _answer_with(500, '{"error": "x"}'))
+        sw.click()
+        row.get_by_text("Sent, but VOOL could not confirm it. Reopen Settings to check.", exact=True).wait_for()
+        assert sw.is_disabled()
+        assert policy_engine.get("system.allow_web_fallback") is True  # the write itself landed
         assert not errors, errors
     finally:
         browser.close(); manager.stop(); server.shutdown(); server.server_close()
