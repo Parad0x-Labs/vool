@@ -350,12 +350,17 @@ builder_root_list() {
   # Emit the deduplicated roots LONGEST FIRST — a nested root (a repo under ${HOME}, TMPDIR
   # under /var/folders) must be rewritten whole before its parent is, or the parent's rewrite
   # leaves it half-replaced. Trailing slashes are normalised away so a TMPDIR like
-  # /var/folders/xx/T/ still matches the bare directory bytes.
+  # /var/folders/xx/T/ still matches the bare directory bytes. A root that exists is ALSO
+  # emitted in its symlink-resolved form: the script derives its roots with a logical `pwd`, but
+  # tools that record where they ran (compilers, installers) write the physical path, so a
+  # checkout reached through a link (~/work -> /Volumes/<disk>/work) would otherwise leak its
+  # physical bytes past the gate.
   local r
   {
-    printf '%s\n' "${HOME:-}" "${PROJECT_ROOT:-}" "${OUT_DIR:-}" "${TMPDIR:-}"
-    for r in "$@"; do
-      if [[ -n "${r}" ]]; then printf '%s\n' "${r}"; fi
+    for r in "${HOME:-}" "${PROJECT_ROOT:-}" "${OUT_DIR:-}" "${TMPDIR:-}" "$@"; do
+      [[ -n "${r}" ]] || continue
+      printf '%s\n' "${r}"
+      if [[ -d "${r}" ]]; then (cd "${r}" 2>/dev/null && pwd -P) || true; fi
     done
   } | sed 's:/*$::' | awk 'NF && $0 != "/" && length($0) >= 5' | LC_ALL=C sort -u \
     | awk '{ printf "%d %s\n", length($0), $0 }' | LC_ALL=C sort -rn | cut -d' ' -f2-
@@ -393,9 +398,10 @@ scrub_builder_footprint() {
   local scrubbed_prefix="/install"
   local roots root escaped sysconf libpython old_id macho
   roots="$(builder_root_list "${python_prefix}")"
-  if [[ -z "${roots}" ]]; then
-    say "        WARNING: no builder roots survived the root-list rules; the footprint gate is vacuous"
-  fi
+  # An empty list would make every repair a no-op and the gate vacuous: an unknown footprint
+  # is refused, never shipped.
+  [[ -n "${roots}" ]] \
+    || die "no builder root survived the root-list rules; refusing a build whose footprint gate would check nothing"
   # (a) the prefixes inside _sysconfigdata: replace FIRST so the full recompile below
   #     regenerates its .pyc from the scrubbed source.
   sysconf="$(find "${res}/python/lib" -maxdepth 3 -name '_sysconfigdata*.py' -type f | head -1 || true)"
@@ -404,7 +410,7 @@ scrub_builder_footprint() {
       [[ -n "${root}" ]] || continue
       escaped="$(sed_quote "${root}")"
       sed -i '' "s|${escaped}|${scrubbed_prefix}|g" "${sysconf}" \
-        || die "could not scrub the builder root ${root} out of ${sysconf}"
+        || die "could not scrub the builder root \"${root##*/}\" out of _sysconfigdata"
     done <<< "${roots}"
     rm -f "${sysconf}c"
     say "        scrubbed _sysconfigdata prefixes"
@@ -438,12 +444,16 @@ scrub_builder_footprint() {
   #         The quoted interpreter path becomes 'python3' (sh resolves it from PATH; python
   #         still sees a harmless string). The scrubbed scripts are then recompiled by (d), so
   #         bytecode regenerated from them carries no builder bytes either.
-  #     Skipped entirely for an empty root list: BSD grep reads an EMPTY -f pattern file as
-  #     "match everything", which would send every file in python/bin (the embedded interpreter
-  #     binary included) into the line-1 rewrite.
+  #     ONLY files that start with "#!" are touched: python/bin also holds the interpreter and
+  #     other Mach-O binaries, and a line-1 rewrite of one of those would corrupt it. Any root
+  #     left inside a binary is the gate's to refuse, never a text edit's to "repair". The list
+  #     is never empty here (refused above): BSD grep reads an EMPTY -f pattern file as "match
+  #     everything". The 400-byte head is read through a process substitution, not a pipe, so
+  #     grep -q exiting early can never SIGPIPE the reader into a false "no match" under pipefail.
   if [[ -n "${roots}" ]]; then
     while IFS= read -r -d '' macho; do
-      if ! head -c 400 "${macho}" 2>/dev/null | grep -q -F -f <(printf '%s\n' "${roots}" | sed '/^$/d'); then
+      [[ "$(head -c 2 "${macho}" 2>/dev/null)" == "#!" ]] || continue
+      if ! grep -q -F -f <(printf '%s\n' "${roots}" | sed '/^$/d') <(head -c 400 "${macho}" 2>/dev/null); then
         continue
       fi
       if [[ "$(head -1 "${macho}")" == "#!/bin/sh" ]]; then

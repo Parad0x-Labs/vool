@@ -313,3 +313,65 @@ def test_the_build_script_still_parses_under_macos_bash() -> None:
     assert bash, "no bash"
     done = subprocess.run([bash, "-n", str(BUILD_SCRIPT)], capture_output=True, text=True)
     assert done.returncode == 0, done.stderr
+
+
+# ------------------------------------------------------------------------------------------
+# Roots that come from the build's own environment, not the python prefix argument
+# ------------------------------------------------------------------------------------------
+
+
+def _clean_bundle(tmp_path: Path) -> Path:
+    res = tmp_path / "out" / "VOOL.app" / "Contents" / "Resources"
+    (res / "python" / "bin").mkdir(parents=True)
+    (res / "python" / "lib").mkdir(parents=True)
+    (res / "app").mkdir(parents=True)
+    (res / "app" / "mod.py").write_text("VALUE = 1\n")
+    return res
+
+
+@pytest.mark.parametrize("env_root", ["checkout", "tmp-env"])
+def test_a_checkout_or_tmpdir_path_outside_the_home_fails_the_whole_scrub(tmp_path: Path, env_root: str) -> None:
+    """The release case: the checkout (PROJECT_ROOT) or TMPDIR sits outside $HOME. Their bytes in
+    a shipped file must stop the real scrub, named by the last path part only."""
+    res = _clean_bundle(tmp_path)
+    leaked = tmp_path / env_root
+    (res / "app" / "where.txt").write_text(f"built at {leaked}/src\n")
+    unrelated_prefix = tmp_path / "python-prefix"
+    unrelated_prefix.mkdir()
+    done = _run(_scrub_section(), f'scrub_builder_footprint "{res}" "{sys.executable}" "{unrelated_prefix}"',
+                tmp_path, timeout=180)
+    assert done.returncode != 0, f"a {env_root} path outside the home shipped"
+    combined = done.stdout + done.stderr
+    assert f'"{env_root}"' in combined and str(leaked) not in combined, combined
+    assert "Contents/Resources/app/where.txt" in done.stderr
+
+
+def test_the_physical_path_of_a_linked_checkout_is_a_root_too(tmp_path: Path) -> None:
+    """A checkout reached through a symlink is named logically by the script, but tools record
+    the physical path. Those bytes must fail the gate as well."""
+    res = _clean_bundle(tmp_path)
+    physical = tmp_path / "external-disk" / "work-physical"
+    physical.mkdir(parents=True)
+    linked = tmp_path / "linked-checkout"
+    linked.symlink_to(physical, target_is_directory=True)
+    (res / "app" / "where.txt").write_text(f"compiled in {physical}/src\n")
+    done = _run(_scrub_section(), f'scrub_builder_footprint "{res}" "{sys.executable}" ""',
+                tmp_path, timeout=180, extra_env={"PROJECT_ROOT": str(linked)})
+    assert done.returncode != 0, "the physical checkout path shipped"
+    combined = done.stdout + done.stderr
+    assert '"work-physical"' in combined and str(physical) not in combined, combined
+
+
+def test_a_binary_in_python_bin_is_never_rewritten_only_refused(tmp_path: Path) -> None:
+    """python/bin holds the interpreter itself. A Mach-O whose first bytes carry a builder root
+    must not get its first line replaced (that corrupts it); the gate refuses it instead."""
+    res = _clean_bundle(tmp_path)
+    root = _builder_root(tmp_path)
+    binary = res / "python" / "bin" / "python3.11"
+    payload = b"\xcf\xfa\xed\xfe\x07\x00\x00\x01" + b"\x00" * 24 + f"{root}/lib/libpython3.11.dylib".encode() + b"\x00" * 64
+    binary.write_bytes(payload)
+    done = _run(_scrub_section(), f'scrub_builder_footprint "{res}" "{sys.executable}" "{root}"',
+                tmp_path, timeout=180)
+    assert binary.read_bytes() == payload, "the scrub edited a binary's bytes"
+    assert done.returncode != 0, "a builder root inside a binary shipped"
+    assert "Contents/Resources/python/bin/python3.11" in done.stderr
