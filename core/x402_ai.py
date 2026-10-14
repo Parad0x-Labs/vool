@@ -57,8 +57,8 @@ _LOCK = threading.RLock()
 VERDICT_MATCH = "match"
 VERDICT_MISMATCH = "mismatch"
 VERDICT_UNNAMED = "unnamed"
-CHECK_LIMIT_NOTE = ("This compares the model the endpoint reports with the one you paid for; it cannot see what really "
-                    "ran behind the endpoint.")
+CHECK_LIMIT_NOTE = ("VOOL compares the model the service names with the one you paid for. It cannot see what really runs "
+                    "behind the service.")
 
 
 class PaidAskError(Exception):
@@ -126,7 +126,7 @@ def _price_minor(value: Any) -> int:
     """USDC has 6 decimals; the owner types dollars ("0.05") and the store keeps minor units."""
     text = str(value if value is not None else "").strip().lstrip("$")
     if not re.fullmatch(r"\d{1,4}(?:\.\d{1,6})?", text):
-        raise PaidAskError("endpoint_price_invalid", "Set the most one answer may cost, in USDC, for example 0.05.")
+        raise PaidAskError("endpoint_price_invalid", "Type the most one answer may cost, in USDC, for example 0.05.")
     whole, _, frac = text.partition(".")
     minor = int(whole) * 1_000_000 + int((frac + "000000")[:6])
     if minor <= 0:
@@ -137,18 +137,18 @@ def _price_minor(value: Any) -> int:
 def add_endpoint(*, label: Any, base_url: Any, model: Any, max_price: Any) -> dict[str, Any]:
     clean_label = str(label or "").strip()
     if not _LABEL_RE.fullmatch(clean_label):
-        raise PaidAskError("endpoint_label_invalid", "Give the endpoint a short name (up to 40 characters).")
+        raise PaidAskError("endpoint_label_invalid", "Give the service a short name, up to 40 characters.")
     clean_model = str(model or "").strip()
     if not _MODEL_RE.fullmatch(clean_model):
-        raise PaidAskError("endpoint_model_invalid", "Give the exact model name the endpoint lists.")
+        raise PaidAskError("endpoint_model_invalid", "Type the model name exactly as the service lists it.")
     entry = {"id": "ai-" + uuid.uuid4().hex[:12], "label": clean_label, "base_url": _clean_base_url(base_url), "model": clean_model,
              "max_price_minor": _price_minor(max_price), "on": True, "paused_reason": "", "last_verdict": "", "answers": 0}
     with _LOCK:
         state = _load()
         if len(state["endpoints"]) >= MAX_ENDPOINTS:
-            raise PaidAskError("endpoint_limit", f"You can keep up to {MAX_ENDPOINTS} endpoints. Remove one first.")
+            raise PaidAskError("endpoint_limit", f"You can keep up to {MAX_ENDPOINTS} services. Remove one first.")
         if any(e["label"].casefold() == clean_label.casefold() for e in state["endpoints"]):
-            raise PaidAskError("endpoint_label_taken", "Another endpoint already has that name.")
+            raise PaidAskError("endpoint_label_taken", "You already have a service with that name.")
         state["endpoints"].append(entry)
         _save(state)
     return _public_view(entry)
@@ -164,7 +164,7 @@ def set_endpoint_on(endpoint_id: Any, on: bool) -> dict[str, Any]:
                     entry["paused_reason"] = ""
                 _save(state)
                 return _public_view(entry)
-    raise PaidAskError("endpoint_not_found", "That endpoint is not in your list.")
+    raise PaidAskError("endpoint_not_found", "That service is not in your list.")
 
 
 def remove_endpoint(endpoint_id: Any) -> None:
@@ -172,7 +172,7 @@ def remove_endpoint(endpoint_id: Any) -> None:
         state = _load()
         kept = [e for e in state["endpoints"] if e["id"] != str(endpoint_id or "")]
         if len(kept) == len(state["endpoints"]):
-            raise PaidAskError("endpoint_not_found", "That endpoint is not in your list.")
+            raise PaidAskError("endpoint_not_found", "That service is not in your list.")
         state["endpoints"] = kept
         _save(state)
 
@@ -181,15 +181,15 @@ def _find_endpoint(name: Any) -> dict[str, Any]:
     wanted = str(name or "").strip().casefold()
     listed = _load()["endpoints"]
     if not listed:
-        raise PaidAskError("no_endpoint", "No pay-per-answer AI endpoint is set up. Add one in Settings, Crypto, Pay-per-answer AI.")
+        raise PaidAskError("no_endpoint", "You have not added a pay-per-answer AI service yet. Add one in Settings → Crypto → Pay-per-answer AI.")
     if not wanted:
         if len(listed) == 1:
             return listed[0]
-        raise PaidAskError("endpoint_ambiguous", "Say which endpoint to ask: " + ", ".join(e["label"] for e in listed) + ".")
+        raise PaidAskError("endpoint_ambiguous", "Which service should I ask? Yours: " + ", ".join(e["label"] for e in listed) + ".")
     for entry in listed:
         if wanted in {entry["id"].casefold(), entry["label"].casefold(), entry["model"].casefold()}:
             return entry
-    raise PaidAskError("endpoint_not_found", "No endpoint by that name. Yours: " + ", ".join(e["label"] for e in listed) + ".")
+    raise PaidAskError("endpoint_not_found", "No service has that name. Yours: " + ", ".join(e["label"] for e in listed) + ".")
 
 
 # --------------------------------------------------------------------------- the model check
@@ -257,9 +257,9 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
         endpoint = _find_endpoint(endpoint_name)
     if not endpoint.get("on"):
         why = " It was paused because " + endpoint["paused_reason"] if endpoint.get("paused_reason") else ""
-        raise PaidAskError("endpoint_paused", f"{endpoint['label']} is paused.{why} Turn it back on in Settings, Crypto, Pay-per-answer AI.")
+        raise PaidAskError("endpoint_paused", f"{endpoint['label']} is paused.{why} Turn it back on in Settings → Crypto → Pay-per-answer AI.")
     if not channels.is_on(channels.CHANNEL_X402_SDK):
-        raise PaidAskError("channel_off", "The Base USDC payment channel is off. Turn it on in Settings, Crypto, Payment channels.")
+        raise PaidAskError("channel_off", "Paying with USDC on Base is turned off. Turn it on in Settings → Crypto → Payment channels.")
     request_id = uuid.uuid4().hex
     # ``user`` is the OpenAI field for an end-user id: a fresh random one per question makes each paid request its own
     # (the wallet binds one payment per exact request body), and says nothing about the owner
@@ -272,13 +272,13 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
     status = int(answer.get("status") or 0)
     if status != 402:
         if status >= 400:
-            raise PaidAskError("endpoint_error", f"{endpoint['label']} answered with an error (HTTP {status}). Nothing was paid.")
+            raise PaidAskError("endpoint_error", f"{endpoint['label']} could not answer right now (error {status}). Nothing was paid. Try again later.")
         return {"status": "answered_free", **_finish(endpoint, answer.get("body") or b"", session_id=_session_of(source_context), paid=None)}
     response_headers = dict(answer.get("headers") or {})
     wallet_id = _pilot_wallet_for(response_headers)
     if not wallet_id:
-        raise PaidAskError("offer_not_payable", f"{endpoint['label']} asked for a payment VOOL cannot make here: it pays answers only in USDC on "
-                           "Base, from a ready Crypto Pilot wallet on Base. Nothing was paid.")
+        raise PaidAskError("offer_not_payable", f"{endpoint['label']} asked for a payment VOOL cannot make. VOOL pays for answers only in USDC on "
+                           "Base, from a wallet on Base that is set up and ready. Nothing was paid.")
     amount, asset = _offer_amount(response_headers, wallet_id)
     if asset != "USDC" or amount <= 0:
         raise PaidAskError("offer_not_payable", f"{endpoint['label']} asked for a payment in something other than USDC on Base. Nothing was paid.")
@@ -299,8 +299,8 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
                                           "state": "pending_approval"}
         _save(state)
     return {"status": "pending_approval", "proposal_id": proposal_id, "amount_minor": amount, "endpoint": endpoint["label"], "model": endpoint["model"],
-            "text": (f"{endpoint['label']} asks {_usd(amount)} to answer with {endpoint['model']}. Payment {proposal_id} is waiting for your approval "
-                     "in the wallet card; nothing has been paid. Once you approve it, the answer appears in this chat.")}
+            "text": (f"{endpoint['label']} will answer with {endpoint['model']} for {_usd(amount)}. Nothing is paid yet. Approve the payment "
+                     f"in your wallet, and the answer will appear here.\nPayment ID: {proposal_id}")}
 
 
 def _session_of(source_context: dict[str, Any] | None) -> str:
@@ -325,17 +325,19 @@ def _finish(endpoint: dict[str, Any], raw: bytes, *, session_id: str, paid: dict
     content, reported, usage = _parse_completion(raw)
     verdict = model_verdict(endpoint["model"], reported)
     reported_text = str(reported)[:128] if isinstance(reported, str) else ""
-    paid_line = f"Paid {_usd(int(paid['amount_minor']))} (payment {paid['proposal_id']}). " if paid else "No payment was needed. "
+    paid_line = f"Paid {_usd(int(paid['amount_minor']))}. " if paid else "No payment was needed. "
+    paused_line = (f"We paused {endpoint['label']}, so nothing more is paid there. You can turn it back on in "
+                   "Settings → Crypto → Pay-per-answer AI.")
     if verdict == VERDICT_MATCH:
-        head = f"Answer from {endpoint['model']} at {endpoint['label']}. {paid_line}The endpoint reports the model you paid for."
+        head = f"Answer from {endpoint['model']} through {endpoint['label']}. {paid_line}The service named the model you paid for."
     elif verdict == VERDICT_MISMATCH:
-        head = (f"Not the model you asked for: {endpoint['label']} reports {reported_text} instead of {endpoint['model']}. {paid_line}"
-                f"{endpoint['label']} is paused, so nothing more is paid there until you turn it back on in Settings.")
+        head = (f"Heads up: {endpoint['label']} says {reported_text} answered, not {endpoint['model']}, the model you paid for. {paid_line}"
+                f"{paused_line}")
     else:
-        head = (f"{endpoint['label']} did not say which model answered, so it cannot be checked against {endpoint['model']}. {paid_line}"
-                f"{endpoint['label']} is paused, so nothing more is paid there until you turn it back on in Settings.")
+        head = (f"{endpoint['label']} did not say which model answered, so VOOL cannot check it against {endpoint['model']}. {paid_line}"
+                f"{paused_line}")
     if not content:
-        body_text = "The endpoint sent no readable answer."
+        body_text = "The service sent an answer VOOL could not read."
     else:
         body_text = content.strip()
     with _LOCK:
@@ -379,14 +381,14 @@ def after_approval(proposal_id: str, approval_result: dict[str, Any] | None) -> 
 
     raw = x402_sdk.delivered_body(proposal_id) if delivery.get("delivered") else None
     if raw is None or endpoint is None:
-        reason = "the service was removed from your list" if endpoint is None else "the service did not deliver an answer"
+        reason = "the service was removed from your list" if endpoint is None else "the service did not send one"
         with _LOCK:
             state = _load()
             if proposal_id in state["requests"]:
                 state["requests"][proposal_id]["state"] = "paid_unanswered"
                 _save(state)
         # whether money moved is the wallet's to say (its card and receipt), never guessed here
-        note = f"No answer arrived for payment {proposal_id}: {reason}. The wallet card shows whether the payment went through."
+        note = f"No answer arrived: {reason}. Check your wallet to see whether this payment went through."
         session_id = str(record.get("session_id") or "")
         if session_id:
             from core.persistent_memory import append_assistant_artifact_event

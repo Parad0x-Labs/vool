@@ -173,7 +173,7 @@ def test_a_paid_answer_is_paid_once_and_posted_with_its_model_checked(served, mo
         _add(daemon, resource, label="Reasoner", max_price="0.10")
         turn = daemon.chat("ask my paid model: what is seven plus five?", session_id=CHAT_1, model=MODEL, mode="auto")
         text = str((turn.get("message") or {}).get("content") or "")
-        assert "waiting for your approval" in text and "0.05 USDC" in text, text
+        assert "Approve the payment in your wallet" in text and "0.05 USDC" in text, text
         proposal_id = next(word.strip(".,:()") for word in text.split() if word.startswith("pay-"))
         assert resource.paid_requests == [] and len(resource.requests) == 1
         sent = json.loads(resource.requests[0]["body"])
@@ -189,7 +189,7 @@ def test_a_paid_answer_is_paid_once_and_posted_with_its_model_checked(served, mo
 
     posted = _transcript(daemon, CHAT_1)
     assert len(posted) == 1
-    assert "Twelve, by the stated rule." in posted[0]["content"] and "reports the model you paid for" in posted[0]["content"]
+    assert "Twelve, by the stated rule." in posted[0]["content"] and "named the model you paid for" in posted[0]["content"]
     listed = {e["label"]: e for e in _get(daemon, "/api/wallet/status")["status"]["crypto_pilot"]["ai_endpoints"]}
     assert listed["Reasoner"]["on"] is True and listed["Reasoner"]["last_verdict"] == "match"
 
@@ -208,12 +208,12 @@ def test_a_service_reporting_another_model_is_marked_and_paused(served, monkeypa
         turn = daemon.chat("ask my paid model: what is seven plus five?", session_id=CHAT_2, model=MODEL, mode="auto")
         text = str((turn.get("message") or {}).get("content") or "")
         proposal_id = next(word.strip(".,:()") for word in text.split() if word.startswith("pay-"))
-        answer = _approve_in_chat(daemon, proposal_id, session=CHAT_2, shows="Not the model you asked for")
+        answer = _approve_in_chat(daemon, proposal_id, session=CHAT_2, shows="Heads up: Swapper says tiny-cheap-8b answered")
         assert answer["paid_ai"]["verdict"] == "mismatch" and answer["paid_ai"]["model_reported"] == "tiny-cheap-8b", answer["paid_ai"]
         assert len(resource.paid_requests) == 1
 
         posted = _transcript(daemon, CHAT_2)
-        assert "Not the model you asked for" in posted[-1]["content"] and "tiny-cheap-8b" in posted[-1]["content"]
+        assert "not open-reasoner-70b, the model you paid for" in posted[-1]["content"] and "tiny-cheap-8b" in posted[-1]["content"]
         assert "Twelve." in posted[-1]["content"], "a paid answer is still shown, marked"
         listed = {e["label"]: e for e in _door(daemon, "/api/wallet/ai-endpoints", {"action": "list"})[1]["ai_endpoints"]}
         assert listed["Swapper"]["on"] is False and "tiny-cheap-8b" in listed["Swapper"]["paused_reason"]
@@ -251,4 +251,4 @@ def test_a_paid_request_the_service_never_answers_is_said_plainly_in_the_chat(se
         assert answer["paid_ai"]["verdict"] == "unanswered", answer
         assert answer["x402_sdk"]["delivered"] is False and len(resource.paid_requests) == 1
     posted = _transcript(daemon, chat)
-    assert "No answer arrived" in posted[-1]["content"] and "wallet card shows whether the payment went through" in posted[-1]["content"]
+    assert "No answer arrived" in posted[-1]["content"] and "Check your wallet to see whether this payment went through" in posted[-1]["content"]

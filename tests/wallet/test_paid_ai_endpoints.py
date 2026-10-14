@@ -157,7 +157,7 @@ def test_a_free_answer_is_checked_and_a_wrong_model_pauses_the_endpoint(ai):
         ai.add_endpoint(label="Reasoner", base_url=service.base_url, model="open-reasoner-70b", max_price="0.05")
         out = ai.ask("Reasoner", "what is seven plus five?")
         assert out["status"] == "answered_free" and out["verdict"] == "mismatch" and "Twelve." in out["text"]
-        assert "Not the model you asked for" in out["text"] and "No payment was needed" in out["text"]
+        assert "Heads up: Reasoner says tiny-cheap-8b answered" in out["text"] and "No payment was needed" in out["text"]
         listed = ai.endpoints()[0]
         assert listed["on"] is False and "tiny-cheap-8b" in listed["paused_reason"]
     finally:
@@ -170,7 +170,7 @@ def test_an_error_from_the_service_is_reported_and_nothing_is_paid(ai):
         ai.add_endpoint(label="Reasoner", base_url=service.base_url, model="open-reasoner-70b", max_price="0.05")
         with pytest.raises(ai.PaidAskError) as refused:
             ai.ask("Reasoner", "hello")
-        assert refused.value.code == "endpoint_error" and "HTTP 500" in refused.value.message
+        assert refused.value.code == "endpoint_error" and "could not answer right now (error 500)" in refused.value.message
     finally:
         service.close()
 

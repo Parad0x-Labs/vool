@@ -800,8 +800,8 @@ function paidAiControls(cp){
   // whether it is on. Asking happens from chat; every answer is paid only after the owner approves it in the wallet.
   var box = el('div', 'vw-cx-row vw-cx-paid-ai'); box.id = 'vwCxPaidAi';
   box.appendChild(el('div', 'vw-cx-title', 'Pay-per-answer AI'));
-  box.appendChild(el('div', 'vw-cx-env', 'Add an AI service that charges per answer in USDC on Base. Ask it from any chat, for example "ask my paid model: …". Only your question is sent, never the chat. Each answer is paid only after you approve it, under your caps and this price limit, and gets a receipt.'));
-  box.appendChild(el('div', 'vw-cx-env', 'VOOL checks that the service reports the model you paid for, and pauses it if it reports another. It cannot see what really runs behind the service.'));
+  box.appendChild(el('div', 'vw-cx-env', 'Add an AI service that charges a small fee per answer, in USDC on Base. Then ask it from any chat, for example "ask my paid AI: …", and name it when you have more than one. Only your question is sent, never the rest of the chat. You approve each payment first. It stays under your caps and this price limit, and you get a receipt.'));
+  box.appendChild(el('div', 'vw-cx-env', 'VOOL checks that each answer comes from the model you chose. If the service names a different model, or no model, VOOL pauses it. Turn it back on here when you are ready. VOOL cannot see what really runs behind the service.'));
   var msg = el('div', 'vw-msg');
   var list = el('div', 'vw-cx-paid-ai-list'); list.id = 'vwPaidAiList';
   function draw(rows){
@@ -814,9 +814,10 @@ function paidAiControls(cp){
       var label = el('label', null, r.label); label.setAttribute('for', toggle.id);
       row.appendChild(toggle); row.appendChild(label);
       var price = (Number(r.max_price_minor || 0) / 1000000).toString();
-      row.appendChild(el('div', 'vw-cx-env', 'Model ' + r.model + ' · up to ' + price + ' USDC per answer · ' + r.base_url));
-      if (!r.on && r.paused_reason) row.appendChild(el('div', 'vw-cx-warn', 'Paused because ' + r.paused_reason + '.'));
-      var remove = el('button', 'vw-toggle', 'remove'); remove.type = 'button'; remove.setAttribute('aria-label', 'remove ' + r.label);
+      row.appendChild(el('div', 'vw-cx-env', r.model + ' · up to ' + price + ' USDC per answer'));
+      row.appendChild(el('div', 'vw-cx-env', r.base_url));
+      if (!r.on && r.paused_reason) row.appendChild(el('div', 'vw-cx-warn', 'Paused: ' + r.paused_reason + '. Tick the box to turn it back on.'));
+      var remove = el('button', 'vw-toggle', 'Remove'); remove.type = 'button'; remove.setAttribute('aria-label', 'remove ' + r.label);
       row.appendChild(remove);
       toggle.addEventListener('change', function(){
         var wanted = toggle.checked; toggle.disabled = true;
@@ -841,10 +842,10 @@ function paidAiControls(cp){
   box.appendChild(list);
   var form = el('div', 'vw-cx-actions'); form.id = 'vwPaidAiForm';
   function field(id, placeholder, aria){ var i = el('input', 'vw-limit'); i.type = 'text'; i.id = id; i.autocomplete = 'off'; i.placeholder = placeholder; i.setAttribute('aria-label', aria); form.appendChild(i); return i; }
-  var name = field('vwPaidAiName', 'Name', 'name for this service');
-  var url = field('vwPaidAiUrl', 'https://…/v1', 'service address, starting with https://');
-  var model = field('vwPaidAiModel', 'Model name', 'exact model name the service lists');
-  var max = field('vwPaidAiMax', 'Max USDC per answer', 'most one answer may cost, in USDC');
+  var name = field('vwPaidAiName', 'Name, e.g. Research', 'name for this service');
+  var url = field('vwPaidAiUrl', 'Address, starting with https://', 'service address, starting with https://');
+  var model = field('vwPaidAiModel', 'Model name, exactly as listed', 'exact model name the service lists');
+  var max = field('vwPaidAiMax', 'Most per answer, e.g. 0.05', 'most one answer may cost, in USDC');
   var add = el('button', 'vw-btn', 'Add service'); add.type = 'button'; add.id = 'vwPaidAiAdd';
   form.appendChild(add);
   add.addEventListener('click', function(){
