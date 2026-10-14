@@ -2541,6 +2541,59 @@ def _contacts_tool(intent: str, arguments: dict[str, Any], source_context: dict[
     )
 
 
+def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """Every account's balance in the active environment, read through the wallet's own balance authority (each row's
+    endpoint after its identity proof). Chains holding something are listed with the amount; chains holding nothing are
+    named once; a read that failed is said to be unknown, never zero. Reads run side by side so one slow chain does not
+    hold the others."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from core.wallet import balances, chains, custody, environment
+
+    active = environment.active_environment().environment
+    accounts = []
+    for entry in custody.list_wallets():
+        try:
+            spec = chains.resolve_network(entry.get("network") or "")
+        except Exception:
+            continue
+        if spec.environment != active or str(entry.get("setup_state") or "") == "cancelled":
+            continue
+        accounts.append((entry, spec))
+    where = "Mainnet" if active == chains.ENVIRONMENT_MAINNET else "Test networks"
+    if not accounts:
+        return {"lines": [f"Balances: no account on {where} yet."], "balances": [], "read": 0, "unavailable": 0}
+
+    def read(item: tuple[dict[str, Any], Any]) -> dict[str, Any]:
+        entry, spec = item
+        try:
+            answer = balances.read_balance(str(entry["wallet_id"]), source_context=source_context)
+        except Exception as exc:  # a refusal is a reason, never a number
+            answer = {"state": balances.STATE_UNAVAILABLE, "reason": str(getattr(exc, "code", "") or type(exc).__name__), "balance_minor": None}
+        return {**answer, "wallet_id": entry["wallet_id"], "label": str(entry.get("label") or ""), "network": spec.network,
+                "display_name": spec.display_name, "chain_order": chains.CHAIN_KEY_ORDER.index(spec.chain_key) if spec.chain_key in chains.CHAIN_KEY_ORDER else 99}
+
+    with ThreadPoolExecutor(max_workers=min(6, len(accounts))) as pool:
+        rows = sorted(pool.map(read, accounts), key=lambda r: (r["chain_order"], r["display_name"], r["label"]))
+
+    def name(row: dict[str, Any]) -> str:
+        return row["display_name"] + (f" ({row['label']})" if row["label"] and row["label"] != row["display_name"] else "")
+
+    held = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) > 0]
+    empty = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) == 0]
+    unknown = [r for r in rows if r.get("state") != balances.STATE_READ]
+    lines = [f"Balances on {where} (each chain's own coin):"]
+    lines += [f"- {name(r)}: {r.get('balance_display') or (str(r.get('balance_human')) + ' ' + str(r.get('asset') or ''))}" for r in held]
+    if not held:
+        lines.append("- Nothing held on any chain that could be read.")
+    if empty:
+        lines.append("Nothing held on: " + ", ".join(name(r) for r in empty) + ".")
+    if unknown:
+        lines.append("Could not be read (unknown, not zero): " + ", ".join(f"{name(r)} ({r.get('reason') or 'unavailable'})" for r in unknown) + ".")
+    public = [{k: r.get(k) for k in ("wallet_id", "label", "network", "display_name", "asset", "state", "reason", "balance_minor", "balance_human", "ref")} for r in rows]
+    return {"lines": lines, "balances": public, "read": len(held) + len(empty), "unavailable": len(unknown)}
+
+
 def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
     """The model-facing wallet surface: status, propose, simulate, payment_status.
 
@@ -2576,7 +2629,9 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
             last = status.get("last_receipt") or {}
             if last:
                 lines.append(f"Last receipt: proposal {last.get('proposal_id')} state={last.get('state')} tx_signature={redaction.publish_identifier(last.get('tx_signature')) or '-'}.")
-            return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text="\n".join(lines), details={"status": status, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", pending_approvals=int(status.get("pending_approvals") or 0))})
+            held = _wallet_balances(context)
+            lines.extend(held["lines"])
+            return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text="\n".join(lines), details={"status": status, "balances": held["balances"], "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", pending_approvals=int(status.get("pending_approvals") or 0), balances_read=held["read"], balances_unavailable=held["unavailable"])})
         if intent == "wallet.propose":
             from core.contacts.consumers import resolve_wallet_recipient
             from core.contacts.resolver import describe_snapshot
