@@ -1867,7 +1867,7 @@
     "private.end_title": "Zapisuj ten czat ponownie od następnej wiadomości",
     "private.msg_title": "Prywatne: ta wiadomość nie została zapisana",
     "private.wait": "Poczekaj, aż bieżąca odpowiedź się zakończy, i spróbuj ponownie.",
-    "settings.local_models.apple_silicon_notice": "Ten Mac ma układ Apple, ale zainstalowana jest wersja VOOL dla procesorów Intel. W ten sposób modele lokalne działają bardzo wolno i mogą nie przejść kontroli. Zamiast niej pobierz i zainstaluj wersję VOOL dla Apple Silicon.",
+    "settings.local_models.apple_silicon_notice": "Ten Mac ma układ Apple, ale zainstalowana jest wersja VOOL dla procesorów Intel. W ten sposób modele lokalne działają bardzo wolno i mogą nie przejść sprawdzenia. Zamiast niej pobierz i zainstaluj wersję VOOL dla Apple Silicon.",
     "private.saving_again": "Od tego miejsca znów zapisywane",
     "private.banner_short": "Prywatne",
     "private.end_short": "Zapisuj znowu",
