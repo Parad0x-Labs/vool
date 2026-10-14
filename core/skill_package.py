@@ -36,6 +36,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import threading
 import time
 import unicodedata
@@ -169,7 +170,10 @@ def _user_skill_dir(name: str, keys: dict[str, str] | None, scope: str = "") -> 
     try:
         from core.native_skill_library import native_skills_root
 
-        if (native_skills_root() / slug / "SKILL.md").is_file():
+        native = os.path.normpath(str(native_skills_root()))
+        folder = os.path.normpath(os.path.join(native, slug))
+        # The slug is letters, digits and dashes; the folder must still sit inside the native library.
+        if folder.startswith(native + os.sep) and os.path.isfile(os.path.join(folder, "SKILL.md")):
             raise PackageRefused(
                 "not_user_skill",
                 f"`{slug}` is a first-party VOOL skill; it ships with VOOL, so there is nothing to export",

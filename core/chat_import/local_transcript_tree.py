@@ -2,8 +2,9 @@
 
 Format (verified from the project's source and reference docs, package version 2026.10.3):
 
-* the state folder is ``$OPENCLAW_STATE_DIR`` or ``~/.openclaw`` on macOS and Linux
-  (``~/.clawdbot`` on installs from before the rename);
+* the state folder is ``~/.openclaw`` on macOS and Linux (``~/.clawdbot`` on installs from
+  before the rename). VOOL reads no OpenClaw environment setting to find another folder: it
+  looks only in the default places, in the home folder it was given;
 * since release 2026.8.1 each agent keeps its transcripts in
   ``agents/<agentId>/agent/openclaw-agent.sqlite``, table
   ``transcript_events(session_id, seq, event_json, event_zstd, ...)``; exactly one of
@@ -47,9 +48,8 @@ _MAX_EVENT_BYTES = 8 << 20
 
 
 def state_dirs(home: Path, env: dict[str, str]) -> list[Path]:
-    configured = str(env.get("OPENCLAW_STATE_DIR") or "").strip()
-    roots = [Path(configured).expanduser()] if configured else [home / ".openclaw"]
-    roots.append(home / ".clawdbot")
+    del env  # the default folders only; no third-party environment setting moves them
+    roots = [home / ".openclaw", home / ".clawdbot"]
     return [root for root in roots if root.is_dir()]
 
 
