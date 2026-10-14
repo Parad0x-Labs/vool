@@ -65,6 +65,9 @@ _CSS = r"""
 .vc-ep-rows { display:flex; flex-direction:column; gap:10px; }
 .vc-ep-row { border:1px solid var(--border); border-radius:10px; padding:8px 10px 10px; }
 .vc-ep-row.vc-removed { opacity:.5; }
+.vc-ep-grid .vc-wide { grid-column:span 2; }
+.vc-form select.vc-invalid { border-color:var(--bad, #f2545b); }
+.vc-note.vc-bad { color:var(--bad, #f2545b); }
 .vc-ep-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:0 10px; }
 .vc-confirm { border:1px solid var(--bad, #f2545b); border-radius:11px; padding:12px; margin-top:12px; }
 .vc-chooser { position:fixed; left:50%; bottom:110px; transform:translateX(-50%); width:min(460px, 92vw); max-height:60vh; overflow:auto; z-index:60; background:var(--panel-solid); border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.5); padding:10px; }
@@ -353,7 +356,7 @@ _JS = r"""
   function networkLabel(n) { return n.display_name + (n.environment === 'testnet' ? ' (test network)' : ''); }
   function chainChoices(family, current) {
     var options = state.options || {};
-    var active = options.active_environment || 'mainnet';
+    var active = options.active_environment || '';
     var all = (options.networks || []).filter(function(n) { return !family || n.family === family || n.network === current; });
     var mine = all.filter(function(n) { return n.environment === active; });
     var other = all.filter(function(n) { return n.environment !== active; });
@@ -371,7 +374,8 @@ _JS = r"""
     var cell = function() { var d = el('div'); grid.appendChild(d); return d; };
     var kind = selectField(cell(), 'Kind', kinds, e ? e.kind : (presetKind || 'email'), 'vcKind' + rowSeq);
     if (e) kind.disabled = true;
-    var value = field(cell(), 'Address or identity', 'input', e ? e.value : '', 'vcValue' + rowSeq);
+    var valueCell = cell();
+    var value = field(valueCell, 'Address or identity', 'input', e ? e.value : '', 'vcValue' + rowSeq);
     value.spellcheck = false; value.autocomplete = 'off';
     var label = field(cell(), 'Label (work, personal, …)', 'input', e ? e.label : '', 'vcLabel' + rowSeq);
     var networkCell = cell();
@@ -388,20 +392,29 @@ _JS = r"""
         network.textContent = '';
         var choices = chainChoices(family, current);
         if (!state.options && e && e.chain_network) choices = [{network: e.chain_network, display_name: e.network_display || e.chain_network, environment: e.chain_environment}];
-        if (family !== 'svm') { var blank = el('option', null, 'Choose the chain'); blank.value = ''; network.appendChild(blank); }
+        if (family !== 'svm' || !(state.options && state.options.active_environment)) { var blank = el('option', null, 'Choose the chain'); blank.value = ''; network.appendChild(blank); }
         choices.forEach(function(n) { var o = el('option', null, networkLabel(n)); o.value = n.network; network.appendChild(o); });
         shownFamily = family; shownOptions = state.options;
       }
       var known = Array.prototype.some.call(network.options, function(o) { return o.value && o.value === current; });
       var fits = known && (!family || !state.options || chainChoices(family, '').some(function(n) { return n.network === current; }));
       if (fits) network.value = current;
-      else if (family === 'svm') network.value = (chainChoices('svm', '')[0] || {}).network || '';
+      else if (family === 'svm' && state.options && state.options.active_environment) network.value = (chainChoices('svm', '')[0] || {}).network || '';
       else network.value = '';
-      chainNote.textContent = family === 'svm' ? 'A Solana address. The chain is set for you.'
-        : family === 'evm' ? 'A 0x address works on several chains. Choose the one this person uses.' : '';
+      var picked = family === 'svm' && !!network.value;
+      chainNote.textContent = picked ? 'This is a Solana address, so the chain is set for you.'
+        : family === 'svm' ? 'Choose the Solana network.' : family === 'evm' ? 'This address works on several chains. Choose the one this person uses.' : '';
+      chainNote.classList.remove('vc-bad'); network.classList.remove('vc-invalid');
+      valueCell.classList.toggle('vc-wide', kind.value === 'wallet');
     };
-    value.addEventListener('input', syncChain); network.addEventListener('focus', syncChain); kind.addEventListener('change', syncChain); syncChain();
+    value.addEventListener('input', syncChain); network.addEventListener('focus', function() { if (state.options !== shownOptions) syncChain(); }); kind.addEventListener('change', syncChain); syncChain();
     row._syncChain = syncChain;
+    row._needsChain = function() {
+      // a wallet whose address fits several chains and has none chosen: say so on that row, before anything is sent
+      var missing = kind.value === 'wallet' && !row.classList.contains('vc-removed') && addressFamily(value.value) === 'evm' && !network.value;
+      if (missing) { chainNote.textContent = 'Choose a chain for this wallet.'; chainNote.classList.add('vc-bad'); network.classList.add('vc-invalid'); }
+      return missing;
+    };
     var channelCell = cell();
     var channels = (options.channels || []).map(function(c) { return [c.id, c.label]; });
     var channel = selectField(channelCell, 'Service', [['', 'Choose the service']].concat(channels), e ? e.channel : '', 'vcChannel' + rowSeq);
@@ -451,7 +464,7 @@ _JS = r"""
       var any = Array.prototype.some.call(rows.children, function(r) { return r._read && r._read().kind === 'wallet' && !r._read().removed; });
       addWallet.textContent = any ? '+ Add another wallet' : '+ Add a wallet';
     };
-    var addEntry = button('Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); walletLabel(); });
+    var addEntry = button('+ Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); walletLabel(); });
     addWallet = button('+ Add a wallet', '', function() {
       var r = endpointRow(null, 'wallet'); rows.appendChild(r); walletLabel();
       var input = r.querySelector('input'); if (input) input.focus();
@@ -467,7 +480,14 @@ _JS = r"""
     form.appendChild(bar);
     form.addEventListener('submit', function(ev) {
       ev.preventDefault();
-      save.disabled = true; err.textContent = ''; err.className = 'vc-status';
+      err.textContent = ''; err.className = 'vc-status';
+      var unchosen = Array.prototype.filter.call(rows.children, function(r) { return r._needsChain && r._needsChain(); });
+      if (unchosen.length) {
+        err.textContent = unchosen.length === 1 ? 'Choose a chain for the wallet above.' : 'Choose a chain for each wallet marked above.'; err.className = 'vc-status vc-bad';
+        var first = unchosen[0].querySelector('.vc-invalid'); if (first) first.focus();
+        return;
+      }
+      save.disabled = true;
       var entries = Array.prototype.map.call(rows.children, function(r) { return r._read ? r._read() : null; }).filter(Boolean);
       var promise;
       if (!contact) {

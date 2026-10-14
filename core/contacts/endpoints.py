@@ -272,10 +272,19 @@ def active_wallet_environment() -> str:
         return ""
 
 
+#: the order Contacts offers chains in: the most familiar first (the editor's list follows the same order)
+CONTACT_CHAIN_ORDER: tuple[str, ...] = ("solana", "ethereum", "base", "arbitrum", "bnb", "robinhood")
+
+
+def contact_chain_rank(chain_key: str) -> int:
+    return CONTACT_CHAIN_ORDER.index(chain_key) if chain_key in CONTACT_CHAIN_ORDER else len(CONTACT_CHAIN_ORDER)
+
+
 def evm_network_names(environment: str) -> list[str]:
     from core.wallet import chains
 
-    return [spec.display_name for spec in chains.rows_for_environment(environment) if spec.is_evm]
+    rows = [spec for spec in chains.rows_for_environment(environment) if spec.is_evm]
+    return [spec.display_name for spec in sorted(rows, key=lambda spec: contact_chain_rank(spec.chain_key))]
 
 
 def detected_wallet_network(raw: object) -> str:
@@ -342,8 +351,8 @@ def normalize_wallet(raw: object, *, network: object) -> WalletIdentity:
             listed = ", ".join(options[:-1]) + " or " + options[-1] if len(options) > 1 else "".join(options)
             raise EndpointError(
                 "wallet_network_required",
-                f"A 0x address works on several chains. Choose the one this person uses ({listed})." if listed
-                else "A 0x address works on several chains. Choose the one this person uses.",
+                f"This address works on several chains. Choose the one this person uses: {listed}." if listed
+                else "This address works on several chains. Choose the one this person uses.",
                 field="network",
             )
         if text and not (chains.SVM_ADDRESS_RE.match(text) and _decodes_to_32_bytes(text)):

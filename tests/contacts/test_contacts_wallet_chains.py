@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.parse
 
 import pytest
@@ -117,6 +118,7 @@ def test_a_0x_address_with_no_chain_is_refused_and_names_the_chains_to_choose() 
     assert "wallet_network_required" in text
     message = body.get("message") or body.get("error") or ""
     assert "several chains" in message and "Ethereum" in message and "Base" in message, message
+    assert message.index("Ethereum") < message.index("Base") < message.index("Robinhood Chain"), "familiar chains first, as in the editor"
     assert "Solana" not in message and "Sepolia" not in message, "only the active environment's EVM chains are offered"
     assert store.active_contacts() == [], "nothing is saved without a chain"
 
@@ -300,23 +302,26 @@ def test_the_editor_sets_solana_itself_asks_the_chain_for_0x_and_adds_another_wa
 
         page.locator(f"#vcValue{n}").fill(sol)
         expect(page.locator(f"#vcNetwork{n}")).to_have_value(SOLANA_MAINNET)
-        expect(page.locator(f"#vcChainNote{n}")).to_have_text("A Solana address. The chain is set for you.")
+        expect(page.locator(f"#vcChainNote{n}")).to_have_text("This is a Solana address, so the chain is set for you.")
         assert set(_chain_options(page, n)) == {"Solana", "Solana Devnet (test network)"}, "a Solana address offers only Solana"
 
         add_wallet.click()
         m = n + 1
         page.locator(f"#vcValue{m}").fill(EVM_A)
         expect(page.locator(f"#vcNetwork{m}")).to_have_value("")
-        expect(page.locator(f"#vcChainNote{m}")).to_have_text("A 0x address works on several chains. Choose the one this person uses.")
+        expect(page.locator(f"#vcChainNote{m}")).to_have_text("This address works on several chains. Choose the one this person uses.")
         offered = _chain_options(page, m)
         assert offered[0] == "Choose the chain" and not any("Solana" in o for o in offered), offered
-        assert offered[1:6] == ["Robinhood Chain", "Base", "Ethereum", "BNB Smart Chain", "Arbitrum One"], "this environment's chains come first"
+        assert offered[1:6] == ["Ethereum", "Base", "Arbitrum One", "BNB Smart Chain", "Robinhood Chain"], "this environment's chains come first, familiar ones first"
 
         page.locator(f"#vcValue{m}").fill(NOT_SOLANA)
         expect(page.locator(f"#vcChainNote{m}")).to_have_text("")
         page.locator(f"#vcValue{m}").fill(EVM_A)
         page.locator("#vcSave").click()
-        expect(page.locator("#vcForm .vc-status.vc-bad")).to_contain_text("Choose the one this person uses")
+        expect(page.locator("#vcForm > .vc-status.vc-bad")).to_have_text("Choose a chain for the wallet above.")
+        expect(page.locator(f"#vcChainNote{m}")).to_have_text("Choose a chain for this wallet.")
+        expect(page.locator(f"#vcNetwork{m}")).to_have_class(re.compile("vc-invalid"))
+        expect(page.locator(f"#vcNetwork{m}")).to_be_focused()
         assert store.active_contacts() == [], "a 0x wallet with no chain saves nothing"
 
         page.locator(f"#vcNetwork{m}").select_option(BASE)
