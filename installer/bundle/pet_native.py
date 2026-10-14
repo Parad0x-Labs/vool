@@ -638,9 +638,19 @@ class PetWindowController:
         loaded = getattr(self._pywebview_window.events, 'loaded', None)
         if instance is None or loaded is None or not loaded.is_set():
             return False
-        script = ('window.VoolDesktopCompanion&&window.VoolDesktopCompanion.interaction('
-                  + str(hovered).lower() + ',' + str(dragging).lower() + ')')
-        instance.webview.evaluateJavaScript_completionHandler_(script, None)
+        # No guard and an explicit result: a page that is not ready yet THROWS, and a script that
+        # ran returns a value WebKit can carry, so the completion handler sees which happened.
+        script = ('window.VoolDesktopCompanion.interaction('
+                  + str(hovered).lower() + ',' + str(dragging).lower() + ');true')
+        tracker = self._tracker
+
+        def _done(_result, error):
+            # A script that did not run must be sent again: forget the reported state so the
+            # next tick re-sends it, instead of the controls latching on (or off) forever.
+            if error is not None and tracker is not None:
+                tracker._interaction = None
+
+        instance.webview.evaluateJavaScript_completionHandler_(script, _done)
         return True
 
     def _report_settled(self, origin: tuple[float, float]) -> None:

@@ -34,7 +34,7 @@ VN_POS_KEY = "vool_ninja_pos_v1"
 
 # --------------------------------------------------------------------------- CSS
 _VN_CSS = r"""
-.vn-caption{font-size:9px;font-family:ui-monospace,Menlo,monospace;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:.06em;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
+.vn-caption{font-size:11px;font-family:-apple-system,'Inter',system-ui,sans-serif;background:rgba(22,25,31,.92);border:1px solid #2b3140;border-radius:6px;padding:1px 7px;color:var(--vn-tone,#9aa1af);white-space:nowrap;margin-top:2px;letter-spacing:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;transition:opacity .16s ease}
 #companionLayer .vn-caption.vn-show,#companionLayer .vool-ninja:hover .vn-caption,#companionLayer .vool-ninja:focus-visible .vn-caption{opacity:1}
 body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 .vn-lab-matrix{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
@@ -90,17 +90,19 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   transform: rotate(45deg);
 }
 #companionLayer .vn-bubble-title {
-  font: 600 10px/1.25 ui-monospace, Menlo, monospace; color: #e7ecf3;
+  /* UI font at a readable size: the pet's two lines are read at a glance, not decoded. */
+  font: 600 12px/1.3 -apple-system, 'Inter', system-ui, sans-serif; color: #e7ecf3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 #companionLayer .vn-bubble-activity {
-  font: 400 9.5px/1.3 ui-monospace, Menlo, monospace; color: var(--vn-tone, #94a3b8);
+  font: 400 11px/1.3 -apple-system, 'Inter', system-ui, sans-serif; color: var(--vn-tone, #94a3b8);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+#companionLayer .vn-bubble-title:empty, #companionLayer .vn-bubble-activity:empty { display: none; }
 #companionLayer .vool-ninja.chip .vn-bubble { max-width: 168px; padding: 4px 7px 5px; }
 #companionLayer .vool-ninja.chip .vn-bubble::after { display: none; }
-#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 9px; }
-#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 8.5px; }
+#companionLayer .vool-ninja.chip .vn-bubble-title { font-size: 11.5px; }
+#companionLayer .vool-ninja.chip .vn-bubble-activity { font-size: 10.5px; }
 /* Flipped below the pet when there is no room above. The character never moves either way. */
 #companionLayer .vn-bubble.vn-below { bottom: auto; top: calc(100% - 18px); }
 #companionLayer .vn-bubble.vn-below::after { top: auto; bottom: 100%; border: 0;
@@ -123,6 +125,9 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   background: var(--vn-tone, #94a3b8); margin-right: 5px; vertical-align: 1px; }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
 .vool-ninja-pop {
+  /* The layer is click-through; its own panels must take the clicks they draw (otherwise a
+     menu row presses whatever app control sits under it). */
+  pointer-events: auto;
   position: fixed; z-index: 45; width: 300px; max-height: min(70vh, 480px); overflow-y: auto;
   background: var(--panel,#1b1b1e); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
   border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 10px 12px; font-size: 12px;
@@ -136,6 +141,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-ninja-pop .vn-close { position: absolute; right: 8px; top: 6px; background: none; border: none;
   color: var(--muted, #8b94a3); cursor: pointer; font-size: 14px; }
 .vool-ninja-menu {
+  pointer-events: auto;
   position: fixed; z-index: 46; min-width: 180px; background: var(--panel, #14181f);
   color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140); border-radius: 10px;
   box-shadow: 0 8px 26px rgba(0,0,0,.5); padding: 4px; font-size: 12px;
@@ -662,17 +668,83 @@ function vnClampBubble() {
 function vnBoundChatTitle(chatId) {
   const id = String(chatId || "");
   if (!id) return "";
+  // Only a REAL title. The page's chatTitleFor falls back to the id (or its last 8 characters)
+  // for a chat that has none yet, and the pet's words must never be a random code.
   if (typeof chatTitleFor === "function") {
-    try { const t = chatTitleFor(id); if (t) return String(t); } catch (e) { /* fall through */ }
+    try {
+      const t = String(chatTitleFor(id) || "");
+      if (t && t !== id && t !== id.slice(-8) && t !== "Chat") return t;
+    } catch (e) { /* fall through */ }
   }
-  return id.slice(-8);
+  return "";
 }
-/* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
+/* The bubble's second line, chosen from the TYPED state only.
+   - Working: a playful line for the typed activity (search, read, ...), a new one each time the
+     reducer moves on (a new phrase, activity or state) -- never on a timer.
+   - Waiting on the user: a line that always says a decision is needed. Stays until answered.
+   - Finished: a "done" line for a few seconds, then the bubble goes quiet.
+   - Failed, cancelled, flagged, unverified: the reducer's own plain phrase, no joke, for a while.
+   Playful lines are English; other languages keep the translated plain phrase. */
+const VN_DONE_LINGER_MS = 12000, VN_QUIP_HOLD_MS = 4000;
+// One record PER CHAT: going back to a finished chat does not replay its "done" line, and a
+// working chat keeps its line across chat switches (navigation is not a reducer change).
+const vnQuipByChat = new Map();
+const vnQuipCursor = {};
+function vnPlayful() {
+  const root = document.documentElement;
+  const lang = String((root && (root.lang || (root.getAttribute && root.getAttribute("lang")))) || "en");
+  return lang.toLowerCase().indexOf("en") === 0;
+}
+function vnQuipPool(pres, nextState) {
+  if (pres.state === "APPROVAL_REQUIRED") return "ask";
+  if (pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS") return "done";
+  if (nextState === "retry") return "retry";
+  if (nextState === "waiting") return "queued";
+  if (nextState === "starting" || nextState === "thinking") return "think";
+  if (nextState === "tool") {
+    const act = vnActivity(pres);
+    return act && VN_QUIPS[act] ? act : "think";
+  }
+  return "";  // failure, cancelled, flagged, unverified: the plain phrase, no joke
+}
+function vnNextQuip(pool) {
+  const lines = VN_QUIPS[pool] || [];
+  if (!lines.length) return "";
+  if (!(pool in vnQuipCursor)) vnQuipCursor[pool] = Math.floor(Math.random() * lines.length);
+  const line = lines[vnQuipCursor[pool] % lines.length];
+  vnQuipCursor[pool] = (vnQuipCursor[pool] + 1) % lines.length;
+  return line;
+}
+function vnBubbleLine(chatId, pres, nextState, now) {
+  const id = String(chatId || "");
+  if (!pres || nextState === "idle") { vnQuipByChat.delete(id); return ""; }
+  const pool = vnQuipPool(pres, nextState);
+  const key = pres.state + "|" + nextState + "|" + (vnActivity(pres) || "") + "|" + (pres.phraseId || "");
+  let q = vnQuipByChat.get(id);
+  if (!q || key !== q.key) {
+    const plain = pres.phraseText ? String(pres.phraseText) : vnStateWord(nextState);
+    const playful = !!pool && vnPlayful();
+    // A fresh joke at most every few seconds within the same kind of work, so a burst of
+    // events does not flicker the bubble; a change of kind (working -> asking) shows at once.
+    const working = function (k) { return !!k && k !== "ask" && k !== "done"; };
+    const hold = q && playful && working(q.pool) && working(pool) && now - q.lineAt < VN_QUIP_HOLD_MS;
+    const line = hold ? q.line : (playful ? vnNextQuip(pool) : plain);
+    q = { key: key, pool: pool, since: q && q.pool === pool ? q.since : now,
+          line: line, lineAt: hold ? q.lineAt : now };
+    vnQuipByChat.set(id, q);
+  }
+  // Only a finished or cancelled job goes quiet on its own. Asking, failures and flagged stay up
+  // until something changes, because they are what the user needs to see on coming back.
+  if ((pool === "done" || pres.state === "CANCELLED") && now - q.since > VN_DONE_LINGER_MS) return "";
+  return q.line;
+}
+/* Two grounded lines. `activity` is a line chosen from the typed state (see vnBubbleLine). */
 function vnSetBubble(title, activity, visible) {
   if (!vnBubble) return;
   vnBubbleTitle.textContent = vnSafeText(title, VN_TITLE_MAX);
   vnBubbleActivity.textContent = vnSafeText(activity, VN_ACTIVITY_MAX);
-  vnBubble.style.display = (visible && vnBubbleTitle.textContent) ? "flex" : "none";
+  // An untitled chat still shows what the pet is doing; only an empty bubble hides.
+  vnBubble.style.display = (visible && (vnBubbleTitle.textContent || vnBubbleActivity.textContent)) ? "flex" : "none";
   vnClampBubble();
 }
 
@@ -1166,12 +1238,14 @@ function vnPaintNow(now) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
     } else if (nextState === "idle") {
       line2 = "";
-    } else if (pres && pres.phraseText) {
-      line2 = String(pres.phraseText);
+      vnQuipByChat.delete(String(chatId || ""));
     } else {
-      line2 = vnStateWord(nextState);
+      line2 = vnBubbleLine(chatId, pres, nextState, now);
     }
-    vnSetBubble(bound, line2, true);
+    vnPaint.bubbleLine = line2;
+    // The bubble speaks only while there is something to say: working, waiting on the user,
+    // or just finished. A pet doing nothing is quiet.
+    vnSetBubble(bound, line2, !!line2);
   }
   // The caption carries the ACTIVITY LANGUAGE, not just the sprite state: the phrase is the
   // thing the operator reads ("Searching the web…", "Collecting facts on disk…"), and the pack's
@@ -1239,13 +1313,19 @@ function vnPaintNow(now) {
       if (stage.style && VN_TONES[pres.tone]) stage.style.color = VN_TONES[pres.tone];
     }
   }
-  // aria-live: announce STATE changes only, once per change.
-  if (vnSr && pres.phraseText) {
-    const line = vnLabel("companion.label", "Companion") + " " + vnStateWord(nextState) + (pres.phraseText ? " — " + pres.phraseText : "");
+  // aria-live: announce STATE changes only, once per change -- except an ordinary finished
+  // answer, which the conversation log already announces; repeating "Unknown — not
+  // independently reviewed" after every reply was noise for a screen-reader user.
+  const finished = pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS";
+  const stateWord = finished ? vnLabel("companion.state.success", "Done") : vnStateWord(nextState);
+  if (vnSr && pres.phraseText && !finished) {
+    const line = vnLabel("companion.label", "Companion") + " " + stateWord + " — " + pres.phraseText;
     if (line !== vnPaint.announced) { vnPaint.announced = line; vnSr.textContent = line; }
+  } else if (vnSr && finished && vnPaint.announced) {
+    vnPaint.announced = ""; vnSr.textContent = "";  // no stale "working" line left behind
   }
   if (vnSprite) {
-    vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion") + ": " + vnStateWord(nextState) + (pres.phraseText ? " · " + pres.phraseText : ""));
+    vnSprite.setAttribute("aria-label", vnLabel("companion.label", "Companion") + ": " + stateWord + (pres.phraseText ? " · " + pres.phraseText : ""));
   }
   vnPaint.lastPaint = now;
   vnPaint.dirty = false;
@@ -1258,7 +1338,9 @@ function vnLoop() {
 let vnLoopTimer = null;
 // Re-assert tick: re-paints CURRENT reducer truth over house card repaints. It reads
 // state and paints; it can never derive, advance or rotate a phrase by itself.
-setInterval(function () { if (vnBooted && !document.hidden) vnPaintNow(Date.now()); }, 1200);
+// It also runs while the window is hidden if the pet is out on the desktop, so the desktop
+// pet's bubble still goes quiet after a finished job.
+setInterval(function () { if (vnBooted && (!document.hidden || vnDesktopActive)) vnPaintNow(Date.now()); }, 1200);
 
 // ---------------------------------------------------------------------------
 // Popover: identity inspection from typed fields only. Provenance renders as data
@@ -1269,6 +1351,7 @@ function vnProvRow(label, value) {
 }
 function vnRenderPopover(chatId) {
   if (!vnPop) return;
+  vnCloseMenu(false);  // one pet panel at a time
   const view = VN_VIEWS.get(String(chatId || ""));
   const pres = vnResolve(view);
   const m = (view && view.model) || {};
@@ -1413,11 +1496,13 @@ function vnBindDrag(el) {
   });
 }
 function vnDock() {
+  vnCloseMenu(false);
   if (vnPos.mode === "desktop") { vnReturnToApp("docked"); return; }
   vnPos.mode = "docked";
   vnPersistPos(); vnApplyPos();
 }
 function vnHide(hidden) {
+  vnCloseMenu(false);
   vnPos.hidden = hidden === true;
   vnPersistPos(); vnApplyPos();
 }
@@ -1545,13 +1630,26 @@ function vnOpenCharacterLab() {
   modal.appendChild(sceneRow);
   vnLab.appendChild(modal); vnLab.style.display = "flex"; close.focus();
 }
+let vnMenuFromKeyboard = false;
+function vnMenuOpen() { return !!(vnMenu && vnMenu.style.display === "block"); }
+function vnCloseMenu(refocus) {
+  if (!vnMenuOpen()) return;
+  vnMenu.style.display = "none";
+  if (refocus && vnSprite && vnSprite.focus && vnSprite.style.display !== "none") vnSprite.focus();
+}
 document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && vnMenuOpen()) {
+    e.preventDefault(); e.stopPropagation();
+    vnCloseMenu(vnMenuFromKeyboard);
+    return;
+  }
   if (e.key === "Escape" && vnPop && vnPop.style.display === "block") {
     e.preventDefault(); e.stopPropagation();
     vnPop.style.display = "none";
   }
 }, true);
 document.addEventListener("pointerdown", function (e) {
+  if (vnMenuOpen() && !vnMenu.contains(e.target)) vnCloseMenu(false);
   if (!vnPop || vnPop.style.display !== "block") return;
   if (vnPop.contains(e.target)) return;
   if (vnSprite && vnSprite.contains(e.target)) return;  // the tap-toggle owns this case
@@ -1566,6 +1664,10 @@ function vnNotify(text) {
 }
 function vnDesktopPayload(pres, state) {
   const payload = {state:state||vnSpriteState(pres),caption:pres&&pres.phraseText?pres.phraseText:String((pres&&pres.state)||"IDLE"),character:vnPos.personality,pack:vnPos.pack,motion:vnPos.motion};
+  // The desktop pet says the same bubble line as the in-app one, and is quiet when it is.
+  if (typeof vnPaint.bubbleLine === "string") {
+    if (vnPaint.bubbleLine) payload.caption = vnPaint.bubbleLine; else payload.quiet = true;
+  }
   /* The bound chat's title and the activity substate travel with the pet, so the DETACHED pet
      says the same two grounded lines as the in-app one. Both come from the reducer's resolution
      for the bound chat; neither is model prose, and the native side re-validates both. */
@@ -1658,25 +1760,33 @@ function vnCycleMotion() {
   document.body.classList.toggle("vn-motion-reduced", vnPrefersReducedMotion());
   vnPersistPos(); vnSchedulePaint();
 }
-function vnOpenMenu(x, y) {
+function vnOpenMenu(x, y, fromKeyboard) {
   if (!vnMenu) return;
+  // Focus goes back to the pet on close only when the menu came from the pet's own key: a
+  // right-click while typing must leave the keyboard where the user was typing.
+  vnMenuFromKeyboard = fromKeyboard === true;
+  if (vnPop) vnPop.style.display = "none";  // one pet panel at a time
   vnMenu.innerHTML = "";
+  const spec = (window.VoolCompanionWorld.characters || {})[vnPos.personality] || {};
   const items = [
     ["Dock inside VOOL", vnDock],
     ["Character Lab…", vnOpenCharacterLab],
     ["Toggle edge snapping", function () { vnEdgeSnap = !vnEdgeSnap; vnPos.edge = vnEdgeSnap ? "snap" : null; vnPersistPos(); }],
     ["Hide pet", function () { if (vnPos.mode === "desktop") vnHideDesktopPet(); else vnHide(true); }],
-    ["Reset position", vnResetDesktopPosition],
-    ["Motion: " + vnPos.motion, vnCycleMotion],
-    ["Companion: " + vnPos.personality, vnCyclePersonality],
-    ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }],
   ];
+  // No "Reset position" here: while the pet is on the desktop this in-app pet is gone, so the
+  // desktop pet's own button and Settings carry it.
+  items.push(
+    ["Motion: " + vnPos.motion, vnCycleMotion],
+    ["Pet: " + String(spec.name || vnPos.personality), vnCyclePersonality],
+    ["Activity detail", function () { vnRenderPopover(typeof displayedChat !== "undefined" ? displayedChat : ""); }]
+  );
   for (let i = 0; i < items.length; i++) {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = items[i][0];
     const fn = items[i][1];
-    b.addEventListener("click", function () { vnMenu.style.display = "none"; fn(); });
+    b.addEventListener("click", function () { vnCloseMenu(vnMenuFromKeyboard); fn(); });
     vnMenu.appendChild(b);
   }
   vnMenu.style.display = "block";
@@ -1705,7 +1815,7 @@ function vnBindKeyboard(el) {
     if (e.key === "Enter") { vnMoveMode = true; e.preventDefault(); }
     else if (e.key === " " || e.key === "Spacebar") {
       const r = el.getBoundingClientRect();
-      vnOpenMenu(r.left, r.bottom + 4);
+      vnOpenMenu(r.left, r.bottom + 4, true);
       e.preventDefault();
     }
     else if (e.key === "d" || e.key === "D") { vnDock(); e.preventDefault(); }
@@ -1736,6 +1846,8 @@ function vnBoot() {
      cannot push it when its text changes. */
   vnBubble = document.createElement("div");
   vnBubble.className = "vn-bubble";
+  // Visual flavour only: screen readers get the plain state from the pet's own label.
+  vnBubble.setAttribute("aria-hidden", "true");
   vnBubbleTitle = document.createElement("div");
   vnBubbleTitle.className = "vn-bubble-title";
   vnBubbleActivity = document.createElement("div");
@@ -1866,11 +1978,13 @@ else vnBoot();
 
 def render_companion_fragment() -> str:
     """The companion layer as ``<style> + <script>``, concatenated after the page."""
+    from core.companion_quips import quips_json
     from core.companion_world_fragment import COMPANION_WORLD_JS
 
     return (
         "<style>" + _VN_CSS + "</style>"
         + "<script>(function(){\n'use strict';\n"
-        + COMPANION_WORLD_JS + "\n" + _VN_LIBRARY_JS + "\n" + _VN_ENGINE_JS
+        + COMPANION_WORLD_JS + "\n" + _VN_LIBRARY_JS + "\n"
+        + "const VN_QUIPS = " + quips_json() + ";\n" + _VN_ENGINE_JS
         + "\n})();</script>"
     )
