@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import platform
 import shutil
@@ -34,6 +35,8 @@ from typing import Any
 from ._limits import OCR_MAX_EDGE, SUBPROCESS_TIMEOUT_S
 from ._sandbox import Scratch, run_confined
 from ._types import ReaderFailed, ReaderRefused, ReaderUnavailable
+
+_LOG = logging.getLogger(__name__)
 
 SWIFTC = "/usr/bin/swiftc"
 TOOL_NAME = "vool_vision_tool"
@@ -195,6 +198,37 @@ def toolchain_available() -> bool:
     return platform.system() == "Darwin" and os.access(SWIFTC, os.X_OK) and _sandbox.confinement_available()
 
 
+def toolchain_unavailable_words() -> tuple[str, str]:
+    """Why text in images and scanned pages can't be read here, in words that fit THIS computer.
+
+    The reader is macOS-only, so elsewhere there is nothing to install. On a Mac without Apple's
+    free developer tools the remedy names them (no terminal command); a Mac that has them but
+    can't confine the helper gets no install advice it doesn't need.
+    """
+    if platform.system() != "Darwin":
+        return (
+            "Reading scanned pages and text in images isn't available on this computer yet.",
+            "Paste the text into your message instead.",
+        )
+    if not os.access(SWIFTC, os.X_OK):
+        return (
+            "Reading scanned pages needs Apple's free Command Line Tools, which aren't installed on this Mac.",
+            "Install them from Apple, then restart VOOL.",
+        )
+    return (
+        "Reading scanned pages and text in images can't run safely on this Mac yet.",
+        "Paste the text into your message instead.",
+    )
+
+
+def _build_failed_words() -> tuple[str, str]:
+    """A failed one-time build of the reader, in words; the compiler's own output goes to the log."""
+    return (
+        "Reading scanned pages and text in images couldn't be set up on this Mac.",
+        "Restart VOOL and try again. If it keeps happening, reinstall Apple's free Command Line Tools.",
+    )
+
+
 def _binary_path() -> Path:
     return tools_dir() / f"{TOOL_NAME}-{TOOL_VERSION}-{_source_digest()}"
 
@@ -202,11 +236,8 @@ def _binary_path() -> Path:
 def ensure_tool() -> Path:
     """The compiled helper, built once and cached by the hash of the source above."""
     if not toolchain_available():
-        raise ReaderUnavailable(
-            "This machine has no Swift toolchain, so the built-in OCR and PDF page renderer cannot be built.",
-            code="vision_toolchain_unavailable",
-            remediation="Install the Xcode Command Line Tools (`xcode-select --install`) to enable OCR of scanned pages and images.",
-        )
+        message, remediation = toolchain_unavailable_words()
+        raise ReaderUnavailable(message, code="vision_toolchain_unavailable", remediation=remediation)
     binary = _binary_path()
     if binary.exists() and os.access(binary, os.X_OK):
         return binary
@@ -223,18 +254,13 @@ def ensure_tool() -> Path:
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ReaderUnavailable(
-                f"The built-in OCR helper could not be compiled ({exc}).",
-                code="vision_build_failed",
-                remediation="Check that the Xcode Command Line Tools are installed and working.",
-            ) from exc
+            _LOG.warning("OCR helper build failed: %s", exc)
+            raise ReaderUnavailable(*_build_failed_words(), code="vision_build_failed") from exc
         if completed.returncode != 0 or not staged.exists():
+            # Compiler output is for the log, not for the person reading the chat.
             detail = (completed.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-            raise ReaderUnavailable(
-                "The built-in OCR helper could not be compiled: " + ("; ".join(detail[-3:]) or "unknown compiler error"),
-                code="vision_build_failed",
-                remediation="Check that the Xcode Command Line Tools are installed and working.",
-            )
+            _LOG.warning("OCR helper build failed: %s", "; ".join(detail[-3:]) or "unknown compiler error")
+            raise ReaderUnavailable(*_build_failed_words(), code="vision_build_failed")
         # Atomic publish: a half-written binary is never visible to a concurrent extraction.
         pending = binary.with_name(binary.name + f".{os.getpid()}.tmp")
         shutil.copy2(staged, pending)

@@ -43,12 +43,16 @@ _EXTRAS_CSS = """
 .vx-btn[disabled]:hover{color:var(--muted,#9aa1af);border-color:var(--border,#262b35)}
 #vxEmotePop{position:fixed;z-index:1100;background:var(--panel,#16191f);
   border:1px solid var(--border,#262b35);border-radius:12px;padding:10px;display:none;
-  grid-template-columns:repeat(6,1fr);gap:4px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  grid-template-columns:repeat(3,1fr);gap:4px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
 #vxEmotePop.vx-open{display:grid}
+#vxEmotePop .vx-cap{display:block;font-size:10.5px;color:var(--muted,#9aa1af);text-align:center;margin-top:2px}
 #vxEmotePop button{background:none;border:none;border-radius:7px;padding:4px;cursor:pointer}
 #vxEmotePop button:hover{background:var(--field,#1d2129)}
-#vxEmotePop canvas{width:32px;height:32px;image-rendering:pixelated;display:block}
-#vxEmotePop .vx-note{grid-column:1/-1;font-size:10px;color:var(--muted,#9aa1af);padding:4px 2px 0}
+#vxEmotePop canvas{width:44px;height:44px;image-rendering:pixelated;display:block}
+#vxEmotePop .vx-note{grid-column:1/-1;font-size:11px;color:var(--muted,#9aa1af);padding:4px 2px 0}
+#vxFilterEmpty{padding:8px 10px;font-size:12px;color:var(--muted,#9aa1af)}
+#vxFilterEmpty[hidden]{display:none}
+#vxFilterEmpty button{font:inherit;font-size:12px;background:transparent;color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);border-radius:6px;padding:2px 8px;margin-left:6px;cursor:pointer}
 .vx-emote{width:28px;height:28px;image-rendering:pixelated;vertical-align:middle;display:inline-block}
 """
 
@@ -60,6 +64,16 @@ if (window.VoolComposerExtras) return;
 var DRAFT_PREFIX = 'vool_ui_draft:';
 var EMOTE_STATES = ['idle','thinking','tool','waiting','approval','retry','success','failure','unknown','cancelled'];
 var EMOTE_TOKEN_RE = /\\[:vool-([a-z]+):\\]/g;
+// The picker offers reactions a person would send; the system states (failure, approval, retry,
+// tool) still RENDER when they appear in a message, but are not offered as feelings.
+var PICKER_EMOTES = [['idle','Hello'],['success','Hooray'],['thinking','Thinking'],['waiting','Waiting'],['unknown','Puzzled'],['cancelled','Shrug']];
+// Draw the pet the person chose, at frame 0. The third argument of the world's draw is the
+// animation FRAME, not a scale: passing 8 asked for a frame most poses do not have.
+function drawEmote(w, ctx, state){
+  var c = window.VoolCompanion && typeof window.VoolCompanion.pos === 'function' ? (window.VoolCompanion.pos() || {}) : {};
+  try { ctx.imageSmoothingEnabled = false; } catch (e) {}
+  w.draw(ctx, state, 0, { character: c.personality, pack: c.pack });
+}
 
 function input(){ return document.getElementById('input'); }
 function pageActions(){ return window.VoolPageActions || null; }
@@ -165,6 +179,25 @@ function applyFilter(){
     }
     head.style.display = anyVisible || (head.textContent || '').toLowerCase().indexOf(query) !== -1 ? '' : 'none';
   });
+  // An emptied list must say why, or it reads as "my chats are gone".
+  var empty = document.getElementById('vxFilterEmpty');
+  if (!empty) {
+    empty = document.createElement('div');
+    empty.id = 'vxFilterEmpty';
+    empty.setAttribute('role', 'status');
+    empty.hidden = true;
+    empty.innerHTML = '<span></span><button type="button">Clear</button>';
+    empty.querySelector('button').addEventListener('click', function(){
+      var field = document.getElementById('vxFilter');
+      filterValue = '';
+      if (field) { field.value = ''; field.focus(); }
+      applyFilter();
+    });
+  }
+  if (empty.parentNode !== sessions.parentNode || empty.nextSibling !== sessions) sessions.parentNode.insertBefore(empty, sessions);
+  var anyRow = !query || Array.prototype.some.call(sessions.querySelectorAll('.session'), function(row){ return row.style.display !== 'none'; });
+  empty.hidden = anyRow;
+  if (!anyRow) empty.querySelector('span').textContent = 'No chat names match \u201c' + filterValue.trim() + '\u201d.';
 }
 document.addEventListener('keydown', function(ev){
   if ((ev.metaKey || ev.ctrlKey) && !ev.shiftKey && (ev.key === 'f' || ev.key === 'F')) {
@@ -190,7 +223,10 @@ function mountFilter(){
   function attr(s){ return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;'); }
   var wrap = document.createElement('div');
   wrap.id = 'vxFilterWrap';
-  wrap.innerHTML = '<input id="vxFilter" type="text" placeholder="' + attr(extrasT('chats.filter_placeholder', 'Search chats\\u2026  \\u2318F')) + '" autocomplete="off" aria-label="' + attr(extrasT('chats.filter_aria', 'Search chats')) + '">';
+  var isMac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+  var placeholder = extrasT('chats.filter_placeholder', 'Search chats\\u2026  \\u2318F');
+  if (!isMac) placeholder = placeholder.replace('\\u2318', 'Ctrl+');   // name the key this keyboard has
+  wrap.innerHTML = '<input id="vxFilter" type="text" placeholder="' + attr(placeholder) + '" autocomplete="off" aria-label="' + attr(extrasT('chats.filter_aria', 'Search chats')) + '">';
   sessions.parentNode.appendChild(wrap);
   var field = wrap.querySelector('#vxFilter');
   field.addEventListener('input', function(){ filterValue = field.value; applyFilter(); });
@@ -207,7 +243,7 @@ function emoteDataUrl(state){
   if (!w || typeof w.draw !== 'function') return '';
   var canvas = document.createElement('canvas');
   canvas.width = 48; canvas.height = 48;
-  try { w.draw(canvas.getContext('2d'), state, 8, {}); } catch (e) { return ''; }
+  try { drawEmote(w, canvas.getContext('2d'), state); } catch (e) { return ''; }
   var url = canvas.toDataURL();
   emoteCache[state] = url;
   return url;
@@ -256,8 +292,10 @@ function mountEmoteButton(){
   btn.id = 'vxEmoteBtn';
   btn.type = 'button';
   btn.className = 'vx-btn';
-  btn.title = 'VOOL emotes \\u2014 inserted as [:vool-state:] shortcodes';
-  btn.setAttribute('aria-label', 'Insert a VOOL emote');
+  btn.title = 'Add a pet reaction';
+  btn.setAttribute('aria-label', 'Add a pet reaction');
+  btn.setAttribute('aria-haspopup', 'true');
+  btn.setAttribute('aria-expanded', 'false');
   btn.textContent = '\\u263a';
   send.parentNode.insertBefore(btn, send);
   var pop = document.createElement('div');
@@ -268,14 +306,18 @@ function mountEmoteButton(){
     var w = world();
     if (!w) return;
     pop.dataset.done = '1';
-    EMOTE_STATES.forEach(function(state){
+    PICKER_EMOTES.forEach(function(pair){
+      var state = pair[0];
       var cell = document.createElement('button');
       cell.type = 'button';
-      cell.title = '[:vool-' + state + ':]';
+      cell.title = pair[1];
+      cell.setAttribute('aria-label', pair[1] + ' pet reaction');
       var canvas = document.createElement('canvas');
       canvas.width = 48; canvas.height = 48;
-      try { w.draw(canvas.getContext('2d'), state, 8, {}); } catch (e) {}
+      try { drawEmote(w, canvas.getContext('2d'), state); } catch (e) {}
       cell.appendChild(canvas);
+      var cap = document.createElement('span'); cap.className = 'vx-cap'; cap.textContent = pair[1];
+      cell.appendChild(cap);
       cell.addEventListener('click', function(){
         var el = input();
         if (el) {
@@ -285,18 +327,29 @@ function mountEmoteButton(){
           notifyInput(el);
           el.focus();
         }
-        pop.classList.remove('vx-open');
+        closePop(false);
       });
       pop.appendChild(cell);
     });
     var note = document.createElement('div');
     note.className = 'vx-note';
-    note.textContent = 'Companion-universe reactions \\u2014 cosmetics, never system truth.';
+    note.textContent = 'Pet reactions: just for fun.';
     pop.appendChild(note);
   }
+  function closePop(returnFocus){
+    if (!pop.classList.contains('vx-open')) return false;
+    pop.classList.remove('vx-open');
+    btn.setAttribute('aria-expanded', 'false');
+    if (returnFocus) { try { btn.focus(); } catch (e) {} }
+    return true;
+  }
+  document.addEventListener('keydown', function(ev){
+    if (ev.key === 'Escape' && closePop(true)) ev.preventDefault();
+  });
   btn.addEventListener('click', function(){
     fillPop();
     var open = pop.classList.toggle('vx-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) {
       var r = btn.getBoundingClientRect();
       var popWidth = pop.offsetWidth || 300;
@@ -305,9 +358,7 @@ function mountEmoteButton(){
     }
   });
   document.addEventListener('mousedown', function(ev){
-    if (pop.classList.contains('vx-open') && !pop.contains(ev.target) && ev.target !== btn) {
-      pop.classList.remove('vx-open');
-    }
+    if (pop.classList.contains('vx-open') && !pop.contains(ev.target) && ev.target !== btn) closePop(false);
   });
 }
 

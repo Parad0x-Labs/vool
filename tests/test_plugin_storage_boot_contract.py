@@ -132,7 +132,8 @@ def test_a_missing_folder_is_a_reported_state_not_an_error(home, monkeypatch) ->
 
     assert state["state"] == pc.STORAGE_MISSING
     assert catalog["installed"] is False and catalog["plugin_count"] == 0
-    assert "VOOL_PLUGINS_DIR" in catalog["reason"]
+    # The reason is shown to people as the empty add-ons state: plain words, no environment variable.
+    assert catalog["reason"] and "VOOL_PLUGINS_DIR" not in catalog["reason"]
     assert catalog["storage"]["state"] == pc.STORAGE_MISSING
     assert pc.discovered_plugin_dirs() == ()
 

@@ -267,6 +267,19 @@ class AuthorshipDecision:
             "model (Settings → Models & Providers → Local models → Certify), pick a certified "
             "model, or ask something this runtime can look up, compute or read for you."
         )
+        if (not attempted and self.reason not in (REASON_CLOUD_ESCALATION_NOT_PERMITTED, REASON_AUTHOR_UNRESOLVED)
+                and _local_author_not_running(author)):
+            # Nothing can write a reply at all: this is the first answer most new users ever get,
+            # so it says that in plain words and names the way to connect a model. The lead stays
+            # (it is how this transform recognises its own output); the engine detail goes last.
+            return (
+                f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} no AI model is connected and ready yet, so there "
+                "is nothing that can write a reply.\n\n"
+                "To connect one, open Setup and choose a model under \u201cWhere should it "
+                "think?\u201d. If you already have a key for an online service, you can also pick a "
+                "cloud model in the model selector at the top of the chat.\n\n"
+                "Details: no local model is running on this computer right now."
+            )
         if _local_author_not_running(author):
             # Certifying a model that is not running cannot help; name the fix that can.
             remedy = (

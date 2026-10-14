@@ -62,6 +62,15 @@ function lockOptions(){
           ['full', NT('vns.lock.full', LOCK[1][1])],
           ['hidden', NT('vns.lock.hidden', LOCK[2][1])]];
 }
+// English pages show corrected English for keys whose catalog text names one platform for everyone; other
+// locales keep their translation through NT until the catalog carries the corrected source.
+function pageIsEnglish(){
+  /* English only when the page says so; an unknown language keeps the catalog text. */
+  var lang = String((document.documentElement && document.documentElement.lang)
+    || (window.VOOL_I18N && window.VOOL_I18N.locale) || '').toLowerCase();
+  return lang === 'en' || lang.indexOf('en-') === 0;
+}
+function NE(key, english){ return pageIsEnglish() ? english : NT(key, english); }
 function h(tag, cls, text){ var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 function request(method, url, body){
   var options = {method: method, headers: {'Accept': 'application/json'}};
@@ -91,6 +100,7 @@ function mountInto(host){
     return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};})]).then(function(r){
       if (!r[0].ok) { say(NT('vns.status.unavailable', 'Notification settings are unavailable right now.'), true); return; }
       prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; paint();
+      if (status.textContent === NT('vns.status.loading', 'Loading…')) say('');   /* loaded: no "Loading…" above a drawn panel */
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
   function save(patch, done){
@@ -105,10 +115,17 @@ function mountInto(host){
       return load().then(function(){ if (!j.ok) say(j.detail || j.reason || NT('vns.status.failed', 'That did not work.'), true); else say(done); });
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
-  function paint(){ paintMac(); paintPrefs(); why.textContent = native.explanation || ''; }
+  /* The macOS paragraph and channel belong to a Mac; elsewhere one plain line says where alerts go, instead
+     of an empty bordered box and a promised test button that is not there. */
+  function paint(){ paintMac(); paintPrefs(); why.textContent = native.supported === false ? '' : (native.explanation || ''); }
   function paintMac(){
     macBox.textContent = '';
-    if (native.supported === false) return;
+    if (native.supported === false) {
+      macBox.className = 'vns-note';
+      macBox.textContent = NE('vns.unsupported', 'System notifications are available in the VOOL app on a Mac. Here, every alert appears in the bell.');
+      return;
+    }
+    macBox.className = 'vns-box';
     macBox.appendChild(h('div', 'vns-title', NT('vns.title.mac', 'macOS notifications')));
     macBox.appendChild(toggle(NT('vns.toggle.native', 'Also send VOOL alerts to macOS notifications'), prefs.native_notifications, function(on){
       save({native_notifications: on}, on ? NT('vns.saved.native_on', 'On. VOOL asks macOS for permission if macOS has not given it.')
@@ -144,16 +161,22 @@ function mountInto(host){
   function paintPrefs(){
     prefBox.textContent = '';
     prefBox.appendChild(h('div', 'vns-title', NT('vns.title.prefs', 'Quiet hours, sound and what notifications show')));
+    prefBox.appendChild(h('div', 'vns-note', NE('vns.prefs.instant', 'Changes here are saved as soon as you make them.')));
     var quiet = prefs.quiet_hours || {};
     var quietRow = h('div', 'vns-row');
-    var quietToggle = toggle(NT('vns.quiet.label', 'Quiet hours from'), quiet.enabled, null);
     var start = h('input', 'vns-input'); start.type = 'time'; start.value = quiet.start || '22:00'; start.setAttribute('aria-label', NT('vns.quiet.start_aria', 'Quiet hours start'));
     var end = h('input', 'vns-input'); end.type = 'time'; end.value = quiet.end || '07:00'; end.setAttribute('aria-label', NT('vns.quiet.end_aria', 'Quiet hours end'));
+    /* Quiet hours save the moment they change, like every other control in this panel (a ticked box used to
+       do nothing until a separate Save, and a reload dropped it). A period that starts when it ends is refused. */
+    function saveQuiet(){
+      var on = quietToggle.querySelector('input').checked;
+      if (on && start.value && start.value === end.value) { say(NE('vns.quiet.same', 'Start and end are the same time. Choose two different times.'), true); return; }
+      save({quiet_hours: {enabled: on, start: start.value, end: end.value}},
+           on ? NE('vns.saved.quiet', 'Quiet hours saved. During them no system notification is sent; the bell still records every alert.') : NE('vns.saved.quiet_off', 'Quiet hours are off.'));
+    }
+    var quietToggle = toggle(NT('vns.quiet.label', 'Quiet hours from'), quiet.enabled, saveQuiet);
+    [start, end].forEach(function(i){ i.addEventListener('change', function(){ if (quietToggle.querySelector('input').checked) saveQuiet(); }); });
     quietRow.appendChild(quietToggle); quietRow.appendChild(start); quietRow.appendChild(h('span', null, NT('vns.quiet.to', 'to'))); quietRow.appendChild(end);
-    quietRow.appendChild(button(NT('vns.btn.save', 'Save'), function(){
-      save({quiet_hours: {enabled: quietToggle.querySelector('input').checked, start: start.value, end: end.value}},
-           NT('vns.saved.quiet', 'Quiet hours saved. During them macOS is not asked; the bell still records every alert.'));
-    }));
     prefBox.appendChild(quietRow);
     prefBox.appendChild(toggle(NT('vns.toggle.sound', 'Notification sound'), prefs.sound, function(on){
       if (!on && window.VoolNotificationAudio) window.VoolNotificationAudio.mute();
@@ -165,8 +188,8 @@ function mountInto(host){
         if (!played) say(NT('vns.sound.blocked', 'Sound playback is unavailable. Notifications remain in the bell.'), true);
       });
     }));
-    var lockRow = h('label', 'vns-row'); lockRow.appendChild(h('span', null, NT('vns.lock.label', 'A macOS notification may show')));
-    var lock = h('select', 'vns-input'); lock.setAttribute('aria-label', NT('vns.lock.aria', 'What a macOS notification may show'));
+    var lockRow = h('label', 'vns-row'); lockRow.appendChild(h('span', null, NE('vns.lock.label', 'A system notification may show')));
+    var lock = h('select', 'vns-input'); lock.setAttribute('aria-label', NE('vns.lock.aria', 'What a system notification may show'));
     lockOptions().forEach(function(pair){ var option = h('option', null, pair[1]); option.value = pair[0]; lock.appendChild(option); });
     lock.value = prefs.lock_screen; lock.addEventListener('change', function(){ save({lock_screen: lock.value}); });
     lockRow.appendChild(lock); prefBox.appendChild(lockRow);
@@ -174,11 +197,14 @@ function mountInto(host){
     var late = h('input', 'vns-input'); late.type = 'number'; late.min = '0'; late.max = '60'; late.value = String(prefs.late_grace_minutes);
     late.setAttribute('aria-label', NT('vns.late.aria', 'Minutes after an event started'));
     lateRow.appendChild(late); lateRow.appendChild(h('span', null, NT('vns.late.after', 'minutes after its event started')));
-    lateRow.appendChild(button(NT('vns.btn.save', 'Save'), function(){
-      var value = Number(late.value);
-      if (!isFinite(value) || value < 0 || value > 60 || Math.floor(value) !== value) { say(NT('vns.late.invalid', 'Enter whole minutes from 0 to 60.'), true); return; }
+    /* Saved on change like every other control here ("saved as soon as you make them").
+       An empty box is not 0, and "1e1" is not a number of minutes anyone typed on purpose. */
+    late.addEventListener('change', function(){
+      var raw = String(late.value || '').trim();
+      var value = Number(raw);
+      if (!/^\d+$/.test(raw) || value > 60) { say(NT('vns.late.invalid', 'Enter whole minutes from 0 to 60.'), true); return; }
       save({late_grace_minutes: value});
-    }));
+    });
     prefBox.appendChild(lateRow);
   }
   var timer = setInterval(function(){

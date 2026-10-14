@@ -48,7 +48,7 @@ from core.ui_palette import DARK_PALETTE_CSS
 # Effect vocabulary. Every bound row states when its change takes hold and how far it reaches,
 # because "saved" alone does not tell a user whether the answer they are reading changes.
 # --------------------------------------------------------------------------------------
-EFFECT_NEXT_TURN = "Applies from your next message. The turn in flight keeps the old value."
+EFFECT_NEXT_TURN = "Applies from your next message. An answer already being written keeps the old setting."
 EFFECT_IMMEDIATE = "Applies immediately."
 EFFECT_NEXT_LAUNCH = "Applies the next time VOOL starts."
 
@@ -137,8 +137,8 @@ def _settings_groups() -> list[dict]:
                     widget="setup_progress",
                     help=(
                         "Where it thinks, which folder it works in, what it may do alone, and what "
-                        "to call you. A step counts as done when the real setting exists — set it "
-                        "here or anywhere else in Settings and the tick appears by itself."
+                        "to call you. A step counts as done when the real setting exists, wherever "
+                        "in Settings you set it."
                     ),
                     read={"url": SETUP_STATE},
                     scope=SCOPE_GLOBAL,
@@ -156,7 +156,7 @@ def _settings_groups() -> list[dict]:
                 _row(
                     id="communication_style",
                     label="Talk style",
-                    help="The register VOOL writes in. It changes wording, not what VOOL is willing to do.",
+                    help="The tone VOOL writes in. It changes wording, not what VOOL is willing to do.",
                     kind="select",
                     options=[
                         {"value": "casual", "label": "Casual"},
@@ -188,8 +188,7 @@ def _settings_groups() -> list[dict]:
                     id="profanity_level",
                     label="Profanity ceiling",
                     help=(
-                        "How coarse VOOL is allowed to be when the register calls for it. Injected "
-                        "into every turn's context alongside the boundaries setting."
+                        "How much VOOL may swear, if at all, when the tone calls for it. 0% means never."
                     ),
                     kind="range",
                     min=0,
@@ -200,7 +199,7 @@ def _settings_groups() -> list[dict]:
                     write={"url": PREFS, "field": "profanity_level", "type": "int"},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
-                    keywords="profanity swearing language coarse crude ceiling",
+                    keywords="profanity swearing swear coarse crude ceiling",
                 ),
                 _row(
                     id="character_mode",
@@ -225,12 +224,9 @@ def _settings_groups() -> list[dict]:
                     id="style_notes",
                     label="Style notes",
                     help=(
-                        "Anything else about how you want VOOL to write — \"be concise\", \"no "
-                        "bullet lists\", \"always show units\". Passed to the model as written. "
-                        "Saying this in chat no longer lands here: a free-form style request becomes "
-                        "a Memory item you can see and forget. This field stays because the runtime "
-                        "still reads it, so anything set before that change is still in effect, and "
-                        "this is the only place left to read it or clear it."
+                        "Extra instructions for how VOOL writes, for example \"be concise\" or \"no "
+                        "bullet lists\". Style requests you make in chat are kept in Memory & "
+                        "Personalisation instead, where you can see and forget them."
                     ),
                     kind="text",
                     placeholder="e.g. be concise; no bullet lists",
@@ -308,25 +304,23 @@ def _settings_groups() -> list[dict]:
             "rows": [
                 _row(
                     id="autonomy_mode",
-                    label="Autonomy",
+                    label="What VOOL may do alone",
                     help=(
-                        "How much VOOL does before stopping to ask. Read the order carefully — it "
-                        "runs the way the runtime actually gates actions "
-                        "(core/execution_gate.py): Hands-off asks about the FEWEST things, Strict "
-                        "asks about everything. Whatever you pick, anything outward-facing (a post, "
-                        "a message) or privacy-sensitive always asks first, and spending always asks."
+                        "How often VOOL stops to ask before doing something. \"Just do routine work\" "
+                        "asks least, \"Ask me first\" asks before every step. Whatever you pick, posting, "
+                        "sending a message, anything private and spending money always ask you first."
                     ),
                     kind="select",
                     options=[
-                        {"value": "hands_off", "label": "Hands-off — routine local steps run unprompted"},
-                        {"value": "balanced", "label": "Balanced — also asks before anything destructive"},
-                        {"value": "strict", "label": "Strict — asks before every action"},
+                        {"value": "hands_off", "label": "Just do routine work — routine steps on this computer run without asking"},
+                        {"value": "balanced", "label": "Ask before risky changes — also asks before deleting or changing a lot"},
+                        {"value": "strict", "label": "Ask me first — asks before every action"},
                     ],
                     read={"url": PREFS, "field": "autonomy_mode"},
                     write={"url": PREFS, "field": "autonomy_mode", "type": "str"},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
-                    keywords="autonomy permission approve approval ask acting hands off strict",
+                    keywords="autonomy permission approve approval ask acting hands off strict routine risky ask me first",
                 ),
                 _row(
                     id="boundaries_mode",
@@ -367,10 +361,9 @@ def _settings_groups() -> list[dict]:
                     label="Approval mode for a single chat",
                     kind="note",
                     help=(
-                        "Manual, Auto and Bypass belong to ONE conversation, not to the app — a "
-                        "bypass grant is scoped to a task and expires. That is why it is set from "
-                        "the mode control in the composer, next to the chat it applies to, and is "
-                        "not duplicated here."
+                        "One chat can also have its own approval mode, chosen from the mode menu "
+                        "next to the message box. It applies to that chat only, and a temporary "
+                        "permission there ends with its task."
                     ),
                     keywords="manual auto bypass mode approval per chat composer",
                 ),
@@ -380,9 +373,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="extras_privacy",
                     help=(
-                        "What is true today about where data lives, what is sealed, what leaves this "
-                        "machine and when. A disclosure, not a set of switches: retention and "
-                        "cloud-learning toggles are absent because nothing enforces them yet."
+                        "Where your data lives, what is locked, and what leaves this computer and "
+                        "when. There are no switches here because these are facts about how VOOL works."
                     ),
                     keywords="privacy data disclosure sealed keys spend gated cloud explicit local first retention",
                 ),
@@ -391,11 +383,9 @@ def _settings_groups() -> list[dict]:
                     label="Where your data is",
                     kind="note",
                     help=(
-                        "Conversations, receipts, preferences and profile items are files on this "
-                        "machine. Provider keys are sealed at rest here too. That is data locality, "
-                        "and it is separate from whether VOOL may reach the network: a cloud model "
-                        "or a live web lookup sends the text of that request to that provider, and "
-                        "only when a turn actually uses one."
+                        "Your chats, settings and what VOOL remembers are files on this computer, and "
+                        "your keys are locked here too. When an answer uses an online model or a web "
+                        "search, the text of that one request goes to that service, and only then."
                     ),
                     keywords="privacy local data locality network browse cloud where stored",
                 ),
@@ -441,13 +431,9 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="email_accounts",
                     help=(
-                        "Every configured mailbox, what it can do (read, send), its state, and which one "
-                        "is the default. The default is one Operator Profile item (an opaque credential "
-                        "name, core/email_accounts.py resolves it): a chat's own choice outranks it, an "
-                        "explicit account in a request outranks both, and an account that cannot do what "
-                        "a step needs is refused with the accounts that can -- VOOL never falls back to "
-                        "another mailbox. Choosing a default stores a name and contacts nobody; passwords "
-                        "and grants are never shown here."
+                        "The mailboxes VOOL can read and send from, and which one is the default. A chat "
+                        "can still use a different one, and VOOL never switches to another mailbox on "
+                        "its own. Choosing a default contacts nobody, and passwords are never shown here."
                     ),
                     read={"url": EMAIL_ACCOUNTS},
                     scope=SCOPE_GLOBAL,
@@ -463,13 +449,10 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="email_recovery",
                     help=(
-                        "When the email draft store is recovered from damaged bytes that recorded a send "
-                        "whose outcome is unknown, NEW sends are held until you acknowledge it here "
-                        "(core/email_drafts.py). This shows what was preserved, the Message-IDs it named, "
-                        "a check of each against the account's own sent mail, and exactly what "
-                        "acknowledging does: it releases new approved sends and resends nothing. The "
-                        "acknowledgement names the exact recovery it was read for; a page that is out of "
-                        "date cannot release a newer one. The model cannot do any of this."
+                        "If VOOL is not sure an earlier email went out (for example after a crash), it "
+                        "holds new sends until you check here. Checking shows what was kept and looks for "
+                        "each message in your sent mail. Releasing the hold resends nothing. Only you can "
+                        "do this, not VOOL."
                     ),
                     read={"url": EMAIL_RECOVERY},
                     scope=SCOPE_GLOBAL,
@@ -493,10 +476,9 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="models_overview",
                     help=(
-                        "One overview of the model that answers and the providers behind it: "
-                        "connection, spending limits and recovery, each action going through the "
-                        "authority that already owns it. The classic per-provider controls remain "
-                        "in the rows below."
+                        "Which model answers you and where it runs: on this computer or online "
+                        "through a provider. Each card shows whether it is ready, and the detailed "
+                        "controls for each provider are further down."
                     ),
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
@@ -604,11 +586,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="extras_memory",
                     help=(
-                        "A second store, separate from the profile items above: facts VOOL confirmed "
-                        "during chats (core/memory/entries.py), each shown with the scope it was stored "
-                        "under and where it came from. Forget removes exactly that record and its "
-                        "mirror line; nothing else is touched. Reads are governed per chat, so what is "
-                        "listed is what those chats may still see."
+                        "Things VOOL picked up and confirmed in your chats, with where each came from. "
+                        "Forget removes exactly that one; nothing else is touched."
                     ),
                     keywords="memory facts learned remembered forget entries store conversation confirmed",
                 ),
@@ -617,13 +596,9 @@ def _settings_groups() -> list[dict]:
                     label="Your name, and your email signature",
                     kind="note",
                     help=(
-                        "Neither is a setting any more. Both were moved out of the preferences "
-                        "file into this memory (core/user_preferences.py: "
-                        "migrate_legacy_profile_fields), because VOOL learns them from "
-                        "conversation and keeps them across chats. They appear in the list above "
-                        "with everything else it remembers, and they are changed the same way — by "
-                        "telling VOOL, or by editing the item. A second field here would be a "
-                        "second writer for a value that already has enough of them."
+                        "Your name and email signature are kept here with everything else VOOL "
+                        "remembers. Set your name in the field at the top of this section, and edit "
+                        "or forget either one in the list."
                     ),
                     keywords="name called address me preferred name email signature identity remembered",
                 ),
@@ -633,7 +608,10 @@ def _settings_groups() -> list[dict]:
             "id": "backup",
             "icon": "⇅",
             "title": "Backup & restore",
-            "blurb": "Carry one chat to another machine, or bring one back, as a signed bundle.",
+            "blurb": (
+                "Save one chat to a file, or bring one back from a file. This moves chats one at a "
+                "time; it does not include your settings, memory or keys."
+            ),
             "rows": [
                 _row(
                     id="session_export",
@@ -669,17 +647,16 @@ def _settings_groups() -> list[dict]:
             "id": "network",
             "icon": "◇",
             "title": "Agent Network",
-            "blurb": "Unfinished research — not part of the production runtime.",
+            "blurb": "An unfinished research feature. It is not part of the normal app.",
             "rows": [
                 _row(
                     id="network_research_note",
-                    label="Research only - not active in this build",
+                    label="Research preview",
                     help=(
-                        "Agent-to-agent networking (shared tasks, idle research, the agent "
-                        "commons) is unfinished research. It does not run, connect or "
-                        "advertise in a production VOOL build, and these switches have no "
-                        "effect here. It becomes available only under an explicit research "
-                        "invocation (VOOL_RESEARCH_NETWORKING=1)."
+                        "Working with other agents (shared tasks, research while idle, talking "
+                        "to other agents) is an unfinished research feature. This copy of VOOL "
+                        "was started for research, so the switches below are live and take "
+                        "effect when you change them. A normal VOOL install does not show them."
                     ),
                     kind="note",
                     keywords="research unfinished mesh hive swarm network agents disabled",
@@ -739,15 +716,15 @@ def _settings_groups() -> list[dict]:
             "id": "budgets",
             "icon": "◴",
             "title": "Usage & Budgets",
-            "blurb": "What has been spent, and which limits the runtime enforces rather than merely notes.",
+            "blurb": "How much VOOL has used, and which limits it really keeps to.",
             "rows": [
                 _row(
                     id="ram_reserve_pct",
                     label="RAM kept free for you",
                     help=(
-                        "Enforced live by the resource governor: a heavy local task will not take "
-                        "this share of memory. A bigger reserve means VOOL uses less. This is a hard "
-                        "limit, not advice."
+                        "VOOL always leaves this share of your computer's memory free for you, even "
+                        "during a heavy task. A bigger share means VOOL uses less. This is a firm "
+                        "limit, not a suggestion."
                     ),
                     kind="range",
                     min=10,
@@ -765,13 +742,13 @@ def _settings_groups() -> list[dict]:
                     id="daily_token_budget",
                     label="Daily cloud token budget",
                     help=(
-                        "A number VOOL is told about, not a cut-off it enforces: no code stops a "
-                        "turn when this is reached, and the usage table below is not charted "
-                        "against it. 0 means unlimited. Treat it as guidance until a hard cut-off "
-                        "ships."
+                        "A daily amount VOOL is told about, not a cut-off it enforces: nothing "
+                        "stops an answer when it is reached, and the usage below is not compared "
+                        "with it. 0 means no limit. Use it as a guide for now."
                     ),
                     kind="number",
                     min=0,
+                    max=1_000_000_000,
                     step=1000,
                     read={"url": PREFS, "field": "daily_token_budget"},
                     write={"url": PREFS, "field": "daily_token_budget", "type": "int"},
@@ -785,7 +762,7 @@ def _settings_groups() -> list[dict]:
                     label="Token usage",
                     kind="custom",
                     widget="usage",
-                    help="Tokens that ran free on a local model against tokens that ran on a paid cloud lane, per model.",
+                    help="How much each model was used: free on this computer, or paid online.",
                     scope=SCOPE_GLOBAL,
                     keywords="usage tokens statistics spent local cloud paid free",
                 ),
@@ -803,9 +780,9 @@ def _settings_groups() -> list[dict]:
                     id="calendar_accounts_panel",
                     label="Calendar accounts",
                     help=(
-                        "Connect Google Calendar, Microsoft 365, an iCloud or other CalDAV server, or Apple Calendar on this "
-                        "Mac. Nothing is fetched until you choose calendars and turn sync on, and a credential is chosen by "
-                        "its binding, never typed here."
+                        "Connect an online calendar, or the calendar app on a Mac. Nothing is read until you choose "
+                        "calendars and turn sync on, and passwords are never typed here: VOOL uses a sign-in you have "
+                        "already saved."
                     ),
                     kind="custom",
                     widget="calendar_accounts",
@@ -817,14 +794,14 @@ def _settings_groups() -> list[dict]:
             "id": "notifications",
             "icon": "\U0001f514",
             "title": "Notifications",
-            "blurb": "Calendar alerts, reminders, quiet hours and macOS notifications.",
+            "blurb": "Calendar alerts, reminders, quiet hours and system notifications.",
             "rows": [
                 _row(
                     id="notifications_panel",
-                    label="Alerts and macOS notifications",
+                    label="Alerts and system notifications",
                     help=(
-                        "The bell keeps every alert. Turn on macOS notifications for an extra copy, set quiet hours, sound "
-                        "and what a notification may show, and send a test notification."
+                        "The bell in VOOL keeps every alert. In the VOOL app on a Mac you can also get a system "
+                        "notification, choose quiet hours, sound and what a notification may show, and send a test."
                     ),
                     kind="custom",
                     widget="notifications",
@@ -914,19 +891,17 @@ def _settings_groups() -> list[dict]:
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
-            "blurb": "The runtime's own surfaces, served by this same daemon.",
+            "blurb": "Extra pages for people who want to look under the hood.",
             "rows": [
                 _row(
                     id="advanced_surfaces",
-                    label="Runtime surfaces",
+                    label="Extra pages",
                     kind="custom",
                     widget="advanced_links",
                     help=(
-                        "Two pages this runtime serves alongside chat and Settings. The trace rail "
-                        "(/trace) shows the running turn's events, receipts and obligations as the "
-                        "runtime records them. The Web0 browser (/web0) is the entry page for .null "
-                        "sites, which an ordinary browser cannot open. Both open in their own tab or "
-                        "window and leave Settings where it is."
+                        "Two extra pages. The activity page shows, step by step, what VOOL is doing "
+                        "while it answers. The Web0 page opens sites that an ordinary browser cannot. "
+                        "Both open in their own tab or window and leave Settings where it is."
                     ),
                     keywords="advanced trace rail task rail events receipts web0 null browser diagnostics runtime surfaces",
                 ),
@@ -936,14 +911,14 @@ def _settings_groups() -> list[dict]:
             "id": "about",
             "icon": "ⓘ",
             "title": "About & Diagnostics",
-            "blurb": "The exact build answering you, and how to report a problem.",
+            "blurb": "Which version of VOOL you have, and what to include when you report a problem.",
             "rows": [
                 _row(
                     id="updates",
                     label="App updates",
                     kind="custom",
                     widget="updates",
-                    help="Check for a signed release. Your settings and data stay in the runtime home.",
+                    help="Check whether a newer version of VOOL is available. Your settings and data are kept.",
                     read={"url": "/api/update/status"},
                     keywords="update upgrade release check version up to date",
                 ),
@@ -953,8 +928,8 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="build",
                     help=(
-                        "The precise build answering you right now. Quote this when reporting a "
-                        "problem — a short commit alone does not identify a build."
+                        "The exact version of VOOL you are using. Copy it into a problem report so "
+                        "the problem can be found."
                     ),
                     read={"url": VERSION},
                     keywords="version build commit about diagnostics identify",
@@ -965,10 +940,10 @@ def _settings_groups() -> list[dict]:
                     kind="custom",
                     widget="extras_toolbelt",
                     help=(
-                        "The capability inventory: local models, the cloud connection, web-search "
-                        "connections and plugins, each with its real probed state. A capability never "
-                        "probed reads UNKNOWN, which is neither failed nor available. Opening it reads "
-                        "local state only."
+                        "What VOOL can use right now: models on this computer, the online connection, "
+                        "web search and plugins, each with its checked state. Something not checked "
+                        "yet says so; that is not the same as broken. Opening it checks this "
+                        "computer only."
                     ),
                     keywords="toolbelt capabilities inventory plugins connections local models cloud status unknown",
                 ),
@@ -987,6 +962,7 @@ _SETTINGS_HTML = r"""<!doctype html>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>VOOL Settings</title>
+<link rel="icon" type="image/png" href="__VOOL_LOGO_URI__"/>
 <style>
 .key-guide-category{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0}
 .key-guide-category summary{cursor:pointer}.key-guide-ico{flex:0 0 28px;width:28px;height:28px;margin-right:2px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);border:1px solid var(--border);border-radius:8px;color:var(--accent);opacity:.85}.key-guide-ico svg{width:17px;height:17px;display:block}.key-guide-category[open] .key-guide-ico,.key-guide-category summary:hover .key-guide-ico{opacity:1}
@@ -1007,7 +983,7 @@ _SETTINGS_HTML = r"""<!doctype html>
 .mp-card { flex: 1 1 220px; border: 1px solid var(--border, #262b35); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; background: var(--panel, #16191f); }
 .mp-card.mp-ready { border-color: var(--accent, #5eead4); }
 .mp-card-title { font-weight: 700; font-size: 13px; }
-.mp-chip { display: inline-block; margin-right: 8px; font-size: 12px; color: var(--muted, #9aa1af); }
+.mp-chip { display: inline-block; margin-right: 8px; font-size: 12px; color: var(--muted, #9aa1af); cursor: default; user-select: none; }
 .mp-chip.mp-now { color: var(--ink, #e8eaf0); font-weight: 700; border-bottom: 2px solid var(--accent, #5eead4); }
 .mp-chip.mp-done { color: var(--accent, #5eead4); }
 .mp-picker { max-height: 300px; overflow-y: auto; border: 1px solid var(--border, #262b35); border-radius: 10px; }
@@ -1028,6 +1004,9 @@ _SETTINGS_HTML = r"""<!doctype html>
 
 __VOOL_PALETTE_CSS__
 * { box-sizing:border-box; }
+/* The hidden attribute always wins: classes such as .inline set display, and a class rule would
+   otherwise beat the user-agent [hidden] rule and keep "hidden" fields, warnings and editors on screen. */
+[hidden] { display:none !important; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; overflow:hidden; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
@@ -1039,12 +1018,17 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 #uiLocaleWrap { padding:12px 12px 4px; border-bottom:1px solid var(--border); margin-bottom:8px; }
 #uiLocaleWrap .loc-label { display:flex; align-items:center; gap:6px; font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:5px; }
 #uiLocaleWrap .loc-globe { font-size:14px; line-height:1; }
-#uiLocaleWrap .loc-word .set-sub { display:block; text-transform:none; letter-spacing:0; font-size:10.5px; color:var(--muted); margin-top:1px; }
+#uiLocaleWrap .loc-word .set-sub { display:none; }
+#uiLocaleWrap .loc-note a { color:var(--accent); }
+#uiLocaleWrap .loc-note:empty { display:none; }
 #uiLocaleSelect { width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:13px; }
 #uiLocaleSelect:focus { outline:none; border-color:var(--accent); }
+#uiLocaleSelect:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 #uiLocaleSelect:disabled { opacity:.55; cursor:not-allowed; }
 #uiLocaleWrap .loc-note { font-size:11px; line-height:1.5; color:var(--muted); margin:6px 0 2px; }
 #backRow { padding:12px 12px 4px; }
+#skipToPane { position:absolute; inset-inline-start:8px; top:8px; transform:translateY(-300%); z-index:2000; background:var(--panel); color:var(--ink); border:1px solid var(--accent); border-radius:8px; padding:6px 10px; }
+#skipToPane:focus { transform:none; }
 #back { display:flex; align-items:center; gap:8px; width:100%; background:transparent; color:var(--muted); border:none; border-radius:8px; padding:6px 8px; font:inherit; font-size:13px; cursor:pointer; text-align:left; }
 #back:hover { color:var(--ink); background:var(--active); }
 #searchWrap { padding:4px 12px 10px; }
@@ -1052,6 +1036,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 #searchIcon { position:absolute; left:9px; color:var(--muted); font-size:12px; pointer-events:none; }
 #search { width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:7px 10px 7px 27px; font:inherit; font-size:13px; }
 #search:focus { outline:none; border-color:var(--accent); }
+#search:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 #search::placeholder { color:var(--muted); }
 #nav { flex:1 1 auto; overflow-y:auto; padding:0 8px 12px; min-height:0; }
 .nav-sec { color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; padding:12px 8px 4px; }
@@ -1122,6 +1107,7 @@ input[type=number].inp { min-width:140px; }
 .state.failed { color:var(--bad); font-weight:600; }
 .state.stale { color:var(--warn); }
 .state .retry { background:transparent; border:none; color:var(--accent); font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; padding:0 0 0 4px; text-decoration:underline; }
+.offline-banner { display:flex; align-items:center; gap:12px; flex-wrap:wrap; border:1px solid var(--bad); border-radius:10px; padding:10px 14px; margin:0 0 18px; font-size:13px; }
 .fail-note { color:var(--bad); font-size:12px; margin-top:6px; text-align:right; max-width:280px; }
 .note-body { color:var(--muted); font-size:12.5px; line-height:1.55; }
 .subtle { color:var(--muted); font-size:12.5px; }
@@ -1162,6 +1148,7 @@ label.inline { cursor:pointer; }
 </style>
 </head>
 <body>
+<a id="skipToPane" href="#pane" data-i18n="settings.nav.skip">Skip to settings</a>
 <nav id="side" aria-label="Settings sections">
   <div id="backRow"><button id="back" type="button" data-i18n="settings.nav.back">&larr; Back to VOOL</button></div>
   <div id="searchWrap">
@@ -1174,6 +1161,7 @@ label.inline { cursor:pointer; }
 </nav>
 <main id="pane" tabindex="-1">
   <div id="paneInner">
+    <div id="offlineBanner" class="offline-banner" role="alert" hidden><span data-i18n="settings.offline.banner">VOOL isn&rsquo;t responding. Changes can&rsquo;t be saved right now.</span> <button type="button" class="btn" id="offlineRetry" data-i18n="addons.retry">Try again</button></div>
     <h1 id="paneTitle">Settings</h1>
     <p class="pane-blurb" id="paneBlurb"></p>
     <div id="paneBody"></div>
@@ -1218,6 +1206,25 @@ const state = {
   onlyRow: '',
   focusPart: '',
 };
+const SAVE_TIMEOUT_MS = 15000;
+/* One page-level notice when VOOL itself stops answering, instead of every row failing on its own with
+   browser wording. Every request on this page (the fragments' too) goes through window.fetch, so its
+   outcome is the one signal: a network failure shows the notice, the next answer from VOOL clears it. */
+(function () {
+  if (typeof window.fetch !== 'function') return;
+  const realFetch = window.fetch.bind(window);
+  const setOffline = (down) => { const n = document.getElementById('offlineBanner'); if (n) n.hidden = !down; };
+  window.fetch = function (input, init) {
+    return realFetch(input, init).then(r => {
+      setOffline(false);
+      /* VOOL answers again: writes whose outcome was unknown are read back (see recheckUnsure). */
+      if (typeof window.__voolRecheckUnsure === 'function') window.__voolRecheckUnsure();
+      return r;
+    }, e => { setOffline(true); throw e; });
+  };
+})();
+const NOT_ANSWERING_SHORT = T('settings.save.not_answering', "Not saved \u2014 VOOL isn\u2019t responding.");
+const MAY_NOT_HAVE_SAVED = T('settings.save.may_not_have_saved', "VOOL didn\u2019t answer in time, so this may not have saved. It is checked again when VOOL answers.");
 const $ = (sel, root) => (root || document).querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const live = (msg) => { const l = $('#live'); if (l) l.textContent = msg; };
@@ -1253,7 +1260,7 @@ async function readSource(url) {
     delete state.sourceErr[url];
     return true;
   } catch (e) {
-    state.sourceErr[url] = 'VOOL did not answer (' + (e && e.message ? e.message : 'network') + ')';
+    state.sourceErr[url] = "VOOL isn\u2019t responding right now.";
     return false;
   }
 }
@@ -1297,7 +1304,8 @@ function paintState(rowId) {
     b.type = 'button';
     b.addEventListener('click', () => {
       const row = ALL_ROWS.find(r => r.id === rowId);
-      if (row) commit(row, rowState(rowId).dirty);
+      const st2 = rowState(rowId);
+      if (row) commit(row, st2.dirty !== undefined ? st2.dirty : st2.retry).then(() => { if (row.kind === 'toggle') renderPane(); });
     });
     node.appendChild(b);
   }
@@ -1311,33 +1319,54 @@ async function commit(row, rawValue) {
   if (!row.write) return;
   const value = coerce(row, rawValue);
   const st = rowState(row.id);
+  /* Only the newest write of a row decides what it shows: arrow keys on a slider send several
+     writes, and their answers can come back in any order. */
+  const seq = st.seq = (st.seq || 0) + 1;
+  const superseded = () => seq !== st.seq;
   st.dirty = value;
   st.pending = true;
   setState(row.id, 'saving', 'Saving…');
   let r, j;
+  /* A server that stopped answering (frozen, not closed) would leave "Saving…" up for ever. */
+  const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctl ? setTimeout(() => ctl.abort(), SAVE_TIMEOUT_MS) : null;
   try {
     r = await fetch(row.write.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ [row.write.field]: value }),
+      signal: ctl ? ctl.signal : undefined,
     });
     j = await r.json().catch(() => null);
   } catch (e) {
+    if (timer) clearTimeout(timer);
+    if (superseded()) return;
     st.pending = false;
-    setState(row.id, 'failed', 'Not saved — VOOL did not answer.');
-    live(row.label + ': not saved. VOOL did not answer.');
+    snapBackToggle(row, st, value);
+    /* A refused connection never reached VOOL. A request that timed out may still be carried out
+       when a frozen VOOL wakes up, so its outcome is unknown: say so, and read the stored value
+       back as soon as VOOL answers again. Both are re-checked, the first costs nothing. */
+    UNSURE.set(row.id, value);
+    const timedOut = !!(e && e.name === 'AbortError');
+    const msg = timedOut ? MAY_NOT_HAVE_SAVED : NOT_ANSWERING_SHORT;
+    setState(row.id, 'failed', msg);
+    live(row.label + ': ' + msg);
     return;
   }
+  if (timer) clearTimeout(timer);
+  if (superseded()) return;
   st.pending = false;
   const refused = !r.ok || (j && (j.error || j.ok === false));
   if (refused) {
     const why = (j && (j.error || j.detail)) ? String(j.error || j.detail) : ('refused with HTTP ' + r.status);
+    snapBackToggle(row, st, value);
     setState(row.id, 'failed', 'Not saved — ' + why);
     live(row.label + ': not saved. ' + why);
     return;
   }
   /* Read back from the authority rather than trusting the 200. */
   const ok = await readSource(row.read ? row.read.url : row.write.url);
+  if (superseded()) return;
   if (!ok) {
     setState(row.id, 'stale', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
     return;
@@ -1347,20 +1376,121 @@ async function commit(row, rawValue) {
     /* The authority normalises and clamps on write; when it lands on a different value than the
        one asked for, say so and show what it actually holds instead of a green tick. */
     st.dirty = undefined;
-    setState(row.id, 'stale', 'VOOL stored ' + JSON.stringify(stored) + ' instead.');
+    if (typeof stored === 'string' && !stored.trim()) setState(row.id, 'saved', 'Cleared');
+    else if (typeof stored === 'number') setState(row.id, 'stale', 'That value is outside what VOOL accepts here, so it saved ' + stored.toLocaleString() + ' instead.');
+    else setState(row.id, 'stale', 'VOOL stored ' + JSON.stringify(stored) + ' instead.');
     live(row.label + ': VOOL stored a different value.');
     renderPane();
     return;
   }
   st.dirty = undefined;
-  setState(row.id, 'saved', 'Saved');
+  setState(row.id, 'saved', typeof value === 'string' && !value.trim() ? 'Cleared' : 'Saved');
   live(row.label + ' saved.');
   setTimeout(() => { if (rowState(row.id).status === 'saved') setState(row.id, 'idle', ''); }, 2600);
 }
+/* A switch whose write did not land shows the stored value again, never a state that was not saved;
+   Retry resends the value that was attempted. */
+function snapBackToggle(row, st, attempted) {
+  if (row.kind !== 'toggle' && row.kind !== 'select') return;
+  st.retry = attempted;
+  st.dirty = undefined;
+  if (row.kind === 'select') {
+    /* A list shows the stored choice again too; Retry resends the one that was picked. */
+    const sel = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] select');
+    const stored = valueOf(row);
+    if (sel && stored != null) sel.value = String(stored);
+    return;
+  }
+  const b = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] button.sw');
+  if (b) b.setAttribute('aria-checked', valueOf(row) ? 'true' : 'false');
+}
+
+/* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.
+   When VOOL answers again the stored value is read back and the row says what actually happened. */
+const UNSURE = new Map();
+let recheckTimer = null, rechecking = false;
+function recheckUnsure(now) {
+  if (!UNSURE.size || rechecking) return;
+  if (recheckTimer) clearTimeout(recheckTimer);
+  /* A short pause lets a frozen VOOL finish the write it was holding before it is read back. */
+  recheckTimer = setTimeout(async () => {
+    recheckTimer = null; rechecking = true;
+    let changed = false;
+    try {
+      for (const [id, attempted] of [...UNSURE]) {
+        const row = ALL_ROWS.find(r => r.id === id);
+        const st = rowState(id);
+        if (!row || st.pending) { UNSURE.delete(id); continue; }
+        if (!(await readSource(row.read ? row.read.url : row.write.url))) continue;   /* still not answering */
+        UNSURE.delete(id);
+        if (same(valueOf(row), attempted)) {
+          st.retry = undefined;
+          setState(id, 'saved', T('settings.save.landed', 'VOOL answered again: this was saved after all.'));
+        } else {
+          setState(id, 'failed', T('settings.save.not_landed', 'VOOL answered again: this was not saved. The stored value is shown.'));
+          /* A write VOOL was still holding can land a moment after it wakes: look once more. */
+          setTimeout(async () => {
+            const st2 = rowState(id);
+            if (st2.pending || st2.status !== 'failed') return;
+            if (!(await readSource(row.read ? row.read.url : row.write.url))) return;
+            if (same(valueOf(row), attempted)) {
+              st2.retry = undefined;
+              setState(id, 'saved', T('settings.save.landed', 'VOOL answered again: this was saved after all.'));
+              if (row.group === state.group) renderPane();
+            }
+          }, 5000);
+        }
+        if (row.group === state.group) changed = true;
+      }
+    } finally { rechecking = false; }
+    if (changed) renderPane();
+  }, now ? 0 : 1500);
+}
+window.__voolRecheckUnsure = () => recheckUnsure(false);
 
 /* ------------------------------------------------------------------ search */
+/* Search matches every typed word, in any order, and a word also matches its everyday synonyms
+   ("delete" finds Forget). A match in a row's label ranks above one in its help prose. */
+const SEARCH_SYNONYMS = {
+  delete: ['forget', 'remove'], erase: ['forget', 'remove'], wipe: ['forget', 'remove'], remove: ['forget', 'delete'],
+  password: ['passphrase', 'key', 'pin'], pin: ['passphrase'], name: ['call you', 'called'],
+  bitcoin: ['crypto', 'wallet'], money: ['spend', 'budget', 'wallet'], cost: ['spend', 'budget', 'price'],
+  backup: ['export'], restore: ['import'], data: ['memory', 'remember', 'privacy'],
+  /* the same everyday requests typed in German */
+  löschen: ['vergessen', 'entfernen'], entfernen: ['vergessen', 'löschen'], daten: ['gedächtnis', 'merkt', 'privatsphäre'],
+};
+/* Small words carry no meaning in a settings search: "delete my data" is searched as "delete data". */
+const SEARCH_STOPWORDS = new Set(['my', 'the', 'a', 'an', 'to', 'of', 'for', 'i', 'me', 'how', 'do', 'can', 'all', 'and',
+  'mein', 'meine', 'meinen', 'meiner', 'die', 'der', 'das', 'den', 'dem', 'ein', 'eine', 'einen', 'ich', 'wie', 'alle', 'und', 'zu']);
+/* Where an everyday request belongs when several rows match it. */
+const SEARCH_PREFER = { delete: 'profile_items', erase: 'profile_items', wipe: 'profile_items', forget: 'profile_items', data: 'profile_items',
+  löschen: 'profile_items', vergessen: 'profile_items', daten: 'profile_items' };
+/* Words for something Settings does not have: said plainly instead of a wrong section. */
+const SEARCH_ABSENT = {
+  dark: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  light: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  theme: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
+  /* the same requests typed in German (the most used non-English app language) */
+  dunkel: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  hell: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  thema: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
+  design: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
+};
 function rowText(r) { return [r.label, r.help, r.keywords, r.groupTitle].filter(Boolean).join(' ').toLowerCase(); }
-function matches(r, q) { return !q || rowText(r).includes(q); }
+function queryWords(q) {
+  const words = String(q || '').split(/\s+/).filter(Boolean);
+  const meaningful = words.filter(w => !SEARCH_STOPWORDS.has(w));
+  return meaningful.length ? meaningful : words;
+}
+function preferredRow(q) {
+  const id = queryWords(q).map(w => SEARCH_PREFER[w]).find(Boolean);
+  const r = id && ALL_ROWS.find(x => x.id === id);
+  return r && matches(r, q) ? r : null;
+}
+function absentNote(q) { return queryWords(q).map(w => SEARCH_ABSENT[w]).find(Boolean) || ''; }
+function wordHit(text, w) { return text.includes(w) || (SEARCH_SYNONYMS[w] || []).some(x => text.includes(x)); }
+function matches(r, q) { if (!q) return true; const t = rowText(r); return queryWords(q).every(w => wordHit(t, w)); }
+function labelMatches(r, q) { const t = String(r.label || '').toLowerCase(); return !!q && queryWords(q).every(w => wordHit(t, w)); }
 function hitsFor(groupId, q) { return ALL_ROWS.filter(r => r.group === groupId && matches(r, q)).length; }
 
 /* ------------------------------------------------------------------ render */
@@ -1389,24 +1519,39 @@ function renderNav() {
     b.appendChild(ico);
     b.appendChild(el('span', null, g.title));
     if (q) b.appendChild(el('span', 'hits', String(hits)));
-    b.addEventListener('click', () => { state.onlyRow = ''; state.focusPart = ''; state.focusRow = ''; go(g.id); });
+    b.addEventListener('click', () => { state.onlyRow = ''; state.focusPart = ''; state.focusRow = ''; state.notice = ''; go(g.id); });
     nav.appendChild(b);
   });
-  if (!any) nav.appendChild(el('div', 'nav-empty', 'Nothing matches “' + state.query + '”.'));
+  if (!any) nav.appendChild(el('div', 'nav-empty', tfmt('settings.search.no_match', 'No setting matches “{query}”', { query: state.query })));
+  const currentItem = nav.querySelector('.nav-item[aria-current="true"]');
   if (hadNavFocus) {
-    const current = nav.querySelector('.nav-item[aria-current="true"]') || nav.querySelector('.nav-item');
+    const current = currentItem || nav.querySelector('.nav-item');
     if (current) current.focus();
+  }
+  /* In a short or narrow window the list scrolls; the section you are in stays in view. Only the
+     list's own scroll position is moved: scrollIntoView would also move the browser's Tab starting
+     point to the nav item, so the first Tab would skip the skip link, language, Back and Search. */
+  if (currentItem && nav.scrollHeight > nav.clientHeight) {
+    const top = currentItem.offsetTop - nav.offsetTop, bottom = top + currentItem.offsetHeight;
+    if (top < nav.scrollTop) nav.scrollTop = top;
+    else if (bottom > nav.scrollTop + nav.clientHeight) nav.scrollTop = bottom - nav.clientHeight;
   }
 }
 
+/* When a change takes hold is said ONCE per section when every control in it agrees (groupEffect),
+   and only on a row that differs from the rest. "Applies everywhere" is the default for all of Settings,
+   so only a narrower scope is named. */
+function groupEffect(g) {
+  const effects = [...new Set((g.rows || []).filter(r => r.kind !== 'note' && r.kind !== 'custom' && r.effect).map(r => r.effect))];
+  return effects.length === 1 ? effects[0] : '';
+}
 function metaLine(row) {
   const wrap = el('div', 'row-meta');
-  if (row.scope) {
-    const s = el('span', 'm');
-    s.textContent = row.scope === 'global' ? 'Applies everywhere' : (row.scope === 'chat' ? 'This chat only' : 'This session only');
-    wrap.appendChild(s);
+  if (row.scope && row.scope !== 'global') {
+    wrap.appendChild(el('span', 'm', row.scope === 'chat' ? 'This chat only' : 'This session only'));
   }
-  if (row.effect) wrap.appendChild(el('span', 'm', row.effect));
+  const g = MODEL.find(x => x.id === row.group);
+  if (row.effect && (!g || groupEffect(g) !== row.effect)) wrap.appendChild(el('span', 'm', row.effect));
   return wrap;
 }
 
@@ -1425,7 +1570,20 @@ function control(row) {
     b.setAttribute('role', 'switch');
     b.setAttribute('aria-checked', v ? 'true' : 'false');
     b.setAttribute('aria-label', row.label);
-    b.addEventListener('click', () => { commit(row, !shownValue(row)); b.setAttribute('aria-checked', !v ? 'true' : 'false'); });
+    /* The switch shows the value being written, then whatever the authority reports back. `v` was
+       captured when the row was drawn, so it must never decide what a later click shows. One write at
+       a time: a double click is one change, not two racing ones. A refused write snaps the switch back
+       to the stored value; Retry resends the attempted one. */
+    b.addEventListener('click', async () => {
+      const st = rowState(row.id);
+      if (st.pending) return;
+      const next = !shownValue(row);
+      b.setAttribute('aria-checked', next ? 'true' : 'false');
+      b.setAttribute('aria-busy', 'true');
+      await commit(row, next);
+      b.removeAttribute('aria-busy');
+      b.setAttribute('aria-checked', shownValue(row) ? 'true' : 'false');
+    });
     wrap.appendChild(b);
   }
   else if (row.kind === 'select') {
@@ -1444,7 +1602,9 @@ function control(row) {
     i.setAttribute('aria-label', row.label);
     const out = el('span', 'rangeval', (i.value) + (row.unit || ''));
     i.addEventListener('input', () => { out.textContent = i.value + (row.unit || ''); });
-    i.addEventListener('change', () => commit(row, i.value));
+    /* Arrow keys fire one change per step: save once the value has settled, not once per step. */
+    let settle = null;
+    i.addEventListener('change', () => { clearTimeout(settle); settle = setTimeout(() => commit(row, i.value), 400); });
     box.appendChild(i); box.appendChild(out);
     wrap.appendChild(box);
   }
@@ -1453,15 +1613,35 @@ function control(row) {
     i.className = 'inp';
     i.type = row.kind === 'number' ? 'number' : 'text';
     if (row.min != null) i.min = row.min;
+    if (row.kind === 'number' && row.max != null) i.max = row.max;
     if (row.step != null) i.step = row.step;
     if (row.maxlength) i.maxLength = row.maxlength;
     if (row.placeholder) i.placeholder = row.placeholder;
     i.value = v == null ? '' : String(v);
     i.setAttribute('aria-label', row.label);
-    const send = () => { if (!same(i.value, valueOf(row))) commit(row, i.value); };
+    /* A number box takes whole numbers only: "1e6" or "1.5" would otherwise be cut to 1 and called saved. */
+    const wholeNumber = (raw) => /^\d+$/.test(String(raw).trim());
+    const send = () => {
+      if (row.kind === 'number' && !wholeNumber(i.value)) {
+        setState(row.id, 'stale', 'Enter a whole number' + (row.min != null && Number(row.min) > 0 ? '' : ' (0 or more)') + ', for example 50000.');
+        return;
+      }
+      if (row.kind === 'number' && row.max != null && Number(i.value) > Number(row.max)) {
+        setState(row.id, 'stale', 'Enter a number up to ' + Number(row.max).toLocaleString() + '.');
+        return;
+      }
+      if (!same(i.value, valueOf(row))) commit(row, row.kind === 'text' ? i.value.trim() : i.value);
+    };
     i.addEventListener('change', send);
     i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
     wrap.appendChild(i);
+    /* A text box with a limit says so as it fills, instead of cutting a paste off silently. */
+    if (row.kind === 'text' && row.maxlength) {
+      const count = el('div', 'subtle text-count');
+      const paint = () => { count.textContent = i.value.length + ' / ' + row.maxlength; };
+      i.addEventListener('input', paint); paint();
+      wrap.appendChild(count);
+    }
   }
   const st = el('div', 'state idle');
   st.dataset.stateFor = row.id;
@@ -1498,7 +1678,8 @@ function renderPane() {
   const g = MODEL.find(x => x.id === state.group) || MODEL[0];
   if (!g) return;
   $('#paneTitle').textContent = g.title;
-  $('#paneBlurb').textContent = g.blurb || '';
+  const effect = groupEffect(g);
+  $('#paneBlurb').textContent = (g.blurb || '') + (effect ? (g.blurb ? ' ' : '') + effect : '');
   const body = $('#paneBody');
   body.textContent = '';
   const card = el('div', 'card');
@@ -1513,7 +1694,35 @@ function renderPane() {
     if (q) node.classList.add('hit');
     card.appendChild(node);
   });
-  if (!shown) card.appendChild(el('div', 'row', ''));
+  if (!shown && q && !MODEL.some(x => hitsFor(x.id, q) > 0)) {
+    /* Nothing anywhere matches: say so in the pane too, with places to try, instead of leaving the
+       previous section on screen with an empty card under it. */
+    $('#paneTitle').textContent = tfmt('settings.search.no_match', 'No setting matches \u201c{query}\u201d', { query: state.query });
+    const absent = absentNote(q);
+    const tryOther = T('settings.search.try_other', 'Try other words, or one of these:');
+    $('#paneBlurb').textContent = absent ? absent + ' ' + tryOther : tryOther;
+    const tries = el('div', 'row wide');
+    const bar = el('div', 'inline');
+    [['memory', 'Memory & Personalisation'], ['permissions', 'Privacy & Permissions'], ['backup', 'Backup & restore']].forEach(([gid, label]) => {
+      if (!MODEL.some(x => x.id === gid)) return;
+      const b = el('button', 'btn', (MODEL.find(x => x.id === gid) || {}).title || label); b.type = 'button';
+      b.addEventListener('click', () => { $('#search').value = ''; state.query = ''; go(gid); });
+      bar.appendChild(b);
+    });
+    const clearB = el('button', 'btn', T('header.search_clear_title', 'Clear search')); clearB.type = 'button';
+    clearB.addEventListener('click', () => { $('#search').value = ''; onSearch(''); $('#search').focus(); });
+    bar.appendChild(clearB);
+    tries.appendChild(bar);
+    tries.appendChild(el('div', 'subtle', T('settings.search.ask_chat', 'You can also ask VOOL in a chat.')));
+    card.appendChild(tries);
+  } else if (!shown) card.appendChild(el('div', 'row', ''));
+  if (state.notice === 'setup_hidden') {
+    const n = el('div', 'card setup-hidden-note');
+    const inner = el('div', 'row wide');
+    inner.appendChild(el('div', 'row-help', setupHiddenByChoice() ? 'The setup checklist is hidden because you asked not to be reminded.' : 'The setup checklist is gone because every step is done.'));
+    if (setupHiddenByChoice()) inner.appendChild(setupRestoreControl());
+    n.appendChild(inner); body.appendChild(n);
+  }
   body.appendChild(card);
   Object.keys(state.rows).forEach(paintState);
   if (state.focusRow) {
@@ -1526,12 +1735,21 @@ function renderPane() {
 async function go(groupId, rowId) {
   rowId = rowId || state.focusRow;
   state.group = groupId;
+  /* The address names the open section, so a reload (or the app restoring the window) comes back to
+     it. replaceState: no history entry per click, and no hashchange event to loop through. */
+  try {
+    const current = String(location.hash || '').replace(/^#/, '').split('/')[0];
+    if (groupId && current !== groupId && history.replaceState) history.replaceState(null, '', '#' + groupId);
+  } catch (e) { /* a sandboxed frame may refuse; the section still opens */ }
   if (rowId) state.focusRow = rowId;
   renderNav();
   $('#paneBody').textContent = T('settings.pane.loading', 'Loading settings…');
   if (!rowId) $('#pane').scrollTop = 0;
   live((MODEL.find(g => g.id === groupId) || {}).title + ' settings');
-  await ensureGroupSources(groupId);   /* only THIS group's reads, and only once */
+  /* only THIS group's reads, and only once -- except the setup checklist, which is a projection of
+     settings changed anywhere else and is re-read every time it is opened, so its ticks are current */
+  if (groupId === 'setup') await ensureGroupSources(groupId, true);
+  else await ensureGroupSources(groupId);
   if (rowId) state.focusRow = rowId;
   renderPane();
 }
@@ -1548,7 +1766,9 @@ _SETTINGS_JS2 = r"""<script>
 const widgetCache = {};
 
 async function getJSON(url) {
-  const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  let r;
+  try { r = await fetch(url, { headers: { 'Accept': 'application/json' } }); }
+  catch (e) { throw new Error("VOOL isn\u2019t responding right now."); }
   const j = await r.json().catch(() => null);
   if (!r.ok) throw new Error((j && (j.error || j.detail)) || ('HTTP ' + r.status));
   return j || {};
@@ -1598,18 +1818,27 @@ async function bundlePost(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   return await r.json().catch(() => ({ ok: false, error: 'HTTP ' + r.status }));
 }
+function countWords(n, one, many) { n = Number(n) || 0; return n + ' ' + (n === 1 ? one : many); }
+function sizeWords(bytes) { return bytes < 1024 ? bytes + ' bytes' : bytes < 1048576 ? Math.round(bytes / 1024) + ' KB' : (bytes / 1048576).toFixed(1) + ' MB'; }
+function fileStem(text, fallback) { const t = String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40); return t || fallback; }
+function chatWhen(s) {
+  const raw = s.updated_at || s.last_activity_at || s.last_message_at || s.created_at;
+  if (!raw) return '';
+  const d = new Date(typeof raw === 'number' && raw < 1e12 ? raw * 1000 : raw);
+  return isNaN(d) ? '' : d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
 function widgetBundleExport(stack) {
   const status = el('div', 'state idle'); status.id = 'sbExportStatus'; status.setAttribute('role', 'status');
   const say = (msg, warn) => { status.className = 'state ' + (warn ? 'failed' : 'saved'); status.textContent = msg; };
   const pick = el('div', 'inline');
-  const chatSel = el('select', 'inp'); chatSel.id = 'sbChat'; chatSel.setAttribute('aria-label', 'Chat to export');
-  const none = el('option', null, 'Choose a chat…'); none.value = ''; chatSel.appendChild(none);
+  const chatSel = el('select', 'inp'); chatSel.id = 'sbChat'; chatSel.setAttribute('aria-label', T('settings.backup.chat_aria', 'Chat to export'));
+  const none = el('option', null, T('settings.backup.choose_chat', 'Choose a chat…')); none.value = ''; chatSel.appendChild(none);
   pick.appendChild(el('span', 'subtle', 'Chat')); pick.appendChild(chatSel);
   stack.appendChild(pick);
   const preview = el('div', 'sb-box'); preview.id = 'sbExportPreview'; preview.hidden = true; stack.appendChild(preview);
   const encRow = el('label', 'inline');
   const enc = document.createElement('input'); enc.type = 'checkbox'; enc.id = 'sbEncrypt'; enc.checked = true;
-  encRow.appendChild(enc); encRow.appendChild(el('span', null, 'Encrypt with a passphrase (recommended)'));
+  encRow.appendChild(enc); encRow.appendChild(el('span', null, T('settings.backup.encrypt', 'Encrypt with a passphrase (recommended)')));
   stack.appendChild(encRow);
   const passRow = el('div', 'inline'); passRow.id = 'sbPassFields';
   const pass = document.createElement('input'); pass.type = 'password'; pass.id = 'sbPass'; pass.className = 'inp';
@@ -1636,12 +1865,12 @@ function widgetBundleExport(stack) {
       preview.appendChild(el('div', 'row-label', 'Export preview — exactly what will be written'));
       const dl = el('dl', 'kv');
       const row = (k, v) => { dl.appendChild(el('dt', null, k)); dl.appendChild(el('dd', null, v)); };
-      row('Included', d.counts.turns + ' turns, ' + d.counts.summaries + ' summaries, ' + d.counts.obligation_sets + ' obligation records, ' + d.counts.tool_receipts + ' receipts, ' + d.counts.session_events + ' activity events');
+      row('Included', countWords(d.counts.turns, 'turn', 'turns') + ', ' + countWords(d.counts.summaries, 'summary', 'summaries') + ', ' + countWords(d.counts.tool_receipts, 'tool record', 'tool records') + ', ' + countWords(d.counts.session_events, 'activity entry', 'activity entries'));
       const bytes = (d.embedded_files || []).reduce((s, f) => s + (f.size_bytes || 0), 0);
-      row('Attachments', (d.counts.embedded_files || 0) + ' file(s), ' + bytes + ' bytes');
+      row('Attachments', countWords(d.counts.embedded_files || 0, 'file', 'files') + (bytes ? ', ' + sizeWords(bytes) : ''));
       row('Redactions applied', String(d.redactions || 0));
       row('Encryption', enc.checked ? 'ON (recommended)' : 'OFF — the file will be readable by anyone who obtains it');
-      row('Excluded', d.scope_note || 'model-internal reasoning is not part of a bundle');
+      row('Not included', 'VOOL\u2019s internal reasoning, your settings, memory and keys');
       preview.appendChild(dl);
     } catch (e) { preview.hidden = true; }
   };
@@ -1652,10 +1881,15 @@ function widgetBundleExport(stack) {
     const sessions = d.sessions || [];
     sessions.forEach(s => {
       if (!s.session_id) return;
-      const o = el('option', null, (s.title || 'New chat') + ' — ' + String(s.session_id).slice(0, 28));
-      o.value = s.session_id; chatSel.appendChild(o);
+      const when = chatWhen(s);
+      const o = el('option', null, (s.title || 'New chat') + (when ? ' · ' + when : ''));
+      o.value = s.session_id; o.dataset.title = s.title || ''; chatSel.appendChild(o);
     });
-    if (!sessions.length) say('No chats to export yet.');
+    if (!sessions.length) {
+      /* Nothing to export is a plain fact, not a success: neutral words, and nothing to press. */
+      status.className = 'state loading'; status.textContent = T('settings.backup.no_chats', 'No chats to export yet.');
+      chatSel.disabled = true; exportBtn.disabled = true;
+    }
   }).catch(e => say('Could not list chats — ' + e.message, true));
 
   exportBtn.addEventListener('click', async () => {
@@ -1666,17 +1900,25 @@ function widgetBundleExport(stack) {
       passphrase = String(pass.value || '');
       if (!passphrase) { say('Type a passphrase, or untick encryption.', true); return; }
       if (passphrase !== String(pass2.value || '')) { say('The two passphrases do not match.', true); return; }
+      if (passphrase.length < 8) { say('Use a passphrase of at least 8 characters. Short passphrases are easy to guess.', true); return; }
     } else if (!warn.checked) { say('Unticking encryption needs the explicit warning acknowledgement below.', true); return; }
     exportBtn.disabled = true; status.className = 'state saving'; status.textContent = 'Working…';
     try {
       const d = await bundlePost('/api/session/bundle/export', { session_id: sid, passphrase: passphrase });
       if (!d.ok) { say(d.error || 'Export refused.', true); exportBtn.disabled = false; return; }
       pass.value = ''; pass2.value = '';
+      /* The file is fetched and handed to the browser as a blob, so the name said below is the name
+         it is saved under (a plain link would take the server's internal file name instead). */
+      const picked = chatSel.selectedOptions && chatSel.selectedOptions[0];
+      const name = fileStem(picked && picked.dataset.title, 'chat') + '-' + new Date().toISOString().slice(0, 10) + '.voolsession';
+      const got = await fetch('/api/session/bundle/download?path=' + encodeURIComponent(d.path));
+      if (!got.ok) { say('The bundle was made but could not be downloaded. Try Export again.', true); exportBtn.disabled = false; return; }
+      const blobUrl = URL.createObjectURL(await got.blob());
       const a = document.createElement('a');
-      a.href = '/api/session/bundle/download?path=' + encodeURIComponent(d.path);
-      a.download = String(d.session_id || 'chat').replace(/[^a-z0-9_-]/gi, '_') + '.voolsession';
+      a.href = blobUrl; a.download = name; a.dataset.bundlePath = d.path;
       document.body.appendChild(a); a.click(); a.remove();
-      say(d.encrypted ? 'Saved: signed + encrypted bundle (' + d.counts.turns + ' turns).' : 'Saved: signed, UNENCRYPTED bundle (' + d.counts.turns + ' turns).', !d.encrypted);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      say(d.encrypted ? 'Saved as ' + a.download + ': a signed, encrypted bundle (' + countWords(d.counts.turns, 'turn', 'turns') + ').' : 'Saved as ' + a.download + ': signed but NOT encrypted (' + countWords(d.counts.turns, 'turn', 'turns') + ').', !d.encrypted);
       renderPreview();
     } catch (e) { say('Export failed: ' + (e && e.message ? e.message : e), true); }
     exportBtn.disabled = false;
@@ -1699,7 +1941,7 @@ function widgetBundleImport(stack) {
   const box = el('div', 'sb-box'); box.id = 'sbPreviewBox'; box.hidden = true; stack.appendChild(box);
   const foreignRow = el('label', 'inline'); foreignRow.id = 'sbForeignRow'; foreignRow.hidden = true;
   const foreign = document.createElement('input'); foreign.type = 'checkbox'; foreign.id = 'sbConfirmForeign';
-  foreignRow.appendChild(foreign); foreignRow.appendChild(el('span', null, 'This bundle is signed by an UNKNOWN key — import it anyway as untrusted.'));
+  foreignRow.appendChild(foreign); foreignRow.appendChild(el('span', null, 'This file comes from a computer VOOL does not know. Import it anyway, marked as not trusted.'));
   stack.appendChild(foreignRow);
   const row2 = el('div', 'inline');
   const importBtn = el('button', 'btn primary', 'Import'); importBtn.type = 'button'; importBtn.id = 'sbImportBtn'; importBtn.disabled = true;
@@ -1719,22 +1961,27 @@ function widgetBundleImport(stack) {
     const dl = el('dl', 'kv');
     const row = (k, v) => { dl.appendChild(el('dt', null, k)); dl.appendChild(el('dd', null, v)); };
     const counts = d.counts || {};
-    row('Chat', (d.title || d.source_session_id || 'untitled') + (d.conflicts && d.conflicts.collision ? ' (id already exists here — a NEW id will be used)' : ''));
+    row('Chat', (d.title || 'Untitled chat') + (d.conflicts && d.conflicts.collision ? ' (already here — it is added as a separate copy)' : ''));
     row('Turns / summaries', (counts.turns || 0) + ' / ' + (counts.summaries || 0));
-    row('Receipts / activity events', (counts.tool_receipts || 0) + ' / ' + (counts.session_events || 0));
-    row('Obligation records', String(counts.obligation_sets || 0));
-    row('Embedded attachments', String(counts.embedded_files || 0));
-    row('Profile references (as candidates)', String(counts.profile_candidates || 0));
-    row('Signed by', ((d.signature && d.signature.signer_fingerprint) || 'unknown') + (d.signature && d.signature.trusted ? ' (trusted)' : ' (UNKNOWN key)'));
-    row('Encryption on file', d.encrypted ? 'yes' : 'no');
+    row('Attachments', String(counts.embedded_files || 0));
+    if (counts.profile_candidates) row('Memory suggestions', countWords(counts.profile_candidates, 'suggestion', 'suggestions') + ', offered to you, never applied by themselves');
+    const trusted = !!(d.signature && d.signature.trusted);
+    row('Signed by', trusted ? 'a computer this VOOL trusts' : 'a computer this VOOL does not know');
+    row('Encrypted', d.encrypted ? 'yes' : 'no');
     box.appendChild(dl);
-    if (d.conflicts && d.conflicts.excluded) box.appendChild(el('div', 'subtle', 'Excluded: ' + d.conflicts.excluded));
-    if (d.conflicts && d.conflicts.collision) box.appendChild(el('div', 'fail-note', 'A chat with this id already exists here. The import lands under a new id; nothing existing is modified.'));
-    if (d.needs_confirmation) box.appendChild(el('div', 'fail-note', 'Unknown signer: the import stays marked untrusted.'));
+    if (d.signature && d.signature.signer_fingerprint) {
+      const more = el('details', 'subtle');
+      more.appendChild(el('summary', null, 'Details'));
+      more.appendChild(el('div', 'mono', 'Signer fingerprint: ' + d.signature.signer_fingerprint));
+      box.appendChild(more);
+    }
+    if (d.conflicts && d.conflicts.collision) box.appendChild(el('div', 'fail-note', 'This chat is already here. The import is added as a separate copy; nothing existing is changed.'));
+    if (d.needs_confirmation) box.appendChild(el('div', 'fail-note', 'From a computer VOOL does not know: the import will be marked as not trusted.'));
   };
   previewBtn.addEventListener('click', async () => {
     const f = file.files && file.files[0];
     if (!f) { say('Pick a .voolsession file first.', true); return; }
+    if (!f.size) { say('This file is empty. Choose the .voolsession file you exported.', true); return; }
     status.className = 'state saving'; status.textContent = 'Reading file…';
     try {
       const staged = await fetch('/api/session/bundle/upload', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Vool-Bundle-Name': encodeURIComponent(f.name) }, body: f });
@@ -1747,12 +1994,12 @@ function widgetBundleImport(stack) {
       needsConfirm = !!d.needs_confirmation;
       renderImportPreview(d);
       importBtn.disabled = false; foreignRow.hidden = !needsConfirm; openBtn.hidden = true;
-      say(needsConfirm ? 'Signed by an UNKNOWN key — tick the acknowledgement to import it untrusted.' : 'Preview ready — review, then Import.', needsConfirm);
+      say(needsConfirm ? 'This file comes from a computer VOOL does not know. Tick the box below to import it anyway, marked as not trusted.' : 'Preview ready. Check it, then choose Import.', needsConfirm);
     } catch (e) { say('Preview failed: ' + (e && e.message ? e.message : e), true); }
   });
   importBtn.addEventListener('click', async () => {
     if (!stagedPath) { say('Preview a file first.', true); return; }
-    if (needsConfirm && !foreign.checked) { say('Tick the unknown-signer acknowledgement, or cancel the import.', true); return; }
+    if (needsConfirm && !foreign.checked) { say('Tick the box to import a file from a computer VOOL does not know, or choose another file.', true); return; }
     importBtn.disabled = true; status.className = 'state saving'; status.textContent = 'Importing…';
     try {
       const d = await bundlePost('/api/session/bundle/import', { path: stagedPath, passphrase: String(ipass.value || ''), confirm_untrusted: !!foreign.checked });
@@ -1760,8 +2007,8 @@ function widgetBundleImport(stack) {
       restoredId = d.imported_session_id || '';
       file.value = ''; ipass.value = ''; box.hidden = true; stagedPath = '';
       openBtn.hidden = !restoredId; openBtn.dataset.session = restoredId;
-      say('Imported ' + ((d.counts || {}).turns || 0) + ' turns' + (d.collision ? ' under a new id (the original was already here).' : '.') +
-          (d.trust && d.trust.trusted === false ? ' Marked UNTRUSTED (unknown signer).' : '') + ' The restored chat is at the top of your chat list.');
+      say('Imported ' + countWords((d.counts || {}).turns || 0, 'turn', 'turns') + (d.collision ? ' as a separate copy (the original was already here).' : '.') +
+          (d.trust && d.trust.trusted === false ? ' It is marked as not trusted because it came from a computer VOOL does not know.' : '') + ' The restored chat is at the top of your chat list.');
     } catch (e) { say('Import failed: ' + (e && e.message ? e.message : e), true); importBtn.disabled = false; }
   });
   /* The chat surface has no session deep link and this is not the chat window, so the most this page
@@ -1785,8 +2032,8 @@ function widgetExtras(stack, which) {
    open in their own tab or window so Settings stays put. Nothing here is a claim -- each is a
    plain anchor to a route that exists. */
 const ADVANCED_SURFACES = [
-  { href: '/trace', label: 'Open the trace rail', note: 'events, receipts and obligations of the running turn' },
-  { href: '/web0', label: 'Open the Web0 browser', note: 'the entry page for .null sites' },
+  { href: '/trace', label: T('settings.advanced.trace', 'Open the activity page'), note: T('settings.advanced.trace_note', 'what VOOL is doing, step by step, while it answers') },
+  { href: '/web0', label: T('settings.advanced.web0', 'Open the Web0 page'), note: T('settings.advanced.web0_note', 'opens sites an ordinary browser cannot') },
 ];
 function widgetAdvancedLinks(stack) {
   ADVANCED_SURFACES.forEach(s => {
@@ -1799,7 +2046,6 @@ function widgetAdvancedLinks(stack) {
     a.textContent = s.label;
     a.style.textDecoration = 'none';
     line.appendChild(a);
-    line.appendChild(el('span', 'subtle mono', s.href));
     line.appendChild(el('span', 'subtle', s.note));
     stack.appendChild(line);
   });
@@ -1823,11 +2069,40 @@ function openSetupPage(stepId) {
   if (opened) { try { opened.focus(); } catch (e) {} return; }
   window.location.href = url;
 }
+/* The removed group is kept so "Show the setup checklist again" can put it back without a reload. */
+let removedSetup = null;
 function removeSetupGroup() {
   const i = MODEL.findIndex(g => g.id === 'setup');
-  if (i >= 0) MODEL.splice(i, 1);
+  if (i >= 0) removedSetup = { group: MODEL.splice(i, 1)[0], rows: ALL_ROWS.filter(r => r.group === 'setup') };
   for (let k = ALL_ROWS.length - 1; k >= 0; k--) if (ALL_ROWS[k].group === 'setup') ALL_ROWS.splice(k, 1);
   if (state.group === 'setup') state.group = MODEL.length ? MODEL[0].id : '';
+}
+/* Hidden only because the person asked (not because setup is finished): offer the way back. */
+function setupHiddenByChoice() {
+  const s = state.sources[SETUP_STATE_URL];
+  return !!(removedSetup && s && s.dismissed && !s.complete);
+}
+function setupRestoreControl() {
+  const line = el('div', 'inline setup-restore');
+  const b = el('button', 'btn', 'Show the setup checklist again'); b.type = 'button'; b.id = 'setupRestore';
+  const st = el('span', 'state idle');
+  b.addEventListener('click', async () => {
+    b.disabled = true; st.className = 'state saving'; st.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: false }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
+      await readSource(SETUP_STATE_URL);
+      const s = state.sources[SETUP_STATE_URL];
+      if (s && s.show_entry && removedSetup && !MODEL.some(g => g.id === 'setup')) {
+        MODEL.unshift(removedSetup.group); ALL_ROWS.unshift(...removedSetup.rows); removedSetup = null;
+      }
+      state.notice = '';
+      go('setup');
+    } catch (e) { b.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
+  });
+  line.appendChild(b); line.appendChild(st);
+  return line;
 }
 function widgetSetupProgress(stack) {
   const src = state.sources[SETUP_STATE_URL];
@@ -1849,8 +2124,8 @@ function widgetSetupProgress(stack) {
     pill.appendChild(el('span', null, s.done ? T('setup.checklist.done', 'Done')
       : (s.skipped ? T('setup.checklist.skipped', 'Skipped') : T('setup.checklist.todo', 'To do'))));
     line.appendChild(pill);
-    line.appendChild(el('span', null, s.title));
-    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: s.later })));
+    line.appendChild(el('span', null, T('setup.step.' + s.id + '.title', s.title)));
+    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: T('setup.step.' + s.id + '.later', s.later) })));
     list.appendChild(line);
   });
   stack.appendChild(list);
@@ -1861,8 +2136,16 @@ function widgetSetupProgress(stack) {
   const dismiss = el('button', 'btn', T('setup.checklist.dismiss', 'Don\u2019t remind me'));
   dismiss.type = 'button'; dismiss.id = 'setupDismiss';
   const st = el('span', 'state idle', '');
-  dismiss.addEventListener('click', async () => {
-    dismiss.disabled = true; st.className = 'state saving'; st.textContent = T('setup.checklist.saving', 'Saving…');
+  /* One click must not silently remove the only guided overview: ask first, and say where it comes back. */
+  const confirmBar = el('div', 'inline setup-dismiss-confirm'); confirmBar.hidden = true;
+  confirmBar.appendChild(el('span', null, 'Hide the setup checklist? You can bring it back from About & Diagnostics.'));
+  const yes = el('button', 'btn', 'Hide it'); yes.type = 'button'; yes.id = 'setupDismissConfirm';
+  const no = el('button', 'btn', 'Keep it'); no.type = 'button';
+  confirmBar.appendChild(yes); confirmBar.appendChild(no);
+  no.addEventListener('click', () => { confirmBar.hidden = true; dismiss.hidden = false; dismiss.focus(); });
+  dismiss.addEventListener('click', () => { confirmBar.hidden = false; dismiss.hidden = true; yes.focus(); });
+  yes.addEventListener('click', async () => {
+    yes.disabled = true; st.className = 'state saving'; st.textContent = T('setup.checklist.saving', 'Saving…');
     try {
       const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: true }) });
       const j = await r.json().catch(() => null);
@@ -1875,10 +2158,11 @@ function widgetSetupProgress(stack) {
         return;
       }
       renderPane();
-    } catch (e) { dismiss.disabled = false; st.className = 'state failed'; st.textContent = tfmt('setup.checklist.not_saved', 'Not saved — {error}', { error: e.message }); }
+    } catch (e) { yes.disabled = false; st.className = 'state failed'; st.textContent = tfmt('setup.checklist.not_saved', 'Not saved — {error}', { error: e.message }); }
   });
   bar.appendChild(go_); bar.appendChild(dismiss); bar.appendChild(st);
   stack.appendChild(bar);
+  stack.appendChild(confirmBar);
   stack.appendChild(el('div', 'subtle', T('setup.checklist.disappears', 'This entry disappears by itself when every step is done.')));
 }
 
@@ -1970,7 +2254,7 @@ function widgetCompanionPet(stack) {
   appearanceBar.append(appearance, appearanceStatus);
   stack.appendChild(appearanceBar);
   if (!api || !api.detach_companion) {
-    stack.appendChild(el('div', 'empty', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.'));
+    stack.appendChild(el('div', 'empty', T('settings.companion.needs_app', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.')));
     return;
   }
   stack.appendChild(el('div', 'subtle', 'Drag the pet out of the chat window to put it on your desktop. These buttons bring it back, hide it or find it again.'));
@@ -2009,25 +2293,37 @@ function widgetUpdates(stack) {
   const src = state.sources['/api/update/status'];
   const error = state.sourceErr['/api/update/status'];
   const phase = src && src.phase || 'idle';
+  /* "unavailable" means this copy cannot update itself at all (for example a copy run from source):
+     say so in plain words and do not offer a button that can only fail. The server's own reason
+     stays reachable under Technical details. */
+  const unavailable = phase === 'unavailable';
   const message = phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
+    : unavailable ? T('settings.updates.unavailable', 'Automatic updates are not available for this copy of VOOL.')
     : error || src && src.message || T('settings.widget.loading', 'Loading…');
   const status = el('div', 'subtle', message); status.setAttribute('role', 'status');
   status.dataset.testid = 'settings-update-status'; stack.appendChild(status);
   const check = el('button', 'btn', T('update.action_check', 'Check for updates'));
   check.type = 'button'; check.dataset.testid = 'settings-update-check';
-  check.disabled = ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
+  check.disabled = unavailable || ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
   check.addEventListener('click', async () => {
     check.disabled = true;
+    status.textContent = T('settings.updates.checking', 'Checking…');
     try {
       const response = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || result.message || 'Update check failed');
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));
       await readSource('/api/update/status');
       widgetUpdates(stack);
     } catch (e) { status.textContent = String(e.message || e); check.disabled = false; }
   });
   stack.appendChild(check);
+  if (unavailable && src && (src.unavailable_plain || src.message)) {
+    const more = document.createElement('details');
+    more.appendChild(el('summary', 'subtle', T('settings.technical_details', 'Technical details')));
+    more.appendChild(el('div', 'subtle', String(src.unavailable_plain || src.message)));
+    stack.appendChild(more);
+  }
   if (src && src.rollback_available) {
     const rollback = el('button', 'btn', T('update.action_rollback', 'Roll back to {version}').replace('{version}', src.rollback_version || ''));
     rollback.type = 'button'; rollback.dataset.testid = 'settings-update-rollback';
@@ -2052,14 +2348,21 @@ function widgetBuild(stack) {
   const err = state.sourceErr['/api/runtime/version'];
   if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  /* One readable line first; the full field list (what a problem report needs) is folded
+     under Technical details and still copied whole by "Copy build info". */
+  const version = src.release_version || src.app_version || '';
+  if (version) stack.appendChild(el('div', null, 'VOOL ' + version));
   const dl = el('dl', 'kv');
   const keys = Object.keys(src).filter(k => typeof src[k] !== 'object');
   keys.forEach(k => {
     dl.appendChild(el('dt', null, k.replace(/_/g, ' ')));
     dl.appendChild(el('dd', 'mono', String(src[k])));
   });
-  if (!keys.length) dl.appendChild(el('dd', 'empty', 'The runtime reported no version fields.'));
-  stack.appendChild(dl);
+  if (!keys.length) dl.appendChild(el('dd', 'empty', 'No version details are available.'));
+  const more = document.createElement('details');
+  more.appendChild(el('summary', 'subtle', T('settings.technical_details', 'Technical details')));
+  more.appendChild(dl);
+  stack.appendChild(more);
   const bar = el('div', 'inline');
   const copy = el('button', 'btn', 'Copy build info'); copy.type = 'button';
   const st = el('span', 'subtle', '');
@@ -2069,6 +2372,7 @@ function widgetBuild(stack) {
   });
   bar.appendChild(copy); bar.appendChild(st);
   stack.appendChild(bar);
+  if (setupHiddenByChoice()) stack.appendChild(setupRestoreControl());
 }
 
 /* --- Usage: a local read of this machine's own meter. Never contacts a provider. */
@@ -2080,26 +2384,30 @@ function widgetUsage(stack) {
   let active = widgetCache.usageRange || 'today';
   const draw = async () => {
     body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading the local usage meter…'));
+    body.appendChild(el('div', 'empty', T('settings.usage.reading', 'Reading usage…')));
     let data;
     try { data = await getJSON('/api/runtime/usage' + (active ? '?range=' + active : '')); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
+    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.usage.unreadable', 'Usage could not be read.') + ' ' + e.message)); return; }
     body.textContent = '';
     const dl = el('dl', 'kv');
     const line = (label, bucket, extra) => {
       if (!bucket) return;
       dl.appendChild(el('dt', null, label));
       const t = (bucket.total_tokens || 0).toLocaleString();
-      dl.appendChild(el('dd', null, t + ' tokens over ' + (bucket.responses || 0) + ' responses' + (extra || '')));
+      const n = bucket.responses || 0;
+      dl.appendChild(el('dd', null, (n === 1 ? tfmt('settings.usage.tokens_one', '{tokens} tokens over 1 answer', { tokens: t })
+        : tfmt('settings.usage.tokens_many', '{tokens} tokens over {count} answers', { tokens: t, count: n })) + (extra || '')));
     };
-    line('Free, on this machine', data.free_local);
-    line('Free, cloud', data.free_cloud);
+    line(T('settings.usage.free_local', 'Free, on this computer'), data.free_local);
+    line(T('settings.usage.free_online', 'Free, online'), data.free_cloud);
     const paid = data.paid_cloud || {};
-    const usd = paid.usd_estimate != null ? (' · about $' + Number(paid.usd_estimate).toFixed(4)) : '';
-    line('Paid, cloud', paid, usd);
-    line('Unattributed', data.remote_unknown);
-    dl.appendChild(el('dt', null, 'Total'));
+    const est = paid.usd_estimate != null ? Number(paid.usd_estimate) : null;
+    const usd = est == null ? '' : (est > 0 && est < 0.01 ? ' · ' + T('settings.usage.under_cent', 'less than $0.01') : ' · ' + tfmt('settings.usage.about_usd', 'about ${amount}', { amount: est.toFixed(2) }));
+    line(T('settings.usage.paid_online', 'Paid, online'), paid, usd);
+    line(T('settings.usage.other', 'Other'), data.remote_unknown);
+    dl.appendChild(el('dt', null, T('settings.usage.total', 'Total')));
     dl.appendChild(el('dd', null, (data.total_tokens || 0).toLocaleString() + ' tokens'));
+    if (!data.total_tokens) body.appendChild(el('div', 'subtle', T('settings.usage.none_yet', 'Nothing used in this period yet.')));
     body.appendChild(dl);
     (data.notices || []).forEach(n => body.appendChild(el('div', 'subtle', typeof n === 'string' ? n : (n.message || ''))));
   };
@@ -2146,12 +2454,16 @@ const PROVIDER_META = {};
 /* The custom endpoint's base URL is stored beside its key in its own slot so the lane survives a restart
    (core/cloud_providers.py: CUSTOM_BASE_URL_SLOT). It is an address, not a key, and the list says so. */
 const CUSTOM_BASE_URL_SLOT = 'llm.cloud.custom_base_url';
+const KEY_GROUP_ORDER = ['models', 'search', 'security', 'chain'];
 function keyFamilyOf(name) {
+  /* A key saved for later lives in its own "Saved for later" list below; listing it here as well
+     would show the person's own key twice, once as if it were VOOL's. */
+  if (String(name || '').startsWith('quarantine.')) return 'quarantine';
   if (String(name || '').startsWith('security.') && name !== 'security.eyebrow') return 'managed';
   const hit = KEY_FAMILIES.find(f => String(name || '').startsWith(f.id));
   return hit ? hit.id : 'managed';
 }
-function isOperatorKey(name) { return keyFamilyOf(name) !== 'managed'; }
+function isOperatorKey(name) { const f = keyFamilyOf(name); return f !== 'managed' && f !== 'quarantine'; }
 
 function widgetKeys(stack) {
   const src = state.sources['/api/settings/credentials'];
@@ -2161,25 +2473,35 @@ function widgetKeys(stack) {
   else if (!src) list.appendChild(el('div', 'empty', 'Loading…'));
   else {
     const creds = src.credentials || src.items || [];
-    if (!creds.length) list.appendChild(el('div', 'empty', 'No key stored. VOOL runs on this machine, free.'));
+    const yours = creds.filter(c => isOperatorKey(c.name));
+    if (!yours.length) list.appendChild(el('div', 'empty', T('keys.empty_plain', 'No keys yet. Without a key VOOL can only use a model installed on this computer.')));
     const groups = [...KEY_FAMILIES.map(f => f.id), 'managed'];
     groups.forEach(fam => {
       const rows = creds.filter(c => keyFamilyOf(c.name) === fam);
       if (!rows.length) return;
       const meta = KEY_FAMILIES.find(f => f.id === fam);
-      list.appendChild(el('div', 'row-label', meta ? meta.title : 'Managed by VOOL'));
-      list.appendChild(el('div', 'subtle', meta ? meta.blurb :
-        'Minted by the runtime for its own encrypted storage, not supplied by you. They are listed so nothing is hidden, and they are not removable from here: deleting one makes what it sealed permanently unreadable.'));
+      /* Keys VOOL made for itself stay listed (nothing is hidden) but folded away under their own
+         heading, with nothing to do: they are not the person's keys and are not removable here. */
+      let into = list;
+      if (meta) {
+        list.appendChild(el('div', 'row-label', meta.title));
+        list.appendChild(el('div', 'subtle', meta.blurb));
+      } else {
+        const fold = el('details', 'key-system-keys');
+        fold.appendChild(el('summary', 'subtle', 'Keys VOOL made for itself (' + rows.length + ') — nothing to do'));
+        fold.appendChild(el('div', 'subtle', 'VOOL created these on its own to lock its storage on this computer. They are not yours to manage and cannot be removed here, because removing one would make what it locked unreadable.'));
+        list.appendChild(fold);
+        into = fold;
+      }
       rows.forEach(c => {
         const rowEl = el('div', 'inline');
-        const pill = el('span', 'pill on');
+        const pill = el('span', isOperatorKey(c.name) ? 'pill on' : 'pill');
         pill.appendChild(el('span', 'dot'));
-        pill.appendChild(el('span', null, c.label || c.name));
+        pill.appendChild(el('span', null, c.label || PROVIDER_LABELS[String(c.name).slice(keyFamilyOf(c.name).length)] || c.name));
         rowEl.appendChild(pill);
-        rowEl.appendChild(el('span', 'subtle mono', c.name));
         if (!isOperatorKey(c.name)) {
           rowEl.appendChild(el('span', 'pill', 'system'));
-          list.appendChild(rowEl);
+          into.appendChild(rowEl);
           return;                       /* no Remove: this one is not the user's to delete */
         }
         if (c.name === CUSTOM_BASE_URL_SLOT || c.name === 'llm.cloud.usepod_origin') {
@@ -2258,7 +2580,12 @@ function widgetKeys(stack) {
       o.value = value;
       g.appendChild(o);
     });
-    if (g.children.length) prov.appendChild(g);
+    if (!g.children.length) return;
+    /* Fixed order whatever arrives first: most people open API Keys for a model key, and the two
+       catalogues below arrive after the two local lists. */
+    const rank = (f) => { const i = KEY_GROUP_ORDER.indexOf(f); return i < 0 ? KEY_GROUP_ORDER.length : i; };
+    const after = [...prov.querySelectorAll('optgroup')].find(x => rank(x.dataset.family) > rank(family));
+    prov.insertBefore(g, after || null);
   };
   addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
   addGroup('chain', 'keys.group_chain', 'Blockchain data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers);
@@ -2416,7 +2743,11 @@ function widgetKeys(stack) {
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         const choices = names.length ? ' ' + tfmt('keys.could_be', 'It could be {names}.', { names: names.join(', ') }) : '';
-        setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.')) + choices + ' ' + T('keys.choose_retry', 'Choose the service in the list, then press Save key again. Nothing was sent anywhere.'));
+        /* Choosing a service only helps when the key could belong to more than one; for something that is
+           not a key at all, the advice is to copy it again. */
+        const advice = names.length ? T('keys.choose_retry', 'Choose the service in the list, then press Save key again. Nothing was sent anywhere.')
+          : T('keys.copy_again', 'API keys are one long word with no spaces. Copy it again from the provider\u2019s site and paste it here. Nothing was sent anywhere.');
+        setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.')) + choices + ' ' + advice);
         prov.focus();
         return;
       }
@@ -2509,6 +2840,15 @@ function widgetKeys(stack) {
     } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
     finally { later.disabled = false; }
   });
+  /* A retry that did not promote the key, in words: the key stays saved and unused either way. */
+  function quarantineOutcome(label, outcome) {
+    const p = { label: label };
+    if (outcome === 'network_unavailable' || outcome === 'timeout') return tfmt('keys.quarantine_outcome.unreachable', 'VOOL could not reach {label}. Check your internet connection and try again. The key stays saved, unused.', p);
+    if (outcome === 'invalid' || outcome === 'unauthorized') return tfmt('keys.quarantine_outcome.rejected', '{label} turned this key down. Check you copied all of it, or delete it.', p);
+    if (outcome === 'exhausted') return tfmt('keys.quarantine_outcome.exhausted', '{label} says this key has no credit left. Add credit with {label}, then try again.', p);
+    if (outcome === 'rate_limited' || outcome === 'provider_unavailable') return tfmt('keys.quarantine_outcome.busy', '{label} is busy right now. Try again in a little while. The key stays saved, unused.', p);
+    return tfmt('keys.quarantine_outcome.unclear', '{label} did not give a clear answer, so the key is still not checked. It stays saved, unused.', p);
+  }
   /* One sentence per verification outcome. The server keeps a rejected key apart from throttling, an
      outage, a timeout, a wrong address, a redirect and a non-API answer; so does each sentence, and none
      of them calls a key bad when the provider never judged it. Each state keeps its own catalog key so
@@ -2575,7 +2915,9 @@ function widgetKeys(stack) {
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);
   stack.appendChild(st);
-  stack.appendChild(el('div', 'subtle', T('keys.autodetect_note', 'Leave the provider on Auto-detect: VOOL recognises keys with a documented prefix on this machine and asks you to choose when it cannot tell. Saving asks that one service once whether it accepts the key, and only a verified key is stored. A stored key is never displayed again.')));
+  /* The two save buttons do different things, and the note says both (it used to say "only a verified
+     key is stored" right under "Save for later (unverified)"). */
+  stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
   stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
   /* X has more than one key, so it gets a guided setup instead of the single paste field. */
   const xRow = el('div', 'inline x-setup-entry');
@@ -2607,8 +2949,9 @@ function widgetKeys(stack) {
       const pill = el('span', 'pill');
       pill.appendChild(el('span', null, row.provider_label || row.provider_id));
       line.appendChild(pill);
-      const why = row.status === 'unverified_quarantined' ? 'unverified' : row.status;
-      const qst = el('span', 'subtle quarantine-state', why + (row.created_at ? ' · ' + tfmt('keys.saved_state', 'saved {date}', { date: row.created_at }) : ''));
+      const why = row.status === 'unverified_quarantined' ? 'not checked yet' : 'not in use';
+      const savedAt = row.created_at ? new Date(row.created_at) : null;
+      const qst = el('span', 'subtle quarantine-state', why + (savedAt && !isNaN(savedAt) ? ' · ' + tfmt('keys.saved_state', 'saved {date}', { date: savedAt.toLocaleString() }) : ''));
       const retry = el('button', 'btn key-quarantine-retry', T('keys.retry', 'Retry')); retry.type = 'button'; retry.dataset.provider = row.provider_id;
       retry.addEventListener('click', async () => {
         retry.disabled = true; qst.textContent = tfmt('keys.quarantine_retrying', 'Asking {label} once whether it accepts this key…', { label: (row.provider_label || row.provider_id) });
@@ -2617,7 +2960,7 @@ function widgetKeys(stack) {
           const j = await r.json().catch(() => ({}));
           if (!r.ok || j.ok === false) throw new Error((j && (j.detail || j.error)) || ('HTTP ' + r.status));
           if (j.promoted) { qst.textContent = T('keys.quarantine_promoted', 'Verified and now in use — promoted out of quarantine.'); await drawQuarantine(); await readSource('/api/settings/credentials'); renderPane(); }
-          else qst.textContent = tfmt('keys.quarantine_still', 'Still unverified ({outcome}) — the key was not judged unless the reason says so.', { outcome: (j.outcome || 'unknown') });
+          else qst.textContent = quarantineOutcome(row.provider_label || row.provider_id, String(j.outcome || ''));
         } catch (e) { qst.textContent = tfmt('keys.quarantine_retry_failed', 'Retry failed — {error}', { error: (e && e.message ? e.message : e) }); retry.disabled = false; }
       });
       const del = el('button', 'btn danger key-quarantine-delete', T('keys.delete', 'Delete')); del.type = 'button'; del.dataset.provider = row.provider_id;
@@ -3018,16 +3361,23 @@ function mpMicroToUsdc(micro) {
   s = s.slice(0, -6) + '.' + s.slice(-6);
   return s.replace(/0+$/, '').replace(/\.$/, '') || '0';
 }
+/* The machine's name in plain words: "This Mac" only on a Mac, "This computer" everywhere else. */
+function thisComputerName() {
+  const p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+  return /mac/i.test(p) ? T('settings.models.this_mac', 'This Mac') : T('settings.models.this_computer', 'This computer');
+}
 function mpOpenRow(rowId, part) {
   location.hash = '#models/' + rowId + (part ? '/' + part : '');
 }
 async function mpReads() {
-  const [pinR, discR, limitsR] = await Promise.all([
+  const [pinR, discR, limitsR, localR] = await Promise.all([
     getJSON('/api/cloud/model').catch(() => null),
     getJSON(USEPOD_DISCOVERY_URL).catch(() => null),
     getJSON('/api/cloud/spend-limits').catch(() => null),
+    getJSON('/api/models/local').catch(() => null),
   ]);
   return {
+    local: localR,
     pin: pinR && pinR.ok ? pinR : null,
     disc: discR && discR.ok !== false ? discR : null,
     spendLimits: limitsR && limitsR.limits ? limitsR : null,
@@ -3169,15 +3519,15 @@ function widgetModelsOverview(stack) {
     const st = mpUsePodState(reads.disc);
     const head = el('div', 'stack mp-what');
     head.appendChild(el('div', 'row-label', 'What will answer'));
-    const pinLine = reads.pin
-      ? ((reads.pin.provider && reads.pin.provider !== 'openrouter' ? reads.pin.provider + ':' : '') + (reads.pin.model || 'auto'))
-      : 'VOOL Auto (local first)';
+    const pinLine = reads.pin && reads.pin.model
+      ? ((reads.pin.provider && reads.pin.provider !== 'openrouter' ? reads.pin.provider + ':' : '') + reads.pin.model)
+      : T('settings.models.auto_pick', 'VOOL picks automatically');
     const pinState = reads.pin ? String(reads.pin.cost_state || '') : '';
     head.appendChild(el('div', null, pinLine + (pinState ? ' — ' + pinState + (pinState === 'paid' ? ' · ready for answers once its limits and budget are set' : '') : '')));
     if (mpView.pane === 'detail') return mpDrawDetail(root, reads, st, draw);
     // Problems strip (composed from the same reads).
     const problems = [];
-    if (!st.connected) problems.push('UsePod is not connected yet.');
+    /* A provider nobody set up is not a problem: only a started UsePod setup gets a line here. */
     if (st.connected && !st.budgetActive) problems.push(st.consent ? ('A UsePod budget approval is ' + st.consent.state + ' — one step away.') : 'No UsePod budget is enabled.');
     if (st.connected && !st.feedFresh) problems.push('No UsePod price feed is cached — prices are unknown until a refresh.');
     if (problems.length) {
@@ -3193,13 +3543,22 @@ function widgetModelsOverview(stack) {
       card.appendChild(el('div', 'subtle', stateLine));
       const btn = el('button', 'btn mp-card-open', actionLabel); btn.type = 'button';
       btn.addEventListener('click', () => {
+        if (key === 'local') { mpOpenRow('local_models'); return; }   /* straight to the row, no detour pane */
         if (key === 'usepod' && actionLabel !== 'Manage') mpView.guided.active = true;
         mpView.pane = 'detail'; mpView.provider = key; draw();
       });
       card.appendChild(btn);
       return card;
     };
-    cards.appendChild(mkCard('local', 'This Mac', 'Local models answer without a network.', 'View local models', true));
+    /* "ready" is earned from the real local listing, never assumed: a fresh install with no local
+       model is told so, and where to go instead. */
+    const localModels = (reads.local && reads.local.models) || [];
+    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.length);
+    const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
+      : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
+      : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
+      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
+    cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
     // card sends the operator to the detail with the saved approval, never through guided again
     // (a second proposal would duplicate the consent identity).
@@ -3209,7 +3568,7 @@ function widgetModelsOverview(stack) {
       : 'Inference marketplace — connect a token to start.', st.connected && !st.budgetActive && !mpResumeState ? 'Continue setup' : (st.connected ? 'Manage' : 'Set up'), st.connected && st.budgetActive));
     cards.appendChild(mkCard('openrouter', 'OpenRouter', 'Bring-your-own-key cloud models. VOOL-wide spending limits apply.', 'View OpenRouter', false));
     root.appendChild(head); root.appendChild(cards);
-    const fine = el('div', 'subtle', 'Every action here goes through the authority that already owns it — the same doors the chat uses. Nothing is approved by looking at this page.');
+    const fine = el('div', 'subtle', T('settings.models.same_checks', 'Changes here go through the same checks as in a chat. Opening this page changes nothing.'));
     root.appendChild(fine);
   };
   draw();
@@ -3334,7 +3693,9 @@ async function mpDrawGuided(body, reads, st, redraw) {
   const g = mpView.guided;
   const steps = ['connect', 'model', 'spending', 'review'];
   const chips = el('div', 'mp-steps');
-  steps.forEach((s, i) => chips.appendChild(el('span', 'mp-chip' + (s === g.step ? ' mp-now' : i < steps.indexOf(g.step) ? ' mp-done' : ''), s === 'connect' ? 'Connect' : s === 'model' ? 'Model' : s === 'spending' ? 'Spending' : 'Review')));
+  /* Numbered progress, not tabs: the steps are done in order and are not clickable. */
+  steps.forEach((s, i) => chips.appendChild(el('span', 'mp-chip' + (s === g.step ? ' mp-now' : i < steps.indexOf(g.step) ? ' mp-done' : ''), (i + 1) + '. ' + (s === 'connect' ? 'Connect' : s === 'model' ? 'Model' : s === 'spending' ? 'Spending' : 'Review'))));
+  chips.setAttribute('aria-label', 'Step ' + (steps.indexOf(g.step) + 1) + ' of ' + steps.length);
   body.appendChild(chips);
   const stepBody = el('div', 'stack mp-guided');
   body.appendChild(stepBody);
@@ -3347,12 +3708,14 @@ async function mpDrawGuided(body, reads, st, redraw) {
       return;
     }
     stepBody.appendChild(el('div', null, 'Paste your UsePod token (or the whole proxy URL). It is saved the moment it verifies — before anything else — and stays saved if you leave.'));
-    const token = document.createElement('input'); token.type = 'text'; token.className = 'inp mp-guided-token'; token.setAttribute('aria-label', 'UsePod token or proxy URL'); token.value = g.token;
+    /* A secret is typed hidden and kept out of browser autofill, as in API Keys. */
+    const token = document.createElement('input'); token.type = 'password'; token.autocomplete = 'off'; token.spellcheck = false; token.className = 'inp mp-guided-token'; token.setAttribute('aria-label', 'UsePod token or proxy URL'); token.value = g.token;
     const save = el('button', 'btn primary', 'Connect'); save.type = 'button';
     const sayLine = el('div', 'subtle', '');
     save.addEventListener('click', async () => {
-      save.disabled = true; sayLine.textContent = 'Saving and verifying…';
       const value = token.value.trim();
+      if (!value) { sayLine.textContent = 'Paste your UsePod token first.'; token.focus(); return; }
+      save.disabled = true; sayLine.textContent = 'Saving and verifying…';
       let baseUrl = '';
       let tokenValue = value;
       const m = value.match(/^(https?:\/\/[^\/]+)\/proxy\/([^\/]+)\/v1$/);
@@ -3469,7 +3832,11 @@ function widgetLocalModels(stack) {
     if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
-      body.appendChild(el('div', 'empty', 'No text models found in your local Ollama. Install one (e.g. `ollama pull qwen3:8b`) and it will appear here.'));
+      body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
+      const cmd = el('div', 'inline');
+      cmd.appendChild(el('span', 'subtle', T('settings.models.terminal', 'For people comfortable with a terminal:')));
+      cmd.appendChild(el('code', 'mono', 'ollama pull qwen3:8b'));
+      body.appendChild(cmd);
       return;
     }
     const certLabel = (s) => s === 'verified' ? 'certified author' : (s === 'degraded' || s === 'incompatible' || s === 'stale') ? 'probe ' + s : s === 'probing' ? 'probing…' : 'not certified';
@@ -3594,9 +3961,9 @@ function widgetModel(stack) {
     body.textContent = '';
     const dl = el('dl', 'kv');
     dl.appendChild(el('dt', null, 'Default model'));
-    dl.appendChild(el('dd', 'mono', m.model ? String(m.model) : 'none — VOOL chooses'));
+    dl.appendChild(el('dd', m.model ? 'mono' : null, m.model ? String(m.model) : 'None — VOOL picks for each chat'));
     dl.appendChild(el('dt', null, 'Provider'));
-    dl.appendChild(el('dd', 'mono', m.model && m.provider ? String(m.provider) : 'No default — each chat keeps its selection'));
+    dl.appendChild(el('dd', m.model && m.provider ? 'mono' : null, m.model && m.provider ? String(m.provider) : 'None — each chat keeps its own choice'));
     if (m.cost_state) {
       dl.appendChild(el('dt', null, 'Cost'));
       dl.appendChild(el('dd', null, m.cost_state === 'paid' ? 'Paid — spends your provider credits' : (m.cost_state === 'free' ? 'Free' : 'Not classified')));
@@ -3622,7 +3989,16 @@ function widgetModel(stack) {
     }
     if (!providers.some(p => p.id === browseProvider)) browseProvider = providers.some(p => p.id === m.provider) ? m.provider : (providers[0] || {}).id || '';
     const provider = browseProvider;
-    if (!provider) { body.appendChild(el('div', 'subtle', 'Add a provider in API Keys, or configure a wallet payment route.')); return; }
+    if (!provider) {
+      /* Nothing to pick yet: say what makes this row useful, with the way there. */
+      const line = el('div', 'inline');
+      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in API Keys to choose a model here.')));
+      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to API Keys')); jump.type = 'button';
+      jump.addEventListener('click', () => { location.hash = '#keys'; });
+      line.appendChild(jump);
+      body.appendChild(line);
+      return;
+    }
     const providerLine = el('label', 'stack', 'Provider');
     const providerSelect = el('select', 'inp model-provider'); providerSelect.setAttribute('aria-label', 'Model provider');
     providers.forEach(p => { const o = el('option', null, p.label || p.id); o.value = p.id; providerSelect.appendChild(o); });
@@ -3817,17 +4193,26 @@ function widgetUsePod(stack) {
     const payCred = d.credential || {};
     const payNets = payAuth.verified_networks || [];
     body.appendChild(el('div', 'row-label', 'How calls are paid'));
+    const walletReady = !!(payAuth.installed && payNets.length);
+    const tokenReady = !!payCred.configured;
+    const inUse = (ready) => ready ? ' — in use' : ' — selected, not ready yet';
     const payModes = el('div', 'stack usepod-pay-modes');
     body.appendChild(payModes);
     const useLane = async (transportMode, button) => {
       button.disabled = true;
       const { ok, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: payLane.protocol || 'openai', transport_mode: transportMode });
-      say(ok ? 'saved' : 'failed', ok ? ('Calls are now paid by ' + (transportMode === 'x402' ? 'your wallet (x402)' : 'the funded token') + '.') : ('Not switched — ' + (j.error || j.code || 'refused') + '.'));
+      /* Wording only: the result says what is really true. A payment way with nothing behind it (no wallet
+         on a supported network, no stored token) is saved as the choice, not announced as working. */
+      const ready = transportMode === 'x402' ? walletReady : tokenReady;
+      say(ok ? 'saved' : 'failed', ok
+        ? (ready ? ('Calls are now paid by ' + (transportMode === 'x402' ? 'your wallet (x402)' : 'the funded token') + '.')
+          : (transportMode === 'x402' ? 'Saved. Wallet payments can start only once Crypto is on and a wallet on a supported network is ready.' : 'Saved. Token payments can start only once a UsePod token is stored.'))
+        : ('Not switched — ' + (j.error || j.code || 'refused') + '.'));
       await draw();
     };
     const tokenCard = el('div', 'stack profile-item usepod-pay-mode');
     tokenCard.setAttribute('data-mode', 'prepaid_token');
-    tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? ' — in use' : '')));
+    tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? inUse(tokenReady) : '')));
     tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (API Keys → UsePod).')));
     if (payLane.transport_mode === 'x402') {
       const useToken = el('button', 'btn usepod-use-prepaid', 'Pay with the funded token'); useToken.type = 'button';
@@ -3837,7 +4222,7 @@ function widgetUsePod(stack) {
     payModes.appendChild(tokenCard);
     const walletCard = el('div', 'stack profile-item usepod-pay-mode');
     walletCard.setAttribute('data-mode', 'x402');
-    walletCard.appendChild(el('div', 'row-label', 'Wallet x402 (pay per call)' + (payLane.transport_mode === 'x402' ? ' — in use' : '')));
+    walletCard.appendChild(el('div', 'row-label', 'Wallet x402 (pay per call)' + (payLane.transport_mode === 'x402' ? inUse(walletReady) : '')));
     walletCard.appendChild(el('div', 'subtle', 'Each call is quoted, waits for your approval on the Crypto Pilot card, and is paid from your wallet in USDC or SOL — no UsePod token needed.'));
     walletCard.appendChild(el('div', null, payAuth.installed
       ? ('Wallet authority ' + String(payAuth.label || '?') + ' · pays on: ' + (payNets.length ? payNets.join(', ') : 'no network now (turn Crypto on and finish a Crypto Pilot wallet on Solana Mainnet)'))
@@ -4311,12 +4696,14 @@ function widgetUsePod(stack) {
     const pline1 = el('div', 'inline');
     const mode = el('select', 'inp usepod-policy-mode'); mode.setAttribute('aria-label', 'UsePod routing mode');
     [['marketplace-only', 'Marketplace only'], ['centralized-only', 'Centralized only'], ['auto', 'Auto (marketplace, then centralized)']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; if (policy.mode === v) o.selected = true; mode.appendChild(o); });
-    const fallback = el('input', 'inp usepod-policy-fallback'); fallback.type = 'checkbox'; fallback.id = 'usepodFallback'; fallback.checked = !!policy.allow_centralized_fallback;
-    const fbLabel = el('label', null, 'allow centralized fallback'); fbLabel.htmlFor = 'usepodFallback';
-    pline1.appendChild(mode); pline1.appendChild(fallback); pline1.appendChild(fbLabel);
+    /* The checkbox sits inside its label (no .inp width), so box and words stay together. */
+    const fallback = el('input', 'usepod-policy-fallback'); fallback.type = 'checkbox'; fallback.id = 'usepodFallback'; fallback.checked = !!policy.allow_centralized_fallback;
+    const fbLabel = el('label', 'inline'); fbLabel.htmlFor = 'usepodFallback';
+    fbLabel.appendChild(fallback); fbLabel.appendChild(el('span', null, 'allow centralized fallback'));
+    pline1.appendChild(mode); pline1.appendChild(fbLabel);
     body.appendChild(pline1);
     const pline2 = el('div', 'inline');
-    const pins = el('input', 'inp usepod-policy-pins'); pins.type = 'text'; pins.placeholder = 'pinned providers (centralized), comma-separated'; pins.value = (policy.pinned_providers || []).join(','); pins.setAttribute('aria-label', 'Pinned centralized providers');
+    const pins = el('input', 'inp usepod-policy-pins'); pins.type = 'text'; pins.placeholder = 'Providers, comma-separated'; pins.value = (policy.pinned_providers || []).join(','); pins.setAttribute('aria-label', 'Pinned centralized providers');
     pline2.appendChild(pins); body.appendChild(pline2);
     const pline3 = el('div', 'inline');
     const cin = el('input', 'inp usepod-policy-ceiling-in'); cin.type = 'number'; cin.min = '1'; cin.placeholder = 'no explicit ceiling'; cin.value = policy.max_input_microunits_per_million ?? ''; cin.setAttribute('aria-label', 'Input price ceiling in µUSDC per million tokens');
@@ -4539,8 +4926,8 @@ function widgetAnswerLanguage(stack) {
   const readable = (v) => known.has(String(v || '').trim().toLowerCase());
 
   const sel = el('select', 'inp');
-  sel.setAttribute('aria-label', 'Answer language');
-  const none = el('option', null, 'No preference — VOOL follows your message');
+  sel.setAttribute('aria-label', T('settings.row.answer_language.label', 'Answer language'));
+  const none = el('option', null, T('settings.answer_language.none', 'No preference — VOOL follows your message'));
   none.value = '';
   sel.appendChild(none);
   LANGUAGES.forEach(l => { const o = el('option', null, l.label); o.value = l.label; sel.appendChild(o); });
@@ -4549,12 +4936,19 @@ function widgetAnswerLanguage(stack) {
   const st = el('div', 'state idle');
   const row = el('div', 'inline');
   row.appendChild(sel);
-  const clear = el('button', 'btn', 'Clear');
+  const clear = el('button', 'btn', T('header.search_clear', 'Clear'));
   clear.type = 'button';
   clear.disabled = !global_;
   row.appendChild(clear);
   stack.appendChild(row);
   stack.appendChild(st);
+  /* The row is redrawn after a save; the outcome is carried across that redraw so "Saved" is seen. */
+  if (widgetCache.answerLanguageNote) { st.className = 'state saved'; st.textContent = widgetCache.answerLanguageNote; widgetCache.answerLanguageNote = ''; setTimeout(() => { st.className = 'state idle'; st.textContent = ''; }, 2600); }
+  /* Paused memory refuses every write to the profile, this one included: say so before a choice is made. */
+  if (src.paused) {
+    sel.disabled = true; clear.disabled = true;
+    st.className = 'state stale'; st.textContent = T('settings.answer_language.paused', 'Memory is paused. Resume it in Memory & Personalisation to change this.');
+  }
 
   const fail = (msg) => { st.className = 'state failed'; st.textContent = msg; };
   const refresh = async () => { await readSource('/api/profile'); renderPane(); };
@@ -4578,9 +4972,9 @@ function widgetAnswerLanguage(stack) {
         renderPane();
         return;
       }
-      st.className = 'state saved'; st.textContent = 'Saved';
+      widgetCache.answerLanguageNote = 'Saved';
       renderPane();
-    } catch (e) { fail('Not saved — ' + e.message); }
+    } catch (e) { fail('Not saved — ' + profileWords(e.message)); }
   });
 
   clear.addEventListener('click', async () => {
@@ -4600,20 +4994,17 @@ function widgetAnswerLanguage(stack) {
   /* What is actually in force, stated rather than implied. */
   if (global_ && !readable(global_.value)) {
     stack.appendChild(el('div', 'fail-note',
-      'VOOL has ' + JSON.stringify(global_.value) + ' remembered as your language, but the policy ' +
-      'reads only one language at a time — it cannot use this, and is ignoring it. Pick one above ' +
-      'to replace it, or clear it.'));
+      'VOOL has \u201c' + String(global_.value) + '\u201d remembered as your answer language, but it is not one ' +
+      'of the languages VOOL can be set to answer in, so it is not used. Pick one above to replace it, or clear it.'));
   }
   if (narrower.length) {
     stack.appendChild(el('div', 'subtle',
-      'A narrower preference exists (' + narrower.map(i => i.scope + ': ' + i.value).join(', ') +
-      ') and wins where it applies — chat beats project beats work/personal beats this one. ' +
-      'Settings has no chat of its own, so it sets the global preference.'));
+      'A more specific choice also exists (' + narrower.map(i => (PROFILE_SCOPE_TEXT[i.scope] || i.scope) + ': ' + i.value).join(', ') +
+      ') and wins where it applies. This setting applies everywhere else.'));
   }
   stack.appendChild(el('div', 'subtle',
-    'Stored as one remembered item, listed under Memory & Personalisation with everything else ' +
-    'VOOL keeps about you. Precedence for any given answer: what your message asks for, then this, ' +
-    'then the language you wrote in when that is unambiguous.'));
+    T('settings.answer_language.footer', 'Kept with everything else VOOL remembers, under Memory & Personalisation. For each answer, ' +
+    'what your message asks for comes first, then this, then the language you wrote in.')));
 }
 
 /* --- Email accounts: every configured mailbox as the account authority sees it (core/email_accounts.py,
@@ -4628,6 +5019,13 @@ const EMAIL_STATE_TEXT = {
   read_only: 'read only: it has no way to send',
   mismatch: 'not one mailbox: its send and read entries name different mailboxes',
   unreadable: 'could not be read as an account'
+};
+/* Why an account is the one in use, in words; the internal source ids never reach the page. */
+const EMAIL_SOURCE_TEXT = {
+  global: 'your default',
+  chat: 'chosen for this chat',
+  only_account: 'the only account',
+  legacy_default: 'used because it is named “default”'
 };
 function widgetEmailAccounts(stack) {
   const src = state.sources['/api/email/accounts'];
@@ -4653,7 +5051,10 @@ function widgetEmailAccounts(stack) {
   const def = src.default || {};
   const sel = src.selection || {};
   if (!accounts.length) {
-    body.appendChild(el('div', 'empty', 'No email account is configured. Add one through email account setup; nothing here asks for a password.'));
+    /* No account: say so once, plainly, and nothing else -- no "Reading uses / Sending uses" lines that
+       would name a mailbox that does not exist. Adding a mailbox is not a control on this page yet. */
+    body.appendChild(el('div', 'empty', T('settings.email.none', 'No email account yet, so VOOL cannot read or send email. Adding an email account from Settings is not available in this version. Settings never asks for an email password.')));
+    return;
   }
   accounts.forEach(a => {
     const rowEl = el('div', 'inline email-account'); rowEl.dataset.emailAccount = a.account;
@@ -4707,7 +5108,8 @@ function widgetEmailAccounts(stack) {
   [['imap', 'Reading uses'], ['smtp', 'Sending uses']].forEach(([kind, label]) => {
     const s = sel[kind] || {};
     const line = el('div', 'subtle email-selection'); line.dataset.kind = kind;
-    line.textContent = label + ': ' + (s.ok ? (s.account + (s.address ? ' (' + s.address + ')' : '') + ' — ' + (s.source || 'selected')) : ('refused — ' + (s.message || s.status)));
+    const name = s.account === 'default' ? 'the account named “default”' : s.account;
+    line.textContent = label + ': ' + (s.ok ? (name + (s.address ? ' (' + s.address + ')' : '') + (EMAIL_SOURCE_TEXT[s.source] ? ' — ' + EMAIL_SOURCE_TEXT[s.source] : '')) : ('none — ' + (s.message || 'no account can do this')));
     body.appendChild(line);
   });
 }
@@ -4740,7 +5142,7 @@ function widgetEmailRecovery(stack) {
   };
   const rec = src.recovery || null;
   const summary = el('div', 'email-recovery-summary'); summary.id = 'emailRecoverySummary'; summary.setAttribute('role', 'status');
-  summary.textContent = src.summary || '';
+  summary.textContent = rec ? (src.summary || '') : (src.send_hold ? (src.summary || '') : T('settings.email.no_hold', 'Nothing is on hold. Sending is not paused.'));
   body.appendChild(summary);
   if (!rec) return;
   const evidence = el('div', 'subtle mono email-recovery-evidence');
@@ -4814,6 +5216,16 @@ function widgetEmailRecovery(stack) {
    action is one revision on one item, CAS-guarded by expected_revision, and the listing is re-read
    after every action so the page only ever shows what the store reports. A suggestion VOOL made
    from a chat (a candidate) is decided in that chat, where the conversation that produced it is. */
+/* Profile records in words: category ids, origins and scopes are the store's vocabulary, not the reader's. */
+const PROFILE_CATEGORY_TEXT = { language: T('settings.profile.cat.language', 'Answer language'), preferred_name: T('settings.profile.cat.name', 'Your name'), email_signature: T('settings.profile.cat.signature', 'Email signature'), 'default_account.email': T('settings.profile.cat.default_email', 'Default email account') };
+const PROFILE_ORIGIN_TEXT = { explicit: T('settings.profile.origin.explicit', 'You set this'), settings: T('settings.profile.origin.settings', 'You set this in Settings'), inferred: T('settings.profile.origin.inferred', 'VOOL picked this up in a chat'), imported: T('settings.profile.origin.imported', 'Imported') };
+const PROFILE_SCOPE_TEXT = { global: T('settings.profile.scope.global', 'applies everywhere'), work: T('settings.profile.scope.work', 'work only'), personal: T('settings.profile.scope.personal', 'personal only'), chat: T('settings.profile.scope.chat', 'one chat only'), project: T('settings.profile.scope.project', 'one project only') };
+/* Short scope names for the pill and the Move scope list (the store's ids stay the values). */
+const PROFILE_SCOPE_NAME = { global: T('settings.profile.scope_name.global', 'Everywhere'), work: T('settings.profile.scope_name.work', 'Work'), personal: T('settings.profile.scope_name.personal', 'Personal'), chat: T('settings.profile.scope_name.chat', 'One chat'), project: T('settings.profile.scope_name.project', 'One project') };
+/* Settings has its own Undo; a chat hint to "say 'undo that'" does not belong in its messages. */
+function profileWords(text) {
+  return String(text == null ? '' : text).replace(/\s*Say ['\u2018\u2019]undo that['\u2018\u2019] to restore\.?/gi, '').trim();
+}
 function widgetProfile(stack) {
   const body = el('div', 'stack');
   const status = el('div', 'state idle'); status.id = 'profileStatus'; status.setAttribute('role', 'status');
@@ -4828,94 +5240,173 @@ function widgetProfile(stack) {
     } catch (e) { return { ok: false, status: 0, data: { error: 'VOOL did not answer' } }; }
     return { ok: r.ok && !!(j && j.ok !== false), status: r.status, data: j || {} };
   };
-  const report = (res, fallback) => (res.data && res.data.change && res.data.change.report) || (res.data && (res.data.error || res.data.detail)) || fallback;
+  /* The profile authority's reports end with a chat hint ("Say 'undo that' to restore."); in Settings the
+     undo is a button on this page, and a fresh install may have no model to say it to. */
+  const report = (res, fallback) => profileWords((res.data && res.data.change && res.data.change.report) || (res.data && (res.data.error || res.data.detail)) || fallback);
   let current = null;
 
   const draw = async () => {
     body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading what VOOL remembers…'));
+    body.appendChild(el('div', 'empty', T('settings.profile.reading', 'Reading what VOOL remembers…')));
     let p;
     try { p = await getJSON('/api/profile'); }
     catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
     current = p;
+    /* The answer-language row in General reads the same profile from the page cache: keep it current,
+       so a pause or an edit made here is seen there without a reload. */
+    state.sources['/api/profile'] = p; delete state.sourceErr['/api/profile'];
     body.textContent = '';
     /* Store-wide: Pause/Resume (POST /api/profile/pause) and Export (GET /api/profile/export). */
     const bar = el('div', 'inline');
-    const pause = el('button', 'btn', p.paused ? 'Resume memory' : 'Pause memory'); pause.type = 'button'; pause.id = 'profilePauseBtn';
+    const pause = el('button', 'btn', p.paused ? T('settings.profile.resume', 'Resume memory') : T('settings.profile.pause', 'Pause memory')); pause.type = 'button'; pause.id = 'profilePauseBtn';
     pause.setAttribute('aria-pressed', p.paused ? 'true' : 'false');
     pause.addEventListener('click', async () => {
       pause.disabled = true;
       const res = await post('pause', { paused: !p.paused });
       if (!res.ok) { pause.disabled = false; say('Not changed — ' + report(res, 'HTTP ' + res.status), true); return; }
       await draw();
-      say(res.data.paused ? 'Memory paused: VOOL keeps what it knows and learns nothing new until you resume.' : 'Memory resumed: VOOL learns from conversation again.');
+      say(res.data.paused ? T('settings.profile.paused_note', 'Memory paused: VOOL keeps what it knows and learns nothing new until you resume.') : T('settings.profile.resumed_note', 'Memory resumed: VOOL learns from conversation again.'));
     });
-    const exp = el('button', 'btn', 'Export profile'); exp.type = 'button'; exp.id = 'profileExportBtn';
+    const exp = el('button', 'btn', T('settings.profile.export', 'Export profile')); exp.type = 'button'; exp.id = 'profileExportBtn';
     const out = el('pre', 'mono profile-export'); out.id = 'profileExportOut'; out.hidden = true;
+    /* Export gives a file. It never overwrites the clipboard, which may hold something the person copied. */
     exp.addEventListener('click', async () => {
       exp.disabled = true;
       try {
         const doc = await getJSON('/api/profile/export');
         const text = JSON.stringify(doc, null, 2);
-        out.textContent = text; out.hidden = false;
-        let copied = false;
-        try { await navigator.clipboard.writeText(text); copied = true; } catch (e) { copied = false; }
-        say(copied ? 'Export copied to the clipboard and shown below. Values only — never a credential.' : 'Export shown below; select it to copy (the clipboard was not available here).');
+        out.textContent = text; out.hidden = true; view.hidden = false; view.textContent = T('settings.profile.show_export', 'Show what was exported');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+        a.download = 'vool-memory-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        say('Saved as a file: ' + a.download + '. It holds what VOOL remembers, never a key or password.');
       } catch (e) { say('Could not export — ' + e.message, true); }
       exp.disabled = false;
     });
-    bar.appendChild(pause); bar.appendChild(exp);
+    /* The exported document stays folded away; it is there to look at on request, and closes again. */
+    const view = el('button', 'btn', T('settings.profile.show_export', 'Show what was exported')); view.type = 'button'; view.hidden = true;
+    view.addEventListener('click', () => { out.hidden = !out.hidden; view.textContent = out.hidden ? T('settings.profile.show_export', 'Show what was exported') : T('keys.hide', 'Hide'); });
+    bar.appendChild(pause); bar.appendChild(exp); bar.appendChild(view);
     body.appendChild(bar);
     if (p.paused) body.appendChild(el('div', 'subtle', 'Memory is paused: VOOL is not learning anything new right now. What it already remembers stays in force and stays editable below.'));
     body.appendChild(out);
     const items = (p.items || []).filter(it => it.status !== 'deleted');
-    if (!items.length) { body.appendChild(el('div', 'empty', 'VOOL remembers nothing about you yet.')); return; }
+    body.appendChild(profileNameField(items, !!p.paused));
+    if (!items.length) { body.appendChild(el('div', 'empty', T('settings.profile.empty', 'Nothing remembered yet. As you chat, what VOOL learns about you is listed here, and you can edit or forget any of it.'))); return; }
     /* Scopes an item can be moved to from here. A chat- or project-scoped move needs the chat or
        project it belongs to, which Settings does not have -- those two are done where they apply. */
     const movable = (p.scopes || ['global', 'work', 'personal']).filter(s => s !== 'chat' && s !== 'project');
     items.forEach(it => body.appendChild(profileItemRow(it, movable)));
-    body.appendChild(el('div', 'subtle', items.length + ' remembered item' + (items.length === 1 ? '' : 's') + '. Each action is one revision on one item, recorded by the profile authority; Restore previous undoes the latest one. A suggestion VOOL made from a chat is decided in that chat.'));
+    body.appendChild(el('div', 'subtle', (items.length === 1 ? T('settings.profile.count_one', '1 remembered item.') : tfmt('settings.profile.count_many', '{count} remembered items.', { count: items.length }))
+      + ' ' + T('settings.profile.count_note', 'Restore previous undoes the latest change to an item. A suggestion VOOL made in a chat is decided in that chat.')));
   };
+
+  /* "What should VOOL call you?": the setup step points here, so the step can be done here. It writes the
+     same preferred_name profile item through the same door the setup page uses (POST /api/settings/prefs
+     user_address -> the Operator Profile, origin settings); an empty field forgets the name. */
+  function profileNameField(items, paused) {
+    const wrap = el('div', 'stack profile-name');
+    const nameItem = items.find(it => it.category === 'preferred_name' && (it.scope || 'global') === 'global');
+    wrap.appendChild(el('div', 'row-label', T('settings.profile.name_label', 'What should VOOL call you?')));
+    const line = el('div', 'inline');
+    const input = document.createElement('input'); input.type = 'text'; input.className = 'inp'; input.id = 'profileNameInput';
+    input.maxLength = 60; input.autocomplete = 'off'; input.placeholder = T('settings.profile.name_placeholder', 'A first name or nickname');
+    input.setAttribute('aria-label', T('settings.profile.name_label', 'What should VOOL call you?'));
+    input.value = nameItem ? String(nameItem.value_text || nameItem.value || '') : '';
+    const save = el('button', 'btn primary', T('settings.profile.name_save', 'Save name')); save.type = 'button'; save.id = 'profileNameSave';
+    const st = el('span', 'state idle'); st.setAttribute('role', 'status');
+    if (paused) {
+      input.disabled = true; save.disabled = true;
+      st.className = 'state stale'; st.textContent = T('settings.profile.name_paused', 'Memory is paused. Resume memory to change your name.');
+    }
+    const send = async () => {
+      const value = input.value.trim();
+      save.disabled = true; st.className = 'state saving'; st.textContent = 'Saving…';
+      try {
+        const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_address: value }) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || (j && j.error)) throw new Error(profileWords((j && j.error) || ('HTTP ' + r.status)));
+        widgetCache.profileNote = value ? tfmt('settings.profile.name_saved', 'Saved. VOOL will call you {name}.', { name: value }) : T('settings.profile.name_cleared', 'Name cleared.');
+        await draw();
+      } catch (e) { save.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
+    };
+    save.addEventListener('click', send);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+    if (widgetCache.profileNote) { st.className = 'state saved'; st.textContent = widgetCache.profileNote; widgetCache.profileNote = ''; }
+    line.appendChild(input); line.appendChild(save); line.appendChild(st);
+    wrap.appendChild(line);
+    return wrap;
+  }
 
   function profileItemRow(it, movable) {
     const rowEl = el('div', 'stack profile-item'); rowEl.dataset.profileItem = it.item_id;
     const head = el('div', 'inline');
     const shown = (it.value_text != null && it.value_text !== '') ? it.value_text : (it.value == null ? '' : it.value);
-    head.appendChild(el('span', 'profile-value', (it.label || it.category || 'item') + ': ' + String(shown)));
-    head.appendChild(el('span', 'pill profile-scope-pill', (it.scope || 'global') + (it.scope_key ? ' · ' + it.scope_key : '')));
+    head.appendChild(el('span', 'profile-value', (PROFILE_CATEGORY_TEXT[it.category] || it.label || it.category || 'Item') + ': ' + String(shown)));
+    const scopePill = el('span', 'pill profile-scope-pill', (it.scope || 'global') + (it.scope_key ? ' · ' + it.scope_key : ''));
+    scopePill.title = PROFILE_SCOPE_TEXT[it.scope || 'global'] || '';
+    head.appendChild(scopePill);
     rowEl.appendChild(head);
-    rowEl.appendChild(el('div', 'subtle', 'origin: ' + (it.origin || '—') + ' · last used: ' + (it.last_used_at ? String(it.last_used_at).slice(0, 16).replace('T', ' ') : 'never') + ' · revision ' + String(it.revision || 1)));
-    const run = async (label, action, payload, okText) => {
+    const whenUsed = it.last_used_at ? new Date(it.last_used_at).toLocaleString() : '';
+    rowEl.appendChild(el('div', 'subtle', (PROFILE_ORIGIN_TEXT[it.origin] || ('From ' + (it.origin || 'VOOL'))) + ' · ' + (PROFILE_SCOPE_TEXT[it.scope || 'global'] || it.scope) + (whenUsed && whenUsed !== 'Invalid Date' ? ' · ' + tfmt('settings.profile.last_used', 'last used {when}', { when: whenUsed }) : ' · ' + T('settings.profile.not_used', 'not used yet'))));
+    const run = async (label, action, payload, okText, plainOk) => {
       const res = await post(action, payload);
-      if (res.status === 409) { say(label + ': this item changed elsewhere — the list was reloaded; try again.', true); await draw(); return; }
-      say(report(res, res.ok ? okText : ('Could not ' + label.toLowerCase() + '.')), !res.ok);
+      if (res.status === 409) { say(T('settings.profile.changed_elsewhere', 'This item changed elsewhere. The list was reloaded; try again.'), true); await draw(); return; }
+      say(res.ok && plainOk ? okText : report(res, res.ok ? okText : ('Could not ' + label.toLowerCase() + '.')), !res.ok);
       if (res.ok) await draw();
     };
     const acts = el('div', 'inline');
     /* Edit: an inline field bound to POST /api/profile/item, CAS-guarded by the revision shown. */
-    const edit = el('button', 'btn profile-edit', 'Edit'); edit.type = 'button';
+    const edit = el('button', 'btn profile-edit', T('settings.profile.edit', 'Edit')); edit.type = 'button';
     const editor = el('div', 'inline'); editor.hidden = true;
-    const input = document.createElement('input'); input.className = 'inp profile-edit-input'; input.type = 'text';
-    input.value = String(it.value_text || ''); input.setAttribute('aria-label', 'New value for ' + (it.label || it.category));
+    /* The answer language is edited with the same list the General row offers, so Memory cannot store a
+       language VOOL then ignores. */
+    let input;
+    if (it.category === 'language') {
+      input = el('select', 'inp profile-edit-input');
+      LANGUAGES.forEach(l => { const o = el('option', null, l.label); o.value = l.label; input.appendChild(o); });
+      input.value = String(it.value_text || '');
+    } else {
+      input = document.createElement('input'); input.className = 'inp profile-edit-input'; input.type = 'text';
+      input.value = String(it.value_text || '');
+    }
+    input.setAttribute('aria-label', tfmt('settings.profile.new_value', 'New value for {item}', { item: PROFILE_CATEGORY_TEXT[it.category] || it.label || it.category }));
     const saveBtn = el('button', 'btn primary profile-edit-save', 'Save'); saveBtn.type = 'button';
-    const cancel = el('button', 'btn', 'Cancel'); cancel.type = 'button';
+    const cancel = el('button', 'btn', T('xsetup.cancel', 'Cancel')); cancel.type = 'button';
     edit.addEventListener('click', () => { editor.hidden = !editor.hidden; if (!editor.hidden) input.focus(); });
     cancel.addEventListener('click', () => { editor.hidden = true; input.value = String(it.value_text || ''); });
-    saveBtn.addEventListener('click', () => run('Edit', 'item', { item_id: it.item_id, value: input.value, expected_revision: it.revision }, 'Saved.'));
+    saveBtn.addEventListener('click', () => run('Edit', 'item', { item_id: it.item_id, value: input.value, expected_revision: it.revision }, T('settings.profile.saved', 'Saved.')));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); } });
     editor.appendChild(input); editor.appendChild(saveBtn); editor.appendChild(cancel);
-    const forget = el('button', 'btn danger profile-forget', 'Forget'); forget.type = 'button';
-    forget.addEventListener('click', () => run('Forget', 'forget', { item_id: it.item_id, expected_revision: it.revision }, 'Forgotten.'));
-    const scopeSel = el('select', 'inp profile-scope-select'); scopeSel.setAttribute('aria-label', 'Scope for ' + (it.label || it.category));
-    const options = movable.includes(it.scope) ? movable : [it.scope].concat(movable);
-    options.forEach(s => { const o = el('option', null, s); o.value = s; if (s === it.scope) o.selected = true; scopeSel.appendChild(o); });
-    const move = el('button', 'btn profile-scope-move', 'Move scope'); move.type = 'button';
-    move.addEventListener('click', () => {
-      if (scopeSel.value === it.scope) { say('Already ' + it.scope + '.'); return; }
-      run('Move scope', 'scope', { item_id: it.item_id, scope: scopeSel.value, expected_revision: it.revision }, 'Moved.');
+    const forget = el('button', 'btn danger profile-forget', T('settings.profile.forget', 'Forget')); forget.type = 'button';
+    /* Forget acts at once, so the page offers its own Undo for a short while: it restores the item's
+       previous revision through the same restore door as "Restore previous". */
+    forget.addEventListener('click', async () => {
+      await run('Forget', 'forget', { item_id: it.item_id, expected_revision: it.revision }, T('settings.profile.forgotten', 'Forgotten. You can undo this for a few seconds.'), true);
+      if (status.className.indexOf('failed') >= 0) return;
+      const undo = el('button', 'retry', T('settings.profile.undo', 'Undo')); undo.type = 'button';
+      undo.addEventListener('click', async () => {
+        undo.remove();
+        const res = await post('restore', { item_id: it.item_id });
+        say(res.ok ? T('settings.profile.brought_back', 'Brought back.') : (T('settings.profile.undo_failed', 'Could not undo.') + ' ' + report(res, 'HTTP ' + res.status)), !res.ok);
+        if (res.ok) await draw();
+      });
+      status.appendChild(document.createTextNode(' ')); status.appendChild(undo);
+      setTimeout(() => undo.remove(), 10000);
     });
-    const restore = el('button', 'btn profile-restore', 'Restore previous'); restore.type = 'button';
-    restore.addEventListener('click', () => run('Restore previous', 'restore', { item_id: it.item_id }, 'Restored.'));
+    const scopeSel = el('select', 'inp profile-scope-select'); scopeSel.setAttribute('aria-label', tfmt('settings.profile.scope_for', 'Where {item} applies', { item: PROFILE_CATEGORY_TEXT[it.category] || it.label || it.category }));
+    const options = movable.includes(it.scope) ? movable : [it.scope].concat(movable);
+    options.forEach(s => { const o = el('option', null, PROFILE_SCOPE_NAME[s] || s); o.value = s; if (s === it.scope) o.selected = true; scopeSel.appendChild(o); });
+    const move = el('button', 'btn profile-scope-move', T('settings.profile.move', 'Move scope')); move.type = 'button';
+    move.addEventListener('click', () => {
+      if (scopeSel.value === it.scope) { say(T('settings.profile.already_there', 'It already applies there.')); return; }
+      run('Move scope', 'scope', { item_id: it.item_id, scope: scopeSel.value, expected_revision: it.revision }, T('settings.profile.moved', 'Moved.'));
+    });
+    const restore = el('button', 'btn profile-restore', T('settings.profile.restore', 'Restore previous')); restore.type = 'button';
+    restore.hidden = Number(it.revision || 1) <= 1;   /* a first version has nothing earlier to restore */
+    restore.addEventListener('click', () => run('Restore previous', 'restore', { item_id: it.item_id }, T('settings.profile.restored', 'Restored.')));
     acts.appendChild(edit); acts.appendChild(forget); acts.appendChild(scopeSel); acts.appendChild(move); acts.appendChild(restore);
     rowEl.appendChild(acts);
     rowEl.appendChild(editor);
@@ -4950,9 +5441,10 @@ async function reconcile() {
 /* ------------------------------------------------------------------ search + keys */
 function onSearch(value) {
   state.query = String(value || '').trim().toLowerCase();
-  const first = MODEL.find(g => hitsFor(g.id, state.query) > 0);
+  const labelHit = preferredRow(state.query) || ALL_ROWS.find(r => labelMatches(r, state.query));
+  const first = labelHit ? MODEL.find(g => g.id === labelHit.group) : MODEL.find(g => hitsFor(g.id, state.query) > 0);
   if (state.query && first) {
-    const firstRow = ALL_ROWS.find(r => r.group === first.id && matches(r, state.query));
+    const firstRow = labelHit || ALL_ROWS.find(r => r.group === first.id && matches(r, state.query));
     go(first.id, firstRow ? firstRow.id : undefined);
     live(ALL_ROWS.filter(r => matches(r, state.query)).length + ' settings match');
   } else {
@@ -4972,7 +5464,7 @@ function installKeys() {
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); search.focus(); search.select(); return; }
     if (e.key === '/' && !typing) { e.preventDefault(); search.focus(); return; }
-    if (e.key === 'Escape' && !typing) { closeSettingsWindow(); return; }
+    if (e.key === 'Escape') { if (!e.defaultPrevented && escapeClosesInnermost(typing)) e.preventDefault(); return; }
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && document.activeElement && document.activeElement.classList.contains('nav-item')) {
       e.preventDefault();
       const items = [...document.querySelectorAll('.nav-item')];
@@ -4982,6 +5474,34 @@ function installKeys() {
     }
   });
   window.addEventListener('focus', () => { reconcile(); });
+  /* Typed-but-unsaved text in the pane keeps Escape from closing Settings (escapeClosesInnermost). */
+  document.addEventListener('input', e => { const t = e.target; if (t && t.closest && t.closest('#paneBody') && t.dataset) t.dataset.typed = '1'; });
+  document.addEventListener('change', e => { const t = e.target; if (t && t.dataset && t.dataset.typed && t.type !== 'password') delete t.dataset.typed; });
+}
+
+/* Escape closes the innermost open thing, never more: an open dialog or sheet first (a native
+   <dialog> closes itself), then nothing at all while focus sits on a control or a field in the
+   content. Settings itself closes on Escape only when nothing is open and focus is on the page or
+   the section list, and never while a field in the pane holds typed text. Returns whether it acted. */
+function escapeClosesInnermost(typing) {
+  if (document.querySelector('dialog[open]')) return false;           /* the dialog handles its own Escape */
+  const sheets = [...document.querySelectorAll('.mp-sheet, [role="dialog"], [aria-modal="true"]')]
+    .filter(n => !n.hidden && n.offsetParent !== null);
+  if (sheets.length) {
+    const top = sheets[sheets.length - 1];
+    const close = top.querySelector('.mp-sheet-close, [data-close], .btn-close');
+    if (close) close.click();
+    return true;
+  }
+  if (typing) return false;
+  const a = document.activeElement;
+  const onPage = !a || a === document.body || a === document.documentElement || a.id === 'pane'
+    || a.id === 'back' || (a.classList && a.classList.contains('nav-item'));
+  if (!onPage) return false;
+  const typed = [...document.querySelectorAll('#paneBody [data-typed="1"]')].some(i => i.value);
+  if (typed) return false;
+  closeSettingsWindow();
+  return true;
 }
 
 /* Closing Settings closes THIS window only. The chat window, its draft and the daemon are
@@ -5012,6 +5532,8 @@ function sectionFromHash() {
   const parts = raw.split('/');
   const group = MODEL.find(g => g.id === parts[0]);
   state.onlyRow = ''; state.focusPart = '';
+  /* A link to the setup checklist after it was hidden says so instead of quietly opening another section. */
+  state.notice = (!group && parts[0] === 'setup') ? 'setup_hidden' : '';
   if (group && parts[1] && group.rows.some(r => r.id === parts[1])) {
     state.focusRow = parts[1]; state.onlyRow = parts[1]; state.focusPart = parts[2] || '';
   }
@@ -5020,6 +5542,8 @@ function sectionFromHash() {
 
 async function boot() {
   $('#back').addEventListener('click', closeSettingsWindow);
+  $('#offlineRetry').addEventListener('click', () => { reconcile(); recheckUnsure(true); });
+  $('#skipToPane').addEventListener('click', e => { e.preventDefault(); $('#pane').focus(); });
   installKeys();
   // Registered BEFORE the first read: an already-open window that is re-pointed at a section
   // changes its hash while boot is still awaiting, and a listener attached afterwards would miss
@@ -5096,11 +5620,13 @@ def _locale_coverage_note(tag: str) -> str:
     # Supplied-and-accepted keys, not text-difference: a technical identifier ("PIN") is a
     # legitimate byte-identical translation and still counts toward completeness.
     translated = len(catalog.locale_keys & set(catalog.keys))
+    # A string count is translator metadata, not something a reader acts on: English and a complete
+    # catalog get no count, and only a partial translation is mentioned at all.
     if tag == "en":
-        return catalog.format("settings.language_coverage_en", total=total)
+        return "English (the source language)"
     fallback = total - translated
     if fallback == 0:
-        return catalog.format("settings.language_coverage_complete", translated=translated, total=total)
+        return ""
     return catalog.format("settings.language_coverage_partial", translated=translated, total=total, fallback=fallback)
 
 
@@ -5118,6 +5644,14 @@ _LOCALE_BLOCK = """<div id="uiLocaleWrap">
   <p class="loc-note" id="uiLocaleCoverage"></p>
 </div>
 """
+_LOCALE_HELP_KEYED = (
+    '<p class="loc-note" data-i18n-html="settings.language_help">Choose the language of these screens and controls. '
+    "It never changes the language VOOL answers in &mdash; that has its own setting.</p>"
+)
+_LOCALE_HELP_EN = (
+    '<p class="loc-note">Language of menus and buttons. To change the language VOOL replies in, see '
+    '<a href="#general/answer_language">General &rarr; Answer language</a>.</p>'
+)
 
 
 def _localized_settings_groups(ui_locale: str) -> list[dict]:
@@ -5139,10 +5673,18 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
     catalog = catalog_for(ui_locale)
     if catalog.locale == "en":
         return groups
-    en_keys = set(catalog_for("en").keys)
+    english = catalog_for("en")
+    en_keys = set(english.keys)
 
     def resolved(key: str, fallback: str) -> str:
         if key not in en_keys:
+            return fallback
+        # Per-key form of the catalog's staleness law: a translation is only as current as the
+        # English it was made from. When the English text in the model has changed since the
+        # catalog's source, the old translation may say something no longer true (a removed
+        # file path, an old option name), so the current English is shown until the catalog
+        # is refreshed.
+        if english.text(key) != fallback:
             return fallback
         return catalog.text(key)
 
@@ -5183,8 +5725,16 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
         + "\n" + render_notification_settings_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
+    # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the
+    # browser does not request a /favicon.ico that is not served.
+    from base64 import b64encode
+    from pathlib import Path
+
+    logo = Path(__file__).with_name("assets") / "vool-logo-dark.png"
+    logo_uri = ("data:image/png;base64," + b64encode(logo.read_bytes()).decode("ascii")) if logo.is_file() else "data:,"
     return (
         page.replace("__SETTINGS_MODEL__", model)
+        .replace("__VOOL_LOGO_URI__", logo_uri, 1)
         .replace("__LANGUAGE_CATALOG__", catalog)
         .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(tag), ensure_ascii=False).replace("<", "\\u003c"))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
@@ -5198,4 +5748,10 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
         .replace('<div id="backRow">', _LOCALE_BLOCK + '<div id="backRow">', 1)
         .replace('<p class="loc-note" id="uiLocaleCoverage"></p>',
                  f'<p class="loc-note" id="uiLocaleCoverage">{_locale_coverage_note(tag)}</p>', 1)
+        # English: the help names the real place of the answer-language control, as a link. The keyed
+        # catalog text ("…in the operator profile") points at a place that does not exist; other
+        # locales keep their translation until the catalog carries the corrected sentence.
+        # English gets the same sentence with a working link; other languages get the catalog's
+        # translation of it (a catalog message carries no link markup).
+        .replace(_LOCALE_HELP_KEYED, _LOCALE_HELP_EN if tag == "en" else _LOCALE_HELP_KEYED, 1)
     )
