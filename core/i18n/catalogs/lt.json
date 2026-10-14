@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Personažas",
     "settings.row.character_mode.placeholder": "tuščia — VOOL kaip save",
     "settings.row.cloud_keys.effect": "Taikoma iškart.",
-    "settings.row.cloud_keys.help": "Pridėkite, patikrinkite arba pašalinkite teikėjų raktus. Įrašant tikrinama viena pasirinkta paslauga; paieškos patikrinimas gali naudoti kreditus.",
+    "settings.row.cloud_keys.help": "Pridėkite, patikrinkite arba pašalinkite savo raktus. Viena saugykla šiame kompiuteryje laiko visus raktus — modelių teikėjų, žiniatinklio paieškos ir saugos nuskaitymų, — todėl jie čia kartu, o ne skiltyse, kurios juos naudoja. VOOL veikia lokaliai ir be nė vieno iš jų. Įrašant raktas patikrinamas tik jo paties paslaugoje; paieškos patikrinimas gali naudoti kreditus.",
     "settings.row.cloud_keys.label": "Jūsų raktai",
     "settings.row.communication_style.effect": "Galioja nuo kitos jūsų žinutės. Jau rašomas atsakymas išlaiko seną nustatymą.",
     "settings.row.communication_style.help": "Tonas, kuriuo rašo VOOL. Jis keičia žodžius, o ne tai, ką VOOL sutinka daryti.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

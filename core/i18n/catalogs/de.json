@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Rolle",
     "settings.row.character_mode.placeholder": "leer — VOOL als es selbst",
     "settings.row.cloud_keys.effect": "Wirkt sofort.",
-    "settings.row.cloud_keys.help": "Anbieterschlüssel hinzufügen, testen oder entfernen. Beim Speichern wird ein ausgewählter Dienst geprüft; Suchtests können Guthaben verbrauchen.",
+    "settings.row.cloud_keys.help": "Schlüssel hinzufügen, testen oder entfernen. Ein Speicher auf dieser Maschine hält sie alle — Modellanbieter, Websuche und Sicherheitsprüfungen —, darum stehen sie hier zusammen statt in den Bereichen, die sie nutzen. VOOL läuft lokal auch ganz ohne sie. Beim Speichern wird ein Schlüssel nur bei seinem eigenen Dienst geprüft; Suchtests können Guthaben verbrauchen.",
     "settings.row.cloud_keys.label": "Deine Schlüssel",
     "settings.row.communication_style.effect": "Gilt ab deiner nächsten Nachricht. Eine Antwort, die gerade geschrieben wird, behält die alte Einstellung.",
     "settings.row.communication_style.help": "Der Ton, in dem VOOL schreibt. Er ändert die Wortwahl, nicht das, was VOOL zu tun bereit ist.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

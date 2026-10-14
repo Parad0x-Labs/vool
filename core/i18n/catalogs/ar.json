@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "الشخصية",
     "settings.row.character_mode.placeholder": "فارغ — VOOL كما هو",
     "settings.row.cloud_keys.effect": "يسري فورًا.",
-    "settings.row.cloud_keys.help": "أضف مفاتيح المزودين أو اختبرها أو أزلها. يتحقق الحفظ من خدمة واحدة مختارة؛ وقد تستهلك اختبارات البحث رصيدًا.",
+    "settings.row.cloud_keys.help": "أضف مفاتيحك أو اختبرها أو أزلها. مخزن واحد على هذه الآلة يحفظها كلها — مفاتيح مزوّدي النماذج وبحث الويب وفحوصات الأمان — لذا تجتمع هنا لا في الأقسام التي تستخدمها. يعمل VOOL محليًا من دون أي منها. يتحقق الحفظ من المفتاح لدى خدمته وحدها؛ وقد تستهلك اختبارات البحث رصيدًا.",
     "settings.row.cloud_keys.label": "مفاتيحك",
     "settings.row.communication_style.effect": "يُطبَّق من رسالتك التالية. الإجابة التي تُكتب الآن تحتفظ بالإعداد القديم.",
     "settings.row.communication_style.help": "النبرة التي يكتب بها VOOL. تغيّر الصياغة، لا ما يقبل VOOL فعله.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
     "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

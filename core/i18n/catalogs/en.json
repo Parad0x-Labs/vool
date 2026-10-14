@@ -1508,7 +1508,7 @@
     "settings.row.character_mode.label": "Character",
     "settings.row.character_mode.placeholder": "empty — VOOL as itself",
     "settings.row.cloud_keys.effect": "Applies immediately.",
-    "settings.row.cloud_keys.help": "Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+    "settings.row.cloud_keys.help": "Add, test or remove your keys. One store on this machine holds them all — model providers, web search and security scans — so they live together here, not in the sections that use them. VOOL runs locally without any of them. Saving verifies a key with that one service; search checks may use credits.",
     "settings.row.cloud_keys.label": "Your keys",
     "settings.row.communication_style.effect": "Applies from your next message. An answer already being written keeps the old setting.",
     "settings.row.communication_style.help": "The tone VOOL writes in. It changes wording, not what VOOL is willing to do.",

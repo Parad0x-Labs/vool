@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "דמות",
     "settings.row.character_mode.placeholder": "ריק — VOOL כעצמו",
     "settings.row.cloud_keys.effect": "חל מיד.",
-    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו מפתחות ספקים. השמירה מאמתת שירות אחד שנבחר; בדיקות חיפוש עשויות לצרוך קרדיטים.",
+    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו את המפתחות שלכם. מאגר אחד במכונה זו מחזיק את כולם — ספקי מודלים, חיפוש באינטרנט וסריקות אבטחה — ולכן הם נמצאים כאן יחד ולא באזורים שמשתמשים בהם. VOOL פועל מקומית גם בלי אף אחד מהם. השמירה מאמתת מפתח רק מול השירות שלו; בדיקות חיפוש עשויות לצרוך קרדיטים.",
     "settings.row.cloud_keys.label": "המפתחות שלכם",
     "settings.row.communication_style.effect": "חל מההודעה הבאה שלך. תשובה שכבר נכתבת שומרת על ההגדרה הקודמת.",
     "settings.row.communication_style.help": "הטון שבו VOOL כותב. הוא משנה את הניסוח, לא את מה ש-VOOL מוכן לעשות.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

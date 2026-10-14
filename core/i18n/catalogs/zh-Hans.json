@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "角色",
     "settings.row.character_mode.placeholder": "留空 — VOOL 以本来面目",
     "settings.row.cloud_keys.effect": "立即生效。",
-    "settings.row.cloud_keys.help": "添加、测试或移除服务商密钥。保存时只验证选定的一项服务；搜索测试可能消耗额度。",
+    "settings.row.cloud_keys.help": "添加、测试或移除你的密钥。这台机器上的同一个存储保存所有密钥——模型服务商、网页搜索和安全扫描——所以它们集中放在这里，而不是分散在使用它们的各个部分。即使没有任何密钥，VOOL 也能在本地运行。保存时只向该密钥自己的服务验证；搜索测试可能消耗额度。",
     "settings.row.cloud_keys.label": "你的密钥",
     "settings.row.communication_style.effect": "从你的下一条消息开始生效。正在撰写的回答仍保留旧设置。",
     "settings.row.communication_style.help": "VOOL 写作时的语气。它改变措辞，不改变 VOOL 愿意做的事。",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
     "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Персонаж",
     "settings.row.character_mode.placeholder": "порожньо — VOOL як він є",
     "settings.row.cloud_keys.effect": "Діє негайно.",
-    "settings.row.cloud_keys.help": "Додавайте, перевіряйте або видаляйте ключі. Збереження перевіряє одну вибрану службу; перевірки пошуку можуть витрачати кредити.",
+    "settings.row.cloud_keys.help": "Додавайте, перевіряйте або видаляйте ключі. Одне сховище на цій машині зберігає всі ключі — провайдерів моделей, веб-пошуку та сканування безпеки, — тож вони зібрані тут, а не в розділах, що їх використовують. VOOL працює локально й зовсім без них. Збереження перевіряє ключ лише в його власній службі; перевірки пошуку можуть витрачати кредити.",
     "settings.row.cloud_keys.label": "Ваші ключі",
     "settings.row.communication_style.effect": "Діє з вашого наступного повідомлення. Відповідь, що вже пишеться, зберігає старе налаштування.",
     "settings.row.communication_style.help": "Тон, яким пише VOOL. Він змінює формулювання, а не те, що VOOL готовий робити.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
     "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

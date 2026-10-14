@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Personaje",
     "settings.row.character_mode.placeholder": "vacío — VOOL como sí mismo",
     "settings.row.cloud_keys.effect": "Se aplica de inmediato.",
-    "settings.row.cloud_keys.help": "Añade, prueba o elimina tus claves. Al guardar se verifica un servicio seleccionado; las pruebas de búsqueda pueden consumir créditos.",
+    "settings.row.cloud_keys.help": "Añade, prueba o elimina tus claves. Un solo almacén en esta máquina las guarda todas — proveedores de modelos, búsqueda web y análisis de seguridad —, por eso están juntas aquí y no en las secciones que las usan. VOOL funciona en local sin ninguna de ellas. Al guardar, cada clave se verifica solo con su propio servicio; las pruebas de búsqueda pueden consumir créditos.",
     "settings.row.cloud_keys.label": "Tus claves",
     "settings.row.communication_style.effect": "Se aplica desde tu próximo mensaje. Una respuesta que ya se está escribiendo mantiene el ajuste anterior.",
     "settings.row.communication_style.help": "El tono con el que escribe VOOL. Cambia las palabras, no lo que VOOL está dispuesto a hacer.",
@@ -2601,7 +2601,7 @@
     "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex.",
     "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela."
   },
-  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
