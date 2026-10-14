@@ -142,8 +142,12 @@ def test_shortcut_map_is_fully_visible() -> None:
     from core.composer_extras_fragment import render_composer_extras_fragment
 
     palette = render_palette_fragment()
-    for chip in ("⌘K", "⌘N", "⌘J", "⌘/", "⌘F", "⌘,", "Esc"):
-        assert chip in palette, f"hint bar missing {chip}"
+    # Each chip names the platform's modifier (⌘ on Apple platforms, Ctrl elsewhere); the served
+    # rendering per platform is proven in tests/test_chat_shortcut_hint_platform.py.
+    assert "(VP_APPLE ? '⌘' : 'Ctrl+')" in palette
+    for key in ("K", "N", "J", "/", "F", ","):
+        assert f"<kbd>' + vpCombo('{key}') + '</kbd>" in palette, f"hint bar missing the {key} chip"
+    assert "<kbd>Esc</kbd>" in palette, "hint bar missing Esc"
     drawer = render_companion_drawer_fragment()
     assert "u2318N" in drawer, "the New chat button gains its \\u2318N kbd chip"
     extras = render_composer_extras_fragment()

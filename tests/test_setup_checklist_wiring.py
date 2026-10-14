@@ -99,7 +99,7 @@ def test_palette_hint_translates_labels_not_keycaps() -> None:
         assert f"'{key}'" in fragment, key
     # The <kbd> key caps stay structure: exactly seven of them, untranslated.
     assert fragment.count("<kbd>") >= 7
-    assert "⌘K</kbd> '" in fragment and "<kbd>Esc</kbd> '" in fragment
+    assert "<kbd>' + vpCombo('K') + '</kbd> '" in fragment and "<kbd>Esc</kbd> '" in fragment
 
 
 def test_new_keys_exist_in_the_english_catalog() -> None:

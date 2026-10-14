@@ -484,5 +484,6 @@ def test_hint_bar_ships_with_the_shortcut_owner() -> None:
 
     fragment = render_palette_fragment()
     assert "vpHint" in fragment
-    for key in ("\u2318K", "\u2318N", "\u2318J"):
-        assert key in fragment, f"hint bar missing {key}"
+    assert "(VP_APPLE ? '\u2318' : 'Ctrl+')" in fragment
+    for key in ("K", "N", "J"):
+        assert f"vpCombo('{key}')" in fragment, f"hint bar missing the {key} chip"
