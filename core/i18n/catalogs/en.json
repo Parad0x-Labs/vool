@@ -2045,7 +2045,9 @@
     "settings.backup.choose_chat": "Choose a chat…",
     "settings.backup.chat_aria": "Chat to export",
     "settings.companion.needs_app": "The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.",
-    "settings.nav.skip": "Skip to settings"
+    "settings.nav.skip": "Skip to settings",
+    "home.wallet": "Wallet",
+    "home.wallet.title": "VOOL Wallet — accounts, balance, receive, send and activity"
   },
   "html_keys": [
     "bypass.modal_limits",

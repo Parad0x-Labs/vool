@@ -2045,9 +2045,11 @@
     "settings.backup.choose_chat": "Elige un chat…",
     "settings.backup.chat_aria": "Chat que exportar",
     "settings.companion.needs_app": "La mascota de escritorio necesita la ventana de la app VOOL. En una pestaña del navegador, el acompañante se queda acoplado en el chat.",
-    "settings.nav.skip": "Ir a los ajustes"
+    "settings.nav.skip": "Ir a los ajustes",
+    "home.wallet": "Monedero",
+    "home.wallet.title": "Monedero de VOOL — cuentas, saldo, recibir, enviar y actividad"
   },
-  "source_catalog_sha256": "f89a3d7244d6ab486fca2999acf37d09c47d2d8380989d358b6cf4f3827d6158",
+  "source_catalog_sha256": "d264d2e7b11109a93ddba63664481a6a3ff3ac6fa4ebcbd8682ae2c6004c3791",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

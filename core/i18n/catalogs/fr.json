@@ -2045,9 +2045,11 @@
     "settings.backup.choose_chat": "Choisir une conversation…",
     "settings.backup.chat_aria": "Conversation à exporter",
     "settings.companion.needs_app": "Le compagnon de bureau a besoin de la fenêtre de l’app VOOL. Dans un onglet de navigateur, le compagnon reste ancré dans la conversation.",
-    "settings.nav.skip": "Aller aux réglages"
+    "settings.nav.skip": "Aller aux réglages",
+    "home.wallet": "Portefeuille",
+    "home.wallet.title": "Portefeuille VOOL — comptes, solde, recevoir, envoyer et activité"
   },
-  "source_catalog_sha256": "f89a3d7244d6ab486fca2999acf37d09c47d2d8380989d358b6cf4f3827d6158",
+  "source_catalog_sha256": "d264d2e7b11109a93ddba63664481a6a3ff3ac6fa4ebcbd8682ae2c6004c3791",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

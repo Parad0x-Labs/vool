@@ -2045,9 +2045,11 @@
     "settings.backup.choose_chat": "Выберите чат…",
     "settings.backup.chat_aria": "Чат для экспорта",
     "settings.companion.needs_app": "Питомцу на рабочем столе нужно окно приложения VOOL. Во вкладке браузера спутник остаётся закреплённым в чате.",
-    "settings.nav.skip": "Перейти к настройкам"
+    "settings.nav.skip": "Перейти к настройкам",
+    "home.wallet": "Кошелёк",
+    "home.wallet.title": "Кошелёк VOOL — счета, баланс, получение, отправка и история"
   },
-  "source_catalog_sha256": "f89a3d7244d6ab486fca2999acf37d09c47d2d8380989d358b6cf4f3827d6158",
+  "source_catalog_sha256": "d264d2e7b11109a93ddba63664481a6a3ff3ac6fa4ebcbd8682ae2c6004c3791",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

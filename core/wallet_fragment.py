@@ -1860,8 +1860,10 @@ var walletHome = (function(){
     var btn = document.getElementById('vwHomeBtn');
     if (st.enabled && !btn) {
       btn = el('button', 'side-foot-btn'); btn.type = 'button'; btn.id = 'vwHomeBtn';
-      btn.title = 'VOOL Wallet — accounts, balance, receive, send and activity';
-      btn.appendChild(document.createTextNode('\uD83D\uDC5B Wallet'));
+      // Through the page's catalog like every other Home row, so the label follows the app language.
+      var tr = function(key, fallback){ return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; };
+      btn.title = tr('home.wallet.title', 'VOOL Wallet — accounts, balance, receive, send and activity');
+      btn.appendChild(document.createTextNode('\uD83D\uDC5B ' + tr('home.wallet', 'Wallet')));
       btn.addEventListener('click', function(){ openPanel(); });
       var anchor = document.getElementById('settingsBtn') || host.querySelector('.home-support');
       if (anchor && anchor.parentNode === host) host.insertBefore(btn, anchor); else host.appendChild(btn);

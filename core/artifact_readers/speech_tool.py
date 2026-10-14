@@ -282,14 +282,14 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", "replace").strip() or f"exit {result.returncode}"
         if detail.startswith("unauthorized:"):
-            state = detail.split(":", 1)[1].strip() or "not authorized"
+            # The macOS authorization state ("notDetermined", "denied", "restricted") is a code, not
+            # words; the person reads what to do. The code stays on the typed error for diagnostics.
             raise ReaderUnavailable(
-                f"This machine has not granted Speech Recognition access, so audio was not transcribed ({state}).",
+                "Voice typing needs your permission to use speech recognition on this Mac.",
                 code="speech_recognizer_unauthorized",
                 remediation=(
-                    "Enable Speech Recognition for this app in System Settings → Privacy & Security → "
-                    "Speech Recognition. Until then audio attachments are refused with this reason and "
-                    "dictation is unavailable."
+                    "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "
+                    "Until then voice typing and audio files stay off."
                 ),
                 fmt="audio",
             )

@@ -202,11 +202,19 @@ def _binary_path() -> Path:
 def ensure_tool() -> Path:
     """The compiled helper, built once and cached by the hash of the source above."""
     if not toolchain_available():
-        raise ReaderUnavailable(
-            "This machine has no Swift toolchain, so the built-in OCR and PDF page renderer cannot be built.",
-            code="vision_toolchain_unavailable",
-            remediation="Install the Xcode Command Line Tools (`xcode-select --install`) to enable OCR of scanned pages and images.",
-        )
+        # Words that fit THIS computer: the reader is macOS-only, so elsewhere there is nothing to
+        # install; on a Mac the missing piece is Apple's free developer tools (no terminal command).
+        if platform.system() != "Darwin":
+            message, remediation = (
+                "Reading scanned pages and text in images isn't available on this computer yet.",
+                "Paste the text into your message instead.",
+            )
+        else:
+            message, remediation = (
+                "Reading scanned pages needs Apple's free Command Line Tools, which aren't installed on this Mac.",
+                "Install them from Apple, then restart VOOL.",
+            )
+        raise ReaderUnavailable(message, code="vision_toolchain_unavailable", remediation=remediation)
     binary = _binary_path()
     if binary.exists() and os.access(binary, os.X_OK):
         return binary

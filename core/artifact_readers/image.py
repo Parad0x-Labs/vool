@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import platform
 from typing import Any
 
 from ._limits import MAX_IMAGE_PIXELS, OCR_MAX_EDGE
@@ -110,7 +111,11 @@ def read(data: bytes, *, name: str = "image.png", media_type: str = "image/png")
         raise ReaderUnavailable(
             f"No text-recognition engine is available on this machine, so the words in {name} were not read.",
             code="ocr_unavailable",
-            remediation="Install the Xcode Command Line Tools to enable reading text out of images.",
+            remediation=(
+                "Install Apple's free Command Line Tools, then restart VOOL, to read text in images."
+                if platform.system() == "Darwin"
+                else "Paste the text from the image into your message instead."
+            ),
             fmt="image",
         )
     with Scratch("vool-image-") as scratch, extraction_budget(scratch=scratch.path):

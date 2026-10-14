@@ -2045,9 +2045,11 @@
     "settings.backup.choose_chat": "एक चैट चुनें…",
     "settings.backup.chat_aria": "निर्यात करने वाली चैट",
     "settings.companion.needs_app": "डेस्कटॉप पेट को VOOL ऐप विंडो चाहिए। ब्राउज़र टैब में साथी चैट में ही जुड़ा रहता है।",
-    "settings.nav.skip": "सेटिंग्स पर जाएँ"
+    "settings.nav.skip": "सेटिंग्स पर जाएँ",
+    "home.wallet": "वॉलेट",
+    "home.wallet.title": "VOOL वॉलेट — खाते, शेष राशि, प्राप्त करें, भेजें और गतिविधि"
   },
-  "source_catalog_sha256": "f89a3d7244d6ab486fca2999acf37d09c47d2d8380989d358b6cf4f3827d6158",
+  "source_catalog_sha256": "d264d2e7b11109a93ddba63664481a6a3ff3ac6fa4ebcbd8682ae2c6004c3791",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
