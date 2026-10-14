@@ -2334,6 +2334,30 @@ function ensureSessionInSidebar(chatId, firstMessage) {
     archived: false,
     pending: true,
   });
+  // The server already said this chat is private and nothing of it is saved (reopened after a
+  // reload): its row is the private one from the start, so the words just typed (the last history
+  // entry) never title it. The turn's commit corrects it if the message turns out to be saved.
+  const st = chatState(chatId);
+  if (st.privateChat && st.history.slice(0, -1).every((m) => m.role !== 'user' || isPrivateEntry(m))) {
+    markPendingSessionPrivate(chatId, true);
+    return;
+  }
+  renderSessions(_lastSessions);
+}
+// A chat that started private (core.private_chat) is never in the server's chat list: it has no
+// saved message and no chat record. Its overlay row stays on this page only, named by the private
+// label rather than by the words typed, offers no action that would save something about it, and is
+// gone after a reload. The first saved turn makes the server's own row, which replaces it.
+function markPendingSessionPrivate(chatId, isPrivate, savedText) {
+  const row = _pendingSessions.get(chatId);
+  if (!row || !!row.private === !!isPrivate) return;
+  if (isPrivate) {
+    row.private = true;
+    row.title = pageT('private.banner_short', 'Private');
+  } else {
+    delete row.private;
+    row.title = String(savedText || '').split('\n')[0].trim().slice(0, 60) || '(new chat)';
+  }
   renderSessions(_lastSessions);
 }
 // A chat exists on the server only once its first turn ends, so a rename (or archive) made while
@@ -2841,8 +2865,12 @@ function applyPrivateCommit(run, meta) {
     if (userEntry) delete userEntry.private;
     withRunDom(run, () => unmarkPrivateMsg(run.userMsgEl));
     if (owner.privateChat) { owner.privateChat = false; if (isDisplayed(run.chatId)) reflectPrivate(); }
+    markPendingSessionPrivate(run.chatId, false, userEntry && userEntry.content);
     return;
   }
+  // Only a chat with no saved message: one that was saved first is the server's row by now, or
+  // will be, and keeps its title.
+  if (owner.history.every((m) => m.role !== 'user' || m === userEntry || m.private)) markPendingSessionPrivate(run.chatId, true);
   run.private = true;
   if (userEntry) userEntry.private = true;
   owner.privateChat = !!meta.private_chat_on;
@@ -3407,6 +3435,12 @@ function makeSessionItem(s, archived, nested) {
   item.addEventListener('click', (e) => {
     if (e.target === item || e.target === emo || (e.target.classList && e.target.classList.contains('lc-badge'))) openSession(s.session_id);
   });
+  if (s.private) {
+    item.classList.add('session-private');
+    emo.innerHTML = GHOST_SVG;
+    item.appendChild(emo); item.appendChild(title);
+    return item;
+  }
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
