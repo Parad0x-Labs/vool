@@ -1872,7 +1872,7 @@
     "private.banner_short": "Privatu",
     "private.end_short": "Vėl saugoti",
     "private.reload_note": "Šis pokalbis privatus. Privačios žinutės neišsaugomos, todėl perkrovus puslapį jos čia nerodomos.",
-    "fault.wallet_payment_channel_off.message": "Šis mokėjimas eina per išjungtą mokėjimo kanalą, todėl niekas nebuvo pasirašyta ar išsiųsta. Įjunkite kanalą Nustatymuose, Kripto, Mokėjimo kanalai, tada bandykite dar kartą.",
+    "fault.wallet_payment_channel_off.message": "Šis mokėjimas eina per išjungtą mokėjimo kanalą, todėl niekas nebuvo pasirašyta ar išsiųsta. Įjunkite kanalą Nustatymuose, Kriptovaliutos, Mokėjimo kanalai, tada bandykite dar kartą.",
     "fault.wallet_x402_sdk_unavailable.action": "Įdiekite pasirenkamą VOOL papildinį x402, kad galėtumėte apmokėti x402 pasiūlymus Base tinkle iš Crypto Pilot piniginės; piniginė bet kuriuo atveju išlaiko savo pasirašytoją, išlaidų ribas ir patvirtinimą.",
     "fault.wallet_payment_channel_off.action": "Įjunkite mokėjimo kanalą Kripto nustatymuose tik jei norite, kad mokėjimai eitų per jį; riba ir jūsų patvirtinimas galioja kiekviename kanale.",
     "fault.wallet_x402_sdk_unavailable.message": "Ši versija negali apmokėti x402 pasiūlymų Base tinkle per x402 Foundation SDK: šiame kompiuteryje neįdiegtas pasirenkamas papildinys x402. Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą.",

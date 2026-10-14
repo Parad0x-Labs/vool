@@ -1874,7 +1874,7 @@
     "private.reload_note": "Cuộc trò chuyện này là riêng tư. Tin nhắn riêng tư không được lưu nên sẽ không hiện ở đây sau khi tải lại.",
     "fault.wallet_payment_channel_off.message": "Khoản thanh toán đó đi qua một kênh thanh toán đang tắt, nên chưa ký hay gửi gì. Bật kênh trong Cài đặt, Tiền điện tử, Kênh thanh toán, rồi thử lại.",
     "fault.wallet_x402_sdk_unavailable.action": "Cài phần bổ sung tùy chọn x402 của VOOL để trả các đề nghị x402 trên Base từ ví Crypto Pilot; dù thế nào ví vẫn giữ bộ ký riêng, trần chi tiêu và bước phê duyệt của mình.",
-    "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
+    "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự phê duyệt của bạn áp dụng trên mọi kênh.",
     "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại.",
     "own_tools.banner": "Công cụ riêng của mô hình",
     "own_tools.banner_title": "Công cụ riêng của mô hình đang bật: các mô hình đám mây bạn chọn không nhận công cụ của VOOL, và một số tự tìm trên web. Auto và mô hình cục bộ vẫn giữ công cụ của VOOL.",
