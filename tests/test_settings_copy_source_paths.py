@@ -90,7 +90,7 @@ def _embedded_json(html: str, marker: str):
     return value
 
 
-_NOT_COPY = re.compile(r"<script\b.*?</script>|<style\b.*?</style>|<!--.*?-->", re.S | re.I)
+_NOT_COPY = re.compile(r"<script\b.*?</script\b[^>]*>|<style\b.*?</style\b[^>]*>|<!--.*?--!?>", re.S | re.I)
 
 
 def _served_copy(html: str) -> dict[str, list[tuple[str, str]]]:
