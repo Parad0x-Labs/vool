@@ -511,6 +511,7 @@ def _turn_usage(events: list[dict[str, Any]], seen: int, model: str) -> dict[str
         "usd_unknown_calls": 0,
         "cached_tokens": None,
         "cache_write_tokens": None,
+        "cache_unreported_calls": 0,
         "request_seconds": None,
         "served_models": [],
     }
@@ -534,12 +535,23 @@ def _turn_usage(events: list[dict[str, Any]], seen: int, model: str) -> dict[str
             cached = [d.get("cached_input_tokens") for d in details]
             written = [d.get("cache_write_input_tokens") for d in details]
             seconds = [d.get("request_seconds") for d in details]
-            if all(isinstance(v, int) for v in cached):
-                out["cached_tokens"] = sum(cached)
-            if all(isinstance(v, int) for v in written):
-                out["cache_write_tokens"] = sum(written)
+            # A call that reported no cache figure stays unknown (counted, never read as zero); the
+            # calls that did report are summed, so one silent call cannot blank the whole turn.
+            known_cached = [v for v in cached if isinstance(v, int) and not isinstance(v, bool)]
+            known_written = [v for v in written if isinstance(v, int) and not isinstance(v, bool)]
+            if known_cached:
+                out["cached_tokens"] = sum(known_cached)
+                out["cached_prompt_tokens_basis"] = sum(
+                    int(d.get("prompt_tokens") or d.get("input_tokens") or 0) for d in details
+                    if isinstance(d.get("cached_input_tokens"), int)
+                )
+            if known_written:
+                out["cache_write_tokens"] = sum(known_written)
+            out["cache_unreported_calls"] = max(len(calls), len(details)) - len(known_cached)
             if all(isinstance(v, (int, float)) for v in seconds):
                 out["request_seconds"] = round(sum(seconds), 3)
+        else:
+            out["cache_unreported_calls"] = len(calls)
     out["off_model_calls"] = sum(1 for m in out["served_models"] if not m.endswith("|" + model))
     out["usd"] = round(out["usd"], 8)
     return out
@@ -1048,11 +1060,20 @@ def summarize(root: Path) -> dict[str, Any]:
         scores = [grades.get((r["label"], r["task"], r["repeat"], r["turn"]), {}).get("score") for r in rows]
         known_scores = [s for s in scores if isinstance(s, int)]
         prompt = _sum([r.get("prompt_tokens") for r in rows])
-        cached = _sum([r.get("cached_tokens") for r in rows])
+        # Cache figures: summed over what was reported, with the unreported calls counted beside them.
+        cached_rows = [r for r in rows if isinstance(r.get("cached_tokens"), (int, float))]
+        cached = _sum([r["cached_tokens"] for r in cached_rows])
+        cached_basis = _sum([r.get("cached_prompt_tokens_basis", r.get("prompt_tokens")) for r in cached_rows])
+        no_call_keys = {(r["task"], int(r["repeat"]), int(r["turn"]), r.get("attempt"))
+                        for r in _read_jsonl(root / label / "results.jsonl") if r.get("kind") == "no_model_call"}
         output = _sum([r.get("output_tokens") for r in rows])
         usd = _sum([r.get("usd") for r in rows])
         wall = _sum([r.get("wall_seconds") for r in rows])
-        failed = sum(1 for r in rows if not str(r.get("answer") or "").strip() or r.get("transport_error") or r.get("is_error"))
+        failed = sum(
+            1 for r in rows
+            if not str(r.get("answer") or "").strip() or r.get("transport_error") or r.get("is_error")
+            or (r["task"], int(r["repeat"]), int(r["turn"]), r.get("attempt")) in no_call_keys
+        )
         summary["labels"][label] = {
             "arm": rows[0].get("arm"),
             "model": rows[0].get("model"),
@@ -1066,8 +1087,10 @@ def summarize(root: Path) -> dict[str, Any]:
             "wall_seconds_median_turn": sorted(r["wall_seconds"] for r in rows)[len(rows) // 2] if rows else None,
             "prompt_tokens": prompt,
             "cached_tokens": cached,
-            "cache_write_tokens": _sum([r.get("cache_write_tokens") for r in rows]),
-            "cached_share": round(cached / prompt, 4) if cached is not None and prompt else None,
+            "cache_write_tokens": _sum([r["cache_write_tokens"] for r in rows if isinstance(r.get("cache_write_tokens"), (int, float))]),
+            "cache_unreported_calls": int(sum(int(r.get("cache_unreported_calls") or 0) for r in rows))
+            if rows[0].get("arm") == "vool" else sum(1 for r in rows if not isinstance(r.get("cached_tokens"), (int, float))),
+            "cached_share": round(cached / cached_basis, 4) if cached is not None and cached_basis else None,
             "output_tokens": output,
             "output_tokens_per_second": round(output / wall, 2) if output is not None and wall else None,
             "usd_total": round(usd, 6) if usd is not None else None,
@@ -1128,15 +1151,22 @@ def cmd_report(args: argparse.Namespace) -> int:
 
     for label, row in summary["labels"].items():
         quality = f"{row['quality_points']}/{row['quality_max']}" + (f" ({row['quality_ungraded']} ungraded)" if row["quality_ungraded"] else "")
+        unreported = row.get("cache_unreported_calls") or 0
+        cached_cell = fmt(row["cached_tokens"]) + (f" ({unreported} calls unreported)" if unreported else "")
         lines.append(
             f"| {label} | {row['arm']} | {row['model']} | {row['cache']} | {row['turns']} ({row['failed_turns']}) | "
             f"{fmt(row['wall_seconds_total'])} | {fmt(row['wall_seconds_median_turn'])} | {fmt(row['prompt_tokens'])} | "
-            f"{fmt(row['cached_tokens'])} | {fmt(row['cached_share'])} | {fmt(row['cache_write_tokens'])} | "
+            f"{cached_cell} | {fmt(row['cached_share'])} | {fmt(row['cache_write_tokens'])} | "
             f"{fmt(row['output_tokens'])} | {fmt(row['output_tokens_per_second'])} | {fmt(row['usd_total'])} "
             f"({row['usd_kind']}) | {fmt(row['usd_per_turn'])} | {quality} |"
         )
     if summary["no_model_call"]:
-        lines += ["", "VOOL answered these turns without calling the model (counted above and graded as answered):", ""]
+        lines += [
+            "",
+            "VOOL answered these turns without calling the model. They are counted above as failed turns and",
+            "graded on the reply VOOL gave. A question about the pasted document went to web lookup (off in the bench):",
+            "",
+        ]
         for label, row in summary["no_model_call"].items():
             lines.append(f"- {label}: {row['turns']} turns. e.g. turn {row['example_turn']} of {row['example_task']}: {row['example'][:200]}")
     if summary["not_counted"]:
@@ -1148,6 +1178,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         "",
         "Notes: USD for VOOL rows is what OpenRouter reported per call (usage.cost). USD for a Claude Code row is",
         "Claude Code's own total_cost_usd (a charge on API usage billing). Unknown means nothing was reported.",
+        "Cached share is cached tokens over the prompt tokens of the calls that reported a cache figure.",
     ]
     (root / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))

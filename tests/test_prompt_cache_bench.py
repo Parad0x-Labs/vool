@@ -189,3 +189,27 @@ def test_spend_no_event_reported_still_stops_the_run_through_the_key_meter(tmp_p
     with pytest.raises(bench.CapReached, match=r"counted \$1\.8000"):
         resumed.check("the next turn")
     assert "sk-or-test" not in (tmp_path / "spend.json").read_text(encoding="utf-8")
+
+
+def test_the_report_counts_a_no_call_turn_as_failed_and_keeps_partial_cache_figures(tmp_path) -> None:
+    import json
+
+    def turn(n: int, cached: int | None, answer: str = "ok") -> dict:
+        return {"kind": "turn", "label": "vool-x", "arm": "vool", "model": "m", "task": "t", "repeat": 0, "turn": n,
+                "attempt": "a1", "answer": answer, "wall_seconds": 1.0, "prompt_tokens": 1000, "output_tokens": 10,
+                "usd": 0.01, "calls": 1, "cached_tokens": cached, "cache_write_tokens": None,
+                "cache_unreported_calls": 0 if cached is not None else 1}
+
+    rows = [
+        turn(0, None),  # a call that reported no cache figure: unknown, never zero
+        turn(1, 600),
+        turn(2, None, "No. Web lookups are off."),
+        {"kind": "no_model_call", "task": "t", "repeat": 0, "turn": 2, "attempt": "a1", "answer": "No. Web lookups are off."},
+        {"kind": "chat_complete", "task": "t", "repeat": 0, "attempt": "a1"},
+    ]
+    (tmp_path / "vool-x").mkdir()
+    (tmp_path / "vool-x" / "results.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    row = bench.summarize(tmp_path)["labels"]["vool-x"]
+    assert row["failed_turns"] == 1
+    assert row["cached_tokens"] == 600 and row["cached_share"] == pytest.approx(0.6)
+    assert row["cache_unreported_calls"] == 2
