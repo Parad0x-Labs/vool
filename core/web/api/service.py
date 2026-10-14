@@ -7449,7 +7449,18 @@ def _dispatch_post_inner(
         # queued item keeps its unsaved contract.
         from core.vool_agent_brake import is_brake_command
 
-        if owner_local and not is_brake_command(user_text):
+        # A question the SERVER confirms is asked beside a live task (0.7.2's side-answer lane,
+        # core.followup_continuity) is answered beside it: it is not an ordinary turn, takes no
+        # slot and never competes with the task. Confirmed exactly as the lane below confirms it
+        # -- a caller-forged side_answer marker with no live task is NOT exempt (it is refused or
+        # runs as the ordinary turn it is, per test_a_forged_side_answer_marker_is_dropped).
+        _side_answer = False
+        if owner_local and str(body.get("followup_mode") or "").strip() == "side_answer":
+            from core import followup_continuity as _fc_precheck
+
+            _side_answer = _fc_precheck.task_snapshot(session_id) is not None
+
+        if owner_local and not _side_answer and not is_brake_command(user_text):
             from core.runtime_continuity import chat_admission_free_for
 
             if not chat_admission_free_for(
@@ -7700,11 +7711,16 @@ def _dispatch_post_inner(
         from core.runtime_continuity import admit_chat_turn
 
         _admit_turn_id = str(body.get("turn_id") or "").strip()[:80]
-        _admission = admit_chat_turn(
-            session_id,
-            _admit_turn_id,
-            queue_item_id=str(body.get("queue_item_id") or "").strip()[:200],
-        )
+        if _side_answer:
+            # A confirmed side answer runs beside the live task and never reserves (or waits
+            # for) the chat's ordinary-turn slot; its release paths below are no-ops.
+            _admission = {"admitted": True, "reason": "side_answer"}
+        else:
+            _admission = admit_chat_turn(
+                session_id,
+                _admit_turn_id,
+                queue_item_id=str(body.get("queue_item_id") or "").strip()[:200],
+            )
         if not _admission.get("admitted"):
             return apply_runtime_headers(
                 json_response(
