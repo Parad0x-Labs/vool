@@ -738,6 +738,20 @@ def _observe_evm_unknown(row: dict[str, Any], client: Any, spec: chains.ChainIde
     return transfers.get_transfer_by_id(proposal_id)
 
 
+def _evm_token_principal(row: dict[str, Any], receipt: dict[str, Any]) -> bool | str | None:
+    """None for a native transfer (its receipt status is the proof); for the owner's ERC-20 transfer, the Transfer-event
+    proof of :func:`core.wallet.evm_tokens.transfer_proven` (None there -- no logs served -- is returned as "no_logs")."""
+    from core.wallet import evm_tokens
+
+    network, asset = str(row.get("network") or ""), str(row.get("asset") or "")
+    if not evm_tokens.is_token_transfer(network, asset):
+        return None
+    token = evm_tokens.token_asset(network, asset)
+    proven = evm_tokens.transfer_proven(receipt, contract=token.address, payer=str(row["from_address"]), recipient=str(row["to_address"]),
+                                        amount_minor=evm_tokens.chain_amount(token, int(row["amount_minor"])))
+    return "no_logs" if proven is None else proven
+
+
 def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
     proposal_id, tx_id, state = str(row["proposal_id"]), str(row.get("tx_id") or ""), str(row["state"])
     spec = chains.resolve_network(row["network"])
@@ -782,6 +796,14 @@ def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
         if display_number is not None and number <= display_number:
             if state == transfers.STATE_CONFIRMED:
                 return row
+            proven = _evm_token_principal(row, receipt)
+            if proven is not None and proven is not True:
+                # a successful token call is paid only when the contract's own Transfer event shows exactly this amount
+                # moving from the payer to the recipient; until then it stays where it is and the evidence says why
+                with connection() as conn:
+                    transfers.update_columns(conn, proposal_id, block_ref=number, block_hash=receipt_hash, evidence_json=appended_evidence(
+                        row, "principal_unproven", block=number, answer="transfer_event_disagrees" if proven is False else "no_logs"))
+                return transfers.get_transfer_by_id(proposal_id)
             balance_after = _hex_int(client._call("eth_getBalance", [str(row["from_address"]), "latest"]))
             columns: dict[str, Any] = {"block_ref": number, "block_hash": receipt_hash, "finality_seen": display_tag, "evidence_json": evidence, "offered_exit_json": "{}", **fee_columns}
             if balance_after is not None:

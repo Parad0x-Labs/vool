@@ -186,7 +186,9 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         ["Payer address", str(fields.get("from_address") or "")],
         ["Recipient address", to_address],
     ]
-    if fields.get("token_transfer") and not sdk:
+    if fields.get("token_transfer") and not sdk and fields.get("token_contract"):
+        details.append(["Token contract", f"{fields.get('token_contract')} (this transfer calls its transfer function; no {gas} is sent with it)"])
+    elif fields.get("token_transfer") and not sdk:
         details.append(["Recipient token account", str(fields.get("recipient_token_account") or "")])
         details.append(["Payer token account", str(fields.get("payer_token_account") or "")])
         details.append(["Token mint", str(fields.get("mint") or "")])

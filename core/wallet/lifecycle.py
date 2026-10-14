@@ -1019,7 +1019,26 @@ class PaymentLifecycle:
             raise expired("nonce_changed", quoted_nonce=nonce, pending_count=pending_count, latest_count=latest_count)
         if spec.fee_model != chains.FEE_BSC and base_fee > int(params["max_fee_per_gas"]):
             raise expired("base_fee_above_ceiling", base_fee_wei=base_fee, max_fee_per_gas=int(params["max_fee_per_gas"]))
-        if balance < amount + fee_max:
+        if fields.get("token_transfer"):
+            # the owner's ERC-20 transfer: the fee is native, the principal is re-read in the token itself, and the call
+            # is still exactly transfer(recipient, amount) on the registry's contract with no value attached
+            from core.wallet import evm_tokens
+
+            token = evm_tokens.token_asset(spec.network, proposal.asset, source_context=self.source_context)
+            expected_data = "0x" + evm_tokens.transfer_calldata(proposal.destination, evm_tokens.chain_amount(token, amount)).hex()
+            if str(params.get("to") or "").lower() != token.address.lower() or int(params.get("value") or 0) != 0 or str(params.get("data") or "").lower() != expected_data:
+                raise self._fault("wallet_quote_mismatch", proposal, reason="token_call_differs_from_the_proposal")
+            if balance < fee_max:
+                raise expired("fee_balance_changed", balance_minor=balance, fee_max_minor=fee_max)
+            try:
+                token_balance = evm_tokens.balance_minor(lambda method, call_params: rpc._call(method, call_params), token, profile.public_key, source_context=self.source_context)
+            except WalletFault:
+                raise
+            except Exception as exc:
+                raise self._fault("wallet_quote_unavailable", proposal, reason=f"revalidation_read_failed:{type(exc).__name__}") from None
+            if token_balance < amount:
+                raise expired("token_balance_changed", balance_minor=token_balance, amount_minor=amount)
+        elif balance < amount + fee_max:
             raise expired("balance_changed", balance_minor=balance, max_total_minor=amount + fee_max)
         return {"rpc": rpc, "url": url, "params": params, "nonce": nonce, "block_number": block_number, "balance": balance, "read_at": time.time()}
 
@@ -1160,9 +1179,12 @@ class PaymentLifecycle:
             message_bytes = quotes.unsigned_type2_bytes(**params)
             companion = None  # the EVM family composes nothing: no fee lane rides it
             companion_bytes = b""
+            # a token transfer: the signer is told the recipient and the amount and builds the call itself; the quoted
+            # calldata is only compared with what it builds, never signed as given
+            signer_params = {**params, "token_transfer": {"recipient": proposal.destination, "amount_minor": int(proposal.amount_minor)}} if params.get("data") else params
 
             def produce(signer: Any) -> tuple[bytes, str]:
-                return signer.sign_evm_type2(params)
+                return signer.sign_evm_type2(signer_params)
 
             def produce_companion(signer: Any) -> tuple[bytes, str]:
                 raise self._fault("wallet_signing_unavailable", proposal, reason="no_companion_on_evm")
@@ -2274,6 +2296,11 @@ class PaymentLifecycle:
             if token is None or token.symbol != str(proposal.asset):
                 return SimulationResult(False, 0, "asset:x402_sdk_token_not_registered")
             return SimulationResult(True, 0, "pilot_authorization_prepared")
+        from core.wallet import evm_tokens
+
+        if str(proposal.origin) in (proposals.ORIGIN_USER, proposals.ORIGIN_MODEL) and evm_tokens.is_token_transfer(spec.network, str(proposal.asset)):
+            # the owner's own ERC-20 transfer: the quote proves the contract, prices this exact call and reads the token balance
+            return SimulationResult(True, 0, "pilot_token_transfer_prepared")
         native = chains.native_asset(spec.network)
         if str(proposal.asset).upper() not in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
             return SimulationResult(False, 0, "asset:native_coin_transfers_only")

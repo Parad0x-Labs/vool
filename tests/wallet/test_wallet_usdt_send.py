@@ -261,7 +261,7 @@ def test_on_test_networks_usdt_is_refused_with_where_it_can_go(chain) -> None:
     environment.set_active_environment("testnet")
     asked = _propose(destination=_person(chain, usdt_account=True), asset="USDT", amount="1")
     assert not asked.ok and asked.status == "wallet_not_found"
-    assert "USDT can be sent on Mainnet only (Solana)" in asked.response_text, asked.response_text
+    assert "USDT can be sent on Mainnet only (Solana, Ethereum, BNB Smart Chain and Arbitrum One)." in asked.response_text, asked.response_text
 
 
 def test_wallet_balances_in_chat_include_usdt(chain) -> None:

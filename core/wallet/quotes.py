@@ -175,11 +175,13 @@ def _check_evm_recipient(spec: chains.ChainIdentity, address: str, *, source_con
     return ["unchecked_lowercase_address"] if body != body.upper() and body == body.lower() else []
 
 
-def unsigned_type2_bytes(*, chain_id: int, nonce: int, max_priority_fee_per_gas: int, max_fee_per_gas: int, gas_limit: int, to: str, value: int) -> bytes:
-    """The unsigned EIP-1559 transaction bytes (0x02 || rlp([...]) with empty data and access list)."""
+def unsigned_type2_bytes(*, chain_id: int, nonce: int, max_priority_fee_per_gas: int, max_fee_per_gas: int, gas_limit: int, to: str, value: int, data: str = "") -> bytes:
+    """The unsigned EIP-1559 transaction bytes (0x02 || rlp([...]) with an empty access list; ``data`` is the hex calldata
+    of a token transfer, empty for a native one)."""
     import rlp
 
-    return b"\x02" + rlp.encode([int(chain_id), int(nonce), int(max_priority_fee_per_gas), int(max_fee_per_gas), int(gas_limit), bytes.fromhex(str(to)[2:]), int(value), b"", []])
+    payload = bytes.fromhex(str(data or "")[2:]) if str(data or "").startswith("0x") else b""
+    return b"\x02" + rlp.encode([int(chain_id), int(nonce), int(max_priority_fee_per_gas), int(max_fee_per_gas), int(gas_limit), bytes.fromhex(str(to)[2:]), int(value), payload, []])
 
 
 def _abi_call(signature: str, types: list[str], values: list[Any]) -> str:
@@ -189,13 +191,28 @@ def _abi_call(signature: str, types: list[str], values: list[Any]) -> str:
     return "0x" + (keccak(signature.encode())[:4] + encode(types, values)).hex()
 
 
-def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, *, source_context: dict[str, Any] | None) -> dict[str, Any]:
-    from core.wallet import evm
+def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, *, token: chains.AssetSpec | None = None,
+               source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """The chain facts of one EIP-1559 transfer: a native one to the recipient, or (``token``) the owner's ERC-20
+    transfer -- a call of the registry contract's ``transfer(recipient, amount)`` with no value, its gas estimated for
+    that exact call, the contract proven live with the registry's decimals and the token balance read."""
+    from core.wallet import evm, evm_tokens
 
     evm.require_evm_dependencies("transfer_quote", source_context=source_context)
     cues = _check_evm_recipient(spec, proposal.destination, source_context=source_context)
+    if token is not None and str(proposal.destination).lower() == token.address.lower():
+        # tokens sent to their own contract are lost: never quoted
+        raise _fault("wallet_recipient_refused", network=spec.network, reason="recipient_is_the_token_contract", source_context=source_context)
     url = chains.network_rpc_url(spec.network)
     _prove(spec, url, lambda method: _evm_rpc(spec, url, method, [], source_context=source_context), source_context=source_context)
+
+    def call(method: str, params: list[Any]) -> Any:
+        return _evm_rpc(spec, url, method, params, source_context=source_context)
+
+    token_facts: dict[str, Any] = {}
+    if token is not None:
+        evm_tokens.require_contract(call, token, source_context=source_context)
+        token_facts["principal_balance_minor"] = evm_tokens.balance_minor(call, token, account_address, source_context=source_context)
     balance = int(_evm_rpc(spec, url, "eth_getBalance", [account_address, "latest"], source_context=source_context), 16)
     block = _evm_rpc(spec, url, "eth_getBlockByNumber", ["latest", False], source_context=source_context)
     block_number = int(block["number"], 16)
@@ -208,6 +225,9 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
     elif has_code:
         cues.append("contract_recipient")
     amount = int(proposal.amount_minor)
+    # a token transfer calls the contract with no value attached; a native one moves the value to the recipient
+    to, value = (token.address, 0) if token is not None else (proposal.destination, amount)
+    data = "0x" + evm_tokens.transfer_calldata(proposal.destination, evm_tokens.chain_amount(token, amount)).hex() if token is not None else ""
     model = spec.fee_model
     if model == chains.FEE_BSC:
         gas_price = int(_evm_rpc(spec, url, "eth_gasPrice", [], source_context=source_context), 16)
@@ -223,16 +243,21 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
         priority = int(_evm_rpc(spec, url, "eth_maxPriorityFeePerGas", [], source_context=source_context), 16)
         max_fee = _grown(base_fee) + priority
         estimate_price = base_fee + priority
-    if model == chains.FEE_ARBITRUM_NITRO or has_code:
-        estimate = int(_evm_rpc(spec, url, "eth_estimateGas", [{"from": account_address, "to": proposal.destination, "value": hex(amount)}], source_context=source_context), 16)
+    if model == chains.FEE_ARBITRUM_NITRO or has_code or token is not None:
+        request = {"from": account_address, "to": to, "value": hex(value)}
+        if data:
+            request["data"] = data
+        estimate = int(_evm_rpc(spec, url, "eth_estimateGas", [request], source_context=source_context), 16)
         buffer_bps = ARBITRUM_GAS_BUFFER_BPS if model == chains.FEE_ARBITRUM_NITRO else CONTRACT_GAS_BUFFER_BPS
         gas_limit = _buffered(estimate, buffer_bps)
     else:
         gas_limit = EOA_GAS_LIMIT
     tx_params = {
         "chain_id": int(spec.chain_id), "nonce": nonce, "max_priority_fee_per_gas": priority, "max_fee_per_gas": max_fee,
-        "gas_limit": gas_limit, "to": proposal.destination, "value": amount,
+        "gas_limit": gas_limit, "to": to, "value": value,
     }
+    if data:
+        tx_params["data"] = data
     fee_estimate = gas_limit * estimate_price
     fee_max = gas_limit * max_fee
     fee_parts: dict[str, Any] = {"execution_estimate_minor": fee_estimate, "execution_max_minor": fee_max}
@@ -246,7 +271,7 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
         fee_max += l1_ceiling + operator
     return {
         "balance_minor": balance, "balance_ref": f"block:{block_number}", "fee_estimate_minor": fee_estimate, "fee_max_minor": fee_max,
-        "fee_parts": fee_parts, "tx_params": tx_params, "cues": cues,
+        "fee_parts": fee_parts, "tx_params": tx_params, "cues": cues, **token_facts,
     }
 
 
@@ -283,11 +308,15 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
 
     paykit = _paykit_block(proposal, spec, source_context=source_context)
     sdk = _x402_sdk_block(proposal, spec, source_context=source_context)
+    from core.wallet import evm_tokens
+
     token_payment = spec.is_svm and bool(svm_tokens.token_route(proposal))
+    # the owner's own ERC-20 transfer (USDT on Ethereum and Arbitrum One); the proposal gate admits no other origin
+    evm_token = spec.is_evm and proposal.origin in (proposals.ORIGIN_USER, proposals.ORIGIN_MODEL) and evm_tokens.is_token_transfer(spec.network, proposal.asset)
     if sdk is not None:
         # an EIP-3009 authorization the site's facilitator submits: the token is quoted, this wallet pays no network fee
         return _mint_authorization_quote(spec, proposal, profile, sdk=sdk, source_context=source_context)
-    if not token_payment and str(proposal.asset).upper() not in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
+    if not token_payment and not evm_token and str(proposal.asset).upper() not in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="native_coin_transfers_only", source_context=source_context)
     if proposal.origin == proposals.ORIGIN_USEPOD:
         # a provider requirement is quoted only inside its window; a closed one ends the request here, typed
@@ -308,6 +337,8 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason="dna_fee_collection_rides_its_payment", source_context=source_context)
     if token_payment:
         return _mint_token_quote(spec, proposal, profile, paykit=paykit, source_context=source_context)
+    if evm_token:
+        return _mint_evm_token_quote(spec, proposal, profile, recipient=recipient, source_context=source_context)
     presentation = environment.presentation(spec)
     from core.wallet import lifecycle
 
@@ -629,6 +660,80 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
     _attach_fee_and_review(
         fields, proposal, rpc=rpc, blockhash=blockhash, principal_balance=principal_balance, held_principal=held_token, fee_balance=fee_balance,
         held_native=held_native, rent_minimum=int(facts["rent_minimum_minor"]), source_context=source_context,
+    )
+    digest = digest_of(fields)
+    quote_id = f"quote-{uuid.uuid4().hex[:20]}"
+    with connection() as conn:
+        limits._begin_immediate(conn)
+        conn.execute("UPDATE wallet_quotes SET state = ? WHERE proposal_id = ? AND state = ?", (STATE_SUPERSEDED, proposal.proposal_id, STATE_OPEN))
+        conn.execute(
+            "INSERT INTO wallet_quotes (quote_id, proposal_id, wallet_id, network, environment, digest, fields_json, state, created_at, expires_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (quote_id, proposal.proposal_id, profile.wallet_id, spec.network, spec.environment, digest, json.dumps(fields, sort_keys=True, default=str), STATE_OPEN, now, fields["expires_at"]),
+        )
+    return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
+
+
+def _mint_evm_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, recipient: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """The owner's ERC-20 transfer on an EVM row: the principal is quoted, held and shown in the token, the network fee
+    in the native coin -- two assets, never one sum. The chain facts come from :func:`_evm_quote` with the token (the
+    contract live with the registry's decimals, the token balance, the gas of this exact call); what other in-flight
+    transfers hold is subtracted per asset."""
+    from core.wallet import evm_tokens
+
+    native = chains.native_asset(spec.network)
+    gas = spec.native_display_symbol or native.symbol
+    token = evm_tokens.token_asset(spec.network, proposal.asset, source_context=source_context)
+    specific = _evm_quote(spec, proposal, profile.public_key, token=token, source_context=source_context)
+    amount = int(proposal.amount_minor)
+    held_token = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=token.symbol)
+    held_native = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=native.symbol)
+    principal_balance, fee_balance = int(specific.pop("principal_balance_minor")), int(specific["balance_minor"])
+    fee_estimate, fee_max = int(specific["fee_estimate_minor"]), int(specific["fee_max_minor"])
+    if principal_balance - held_token < amount:
+        raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="token_balance_below_amount", shortfall_minor=amount - (principal_balance - held_token),
+                     gas_asset=token.symbol, source_context=source_context)
+    if fee_balance - held_native < fee_max:
+        raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="fee_balance_below_fee_ceiling", shortfall_minor=fee_max - (fee_balance - held_native),
+                     shortfall_human=amounts.format_minor(fee_max - (fee_balance - held_native), native.decimals), gas_asset=gas, source_context=source_context)
+    now = _now()
+    fields: dict[str, Any] = {
+        "proposal_id": proposal.proposal_id, "network": spec.network, "chain_key": spec.chain_key,
+        "chain_label": chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "display_name": spec.display_name,
+        "environment": spec.environment, **environment.presentation(spec), "chain_identity": spec.chain_id,
+        "from_label": profile.label or chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name), "from_address": profile.public_key,
+        "to_address": proposal.destination, "asset": token.symbol, "display_symbol": token.symbol, "gas_asset": gas,
+        "decimals": token.decimals, "fee_decimals": native.decimals, "amount_minor": amount, "amount_human": amounts.format_minor(amount, token.decimals),
+        "fee_model": spec.fee_model, "token_transfer": True, "token_contract": token.address,
+        "balance_observed_at": now, "balance_stale": False, **specific,
+        "balance_minor": principal_balance, "principal_balance_minor": principal_balance, "fee_balance_minor": fee_balance,
+        "held_elsewhere_minor": held_token, "held_native_elsewhere_minor": held_native,
+        # the principal ceiling in the token; the fee ceiling is its own field, in the gas asset
+        "max_total_minor": amount,
+        "estimated_after_minor": principal_balance - amount, "minimum_after_minor": principal_balance - held_token - amount,
+        "fee_balance_after_minimum_minor": fee_balance - held_native - fee_max,
+        "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
+        "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        **_recipient_fields(recipient),
+    }
+    for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), token.decimals)
+    for name in ("fee_estimate", "fee_max", "fee_balance", "fee_balance_after_minimum"):
+        fields[f"{name}_human"] = amounts.format_minor(int(fields[f"{name}_minor"]), native.decimals)
+    fields["amount_display"] = amounts.display_amount(amount, token.decimals, token.symbol, exact=True)
+    fields["balance_display"] = amounts.display_amount(principal_balance, token.decimals, token.symbol)
+    fields["fee_estimate_display"] = amounts.display_amount(fee_estimate, native.decimals, gas)
+    fields["fee_max_display"] = amounts.display_amount(fee_max, native.decimals, gas, mode=amounts.ROUND_UP)
+    fields["max_total_display"] = amounts.display_amount(amount, token.decimals, token.symbol, mode=amounts.ROUND_UP)
+    fields["estimated_after_display"] = amounts.display_amount(principal_balance - amount, token.decimals, token.symbol)
+    fields["minimum_after_display"] = amounts.display_amount(principal_balance - held_token - amount, token.decimals, token.symbol, mode=amounts.ROUND_DOWN)
+    fields["fee_asset_differs"] = True
+    from core.wallet import purpose
+
+    fields["purpose"] = purpose.purpose_for(proposal)
+    _attach_fee_and_review(
+        fields, proposal, rpc=None, blockhash="", principal_balance=principal_balance, held_principal=held_token, fee_balance=fee_balance,
+        held_native=held_native, rent_minimum=0, source_context=source_context,
     )
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"

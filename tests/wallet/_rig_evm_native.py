@@ -11,6 +11,11 @@ It models the documented wire behaviour the wallet must survive, per fee model:
 
 Signed raw transactions are decoded and their sender recovered with eth-account, so the chain enforces
 chain id, nonce, balance and fee cap exactly like a node would. Nothing here touches a real chain.
+
+ERC-20 contracts can be added (:meth:`add_token`): they answer ``decimals()`` and ``balanceOf(address)`` through
+``eth_call``, carry code, and a mined ``transfer(address,uint256)`` call moves the balance and emits the contract's
+``Transfer`` event (a call the sender cannot cover reverts and still charges the fee). ``token_log_mode`` scripts a
+contract that lies: 'ok' | 'none' (no event) | 'wrong_amount' (an event for another amount).
 """
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 GAS_PRICE_ORACLE = "0x420000000000000000000000000000000000000f"
+_TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
 
 def _hex(value: int) -> str:
@@ -82,6 +88,9 @@ class ScriptedEvmNativeChain:
         self.send_mode = "ok"
         self.mine_mode = "auto"
         self.oracle_available = True
+        #: contract (lowercase) -> {"decimals": int, "balances": {owner (lowercase): int}}
+        self.tokens: dict[str, dict[str, Any]] = {}
+        self.token_log_mode = "ok"
         self.calls: list[dict[str, Any]] = []
         self.sent: list[bytes] = []
         self.pending: dict[str, dict[str, Any]] = {}
@@ -122,6 +131,20 @@ class ScriptedEvmNativeChain:
     def fund(self, address: str, wei: int) -> None:
         with self._lock:
             self.balances[address.lower()] = int(wei)
+
+    def add_token(self, contract: str, *, decimals: int) -> None:
+        with self._lock:
+            self.tokens[contract.lower()] = {"decimals": int(decimals), "balances": {}}
+            self.code[contract.lower()] = "0x6080604052"
+
+    def fund_token(self, contract: str, owner: str, amount: int) -> None:
+        with self._lock:
+            balances = self.tokens[contract.lower()]["balances"]
+            balances[owner.lower()] = balances.get(owner.lower(), 0) + int(amount)
+
+    def token_balance(self, contract: str, owner: str) -> int:
+        with self._lock:
+            return int(self.tokens[contract.lower()]["balances"].get(owner.lower(), 0))
 
     def balance_of(self, address: str) -> int:
         with self._lock:
@@ -184,6 +207,23 @@ class ScriptedEvmNativeChain:
         fee = gas_used * price + (self.l1_fee if self.fee_model == "op_stack" else 0) + self.operator_charge(gas_used)
         sender = tx["from"]
         reverted = self.mine_mode == "revert"
+        logs: list[dict[str, Any]] = []
+        token = self.tokens.get(tx["to"])
+        if token is not None and not reverted:
+            data = tx["data"]
+            if len(data) != 68 or data[:4] != bytes.fromhex("a9059cbb"):
+                reverted = True
+            else:
+                recipient, amount = "0x" + data[16:36].hex(), int.from_bytes(data[36:68], "big")
+                if token["balances"].get(sender, 0) < amount:
+                    reverted = True
+                else:
+                    token["balances"][sender] -= amount
+                    token["balances"][recipient] = token["balances"].get(recipient, 0) + amount
+                    if self.token_log_mode != "none":
+                        shown = amount + 1 if self.token_log_mode == "wrong_amount" else amount
+                        logs.append({"address": tx["to"], "topics": [_TRANSFER_TOPIC, "0x" + "0" * 24 + sender[2:], "0x" + "0" * 24 + recipient[2:]],
+                                     "data": "0x" + format(shown, "064x")})
         self.balances[sender] = self.balances.get(sender, 0) - fee - (0 if reverted else tx["value"])
         if not reverted:
             self.balances[tx["to"]] = self.balances.get(tx["to"], 0) + tx["value"]
@@ -191,7 +231,7 @@ class ScriptedEvmNativeChain:
         receipt: dict[str, Any] = {
             "transactionHash": tx_hash, "status": "0x0" if reverted else "0x1", "blockNumber": _hex(self.block_number),
             "blockHash": "0x" + format(self.block_number, "064x"), "gasUsed": _hex(gas_used), "effectiveGasPrice": _hex(price),
-            "from": sender, "to": tx["to"], "logs": [], "type": "0x2", "_tx": tx,
+            "from": sender, "to": tx["to"], "logs": logs, "type": "0x2", "_tx": tx,
         }
         if self.fee_model == "op_stack":
             receipt["l1Fee"] = _hex(self.l1_fee)
@@ -292,6 +332,14 @@ class ScriptedEvmNativeChain:
             return self._ok(body, _hex(self.gas_price if self.fee_model == "bsc" else self.base_fee + self.priority_fee))
         if method == "eth_call":
             call = params[0] if params else {}
+            token = self.tokens.get(str(call.get("to") or "").lower())
+            if token is not None:
+                data = str(call.get("data") or "")
+                if data == _selector("decimals()"):
+                    return self._ok(body, "0x" + format(token["decimals"], "064x"))
+                if data.startswith(_selector("balanceOf(address)")) and len(data) == 10 + 64:
+                    return self._ok(body, "0x" + format(token["balances"].get("0x" + data[-40:].lower(), 0), "064x"))
+                return self._err(body, -32000, "execution reverted")
             if str(call.get("to") or "").lower() != GAS_PRICE_ORACLE or self.fee_model != "op_stack" or not self.oracle_available:
                 return self._err(body, -32000, "execution reverted")
             data = str(call.get("data") or "")

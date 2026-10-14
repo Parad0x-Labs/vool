@@ -93,13 +93,24 @@ def read_token_balances(wallet_id: str, *, source_context: dict[str, Any] | None
                 "balance_minor": None, "balance_human": "", "balance_display": "", "ref": "", "observed_at": time.time(),
                 "note": "The balance could not be read; it is not zero."}
 
-    if not environment.is_active(spec.network) or not spec.is_svm:
-        return [unavailable(token, "environment_inactive" if spec.is_svm else "token_read_not_supported") for token in tokens]
-    from core.wallet import lifecycle, quotes, svm_tokens
+    if not environment.is_active(spec.network):
+        return [unavailable(token, "environment_inactive") for token in tokens]
+    from core.wallet import evm_tokens, lifecycle, quotes, svm_tokens
 
     try:
-        rpc = lifecycle.RpcClient(chains.network_rpc_url(spec.network), network=spec.network)
-        quotes._prove(spec, rpc.url, lambda method: rpc._call(method, []), source_context=source_context)
+        if spec.is_svm:
+            rpc = lifecycle.RpcClient(chains.network_rpc_url(spec.network), network=spec.network)
+            quotes._prove(spec, rpc.url, lambda method: rpc._call(method, []), source_context=source_context)
+        else:
+            from core.wallet import evm
+
+            evm.require_evm_dependencies("balance_read", source_context=source_context)
+            url = chains.network_rpc_url(spec.network)
+
+            def call(method: str, params: list[Any]) -> Any:
+                return quotes._evm_rpc(spec, url, method, params, source_context=source_context)
+
+            quotes._prove(spec, url, lambda method: call(method, []), source_context=source_context)
     except WalletFault as exc:
         return [unavailable(token, str(exc.context.get("reason") or exc.code)) for token in tokens]
     except Exception as exc:
@@ -107,8 +118,12 @@ def read_token_balances(wallet_id: str, *, source_context: dict[str, Any] | None
     answers = []
     for token in tokens:
         try:
-            svm_tokens.require_mint(rpc, token, source_context=source_context)
-            minor = svm_tokens.token_balance_minor(rpc, owner=profile.public_key, asset=token, source_context=source_context)
+            if spec.is_svm:
+                svm_tokens.require_mint(rpc, token, source_context=source_context)
+                minor = svm_tokens.token_balance_minor(rpc, owner=profile.public_key, asset=token, source_context=source_context)
+            else:
+                evm_tokens.require_contract(call, token, source_context=source_context)
+                minor = evm_tokens.balance_minor(call, token, profile.public_key, source_context=source_context)
         except WalletFault as exc:
             answers.append(unavailable(token, str(exc.context.get("reason") or exc.code)))
             continue

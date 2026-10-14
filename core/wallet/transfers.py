@@ -129,16 +129,26 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
                            "token": sent != native.symbol})
     if not candidates:
         context = {"reason": "no_signing_account_for_request", "active_environment": active, "chain": chain_key, "network": explicit_network, "asset": symbol}
-        carried_by = sorted({spec.display_name for spec in chains.all_networks() for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol})
+        def in_chain_order(specs: list[Any]) -> list[str]:
+            order = {key: index for index, key in enumerate(chains.CHAIN_KEY_ORDER)}
+            return list(dict.fromkeys(spec.display_name for spec in sorted(specs, key=lambda spec: (order.get(spec.chain_key, 99), spec.display_name))))
+
+        carried_by = in_chain_order([spec for spec in chains.all_networks() if any(t.symbol.upper() == symbol for t in chains.user_transfer_tokens(spec.network))])
         if not carried_by:
             raise wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
         # a token this wallet sends only on certain rows: the refusal says where it can go
         context.update({"reason": "token_not_sendable_here", "token_networks": carried_by})
         fault = wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
-        here = sorted({spec.display_name for spec in rows for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol})
+        here = in_chain_order([spec for spec in rows if any(t.symbol.upper() == symbol for t in chains.user_transfer_tokens(spec.network))
+                               and (not family_hint or spec.family == family_hint)])
         where = _names(here or carried_by)
-        fault.user_message = (f"{symbol} goes out from a Crypto Pilot account on {where}, and this wallet has no account there yet." if here
-                              else f"{symbol} can be sent on Mainnet only ({where}). Switch the wallet to Mainnet to send it.")
+        named = [spec for spec in rows if (explicit_network and spec.network == chains.resolve_network(explicit_network).network) or (chain_key and spec.chain_key == chain_key)]
+        if named and not any(t.symbol.upper() == symbol for spec in named for t in chains.user_transfer_tokens(spec.network)):
+            fault.user_message = f"This wallet does not send {symbol} on {_names([spec.display_name for spec in named], joiner='or')}. It goes out on {where}."
+        elif here:
+            fault.user_message = f"{symbol} goes out from a Crypto Pilot account on {where}, and this wallet has no account there yet."
+        else:
+            fault.user_message = f"{symbol} can be sent on Mainnet only ({where}). Switch the wallet to Mainnet to send it."
         raise fault
     if len(candidates) > 1 and not wanted_wallet and not any(c["token"] for c in candidates):
         # (a token request on several chains is never settled by the default account: the owner says which chain)
