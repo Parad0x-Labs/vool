@@ -299,6 +299,22 @@ def test_a_caller_that_does_not_ask_for_the_refusal_waits_and_runs_once(http_rig
     assert status == 200, (status, body)
 
 
+def test_an_instant_answer_frees_the_chat_at_once(http_rig):
+    """A question the door answers itself (the build/version answer) never starts a worker, so
+    the slot it took must be free the moment it answers -- not 30 s later when its lease runs
+    out, with every send in between refused or queued behind a turn that does not exist."""
+    provider, daemon = http_rig
+    session_id = _sid("http-instant-answer")
+
+    status, body = _turn_post(daemon, "what version are you running?", session_id, turn_id="t-ver-1", timeout=60.0)
+    assert status == 200, (status, body)
+    assert "VOOL release" in json.dumps(body), body
+    assert _queue_state(daemon, session_id).get("turn_active") is False, "the instant answer left the chat busy"
+    status, body = _turn_post(daemon, M2, session_id, turn_id="t-ver-2", timeout=120.0)
+    assert status == 200, (status, body)
+    assert len(_calls_for(provider, M2)) == 1
+
+
 def test_a_refused_claim_comes_back_as_its_original_row(http_rig_short_lease):
     provider, daemon = http_rig_short_lease
     session_id = _sid("http-refused-claim")

@@ -8019,6 +8019,10 @@ def _dispatch_post_inner(
             requested_model=requested_model,
         )
         if model_status_result is not None:
+            # Answered here, by the door itself (the build/model status answer): no worker ever
+            # runs for it, so the admission this request took must be free the moment it answers,
+            # not when its lease runs out.
+            _release_turn_admission()
             result = apply_exact_response_control(dict(model_status_result), user_text)
             if stream:
                 stream_iter = ollama_stream_chunks(result, str(model))
