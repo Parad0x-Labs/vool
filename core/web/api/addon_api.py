@@ -32,11 +32,19 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "registry_picture": {"action", "id", "sha256", "approved"},
         "registry_prepare": {"action", "id", "version", "approved"},
         "registry_install": {"action", "id", "version", "review_id", "accepted", "enable"},
+        "skill_publish": {"action", "name"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
         return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
     try:
-        if action.startswith("registry_"):
+        if action == "skill_publish":
+            # A check on this device and a website link; nothing is sent from here.
+            if not isinstance(body.get("name"), str):
+                return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
+            from core.registry.handoff import publish_handoff
+
+            result = publish_handoff(body["name"])
+        elif action.startswith("registry_"):
             from core.registry.client import handle
 
             result = handle(action, body)

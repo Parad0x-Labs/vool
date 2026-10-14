@@ -39,6 +39,10 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 # loader reads only SKILL.md, so versioning adds no second load path: old versions are inert
 # bytes until a rollback copies one back over SKILL.md through the gated install path.
 VERSIONS_DIRNAME = "versions"
+# Left beside a draft brought in from someone's file (core.skill_package.import_package): a skill
+# installed from that draft records "import" in its history, so it is never offered as one the
+# person made (core.registry.handoff).
+IMPORTED_MARK = "imported.json"
 _HISTORY_LOCK = threading.Lock()
 
 # Activation-class mutations (install, rollback) serialize the whole check-copy-record
@@ -875,6 +879,8 @@ def install_skill(
         # the next edit of this skill can be rolled back to exactly this state. The record is
         # verified BY READING IT BACK — an install whose version did not persist is an error, not
         # an unversioned success (an activation the history cannot account for is unauditable).
+        if (source.parent / IMPORTED_MARK).is_file():
+            origin = "import"
         try:
             recorded = _record_version(destination_dir, source=str(origin or "install"))
             persisted = _read_history(destination_dir)

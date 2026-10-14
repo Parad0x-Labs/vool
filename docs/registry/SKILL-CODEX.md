@@ -2,6 +2,41 @@
 
 The website's Skill Codex pages use these routes in addition to [WEBSITE-HANDOVER.md](WEBSITE-HANDOVER.md). The same rules apply: same-origin requests, `X-Vool-CSRF` on every change, plain-text rendering of every user-written field, and `{error}` with HTTP 400 on refusal.
 
+## Publishing with automatic checks
+
+When the service runs with the signing Mac (see [OPERATIONS.md](OPERATIONS.md#automatic-checks-with-the-signing-mac)), a creator publishes without waiting for a person. Before the first upload the page shows this agreement with an unticked box, and sends nothing until the creator ticks it:
+
+> I made this skill, or have the right to share it, and I release it under the MIT licence. Anyone may use, copy, change and share it.
+
+The ticked box becomes `"agreement": "mit-own-work-v1"`:
+
+- The written-skill form sends `POST /drafts` with exactly `{metadata, skill_markdown, agreement}`. `metadata.license` must be `MIT`; the service writes the MIT licence text in the publisher's name, so the form has no licence field.
+- An uploaded package (`POST /submissions`) carries the header `X-Vool-Agreement: mit-own-work-v1`. The package must hold the MIT licence text and an upload source `{upload_id, namespace}`. A package that names a GitHub repository is refused with "this package names a GitHub source; publish it with GitHub import instead".
+
+Without the agreement both routes keep the older reviewed flow, and nothing is published automatically.
+
+The server checks every upload at once. A clean one has state `checking` while the signing Mac checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?, rule?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. `rule` is a stable code for the reason, for a page that shows it in the reader's language: `install`, `download`, `address`, `secret-ask`, `wallet`, `injection`, `hidden`, `letters`, `invisible`, `escapes`, `secret`, `reserved-name`, `reserved-summary`, `summary`, `short`, `endorsed` and `too-long`. A finding without `rule` is shown by its `reason` alone. A line that looks like a key, password or recovery phrase is never quoted back, whichever check names it. Skill Codex skills:
+
+- hold Markdown or plain-text files under `skills/`, the licence, `registry.json`, the manifest and optional pictures, and nothing that runs: no scripts, programs, executable files, manifest commands, permissions or credential bindings, and no `vool` section in the manifest (VOOL writes that itself to mark a pack as its owner's own, and refuses to install a download that carries one);
+- never ask anyone to install, download or run software, paste commands into a terminal, or open a short link, raw address or paste site;
+- never ask for a recovery phrase, key, password or code, contain a wallet address, or carry hidden comments, invisible characters or encoded blobs;
+- never try to change VOOL's own rules, spending limits or approvals, or hide what they do from the user;
+- carry the MIT licence text with its copyright lines and nothing else, and have instructions long enough to be useful;
+- keep the words that read as the Skill Codex vouching for a skill out of their name, title and summary (such as verified, official, certified, endorsed, "tested by", "safe to use" or "security checked"), and out of every file (such as "verified by VOOL", "tested by Parad0x Labs", "official Skill Codex" or "VOOL team"); only the team's own skills may use them;
+- keep all their text under 120,000 characters ("This skill is too long to check. Keep all its text under 120,000 characters.").
+
+The checks read the instructions, summary and manifest the way a person would: a command split over lines with `\` is read as one, even in the middle of a word, and full-width letters, joiners and look-alike letters from other alphabets are read as the plain letters they imitate. A word that mixes alphabets is refused on its own. Commands are refused even inside advice about them; write the advice in words instead.
+
+The review model also refuses a skill that does something its summary does not say, sends anything somewhere the user did not choose, moves money, or is harmful. If the model cannot give a clear answer after three tries, the skill is refused with "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again." While the monthly review budget is used up, or the review service cannot be reached, uploads wait in `checking`; they are never published unchecked, and the wait never counts against them. An upload still waiting 35 days after it arrived expires, and its creator uploads it again. The same refused bytes sent again get the same answer without another review.
+
+Each publisher name gets 30 model reviews a month (the team's name has no limit). Past that, an upload is refused with "This account has used this month's checks. Upload it again next month." A package the checks cannot read at all is refused with "Our checks couldn't read this skill. Make it plainer, then upload it again."
+
+A version number names one package for good. While one version waits for checks, another upload of the same or a lower version is refused with "this version is already waiting for checks; use a higher version number". If two uploads of one version still arrive together (two team members at once), the first is listed and the other is refused with "Version X is not higher than X, which is already listed. Use a higher version number."
+
+Other refusals the page shows as they come: "accept the Skill Codex agreement to publish", "Skill Codex skills use the MIT licence", "new accounts can publish 14 days after they start; yours can from YYYY-MM-DD" (counted from the older of the GitHub account and the Skill Codex account) and "this creator can't publish right now" (a suspended creator).
+
+Catalog rows carry two marks the team sets by hand. `tested: true` means the team tested this exact version; show it as "Tested by Parad0x Labs". An update drops the mark until the team tests the new version. `highlighted: true` puts the skill in the Highlighted spot. Neither is set by stars, downloads or the creator. Pictures of an automatically admitted skill show once that version is marked Tested; until then its creator sees them in `pictures_pending` and everyone else sees the placeholder tile. Team members publish under the team's name (`vool-team`), whose profile has `origin: "official"`; nobody else can choose that name.
+
 ## Catalog search, filters, sort and labels
 
 `GET /registry/api/catalog` accepts `q` (up to 100 characters), `category`, `subcategory`, `origin` (`official` or `community`) and `sort` (`stars`, default; `updated`; `downloads`; `newest`). Unknown or repeated parameters are refused. Search matches every word against the package name, summary, and category and subcategory labels, so a job description such as "summarize meetings" finds a meeting skill whose name differs. Results are not paginated.
@@ -84,6 +119,17 @@ vool-registry skill-pause --config CONFIG --target PUBLISHER/NAME    # an operat
 vool-registry skill-resume --config CONFIG --target PUBLISHER/NAME   # ends any pause and closes open reports
 vool-registry reporter-mute --config CONFIG --target REPORT_ID       # the account behind that report stops counting
 ```
+
+## Publishing from VOOL
+
+In the VOOL app, My add-ons > Skills shows a quiet "Publish to Skill Codex" button on each skill the person made: one in their own skill folders (`local-skills`, or a chat's or project's) that was not installed from an imported file. Skills that ship with VOOL, skills in any other package (including packs brought in from a file), skills reached through a link, skills whose version history says they were imported (from VOOL 0.7.2 on; earlier imports cannot be told apart, and the website's agreement covers them), skills too long for the form and skills marked `local-only: true` get no button. The button runs the written-skill form's own checks on the device, in a temporary folder it removes, with placeholder package details: `initialize`, `pack` and `preflight` as `POST /drafts` does, then the automatic checks the service runs on a draft sent with the agreement (see [Publishing with automatic checks](#publishing-with-automatic-checks)). Their reasons are shown in their own words, with the SKILL.md line and the words that tripped them, as the website shows them. As on the service, text that looks like a secret stops the check there. A skill folder holding other files besides SKILL.md is refused, because the form carries one SKILL.md. VOOL's own version history next to SKILL.md is not counted. When the checks pass, VOOL opens this link in the browser and sends nothing itself:
+
+```
+ORIGIN/codex/skills/publish#skill=<base64url of UTF-8 JSON, no padding>
+JSON: {"v":1,"name":"<skill folder name>","title":"<display name>","summary":"<description>","skill_markdown":"<SKILL.md text>"}
+```
+
+`ORIGIN` is the Skill Codex address in `core/registry/client.py`. The fragment never reaches a server. The publish page decodes it, then at once removes it from the address bar with `history.replaceState`, so the skill text does not stay in the page address. It fills the written-skill form (stable name from `name`, `title`, `summary`, SKILL.md from `skill_markdown`), and the person signs in, chooses a category, ticks the MIT agreement and sends it as `POST /drafts` with `"agreement": "mit-own-work-v1"`. The page must not send the fragment anywhere else or log it, and must ignore an unknown `v`. Sign-in leaves the page, so only for that round trip the page may keep the draft in `sessionStorage` under `vool-codex-handoff`, and it deletes it as soon as the page loads again; nothing goes in `localStorage`, cookies or analytics. VOOL calls a skill ready only when the request the page sends for it, with the person's publisher name and category, fits the 32,768 bytes `POST /drafts` takes (text in Japanese, for example, needs three bytes a letter); the page still counts the body as for any draft. VOOL's check uses no account, so the account checks (account age, publisher name, suspension) and the model review still apply on the website.
 
 ## Updates
 

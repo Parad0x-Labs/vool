@@ -12401,7 +12401,7 @@ function renderSkills(d, query) {
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party })));
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug })));
   if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
   skills.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
@@ -12420,6 +12420,8 @@ function renderSkills(d, query) {
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
+    // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
+    if (s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
     body.appendChild(card);
   });
 }

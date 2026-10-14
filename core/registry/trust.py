@@ -16,6 +16,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from core.registry.codec import HEX, RegistryError, canonical, digest, require, unbase64
 
+# How long the offline signer's list stays valid without it: a week away from the signing machine
+# keeps installs working; the online key re-stamps freshness within it, never beyond.
+AUTHORIZATION_SECONDS = 7 * 86400
+
 
 def serialized(function):
     @wraps(function)
@@ -61,11 +65,12 @@ def root_document(value: dict, now: int, *, allow_expired: bool = False) -> dict
     require(isinstance(value["roles"], dict) and set(value["roles"]) == {"root", "admission", "review", "catalog"},
             "missing trust role")
     used = set()
-    for role, rule in value["roles"].items():
+    for rule in value["roles"].values():
         require(isinstance(rule, dict) and set(rule) == {"keyids", "threshold"} and
                 isinstance(rule["keyids"], list) and len(set(rule["keyids"])) == len(rule["keyids"]) and
                 set(rule["keyids"]) <= set(value["keys"]) and type(rule["threshold"]) is int and
-                (1 if role == "catalog" else 2) <= rule["threshold"] <= len(rule["keyids"]), "unsafe signing threshold")
+                # One signer per role is the owner's choice (one machine holds the offline keys); never zero.
+                1 <= rule["threshold"] <= len(rule["keyids"]), "unsafe signing threshold")
         require(not used.intersection(rule["keyids"]), "online, review and offline signing roles must be separated")
         used.update(rule["keyids"])
     require(isinstance(value["policies"], list) and value["policies"] and
@@ -137,7 +142,7 @@ class TrustedCatalog:
                 authorization["schema"] == "vool.registry.catalog_authorization.v1" and
                 authorization["root_version"] == self.root["version"] and type(authorization["epoch"]) is int and
                 authorization["epoch"] > 0 and type(authorization["issued_at"]) is int and type(authorization["expires"]) is int and
-                authorization["issued_at"] <= now < authorization["expires"] <= authorization["issued_at"] + 86400 and
+                authorization["issued_at"] <= now < authorization["expires"] <= authorization["issued_at"] + AUTHORIZATION_SECONDS and
                 value["expires"] <= authorization["expires"] and authorization["entries_sha256"] == digest(value["entries"]) and
                 authorization["revoked_sha256"] == digest(value["revoked"]), "offline catalog authorization mismatch or expiry")
         seen = set()
