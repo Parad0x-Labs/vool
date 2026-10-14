@@ -86,6 +86,10 @@ _ENTITY_TOKENS = frozenset(
 )
 
 
+# A line made only of HTML tags (README banner images, badge rows, centring wrappers).
+_MARKUP_ONLY_RE = re.compile(r"^\s*(?:<[^<>]+>\s*)+$")
+
+
 @dataclass(frozen=True)
 class CanonicalPassage:
     source_path: str
@@ -143,6 +147,10 @@ def _sections(path: Path) -> list[tuple[str, str]]:
     heading = path.name
     lines: list[str] = []
     for line in text.splitlines():
+        if _MARKUP_ONLY_RE.match(line):
+            # Banner, badge and layout HTML says nothing about the project and would crowd the
+            # section's real words out of the passage limit.
+            continue
         if line.startswith("#"):
             if lines:
                 content = "\n".join(lines).strip()
