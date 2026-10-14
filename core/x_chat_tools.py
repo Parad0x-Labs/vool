@@ -11,6 +11,7 @@ from typing import Any
 
 X_READ_INTENTS = frozenset({
     "x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists", "x.usage",
+    "x.spaces", "x.dms", "x.account",
 })
 X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status"})
 X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS
@@ -76,8 +77,24 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
                                               "earliest_post_at", "callers", "next_token", "min_followers",
                                               "callers_below_min_followers"))
     if intent == "x.user":
+        if str(args.get("search") or "").strip():
+            outcome = x_api.search_users(args["search"], max_results=args.get("max_results", 25),
+                                         next_token=str(args.get("next_token") or ""))
+            return _result(intent, outcome, keys=("users", "next_token"))
         outcome = x_api.lookup_users(args.get("usernames") or args.get("username") or "")
         return _result(intent, outcome, keys=("users", "not_found"))
+    if intent == "x.spaces":
+        outcome = x_api.spaces(query=args.get("query") or "", ids=args.get("ids") or "", hosts=args.get("hosts") or "",
+                               state=str(args.get("state") or "all"), max_results=args.get("max_results", 25))
+        return _result(intent, outcome, keys=("spaces",))
+    if intent == "x.dms":
+        outcome = x_api.direct_messages(with_user=args.get("with_user") or args.get("username") or "",
+                                        max_results=args.get("max_results", 25), next_token=str(args.get("next_token") or ""))
+        return _result(intent, outcome, keys=("messages", "next_token"))
+    if intent == "x.account":
+        outcome = x_api.account_info(str(args.get("kind") or "muted"), max_results=args.get("max_results", 100),
+                                     next_token=str(args.get("next_token") or ""))
+        return _result(intent, outcome, keys=("users", "trends", "x_usage", "next_token"))
     if intent == "x.user_posts":
         outcome = x_api.user_posts(args.get("username") or args.get("user") or "", kind=str(args.get("kind") or "posts"),
                                    max_results=args.get("max_results", 25), exclude=str(args.get("exclude") or ""),

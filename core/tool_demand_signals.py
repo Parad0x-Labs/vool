@@ -500,10 +500,23 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             r"\b(?:post|tweet|publish|reply|retweet|repost|quote)\b[^.?!]{0,60}?\b(?:on|to)\s+(?:x|twitter)\b(?!\.)"
             r"|\b(?:tweet|retweet|repost)\s+(?:this|that|it)\b"
             r"|\b(?:follow|unfollow)\s+@[A-Za-z0-9_]{1,15}\b"
-            r"|\b(?:like|retweet|repost|reply\s+to|quote)\s+(?:this|that|the)\s+(?:tweet|post)\b",
+            r"|\b(?:like|retweet|repost|reply\s+to|quote)\s+(?:this|that|the)\s+(?:tweet|post)\b"
+            r"|\b(?:mute|unmute)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:dm|message)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:hide|unhide)\s+(?:this|that|the|a)\s+repl(?:y|ies)\b"
+            r"|\b(?:create|make|start)\s+(?:an?\s+)?(?:x|twitter)\s+list\b"
+            r"|\badd\s+@[A-Za-z0-9_]{1,15}\s+to\s+(?:my\s+)?(?:\w+\s+)?list\b",
             re.I,
         ),
     ),
+    ("x.spaces", "x", re.compile(r"\b(?:x|twitter)\s+spaces?\b|\bspaces?\s+(?:on|from)\s+(?:x|twitter)\b"
+                                r"|\b(?:live|scheduled|upcoming)\s+spaces?\b", re.I)),
+    ("x.dms", "x", re.compile(r"\bmy\s+(?:x|twitter)\s+(?:dms?|direct\s+messages?|inbox)\b"
+                             r"|\b(?:dms?|direct\s+messages?)\s+(?:on|from|in)\s+(?:x|twitter)\b", re.I)),
+    ("x.account", "x", re.compile(r"\bwho\s+(?:have\s+)?i\s+(?:muted|blocked)\b|\bmy\s+(?:muted|blocked)\s+(?:accounts?|list)\b"
+                                 r"|\bmy\s+(?:x|twitter)\s+trends\b|\b(?:x|twitter)\s+api\s+(?:usage|cap)\b", re.I)),
+    ("x.user", "x", re.compile(r"\b(?:find|search\s+for|look\s+for)\s+(?:x|twitter)\s+accounts?\b"
+                              r"|\baccounts?\s+on\s+(?:x|twitter)\s+(?:called|named|about)\b", re.I)),
     # -- mcp (family-level: server tools are dynamic) ------------------------------
     # matched separately below via the mcp.<server>. prefix vocabulary
 )

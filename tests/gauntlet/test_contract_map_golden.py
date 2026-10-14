@@ -225,11 +225,14 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'workspace.symbol_search': ('read_only', 'none'),
     'workspace.write_file': ('workspace_write', 'runtime_policy'),
     'x.action.propose': ('creative_state', 'none'),  # drafts only; the user's approval in Settings sends
+    'x.account': ('read_only', 'none'),
     'x.action.status': ('read_only', 'none'),
+    'x.dms': ('read_only', 'none'),
     'x.follows': ('read_only', 'none'),
     'x.lists': ('read_only', 'none'),
     'x.post': ('read_only', 'none'),
     'x.search': ('read_only', 'none'),
+    'x.spaces': ('read_only', 'none'),
     'x.token_callers': ('read_only', 'none'),
     'x.trending': ('read_only', 'none'),
     'x.usage': ('read_only', 'none'),
@@ -360,7 +363,8 @@ def test_contract_map_and_list_agree():
     # 175 -> 187: the X lane with the user's own keys (nine reads, x.action.propose which only drafts)
     # plus token.research and token.launches, read-only through the user's chain-data keys.
     # 187 -> 188: token.performance, a token's price then/now/peak from public DEX data (web access on).
-    assert len(contract_map) == len(GOLDEN_TIERS) == 188
+    # 188 -> 191: x.spaces, x.dms and x.account, reads with the user's own X keys.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 191
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

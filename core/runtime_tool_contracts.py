@@ -3209,9 +3209,11 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
         _x_read_contract(
             "x.user",
             "Look up X accounts by username, @handle or profile link (or 'me' for the connected account): "
-            "name, bio, followers, following, post count, account age, verified.",
-            "x.read_users", "look up X account profiles",
-            {"usernames": "string or list (up to 100)"}, {"users": "list", "not_found": "list"}, connected),
+            "name, bio, followers, following, post count, account age, verified. search='words' finds accounts "
+            "by name or profile words instead.",
+            "x.read_users", "look up and search X account profiles",
+            {"usernames": "string or list (up to 100)", "search": "string optional (find accounts by words)", **page},
+            {"users": "list", "not_found": "list"}, connected),
         _x_read_contract(
             "x.user_posts",
             "Read an account's posts (kind=posts), mentions of it (kind=mentions), posts it liked (kind=likes), "
@@ -3244,6 +3246,27 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             {"username": "string optional", "list_id": "string optional (id or link)",
              "kind": "string optional (owned|memberships|followed|details|posts|members|followers)", **page},
             {"lists": "list", "posts": "list", "users": "list"}, connected),
+        _x_read_contract(
+            "x.spaces",
+            "X Spaces (live audio rooms): search by words (query, state=live|scheduled|all), look up by id or link "
+            "(ids), or the Spaces some accounts host (hosts=usernames). Title, state, host, listeners, times, link.",
+            "x.read_spaces", "find and look up X Spaces",
+            {"query": "string optional", "ids": "string or list optional", "hosts": "string or list optional",
+             "state": "string optional (all|live|scheduled)", "max_results": "int optional"},
+            {"spaces": "list"}, connected),
+        _x_read_contract(
+            "x.dms",
+            "The connected user's own recent direct messages on X, or the conversation with one account "
+            "(with_user=username). Private: only read them when the user asks about their DMs.",
+            "x.read_dms", "read the user's own X direct messages",
+            {"with_user": "string optional (username)", **page}, {"messages": "list"}, connected),
+        _x_read_contract(
+            "x.account",
+            "About the connected X account: kind=muted or blocked (who it muted or blocked), kind=trends (trends "
+            "X picks for this account), kind=x_usage (X's own count of this app's post reads against its cap).",
+            "x.read_account", "read the connected X account's mutes, blocks, trends and X's usage count",
+            {"kind": "string (muted|blocked|trends|x_usage)", **page},
+            {"users": "list", "trends": "list", "x_usage": "object"}, connected),
         RuntimeToolContract(
             intent="x.usage",
             description="How much of the X API the user's keys used this month (requests, posts and accounts "
@@ -3257,14 +3280,21 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
         RuntimeToolContract(
             intent="x.action.propose",
             description="Propose an action on X as the user: post, reply, quote, delete (one of the user's own "
-                        "posts), like, unlike, repost, unrepost, follow, unfollow. NOTHING is sent: the user sees "
-                        "the exact action in the app and approves or declines it there. Say so in the reply.",
+                        "posts), like, unlike, repost, unrepost, follow, unfollow, hide_reply/unhide_reply (a reply "
+                        "to the user's own post), mute, unmute, dm (a direct message), list_create, list_add and "
+                        "list_remove (the user's own lists). NOTHING is sent: the user sees the exact action in the "
+                        "app and approves or declines it there. Say so in the reply.",
             tool_surface="x", capability_id="x.propose_action",
             capability_claim="propose a post, reply, like, repost or follow on X for the user to approve",
             supported=connected, unsupported_reason=_X_UNSUPPORTED,
-            input_schema={"kind": "string (post|reply|quote|delete|like|unlike|repost|unrepost|follow|unfollow)",
-                          "text": "string, at most 280 characters as X counts them (post, reply, quote)", "post": "string (post link or id: reply, quote, "
-                          "delete, like, unlike, repost, unrepost)", "username": "string (follow, unfollow)"},
+            input_schema={"kind": "string (post|reply|quote|delete|like|unlike|repost|unrepost|follow|unfollow|"
+                                  "hide_reply|unhide_reply|mute|unmute|dm|list_create|list_add|list_remove)",
+                          "text": "string: at most 280 characters as X counts them (post, reply, quote); the message (dm)",
+                          "post": "string (post link or id: reply, quote, delete, like, unlike, repost, unrepost, hide_reply, unhide_reply)",
+                          "username": "string (follow, unfollow, mute, unmute, dm, list_add, list_remove)",
+                          "list_id": "string (list_add, list_remove)",
+                          "name": "string (list_create, up to 25)", "description": "string optional (list_create)",
+                          "private": "boolean optional (list_create)"},
             output_schema={"action": "object (id, kind, state)"},
             side_effect_class="creative_state",
             # Proposing reads the target post or account from X with the user's keys (billed), so it

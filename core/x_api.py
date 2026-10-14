@@ -150,6 +150,33 @@ def _request(path: str, params: dict[str, Any] | None = None, *, user_context: b
         x_usage.release_reads(worst_case)
 
 
+# What a "your plan doesn't include it" refusal means for the endpoints whose access X sells
+# separately, so the agent can tell the user plainly instead of a bare 403.
+_PLAN_NOTES = (
+    (("/2/tweets/search/all", "/2/tweets/counts/all"),
+     "Full-archive search is not included in your X plan (X sells it with its higher API plans). "
+     "Recent search, the last 7 days, still works."),
+    (("/2/users/search",), "Searching X accounts by name is not included in your X plan."),
+    (("/2/dm_events", "/2/dm_conversations"),
+     "Reading your DMs needs your X app's permission set to \"Read and write and Direct message\" "
+     "(developer.x.com > your app > User authentication settings), then new Access Tokens in Settings > API Keys > X."),
+    (("/2/spaces",), "Reading Spaces is not included in your X plan."),
+    (("/2/usage",), "X's own usage count is not available on your X plan."),
+    (("/2/users/personalized_trends",), "Personalized trends are not included in your X plan."),
+)
+
+
+def _for_path(path: str, err: XReadError) -> XReadError:
+    if err.status != "plan_refused":
+        return err
+    for prefixes, note in _PLAN_NOTES:
+        if path.startswith(prefixes):
+            tail = err.message.split(" X said:", 1)
+            err.message = note + (" X said:" + tail[1] if len(tail) > 1 else "") + " Nothing else was read."
+            break
+    return err
+
+
 def _worst_case(params: dict[str, Any]) -> int:
     """The most items (posts, accounts, lists) one answer can carry, held against the limit first."""
     try:
@@ -189,7 +216,7 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
             body = json.loads((exc.read(64 * 1024) or b"{}").decode("utf-8"))
         except Exception:
             body = None
-        raise _http_failure(int(exc.code or 0), body) from None
+        raise _for_path(path, _http_failure(int(exc.code or 0), body)) from None
     except XReadError:
         raise
     except Exception as exc:
@@ -207,7 +234,7 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise XReadError("unexpected_schema", "X answered, but not in the shape VOOL expects.")
     if not 200 <= status < 300:
-        raise _http_failure(status, payload)
+        raise _for_path(path, _http_failure(status, payload))
     if "data" not in payload and payload.get("errors") and not payload.get("meta"):
         err = payload["errors"][0] if isinstance(payload["errors"], list) and payload["errors"] else {}
         title = str((err or {}).get("title") or "")
@@ -243,11 +270,11 @@ def _count_users(payload: dict[str, Any]) -> int:
 
 
 def _count_other(payload: dict[str, Any]) -> int:
-    """Items that are neither posts nor accounts (lists): X bills them as reads too."""
+    """Items that are neither posts nor accounts (lists, Spaces, trends, usage): X bills them as
+    reads too, so every other row an answer carries is counted."""
     data = payload.get("data")
     rows = data if isinstance(data, list) else [data] if isinstance(data, dict) else []
-    return sum(1 for row in rows if isinstance(row, dict) and "text" not in row and "username" not in row
-               and ("name" in row or "member_count" in row))
+    return sum(1 for row in rows if isinstance(row, dict) and "text" not in row and "username" not in row)
 
 
 def _guard(fn):
@@ -855,20 +882,151 @@ def _shape_list(item: dict[str, Any]) -> dict[str, Any]:
     return {k: item.get(k) for k in ("id", "name", "description", "member_count", "follower_count", "private", "owner_id", "created_at")}
 
 
+# --------------------------------------------------------------------------- more of the API
+
+SPACE_FIELDS = "title,state,host_ids,creator_id,participant_count,subscriber_count,started_at,scheduled_start,ended_at,lang,is_ticketed"
+DM_FIELDS = "id,text,created_at,sender_id,dm_conversation_id,event_type"
+
+
+def search_users(query: Any, *, max_results: Any = 25, next_token: str = "") -> XResult:
+    """Find X accounts by name or words in their profile."""
+    def run() -> XResult:
+        q = str(query or "").strip()
+        if not q or len(q) > 200:
+            raise XReadError("invalid_arguments", "Say what to search accounts for (a name or words).")
+        payload = _request("/2/users/search", {"query": q, "max_results": _page_size(max_results, 25, 1),
+                                               "user.fields": USER_FIELDS, "next_token": str(next_token or "").strip()},
+                           user_context=True)
+        users = [shape_user(u) for u in payload.get("data") or [] if isinstance(u, dict)]
+        meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+        return XResult(True, "executed" if users else "no_results",
+                       f"Found {len(users)} X account(s) for {q!r}." if users else f"X found no accounts for {q!r}.",
+                       {"users": users, "next_token": str(meta.get("next_token") or "")})
+    return _guard(run)
+
+
+def _shape_space(item: dict[str, Any]) -> dict[str, Any]:
+    keep = ("id", "title", "state", "creator_id", "host_ids", "participant_count", "subscriber_count", "started_at",
+            "scheduled_start", "ended_at", "lang", "is_ticketed")
+    shaped = {k: item.get(k) for k in keep if item.get(k) is not None}
+    if item.get("id"):
+        shaped["url"] = f"https://x.com/i/spaces/{item['id']}"
+    return shaped
+
+
+def spaces(*, query: Any = "", ids: Any = "", hosts: Any = "", state: str = "all", max_results: Any = 25) -> XResult:
+    """Live and scheduled Spaces: search by words, look up by id, or by the accounts hosting them."""
+    def run() -> XResult:
+        st = str(state or "all").strip().lower()
+        if st not in {"all", "live", "scheduled"}:
+            raise XReadError("invalid_arguments", "state must be all, live or scheduled.")
+        common = {"space.fields": SPACE_FIELDS, "expansions": "creator_id", "user.fields": USER_FIELDS}
+        if str(query or "").strip():
+            payload = _request("/2/spaces/search", {"query": str(query).strip()[:200], "state": st,
+                                                    "max_results": _page_size(max_results, 25, 1), **common})
+        elif ids:
+            wanted = [i for i in (ids if isinstance(ids, list) else re.split(r"[,\s]+", str(ids))) if i][:100]
+            wanted = [str(i).rstrip("/").rsplit("/", 1)[-1] for i in wanted]
+            if not all(re.fullmatch(r"[A-Za-z0-9]{1,20}", i) for i in wanted):
+                raise XReadError("invalid_arguments", "Give Space ids or links.")
+            payload = _request("/2/spaces", {"ids": ",".join(wanted), **common})
+        elif hosts:
+            saved = _saved()
+            names = hosts if isinstance(hosts, list) else [h for h in re.split(r"[,\s]+", str(hosts)) if h]
+            uids = [_user_id(h, saved)[0] for h in names[:20]]
+            payload = _request("/2/spaces/by/creator_ids", {"user_ids": ",".join(uids), **common}, saved=saved)
+        else:
+            raise XReadError("invalid_arguments", "Give words to search Spaces for, Space ids, or the hosts' usernames.")
+        users = _users_by_id(payload)
+        found = []
+        for item in payload.get("data") or []:
+            if isinstance(item, dict):
+                row = _shape_space(item)
+                host = users.get(str(item.get("creator_id") or ""))
+                if host:
+                    row["creator"] = host.get("username")
+                found.append(row)
+        return XResult(True, "executed" if found else "no_results",
+                       f"Found {len(found)} Space(s)." if found else "X found no Spaces for that.", {"spaces": found})
+    return _guard(run)
+
+
+def direct_messages(*, with_user: Any = "", max_results: Any = 25, next_token: str = "") -> XResult:
+    """The connected account's recent DMs, or the conversation with one account (user's own keys)."""
+    def run() -> XResult:
+        saved = _saved()
+        params = {"max_results": _page_size(max_results, 25, 1), "dm_event.fields": DM_FIELDS,
+                  "event_types": "MessageCreate", "expansions": "sender_id", "user.fields": USER_FIELDS,
+                  "pagination_token": str(next_token or "").strip()}
+        if str(with_user or "").strip():
+            uid, user = _user_id(with_user, saved)
+            path = f"/2/dm_conversations/with/{uid}/dm_events"
+        else:
+            path, user = "/2/dm_events", None
+        payload = _request(path, params, user_context=True, saved=saved)
+        senders = _users_by_id(payload)
+        messages = []
+        for item in payload.get("data") or []:
+            if isinstance(item, dict) and item.get("event_type", "MessageCreate") == "MessageCreate":
+                sender = senders.get(str(item.get("sender_id") or ""), {})
+                messages.append({"id": item.get("id"), "at": item.get("created_at"), "from": sender.get("username") or item.get("sender_id"),
+                                 "text": str(item.get("text") or "")[:2000], "conversation": item.get("dm_conversation_id")})
+        meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+        who = f" with @{(user or {}).get('username')}" if user else ""
+        return XResult(True, "executed" if messages else "no_results", f"Read {len(messages)} DM(s){who}.",
+                       {"messages": messages, "next_token": str(meta.get("next_token") or "")})
+    return _guard(run)
+
+
+def account_info(kind: str = "muted", *, max_results: Any = 100, next_token: str = "") -> XResult:
+    """About the connected account: who it muted or blocked, its personalized trends, or X's own
+    count of this app's post reads this month."""
+    def run() -> XResult:
+        k = str(kind or "muted").strip().lower()
+        saved = _saved()
+        if k in {"muted", "blocked"}:
+            uid, _ = _user_id("me", saved)
+            payload = _request(f"/2/users/{uid}/{'muting' if k == 'muted' else 'blocking'}",
+                               {"max_results": _page_size(max_results, 100, 1, 1000), "user.fields": USER_FIELDS,
+                                "pagination_token": str(next_token or "").strip()}, user_context=True, saved=saved)
+            users = [shape_user(u) for u in payload.get("data") or [] if isinstance(u, dict)]
+            meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
+            return XResult(True, "executed", f"You have {len(users)} {k} account(s) on this page.",
+                           {"users": users, "next_token": str(meta.get("next_token") or "")})
+        if k == "trends":
+            payload = _request("/2/users/personalized_trends", {"personalized_trend.fields": "category,post_count,trend_name,trending_since"},
+                               user_context=True, saved=saved)
+            trends = [{k2: t.get(k2) for k2 in ("trend_name", "category", "post_count", "trending_since") if t.get(k2) is not None}
+                      for t in payload.get("data") or [] if isinstance(t, dict)]
+            return XResult(True, "executed", f"{len(trends)} trend(s) picked for your account.", {"trends": trends})
+        if k == "x_usage":
+            payload = _request("/2/usage/tweets", {"days": 30}, saved=saved)
+            data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+            keep = {k2: data.get(k2) for k2 in ("project_usage", "project_cap", "cap_reset_day") if data.get(k2) is not None}
+            return XResult(True, "executed", "X's own count for your X project: "
+                           + ", ".join(f"{k2.replace('_', ' ')} {v}" for k2, v in keep.items()) + ".", {"x_usage": keep})
+        raise XReadError("invalid_arguments", "kind must be muted, blocked, trends or x_usage.")
+    return _guard(run)
+
+
 __all__ = [
     "XReadError",
     "XResult",
+    "account_info",
     "calls_in_posts",
     "classify_token",
     "connected",
     "count_posts",
+    "direct_messages",
     "follows",
     "lists",
     "lookup_users",
     "post_details",
     "search_posts",
+    "search_users",
     "shape_post",
     "shape_user",
+    "spaces",
     "token_callers",
     "token_mentions",
     "token_query",

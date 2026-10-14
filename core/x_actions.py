@@ -36,10 +36,13 @@ _FILE = "x_actions.json"
 EXPIRY_S = 24 * 3600
 MAX_PENDING = 20
 POST_QUOTA = "x.post"  # the daily posting cap in core/usage_quota
-KINDS = ("post", "reply", "quote", "delete", "like", "unlike", "repost", "unrepost", "follow", "unfollow")
-_TEXT_KINDS = {"post", "reply", "quote"}
-_POST_KINDS = {"reply", "quote", "delete", "like", "unlike", "repost", "unrepost"}
-_USER_KINDS = {"follow", "unfollow"}
+KINDS = ("post", "reply", "quote", "delete", "like", "unlike", "repost", "unrepost", "follow", "unfollow",
+         "hide_reply", "unhide_reply", "mute", "unmute", "dm", "list_create", "list_add", "list_remove")
+_TEXT_KINDS = {"post", "reply", "quote"}  # public posts: X's 280 and the daily posting cap
+_POST_KINDS = {"reply", "quote", "delete", "like", "unlike", "repost", "unrepost", "hide_reply", "unhide_reply"}
+_USER_KINDS = {"follow", "unfollow", "mute", "unmute", "dm", "list_add", "list_remove"}
+_LIST_KINDS = {"list_add", "list_remove"}
+MAX_DM = 10_000
 SENDING_STALE_S = 600
 _lock = threading.RLock()
 
@@ -55,6 +58,9 @@ _VERBS = {
     "post": "Post on X", "reply": "Reply to", "quote": "Quote a post by", "delete": "Delete your post",
     "like": "Like a post by", "unlike": "Remove your like from a post by", "repost": "Repost a post by",
     "unrepost": "Undo your repost of a post by", "follow": "Follow", "unfollow": "Unfollow",
+    "hide_reply": "Hide a reply by", "unhide_reply": "Unhide a reply by", "mute": "Mute", "unmute": "Unmute",
+    "dm": "Send a direct message to", "list_create": "Create the list", "list_add": "Add to your list:",
+    "list_remove": "Remove from your list:",
 }
 
 
@@ -121,8 +127,12 @@ def summary(action: dict[str, Any]) -> str:
     target = action.get("target") or {}
     kind = str(action.get("kind"))
     verb = _VERBS.get(kind, kind)
+    if kind in _LIST_KINDS:
+        return f"{verb} {target.get('list_name') or target.get('list_id')} @{target.get('username')}"
     if kind in _USER_KINDS:
         return f"{verb} @{target.get('username')}"
+    if kind == "list_create":
+        return f"{verb} \"{target.get('name')}\"" + (" (private)" if target.get("private") else "")
     if kind in {"post", "delete"}:
         return verb
     return f"{verb} @{target.get('author')}" if target.get("author") else verb
@@ -162,6 +172,23 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             return _result(False, "invalid_arguments", "That text has invisible characters that change how it reads, "
                            "so it could look different on X than on the approval card. Nothing was proposed.")
         payload["text"] = text
+    if kind == "dm":
+        text = str(args.get("text") or "").strip()
+        if not text or len(text) > MAX_DM:
+            return _result(False, "invalid_arguments", f"Say what the message should say (up to {MAX_DM:,} characters). Nothing was proposed.")
+        if any(_hidden(ch) for ch in text):
+            return _result(False, "invalid_arguments", "That text has invisible characters that change how it reads, "
+                           "so it could look different on X than on the approval card. Nothing was proposed.")
+        payload["text"] = text
+    if kind == "list_create":
+        name = str(args.get("name") or "").strip()
+        description = str(args.get("description") or "").strip()
+        if not 1 <= len(name) <= 25 or len(description) > 100 or any(_hidden(ch) for ch in name + description):
+            return _result(False, "invalid_arguments", "A list needs a name of up to 25 characters (and a description of "
+                           "up to 100). Nothing was proposed.")
+        private = str(args.get("private")).strip().lower() in {"1", "true", "yes", "on"}
+        payload.update(name=name, description=description, private=private)
+        target = {"name": name, "description": description, "private": private}
     try:
         if kind in _POST_KINDS:
             pid = x_api._post_id(args.get("post") or args.get("post_id") or "")
@@ -182,6 +209,16 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             target = {"user_id": user["id"], "username": user["username"], "name": user["name"],
                       "followers": user.get("followers"), "url": user.get("url")}
             payload["user_id"] = user["id"]
+        if kind in _LIST_KINDS:
+            lid = str(args.get("list_id") or args.get("list") or "").strip().rstrip("/").rsplit("/", 1)[-1]
+            looked_list = x_api.lists(list_id=lid, kind="details")
+            if not looked_list.ok:
+                return _result(False, looked_list.status, f"VOOL could not read that list from X, so nothing was proposed. {looked_list.message}")
+            listed = looked_list.data.get("list") or {}
+            if str(listed.get("owner_id") or "") != str(account["id"]):
+                return _result(False, "not_yours", "That list is not owned by your connected X account. Nothing was proposed.")
+            target.update(list_id=lid, list_name=listed.get("name"))
+            payload["list_id"] = lid
     except x_api.XReadError as exc:
         return _result(False, exc.status, exc.message + " Nothing was proposed.")
     now = time.time()
@@ -293,6 +330,20 @@ def _request_for(action: dict[str, Any]) -> tuple[str, str, dict[str, Any] | Non
         return "POST", f"/2/users/{me}/following", {"target_user_id": payload["user_id"]}
     if kind == "unfollow":
         return "DELETE", f"/2/users/{me}/following/{payload['user_id']}", None
+    if kind in {"hide_reply", "unhide_reply"}:
+        return "PUT", f"/2/tweets/{payload['post_id']}/hidden", {"hidden": kind == "hide_reply"}
+    if kind == "mute":
+        return "POST", f"/2/users/{me}/muting", {"target_user_id": payload["user_id"]}
+    if kind == "unmute":
+        return "DELETE", f"/2/users/{me}/muting/{payload['user_id']}", None
+    if kind == "dm":
+        return "POST", f"/2/dm_conversations/with/{payload['user_id']}/messages", {"text": payload["text"]}
+    if kind == "list_create":
+        return "POST", "/2/lists", {"name": payload["name"], "description": payload["description"], "private": payload["private"]}
+    if kind == "list_add":
+        return "POST", f"/2/lists/{payload['list_id']}/members", {"user_id": payload["user_id"]}
+    if kind == "list_remove":
+        return "DELETE", f"/2/lists/{payload['list_id']}/members/{payload['user_id']}", None
     raise ValueError(kind)
 
 
@@ -394,7 +445,8 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         err = x_api._http_failure(int(exc.code or 0), err_body)
         message = err.message
         if err.status == "plan_refused":
-            message += (" To act on X, your X app needs \"Read and write\" permission (developer.x.com > your app > "
+            needed = "Read and write and Direct message" if action["kind"] == "dm" else "Read and write"
+            message += (f" To do this, your X app needs \"{needed}\" permission (developer.x.com > your app > "
                         "User authentication settings); then generate new Access Tokens and reconnect X in Settings.")
         if int(exc.code or 0) >= 500 or 300 <= int(exc.code or 0) < 400:
             # X may have done it before failing to answer, or before redirecting.
