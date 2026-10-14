@@ -64,9 +64,10 @@ CREDENTIALS = "/api/settings/credentials"
 SETUP_STATE = "/api/setup/state"
 VERSION = "/api/runtime/version"
 PROFILE = "/api/profile"
-# The Web lookups row reads the live boundary truth through the pact GET projection
-# (view=boundary: the owning policy's values, no tour state) and writes through the existing
-# boundary command POST /api/onboarding/pact/boundary from its own widget.
+# The Web lookups and "Go online on its own" rows read the live boundary truth through the
+# pact GET projection (view=boundary: the owning policy's values, no tour state) and write
+# through the existing boundary command POST /api/onboarding/pact/boundary from their own
+# widgets.
 WEB_LOOKUPS_READ = "/api/onboarding/pact?view=boundary"
 # Email: the account authority's listing (credential NAMES and identities, never a secret) and the
 # draft store's recovery hold. Both are owner-local reads served by this runtime (core/web/api/service.py).
@@ -356,6 +357,21 @@ def _settings_groups() -> list[dict]:
                     ),
                     read={"url": WEB_LOOKUPS_READ},
                     keywords="web search lookups online internet browse network access fallback allow",
+                ),
+                _row(
+                    id="automatic_checks",
+                    label="Go online on its own",
+                    kind="custom",
+                    widget="automatic_checks",
+                    help=(
+                        "Lets VOOL go online on its own, without you asking. When this is on, VOOL may "
+                        "download a missing local model when it starts and check which cloud models are "
+                        "available. If this computer is set up for the public VOOL network, VOOL also "
+                        "tells that network when it is online. Questions you ask are not affected: Web "
+                        "lookups has its own switch. Off by default."
+                    ),
+                    read={"url": WEB_LOOKUPS_READ},
+                    keywords="online on its own automatic outbound background network model download cloud models public network",
                 ),
                 _row(
                     id="mode_note",
@@ -1841,6 +1857,7 @@ function renderWidget(row, host) {
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
+  if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -4922,41 +4939,66 @@ function usepodModelRow(m, d, say, draw) {
    picker cannot offer something the policy would then fail to read. */
 const WEB_LOOKUPS_URL = '/api/onboarding/pact?view=boundary';
 
-function widgetWebLookups(stack) {
-  const err = state.sourceErr[WEB_LOOKUPS_URL];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
-  const src = state.sources[WEB_LOOKUPS_URL];
-  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+/* --- The two boundary switches on Privacy & Permissions: Web lookups (system.allow_web_fallback)
+   and Go online on its own (network.outbound_enabled). Both read the live boundary truth from
+   WEB_LOOKUPS_URL and write ONE key through the existing boundary command. Local-only mode vetoes
+   turning either on (the server refuses it too); turning off is always allowed, and neither row
+   ever changes local-only mode itself. These are consent controls, so they fail closed: when the
+   answer cannot be read, or does not carry both booleans, no switch is drawn -- a row never shows
+   "off" (or "on") for a value it does not know, and never shows a raw error code. */
+function boundarySwitchReading(src, field) {
+  if (!src || src.ok === false) return null;
+  if (typeof src[field] !== 'boolean' || typeof src.local_only_mode !== 'boolean') return null;
+  return { localOnly: src.local_only_mode, on: src[field] && !src.local_only_mode };
+}
+function boundarySwitchWidget(stack, cfg) {
+  const readFailed = () => T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
+  const localOnlyNote = () => T(cfg.noteKey, LOCAL_ONLY_NOTE_EN);
+  const reading = () => boundarySwitchReading(state.sources[WEB_LOOKUPS_URL], cfg.field);
+  if (state.sourceErr[WEB_LOOKUPS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+  if (!state.sources[WEB_LOOKUPS_URL]) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  const first = reading();
+  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
 
-  const localOnly = !!src.local_only_mode;
-  const on = !!src.allow_web_fallback && !localOnly;
   const st = el('div', 'state idle');
+  st.setAttribute('role', 'status');
   const line = el('div', 'inline');
   const sw = el('button', 'sw');
   sw.type = 'button';
   sw.setAttribute('role', 'switch');
-  sw.setAttribute('aria-checked', on ? 'true' : 'false');
-  sw.setAttribute('aria-label', T('settings.row.web_lookups.label', 'Web lookups'));
-  if (localOnly) sw.disabled = true;
+  sw.setAttribute('aria-label', T(cfg.labelKey, cfg.labelEn));
+  const note = el('div', 'subtle', localOnlyNote());
   line.appendChild(sw);
   stack.appendChild(line);
-  if (localOnly) {
-    stack.appendChild(el('div', 'subtle',
-      tfmt('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')));
-  }
+  stack.appendChild(note);
   stack.appendChild(st);
+  /* Paint one reading; an unreadable one leaves the switch unusable rather than guessing. */
+  const paint = (r) => {
+    if (!r) {
+      sw.disabled = true;
+      sw.setAttribute('aria-checked', 'false');
+      note.style.display = 'none';
+      return;
+    }
+    sw.setAttribute('aria-checked', r.on ? 'true' : 'false');
+    sw.disabled = r.localOnly;
+    note.style.display = r.localOnly ? '' : 'none';
+  };
+  paint(first);
+  const reread = async () => paint((await readSource(WEB_LOOKUPS_URL)) ? reading() : null);
 
   sw.addEventListener('click', async () => {
     if (sw.disabled) return;
     /* The target is decided from the authority's last read, not from the value at render time. */
-    const now = state.sources[WEB_LOOKUPS_URL] || {};
-    const want = !(!!now.allow_web_fallback && !now.local_only_mode);
+    const now = reading();
+    if (!now || now.localOnly) { paint(now); return; }
+    const want = !now.on;
     sw.disabled = true;
-    st.className = 'state saving'; st.textContent = 'Saving…';
+    st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
     try {
       const r = await fetch('/api/onboarding/pact/boundary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'web_lookups', value: want }),
+        body: JSON.stringify({ key: cfg.key, value: want }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || j.ok === false) {
@@ -4965,36 +5007,46 @@ function widgetWebLookups(stack) {
            must not leave the switch claiming a state VOOL is not in. */
         const code = String((j && j.error) || '');
         const why = code === 'invalid_transition'
-          ? T('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')
-          : T('settings.row.web_lookups.retry_note', 'VOOL could not change this right now. Try again in a moment.');
-        if (await readSource(WEB_LOOKUPS_URL)) {
-          const live = state.sources[WEB_LOOKUPS_URL] || {};
-          sw.setAttribute('aria-checked', (!!live.allow_web_fallback && !live.local_only_mode) ? 'true' : 'false');
-          sw.disabled = !!live.local_only_mode;
-        } else {
-          sw.disabled = false;
-        }
-        st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
+          ? localOnlyNote()
+          : T(cfg.retryKey, 'VOOL could not change this right now. Try again in a moment.');
+        await reread();
+        st.className = 'state failed';
+        st.textContent = tfmt('settings.switch.not_saved', 'Not saved — {reason}', { reason: why });
         return;
       }
       /* Read back from the authority rather than trusting the 200. */
-      const ok = await readSource(WEB_LOOKUPS_URL);
-      const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
-      if (!back || !!back.allow_web_fallback !== want) {
-        if (back) sw.setAttribute('aria-checked', (!!back.allow_web_fallback && !back.local_only_mode) ? 'true' : 'false');
-        sw.disabled = !!(back && back.local_only_mode);
+      await reread();
+      const back = state.sourceErr[WEB_LOOKUPS_URL] ? null : reading();
+      if (!back || back.on !== want) {
         st.className = 'state stale';
-        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
+        st.textContent = T('settings.switch.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
         return;
       }
-      sw.setAttribute('aria-checked', want ? 'true' : 'false');
-      sw.disabled = false;
-      st.className = 'state saved'; st.textContent = 'Saved';
+      st.className = 'state saved'; st.textContent = T('settings.switch.saved', 'Saved');
       setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
     } catch (e) {
-      sw.disabled = false;
-      st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
+      /* No answer: re-read; if that fails too, the switch is not trusted to show the old value. */
+      await reread();
+      st.className = 'state failed';
+      st.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
     }
+  });
+}
+const LOCAL_ONLY_NOTE_EN = 'Local-only mode is on for this whole computer, so this stays off. Settings has no switch to turn local-only mode off.';
+function widgetWebLookups(stack) {
+  return boundarySwitchWidget(stack, {
+    key: 'web_lookups', field: 'allow_web_fallback',
+    labelKey: 'settings.row.web_lookups.label', labelEn: 'Web lookups',
+    noteKey: 'settings.row.web_lookups.local_only_note',
+    retryKey: 'settings.row.web_lookups.retry_note',
+  });
+}
+function widgetAutomaticChecks(stack) {
+  return boundarySwitchWidget(stack, {
+    key: 'automatic_checks', field: 'outbound_enabled',
+    labelKey: 'settings.row.automatic_checks.label', labelEn: 'Go online on its own',
+    noteKey: 'settings.row.automatic_checks.local_only_note',
+    retryKey: 'settings.row.automatic_checks.retry_note',
   });
 }
 
