@@ -43,7 +43,7 @@ from core.memory.files import (
     write_text_atomic,
 )
 from core.memory.policies import ensure_session_policy_table, session_memory_policy
-from core.memory.revocation import fenced_writer
+from core.memory.revocation import RevokedContentWrite, fenced_writer
 from core.privacy_guard import keyword_tokens, normalize_share_scope
 from core.secret_redaction import contains_secret
 
@@ -1796,7 +1796,7 @@ def is_user_correction(text: str) -> bool:
     return False
 
 
-@fenced_writer
+@fenced_writer(refusal_error=RevokedContentWrite)
 def record_memory_entry(
     text: str,
     *,

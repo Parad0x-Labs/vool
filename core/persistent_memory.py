@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
-from core.memory.revocation import fenced_writer
+from core.memory.revocation import RevokedContentWrite, fenced_writer
 
 # Serializes the per-turn memory write sequence (conversation-log append + trim, and every
 # downstream load-modify-rewrite: facts, heuristics, session summary, dialogue). The daemon
@@ -2011,21 +2011,31 @@ def maybe_handle_memory_command(
             return True, "Memory update skipped: fact is too short."
         facts = _split_explicit_memory_facts(fact)
         added_count = 0
+        refused = False
         for memory_fact in facts:
             for eligible_fact, eligible_scope, eligible_source in _admitted_remember_facts(
                 memory_fact,
                 policy=resolved_policy,
             ):
-                added_count += int(
-                    add_memory_fact(
-                        " ".join(eligible_fact.split()),
-                        session_id=resolved_session,
-                        scope=eligible_scope,
-                        authority="confirmed_memory",
-                        source=eligible_source,
-                        access_policy=resolved_policy,
+                try:
+                    added_count += int(
+                        add_memory_fact(
+                            " ".join(eligible_fact.split()),
+                            session_id=resolved_session,
+                            scope=eligible_scope,
+                            authority="confirmed_memory",
+                            source=eligible_source,
+                            access_policy=resolved_policy,
+                        )
                     )
-                )
+                except RevokedContentWrite:
+                    # The forget law holds in this chat; it is an answer, not a failed turn (measured 2026-10-14:
+                    # saying a forgotten fact again here ended the turn with HTTP 500).
+                    refused = True
+        if refused:
+            kept = "Locked in for the rest. " if added_count else ""
+            return True, (kept + "You asked me to forget that in this chat, so I won't keep it here. "
+                          "In a new chat I can remember it again.")
         if added_count:
             if (source_context or {}).get("_secret_intake_consumed"):
                 # The same reply already says a PIN, card number or password was NOT saved; a bare

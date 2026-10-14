@@ -69,10 +69,11 @@ def carries(value: Any, token: str) -> bool:
     return bool(needle) and any(needle in " ".join(_SEPARATORS.split(part.casefold())) for part in parts)
 
 
-#: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id, a number.
+#: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id ("req:http:<hex>"), a
+#: uuid, a number.
 _RUNTIME_MADE_RE = re.compile(
     r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?"
-    r"|(?:[a-z]+[-_:])?[0-9a-f]{16,}"
+    r"|(?:[a-z0-9]+[-_:])*(?:[0-9a-f]{16,}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"
     r"|-?\d+(?:\.\d+)?"
 )
 
