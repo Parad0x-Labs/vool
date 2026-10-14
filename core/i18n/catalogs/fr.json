@@ -1565,7 +1565,7 @@
     "keys.saved_state": "enregistrée le {date}",
     "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
     "keys.outcome.invalid": "{label} a rejeté cette clé{http}. Vérifiez que vous l’avez copiée en entier et qu’il s’agit bien d’une clé {label}. Rien n’a été enregistré.",
-    "keys.outcome.unauthorized": "{label} a reconnu la clé mais a refusé cette requête{http}. Vérifiez les permissions de la clé. Rien n’a été enregistré.",
+    "keys.outcome.unauthorized": "{label} a refusé cette requête{http}. La clé manque peut-être d’une permission pour cela, ou elle n’est peut-être pas valide. Rien n’a été enregistré.",
     "keys.outcome.exhausted": "{label} signale qu’il ne reste ni crédit ni quota pour cette clé{http}. Ajoutez du crédit, puis enregistrez à nouveau. Rien n’a été enregistré.",
     "keys.outcome.rate_limited": "{label} limite les requêtes en ce moment ; {retry}. La clé n’a pas été jugée. Rien n’a été enregistré.",
     "keys.outcome.rate_limited.retry_secs": "réessayez dans {n} s",
@@ -1582,7 +1582,7 @@
     "keys.outcome.refused.detail": "la requête a été refusée",
     "keys.outcome.unexpected": "{label} a donné une réponse inattendue{http}. La clé n’a pas été jugée. Rien n’a été enregistré.",
     "keys.test.ok": "Connexion vérifiée — {label} a accepté votre clé.",
-    "keys.test.unauthorized": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
+    "keys.test.unauthorized": "{label} a refusé cette requête{http}. La clé manque peut-être d’une permission pour cela, ou elle n’est peut-être pas valide.",
     "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée.",
     "keys.test.no_key": "Aucune clé n’est enregistrée pour {label}.",
     "keys.test.rate_limited": "{label} limite les requêtes en ce moment{http}. La clé n’a pas été jugée ; réessayez sous peu.",
@@ -1879,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
     "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez."
   },
-  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
+  "source_catalog_sha256": "4744817d897753be1a5161d551d925c0ca8b03afef9940e4ac158189cc0d2776",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

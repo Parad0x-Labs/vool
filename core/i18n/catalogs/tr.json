@@ -1565,7 +1565,7 @@
     "keys.saved_state": "{date} tarihinde kaydedildi",
     "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.outcome.invalid": "{label} bu anahtarı reddetti{http}. Tamamını kopyaladığınızdan ve bunun bir {label} anahtarı olduğundan emin olun. Hiçbir şey kaydedilmedi.",
-    "keys.outcome.unauthorized": "{label} anahtarı tanıdı ancak bu isteği reddetti{http}. Anahtarın izinlerini kontrol edin. Hiçbir şey kaydedilmedi.",
+    "keys.outcome.unauthorized": "{label} bu isteği reddetti{http}. Anahtarın bunun izni olmayabilir ya da anahtar geçerli olmayabilir. Hiçbir şey kaydedilmedi.",
     "keys.outcome.exhausted": "{label}, bu anahtarda kredi veya kota kalmadığını bildiriyor{http}. Kredi ekleyin, sonra yeniden kaydedin. Hiçbir şey kaydedilmedi.",
     "keys.outcome.rate_limited": "{label} şu anda istekleri sınırlıyor; {retry}. Anahtar değerlendirilmedi. Hiçbir şey kaydedilmedi.",
     "keys.outcome.rate_limited.retry_secs": "{n} s sonra tekrar deneyin",
@@ -1582,7 +1582,7 @@
     "keys.outcome.refused.detail": "istek reddedildi",
     "keys.outcome.unexpected": "{label} beklenmedik bir yanıt verdi{http}. Anahtar değerlendirilmedi. Hiçbir şey kaydedilmedi.",
     "keys.test.ok": "Bağlantı doğrulandı — {label} anahtarınızı kabul etti.",
-    "keys.test.unauthorized": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin.",
+    "keys.test.unauthorized": "{label} bu isteği reddetti{http}. Anahtarın bunun izni olmayabilir ya da anahtar geçerli olmayabilir.",
     "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi.",
     "keys.test.no_key": "{label} için saklı anahtar yok.",
     "keys.test.rate_limited": "{label} şu anda istekleri sınırlıyor{http}. Anahtar değerlendirilmedi; kısa süre sonra tekrar deneyin.",
@@ -1879,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Bir ödeme kanalını Kripto ayarlarında yalnızca ödemelerin onun üzerinden yapılmasını istiyorsanız açın; tavan ve sizin onayınız her kanalda geçerlidir.",
     "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin."
   },
-  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
+  "source_catalog_sha256": "4744817d897753be1a5161d551d925c0ca8b03afef9940e4ac158189cc0d2776",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

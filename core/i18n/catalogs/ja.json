@@ -1565,7 +1565,7 @@
     "keys.saved_state": "{date}に保存",
     "keys.outcome.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。後でもう一度試すか、別のネットワークからお試しください。何も保存されていません。",
     "keys.outcome.invalid": "{label}はこのキーを拒否しました{http}。キーを最後までコピーしたか、{label}のキーであるかを確認してください。何も保存されていません。",
-    "keys.outcome.unauthorized": "{label}はキーを認識しましたが、このリクエストを拒否しました{http}。キーの権限を確認してください。何も保存されていません。",
+    "keys.outcome.unauthorized": "{label}はこのリクエストを拒否しました{http}。キーにこの操作の権限がないか、キーが無効の可能性があります。何も保存されていません。",
     "keys.outcome.exhausted": "{label}は、このキーのクレジットまたは割り当てが残っていないと報告しています{http}。チャージしてからもう一度保存してください。何も保存されていません。",
     "keys.outcome.rate_limited": "{label}は現在リクエストを制限しています。{retry}。キーは判定されていません。何も保存されていません。",
     "keys.outcome.rate_limited.retry_secs": "{n} s後に再試行",
@@ -1582,7 +1582,7 @@
     "keys.outcome.refused.detail": "リクエストは拒否されました",
     "keys.outcome.unexpected": "{label}から予期しない応答が返りました{http}。キーは判定されていません。何も保存されていません。",
     "keys.test.ok": "接続を検証しました — {label}があなたのキーを受け付けました。",
-    "keys.test.unauthorized": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。",
+    "keys.test.unauthorized": "{label}はこのリクエストを拒否しました{http}。キーにこの操作の権限がないか、キーが無効の可能性があります。",
     "keys.test.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。",
     "keys.test.no_key": "{label}のキーは保存されていません。",
     "keys.test.rate_limited": "{label}は現在リクエストを制限しています{http}。キーは判定されていません。まもなく再試行してください。",
@@ -1879,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "支払いチャネルは、そのチャネルで支払いたい場合にだけ暗号設定でオンにしてください。上限とあなたの承認はどのチャネルでも適用されます。",
     "fault.wallet_x402_sdk_unavailable.message": "このビルドはx402 Foundation SDKを通じてBase上のx402オファーを支払えません：オプションのx402拡張がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。"
   },
-  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
+  "source_catalog_sha256": "4744817d897753be1a5161d551d925c0ca8b03afef9940e4ac158189cc0d2776",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

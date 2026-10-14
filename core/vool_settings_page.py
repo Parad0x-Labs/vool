@@ -2468,7 +2468,7 @@ function widgetKeys(stack) {
     const p = { label: label, http: http };
     switch (String(j.outcome || '')) {
       case 'invalid': return tfmt('keys.outcome.invalid', '{label} rejected this key{http}. Check that you copied all of it and that it is a {label} key. Nothing was stored.', p);
-      case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} recognised the key but refused this request{http}. Check the key’s permissions. Nothing was stored.', p);
+      case 'unauthorized': return tfmt('keys.outcome.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid. Nothing was stored.', p);
       case 'exhausted': return tfmt('keys.outcome.exhausted', '{label} reports no credit or quota left for this key{http}. Add credit, then save again. Nothing was stored.', p);
       case 'gateway_blocked': return tfmt('keys.outcome.gateway_blocked', '{label} blocked this check before looking at the key{http}. The key was not judged. Try again later or from another network. Nothing was stored.', p);
       case 'rate_limited': return tfmt('keys.outcome.rate_limited', '{label} is limiting requests right now; {retry}. The key was not judged. Nothing was stored.',
@@ -2496,7 +2496,7 @@ function widgetKeys(stack) {
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
     const p = { label: label, http: http };
-    if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} rejected the key{http}. Re-check or replace it.', p);
+    if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid.', p);
     if (reason === 'gateway_blocked') return tfmt('keys.test.gateway_blocked', '{label} blocked this check before looking at the key{http}. The key was not judged.', p);
     if (reason === 'no_key') return tfmt('keys.test.no_key', 'No key is stored for {label}.', p);
     if (reason === 'rate_limited') return tfmt('keys.test.rate_limited', '{label} is limiting requests right now{http}. The key was not judged; try again shortly.', p);

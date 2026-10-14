@@ -1565,7 +1565,7 @@
     "keys.saved_state": "salva {date}",
     "keys.outcome.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada. Tente mais tarde ou de outra rede. Nada foi armazenado.",
     "keys.outcome.invalid": "{label} rejeitou esta chave{http}. Confira que você copiou a chave inteira e que ela é uma chave {label}. Nada foi armazenado.",
-    "keys.outcome.unauthorized": "{label} reconheceu a chave, mas recusou esta requisição{http}. Confira as permissões da chave. Nada foi armazenado.",
+    "keys.outcome.unauthorized": "{label} recusou esta requisição{http}. A chave pode não ter permissão para isso, ou pode não ser válida. Nada foi armazenado.",
     "keys.outcome.exhausted": "{label} informa que não há mais crédito nem cota para esta chave{http}. Adicione crédito e salve de novo. Nada foi armazenado.",
     "keys.outcome.rate_limited": "{label} está limitando requisições agora; {retry}. A chave não foi julgada. Nada foi armazenado.",
     "keys.outcome.rate_limited.retry_secs": "tente de novo em {n} s",
@@ -1582,7 +1582,7 @@
     "keys.outcome.refused.detail": "a requisição foi recusada",
     "keys.outcome.unexpected": "{label} deu uma resposta inesperada{http}. A chave não foi julgada. Nada foi armazenado.",
     "keys.test.ok": "Conexão verificada — {label} aceitou a sua chave.",
-    "keys.test.unauthorized": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
+    "keys.test.unauthorized": "{label} recusou esta requisição{http}. A chave pode não ter permissão para isso, ou pode não ser válida.",
     "keys.test.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada.",
     "keys.test.no_key": "Não há chave armazenada para {label}.",
     "keys.test.rate_limited": "{label} está limitando requisições agora{http}. A chave não foi julgada; tente de novo em instantes.",
@@ -1879,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Ligue um canal de pagamento nos ajustes de Cripto só se quiser que pagamentos passem por ele; o teto e a sua aprovação valem em todos os canais.",
     "fault.wallet_x402_sdk_unavailable.message": "Esta versão não consegue pagar ofertas x402 na Base pelo x402 Foundation SDK: o extra opcional x402 não está instalado nesta máquina. Nada foi assinado ou enviado. Toda outra função da carteira funciona sem ele; com ele instalado, tente de novo."
   },
-  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
+  "source_catalog_sha256": "4744817d897753be1a5161d551d925c0ca8b03afef9940e4ac158189cc0d2776",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
