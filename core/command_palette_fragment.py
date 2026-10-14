@@ -416,7 +416,7 @@ function anyLegacySurfaceOpen(){
   if (document.getElementById('emojiPicker') || document.getElementById('projMenu') || document.getElementById('textPromptDialog')) return true;
   var floating = ['vfEventCard', 'vfPop'];
   for (var f = 0; f < floating.length; f++) { var fl = document.getElementById(floating[f]); if (fl && isShown(fl)) return true; }
-  if (document.body.classList.contains('sidebar-open') && window.matchMedia && window.matchMedia('(max-width: 720px)').matches) return true;
+  if (document.body && document.body.classList && document.body.classList.contains('sidebar-open') && window.matchMedia && window.matchMedia('(max-width: 720px)').matches) return true;
   // The pet's menu, info pop and Character Lab are ALWAYS in the DOM (hidden with display:none),
   // so presence proves nothing: only one that is actually showing owns this Esc. Testing presence
   // made every bare Esc look "owned" and "Esc stop" never stopped a run.
