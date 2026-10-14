@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "Kết nối một lịch trực tuyến, hoặc ứng dụng Lịch trên máy Mac. Không gì được đọc cho đến khi bạn chọn lịch và bật đồng bộ, và mật khẩu không bao giờ được nhập ở đây: VOOL dùng thông tin đăng nhập bạn đã lưu.",
     "settings.row.calendar_accounts_panel.label": "Tài khoản lịch",
     "settings.row.character_mode.effect": "Áp dụng từ tin nhắn tiếp theo của bạn. Câu trả lời đang được viết vẫn giữ cài đặt cũ.",
-    "settings.row.character_mode.help": "Một nhân cách VOOL giữ cho tới khi bạn xóa. Để trống nghĩa là VOOL như chính nó. Đây là một chỉ dẫn mạnh: khi được đặt, VOOL được dặn giữ giọng nhân vật đó và không thoát vai. Nói “hãy cư xử như cướp biển” trong trò chuyện sẽ đặt điều này, và không lời nào trong trò chuyện gỡ được — chỉ xóa trường này mới thoát ra.",
+    "settings.row.character_mode.help": "Một nhân vật VOOL sẽ đóng cho đến khi bạn xóa. Để trống để VOOL là chính nó. Nói \"hãy cư xử như cướp biển\" trong trò chuyện sẽ bật nó, và chỉ xóa trống ô này mới tắt được.",
     "settings.row.character_mode.label": "Nhân vật",
     "settings.row.character_mode.placeholder": "trống — VOOL như chính nó",
     "settings.row.cloud_keys.effect": "Áp dụng ngay.",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL sẽ quên mọi thứ đã học trong đó và các cuộc trò chuyện chuyển về mục Chung. Tệp của bạn không bị động đến.",
     "dialog.delete_project_title": "Xóa dự án “{name}”?",
     "dialog.this_chat": "cuộc trò chuyện này",
-    "dialog.this_project": "dự án này"
+    "dialog.this_project": "dự án này",
+    "settings.pane_meta.global_next": "Thay đổi ở đây áp dụng ở mọi nơi, từ tin nhắn kế tiếp của bạn.",
+    "settings.scope.chat": "Chỉ cuộc trò chuyện này",
+    "settings.scope.global": "Áp dụng ở mọi nơi",
+    "settings.scope.session": "Chỉ phiên này"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

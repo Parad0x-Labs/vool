@@ -94,6 +94,8 @@ def _research_networking() -> bool:
 
 def _row(**kw) -> dict:
     """One settings row. Unset optional keys stay absent so the JSON stays small."""
+    if kw.get("effect") == EFFECT_NEXT_TURN:
+        kw["effect_kind"] = "next_turn"   # language-independent, so a page can word a shared line once
     return {k: v for k, v in kw.items() if v is not None}
 
 
@@ -206,11 +208,9 @@ def _settings_groups() -> list[dict]:
                     id="character_mode",
                     label="Character",
                     help=(
-                        "A persona VOOL stays in until you clear it. Empty means VOOL as itself. "
-                        "This is a strong instruction: while it is set, VOOL is told to keep that "
-                        "character's voice and not to break character. Saying \"act like a pirate\" "
-                        "in chat sets this, and nothing you can say in chat sets it back — emptying "
-                        "this field is the way out."
+                        "A character VOOL plays until you clear it. Leave it empty for VOOL as "
+                        "itself. Saying \"act like a pirate\" in chat sets it, and only emptying "
+                        "this box turns it off."
                     ),
                     kind="text",
                     placeholder="empty — VOOL as itself",
@@ -1073,6 +1073,7 @@ h1 { margin:0 0 4px; font-size:26px; font-weight:700; letter-spacing:-.2px; }
 .row-main { flex:1 1 auto; min-width:0; }
 .row-label { font-size:13.5px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .row-help { color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:4px; }
+.pane-meta { margin:4px 0 12px; font-size:12px; color:var(--muted); }
 .row-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:7px; font-size:11.5px; color:var(--muted); }
 .row-meta .m { display:inline-flex; align-items:center; gap:4px; }
 .row-ctl { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; padding-top:1px; }
@@ -1165,6 +1166,7 @@ label.inline { cursor:pointer; }
     <div id="offlineBanner" class="offline-banner" role="alert" hidden><span data-i18n="settings.offline.banner">VOOL isn&rsquo;t responding. Changes can&rsquo;t be saved right now.</span> <button type="button" class="btn" id="offlineRetry" data-i18n="addons.retry">Try again</button></div>
     <h1 id="paneTitle">Settings</h1>
     <p class="pane-blurb" id="paneBlurb"></p>
+    <p class="pane-meta" id="paneMeta" hidden></p>
     <div id="paneBody"></div>
   </div>
 </main>
@@ -1547,21 +1549,36 @@ function renderNav() {
   }
 }
 
-/* When a change takes hold is said ONCE per section when every control in it agrees (groupEffect),
-   and only on a row that differs from the rest. "Applies everywhere" is the default for all of Settings,
-   so only a narrower scope is named. */
-function groupEffect(g) {
-  const effects = [...new Set((g.rows || []).filter(r => r.kind !== 'note' && r.kind !== 'custom' && r.effect).map(r => r.effect))];
-  return effects.length === 1 ? effects[0] : '';
+function scopeText(scope) {
+  return scope === 'global' ? T('settings.scope.global', 'Applies everywhere')
+    : (scope === 'chat' ? T('settings.scope.chat', 'This chat only') : T('settings.scope.session', 'This session only'));
 }
+// When and how far a change reaches. Most pages share one answer for every row, so it is said
+// once under the page title (state.paneMeta) and a row repeats only what differs from it.
 function metaLine(row) {
   const wrap = el('div', 'row-meta');
-  if (row.scope && row.scope !== 'global') {
-    wrap.appendChild(el('span', 'm', row.scope === 'chat' ? 'This chat only' : 'This session only'));
-  }
-  const g = MODEL.find(x => x.id === row.group);
-  if (row.effect && (!g || groupEffect(g) !== row.effect)) wrap.appendChild(el('span', 'm', row.effect));
+  const common = state.paneMeta || {};
+  if (row.scope && row.scope !== common.scope) wrap.appendChild(el('span', 'm', scopeText(row.scope)));
+  if (row.effect && row.effect !== common.effect) wrap.appendChild(el('span', 'm', row.effect));
   return wrap;
+}
+function commonPaneMeta(rows) {
+  const counts = {};
+  let best = null;
+  let kind = '';
+  let mixed = false;
+  rows.forEach(r => {
+    if (r.kind === 'note' || r.kind === 'custom' || !r.scope || !r.effect) return;
+    const k = r.scope + '\u0000' + r.effect;
+    counts[k] = (counts[k] || 0) + 1;
+    if (best && k !== best) mixed = true;
+    if (!best) { best = k; kind = r.effect_kind || ''; }
+  });
+  // Only a line that is true of EVERY setting on the page is said once at the top; a single row
+  // gains nothing from being summarised.
+  if (!best || mixed || counts[best] < 2) return null;
+  const parts = best.split('\u0000');
+  return { scope: parts[0], effect: parts[1], kind: kind };
 }
 
 function control(row) {
@@ -1671,7 +1688,7 @@ function renderRow(row) {
   }
   main.appendChild(lab);
   if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', state.focusPart === 'spend' && row.id === 'usepod' ? 'Review a spending limit for your next UsePod request. Your message stays in the chat until you send it.' : row.help));
-  if (row.kind !== 'note' && row.kind !== 'custom') main.appendChild(metaLine(row));
+  if (row.kind !== 'note' && row.kind !== 'custom') { const meta = metaLine(row); if (meta.childNodes.length) main.appendChild(meta); }
   node.appendChild(main);
   if (row.kind === 'custom') {
     const host = el('div', 'row-ctl');
@@ -1687,8 +1704,16 @@ function renderPane() {
   const g = MODEL.find(x => x.id === state.group) || MODEL[0];
   if (!g) return;
   $('#paneTitle').textContent = g.title;
-  const effect = groupEffect(g);
-  $('#paneBlurb').textContent = (g.blurb || '') + (effect ? (g.blurb ? ' ' : '') + effect : '');
+  $('#paneBlurb').textContent = g.blurb || '';
+  state.paneMeta = state.onlyRow ? null : commonPaneMeta(g.rows);
+  const metaEl = $('#paneMeta');
+  if (metaEl) {
+    metaEl.textContent = !state.paneMeta ? ''
+      : (state.paneMeta.scope === 'global' && state.paneMeta.kind === 'next_turn')
+        ? T('settings.pane_meta.global_next', 'Changes here apply everywhere, from your next message.')
+        : scopeText(state.paneMeta.scope) + ' \u00b7 ' + state.paneMeta.effect;
+    metaEl.hidden = !state.paneMeta;
+  }
   const body = $('#paneBody');
   body.textContent = '';
   const card = el('div', 'card');

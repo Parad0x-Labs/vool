@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "连接在线日历，或 Mac 上的日历应用。在你选择日历并开启同步之前不会读取任何内容，也从不在这里输入密码：VOOL 使用你已保存的登录。",
     "settings.row.calendar_accounts_panel.label": "日历账户",
     "settings.row.character_mode.effect": "从你的下一条消息开始生效。正在撰写的回答仍保留旧设置。",
-    "settings.row.character_mode.help": "VOOL 会保持的一个角色，直到你清除它。留空表示 VOOL 以本来面目出现。这是一条强指令：只要设置了它，VOOL 就被要求保持该角色的声音、不出戏。在聊天里说“表现得像个海盗”就会设置它，而聊天里说什么都取消不了 — 清空此字段是唯一的出口。",
+    "settings.row.character_mode.help": "VOOL 会一直扮演的角色，直到你清除它。留空即 VOOL 本色。在聊天中说“像海盗一样说话”会设置它，只有清空此框才能关闭。",
     "settings.row.character_mode.label": "角色",
     "settings.row.character_mode.placeholder": "留空 — VOOL 以本来面目",
     "settings.row.cloud_keys.effect": "立即生效。",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL 会忘记在其中学到的一切，其聊天将移回“常规”。你的文件不受影响。",
     "dialog.delete_project_title": "删除项目“{name}”？",
     "dialog.this_chat": "此聊天",
-    "dialog.this_project": "此项目"
+    "dialog.this_project": "此项目",
+    "settings.pane_meta.global_next": "这里的更改从你的下一条消息起在所有地方生效。",
+    "settings.scope.chat": "仅此聊天",
+    "settings.scope.global": "全局生效",
+    "settings.scope.session": "仅本次会话"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "Подключите онлайн-календарь или приложение «Календарь» на Mac. Ничего не читается, пока вы не выберете календари и не включите синхронизацию, а пароли здесь никогда не вводятся: VOOL использует уже сохранённый вход.",
     "settings.row.calendar_accounts_panel.label": "Аккаунты календарей",
     "settings.row.character_mode.effect": "Действует со следующего сообщения. Ответ, который уже пишется, сохраняет старую настройку.",
-    "settings.row.character_mode.help": "Образ, в котором VOOL остаётся, пока вы его не очистите. Пусто — значит VOOL как он есть. Это сильная инструкция: пока она задана, VOOL велено держать голос этого персонажа и не выходить из роли. Сказать «веди себя как пират» в чате задаёт это, и никакие слова в чате это не снимают — очистка этого поля единственный выход.",
+    "settings.row.character_mode.help": "Персонаж, которого VOOL играет, пока вы его не очистите. Оставьте пустым, чтобы VOOL был собой. Фраза «веди себя как пират» в чате включает его, а выключить можно, только очистив это поле.",
     "settings.row.character_mode.label": "Персонаж",
     "settings.row.character_mode.placeholder": "пусто — VOOL как он есть",
     "settings.row.cloud_keys.effect": "Применяется сразу.",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL забудет всё, что узнал в нём, а его чаты вернутся в «Общее». Ваши файлы не затрагиваются.",
     "dialog.delete_project_title": "Удалить проект «{name}»?",
     "dialog.this_chat": "этот чат",
-    "dialog.this_project": "этот проект"
+    "dialog.this_project": "этот проект",
+    "settings.pane_meta.global_next": "Изменения здесь действуют везде, начиная с вашего следующего сообщения.",
+    "settings.scope.chat": "Только этот чат",
+    "settings.scope.global": "Действует везде",
+    "settings.scope.session": "Только этот сеанс"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

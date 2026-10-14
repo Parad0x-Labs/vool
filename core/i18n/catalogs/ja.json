@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "オンラインのカレンダー、または Mac のカレンダーアプリを接続します。カレンダーを選んで同期をオンにするまで何も読み取られず、パスワードをここで入力することはありません。VOOL はすでに保存されているサインインを使います。",
     "settings.row.calendar_accounts_panel.label": "カレンダーアカウント",
     "settings.row.character_mode.effect": "次のメッセージから適用されます。すでに書かれている途中の回答は前の設定のままです。",
-    "settings.row.character_mode.help": "あなたが消すまでVOOLが留まるペルソナです。空欄はVOOL本来の姿を意味します。これは強い指示です：設定されている間、VOOLはそのキャラクターの声を保ち、役を崩さないよう指示されます。チャットで「海賊のように振る舞って」と言うとこれが設定され、チャットでの発言では解除できません — この欄を空にするのが唯一の出口です。",
+    "settings.row.character_mode.help": "消すまでVOOLが演じるキャラクター。空欄ならVOOLそのものです。チャットで「海賊みたいに話して」と言うと設定され、オフにするにはこの欄を空にするしかありません。",
     "settings.row.character_mode.label": "キャラクター",
     "settings.row.character_mode.placeholder": "空欄 — VOOL本来の姿",
     "settings.row.cloud_keys.effect": "即時に適用されます。",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOLはそこで学んだことをすべて忘れ、チャットは「一般」に戻ります。ファイルはそのままです。",
     "dialog.delete_project_title": "プロジェクト「{name}」を削除しますか？",
     "dialog.this_chat": "このチャット",
-    "dialog.this_project": "このプロジェクト"
+    "dialog.this_project": "このプロジェクト",
+    "settings.pane_meta.global_next": "ここでの変更は次のメッセージから全体に適用されます。",
+    "settings.scope.chat": "このチャットのみ",
+    "settings.scope.global": "すべてに適用",
+    "settings.scope.session": "このセッションのみ"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

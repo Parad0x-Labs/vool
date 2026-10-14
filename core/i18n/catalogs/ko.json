@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "온라인 캘린더나 Mac의 캘린더 앱을 연결하세요. 캘린더를 고르고 동기화를 켜기 전에는 아무것도 읽지 않으며, 비밀번호는 여기서 입력하지 않습니다. VOOL은 이미 저장된 로그인을 사용합니다.",
     "settings.row.calendar_accounts_panel.label": "캘린더 계정",
     "settings.row.character_mode.effect": "다음 메시지부터 적용됩니다. 이미 작성 중인 답변은 이전 설정을 유지합니다.",
-    "settings.row.character_mode.help": "당신이 지우기 전까지 VOOL이 머무는 페르소나입니다. 비어 있으면 VOOL 본래의 모습입니다. 이것은 강한 지시입니다: 설정되어 있는 동안 VOOL은 그 캐릭터의 목소리를 유지하고 역할을 깨지 말라는 말을 받습니다. 채팅에서 “해적처럼 행동해”라고 하면 이것이 설정되고, 채팅에서 어떤 말로도 해제할 수 없습니다 — 이 칸을 비우는 것이 유일한 출구입니다.",
+    "settings.row.character_mode.help": "지울 때까지 VOOL이 연기하는 캐릭터입니다. 비워 두면 VOOL 본래 모습입니다. 채팅에서 \"해적처럼 말해\"라고 하면 설정되고, 이 칸을 비워야만 꺼집니다.",
     "settings.row.character_mode.label": "캐릭터",
     "settings.row.character_mode.placeholder": "비어 있음 — VOOL 본래의 모습",
     "settings.row.cloud_keys.effect": "즉시 적용됩니다.",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL은 여기서 배운 모든 것을 잊고, 채팅은 일반으로 돌아갑니다. 파일은 그대로 남습니다.",
     "dialog.delete_project_title": "프로젝트 “{name}”을(를) 삭제할까요?",
     "dialog.this_chat": "이 채팅",
-    "dialog.this_project": "이 프로젝트"
+    "dialog.this_project": "이 프로젝트",
+    "settings.pane_meta.global_next": "여기서 바꾼 내용은 다음 메시지부터 모든 곳에 적용됩니다.",
+    "settings.scope.chat": "이 채팅에만",
+    "settings.scope.global": "모든 곳에 적용",
+    "settings.scope.session": "이 세션에만"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

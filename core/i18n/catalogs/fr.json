@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "Connectez un calendrier en ligne, ou l’app Calendrier d’un Mac. Rien n’est lu tant que vous n’avez pas choisi de calendriers et activé la synchronisation, et aucun mot de passe n’est saisi ici : VOOL utilise une connexion que vous avez déjà enregistrée.",
     "settings.row.calendar_accounts_panel.label": "Comptes de calendrier",
     "settings.row.character_mode.effect": "S’applique à partir de votre prochain message. Une réponse déjà en cours d’écriture garde l’ancien réglage.",
-    "settings.row.character_mode.help": "Une persona que VOOL garde jusqu'à ce que vous l'effaciez. Vide signifie VOOL lui-même. C'est une instruction forte : tant qu'elle est réglée, il est demandé à VOOL de tenir la voix de ce personnage sans sortir du rôle. Dire « joue les pirates » dans le chat la règle, et rien de ce que vous direz en chat ne la dérègle — vider ce champ est la seule sortie.",
+    "settings.row.character_mode.help": "Un personnage que VOOL joue jusqu’à ce que tu l’effaces. Laisse vide pour VOOL tel qu’il est. Dire « fais comme un pirate » dans la discussion l’active, et seul le fait de vider ce champ le désactive.",
     "settings.row.character_mode.label": "Personnage",
     "settings.row.character_mode.placeholder": "vide — VOOL lui-même",
     "settings.row.cloud_keys.effect": "S'applique immédiatement.",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL oubliera tout ce qu’il y a appris et ses discussions reviendront dans Général. Tes fichiers restent intacts.",
     "dialog.delete_project_title": "Supprimer le projet « {name} » ?",
     "dialog.this_chat": "cette discussion",
-    "dialog.this_project": "ce projet"
+    "dialog.this_project": "ce projet",
+    "settings.pane_meta.global_next": "Les changements faits ici s'appliquent partout, dès votre prochain message.",
+    "settings.scope.chat": "Cette discussion uniquement",
+    "settings.scope.global": "S’applique partout",
+    "settings.scope.session": "Cette session uniquement"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1494,7 +1494,7 @@
     "settings.row.calendar_accounts_panel.help": "Connect an online calendar, or the calendar app on a Mac. Nothing is read until you choose calendars and turn sync on, and passwords are never typed here: VOOL uses a sign-in you have already saved.",
     "settings.row.calendar_accounts_panel.label": "Calendar accounts",
     "settings.row.character_mode.effect": "Applies from your next message. An answer already being written keeps the old setting.",
-    "settings.row.character_mode.help": "A persona VOOL stays in until you clear it. Empty means VOOL as itself. This is a strong instruction: while it is set, VOOL is told to keep that character's voice and not to break character. Saying \"act like a pirate\" in chat sets this, and nothing you can say in chat sets it back — emptying this field is the way out.",
+    "settings.row.character_mode.help": "A character VOOL plays until you clear it. Leave it empty for VOOL as itself. Saying \"act like a pirate\" in chat sets it, and only emptying this box turns it off.",
     "settings.row.character_mode.label": "Character",
     "settings.row.character_mode.placeholder": "empty — VOOL as itself",
     "settings.row.cloud_keys.effect": "Applies immediately.",
@@ -2358,7 +2358,11 @@
     "msg.retry_box_busy": "Your message box already has something in it. Send or clear it first.",
     "msg.retry_files_again": "Your words are back in the box. Attach the files again, then send.",
     "msg.retry_nothing": "That message had only attachments. Attach them again to ask again.",
-    "msg.retry_title": "Ask the same question again as a new message"
+    "msg.retry_title": "Ask the same question again as a new message",
+    "settings.pane_meta.global_next": "Changes here apply everywhere, from your next message.",
+    "settings.scope.chat": "This chat only",
+    "settings.scope.global": "Applies everywhere",
+    "settings.scope.session": "This session only"
   },
   "html_keys": [
     "bypass.modal_limits",

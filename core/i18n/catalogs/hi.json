@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "कोई ऑनलाइन कैलेंडर जोड़ें, या Mac पर कैलेंडर ऐप। जब तक आप कैलेंडर चुनकर सिंक चालू नहीं करते, कुछ नहीं पढ़ा जाता, और पासवर्ड यहाँ कभी टाइप नहीं किए जाते: VOOL वह साइन-इन इस्तेमाल करता है जो आप पहले ही सहेज चुके हैं।",
     "settings.row.calendar_accounts_panel.label": "कैलेंडर खाते",
     "settings.row.character_mode.effect": "आपके अगले संदेश से लागू होता है। जो जवाब पहले से लिखा जा रहा है, वह पुरानी सेटिंग रखता है।",
-    "settings.row.character_mode.help": "एक किरदार जिसमें VOOL तब तक रहता है जब तक आप उसे मिटा न दें। खाली का मतलब VOOL अपने आप में। यह एक कड़ा निर्देश है: जब तक वह सेट है, VOOL से कहा जाता है कि वह उस किरदार की आवाज़ रखे और किरदार न तोड़े। चैट में “समुद्री डाकू की तरह रचो” कहने से यह सेट हो जाता है, और चैट में कुछ भी कहने से वापस नहीं हटता — यह खाना खाली करना ही निकलने का रास्ता है।",
+    "settings.row.character_mode.help": "एक किरदार जिसे VOOL तब तक निभाता है जब तक आप इसे हटा न दें। VOOL को उसके असली रूप में रखने के लिए इसे खाली छोड़ें। चैट में \"समुद्री डाकू की तरह बात करो\" कहने से यह चालू होता है, और सिर्फ़ यह बॉक्स खाली करने से बंद होता है।",
     "settings.row.character_mode.label": "किरदार",
     "settings.row.character_mode.placeholder": "खाली — VOOL अपने आप में",
     "settings.row.cloud_keys.effect": "तुरंत लागू।",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL इसमें सीखी हर बात भूल जाएगा, और इसकी चैट वापस सामान्य में चली जाएँगी। आपकी फ़ाइलें नहीं छुई जाएँगी।",
     "dialog.delete_project_title": "प्रोजेक्ट “{name}” मिटाएँ?",
     "dialog.this_chat": "यह चैट",
-    "dialog.this_project": "यह प्रोजेक्ट"
+    "dialog.this_project": "यह प्रोजेक्ट",
+    "settings.pane_meta.global_next": "यहाँ के बदलाव हर जगह लागू होते हैं, आपके अगले संदेश से।",
+    "settings.scope.chat": "सिर्फ़ यह चैट",
+    "settings.scope.global": "हर जगह लागू",
+    "settings.scope.session": "सिर्फ़ यह सत्र"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

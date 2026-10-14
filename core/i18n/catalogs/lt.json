@@ -1017,7 +1017,7 @@
     "settings.row.calendar_accounts_panel.help": "Prijunkite internetinį kalendorių arba „Mac“ kalendoriaus programą. Niekas neskaitoma, kol nepasirenkate kalendorių ir neįjungiate sinchronizavimo, o slaptažodžiai čia niekada neįvedami: VOOL naudoja jau išsaugotą prisijungimą.",
     "settings.row.calendar_accounts_panel.label": "Kalendorių paskyros",
     "settings.row.character_mode.effect": "Galioja nuo kitos jūsų žinutės. Jau rašomas atsakymas išlaiko seną nustatymą.",
-    "settings.row.character_mode.help": "Asmenybė, kurioje VOOL lieka, kol ją išvalysite. Tuščia reiškia VOOL kaip save. Tai stiprus nurodymas: kol jis nustatytas, VOOL liepia laikytis to personažo balso ir nesilaužyti. Sakydami „elkis kaip piratas“ pokalbyje tai nustatote, ir jokiais žodžiais pokalbyje jo nepanaikinsite — vienintelis kelias išjungti yra išvalyti šį lauką.",
+    "settings.row.character_mode.help": "Personažas, kurį VOOL vaidina, kol jį išvalysi. Palik tuščią, kad VOOL būtų savimi. Pokalbyje pasakius „elkis kaip piratas“ jis įjungiamas, o išjungti galima tik ištuštinus šį laukelį.",
     "settings.row.character_mode.label": "Personažas",
     "settings.row.character_mode.placeholder": "tuščia — VOOL kaip save",
     "settings.row.cloud_keys.effect": "Taikoma iškart.",
@@ -2358,9 +2358,13 @@
     "dialog.delete_project_detail": "VOOL pamirš viską, ką jame išmoko, o jo pokalbiai grįš į „Bendra“. Tavo failai nepaliečiami.",
     "dialog.delete_project_title": "Ištrinti projektą „{name}“?",
     "dialog.this_chat": "šį pokalbį",
-    "dialog.this_project": "šį projektą"
+    "dialog.this_project": "šį projektą",
+    "settings.pane_meta.global_next": "Čia atlikti pakeitimai galioja visur, nuo jūsų kitos žinutės.",
+    "settings.scope.chat": "Tik šis pokalbis",
+    "settings.scope.global": "Taikoma visur",
+    "settings.scope.session": "Tik ši sesija"
   },
-  "source_catalog_sha256": "b2b9f75ae101e4dd6579e45b9070fd5d937c7bbbba846e3dc96be5fe5b93e024",
+  "source_catalog_sha256": "1c9dae0d212bf9b668a14b881305e4465c53e6de99d6171cd8c531420eb8ae84",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
