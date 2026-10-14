@@ -2697,7 +2697,7 @@ def dispatch_get(
     if normalized_path == "/api/goal/state":
         # The goal card's bounded hydration snapshot: the canonical durable goal record for
         # this chat, or {"goal": null}. Read-only; an orphaned mid-dispatch goal reads
-        # honestly as interrupted (never resurrected as running by hydration).
+        # as interrupted (never resurrected as running by hydration).
         goal_session = str((query.get("session") or [""])[0] or "").strip()
         if not goal_session:
             return apply_runtime_headers(json_response(400, {"error": "missing session"}), runtime)
@@ -6498,7 +6498,7 @@ def _dispatch_post_inner(
         from core.web.api.goal_api import goal_control
 
         _action = normalized_path.rsplit("/", 1)[-1]
-        _status, _payload = goal_control(_action, body, _goal_session, runtime=runtime)
+        _status, _payload = goal_control(_action, body, _goal_session, runtime=runtime, owner_local=True)
         return apply_runtime_headers(json_response(_status, _payload), runtime)
 
     if normalized_path == "/api/chat/followup":

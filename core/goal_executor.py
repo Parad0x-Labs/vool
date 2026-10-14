@@ -29,9 +29,11 @@ from typing import Any
 from core.goal_workflow import (
     MAX_GOAL_TURNS,
     MAX_STEP_ATTEMPTS,
+    PRIVATE_HOLD_REASON,
     WorkerFencedError,
     active_worker,
     build_plan,
+    chat_is_private,
     completed_step_count,
     derived_single_step_plan,
     emit_goal_event,
@@ -87,6 +89,45 @@ def step_source_context(base_context: dict[str, Any] | None, *, goal: dict[str, 
         context.setdefault("requested_model", bound_model)
         context.setdefault("model_selection", "sticky")
     return context
+
+
+def paid_model_hold_reason(runtime, context: dict[str, Any]) -> str:
+    """Why a goal turn with this context may not be dispatched, or "" when it may.
+
+    A goal runs its turns without the owner pressing send for each one, so a goal never spends
+    money by itself: a turn pointed at a paid cloud model is never dispatched from a goal. The
+    question is answered the way the router answers it before reserving a paid call (the
+    requested model resolved against the same provider registry, then its cost class), so the
+    goal holds exactly the turns that would otherwise reserve spend. An Auto selection never
+    reserves a paid call and passes. A model the registry cannot place is not reserved either;
+    a lookup that fails holds the turn (fail closed).
+    """
+    requested = str((context or {}).get("requested_model") or "").strip()
+    if not requested:
+        return ""
+    from core.auto_local_only_mode import is_auto_selection
+
+    if is_auto_selection(requested):
+        return ""
+    try:
+        router = getattr(getattr(runtime, "agent", None), "memory_router", None)
+        if router is None:
+            from core.memory_first_router import MemoryFirstRouter
+
+            router = MemoryFirstRouter()
+        manifest = router._requested_model_manifest(context)
+        if manifest is None:
+            return ""
+        from core.model_selection_policy import is_verified_free_cloud_manifest, provider_cost_class
+
+        if provider_cost_class(manifest) != "paid_cloud" or is_verified_free_cloud_manifest(manifest):
+            return ""
+    except Exception:
+        return f"could not confirm that the model {requested} is free, and a goal never spends money by itself"
+    return (
+        f"the model {requested} is paid, and a goal never spends money by itself; "
+        "choose a local or free model for this chat, then start the goal again"
+    )
 
 
 def _step_prompt(goal: dict[str, Any], step: dict[str, Any], *, index: int, total: int, repair: bool) -> str:
@@ -313,6 +354,9 @@ def run_planner_turn(runtime, goal: dict[str, Any], base_context: dict[str, Any]
     context = step_source_context(
         base_context, goal=goal, step={"id": "planning"}, attempt=0, turn_id=turn_id
     )
+    held = paid_model_hold_reason(runtime, context)
+    if held:
+        return None, "held:" + held
     context["project_permissions"] = dict(_planning_deny())
     context["cancel_event"] = register_turn(str(session_id or goal.get("session_id") or ""), turn_id)
     worker = active_worker(str(goal.get("goal_id") or ""))
@@ -409,6 +453,15 @@ def execute_goal(
         current = load_goal(goal_id) or {}
         return int(current.get("worker_epoch") or 0) != epoch
 
+    def _hold_private() -> None:
+        """Private chat is on: no goal turn runs and no step words are kept (core.private_chat)."""
+        now = time.time()
+        goal["state"] = "paused"
+        goal["paused_at"] = goal.get("paused_at") or now
+        goal["current_step_id"] = ""
+        _save(None, PRIVATE_HOLD_REASON)
+        _emit("Goal paused: private chat is on")
+
     total_dispatches = int((goal.get("plan") or {}).get("dispatches") or 0)
 
     try:
@@ -426,6 +479,9 @@ def execute_goal(
             if total_dispatches >= MAX_GOAL_TURNS:
                 _save("blocked", f"dispatch budget exhausted after {total_dispatches} turns")
                 return
+            if chat_is_private(session_id):
+                _hold_private()
+                return
             total_dispatches += 1
             plan["dispatches"] = total_dispatches
             goal["plan"] = plan
@@ -439,6 +495,18 @@ def execute_goal(
             )
             if _paused_or_stopped(worker):
                 # The planner turn is accounted like any dispatch: settle it truthfully.
+                return
+            if planner_error.startswith("held:"):
+                # Nothing was dispatched: the held turn does not count against the budget.
+                total_dispatches -= 1
+                plan["dispatches"] = total_dispatches
+                _save("blocked", planner_error[len("held:"):])
+                _emit("Goal blocked: " + str(goal.get("last_reason")))
+                return
+            if chat_is_private(session_id):
+                # The chat went private while the plan was being made: the plan is words of a
+                # private turn, so it is not kept. Planning runs again after private chat ends.
+                _hold_private()
                 return
             if planner_steps is None:
                 planner_steps = [{"id": "step-1", "title": str(goal.get("objective") or "")[:300]}]
@@ -550,6 +618,21 @@ def execute_goal(
                     _emit("Goal blocked: " + str(goal.get("last_reason")))
                 return
 
+            if chat_is_private(session_id):
+                _hold_private()
+                return
+            held = paid_model_hold_reason(
+                runtime,
+                step_source_context(base_context, goal=goal, step=next_step, attempt=0, turn_id=""),
+            )
+            if held:
+                next_step["state"] = "blocked"
+                next_step["reason"] = held
+                goal["current_step_id"] = ""
+                _save("blocked", f"step {next_step.get('id')} blocked: {held}")
+                _emit("Goal blocked: " + str(goal.get("last_reason")))
+                return
+
             if total_dispatches >= MAX_GOAL_TURNS:
                 now = time.time()
                 goal["state"] = "blocked"
@@ -614,9 +697,11 @@ def execute_goal(
             if state == "waiting_approval":
                 # Approval previews stay in their canonical ledger, referenced by turn.
                 step.pop("approval_id", None)
+            private_now = chat_is_private(session_id)
             step["state"] = state
-            step["reason"] = reason
-            step["answer_excerpt"] = str(result.get("response") or result.get("content") or "")[:500]
+            # A step that settled after its chat went private keeps none of its words.
+            step["reason"] = ("private chat is on" if reason else "") if private_now else reason
+            step["answer_excerpt"] = "" if private_now else str(result.get("response") or result.get("content") or "")[:500]
             goal["updated_at"] = time.time()
 
             if _fenced():
@@ -765,6 +850,8 @@ def retry_waiting_step(goal_id: str, *, approval_token: str = "") -> dict[str, A
             break
     if waiting is None:
         return {"ok": False, "error": "no waiting step to resume"}
+    if chat_is_private(str(goal.get("session_id") or "")):
+        return {"ok": False, "error": PRIVATE_HOLD_REASON}
     approval_id = _latest_approval_id(str(goal.get("session_id") or ""), str(waiting.get("turn_id") or "")) or str(waiting.get("approval_id") or "").strip()
     token = str(approval_token or "").strip()
     resolved = ""

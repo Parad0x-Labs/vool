@@ -1408,8 +1408,8 @@ class VoolAgent(
         mark_stale_runtime_attempts_abandoned()
         recover_stale_queue_items()
         # Explicit /goal workflow: goals recorded mid-dispatch whose worker died with the
-        # previous process read honestly as interrupted (never silently resurrected as
-        # running). Only an explicit resume re-enters execution.
+        # previous process read as interrupted (never silently resurrected as running).
+        # Only an explicit resume re-enters execution.
         try:
             from core.goal_workflow import reconcile_on_startup as _reconcile_goals
 

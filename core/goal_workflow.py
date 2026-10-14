@@ -92,6 +92,17 @@ MAX_GOAL_TURNS = 20
 
 _LOCK = threading.RLock()
 
+#: Why a goal waits while its chat is private (core/private_chat.py): a goal step is a turn of
+#: the chat, and a private chat keeps no turn's words, so no step runs until private chat ends.
+PRIVATE_HOLD_REASON = "private chat is on, so the goal waits; end private chat, then resume"
+
+
+def chat_is_private(session_id: str) -> bool:
+    """Whether the chat is private now. The private-chat owner fails closed: unreadable is private."""
+    from core.private_chat import is_private
+
+    return bool(session_id) and is_private(session_id)
+
 
 class WorkerFencedError(RuntimeError):
     """A stale worker tried to write after a successor claimed the goal's epoch."""
@@ -278,6 +289,42 @@ def save_goal(goal: dict[str, Any], *, expected_epoch: int | None = None) -> Non
     conn.close()
 
 
+def create_goal_unless_active(goal: dict[str, Any]) -> dict[str, Any] | None:
+    """Insert a new goal unless the chat already has a non-terminal one; return that one if so.
+
+    The check and the insert run in one write transaction, so two tabs sending a goal at the
+    same moment make exactly one goal: the second sees the first and gets it back.
+    """
+    conn = _conn()
+    _ensure_table(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        rows = conn.execute(
+            f"SELECT {','.join(_GOAL_COLUMNS)} FROM chat_goals WHERE session_id = ? ORDER BY created_at DESC",
+            (str(goal.get("session_id") or ""),),
+        ).fetchall()
+        for row in rows:
+            existing = _row_to_goal(row)
+            if str(existing.get("state")) not in TERMINAL_GOAL_STATES:
+                conn.rollback()
+                return existing
+        payload = {key: goal.get(key) for key in _GOAL_COLUMNS if goal.get(key) is not None}
+        payload["plan_json"] = json.dumps(goal.get("plan") or {}, ensure_ascii=False)
+        payload["exec_context_json"] = json.dumps(goal.get("exec_context") or {}, ensure_ascii=False)
+        columns = [key for key in _GOAL_COLUMNS if key in payload]
+        conn.execute(
+            f"INSERT INTO chat_goals ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",
+            [payload[key] for key in columns],
+        )
+        conn.commit()
+        return None
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def load_goal(goal_id: str) -> dict[str, Any] | None:
     conn = _conn()
     _ensure_table(conn)
@@ -292,7 +339,7 @@ def load_active_goal_for_session(session_id: str) -> dict[str, Any] | None:
     conn = _conn()
     _ensure_table(conn)
     rows = conn.execute(
-        f"SELECT {','.join(_GOAL_COLUMNS)} FROM chat_goals WHERE session_id = ? ORDER BY created_at DESC LIMIT 5",
+        f"SELECT {','.join(_GOAL_COLUMNS)} FROM chat_goals WHERE session_id = ? ORDER BY created_at DESC",
         (str(session_id or ""),),
     ).fetchall()
     for row in rows:
@@ -716,12 +763,17 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
         return {"ok": False, "error": f"goal already {state}"}
     if state not in ("paused", "interrupted", "blocked"):
         return {"ok": True, "state": state, "already": True}
-    worker = active_worker(goal_id)
-    if worker is not None and worker.pause_requested.is_set() and not worker.finished.is_set():
-        # Keep accounting the cancelled turn. Its owner will launch one successor only
-        # after settlement; an immediate Resume must not orphan or overlap the workers.
-        worker.resume_requested.set()
-        return {"ok": True, "state": state, "settling": True}
+    if chat_is_private(str(goal.get("session_id") or "")):
+        return {"ok": False, "error": PRIVATE_HOLD_REASON}
+    with _LOCK:
+        # Checked and flagged under the registry lock that unregister_worker takes: a worker
+        # still settling its last turn either sees this flag when it exits (and launches the one
+        # successor itself), or it has already unregistered and the resume below proceeds. A
+        # Resume pressed in between can no longer be lost.
+        worker = _WORKERS.get(str(goal_id))
+        if worker is not None and not worker.finished.is_set():
+            worker.resume_requested.set()
+            return {"ok": True, "state": state, "settling": True}
     now = time.time()
     if goal.get("paused_at"):
         paused_at = float(goal.get("paused_at") or 0.0)

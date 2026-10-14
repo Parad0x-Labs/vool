@@ -22,7 +22,7 @@ from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any
 
-from core.goal_executor import execute_goal, retry_waiting_step
+from core.goal_executor import execute_goal, paid_model_hold_reason, retry_waiting_step, step_source_context
 from core.goal_workflow import (
     _LOCK as _WORKER_REGISTRY_LOCK,
 )
@@ -31,6 +31,7 @@ from core.goal_workflow import (
     _GoalWorker,
     active_worker,
     claim_worker_epoch,
+    create_goal_unless_active,
     goal_public_view,
     load_active_goal_for_session,
     load_goal,
@@ -130,7 +131,7 @@ def _run_worker(runtime, worker: _GoalWorker, goal_id: str, base_context: dict[s
         unregister_worker(goal_id, worker)
         if worker.resume_requested.is_set() and not worker.stop_requested.is_set() and not worker.fence_requested.is_set():
             fresh = load_goal(goal_id)
-            if fresh is not None and fresh.get("state") in ("paused", "interrupted"):
+            if fresh is not None and fresh.get("state") in ("paused", "interrupted", "blocked"):
                 outcome = request_resume(goal_id)
                 if outcome.get("ok"):
                     fresh = load_goal(goal_id)
@@ -290,6 +291,14 @@ def serve_goal_ingress(
         spawn_goal_worker(runtime, fresh, base_context=source_context, model=model_name)
         return 200, _short_stream([reply], model=model_name, goal_view=view), {"reply": reply}
 
+    held = paid_model_hold_reason(
+        runtime,
+        step_source_context(source_context, goal={"model": model_name}, step={"id": "start"}, attempt=0, turn_id=""),
+    )
+    if held:
+        reply = f"The goal was not started: {held}."
+        return 200, _short_stream([reply], model=model_name), {"reply": reply}
+
     objective, acceptance = _split_acceptance(arg)
     goal_id = new_goal_id()
     goal = {
@@ -311,8 +320,16 @@ def serve_goal_ingress(
         "created_turn_id": str(source_context.get("cancel_turn_id") or ""),
         "last_reason": "",
     }
-    save_goal(goal)
-    _persist_exec_binding(goal, source_context, model_name)
+    _bind_exec_context(goal, source_context, model_name)
+    existing = create_goal_unless_active(goal)
+    if existing is not None:
+        # Another tab started a goal in this chat a moment ago: that one stands.
+        view = goal_public_view(existing)
+        reply = (
+            f"A goal is already active in this chat: \"{view['objective']}\" ({view['state']}).\n"
+            "Say /goal revise <changed goal> to revise it, /goal stop to finish it, or /goal status."
+        )
+        return 200, _short_stream([reply], model=model_name, goal_view=view), {"reply": reply}
     view = goal_public_view(goal)
     reply = f"Goal created: {arg}\nDeriving the plan and starting the steps this chat's mode already permits. Progress shows on the goal card."
     spawn_goal_worker(runtime, goal, base_context=source_context, model=model_name)
@@ -339,34 +356,48 @@ def _split_acceptance(arg: str) -> tuple[str, str]:
     return objective[:4000], acceptance[:2000]
 
 
-def _persist_exec_binding(goal: dict[str, Any], source_context: dict[str, Any], model: str) -> None:
+def _bind_exec_context(goal: dict[str, Any], source_context: dict[str, Any], model: str) -> None:
     """Bind the goal to the execution facts a resume/retry needs to re-dispatch into the SAME
-    workspace: the chat's workspace roots, project binding and selected model. This is the
+    chat and workspace: the workspace roots, project, chat id, selected model, whether the chat
+    door saw the owner's own local session, and whether the turn was local-only. This is the
     goal's own binding, not duplicated execution state — mode, permissions and receipts stay
-    with their existing owners."""
-    from core.goal_workflow import save_goal as _save
+    with their existing owners. A resumed turn can only be as trusted as the door that started
+    the goal, and stays local-only when the goal started local-only."""
+    from core.auto_local_only_mode import turn_is_local_only
+    from core.request_trust import request_is_owner_local
 
     goal["model"] = str(model or "")
     goal["exec_context"] = {
         "workspace": str(source_context.get("workspace") or ""),
         "workspace_root": str(source_context.get("workspace_root") or ""),
         "project_id": str(source_context.get("project_id") or ""),
+        "chat_id": str(source_context.get("chat_id") or ""),
         "runtime_session_id": str(source_context.get("runtime_session_id") or goal.get("session_id") or ""),
-        "owner_local": bool(source_context.get("owner_local", True)),
+        "owner_local": bool(request_is_owner_local(source_context)),
+        "local_only": bool(turn_is_local_only(source_context)),
     }
-    _save(goal)
 
 
-def _rebuild_exec_context(goal: dict[str, Any]) -> dict[str, Any]:
+def _rebuild_exec_context(goal: dict[str, Any], *, owner_local: bool) -> dict[str, Any]:
+    """The step context for a turn resumed from a goal control. ``owner_local`` is what the
+    serving door verified for THIS request; the resumed turn is owner-local only when both that
+    door and the chat door that started the goal were."""
+    from core.auto_local_only_mode import CONTEXT_KEY as LOCAL_ONLY_KEY
+    from core.request_trust import OWNER_LOCAL_KEY
+
     binding = goal.get("exec_context") if isinstance(goal.get("exec_context"), dict) else {}
     context = {
         "workspace": str(binding.get("workspace") or ""),
         "workspace_root": str(binding.get("workspace_root") or ""),
         "project_id": str(binding.get("project_id") or goal.get("project_id") or ""),
         "runtime_session_id": str(binding.get("runtime_session_id") or goal.get("session_id") or ""),
-        "owner_local": bool(binding.get("owner_local", True)),
         "surface": "goal",
+        OWNER_LOCAL_KEY: bool(owner_local) and binding.get("owner_local") is True,
     }
+    if binding.get("chat_id"):
+        context["chat_id"] = str(binding["chat_id"])
+    if binding.get("local_only"):
+        context[LOCAL_ONLY_KEY] = True
     return context
 
 
@@ -384,13 +415,16 @@ def goal_state_payload(session_id: str) -> dict[str, Any]:
     return {"goal": goal_public_view(goal)}
 
 
-def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=None) -> tuple[int, dict[str, Any]]:
+def goal_control(
+    action: str, body: dict[str, Any], session_id: str, *, runtime=None, owner_local: bool = False
+) -> tuple[int, dict[str, Any]]:
     """Owner-local POST controls from the card: pause / resume / stop / retry.
 
     Chat-scoped: a control naming a goal that belongs to a DIFFERENT chat refuses, so one
     chat's card can never pause or stop another chat's goal. ``runtime`` is the LIVE daemon
     services handle from the serving request — resumed execution runs through it, never a
-    fabricated stand-in."""
+    fabricated stand-in; without it, resume and retry refuse and leave the goal as it is.
+    ``owner_local`` is the serving door's own loopback verdict for this request."""
     goal_id = str(body.get("goal_id") or "").strip()
     goal = load_goal(goal_id) if goal_id else load_active_goal_for_session(session_id)
     if goal is None:
@@ -398,6 +432,12 @@ def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=
     if str(goal.get("session_id") or "") != str(session_id or ""):
         return 403, {"ok": False, "error": "goal belongs to a different chat"}
     goal_id = str(goal.get("goal_id"))
+    if action in ("resume", "retry") and runtime is None:
+        return 409, {
+            "ok": False,
+            "error": "resume this goal from its chat; this door cannot run goal steps",
+            "goal": goal_public_view(goal),
+        }
     if action == "pause":
         outcome = request_pause(goal_id)
     elif action == "stop":
@@ -407,7 +447,10 @@ def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=
         if outcome.get("ok") and not outcome.get("already") and not outcome.get("settling"):
             fresh = load_goal(goal_id)
             if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
-                spawn_goal_worker(runtime, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""))
+                spawn_goal_worker(
+                    runtime, fresh, base_context=_rebuild_exec_context(fresh, owner_local=owner_local),
+                    model=str(fresh.get("model") or ""),
+                )
         outcome = dict(outcome)
     elif action == "retry":
         # The token is resolved SERVER-SIDE from the goal's recorded pending approval (the
@@ -421,7 +464,8 @@ def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=
             pending_token = str(outcome.get("pending_approval_token") or "")
             if fresh is not None:
                 spawn_goal_worker(
-                    runtime, fresh, base_context=_rebuild_exec_context(fresh), model=str(fresh.get("model") or ""),
+                    runtime, fresh, base_context=_rebuild_exec_context(fresh, owner_local=owner_local),
+                    model=str(fresh.get("model") or ""),
                     arm=lambda w: w.arm_approval_token(pending_step_id, pending_token),
                 )
         outcome = {k: v for k, v in outcome.items() if k != "pending_approval_token"}
@@ -429,11 +473,3 @@ def goal_control(action: str, body: dict[str, Any], session_id: str, *, runtime=
         return 400, {"ok": False, "error": "unknown action"}
     fresh = load_goal(goal_id) or goal
     return (200 if outcome.get("ok") else 409), {**outcome, "goal": goal_public_view(fresh)}
-
-
-def resume_goal_worker_for_session(runtime, session_id: str, base_context: dict[str, Any], model: str) -> None:
-    """Re-arm a resumed goal's worker with the CURRENT request's context (used by the chat
-    ingress resume path where the live session context is available)."""
-    goal = load_active_goal_for_session(session_id)
-    if goal is not None and active_worker(goal.get("goal_id") or "") is None:
-        spawn_goal_worker(runtime, goal, base_context=base_context, model=model)
