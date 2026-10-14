@@ -125,7 +125,7 @@ def test_off_list_category_is_refused_by_sdk_and_listed_taxonomy_is_served(tmp_p
         assert main(["init", str(target), "--metadata", str(meta), "--license-file", str(licence)]) == 1
         assert "registry category list" in capsys.readouterr().out
         assert not target.exists()
-    assert len(TAXONOMY) == 10
+    assert len(TAXONOMY) == 11
     *_, app, _, _, _ = setup_service(tmp_path / "service")
     with TestClient(app, base_url="https://registry.test") as client:
         served = client.get(PREFIX + "/categories").json()["categories"]
