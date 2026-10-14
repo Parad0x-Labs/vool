@@ -6,6 +6,7 @@ including nested keys; only explicitly named storage identities are excluded.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 _SEPARATORS = re.compile(r"[\s\-_]+")
+_LOG = logging.getLogger(__name__)
 
 # These identify an owner/row, rather than a remembered value. Do not replace
 # this list with suffix rules: a future field named answer_id can carry prose.
@@ -238,8 +240,11 @@ def verify_forget_stores(
     def verify(name: str, reader: Any) -> None:
         try:
             retained = bool(reader())
+            if retained:
+                _LOG.warning("forget: %s still holds the forgotten words", name)
             _record_erasure_store(erasures, name, "incomplete" if retained else "verified")
-        except Exception:
+        except Exception as exc:
+            _LOG.warning("forget: %s could not be verified: %s", name, type(exc).__name__)
             _record_erasure_store(erasures, name, "incomplete")
 
     def file_rows(path: Path) -> bool:

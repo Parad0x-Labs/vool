@@ -1143,9 +1143,13 @@ def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, A
                     if content_ref and get_bytes(content_ref) is not None:
                         raise AdmissionClosedError("chat-context bytes remain after erasure")
                     removed += 1
-                except Exception:
+                except Exception as exc:
+                    # Which page and why, never its words: the reply alone cannot say what refused.
+                    _log.warning("forget: context page %s not erased: %s",
+                                 str(page["page_hash"])[:12], type(exc).__name__)
                     incomplete = True
-    except Exception:
+    except Exception as exc:
+        _log.warning("forget: context pages not read: %s", type(exc).__name__)
         incomplete = True
     finally:
         if conn is not None:
