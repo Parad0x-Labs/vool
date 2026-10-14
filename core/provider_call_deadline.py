@@ -111,6 +111,38 @@ def effective_timeout_seconds(request: Any, configured_seconds: float) -> float:
     return max(0.001, min(configured, remaining))
 
 
+def local_manifest_call_timeout_seconds(manifest: Any, configured_seconds: float) -> float:
+    """A provider manifest's per-call transport ceiling, scaled once on a CPU-only machine.
+
+    The manifests' ``timeout_seconds`` (180 s throughout ``core/runtime_provider_defaults.py``,
+    30 s in the adapter when a manifest carries none) was sized on GPU hosts. On a machine with
+    no usable GPU the same local model runs several times slower (``core.local_compute_budget``
+    holds the Intel measurement), and the enclosing turn deadlines are already scaled at their
+    call sites -- but this per-call ceiling stayed unscaled, so a local call was cut at 180 s
+    while its enclosing CPU-only turn still had 117 s of room: the reported "local recall can
+    time out" while the turn budget was never spent. Only a manifest that runs on this machine
+    is scaled, decided by the routing layer's own locality rule
+    (``core.local_model_policy.manifest_is_local``: local source type, loopback endpoint, or
+    ``deployment_class: local``) -- never by a provider-name list, and never a cloud provider.
+    A locality that cannot be read keeps the configured value, the same fail-soft direction
+    ``core.local_compute_budget`` itself takes. An explicit transport override on the request
+    (:data:`PROVIDER_TRANSPORT_TIMEOUT_KEY`) still wins inside :func:`effective_timeout_seconds`,
+    and the bound absolute deadline still clamps the result: scaling may spend a turn's own
+    budget, never extend it.
+    """
+    value = max(0.001, float(configured_seconds or 0.001))
+    try:
+        from core.local_model_policy import manifest_is_local
+
+        if manifest_is_local(manifest):
+            from core.local_compute_budget import local_compute_seconds
+
+            return local_compute_seconds(value)
+    except Exception:
+        pass
+    return value
+
+
 def _deadline_from(source: Mapping[str, Any] | Any | None) -> float:
     if isinstance(source, Mapping):
         return _float_or_zero(source.get(PROVIDER_DEADLINE_KEY))
@@ -156,4 +188,5 @@ __all__ = [
     "copy_deadline_to_request_metadata",
     "deadline_expired",
     "effective_timeout_seconds",
+    "local_manifest_call_timeout_seconds",
 ]
