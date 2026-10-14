@@ -62,8 +62,11 @@ def _queue_post(daemon, body: dict) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
-def _turn_post(daemon, message: str, session_id: str, *, turn_id: str, queue_item_id: str = "", timeout: float = 120.0):
-    """A chat turn POST shaped like the page's run-turn request. Returns (status, body);
+def _turn_post(
+    daemon, message: str, session_id: str, *, turn_id: str, queue_item_id: str = "", timeout: float = 120.0, page: bool = True
+):
+    """A chat turn POST shaped like the page's run-turn request (``page=False``: the same request
+    from a caller that does not ask for the typed busy refusal). Returns (status, body);
 
     a refusal (409 and friends) comes back as data instead of raising."""
     payload = {
@@ -74,6 +77,8 @@ def _turn_post(daemon, message: str, session_id: str, *, turn_id: str, queue_ite
         "mode": "auto",
         "turn_id": turn_id,
     }
+    if page:
+        payload["on_busy"] = "refuse"
     if queue_item_id:
         payload["queue_item_id"] = queue_item_id
     request = Request(
@@ -229,6 +234,69 @@ def test_two_http_clients_one_chat_run_exactly_once(http_rig):
     time.sleep(0.5)
     assert len(_calls_for(provider, M2)) == 1, f"queued message ran more than once: {len(_calls_for(provider, M2))}"
     assert _wait_for(lambda: not _queue_state(daemon, session_id).get("queue"), 10, "queue did not drain")
+
+
+def test_the_brake_is_answered_while_a_turn_runs_and_takes_no_slot(http_rig):
+    """The emergency brake is never refused or queued behind a running turn: it is answered at
+    once, beside the turn, and leaves the chat's slot exactly as it found it."""
+    provider, daemon = http_rig
+    session_id = _sid("http-brake")
+
+    thread, box = _hold_turn(daemon, M1, session_id, turn_id="t-brake-1")
+    try:
+        _wait_for(lambda: len(_calls_for(provider, M1)) >= 1, 45, "the held turn never reached the provider")
+        _wait_for(lambda: _queue_state(daemon, session_id).get("turn_active") is True, 10, "slot never read busy")
+
+        status, body = _turn_post(daemon, "/stopx402", session_id, turn_id="t-brake-2", timeout=30.0)
+        assert status == 200, (status, body)
+        assert "Spending is now frozen" in json.dumps(body), body
+        assert not _queue_state(daemon, session_id).get("queue"), "the brake was queued"
+        # The running turn still holds the slot: the brake neither took it nor freed it.
+        assert _queue_state(daemon, session_id).get("turn_active") is True
+    finally:
+        provider.release(M1)
+        thread.join(timeout=90)
+    assert box["result"][0] == 200, box["result"]
+    _wait_for(lambda: not _queue_state(daemon, session_id).get("turn_active"), 30, "slot never freed after the turn")
+
+
+def test_a_caller_that_does_not_ask_for_the_refusal_waits_and_runs_once(http_rig):
+    """A caller that is not the page (a script on this machine, another app's runner) keeps the
+    session gate's contract: its turn waits behind the running one, then runs exactly once --
+    no typed refusal it was never written to handle, no overtaking, and no slot left held."""
+    provider, daemon = http_rig
+    session_id = _sid("http-plain-caller")
+
+    thread, box = _hold_turn(daemon, M1, session_id, turn_id="t-plain-1")
+    waiter: dict = {}
+    try:
+        _wait_for(lambda: len(_calls_for(provider, M1)) >= 1, 45, "the held turn never reached the provider")
+        _wait_for(lambda: _queue_state(daemon, session_id).get("turn_active") is True, 10, "slot never read busy")
+
+        second = threading.Thread(
+            target=lambda: waiter.setdefault(
+                "result", _turn_post(daemon, M2, session_id, turn_id="t-plain-2", timeout=180.0, page=False)
+            ),
+            daemon=True,
+        )
+        second.start()
+        second.join(3.0)
+        assert second.is_alive(), f"the plain caller was answered while the turn ran: {waiter.get('result')}"
+        assert not _calls_for(provider, M2), "the plain caller overtook the running turn"
+    finally:
+        provider.release(M1)
+        thread.join(timeout=90)
+    assert box["result"][0] == 200, box["result"]
+    second.join(timeout=120)
+    assert not second.is_alive(), "the plain caller never ran after the turn ended"
+    assert waiter["result"][0] == 200, waiter["result"]
+    time.sleep(0.5)
+    assert len(_calls_for(provider, M2)) == 1, f"the plain caller's message ran {len(_calls_for(provider, M2))} times"
+    assert not _queue_state(daemon, session_id).get("queue"), "the plain caller's message was queued"
+    # Nothing it did holds the slot: the chat reads free, and the page's next send runs.
+    _wait_for(lambda: not _queue_state(daemon, session_id).get("turn_active"), 30, "slot left held")
+    status, body = _turn_post(daemon, "Hi", session_id, turn_id="t-plain-3", timeout=60.0)
+    assert status == 200, (status, body)
 
 
 def test_a_refused_claim_comes_back_as_its_original_row(http_rig_short_lease):

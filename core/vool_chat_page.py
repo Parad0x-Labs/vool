@@ -2512,6 +2512,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     session_id: run.chatId,
     turn_id: run.turnId,
     ...(run.queueItemId ? { queue_item_id: run.queueItemId } : {}),
+    // This page handles the chat's typed "a turn is already running" refusal (it reroutes the
+    // message into the chat's queue), so it asks for it; a caller that does not ask waits its turn.
+    on_busy: 'refuse',
     mode: owner.mode,
     autonomy: (owner.mode === 'auto' || owner.mode === 'bypass_permissions') ? 'auto' : '',
     approval_token: owner.approvalToken,

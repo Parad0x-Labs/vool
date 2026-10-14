@@ -3432,6 +3432,9 @@ def _stream_agent_with_events_inner(
     from core.runtime_continuity import release_chat_turn_admission
 
     cancel_turn_id = str(stream_context.get("cancel_turn_id") or "").strip()
+    # The chat's one-slot admission this turn holds, stamped by the chat door (empty when the
+    # request took none: a brake, a side answer, a caller that waited at the session gate).
+    admission_token = str(stream_context.get("chat_admission_token") or "").strip()
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
     is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
     if cancel_turn_id:
@@ -3468,7 +3471,7 @@ def _stream_agent_with_events_inner(
                 # at POST-accept and must not outlive the registration by its lease.
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
-                    release_chat_turn_admission(session_id, cancel_turn_id)
+                release_chat_turn_admission(session_id, admission_token)
                 _release_followups()
 
         # F-01 (independent-proof repair): execute the turn under the ingress
@@ -3488,7 +3491,7 @@ def _stream_agent_with_events_inner(
                 # from context machinery itself (before _body ever ran).
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
-                    release_chat_turn_admission(session_id, cancel_turn_id)
+                release_chat_turn_admission(session_id, admission_token)
                 _release_followups()
                 raise
         else:
@@ -3504,7 +3507,7 @@ def _stream_agent_with_events_inner(
         # the turn stays falsely cancellable forever.
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
-            release_chat_turn_admission(session_id, cancel_turn_id)
+        release_chat_turn_admission(session_id, admission_token)
         _release_followups()
         if stream_id:
             unregister_runtime_event_sink(stream_id)

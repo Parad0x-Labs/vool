@@ -7622,7 +7622,21 @@ def _dispatch_post_inner(
 
             _side_answer = _fc_precheck.task_snapshot(session_id) is not None
 
-        if owner_local and not _side_answer and not is_brake_command(user_text):
+        # Who is refused, and who waits. The typed refusal is for a caller that can act on it:
+        # the chat page declares it (``on_busy: "refuse"``) because it reroutes a refused send
+        # into the durable queue, and a queued dispatch (it presents a ``queue_item_id``) is the
+        # queue's own law. Every other caller -- a script on this machine, the school page, an
+        # agent team's runner, a remote client -- keeps the session gate's contract: its turn
+        # waits behind the running one and then runs once. It never overtakes, so the slot law
+        # holds for it too; it only never sees a refusal it was not written to handle.
+        _refuse_when_busy = owner_local and (
+            str(body.get("on_busy") or "").strip() == "refuse" or bool(str(body.get("queue_item_id") or "").strip())
+        )
+        # The brake never waits for an idle chat and never takes the slot: it is answered by the
+        # grounded lane below, beside whatever turn is running.
+        _brake = owner_local and is_brake_command(user_text)
+
+        if _refuse_when_busy and not _side_answer and not _brake:
             from core.runtime_continuity import chat_admission_free_for
 
             if not chat_admission_free_for(
@@ -7878,16 +7892,28 @@ def _dispatch_post_inner(
         from core.runtime_continuity import admit_chat_turn
 
         _admit_turn_id = str(body.get("turn_id") or "").strip()[:80]
-        if _side_answer:
-            # A confirmed side answer runs beside the live task and never reserves (or waits
-            # for) the chat's ordinary-turn slot; its release paths below are no-ops.
-            _admission = {"admitted": True, "reason": "side_answer"}
+        if _side_answer or _brake:
+            # A confirmed side answer runs beside the live task, and the brake is answered beside
+            # any turn: neither reserves (or waits for) the chat's ordinary-turn slot, and the
+            # release paths below must not free a slot this request never held.
+            _admission = {"admitted": True, "reason": "side_answer" if _side_answer else "brake"}
+            _admit_turn_id = ""
         else:
             _admission = admit_chat_turn(
                 session_id,
                 _admit_turn_id,
-                queue_item_id=str(body.get("queue_item_id") or "").strip()[:200],
+                queue_item_id=str(body.get("queue_item_id") or "").strip()[:200] if _refuse_when_busy else "",
             )
+        if not _admission.get("admitted") and not _refuse_when_busy:
+            # A caller that did not ask for the typed refusal waits at the session gate behind
+            # the running turn, as it always has. It holds no reservation, so nothing below may
+            # release one in its name.
+            _admission = {"admitted": True, "reason": "waits_at_session_gate"}
+            _admit_turn_id = ""
+        # The streaming lane's worker releases the admission at its end by THIS token, never by
+        # the caller's turn id: a request that holds no reservation (or names another turn's id)
+        # must not free one. Stamped unconditionally, so a caller-sent copy never survives.
+        source_context["chat_admission_token"] = _admit_turn_id if _admission.get("admitted") else ""
         if not _admission.get("admitted"):
             return apply_runtime_headers(
                 json_response(
