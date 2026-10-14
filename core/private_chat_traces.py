@@ -9,10 +9,12 @@ states and digests, never a word of the chat, but together they say "this chat e
 times, with this many turns". Some of them the turn needs while it runs; none is needed after it.
 
 This module is the ONE owner of that cleanup. At the end of every private request of a chat that
-has nothing saved (:func:`erase_if_unsaved`), and at startup for a chat still private after a
-restart (:func:`sweep_unsaved_private_chats`), it deletes those rows (the runtime database zeroes
+has nothing saved (:func:`erase_if_unsaved`) it deletes those rows (the runtime database zeroes
 deleted content: ``PRAGMA secure_delete``), checkpoints the WAL so no frame keeps them, and removes
-the chat's receipt ledger files. The private switch itself (``private_chat_sessions``) stays while
+the chat's receipt ledger files. :func:`sweep_unsaved_private_chats` does the same for every chat
+still private, for records a turn cut off by a stop (or an older build) left behind; it is not run
+at startup, because it erases records that existed before this build, which waits on the owner's
+word. The private switch itself (``private_chat_sessions``) stays while
 the chat is private, by design.
 
 Money is never erased. When the chat has a spend record (a money liability or a model spend

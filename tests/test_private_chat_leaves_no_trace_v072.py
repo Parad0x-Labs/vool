@@ -23,7 +23,9 @@ THE CONTRACT UNDER TEST
 * A chat opened in a project that turns private gives up its row, and its first saved turn brings
   it back in the same project.
 * An ordinary chat is recorded exactly as before (the scan finds it everywhere it did).
-* After a restart, records a cut-off private turn left behind are erased; the switch is kept.
+* A tool run in a private turn (here the rules tool, in a saved chat) does its job and files no tool
+  receipt on disk.
+* Startup erases nothing: the cleanup of what a cut-off turn or an older build left waits on the owner.
 * Money is never erased: a private chat with a spend record keeps the task row the spend is traced to.
 """
 from __future__ import annotations
@@ -135,9 +137,21 @@ def test_a_private_first_chat_leaves_no_trace_once_its_turns_end(tmp_path):
                 _stream(daemon, text, "openclaw:" + STILL)
 
             # A saved chat that goes private keeps its row and its title; the private turn renames nothing.
-            for text in ("don't record this", "rename this chat to Lamp plans", "turn recording back on"):
-                _stream(daemon, text, "openclaw:" + PLAIN)
+            # A tool run in its private turn (the rules tool, which files a runtime tool receipt with its
+            # arguments) does its job, and the receipt is not written: nothing erases a saved chat's
+            # records, so a row written here would stay.
+            answers = [_stream(daemon, text, "openclaw:" + PLAIN)[0] for text in (
+                "don't record this", "rename this chat to Lamp plans",
+                "add to global rules: always answer in British English", "turn recording back on")]
+            assert "Saved rule" in answers[2], answers[2]
             assert _sidebar(daemon)["openclaw:" + PLAIN]["title"] == "My cat is called Biscuit."
+            conn = sqlite3.connect(f"file:{home / 'data' / 'vool_web0_v2.db'}?mode=ro", uri=True)
+            try:
+                receipts = conn.execute("SELECT tool_name FROM runtime_tool_receipts WHERE session_id = ?",
+                                        ("openclaw:" + PLAIN,)).fetchall()
+            finally:
+                conn.close()
+            assert receipts == [], receipts
             time.sleep(2.0)
             stop.set()
             watcher.join(10)
@@ -159,7 +173,8 @@ def test_a_private_first_chat_leaves_no_trace_once_its_turns_end(tmp_path):
             assert row.get("title") == "My cat likes tuna." and row.get("project_id") == project["id"], row
 
         # A private turn cut off by a stop leaves its run records (written here through their own
-        # writers, as an older build or a crash leaves them): the next start erases them.
+        # writers, as an older build or a crash leaves them). Erasing them at startup would also erase
+        # what an older build left, so it waits on the owner's word: the next start erases nothing.
         run_in_home(home, (
             "from core.runtime_continuity import append_runtime_event\n"
             f"append_runtime_event(session_id='openclaw:{STILL}', event_type='task_started', message='private chat')\n"
@@ -170,7 +185,9 @@ def test_a_private_first_chat_leaves_no_trace_once_its_turns_end(tmp_path):
         assert any("runtime_sessions" in hit for hit in _traces(home, STILL))
         with ServedDaemon(home, env_extra={"VOOL_MODEL_LOAD_FLOOR_GB": "0"}) as daemon:
             assert _get(daemon, f"/api/chat/history?session=openclaw:{STILL}").get("private_chat") is True
-        assert _traces(home, STILL) == ["data/vool_web0_v2.db", "vool_web0_v2.db:private_chat_sessions.session_id"]
+        after_restart = _traces(home, STILL)
+        assert any("runtime_sessions" in hit for hit in after_restart), after_restart
+        assert any("notification_items" in hit for hit in after_restart), after_restart
 
 
 def test_money_a_private_chat_spent_keeps_the_record_it_is_traced_to(tmp_path, monkeypatch):
@@ -233,11 +250,12 @@ def test_the_eraser_waits_for_a_queued_message_then_takes_every_run_table_and_th
     run_migrations()
     try:
         chat = "openclaw:" + "b8" * 10
+        # A receipt row from before the chat went private (a private turn's receipts are never written).
+        store_tool_receipt(receipt_key="r-1", session_id=chat, checkpoint_id="c-1", tool_name="clock",
+                           idempotency_key="i-1", arguments={}, execution={"ok": True})
         private_chat.set_private(chat, True)
         append_runtime_event(session_id=chat, event_type="task_started", message="private chat")
         queued = enqueue_message(session_id=chat, payload={"text": "next"})
-        store_tool_receipt(receipt_key="r-1", session_id=chat, checkpoint_id="c-1", tool_name="clock",
-                           idempotency_key="i-1", arguments={}, execution={"ok": True})
         assert erase_if_unsaved(chat)["skipped"] == "waiting"
         complete_queue_item(queued["queue_item_id"])
         reader = get_connection()
@@ -254,5 +272,64 @@ def test_the_eraser_waits_for_a_queued_message_then_takes_every_run_table_and_th
         for path in (db, db.with_name(db.name + "-wal")):
             if path.exists():
                 assert ("b8" * 10).encode() not in path.read_bytes(), path
+    finally:
+        configure_runtime_home(None)
+
+
+def test_a_private_turns_tool_call_keeps_its_arguments_off_disk_and_still_answers_its_readers(tmp_path, monkeypatch):
+    """The runtime's own tool-event path (orchestrator.emit_runtime_event) stores a receipt with the
+    call's arguments. On a private turn that receipt stays in this process: the replay cache and the
+    honesty checks read it, and no file under the home holds the words or the chat."""
+    from core import private_chat
+    from core.agent_runtime import orchestrator
+    from core.runtime_continuity import list_runtime_tool_receipts, load_tool_receipt
+    from core.runtime_paths import configure_runtime_home
+    from core.runtime_task_events import emit_runtime_event
+    from storage.migrations import run_migrations
+
+    home = tmp_path / "home"
+    monkeypatch.setenv("VOOL_HOME", str(home))
+    configure_runtime_home(home)
+    run_migrations()
+
+    class _Agent:
+        @staticmethod
+        def _runtime_checkpoint_id(source_context):
+            return str((source_context or {}).get("checkpoint_id") or "")
+
+    def call(chat: str, words: str) -> dict:
+        context = {"session_id": chat, "chat_id": chat, "checkpoint_id": "cp-1", "turn_id": "t-1"}
+        return orchestrator.emit_runtime_event(
+            _Agent(), context, event_type="tool_executed", message="Looked it up",
+            emit_runtime_event_fn=emit_runtime_event, tool_name="web.search", status="executed",
+            mode="tool_executed", ok=True, summary="done", tool_call_id="call-1",
+            arguments={"question": words})
+
+    try:
+        private, plain = "openclaw:" + "c9" * 10, "openclaw:" + "a9" * 10
+        private_chat.set_private(private, True)
+        held = call(private, f"Is {SECRET} Hall free on Friday?")
+        stored = call(plain, "Is the town hall free on Friday?")
+        assert load_tool_receipt(held["receipt_id"])["arguments"] == {"question": f"Is {SECRET} Hall free on Friday?"}
+        assert [r["receipt_id"] if "receipt_id" in r else r["receipt_key"] for r in list_runtime_tool_receipts(private)] == [
+            held["receipt_id"]]
+        assert load_tool_receipt(stored["receipt_id"]) is not None
+        from storage.db import active_default_db_path
+
+        db = Path(active_default_db_path())
+        files = {*(p for p in home.rglob("*") if p.is_file()), *(p for p in db.parent.glob(db.name + "*") if p.is_file())}
+        disk = b"".join(p.read_bytes() for p in files)
+        assert SECRET.encode() not in disk
+        assert b"town hall" in disk, "control: an ordinary chat's receipt is still written"
+        # The chat id is in the run tables while the turn runs (request end erases them); never in
+        # the receipt table.
+        from storage.db import get_connection
+
+        conn = get_connection(str(db))
+        try:
+            assert conn.execute("SELECT COUNT(*) FROM runtime_tool_receipts WHERE session_id = ?",
+                                (private,)).fetchone()[0] == 0
+        finally:
+            conn.close()
     finally:
         configure_runtime_home(None)
