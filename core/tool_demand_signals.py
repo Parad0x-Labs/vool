@@ -572,6 +572,22 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
                              r"|\b(?:dms?|direct\s+messages?)\s+(?:on|from|in)\s+(?:x|twitter)\b", re.I)),
     ("x.account", "x", re.compile(r"\bwho\s+(?:have\s+)?i\s+(?:muted|blocked)\b|\bmy\s+(?:muted|blocked)\s+(?:accounts?|list)\b"
                                  r"|\bmy\s+(?:x|twitter)\s+trends\b|\b(?:x|twitter)\s+api\s+(?:usage|cap)\b", re.I)),
+    # Your own X reads ("fetch my last 2 tweets", "check my mentions on X", "my X timeline") and
+    # questions about what someone posted ("what did @bob post today?"). Reads only.
+    (
+        "x.user_posts",
+        "x",
+        re.compile(
+            r"\bmy\s+(?:(?:last|latest|recent|newest|past|previous|old|top)\s+)?(?:\d{1,3}\s+|few\s+|couple\s+(?:of\s+)?)?"
+            r"(?:tweets|(?:x|twitter)\s+(?:posts|mentions|likes|timeline|feed))\b"
+            r"|\bmy\s+(?:(?:home\s+)?timeline|mentions|feed|likes)\s+(?:on|from)\s+(?:x|twitter)\b(?!\.)"
+            r"|\bwho\s+(?:has\s+|have\s+)?(?:mentioned|tagged|replied\s+to)\s+me\s+on\s+(?:x|twitter)\b(?!\.)"
+            r"|\bwhat\s+(?:did|has|have|does|is|was)\s+@[A-Za-z0-9_]{1,15}\s+(?:been\s+)?(?:tweet|post|say|said|share)"
+            r"|\bwhat\s+(?:did|has|have|does|is|was)\s+[^.?!]{1,40}?\s+(?:been\s+)?"
+            r"(?:tweet(?:ed|ing)?|post(?:ed|ing)?|said|say(?:ing)?)\b[^.?!]{0,40}?\b(?:on|to)\s+(?:x|twitter)\b(?!\.)",
+            re.I,
+        ),
+    ),
     ("x.user", "x", re.compile(r"\b(?:find|search\s+for|look\s+for)\s+(?:x|twitter)\s+accounts?\b"
                               r"|\baccounts?\s+on\s+(?:x|twitter)\s+(?:called|named|about)\b", re.I)),
     # -- mcp (family-level: server tools are dynamic) ------------------------------
@@ -987,6 +1003,31 @@ def asks_for_a_file(text: str) -> bool:
     return bool(_REQUEST_RE.search(raw))
 
 
+# An X action is proposed only when the words ask VOOL to act. A question about what someone
+# posted ("what did elon post today on x"), a how-to ("how do I post on X?") or words inside
+# quotes are not asks to act, even though they hold an action verb.
+_X_QUOTED = re.compile(r"\"[^\"]{0,400}\"|“[^”]{0,400}”|‘[^’]{0,400}’")
+_X_NOT_AN_ASK = re.compile(
+    r"\bwhat\s+(?:did|has|have|does|is|was)\b[^.?!]{0,40}?\b(?:post(?:ed|ing)?|tweet(?:ed|ing)?|repost(?:ed)?|retweet(?:ed)?)\b"
+    r"|\bhow\s+(?:do|can|should|would)\s+(?:i|you|we|one|people)\b"
+    r"|\bhow\s+to\s+(?:post|tweet|reply|repost|retweet|quote|like|follow|mute|dm)\b",
+    re.I,
+)
+_X_ASK_TO_ACT = re.compile(
+    r"(?:^|[.!?:;]\s*|\b(?:please|pls|plz|can\s+you|could\s+you|would\s+you|will\s+you|go\s+ahead\s+and|now|then|and|also|"
+    r"just|want\s+you\s+to|need\s+you\s+to|i'?d\s+like\s+you\s+to|help\s+me)\s+)"
+    r"(?:post|tweet|publish|reply|retweet|repost|quote|like|follow|unfollow|mute|unmute|dm|message|hide|unhide|create|make|start|add)\b",
+    re.I,
+)
+
+
+def _x_action_asked(cleaned: str) -> bool:
+    words = _X_QUOTED.sub(" ", cleaned)
+    if not any(p.search(words) for i, _f, p in _RULES if i == "x.action.propose"):
+        return False
+    return not _X_NOT_AN_ASK.search(words) or bool(_X_ASK_TO_ACT.search(words))
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
@@ -1021,6 +1062,8 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 # Discussed, not demanded. Recorded here rather than by narrowing the
                 # pattern, so the reason a database turn did NOT seat the skill is a
                 # named law instead of a regex that quietly failed to match.
+                continue
+            if intent == "x.action.propose" and not _x_action_asked(cleaned):
                 continue
             if intent in {"web.chain_lookup", "token.research"} and is_wallet_move:
                 # A send/pay turn belongs to VOOL's wallet alone (its caps, approval and
