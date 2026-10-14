@@ -74,7 +74,7 @@ def flow_contracts() -> list[Any]:
                 "Read-only. Needs web access on. Facts only: it never says buy or sell pressure, and never advises."
             ),
             tool_surface=SURFACE,
-            capability_id="token.flow",
+            capability_id="web.token_flow",
             capability_claim="read a token's buy and sell activity from public DEX data",
             supported=True,
             unsupported_reason="",

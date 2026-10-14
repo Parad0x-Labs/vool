@@ -253,7 +253,7 @@ def test_the_watch_contracts_declare_a_local_write_with_no_approval():
         contract = contracts[intent]
         assert contract.side_effect_class == "creative_state"
         assert contract.approval_requirement == "none"
-        assert contract.capability_id == "market.watch"
+        assert contract.capability_id == "web.market_watch"
 
 
 @pytest.mark.parametrize(("text", "seated"), [
