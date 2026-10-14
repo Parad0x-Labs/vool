@@ -264,7 +264,7 @@ def test_a_deleted_imported_chat_goes_whole_and_can_be_brought_in_again(app):
 def test_a_run_cut_off_before_titles_is_finished_on_the_next_look(app, monkeypatch):
     from core.memory import entries
 
-    real = entries.set_session_titles
+    real = entries._set_session_titles
     calls = {"n": 0}
 
     def crash_once(titles):
@@ -273,7 +273,7 @@ def test_a_run_cut_off_before_titles_is_finished_on_the_next_look(app, monkeypat
             raise OSError("disk went away")
         return real(titles)
 
-    monkeypatch.setattr(entries, "set_session_titles", crash_once)
+    monkeypatch.setattr(entries, "_set_session_titles", crash_once)
     state = _run(app, _upload_and_preview(app, _export_zip(EXPORT[:1])), ["0"])
     assert state["state"] == "failed" and state["error"] == "store_failed"
     # The chat's messages committed; it is waiting to be finished, not lost and not doubled.

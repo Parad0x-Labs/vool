@@ -153,9 +153,9 @@ def _finish(connection: sqlite3.Connection, titles: dict[str, str]) -> None:
     """Write titles and namespaces for committed chats, then mark them COMPLETE."""
     if not titles:
         return
-    from core.memory.entries import set_session_titles
+    from core.memory.entries import _set_session_titles
 
-    set_session_titles(titles)
+    _set_session_titles(titles)
     connection.executemany(
         f"UPDATE {CHATS_TABLE} SET state = ?, pending_title = '' WHERE session_id = ?",
         [(STATE_COMPLETE, session_id) for session_id in titles],

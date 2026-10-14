@@ -1144,8 +1144,9 @@ def _update_session_meta_fields(session_id: str, fields: dict[str, Any]) -> None
         _write_session_meta_atomic(meta)
 
 
-def set_session_titles(titles: dict[str, str]) -> None:
-    """Give several chats their display title in ONE metadata write.
+def _set_session_titles(titles: dict[str, str]) -> None:
+    """Give several chats their display title in ONE metadata write (a metadata writer, never a
+    memory reader; private so the public entries API stays exactly the classified set).
 
     The chat import lands chats in batches; ``set_session_meta`` rewrites the whole metadata file
     once per chat, which grows quadratically over a large import. Each title is admitted under its
