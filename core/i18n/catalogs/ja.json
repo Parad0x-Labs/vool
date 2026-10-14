@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "キャラクター",
     "settings.row.character_mode.placeholder": "空欄 — VOOL本来の姿",
     "settings.row.cloud_keys.effect": "即時に適用されます。",
-    "settings.row.cloud_keys.help": "プロバイダーのキーを追加、テスト、削除できます。保存時は選択した一つのサービスを検証します。検索テストはクレジットを消費する場合があります。",
+    "settings.row.cloud_keys.help": "キーの追加、テスト、削除ができます。このマシン上の一つの保存場所がすべてのキー（モデルプロバイダー、ウェブ検索、セキュリティスキャン）を保持するため、キーを使う各セクションではなく、ここにまとめて置かれます。VOOLはキーが一つもなくてもローカルで動作します。保存時はそのキーのサービス一つだけで検証します。検索テストはクレジットを消費する場合があります。",
     "settings.row.cloud_keys.label": "あなたのキー",
     "settings.row.communication_style.effect": "次のメッセージから適用されます。すでに書かれている途中の回答は前の設定のままです。",
     "settings.row.communication_style.help": "VOOL が書くときの口調です。言葉づかいが変わるだけで、VOOL が何をするかは変わりません。",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "{line} 行目",
     "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
+    "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。",
     "goal.state_queued": "待機中",
     "goal.state_planning": "計画中",
     "goal.state_running": "実行中",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "ブロック中",
     "goal.acceptance_label": "受け入れ基準"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

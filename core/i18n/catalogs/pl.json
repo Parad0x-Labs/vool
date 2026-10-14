@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Postać",
     "settings.row.character_mode.placeholder": "puste — VOOL jako ono samo",
     "settings.row.cloud_keys.effect": "Działa natychmiast.",
-    "settings.row.cloud_keys.help": "Dodaj, przetestuj lub usuń klucze dostawców. Zapis sprawdza jedną wybraną usługę; testy wyszukiwania mogą zużywać kredyty.",
+    "settings.row.cloud_keys.help": "Dodaj, przetestuj lub usuń swoje klucze. Jeden magazyn na tej maszynie przechowuje wszystkie klucze — dostawców modeli, wyszukiwania w sieci i skanowania bezpieczeństwa — dlatego są tu razem, a nie w sekcjach, które z nich korzystają. VOOL działa lokalnie bez żadnego z nich. Zapis sprawdza klucz tylko w jego własnej usłudze; testy wyszukiwania mogą zużywać kredyty.",
     "settings.row.cloud_keys.label": "Twoje klucze",
     "settings.row.communication_style.effect": "Działa od twojej następnej wiadomości. Odpowiedź, która już się pisze, zachowuje stare ustawienie.",
     "settings.row.communication_style.help": "Ton, w jakim pisze VOOL. Zmienia słowa, a nie to, co VOOL jest gotów zrobić.",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "W wierszu {line}",
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
+    "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
     "goal.state_queued": "W kolejce",
     "goal.state_planning": "Planowanie",
     "goal.state_running": "W toku",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "Zablokowano",
     "goal.acceptance_label": "Kryteria akceptacji"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

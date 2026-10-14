@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "किरदार",
     "settings.row.character_mode.placeholder": "खाली — VOOL अपने आप में",
     "settings.row.cloud_keys.effect": "तुरंत लागू।",
-    "settings.row.cloud_keys.help": "प्रदाता की कुंजियाँ जोड़ें, जाँचें या हटाएँ। सहेजने पर एक चुनी हुई सेवा सत्यापित होती है; खोज की जाँच में क्रेडिट खर्च हो सकते हैं।",
+    "settings.row.cloud_keys.help": "अपनी कुंजियाँ जोड़ें, जाँचें या हटाएँ। इस मशीन पर एक ही भंडार इन सबको रखता है — मॉडल प्रदाता, वेब खोज और सुरक्षा स्कैन — इसलिए ये उन्हें इस्तेमाल करने वाले हिस्सों में नहीं, यहाँ एक साथ रहती हैं। VOOL इनमें से किसी के बिना भी लोकल चलता है। सहेजने पर कुंजी केवल उसकी अपनी सेवा से सत्यापित होती है; खोज की जाँच में क्रेडिट खर्च हो सकते हैं।",
     "settings.row.cloud_keys.label": "आपकी कुंजियाँ",
     "settings.row.communication_style.effect": "आपके अगले संदेश से लागू होता है। जो जवाब पहले से लिखा जा रहा है, वह पुरानी सेटिंग रखता है।",
     "settings.row.communication_style.help": "वह लहजा जिसमें VOOL लिखता है। यह शब्दों को बदलता है, यह नहीं कि VOOL क्या करने को तैयार है।",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "पंक्ति {line} में",
     "addons.publish_reason_codex_check": "कौशल कोडेक्स की जाँचें इस कौशल को इसके मौजूदा रूप में अस्वीकार कर देंगी।",
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
+    "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
     "goal.state_queued": "कतार में",
     "goal.state_planning": "योजना बन रही है",
     "goal.state_running": "चल रहा है",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "अवरुद्ध",
     "goal.acceptance_label": "स्वीकृति मानदंड"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

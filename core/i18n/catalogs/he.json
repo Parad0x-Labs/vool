@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "דמות",
     "settings.row.character_mode.placeholder": "ריק — VOOL כעצמו",
     "settings.row.cloud_keys.effect": "חל מיד.",
-    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו מפתחות ספקים. השמירה מאמתת שירות אחד שנבחר; בדיקות חיפוש עשויות לצרוך קרדיטים.",
+    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו את המפתחות שלכם. מאגר אחד במכונה זו מחזיק את כולם — ספקי מודלים, חיפוש באינטרנט וסריקות אבטחה — ולכן הם נמצאים כאן יחד ולא באזורים שמשתמשים בהם. VOOL פועל מקומית גם בלי אף אחד מהם. השמירה מאמתת מפתח רק מול השירות שלו; בדיקות חיפוש עשויות לצרוך קרדיטים.",
     "settings.row.cloud_keys.label": "המפתחות שלכם",
     "settings.row.communication_style.effect": "חל מההודעה הבאה שלך. תשובה שכבר נכתבת שומרת על ההגדרה הקודמת.",
     "settings.row.communication_style.help": "הטון שבו VOOL כותב. הוא משנה את הניסוח, לא את מה ש-VOOL מוכן לעשות.",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "בשורה {line}",
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
+    "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
     "goal.state_queued": "בתור",
     "goal.state_planning": "מתוכנן",
     "goal.state_running": "פועל",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "חסום",
     "goal.acceptance_label": "קריטריוני קבלה"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

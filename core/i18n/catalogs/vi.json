@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Nhân vật",
     "settings.row.character_mode.placeholder": "trống — VOOL như chính nó",
     "settings.row.cloud_keys.effect": "Áp dụng ngay.",
-    "settings.row.cloud_keys.help": "Thêm, kiểm tra hoặc xóa khóa của nhà cung cấp. Khi lưu, một dịch vụ đã chọn được xác minh; kiểm tra tìm kiếm có thể dùng tín dụng.",
+    "settings.row.cloud_keys.help": "Thêm, kiểm tra hoặc xóa khóa của bạn. Một kho duy nhất trên máy này giữ tất cả các khóa — nhà cung cấp mô hình, tìm kiếm web và quét bảo mật — nên chúng nằm chung ở đây thay vì trong các mục sử dụng chúng. VOOL vẫn chạy cục bộ khi không có khóa nào. Khi lưu, khóa chỉ được xác minh với dịch vụ của chính nó; kiểm tra tìm kiếm có thể dùng tín dụng.",
     "settings.row.cloud_keys.label": "Khóa của bạn",
     "settings.row.communication_style.effect": "Áp dụng từ tin nhắn tiếp theo của bạn. Câu trả lời đang được viết vẫn giữ cài đặt cũ.",
     "settings.row.communication_style.help": "Giọng văn VOOL dùng khi viết. Nó đổi cách diễn đạt, không đổi những gì VOOL sẵn sàng làm.",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "Ở dòng {line}",
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
+    "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
     "goal.state_queued": "Đang chờ",
     "goal.state_planning": "Đang lập kế hoạch",
     "goal.state_running": "Đang chạy",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "Bị chặn",
     "goal.acceptance_label": "Tiêu chí nghiệm thu"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

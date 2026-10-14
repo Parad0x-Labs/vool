@@ -424,7 +424,12 @@ def _settings_groups() -> list[dict]:
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
-                    help="Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+                    help=(
+                        "Add, test or remove your keys. One store on this machine holds them all — "
+                        "model providers, web search and security scans — so they live together here, "
+                        "not in the sections that use them. VOOL runs locally without any of them. "
+                        "Saving verifies a key with that one service; search checks may use credits."
+                    ),
                     read={"url": CREDENTIALS},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
@@ -3005,6 +3010,8 @@ function widgetKeys(stack) {
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
     const p = { label: label, http: http };
+    // A 401 is the provider saying it did not accept the key; only a plain 403 leaves the key unjudged.
+    if (reason === 'unauthorized' && Number(j.http_status) === 401) return tfmt('keys.test.invalid', '{label} rejected the key{http}. Check it again, or replace it.', p);
     if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid.', p);
     if (reason === 'gateway_blocked') return tfmt('keys.test.gateway_blocked', '{label} blocked this check before looking at the key{http}. The key was not judged.', p);
     if (reason === 'no_key') return tfmt('keys.test.no_key', 'No key is stored for {label}.', p);

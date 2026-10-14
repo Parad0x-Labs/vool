@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Personagem",
     "settings.row.character_mode.placeholder": "vazio — o VOOL como ele mesmo",
     "settings.row.cloud_keys.effect": "Vale imediatamente.",
-    "settings.row.cloud_keys.help": "Adicione, teste ou remova as suas chaves. Ao guardar, verifica-se um serviço selecionado; os testes de pesquisa podem consumir créditos.",
+    "settings.row.cloud_keys.help": "Adicione, teste ou remova as suas chaves. Um único depósito nesta máquina guarda todas — provedores de modelos, pesquisa na web e verificações de segurança —, por isso ficam juntas aqui e não nas áreas que as usam. O VOOL funciona localmente sem nenhuma delas. Ao guardar, a chave é verificada apenas no seu próprio serviço; os testes de pesquisa podem consumir créditos.",
     "settings.row.cloud_keys.label": "Suas chaves",
     "settings.row.communication_style.effect": "Vale a partir da sua próxima mensagem. Uma resposta que já está sendo escrita mantém o ajuste anterior.",
     "settings.row.communication_style.help": "O tom em que o VOOL escreve. Ele muda as palavras, não o que o VOOL aceita fazer.",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "Na linha {line}",
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
+    "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
     "goal.state_queued": "Na fila",
     "goal.state_planning": "Planejando",
     "goal.state_running": "Em andamento",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "Bloqueado",
     "goal.acceptance_label": "Aceitação"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

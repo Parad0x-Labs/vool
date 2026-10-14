@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Персонаж",
     "settings.row.character_mode.placeholder": "порожньо — VOOL як він є",
     "settings.row.cloud_keys.effect": "Діє негайно.",
-    "settings.row.cloud_keys.help": "Додавайте, перевіряйте або видаляйте ключі. Збереження перевіряє одну вибрану службу; перевірки пошуку можуть витрачати кредити.",
+    "settings.row.cloud_keys.help": "Додавайте, перевіряйте або видаляйте ключі. Одне сховище на цій машині зберігає всі ключі — провайдерів моделей, веб-пошуку та сканування безпеки, — тож вони зібрані тут, а не в розділах, що їх використовують. VOOL працює локально й зовсім без них. Збереження перевіряє ключ лише в його власній службі; перевірки пошуку можуть витрачати кредити.",
     "settings.row.cloud_keys.label": "Ваші ключі",
     "settings.row.communication_style.effect": "Діє з вашого наступного повідомлення. Відповідь, що вже пишеться, зберігає старе налаштування.",
     "settings.row.communication_style.help": "Тон, яким пише VOOL. Він змінює формулювання, а не те, що VOOL готовий робити.",
@@ -2599,6 +2599,7 @@
     "addons.publish_line": "У рядку {line}",
     "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді.",
     "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
+    "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть.",
     "goal.state_queued": "У черзі",
     "goal.state_planning": "Планування",
     "goal.state_running": "Виконується",
@@ -2618,7 +2619,7 @@
     "goal.state_blocked": "Заблоковано",
     "goal.acceptance_label": "Критерії приймання"
   },
-  "source_catalog_sha256": "9e6b52d3073a662c0de27761a8d9143e7e5750c49e9610f92c4b35db57e95753",
+  "source_catalog_sha256": "955e1ccb59d1bc6ac5ed83530200fd4bcb5105b760e52c2dc808682f8cc92495",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
