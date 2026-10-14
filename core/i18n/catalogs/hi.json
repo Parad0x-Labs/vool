@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "मिटाया नहीं गया — {error}",
     "keys.saved_state": "सहेजा गया {date}",
     "keys.outcome.invalid": "{label} ने यह कुंजी अस्वीकार कर दी{http}। जाँचें कि आपने पूरी कुंजी कॉपी की है और वह {label} की ही है। कुछ सहेजा नहीं गया।",
-    "keys.outcome.unauthorized": "{label} ने कुंजी पहचानी, पर यह अनुरोध अस्वीकार कर दिया{http}। कुंजी की अनुमतियाँ जाँचें। कुछ सहेजा नहीं गया।",
+    "keys.outcome.unauthorized": "{label} ने यह अनुरोध अस्वीकार कर दिया{http}। हो सकता है कुंजी को इसकी अनुमति न हो, या वह मान्य न हो। कुछ सहेजा नहीं गया।",
     "keys.outcome.exhausted": "{label} बताता है कि इस कुंजी का क्रेडिट या कोटा ख़त्म है{http}। क्रेडिट जोड़ें, फिर सहेजें। कुछ सहेजा नहीं गया।",
     "keys.outcome.rate_limited": "{label} इस समय अनुरोधों पर दर-सीमा लगा रहा है; {retry}। कुंजी का निर्णय नहीं हुआ। कुछ सहेजा नहीं गया।",
     "keys.outcome.rate_limited.retry_secs": "{n} s में दोबारा कोशिश करें",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "अनुरोध अस्वीकृत हुआ",
     "keys.outcome.unexpected": "{label} का उत्तर अप्रत्याशित था{http}। कुंजी का निर्णय नहीं हुआ। कुछ सहेजा नहीं गया।",
     "keys.test.ok": "कनेक्शन सत्यापित — {label} ने आपकी कुंजी स्वीकार की।",
-    "keys.test.unauthorized": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
+    "keys.test.unauthorized": "{label} ने यह अनुरोध अस्वीकार कर दिया{http}। हो सकता है कुंजी को इसकी अनुमति न हो, या वह मान्य न हो।",
     "keys.test.no_key": "{label} के लिए कोई कुंजी सहेजी नहीं है।",
     "keys.test.rate_limited": "{label} इस समय अनुरोधों पर दर-सीमा लगा रहा है{http}। कुंजी का निर्णय नहीं हुआ; थोड़ी देर में दोबारा कोशिश करें।",
     "keys.test.exhausted": "{label} बताता है कि इस कुंजी का क्रेडिट या कोटा ख़त्म है{http}।",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "हर मॉडल के लिए VOOL के टूल चालू हैं। यह बदलने के लिए \"use the model's own tools\" कहें।",
     "own_tools.reply.all_chats": " यह आपकी सभी चैट पर लागू होता है।",
     "own_tools.reply.not_owner": "सिर्फ़ आप, अपने ही कंप्यूटर से लिखते हुए, बदल सकते हैं कि मॉडल कौन से टूल इस्तेमाल करें, इसलिए कुछ नहीं बदला।",
-    "own_tools.reply.failed": "मैं यह सेटिंग सहेज नहीं पाया, इसलिए कुछ नहीं बदला।"
+    "own_tools.reply.failed": "मैं यह सेटिंग सहेज नहीं पाया, इसलिए कुछ नहीं बदला।",
+    "keys.outcome.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ। बाद में या किसी दूसरे नेटवर्क से कोशिश करें। कुछ सहेजा नहीं गया।",
+    "keys.test.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ।"
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

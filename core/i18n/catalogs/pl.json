@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Nie usunięto — {error}",
     "keys.saved_state": "zapisano {date}",
     "keys.outcome.invalid": "{label} odrzucił ten klucz{http}. Sprawdź, czy klucz został skopiowany w całości i czy to klucz {label}. Nic nie zapisano.",
-    "keys.outcome.unauthorized": "{label} rozpoznał klucz, ale odrzucił to żądanie{http}. Sprawdź uprawnienia klucza. Nic nie zapisano.",
+    "keys.outcome.unauthorized": "{label} odrzucił to żądanie{http}. Klucz może nie mieć do niego uprawnień albo może być nieprawidłowy. Nic nie zapisano.",
     "keys.outcome.exhausted": "{label} zgłasza, że ten klucz nie ma już kredytu ani limitu{http}. Doładuj środki i zapisz ponownie. Nic nie zapisano.",
     "keys.outcome.rate_limited": "{label} ogranicza teraz żądania; {retry}. Klucz nie został oceniony. Nic nie zapisano.",
     "keys.outcome.rate_limited.retry_secs": "spróbuj ponownie za {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "żądanie zostało odrzucone",
     "keys.outcome.unexpected": "{label} udzielił nieoczekiwanej odpowiedzi{http}. Klucz nie został oceniony. Nic nie zapisano.",
     "keys.test.ok": "Połączenie zweryfikowane — {label} zaakceptował Twój klucz.",
-    "keys.test.unauthorized": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
+    "keys.test.unauthorized": "{label} odrzucił to żądanie{http}. Klucz może nie mieć do niego uprawnień albo może być nieprawidłowy.",
     "keys.test.no_key": "Dla {label} nie ma zapisanego klucza.",
     "keys.test.rate_limited": "{label} ogranicza teraz żądania{http}. Klucz nie został oceniony; spróbuj za chwilę.",
     "keys.test.exhausted": "{label} zgłasza, że ten klucz nie ma już kredytu ani limitu{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Narzędzia VOOL są włączone dla każdego modelu. Żeby to zmienić, powiedz \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Dotyczy to wszystkich twoich czatów.",
     "own_tools.reply.not_owner": "Tylko ty, pisząc z własnego komputera, możesz zmienić, jakich narzędzi używają modele, więc nic się nie zmieniło.",
-    "own_tools.reply.failed": "Nie udało się zapisać tego ustawienia, więc nic się nie zmieniło."
+    "own_tools.reply.failed": "Nie udało się zapisać tego ustawienia, więc nic się nie zmieniło.",
+    "keys.outcome.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony. Spróbuj później albo z innej sieci. Nic nie zapisano.",
+    "keys.test.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

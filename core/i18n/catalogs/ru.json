@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Не удалено — {error}",
     "keys.saved_state": "сохранено {date}",
     "keys.outcome.invalid": "{label} отклонил этот ключ{http}. Проверьте, что скопировали его целиком и что это ключ {label}. Ничего не сохранено.",
-    "keys.outcome.unauthorized": "{label} распознал ключ, но отклонил этот запрос{http}. Проверьте разрешения ключа. Ничего не сохранено.",
+    "keys.outcome.unauthorized": "{label} отклонил этот запрос{http}. У ключа может не быть разрешения на него, или он может быть недействителен. Ничего не сохранено.",
     "keys.outcome.exhausted": "{label} сообщает, что для этого ключа не осталось кредита или квоты{http}. Пополните кредит и сохраните снова. Ничего не сохранено.",
     "keys.outcome.rate_limited": "{label} сейчас ограничивает запросы; {retry}. Вердикт по ключу не вынесен. Ничего не сохранено.",
     "keys.outcome.rate_limited.retry_secs": "повторите через {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "запрос был отклонён",
     "keys.outcome.unexpected": "{label} дал неожиданный ответ{http}. Вердикт по ключу не вынесен. Ничего не сохранено.",
     "keys.test.ok": "Соединение проверено — {label} принял ваш ключ.",
-    "keys.test.unauthorized": "{label} отклонил ключ{http}. Проверьте его заново или замените.",
+    "keys.test.unauthorized": "{label} отклонил этот запрос{http}. У ключа может не быть разрешения на него, или он может быть недействителен.",
     "keys.test.no_key": "Для {label} нет сохранённого ключа.",
     "keys.test.rate_limited": "{label} сейчас ограничивает запросы{http}. Вердикт по ключу не вынесен; попробуйте вскоре.",
     "keys.test.exhausted": "{label} сообщает, что для этого ключа не осталось кредита или квоты{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Инструменты VOOL включены для всех моделей. Чтобы это изменить, скажите \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Это относится ко всем вашим чатам.",
     "own_tools.reply.not_owner": "Только вы, когда пишете со своего компьютера, можете менять, какие инструменты используют модели, поэтому ничего не изменилось.",
-    "own_tools.reply.failed": "Не удалось сохранить этот параметр, поэтому ничего не изменилось."
+    "own_tools.reply.failed": "Не удалось сохранить этот параметр, поэтому ничего не изменилось.",
+    "keys.outcome.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен. Попробуйте позже или из другой сети. Ничего не сохранено.",
+    "keys.test.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

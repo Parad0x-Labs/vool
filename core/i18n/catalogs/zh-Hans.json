@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "未删除 — {error}",
     "keys.saved_state": "保存于 {date}",
     "keys.outcome.invalid": "{label} 拒绝了此密钥{http}。请检查是否已完整复制，并确认它是 {label} 的密钥。没有存储任何内容。",
-    "keys.outcome.unauthorized": "{label} 认出了该密钥，但拒绝了此次请求{http}。请检查该密钥的权限。没有存储任何内容。",
+    "keys.outcome.unauthorized": "{label} 拒绝了此次请求{http}。密钥可能缺少相应权限，也可能无效。没有存储任何内容。",
     "keys.outcome.exhausted": "{label} 报告此密钥已无额度或配额{http}。请充值后再次保存。没有存储任何内容。",
     "keys.outcome.rate_limited": "{label} 目前正在限制请求；{retry}。密钥未被判定。没有存储任何内容。",
     "keys.outcome.rate_limited.retry_secs": "请在 {n} s 后重试",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "请求被拒绝",
     "keys.outcome.unexpected": "{label} 给出了意外的回答{http}。密钥未被判定。没有存储任何内容。",
     "keys.test.ok": "连接已验证 — {label} 接受了你的密钥。",
-    "keys.test.unauthorized": "{label} 拒绝了该密钥{http}。请重新核对或更换。",
+    "keys.test.unauthorized": "{label} 拒绝了此次请求{http}。密钥可能缺少相应权限，也可能无效。",
     "keys.test.no_key": "没有为 {label} 存储密钥。",
     "keys.test.rate_limited": "{label} 目前正在限制请求{http}。密钥未被判定；请稍后重试。",
     "keys.test.exhausted": "{label} 报告此密钥已无额度或配额{http}。",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "所有模型都在使用 VOOL 的工具。要更改，请说 \"use the model's own tools\"。",
     "own_tools.reply.all_chats": " 这适用于你的所有聊天。",
     "own_tools.reply.not_owner": "只有你本人从自己的电脑上输入时才能更改模型使用的工具，因此没有任何更改。",
-    "own_tools.reply.failed": "无法保存该设置，因此没有任何更改。"
+    "own_tools.reply.failed": "无法保存该设置，因此没有任何更改。",
+    "keys.outcome.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。请稍后重试，或换用其他网络。没有存储任何内容。",
+    "keys.test.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。"
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

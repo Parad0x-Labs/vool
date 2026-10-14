@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Neištrinta — {error}",
     "keys.saved_state": "išsaugota {date}",
     "keys.outcome.invalid": "{label} atmetė šį raktą{http}. Patikrinkite, ar nukopijavote visą raktą ir ar tai {label} raktas. Nieko nebuvo įrašyta.",
-    "keys.outcome.unauthorized": "{label} atpažino raktą, bet atsisakė šios užklausos{http}. Patikrinkite rakto leidimus. Nieko nebuvo įrašyta.",
+    "keys.outcome.unauthorized": "{label} atsisakė šios užklausos{http}. Raktui galbūt trūksta tam leidimo, arba jis galbūt negalioja. Nieko nebuvo įrašyta.",
     "keys.outcome.exhausted": "{label} praneša, kad šiam raktui nebeliko kredito ar kvotos{http}. Papildykite kreditą ir išsaugokite dar kartą. Nieko nebuvo įrašyta.",
     "keys.outcome.rate_limited": "{label} šiuo metu riboja užklausas; {retry}. Raktas nebuvo įvertintas. Nieko nebuvo įrašyta.",
     "keys.outcome.rate_limited.retry_secs": "pabandykite po {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "užklausa buvo atmesta",
     "keys.outcome.unexpected": "{label} davė netikėtą atsakymą{http}. Raktas nebuvo įvertintas. Nieko nebuvo įrašyta.",
     "keys.test.ok": "Ryšys patikrintas — {label} priėmė jūsų raktą.",
-    "keys.test.unauthorized": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį.",
+    "keys.test.unauthorized": "{label} atsisakė šios užklausos{http}. Raktui galbūt trūksta tam leidimo, arba jis galbūt negalioja.",
     "keys.test.no_key": "Nėra įrašyto {label} rakto.",
     "keys.test.rate_limited": "{label} šiuo metu riboja užklausas{http}. Raktas nebuvo įvertintas; pabandykite netrukus.",
     "keys.test.exhausted": "{label} praneša, kad šiam raktui nebeliko kredito ar kvotos{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "VOOL įrankiai įjungti visiems modeliams. Norėdami tai pakeisti, pasakykite \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Tai taikoma visiems jūsų pokalbiams.",
     "own_tools.reply.not_owner": "Tik jūs, rašydami iš savo kompiuterio, galite pakeisti, kokius įrankius naudoja modeliai, todėl niekas nepasikeitė.",
-    "own_tools.reply.failed": "Nepavyko išsaugoti šio nustatymo, todėl niekas nepasikeitė."
+    "own_tools.reply.failed": "Nepavyko išsaugoti šio nustatymo, todėl niekas nepasikeitė.",
+    "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
+    "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

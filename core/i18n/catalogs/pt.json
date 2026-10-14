@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Não excluída — {error}",
     "keys.saved_state": "salva {date}",
     "keys.outcome.invalid": "{label} rejeitou esta chave{http}. Confira que você copiou a chave inteira e que ela é uma chave {label}. Nada foi armazenado.",
-    "keys.outcome.unauthorized": "{label} reconheceu a chave, mas recusou esta requisição{http}. Confira as permissões da chave. Nada foi armazenado.",
+    "keys.outcome.unauthorized": "{label} recusou esta requisição{http}. A chave pode não ter permissão para isso, ou pode não ser válida. Nada foi armazenado.",
     "keys.outcome.exhausted": "{label} informa que não há mais crédito nem cota para esta chave{http}. Adicione crédito e salve de novo. Nada foi armazenado.",
     "keys.outcome.rate_limited": "{label} está limitando requisições agora; {retry}. A chave não foi julgada. Nada foi armazenado.",
     "keys.outcome.rate_limited.retry_secs": "tente de novo em {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "a requisição foi recusada",
     "keys.outcome.unexpected": "{label} deu uma resposta inesperada{http}. A chave não foi julgada. Nada foi armazenado.",
     "keys.test.ok": "Conexão verificada — {label} aceitou a sua chave.",
-    "keys.test.unauthorized": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
+    "keys.test.unauthorized": "{label} recusou esta requisição{http}. A chave pode não ter permissão para isso, ou pode não ser válida.",
     "keys.test.no_key": "Não há chave armazenada para {label}.",
     "keys.test.rate_limited": "{label} está limitando requisições agora{http}. A chave não foi julgada; tente de novo em instantes.",
     "keys.test.exhausted": "{label} informa que não há mais crédito nem cota para esta chave{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "As ferramentas do VOOL estão ativadas para todos os modelos. Para mudar isso, diga \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Isso vale para todos os seus chats.",
     "own_tools.reply.not_owner": "Só você, escrevendo do seu próprio computador, pode mudar quais ferramentas os modelos usam, então nada mudou.",
-    "own_tools.reply.failed": "Não consegui salvar essa configuração, então nada mudou."
+    "own_tools.reply.failed": "Não consegui salvar essa configuração, então nada mudou.",
+    "keys.outcome.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada. Tente mais tarde ou de outra rede. Nada foi armazenado.",
+    "keys.test.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

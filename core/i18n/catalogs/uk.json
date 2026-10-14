@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Не видалено — {error}",
     "keys.saved_state": "збережено {date}",
     "keys.outcome.invalid": "{label} відхилив цей ключ{http}. Перевірте, що скопіювали його повністю і що це ключ {label}. Нічого не збережено.",
-    "keys.outcome.unauthorized": "{label} розпізнав ключ, але відмовив у цьому запиті{http}. Перевірте дозволи ключа. Нічого не збережено.",
+    "keys.outcome.unauthorized": "{label} відмовив у цьому запиті{http}. У ключа може не бути дозволу на нього, або він може бути недійсним. Нічого не збережено.",
     "keys.outcome.exhausted": "{label} повідомляє, що для цього ключа не лишилося кредиту чи квоти{http}. Поповніть кредит і збережіть знову. Нічого не збережено.",
     "keys.outcome.rate_limited": "{label} зараз обмежує запити; {retry}. Рішення щодо ключа не ухвалено. Нічого не збережено.",
     "keys.outcome.rate_limited.retry_secs": "спробуйте ще раз через {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "у запиті було відмовлено",
     "keys.outcome.unexpected": "{label} дав неочікувану відповідь{http}. Рішення щодо ключа не ухвалено. Нічого не збережено.",
     "keys.test.ok": "З’єднання перевірено — {label} прийняв ваш ключ.",
-    "keys.test.unauthorized": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть.",
+    "keys.test.unauthorized": "{label} відмовив у цьому запиті{http}. У ключа може не бути дозволу на нього, або він може бути недійсним.",
     "keys.test.no_key": "Для {label} немає збереженого ключа.",
     "keys.test.rate_limited": "{label} зараз обмежує запити{http}. Рішення щодо ключа не ухвалено; скоро спробуйте ще раз.",
     "keys.test.exhausted": "{label} повідомляє, що для цього ключа не лишилося кредиту чи квоти{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Інструменти VOOL увімкнено для всіх моделей. Щоб це змінити, скажіть \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Це стосується всіх ваших чатів.",
     "own_tools.reply.not_owner": "Лише ви, пишучи зі свого комп'ютера, можете змінювати, які інструменти використовують моделі, тому нічого не змінилося.",
-    "own_tools.reply.failed": "Не вдалося зберегти цей параметр, тому нічого не змінилося."
+    "own_tools.reply.failed": "Не вдалося зберегти цей параметр, тому нічого не змінилося.",
+    "keys.outcome.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено. Спробуйте пізніше або з іншої мережі. Нічого не збережено.",
+    "keys.test.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

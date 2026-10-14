@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Silinmedi — {error}",
     "keys.saved_state": "{date} tarihinde kaydedildi",
     "keys.outcome.invalid": "{label} bu anahtarı reddetti{http}. Tamamını kopyaladığınızdan ve bunun bir {label} anahtarı olduğundan emin olun. Hiçbir şey kaydedilmedi.",
-    "keys.outcome.unauthorized": "{label} anahtarı tanıdı ancak bu isteği reddetti{http}. Anahtarın izinlerini kontrol edin. Hiçbir şey kaydedilmedi.",
+    "keys.outcome.unauthorized": "{label} bu isteği reddetti{http}. Anahtarın bunun izni olmayabilir ya da anahtar geçerli olmayabilir. Hiçbir şey kaydedilmedi.",
     "keys.outcome.exhausted": "{label}, bu anahtarda kredi veya kota kalmadığını bildiriyor{http}. Kredi ekleyin, sonra yeniden kaydedin. Hiçbir şey kaydedilmedi.",
     "keys.outcome.rate_limited": "{label} şu anda istekleri sınırlıyor; {retry}. Anahtar değerlendirilmedi. Hiçbir şey kaydedilmedi.",
     "keys.outcome.rate_limited.retry_secs": "{n} s sonra tekrar deneyin",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "istek reddedildi",
     "keys.outcome.unexpected": "{label} beklenmedik bir yanıt verdi{http}. Anahtar değerlendirilmedi. Hiçbir şey kaydedilmedi.",
     "keys.test.ok": "Bağlantı doğrulandı — {label} anahtarınızı kabul etti.",
-    "keys.test.unauthorized": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin.",
+    "keys.test.unauthorized": "{label} bu isteği reddetti{http}. Anahtarın bunun izni olmayabilir ya da anahtar geçerli olmayabilir.",
     "keys.test.no_key": "{label} için saklı anahtar yok.",
     "keys.test.rate_limited": "{label} şu anda istekleri sınırlıyor{http}. Anahtar değerlendirilmedi; kısa süre sonra tekrar deneyin.",
     "keys.test.exhausted": "{label}, bu anahtarda kredi veya kota kalmadığını bildiriyor{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Her model için VOOL'un araçları açık. Bunu değiştirmek için \"use the model's own tools\" de.",
     "own_tools.reply.all_chats": " Bu, tüm sohbetlerin için geçerlidir.",
     "own_tools.reply.not_owner": "Modellerin hangi araçları kullanacağını yalnızca kendi bilgisayarından yazarak sen değiştirebilirsin, bu yüzden hiçbir şey değişmedi.",
-    "own_tools.reply.failed": "Bu ayarı kaydedemedim, bu yüzden hiçbir şey değişmedi."
+    "own_tools.reply.failed": "Bu ayarı kaydedemedim, bu yüzden hiçbir şey değişmedi.",
+    "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
+    "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

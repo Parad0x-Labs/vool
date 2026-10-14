@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Chưa xóa — {error}",
     "keys.saved_state": "đã lưu {date}",
     "keys.outcome.invalid": "{label} từ chối khóa này{http}. Hãy kiểm tra bạn đã chép đủ khóa và nó đúng là khóa của {label}. Không lưu gì cả.",
-    "keys.outcome.unauthorized": "{label} nhận ra khóa nhưng từ chối yêu cầu này{http}. Hãy kiểm tra quyền của khóa. Không lưu gì cả.",
+    "keys.outcome.unauthorized": "{label} đã từ chối yêu cầu này{http}. Khóa có thể thiếu quyền cho việc đó, hoặc có thể không hợp lệ. Không lưu gì cả.",
     "keys.outcome.exhausted": "{label} báo khóa này không còn tín dụng hay hạn mức{http}. Hãy nạp thêm rồi lưu lại. Không lưu gì cả.",
     "keys.outcome.rate_limited": "{label} đang giới hạn yêu cầu lúc này; {retry}. Khóa chưa được đánh giá. Không lưu gì cả.",
     "keys.outcome.rate_limited.retry_secs": "thử lại sau {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "yêu cầu bị từ chối",
     "keys.outcome.unexpected": "{label} đưa ra câu trả lời ngoài dự đoán{http}. Khóa chưa được đánh giá. Không lưu gì cả.",
     "keys.test.ok": "Đã xác minh kết nối — {label} chấp nhận khóa của bạn.",
-    "keys.test.unauthorized": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
+    "keys.test.unauthorized": "{label} đã từ chối yêu cầu này{http}. Khóa có thể thiếu quyền cho việc đó, hoặc có thể không hợp lệ.",
     "keys.test.no_key": "Chưa lưu khóa nào cho {label}.",
     "keys.test.rate_limited": "{label} đang giới hạn yêu cầu lúc này{http}. Khóa chưa được đánh giá; hãy thử lại sau giây lát.",
     "keys.test.exhausted": "{label} báo khóa này không còn tín dụng hay hạn mức{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Công cụ của VOOL đang bật cho mọi mô hình. Để thay đổi, hãy nói \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Điều này áp dụng cho tất cả các cuộc trò chuyện của bạn.",
     "own_tools.reply.not_owner": "Chỉ bạn, khi viết từ chính máy của mình, mới có thể đổi công cụ mà các mô hình dùng, nên chưa có gì thay đổi.",
-    "own_tools.reply.failed": "Không lưu được cài đặt này, nên chưa có gì thay đổi."
+    "own_tools.reply.failed": "Không lưu được cài đặt này, nên chưa có gì thay đổi.",
+    "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
+    "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

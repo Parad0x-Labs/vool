@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "削除されていません — {error}",
     "keys.saved_state": "{date}に保存",
     "keys.outcome.invalid": "{label}はこのキーを拒否しました{http}。キーを最後までコピーしたか、{label}のキーであるかを確認してください。何も保存されていません。",
-    "keys.outcome.unauthorized": "{label}はキーを認識しましたが、このリクエストを拒否しました{http}。キーの権限を確認してください。何も保存されていません。",
+    "keys.outcome.unauthorized": "{label}はこのリクエストを拒否しました{http}。キーにこの操作の権限がないか、キーが無効の可能性があります。何も保存されていません。",
     "keys.outcome.exhausted": "{label}は、このキーのクレジットまたは割り当てが残っていないと報告しています{http}。チャージしてからもう一度保存してください。何も保存されていません。",
     "keys.outcome.rate_limited": "{label}は現在リクエストを制限しています。{retry}。キーは判定されていません。何も保存されていません。",
     "keys.outcome.rate_limited.retry_secs": "{n} s後に再試行",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "リクエストは拒否されました",
     "keys.outcome.unexpected": "{label}から予期しない応答が返りました{http}。キーは判定されていません。何も保存されていません。",
     "keys.test.ok": "接続を検証しました — {label}があなたのキーを受け付けました。",
-    "keys.test.unauthorized": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。",
+    "keys.test.unauthorized": "{label}はこのリクエストを拒否しました{http}。キーにこの操作の権限がないか、キーが無効の可能性があります。",
     "keys.test.no_key": "{label}のキーは保存されていません。",
     "keys.test.rate_limited": "{label}は現在リクエストを制限しています{http}。キーは判定されていません。まもなく再試行してください。",
     "keys.test.exhausted": "{label}は、このキーのクレジットまたは割り当てが残っていないと報告しています{http}。",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "すべてのモデルで VOOL のツールがオンです。変更するには\"use the model's own tools\"と言ってください。",
     "own_tools.reply.all_chats": " これはすべてのチャットに適用されます。",
     "own_tools.reply.not_owner": "モデルが使うツールを変更できるのは、自分のコンピューターから書き込むあなただけなので、何も変更されませんでした。",
-    "own_tools.reply.failed": "その設定を保存できなかったため、何も変更されていません。"
+    "own_tools.reply.failed": "その設定を保存できなかったため、何も変更されていません。",
+    "keys.outcome.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。後でもう一度試すか、別のネットワークからお試しください。何も保存されていません。",
+    "keys.test.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。"
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "Non supprimée — {error}",
     "keys.saved_state": "enregistrée le {date}",
     "keys.outcome.invalid": "{label} a rejeté cette clé{http}. Vérifiez que vous l’avez copiée en entier et qu’il s’agit bien d’une clé {label}. Rien n’a été enregistré.",
-    "keys.outcome.unauthorized": "{label} a reconnu la clé mais a refusé cette requête{http}. Vérifiez les permissions de la clé. Rien n’a été enregistré.",
+    "keys.outcome.unauthorized": "{label} a refusé cette requête{http}. La clé manque peut-être d’une permission pour cela, ou elle n’est peut-être pas valide. Rien n’a été enregistré.",
     "keys.outcome.exhausted": "{label} signale qu’il ne reste ni crédit ni quota pour cette clé{http}. Ajoutez du crédit, puis enregistrez à nouveau. Rien n’a été enregistré.",
     "keys.outcome.rate_limited": "{label} limite les requêtes en ce moment ; {retry}. La clé n’a pas été jugée. Rien n’a été enregistré.",
     "keys.outcome.rate_limited.retry_secs": "réessayez dans {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "la requête a été refusée",
     "keys.outcome.unexpected": "{label} a donné une réponse inattendue{http}. La clé n’a pas été jugée. Rien n’a été enregistré.",
     "keys.test.ok": "Connexion vérifiée — {label} a accepté votre clé.",
-    "keys.test.unauthorized": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
+    "keys.test.unauthorized": "{label} a refusé cette requête{http}. La clé manque peut-être d’une permission pour cela, ou elle n’est peut-être pas valide.",
     "keys.test.no_key": "Aucune clé n’est enregistrée pour {label}.",
     "keys.test.rate_limited": "{label} limite les requêtes en ce moment{http}. La clé n’a pas été jugée ; réessayez sous peu.",
     "keys.test.exhausted": "{label} signale qu’il ne reste ni crédit ni quota pour cette clé{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Les outils de VOOL sont activés pour tous les modèles. Dites \"use the model's own tools\" pour changer cela.",
     "own_tools.reply.all_chats": " Cela s'applique à tous vos chats.",
     "own_tools.reply.not_owner": "Vous seul, depuis votre propre ordinateur, pouvez changer les outils qu'utilisent les modèles, donc rien n'a changé.",
-    "own_tools.reply.failed": "Je n'ai pas pu enregistrer ce réglage, donc rien n'a changé."
+    "own_tools.reply.failed": "Je n'ai pas pu enregistrer ce réglage, donc rien n'a changé.",
+    "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
+    "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

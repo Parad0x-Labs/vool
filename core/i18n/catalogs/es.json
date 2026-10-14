@@ -1564,7 +1564,7 @@
     "keys.not_deleted": "No se eliminó — {error}",
     "keys.saved_state": "guardada {date}",
     "keys.outcome.invalid": "{label} rechazó esta clave{http}. Comprueba que la copiaste entera y que es una clave de {label}. No se guardó nada.",
-    "keys.outcome.unauthorized": "{label} reconoció la clave pero rechazó esta petición{http}. Comprueba los permisos de la clave. No se guardó nada.",
+    "keys.outcome.unauthorized": "{label} rechazó esta petición{http}. Puede que a la clave le falte permiso para ella, o que no sea válida. No se guardó nada.",
     "keys.outcome.exhausted": "{label} reporta que no le queda crédito ni cuota a esta clave{http}. Añade crédito y vuelve a guardar. No se guardó nada.",
     "keys.outcome.rate_limited": "{label} está limitando las peticiones ahora mismo; {retry}. La clave no fue evaluada. No se guardó nada.",
     "keys.outcome.rate_limited.retry_secs": "reintenta en {n} s",
@@ -1581,7 +1581,7 @@
     "keys.outcome.refused.detail": "la petición fue rechazada",
     "keys.outcome.unexpected": "{label} dio una respuesta inesperada{http}. La clave no fue evaluada. No se guardó nada.",
     "keys.test.ok": "Conexión verificada — {label} aceptó tu clave.",
-    "keys.test.unauthorized": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela.",
+    "keys.test.unauthorized": "{label} rechazó esta petición{http}. Puede que a la clave le falte permiso para ella, o que no sea válida.",
     "keys.test.no_key": "No hay clave guardada para {label}.",
     "keys.test.rate_limited": "{label} está limitando las peticiones ahora mismo{http}. La clave no fue evaluada; prueba de nuevo en breve.",
     "keys.test.exhausted": "{label} reporta que no le queda crédito ni cuota a esta clave{http}.",
@@ -2386,9 +2386,11 @@
     "own_tools.reply.status_off": "Las herramientas de VOOL están activadas para todos los modelos. Para cambiar eso, di \"use the model's own tools\".",
     "own_tools.reply.all_chats": " Esto se aplica a todos tus chats.",
     "own_tools.reply.not_owner": "Solo tú, escribiendo desde tu propia máquina, puedes cambiar qué herramientas usan los modelos, así que no se cambió nada.",
-    "own_tools.reply.failed": "No pude guardar ese ajuste, así que no se cambió nada."
+    "own_tools.reply.failed": "No pude guardar ese ajuste, así que no se cambió nada.",
+    "keys.outcome.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada. Prueba más tarde o desde otra red. No se guardó nada.",
+    "keys.test.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada."
   },
-  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
+  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
