@@ -2165,6 +2165,12 @@ def maybe_handle_memory_command(
         from core.turn_context import forget_chat_context_pages
 
         forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
+        from core.memory.run_history import STORE_PREFIX as RUN_HISTORY_PREFIX
+        from core.memory.run_history import UNCLASSIFIED_PREFIX, checkpoint_write_ahead_logs, forget_run_history
+
+        # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
+        # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
+        forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
         for owner, operation_store in owner_stores.items():
             block_status: dict[str, Any] = {}
             try:
@@ -2181,7 +2187,7 @@ def maybe_handle_memory_command(
             "dialogue_derivatives", "session_summaries", "context_capsule_versions",
             "memory_fts", "source_fts", "source_embeddings",
             "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-            "context_pages", "chat_session_metadata", "swarm_sniffed_context",
+            "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history",
         )
         for store in required_stores:
             if store not in erasures.get("stores", {}):
@@ -2202,6 +2208,8 @@ def maybe_handle_memory_command(
                 LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
         from core.memory.carriers import verify_forget_stores
         verify_forget_stores(resolved_session, token, owner_memories=owner_stores, erasures=erasures)
+        # Last: the erased rows' old page images must not outlive the erasure in the -wal files.
+        checkpoint_write_ahead_logs(erasures, memories=by_database.values())
         completed_stores = []
         try:
             if not any(key.endswith("_failures") and value for key, value in erasures.items()):
@@ -2254,18 +2262,34 @@ def maybe_handle_memory_command(
                 "memory_fts", "source_fts",
                 "user_heuristics", "operator_dense_profile", "context_pages", "chat_session_metadata",
             ))
+            # Run-history rows count too: a retry that only finishes the run history (or erases words a
+            # late turn wrote back) removed rows and must not answer "Nothing was removed" (review of 9b78dac).
             total_removed += sum(int(result.get("removed") or 0)
                                  for name, result in erasures.get("stores", {}).items()
-                                 if name.startswith("persisted_") or name.endswith("_memory_blocks"))
-        failed_stores = [store.replace("_", " ") for store, result in erasures.get("stores", {}).items()
-                         if result["status"] == "incomplete"]
+                                 if name.startswith(("persisted_", RUN_HISTORY_PREFIX)) or name.endswith("_memory_blocks"))
+        incomplete = [store for store, result in erasures.get("stores", {}).items() if result["status"] == "incomplete"]
+        failed_stores = [store.replace("_", " ") for store in incomplete]
         if failed_stores:
             # A failed or unopened memory store is not an empty one: the value may still be held and recalled, so the
             # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
+            # A chat table no erasure step knows cannot be cleared by a retry; the reply says so instead of asking
+            # for one (review of 9b78dac: every retry answered the same).
+            unknown = [store.removeprefix(UNCLASSIFIED_PREFIX).replace("_", " ") for store in incomplete
+                       if store.startswith(UNCLASSIFIED_PREFIX)]
+            # The erasure operation stays open whenever any store failed; it is a consequence, not a cause.
+            causes = [store for store in incomplete if not store.endswith("erasure_operations")]
+            if unknown and len(unknown) == len(causes):
+                closing = (". A retry will not clear " + ", ".join(unknown)
+                           + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
+            elif unknown:
+                closing = (". Please retry the forget; a retry will not clear " + ", ".join(unknown)
+                           + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
+            else:
+                closing = ". Please retry the forget."
             return outcome("Forget could not be verified as fully applied: "
                           + ", ".join(failed_stores) + " could not be erased and verified on this turn"
                           + (f", after {total_removed} entr{'y was' if total_removed == 1 else 'ies were'} removed" if total_removed > 0 else "")
-                          + ". Please retry the forget.", "partial" if total_removed > 0 else "failed")
+                          + closing, "partial" if total_removed > 0 else "failed")
         if total_removed <= 0:
             healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
             if already_erased or healed:

@@ -550,8 +550,9 @@ def erase_page(
 
     # One chain event per erasure, under an id of its own: a page whose words were admitted again after an erasure
     # is erased again, and two erasers at once never pick the same id (no count-then-append window).
+    erasure_id = uuid.uuid4().hex
     event_hash = append_hashed_event(
-        f"ctx-page-erased:{page_hash}:{uuid.uuid4().hex}",
+        f"ctx-page-erased:{page_hash}:{erasure_id}",
         {
             "event": "context.page_erased",
             "page_hash": page_hash,
@@ -559,12 +560,9 @@ def erase_page(
             "governance_actor": governance_actor.strip() or "unspecified",
         },
     )
-    _log.info(
-        "erased context page %s via %s (receipt %s)",
-        page_hash[:12],
-        governance_actor.strip() or "storage-law",
-        event_hash[:12],
-    )
+    # The page hash and the chain event's hash are both digests of the erased words: a log line that kept either
+    # would let anyone holding the words confirm what was erased. The erasure id is random.
+    _log.info("erased a context page via %s (erasure %s)", governance_actor.strip() or "storage-law", erasure_id)
     return {"page_hash": page_hash, "erasure_receipt": event_hash}
 
 
@@ -654,7 +652,7 @@ def _delete_cas_content(blob_hash: str, *, require_exclusive: bool = False) -> N
             try:
                 chunk_path.unlink(missing_ok=True)
             except OSError as exc:
-                _log.warning("could not unlink CAS chunk %s: %s", chunk_hash[:12], exc)
+                _log.warning("could not unlink an erased CAS chunk: %s", type(exc).__name__)
                 if require_exclusive:
                     raise
             if require_exclusive:
