@@ -271,7 +271,7 @@ def test_local_only_stops_the_lookup_before_it_leaves_the_machine(vault_home, mo
     ({"query": "balance", "address": "not-an-address"}, "bad_subject"),
     ({"query": "balance", "address": EVM_ADDRESS}, "chain_needed"),
     ({"query": "balance", "address": EVM_ADDRESS, "chain": "dogechain"}, "unknown_chain"),
-    ({"query": "holders", "token": EVM_ADDRESS, "chain": "base"}, "not_offered"),
+    ({"query": "holders", "token": EVM_ADDRESS, "chain": "robinhood"}, "not_offered"),
     ({"query": "sing", "address": SOL_ADDRESS}, "unknown_query"),
     ({"query": "transaction", "tx": "0x1234", "chain": "ethereum"}, "bad_subject"),
 ])
