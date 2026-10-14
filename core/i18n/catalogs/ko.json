@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "밝게 또는 어둡게를 고르거나, 컴퓨터 설정을 따르려면 \"이 컴퓨터 설정 따르기\"를 고르세요. 글자 크기로 대화를 더 쉽게 읽을 수 있습니다.",
     "settings.row.appearance_theme.label": "테마와 글자 크기",
     "run.refused_reason": "VOOL이 이번 턴을 실행하지 않았습니다: {reason}",
-    "run.refused_status": "VOOL이 이번 턴을 실행하지 않았습니다 (HTTP {status})."
+    "run.refused_status": "VOOL이 이번 턴을 실행하지 않았습니다 (HTTP {status}).",
+    "own_tools.reply.on": "완료했습니다. 직접 고른 클라우드 모델은 이제 VOOL의 도구 대신 자체 도구를 사용하므로, 대부분은 검색하지 않고 답합니다. 일부 유료 모델은 스스로 웹을 검색할 수 있습니다. 그 검색은 모델 제공업체에서 이루어지므로 질문이 그 회사로 전달되고, 요금은 지출 한도에 포함됩니다. 결제에는 여전히 승인이 필요합니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다. 되돌리려면 \"use VOOL's tools\"라고 말하세요.",
+    "own_tools.reply.off": "완료했습니다. 모든 모델에 다시 VOOL 도구를 사용합니다.",
+    "own_tools.reply.already_on": "모델 자체 도구가 이미 켜져 있습니다. 되돌리려면 \"use VOOL's tools\"라고 말하세요.",
+    "own_tools.reply.already_off": "이미 VOOL 도구를 사용하고 있습니다.",
+    "own_tools.reply.status_on": "모델 자체 도구가 켜져 있습니다. 직접 고른 클라우드 모델은 VOOL의 도구를 받지 않습니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다. 되돌리려면 \"use VOOL's tools\"라고 말하세요.",
+    "own_tools.reply.status_off": "모든 모델에 VOOL 도구가 켜져 있습니다. 바꾸려면 \"use the model's own tools\"라고 말하세요.",
+    "own_tools.reply.all_chats": " 이 설정은 모든 채팅에 적용됩니다.",
+    "own_tools.reply.not_owner": "모델이 어떤 도구를 쓸지 바꿀 수 있는 것은 자기 컴퓨터에서 직접 쓰는 본인뿐이므로 아무것도 바뀌지 않았습니다.",
+    "own_tools.reply.failed": "이 설정을 저장하지 못해 아무것도 바뀌지 않았습니다."
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "Wähle Hell oder Dunkel, oder „Wie dieser Computer“, um der Einstellung deines Computers zu folgen. Die Textgröße macht die Unterhaltung leichter lesbar.",
     "settings.row.appearance_theme.label": "Design und Textgröße",
     "run.refused_reason": "VOOL hat diesen Zug nicht ausgeführt: {reason}",
-    "run.refused_status": "VOOL hat diesen Zug nicht ausgeführt (HTTP {status})."
+    "run.refused_status": "VOOL hat diesen Zug nicht ausgeführt (HTTP {status}).",
+    "own_tools.reply.on": "Erledigt. Cloud-Modelle, die du wählst, nutzen jetzt ihre eigenen Werkzeuge statt der von VOOL, die meisten antworten also ohne Suche. Einige kostenpflichtige Modelle durchsuchen das Web selbst: diese Suche läuft beim Anbieter des Modells, deine Frage geht also an dieses Unternehmen, und die Gebühr zählt gegen dein Ausgabenlimit. Zahlungen brauchen weiterhin deine Freigabe. Auto und lokale Modelle behalten die Werkzeuge von VOOL. Sag \"use VOOL's tools\", um zurückzuwechseln.",
+    "own_tools.reply.off": "Erledigt. Ich benutze wieder die Werkzeuge von VOOL für jedes Modell.",
+    "own_tools.reply.already_on": "Die eigenen Werkzeuge des Modells sind schon an. Sag \"use VOOL's tools\", um zurückzuwechseln.",
+    "own_tools.reply.already_off": "Ich benutze bereits die Werkzeuge von VOOL.",
+    "own_tools.reply.status_on": "Die eigenen Werkzeuge des Modells sind an: Cloud-Modelle, die du wählst, bekommen die Werkzeuge von VOOL nicht. Auto und lokale Modelle behalten die Werkzeuge von VOOL. Sag \"use VOOL's tools\", um zurückzuwechseln.",
+    "own_tools.reply.status_off": "Die Werkzeuge von VOOL sind für jedes Modell an. Sag \"use the model's own tools\", um das zu ändern.",
+    "own_tools.reply.all_chats": " Das gilt für alle deine Chats.",
+    "own_tools.reply.not_owner": "Nur du kannst von deinem eigenen Rechner aus ändern, welche Werkzeuge die Modelle nutzen, daher wurde nichts geändert.",
+    "own_tools.reply.failed": "Ich konnte diese Einstellung nicht speichern, daher wurde nichts geändert."
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

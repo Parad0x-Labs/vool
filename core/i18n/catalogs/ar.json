@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "اختر الفاتح أو الداكن، أو «مثل هذا الكمبيوتر» ليتبع إعداد جهازك. حجم النص يجعل المحادثة أسهل في القراءة.",
     "settings.row.appearance_theme.label": "المظهر وحجم النص",
     "run.refused_reason": "لم يشغّل VOOL هذا الدور: {reason}",
-    "run.refused_status": "لم يشغّل VOOL هذا الدور (HTTP {status})."
+    "run.refused_status": "لم يشغّل VOOL هذا الدور (HTTP {status}).",
+    "own_tools.reply.on": "تم. النماذج السحابية التي تختارها تستخدم الآن أدواتها الخاصة بدلًا من أدوات VOOL، لذا ستُجيب معظمها دون بحث. بعض النماذج المدفوعة تبحث على الويب بنفسها: يجري ذلك البحث لدى مزوّد النموذج، فيصل سؤالك إلى تلك الشركة، ويُحتسب ضمن حد إنفاقك. ما زالت المدفوعات تحتاج موافقتك. يحتفظ Auto والنماذج المحلية بأدوات VOOL. للعودة قل \"use VOOL's tools\".",
+    "own_tools.reply.off": "تم. أستخدم أدوات VOOL مجددًا لكل النماذج.",
+    "own_tools.reply.already_on": "أدوات النموذج الخاصة مفعّلة بالفعل. للعودة قل \"use VOOL's tools\".",
+    "own_tools.reply.already_off": "أستخدم أدوات VOOL بالفعل.",
+    "own_tools.reply.status_on": "أدوات النموذج الخاصة مفعّلة: النماذج السحابية التي تختارها لا تحصل على أدوات VOOL. يحتفظ Auto والنماذج المحلية بها. للعودة قل \"use VOOL's tools\".",
+    "own_tools.reply.status_off": "أدوات VOOL مفعّلة لكل النماذج. لتغيير ذلك قل \"use the model's own tools\".",
+    "own_tools.reply.all_chats": " ينطبق هذا على كل محادثاتك.",
+    "own_tools.reply.not_owner": "أنت فقط، من حاسوبك الخاص، تستطيع تغيير الأدوات التي تستخدمها النماذج، لذلك لم يتغير شيء.",
+    "own_tools.reply.failed": "لم أتمكن من حفظ هذا الإعداد، لذلك لم يتغير شيء."
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "Açık veya Koyu'yu seçin ya da bilgisayarınızın ayarını izlemek için \"Bu bilgisayar gibi\"yi seçin. Metin boyutu sohbeti okumayı kolaylaştırır.",
     "settings.row.appearance_theme.label": "Tema ve metin boyutu",
     "run.refused_reason": "VOOL bu turu çalıştırmadı: {reason}",
-    "run.refused_status": "VOOL bu turu çalıştırmadı (HTTP {status})."
+    "run.refused_status": "VOOL bu turu çalıştırmadı (HTTP {status}).",
+    "own_tools.reply.on": "Tamam. Seçtiğin bulut modelleri artık VOOL'un araçları yerine kendi araçlarını kullanıyor, bu yüzden çoğu aramadan yanıt verir. Bazı ücretli modeller web'de kendileri arama yapar: bu arama modelin sağlayıcısında yapılır, yani sorun o şirkete gider ve ücret harcama sınırına sayılır. Ödemeler yine onayını gerektirir. Auto ve yerel modeller VOOL'un araçlarını korur. Geri dönmek için \"use VOOL's tools\" de.",
+    "own_tools.reply.off": "Tamam. Her model için yeniden VOOL araçlarını kullanıyorum.",
+    "own_tools.reply.already_on": "Modelin kendi araçları zaten açık. Geri dönmek için \"use VOOL's tools\" de.",
+    "own_tools.reply.already_off": "Zaten VOOL araçlarını kullanıyorum.",
+    "own_tools.reply.status_on": "Modelin kendi araçları açık: seçtiğin bulut modelleri VOOL'un araçlarını almaz. Auto ve yerel modeller VOOL'un araçlarını korur. Geri dönmek için \"use VOOL's tools\" de.",
+    "own_tools.reply.status_off": "Her model için VOOL'un araçları açık. Bunu değiştirmek için \"use the model's own tools\" de.",
+    "own_tools.reply.all_chats": " Bu, tüm sohbetlerin için geçerlidir.",
+    "own_tools.reply.not_owner": "Modellerin hangi araçları kullanacağını yalnızca kendi bilgisayarından yazarak sen değiştirebilirsin, bu yüzden hiçbir şey değişmedi.",
+    "own_tools.reply.failed": "Bu ayarı kaydedemedim, bu yüzden hiçbir şey değişmedi."
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

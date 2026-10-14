@@ -582,6 +582,33 @@ REPLY_NOT_OWNER = (
 )
 REPLY_FAILED = "I couldn't save that setting, so nothing changed."
 
+#: The chat replies above by their catalog name: ``own_tools.reply.<name>`` holds each one in
+#: every app language. The constants stay the English source (and the fallback when a catalog
+#: cannot answer); the case-to-reply mapping in handle_tools_command is unchanged.
+_REPLIES: dict[str, str] = {
+    "on": REPLY_ON,
+    "off": REPLY_OFF,
+    "already_on": REPLY_ALREADY_ON,
+    "already_off": REPLY_ALREADY_OFF,
+    "status_on": REPLY_STATUS_ON,
+    "status_off": REPLY_STATUS_OFF,
+    "all_chats": REPLY_ALL_CHATS,
+    "not_owner": REPLY_NOT_OWNER,
+    "failed": REPLY_FAILED,
+}
+
+
+def reply_text(name: str, locale: str = "") -> str:
+    """One own-tools chat reply in the app's language (``core.i18n.turn_locale``).
+
+    ``name`` is a key of the reply table (``"on"``, ``"already_on"``, ``"not_owner"``, ...). An
+    explicit ``locale`` wins; empty means the language the chat request bound for this turn.
+    Unknown, missing or English locales serve the English constant.
+    """
+    from core.i18n.turn_locale import turn_text
+
+    return turn_text("own_tools.reply." + name, _REPLIES[name], locale)
+
 
 def parse_tools_command(text: str) -> str:
     """``"on"`` / ``"off"`` / ``"status"`` for a message that is only this command, else ``""``."""
@@ -605,19 +632,19 @@ def handle_tools_command(text: str) -> tuple[bool, str]:
         return False, ""
     current = mode_on()
     if action == "status":
-        return True, REPLY_STATUS_ON if current else REPLY_STATUS_OFF
+        return True, reply_text("status_on" if current else "status_off")
     want = action == "on"
     if want == current:
-        return True, REPLY_ALREADY_ON if want else REPLY_ALREADY_OFF
+        return True, reply_text("already_on" if want else "already_off")
     try:
         stored = set_mode(want)
     except Exception:
-        return True, REPLY_FAILED
+        return True, reply_text("failed")
     if stored != want:
-        return True, REPLY_FAILED
-    reply = REPLY_ON if want else REPLY_OFF
+        return True, reply_text("failed")
+    reply = reply_text("on" if want else "off")
     if re.search(r"\bthis\s+chat\b", str(text or ""), re.IGNORECASE):
-        reply += REPLY_ALL_CHATS
+        reply += reply_text("all_chats")
     return True, reply
 
 
@@ -652,6 +679,7 @@ __all__ = [
     "provider_tool_reservation_allowance_usd",
     "provider_tools_for",
     "record_provider_search",
+    "reply_text",
     "search_admitted",
     "searched_call_cost_estimate",
     "set_mode",

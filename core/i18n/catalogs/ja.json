@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "ライトかダークを選ぶか、「このコンピューターに合わせる」でコンピューターの設定に従います。文字サイズで会話が読みやすくなります。",
     "settings.row.appearance_theme.label": "テーマと文字サイズ",
     "run.refused_reason": "VOOL はこのターンを実行しませんでした: {reason}",
-    "run.refused_status": "VOOL はこのターンを実行しませんでした (HTTP {status})。"
+    "run.refused_status": "VOOL はこのターンを実行しませんでした (HTTP {status})。",
+    "own_tools.reply.on": "完了しました。選んだクラウドモデルは VOOL のツールの代わりに自分のツールを使うようになったので、ほとんどは検索せずに答えます。一部の有料モデルは自分でウェブを検索できます。その検索はモデルの提供元で行われるため、質問はその会社に送られ、料金は支出上限に含まれます。支払いには引き続きあなたの承認が必要です。Auto とローカルモデルは VOOL のツールを使い続けます。戻すには\"use VOOL's tools\"と言ってください。",
+    "own_tools.reply.off": "完了しました。すべてのモデルで再び VOOL のツールを使っています。",
+    "own_tools.reply.already_on": "モデル自身のツールはすでにオンです。戻すには\"use VOOL's tools\"と言ってください。",
+    "own_tools.reply.already_off": "すでに VOOL のツールを使っています。",
+    "own_tools.reply.status_on": "モデル自身のツールはオンです。選んだクラウドモデルには VOOL のツールが渡されません。Auto とローカルモデルは VOOL のツールを使い続けます。戻すには\"use VOOL's tools\"と言ってください。",
+    "own_tools.reply.status_off": "すべてのモデルで VOOL のツールがオンです。変更するには\"use the model's own tools\"と言ってください。",
+    "own_tools.reply.all_chats": " これはすべてのチャットに適用されます。",
+    "own_tools.reply.not_owner": "モデルが使うツールを変更できるのは、自分のコンピューターから書き込むあなただけなので、何も変更されませんでした。",
+    "own_tools.reply.failed": "その設定を保存できなかったため、何も変更されていません。"
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2377,9 +2377,18 @@
     "settings.row.appearance_theme.help": "选择浅色或深色，或选择“与这台电脑一致”以跟随电脑的设置。文字大小让对话更易阅读。",
     "settings.row.appearance_theme.label": "主题和文字大小",
     "run.refused_reason": "VOOL 未运行本轮：{reason}",
-    "run.refused_status": "VOOL 未运行本轮（HTTP {status}）。"
+    "run.refused_status": "VOOL 未运行本轮（HTTP {status}）。",
+    "own_tools.reply.on": "完成。你选择的云端模型现在会使用自己的工具而不是 VOOL 的工具，因此大多数不会联网搜索就直接回答。少数付费模型可以自己上网搜索：这类搜索在模型的提供方进行，所以你的问题会发给那家公司，费用计入你的支出上限。付款仍然需要你的批准。Auto 和本地模型保留 VOOL 的工具。要切换回来，请说 \"use VOOL's tools\"。",
+    "own_tools.reply.off": "完成。所有模型已重新使用 VOOL 的工具。",
+    "own_tools.reply.already_on": "模型自带工具已经开启。要切换回来，请说 \"use VOOL's tools\"。",
+    "own_tools.reply.already_off": "已经在使用 VOOL 的工具了。",
+    "own_tools.reply.status_on": "模型自带工具已开启：你选择的云端模型不会获得 VOOL 的工具。Auto 和本地模型保留 VOOL 的工具。要切换回来，请说 \"use VOOL's tools\"。",
+    "own_tools.reply.status_off": "所有模型都在使用 VOOL 的工具。要更改，请说 \"use the model's own tools\"。",
+    "own_tools.reply.all_chats": " 这适用于你的所有聊天。",
+    "own_tools.reply.not_owner": "只有你本人从自己的电脑上输入时才能更改模型使用的工具，因此没有任何更改。",
+    "own_tools.reply.failed": "无法保存该设置，因此没有任何更改。"
   },
-  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
+  "source_catalog_sha256": "f5d1d86dcd4b78d414dd1dac126d212c9a1b1f5f75081fdf26978d476b23adcc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

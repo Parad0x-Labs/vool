@@ -867,22 +867,10 @@ def dispatch_get(
         separate from the model answer language (its own Settings widget) and from dictation
         recognition (its own composer control).
         """
-        from http.cookies import SimpleCookie
-
         from core.i18n.catalog import resolve_render_locale
 
-        cookie_locale = ""
-        raw = _header_value(page_headers, "cookie")
-        if raw:
-            jar = SimpleCookie()
-            try:
-                jar.load(raw)
-            except Exception:
-                jar = {}
-            morsel = jar.get("vool_ui_locale")
-            cookie_locale = morsel.value if morsel else ""
         query_locale = (page_query.get("ui_locale") or [""])[0]
-        return resolve_render_locale(query_locale, cookie_locale, "en")
+        return resolve_render_locale(query_locale, _ui_locale_cookie(page_headers), "en")
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -3193,6 +3181,12 @@ def dispatch_post(
     _req_token = None
     _transcript_request_id = ""
     _transcript_flush_deferred = False
+    # The app language the page chose (its vool_ui_locale cookie) for this one request: chat
+    # commands VOOL answers itself (core.i18n.turn_locale) speak it. Bound before the turn's
+    # ingress context is captured, so the streaming worker sees it too.
+    from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
+
+    _turn_locale_token = bind_turn_locale(_ui_locale_cookie(headers))
     try:
         import hashlib as _hashlib
 
@@ -3336,6 +3330,7 @@ def dispatch_post(
             _transcript_flush_deferred = True
         return _response
     finally:
+        reset_turn_locale(_turn_locale_token)
         if _req_token is not None:
             if _transcript_request_id and not _transcript_flush_deferred:
                 _flush_staged_transcript_rows(_transcript_request_id)
@@ -3413,6 +3408,22 @@ def _header_value(headers: dict[str, Any] | None, name: str) -> str:
         if str(key).lower() == name:
             return str(value or "")
     return ""
+
+
+def _ui_locale_cookie(headers: dict[str, Any] | None) -> str:
+    """The raw ``vool_ui_locale`` cookie value (the page's own locale picker), or ``""``."""
+    from http.cookies import SimpleCookie
+
+    raw = _header_value(headers, "cookie")
+    if not raw:
+        return ""
+    jar = SimpleCookie()
+    try:
+        jar.load(raw)
+    except Exception:
+        return ""
+    morsel = jar.get("vool_ui_locale")
+    return morsel.value if morsel else ""
 
 
 # ---- Chat attachments: the ONE raw-body door, and the receipts every step leaves --------------
