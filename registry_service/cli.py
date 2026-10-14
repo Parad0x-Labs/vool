@@ -14,10 +14,10 @@ from registry_service.store import Store
 
 
 def load_service(config: dict, *, now: int):
-    require(isinstance(config, dict) and set(config) - {"github_import"} == {"schema", "origin", "private_dir",
+    require(isinstance(config, dict) and set(config) - {"github_import", "authority"} == {"schema", "origin", "private_dir",
         "trusted_root", "catalog_file", "artifact_dir", "target", "providers"} and
-        config["schema"] == "vool.registry.service.v1" and type(config.get("github_import", False)) is bool,
-        "unknown service configuration")
+        config["schema"] == "vool.registry.service.v1" and type(config.get("github_import", False)) is bool and
+        type(config.get("authority", False)) is bool, "unknown service configuration")
     private = Path(config["private_dir"]).resolve()
     private.mkdir(mode=0o700, parents=True, exist_ok=True)
     require(private.stat().st_mode & 0o077 == 0, "private directory permissions must be 0700")
@@ -25,17 +25,34 @@ def load_service(config: dict, *, now: int):
     trust = TrustedCatalog(root, private / "trust.sqlite", now=now)
     store = Store(private / "accounts.sqlite")
     directory = decode(Path(config["catalog_file"]).read_bytes())
-    require(isinstance(directory, dict) and isinstance(directory.get("entries"), list) and "registry" in directory,
+    require(isinstance(directory, dict) and isinstance(directory.get("entries"), list) and
+            ("registry" in directory or config.get("authority") is True),
             "canonical catalog has no signed reviewed projection")
-    trust.accept(directory["registry"], now=now)
-    for envelope in directory["registry"]["signed"]["entries"]:
+    online = None
+    if config.get("authority") is True:
+        # The signing Mac publishes through this service; its online key re-stamps the list's freshness.
+        from registry_service.authority import OnlineCatalog, load_online_key
+
+        online = OnlineCatalog(store, trust, load_online_key(private / "catalog.key"), Path(config["catalog_file"]),
+                               config["target"])
+    try:
+        if "registry" in directory:
+            trust.accept(directory["registry"], now=now)
+    except RegistryError:
+        # A list that went stale while the service was down is re-stamped, if the Mac's signature still holds.
+        require(online is not None, "stale catalog")
+        online.refresh(now=now)
+    # With the signing Mac, a first start has no list yet: the catalog stays empty until the Mac's first run.
+    for envelope in (trust.current or {"entries": []})["entries"]:
         entry = envelope["signed"]
         info = entry["metadata"]
         try:
             trust.resolve(info["id"], info["version"], target=config["target"], now=now)
         except RegistryError:
             continue
-        raw = (Path(config["artifact_dir"]) / (entry["artifact_sha256"] + ".json")).read_bytes()
+        raw = store.admitted_artifact(entry["artifact_sha256"])
+        if raw is None:
+            raw = (Path(config["artifact_dir"]) / (entry["artifact_sha256"] + ".json")).read_bytes()
         store.publish(trust, info["id"], info["version"], config["target"], raw, now=now)
     store.prune(now=now)
     providers = []
@@ -45,7 +62,7 @@ def load_service(config: dict, *, now: int):
         prefix = "VOOL_REGISTRY_" + name.upper()
         providers.append(Provider(name, os.environ.get(prefix + "_CLIENT_ID", ""), os.environ.get(prefix + "_CLIENT_SECRET", "")))
     auth = Auth(store, config["origin"], providers)
-    return store, trust, auth
+    return store, trust, auth, online
 
 
 MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending",
@@ -106,9 +123,45 @@ def moderate(args) -> int:
         return 1
 
 
+def catalog_key(args) -> int:
+    """Create the service's online catalog key once and print its public half for the Mac's setup."""
+    from registry_service.authority import create_online_key, keyid
+
+    try:
+        config = decode(args.config.read_bytes(), 65536)
+        require(isinstance(config, dict) and config.get("schema") == "vool.registry.service.v1", "unknown service configuration")
+        private = Path(config["private_dir"]).resolve()
+        private.mkdir(mode=0o700, parents=True, exist_ok=True)
+        require(private.stat().st_mode & 0o077 == 0, "private directory permissions must be 0700")
+        key = create_online_key(private / "catalog.key")
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+        public = key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+        print("Online catalog key " + keyid(key) + "\npublic: " + public + "\nGive the public line to the Mac's setup.")
+        return 0
+    except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
+        print("Catalog key refused: " + (str(exc) if isinstance(exc, RegistryError) else "invalid configuration"))
+        return 1
+
+
+def restamp(online, *, every: int = 600) -> None:
+    """Keep the list fresh between the Mac's runs, for as long as the Mac's own signature allows."""
+    import threading
+
+    def loop():
+        while True:
+            time.sleep(every)
+            try:
+                online.refresh(now=int(time.time()))
+            except (RegistryError, OSError, ValueError):
+                continue  # stale: installs stop until the Mac signs again; never serve an unsigned list
+
+    threading.Thread(target=loop, name="catalog-restamp", daemon=True).start()
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check-config", "serve", *MODERATION])
+    parser.add_argument("command", choices=["check-config", "serve", "catalog-key", *MODERATION])
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--port", type=int, default=8791)
     parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
@@ -117,9 +170,11 @@ def main(argv=None) -> int:
     trust = None
     if args.command in MODERATION:
         return moderate(args)
+    if args.command == "catalog-key":
+        return catalog_key(args)
     try:
         config = decode(args.config.read_bytes(), 65536)
-        store, trust, auth = load_service(config, now=int(time.time()))
+        store, trust, auth, online = load_service(config, now=int(time.time()))
         from registry_service.curation import load_curation
 
         curation = load_curation()  # a bad curation file stops the service here, not at serve time
@@ -141,7 +196,10 @@ def main(argv=None) -> int:
             from registry_service.github_source import GitHubSource
 
             github = GitHubSource()
-        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery, github=github, curation=curation),
+        if online is not None:
+            restamp(online)
+        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery, github=github, curation=curation,
+                               authority=online),
                     host="127.0.0.1", port=args.port,
                     access_log=False, log_config=log_config, proxy_headers=False)
         return 0

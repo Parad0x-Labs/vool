@@ -20,6 +20,7 @@ from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
 from registry_service import community, reports
 from registry_service.auth import Auth
+from registry_service.authority import HEADER, verify_request
 from registry_service.curation import labels, load_curation, picture_approvals
 from registry_service.store import Store
 
@@ -42,7 +43,7 @@ def _search_text(row: dict) -> str:
 
 
 def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None,
-               curation: dict | None = None, github=None) -> Starlette:
+               curation: dict | None = None, github=None, authority=None) -> Starlette:
     curation = load_curation() if curation is None else curation
     approvals = picture_approvals(curation)
 
@@ -134,6 +135,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
                     for envelope in catalog.current["entries"]}
         # Only a skill's own creator learns that its pictures wait for a person's look.
         owned = await run_in_threadpool(store.owned, viewer, set(packages.values())) if viewer else set()
+        marks = await run_in_threadpool(store.marks)
         for envelope in catalog.current["entries"]:
             value = envelope["signed"]
             info = value["metadata"]
@@ -146,7 +148,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             creator = await run_in_threadpool(store.public_profile, info["id"].split("/")[0])
             requirements = boundaries["requirements"]
             rows.append({**{key: val for key, val in info.items() if key not in KINDS},
-                         **shown_pictures(info["id"], boundaries["pictures"], owner=info["id"] in owned), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
+                         **shown_pictures(info["id"], boundaries["pictures"], owner=info["id"] in owned,
+                                          looked=automatic(approved) and tested(info["id"], approved, marks)), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
                          "creator": creator, "publication": approved["publication"],
                          "requirements": {**requirements, "dependencies": sorted(
                              packages.get(item, item) for item in requirements["dependencies"])},
@@ -175,20 +178,33 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             row["category_rank"] = category_counts[row["category"]]
             row["published_at"] = first[row["id"]]
             row.update(labels(curation, row["id"], row["version"]))
+            # Hand-made by the signing Mac's owner, never by the creator or a count.
+            row["tested"] = row["id"] + "@" + row["sha256"] in marks["tested"]
+            row["highlighted"] = row["id"] in marks["highlighted"]
         return rows
 
-    def shown_pictures(package_id: str, pictures: dict, *, owner: bool) -> dict:
-        """Pictures approved for this skill as a page shows them; its owner also learns which wait for a person's look."""
+    def automatic(approved) -> bool:
+        """Admitted by the automatic checks on the signing Mac."""
+        return approved["publication"].get("service") == "skill-codex"
+
+    def tested(package_id: str, approved, marks: dict) -> bool:
+        return package_id + "@" + approved["artifact_sha256"] in marks["tested"]
+
+    def shown_pictures(package_id: str, pictures: dict, *, owner: bool, looked: bool = False) -> dict:
+        """Pictures a person looked at, as a page shows them; its owner also learns which still wait.
+
+        The automatic checks read text only, so a picture of an automatically admitted skill shows once
+        that exact version is marked Tested by its owner, or approved in curation like any other.
+        """
         shown = {kind: {"sha256": item["sha256"], "type": item["type"], "width": item["width"], "height": item["height"],
                         "url": PREFIX + "/pictures/" + package_id + "/" + item["sha256"]}
-                 for kind, item in pictures.items() if (package_id, item["sha256"]) in approvals}
+                 for kind, item in pictures.items() if looked or (package_id, item["sha256"]) in approvals}
         pending = [kind for kind in KINDS if kind in pictures and kind not in shown] if owner else []
         return shown | ({"pictures_pending": pending} if pending else {})
 
     async def picture(request):
         package_id = request.path_params["publisher"] + "/" + request.path_params["name"]
         sha256 = request.path_params["sha256"]
-        require((package_id, sha256) in approvals, "picture not found")
         # Only a picture this skill's currently listed versions carry, never any other stored file.
         require(catalog.current is not None and now() < catalog.current["expires"], "picture not found")
         listed = False
@@ -202,8 +218,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
                 await run_in_threadpool(store.public_inspection, approved["artifact_sha256"])
             except RegistryError:
                 continue
-            listed = True
-            break
+            if (package_id, sha256) in approvals or (automatic(approved) and tested(
+                    package_id, approved, await run_in_threadpool(store.marks))):
+                listed = True
+                break
         require(listed, "picture not found")
         media, data = await run_in_threadpool(store.picture, sha256)
         # Short public caching, so taking an approval away reaches browsers within minutes.
@@ -217,8 +235,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         rows = await with_starred(viewer, [row for row in await approved_rows(viewer)
                                            if row["id"].split("/")[0] == namespace])
         profile = await run_in_threadpool(store.public_profile, namespace)
-        return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"]
-                             else "community", "packages": rows})
+        teams = (await run_in_threadpool(store.marks))["teams"]
+        return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"] or
+                             namespace in teams else "community", "packages": rows})
 
     async def comment_list(request):
         if request.method == "GET":
@@ -320,9 +339,11 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             return JSONResponse({"submissions": await run_in_threadpool(store.submissions, who)})
         require(request.headers.get("content-type", "").split(";")[0] == "application/vnd.vool.registry+json",
                 "registry artifact content type required")
+        agreement = request.headers.get("x-vool-agreement")
         with store.upload_slot(who, now=now()) as slot:
             raw = await upload_body(body(request))
-            return JSONResponse(await run_in_threadpool(store.upload, who, raw, now=now(), _slot=slot), status_code=201)
+            return JSONResponse(await run_in_threadpool(store.upload, who, raw, now=now(), _slot=slot, agreement=agreement),
+                                status_code=201)
 
     async def submission(request):
         return JSONResponse(await run_in_threadpool(store.submission, account(request), request.path_params["identifier"]))
@@ -407,6 +428,42 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         response.delete_cookie("vool_registry", path=PREFIX)
         return response
 
+    async def signed(request, *, limit=65536) -> bytes:
+        """Body of a request the signing Mac made; anything else is refused before it is read further."""
+        raw = await body(request, limit=limit)
+        await run_in_threadpool(verify_request, catalog.root, request.headers.get(HEADER, ""), request.method,
+                                request.url.path, raw, now=now(),
+                                remember=lambda nonce, expires: store.remember_nonce(nonce, expires, now=now()))
+        return raw
+
+    async def authority_queue(request):
+        await signed(request)
+        return JSONResponse({"submissions": await run_in_threadpool(store.queue)})
+
+    async def authority_submission(request):
+        identifier = request.path_params["identifier"]
+        if request.method == "GET":
+            await signed(request)
+            raw = await run_in_threadpool(store.queued_artifact, identifier)
+            return Response(raw, media_type="application/vnd.vool.registry+json")
+        value = decode(await signed(request, limit=1024 * 1024), 1024 * 1024)
+        require(isinstance(value, dict) and set(value) in ({"sha256", "refused"}, {"sha256", "admission"}),
+                "invalid verdict")
+        if "refused" in value:
+            await run_in_threadpool(store.refuse, identifier, value["sha256"], value["refused"])
+            return JSONResponse({"state": "refused"})
+        await run_in_threadpool(store.admit, identifier, value["sha256"], value["admission"], catalog.root, now=now())
+        return JSONResponse({"state": "admitted"})
+
+    async def authority_catalog(request):
+        value = decode(await signed(request, limit=8 * 1024 * 1024), 8 * 1024 * 1024)
+        return JSONResponse(await run_in_threadpool(authority.ingest, value, now=now()))
+
+    async def authority_marks(request):
+        value = decode(await signed(request), 65536)
+        marks = await run_in_threadpool(store.set_marks, value, catalog.root, now=now())
+        return JSONResponse({"sequence": marks["sequence"]})
+
     async def failure(request, exc):
         return JSONResponse({"error": str(exc) if isinstance(exc, RegistryError) else "invalid request"}, status_code=400)
 
@@ -430,7 +487,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/auth/{provider}/start", auth_begin, methods=["GET", "POST"]),
         Route(PREFIX + "/auth/{provider}/callback", auth_callback, methods=["GET", "POST"]),
         Route(PREFIX + "/session", logout, methods=["POST", "DELETE"]),
-    ], exception_handlers={RegistryError: failure, ValueError: failure, TypeError: failure, KeyError: failure})
+    ] + ([
+        Route(PREFIX + "/authority/queue", authority_queue),
+        Route(PREFIX + "/authority/submissions/{identifier}", authority_submission, methods=["GET", "POST"]),
+        Route(PREFIX + "/authority/catalog", authority_catalog, methods=["POST"]),
+        Route(PREFIX + "/authority/marks", authority_marks, methods=["POST"]),
+    ] if authority is not None else []), exception_handlers={RegistryError: failure, ValueError: failure, TypeError: failure, KeyError: failure})
 
     async def response_policy(request, call_next):
         if request.headers.get("host") != urllib.parse.urlsplit(auth.origin).netloc:

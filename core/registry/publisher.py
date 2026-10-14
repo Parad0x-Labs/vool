@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from core.registry.admission import admit
 from core.registry.artifact import inspect
 from core.registry.codec import canonical, digest, require
-from core.registry.trust import root_document, validate_entry, verify
+from core.registry.trust import AUTHORIZATION_SECONDS, root_document, validate_entry, verify
 
 
 def add_signature(envelope: dict, private_key: Ed25519PrivateKey) -> dict:
@@ -33,11 +33,11 @@ def admission(raw: bytes, policy: dict, review: dict, root: dict, *, now: int, l
 
 
 def authorize_catalog(root: dict, admissions: list[dict], *, epoch: int, revoked: list[str], now: int,
-                      lifetime=86400) -> dict:
+                      lifetime=AUTHORIZATION_SECONDS) -> dict:
     root_document(root, now)
     for envelope in admissions:
         validate_entry(verify(envelope, root, "admission"), root, now)
-    require(type(epoch) is int and epoch > 0 and 0 < lifetime <= 86400, "invalid offline catalog epoch or lifetime")
+    require(type(epoch) is int and epoch > 0 and 0 < lifetime <= AUTHORIZATION_SECONDS, "invalid offline catalog epoch or lifetime")
     return {"signed": {"schema": "vool.registry.catalog_authorization.v1", "root_version": root["version"],
         "epoch": epoch, "issued_at": now, "expires": now + lifetime,
         "entries_sha256": digest(admissions), "revoked_sha256": digest(revoked)}, "signatures": []}
