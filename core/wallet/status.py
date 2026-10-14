@@ -176,6 +176,8 @@ def wallet_status() -> dict[str, Any]:
                 "family": spec.family, "testnet": spec.testnet, "public_key": entry["public_key"], "label": entry["label"], "approval_method": entry.get("approval_method", ""),
                 # the durable setup state of a Crypto Pilot wallet (ready / awaiting_backup / backup_revealed / cancelled): one owner, both lists
                 "setup_state": str(entry.get("setup_state") or "") or "ready", "seal_policy": str(entry.get("seal_policy") or ""),
+                # tokens (USDT) go out only from a Crypto Pilot account (proposals._require_token_lane)
+                "can_send_tokens": str(entry.get("seal_policy") or "") == custody.PILOT_SEAL_POLICY,
             })
         status["declared_networks"] = [spec.network for spec in chains.all_networks()]
     except Exception:
@@ -261,10 +263,24 @@ def crypto_pilot_status() -> dict[str, Any]:
             "password": {"min": custody._PASSWORD_MIN, "max": custody._PASSWORD_MAX, "text": f"{custody._PASSWORD_MIN}–{custody._PASSWORD_MAX} characters, not only digits"},
             "device": {"available": device_available, "text": "Touch ID or your Mac password" if device_available else "not available on this machine"},
         },
-        "asset_support": {"native_coin_transfers": True, "token_transfers": False,
-                          "note": "The Crypto Pilot sends each row's native coin (SOL, ETH, BNB). Tokens such as USDC are not sent by this wallet; a token balance that can be read is not a token that can be spent."},
+        "asset_support": _asset_support(),
         "pilot_notice": "A pilot feature: keep small test amounts, do not use it as a main wallet, and save the one-time backup offline.",
     }
+
+
+def _asset_support() -> dict[str, Any]:
+    """What the Crypto Pilot sends, from the registry: each row's native coin, and the tokens the owner's own transfers
+    may move (``chains.USER_TRANSFER_TOKENS``) on the rows that carry them."""
+    from core.wallet import chains
+
+    rows = [spec for spec in chains.rows_for_environment(chains.ENVIRONMENT_MAINNET) if chains.user_transfer_tokens(spec.network)]
+    symbols = sorted({token.symbol for spec in rows for token in chains.user_transfer_tokens(spec.network)})
+    names = [spec.display_name for spec in rows]
+    where = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+    note = "The Crypto Pilot sends each network's native coin (SOL, ETH, BNB)"
+    note += f" and {', '.join(symbols)} on {where}." if symbols else "."
+    note += " You can't send other tokens, such as USDC, from here, even when their balance shows."
+    return {"native_coin_transfers": True, "token_transfers": bool(symbols), "tokens": symbols, "note": note}
 
 
 __all__ = ["SOFT_WARNINGS", "proposal_meaning", "wallet_status"]

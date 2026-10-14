@@ -1497,7 +1497,7 @@ function transferLine(t){
   if (t.detail) line.appendChild(el('div', 'vw-transfer-detail', t.detail));
   if (t.purpose) line.appendChild(purposeBlock(t.purpose, ''));
   if (t.to_address) { var to = el('div', 'vw-transfer-detail'); to.appendChild(document.createTextNode('To ')); to.appendChild(el('span', 'vw-ident', t.to_address)); line.appendChild(to); }
-  if (t.charged_fee_label) line.appendChild(el('div', 'vw-transfer-detail', 'Fee ' + (t.charged_fee_display || t.charged_fee_label) + (t.charged_fee_display && t.charged_fee_human ? ' (exactly ' + t.charged_fee_human + ' ' + t.display_symbol + ')' : '')));
+  if (t.charged_fee_label) line.appendChild(el('div', 'vw-transfer-detail', 'Fee ' + (t.charged_fee_display || t.charged_fee_label) + (t.charged_fee_display && t.charged_fee_human ? ' (exactly ' + t.charged_fee_human + ' ' + (t.fee_symbol || t.display_symbol) + ')' : '')));
   if (t.tx_id) line.appendChild(el('div', 'vw-transfer-id', 'Transaction ' + t.tx_id));
   if (t.explorer_url) {
     var link = el('a', 'vw-explorer', t.explorer_link_text || 'View on the explorer');
@@ -1681,7 +1681,7 @@ function openSheet(p, cardControls, cardResult, opener){
     netValue.appendChild(el('span', 'vw-badge' + (f.environment === 'mainnet' ? '' : ' testnet'), f.badge));
     net.appendChild(netValue); net.appendChild(document.createTextNode(' · ' + (f.value_note || ''))); box.appendChild(net);
     var to = reviewLine(box, 'recipient', r.recipient_line || ('To ' + f.to_address), r.recipient_kind === 'provider_pay_to' ? 'vw-review-addr' : '');
-    if (f.token_transfer && f.recipient_token_account) to.appendChild(document.createTextNode(' · Recipient token account ' + f.recipient_token_account));
+    if (f.token_transfer && f.recipient_token_account && !('create_recipient_account' in f)) to.appendChild(document.createTextNode(' · Recipient token account ' + f.recipient_token_account));
     reviewLine(box, 'source', r.source_line || '', 'muted');
     if (r.fee_line) reviewLine(box, 'dna_fee', r.fee_line);
     if (r.collection_line) reviewLine(box, 'collection', r.collection_line, f.companion ? 'primary' : 'muted');
@@ -2478,11 +2478,31 @@ var walletHome = (function(){
       }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', 'Contacts could not be read; type the address directly.')); });
     });
     form.appendChild(pickBtn); form.appendChild(list);
-    var amountLabel = el('label', null, 'Amount (' + ((row && row.native_display_symbol) || 'SOL') + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
+    // what to send: the row's own coin, or a token a Crypto Pilot account may send on this row (USDT where it is carried)
+    var nativeChoice = { symbol: (row && row.native_symbol) || 'SOL', label: (row && row.native_display_symbol) || 'SOL', decimals: (row && row.native_decimals) || 9 };
+    var choices = [nativeChoice].concat(((row && row.send_tokens) || []).map(function(t){ return { symbol: t.symbol, label: t.symbol, decimals: t.decimals }; }));
+    var chosen = nativeChoice;
+    var assetPick = null;
+    if (account.can_send_tokens === true && choices.length > 1) {
+      var assetLabel = el('label', null, 'What to send'); assetLabel.setAttribute('for', 'vwHomeSendAsset'); form.appendChild(assetLabel);
+      assetPick = el('select'); assetPick.id = 'vwHomeSendAsset';
+      choices.forEach(function(c){ var o = el('option', null, c.label); o.value = c.symbol; assetPick.appendChild(o); });
+      form.appendChild(assetPick);
+    }
+    var amountLabel = el('label', null, 'Amount (' + nativeChoice.label + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
     var amount = el('input'); amount.type = 'text'; amount.id = 'vwHomeSendAmount'; amount.autocomplete = 'off'; amount.inputMode = 'decimal';
-    amount.placeholder = '0.0'; amount.setAttribute('aria-label', 'amount in whole ' + ((row && row.native_display_symbol) || 'SOL') + ' units');
+    amount.placeholder = '0.0';
     form.appendChild(amount);
-    form.appendChild(el('div', 'vw-wh-sub', 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).'));
+    if (assetPick) assetPick.addEventListener('change', function(){
+      chosen = choices.filter(function(c){ return c.symbol === assetPick.value; })[0] || nativeChoice;
+      amountLabel.textContent = 'Amount (' + chosen.label + ')';
+      available.textContent = chosen === nativeChoice ? availableNative
+        : 'Your ' + chosen.label + ' balance is shown on the review before anything is approved. The network fee is paid in ' + nativeChoice.label + ', so keep a little ' + nativeChoice.label + ' in this account too.';
+      sendKey = newSendKey();
+    });
+    var availableNative = 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).';
+    var available = el('div', 'vw-wh-sub', availableNative); available.setAttribute('aria-live', 'polite');
+    form.appendChild(available);
     var memoLabel = el('label', null, 'Note (optional, stays with your request)'); memoLabel.setAttribute('for', 'vwHomeSendMemo'); form.appendChild(memoLabel);
     var memo = el('input'); memo.type = 'text'; memo.id = 'vwHomeSendMemo'; memo.autocomplete = 'off'; form.appendChild(memo);
     var go = el('button', 'vw-btn primary', 'Preview send'); go.type = 'button'; go.id = 'vwHomeSendGo';
@@ -2494,7 +2514,6 @@ var walletHome = (function(){
     form.appendChild(go);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
-    var decimals = (row && row.native_decimals) || 9;
     // editing the intent after a refusal is a NEW intent: the idempotency key rotates, so an honest
     // retry of the unchanged request stays deduplicated while an edited one is never refused as a duplicate
     function rotate(){ sendKey = newSendKey(); }
@@ -2502,6 +2521,7 @@ var walletHome = (function(){
     go.addEventListener('click', function(){
       var dest = String(to.value || '').trim();
       if (!dest) { state.className = 'vw-wh-msg err'; state.textContent = 'Type the recipient address.'; return; }
+      var decimals = chosen.decimals;
       var minor = parseAmountToMinor(amount.value, decimals);
       if (minor === null) {
         state.className = 'vw-wh-msg err';
@@ -2515,7 +2535,7 @@ var walletHome = (function(){
         return;
       }
       go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = 'Preparing the request… (nothing is sent yet)';
-      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: (row && row.native_symbol) || 'SOL', origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
+      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: chosen.symbol, origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
       postJson('/api/wallet/propose', body).then(function(res){
         if (!res.ok) {
           go.disabled = false; state.className = 'vw-wh-msg err';

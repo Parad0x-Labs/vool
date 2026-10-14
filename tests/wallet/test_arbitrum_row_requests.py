@@ -32,7 +32,8 @@ def test_arbitrum_alias_selects_its_row_even_when_the_default_eth_account_is_els
         selected["wallet_id"], network, "ETH", 10**16)
     spec = chains.resolve_network(network)
     assert capabilities.is_pilot_row(spec) and capabilities.pilot_transfer_ready(spec)
-    assert spec.schemes == () and set(spec.assets) == {"ETH"}
+    # Mainnet Arbitrum One also carries USDT for the owner's own sends; test networks carry only ETH
+    assert spec.schemes == () and set(spec.assets) == ({"ETH", "USDT"} if environment == "mainnet" else {"ETH"})
 
 
 @pytest.mark.parametrize(("environment", "network", "chain_id"), [

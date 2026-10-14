@@ -55,7 +55,7 @@ def test_balances_cover_every_chain_and_say_which_hold_nothing_and_which_could_n
     assert "- Solana Devnet: 5 SOL" in text, text  # the scripted Solana node holds 5 SOL for every account
     assert "- Base Sepolia: 0.25 ETH" in text, text
     assert "Nothing held on: Ethereum Sepolia." in text, text
-    assert "Could not be read (unknown, not zero): Arbitrum Sepolia (" in text, "a node on the wrong chain is never read as a number"
+    assert "Could not be read just now (unknown, not zero): Arbitrum Sepolia." in text, "a node on the wrong chain is never read as a number"
     assert "Base (" not in text and "Base:" not in text.replace("Base Sepolia:", ""), "a Mainnet account is not part of a Test networks answer"
     rows = {row["network"]: row for row in result.details["balances"]}
     assert set(rows) == {SOLANA_DEVNET, BASE_SEPOLIA, ETH_SEPOLIA, ARB_SEPOLIA}

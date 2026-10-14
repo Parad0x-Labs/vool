@@ -60,6 +60,8 @@ EXIT_STOP_WAITING = "stop_waiting"
 EXIT_RESEND = "resend"
 EXIT_SLOT_USED = "stop_waiting_slot_used"
 EXIT_REFUSED = "stop_waiting_refused"
+#: a token transfer final on the network whose contract never showed the approved amount moving
+EXIT_UNPROVEN = "stop_waiting_unproven"
 #: passes with the base fee above the quoted ceiling before the refused exit is offered, and the span they must cover
 FEE_SPIKE_PASSES = 3
 FEE_SPIKE_SPAN_SECONDS = 600.0
@@ -298,14 +300,38 @@ def _svm_client(row: dict[str, Any], rpc: Any = None) -> Any:
     return RpcClient(chains.network_rpc_url(row["network"]), network=row["network"])
 
 
-def _svm_fee(client: Any, tx_id: str) -> int | None:
-    """The fee the chain charged, or None when the node does not serve the transaction (never zero by default)."""
+def _svm_fee(client: Any, tx_id: str, *, with_account_rent: bool = False) -> int | None:
+    """The fee the chain charged, or None when the node does not serve the transaction (never zero by default).
+
+    ``with_account_rent`` (a transfer whose quote opened the recipient's token account): what the fee payer's own
+    balance lost to the transaction -- the fee plus the rent of an account it opened, read from the node's pre and post
+    balances of the fee payer (the first account) -- or None when the node does not serve those balances."""
     with contextlib.suppress(Exception):
         answer = client._call("getTransaction", [tx_id, {"commitment": "confirmed", "maxSupportedTransactionVersion": 0}])
         if isinstance(answer, dict):
-            fee = ((answer.get("meta") or {}).get("fee"))
+            meta = answer.get("meta") or {}
+            if with_account_rent:
+                pre, post = meta.get("preBalances"), meta.get("postBalances")
+                if isinstance(pre, list) and isinstance(post, list) and pre and post:
+                    return int(pre[0]) - int(post[0])
+                return None
+            fee = meta.get("fee")
             if fee is not None:
                 return int(fee)
+    return None
+
+
+def _opens_recipient_account(row: dict[str, Any]) -> bool | None:
+    """Whether the quote this transfer was approved on opened the recipient's token account (its rent is native spend),
+    or None when that quote cannot be read (the charged fee is then unknown, never the fee alone)."""
+    from core.wallet import quotes
+
+    if not str(row.get("quote_id") or ""):
+        return False
+    with contextlib.suppress(Exception):
+        record = quotes.get_quote(str(row.get("quote_id") or ""))
+        if record is not None:
+            return bool(record["fields"].get("create_recipient_account"))
     return None
 
 
@@ -316,7 +342,10 @@ def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
     own = str(row.get("payer_signature") or "")
     if own and own != str(tx_id):
         return 0
-    return _svm_fee(client, tx_id)
+    opens = _opens_recipient_account(row)
+    if opens is None:
+        return None
+    return _svm_fee(client, tx_id, with_account_rent=opens)
 
 
 #: how many of the payer's latest transactions one pass reads to find a pay-kit payment whose id is still unknown
@@ -718,6 +747,20 @@ def _observe_evm_unknown(row: dict[str, Any], client: Any, spec: chains.ChainIde
     return transfers.get_transfer_by_id(proposal_id)
 
 
+def _evm_token_principal(row: dict[str, Any], receipt: dict[str, Any]) -> bool | str | None:
+    """None for a native transfer (its receipt status is the proof); for the owner's ERC-20 transfer, the Transfer-event
+    proof of :func:`core.wallet.evm_tokens.transfer_proven` (None there -- no logs served -- is returned as "no_logs")."""
+    from core.wallet import evm_tokens
+
+    network, asset = str(row.get("network") or ""), str(row.get("asset") or "")
+    if not evm_tokens.is_token_transfer(network, asset):
+        return None
+    token = evm_tokens.token_asset(network, asset)
+    proven = evm_tokens.transfer_proven(receipt, contract=token.address, payer=str(row["from_address"]), recipient=str(row["to_address"]),
+                                        amount_minor=evm_tokens.chain_amount(token, int(row["amount_minor"])))
+    return "no_logs" if proven is None else proven
+
+
 def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
     proposal_id, tx_id, state = str(row["proposal_id"]), str(row.get("tx_id") or ""), str(row["state"])
     spec = chains.resolve_network(row["network"])
@@ -762,6 +805,21 @@ def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
         if display_number is not None and number <= display_number:
             if state == transfers.STATE_CONFIRMED:
                 return row
+            proven = _evm_token_principal(row, receipt)
+            if proven is not None and proven is not True:
+                # a successful token call is paid only when the contract's own Transfer event shows exactly this amount
+                # moving from the payer to the recipient; it never confirms without that. Once the block is final the
+                # owner is offered the stop-waiting exit: the hold settles as spent (it keeps counting against the
+                # limits) and the account's slot is free again, with the evidence kept on the receipt
+                answer = "transfer_event_disagrees" if proven is False else "no_logs"
+                columns = {"block_ref": number, "block_hash": receipt_hash, "evidence_json": appended_evidence(row, "principal_unproven", block=number, answer=answer)}
+                if finalized_number is not None and number <= finalized_number and state != transfers.STATE_STOPPED_WAITING:
+                    columns["offered_exit_json"] = json.dumps({"exit": EXIT_UNPROVEN, "observed_at": clock(), "answer": answer, "block": number, "finalized": finalized_number}, sort_keys=True)
+                if state in (transfers.STATE_UNKNOWN, transfers.STATE_DISPATCHING):
+                    return apply_transition(proposal_id, transfers.STATE_PENDING, state, **columns)
+                with connection() as conn:
+                    transfers.update_columns(conn, proposal_id, **columns)
+                return transfers.get_transfer_by_id(proposal_id)
             balance_after = _hex_int(client._call("eth_getBalance", [str(row["from_address"]), "latest"]))
             columns: dict[str, Any] = {"block_ref": number, "block_hash": receipt_hash, "finality_seen": display_tag, "evidence_json": evidence, "offered_exit_json": "{}", **fee_columns}
             if balance_after is not None:
@@ -1087,7 +1145,7 @@ def owner_stop_waiting(proposal_id: str, *, decision_note: str = "") -> dict[str
         raise ExitUnavailableError("row_busy")
     try:
         offered = _fresh_offer(row)
-        if offered not in (EXIT_STOP_WAITING, EXIT_SLOT_USED, EXIT_REFUSED):
+        if offered not in (EXIT_STOP_WAITING, EXIT_SLOT_USED, EXIT_REFUSED, EXIT_UNPROVEN):
             raise ExitUnavailableError(f"exit_no_longer_available:{offered or 'none'}")
         row = transfers.get_transfer_by_id(proposal_id) or row
         now = clock()
