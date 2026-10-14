@@ -3429,6 +3429,7 @@ def _stream_agent_with_events_inner(
     # suspended at disconnect. See core/live_turns.py.
     from core import followup_continuity
     from core.live_turns import register_turn, unregister_turn
+    from core.runtime_continuity import release_chat_turn_admission
 
     cancel_turn_id = str(stream_context.get("cancel_turn_id") or "").strip()
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
@@ -3458,13 +3459,16 @@ def _stream_agent_with_events_inner(
                 event_queue.put(("result", result))
             except Exception as exc:
                 # Make it chat-safe HERE, where the exception object still exists, so the class name
-                # (the genuinely useful, safe part) survives while paths/credentials do not.
+                # (the genuinely useful, safe part) survives while paths and credentials do not.
                 event_queue.put(("error", safe_error_text(exc)))
             finally:
                 # The turn is genuinely over -- completed, failed or cancelled. This is the ONLY place
-                # the live-turn entry is released, so it can neither leak nor disappear early.
+                # the live-turn entry is released, so it can neither leak nor disappear early. Its
+                # ADMISSION ends with it (token-checked): the chat's one-slot reservation was taken
+                # at POST-accept and must not outlive the registration by its lease.
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                    release_chat_turn_admission(session_id, cancel_turn_id)
                 _release_followups()
 
         # F-01 (independent-proof repair): execute the turn under the ingress
@@ -3484,6 +3488,7 @@ def _stream_agent_with_events_inner(
                 # from context machinery itself (before _body ever ran).
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                    release_chat_turn_admission(session_id, cancel_turn_id)
                 _release_followups()
                 raise
         else:
@@ -3499,6 +3504,7 @@ def _stream_agent_with_events_inner(
         # the turn stays falsely cancellable forever.
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
+            release_chat_turn_admission(session_id, cancel_turn_id)
         _release_followups()
         if stream_id:
             unregister_runtime_event_sink(stream_id)

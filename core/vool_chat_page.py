@@ -3862,6 +3862,27 @@ async function refreshSidebarActivity() {
   } catch (e) { /* transient; the next tick retries */ }
   maybeRepaintSidebarLifecycle();
   await refreshReminderArtifacts(displayedChat);
+  // The queue's bounded fallback wakeup. Common cases never reach here (the sending page's own
+  // post-enqueue pump; the running turn's post-release pump). This covers the orphaned case:
+  // the tab whose turn would have pumped was closed or reloaded, and every other pump exited
+  // against the slot it found busy. Only chats THIS page knows still hold queued items are
+  // pumped -- an empty pass refreshes that record and stops the traffic.
+  pumpKnownQueuedChats();
+}
+
+// One bounded pump sweep for chats with known pending items. pumpQueue's own slot discipline
+// (pumpHold / the server's live-turn refusal) makes repeated ticks cheap and exactly-once.
+function pumpKnownQueuedChats() {
+  for (const entry of lastQueueItemsByChat) {
+    const chatId = entry[0];
+    const items = entry[1] || [];
+    // PENDING only: an in_flight item is being executed by whoever claimed it -- polling it
+    // from here cannot advance it, and a claim whose page died is startup recovery's owner,
+    // not this tick's (an in_flight row would otherwise poll forever, every 5 seconds).
+    if (!items.some((item) => item && item.status === 'pending')) continue;
+    if (isChatBusy(chatId)) continue;
+    pumpQueue(chatId);
+  }
 }
 
 // Background deliveries are transcript artifacts, not new user/model turns.
@@ -4201,9 +4222,14 @@ async function openSession(id) {
   reflectPermBar();
   document.body.classList.remove('sidebar-open');
   loadSessions();
-  refreshQueue();
+  refreshQueue(id);
   await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
   inputEl.focus();
+  // Opening a chat is itself a wakeup for its queue: items another tab left pending (or that
+  // a closed page never pumped) execute now, without a second manual send -- the open is the
+  // user asking for this chat, ahead of the heartbeat's slower sweep. The pump's own slot
+  // discipline makes this a no-op while a turn already runs in the chat.
+  if (!isChatBusy(id)) pumpQueue(id);
 }
 
 // A chat address typed or pasted into this tab (/chat#<chat>) opens that chat.
@@ -4323,7 +4349,11 @@ async function newChatInProject(pid) {
   }
   // Project binding may persist the chat container, but its mode remains a local draft preference
   // until an explicit mode change or the first task request.
-  await loadSessions(); refreshQueue(); inputEl.focus();
+  await loadSessions(); refreshQueue(sid); inputEl.focus();
+  // Opening a chat is itself a wakeup for its queue: pending items left by another tab (or by a
+  // page that closed before its pump ran) execute now, without a second manual send. The pump's
+  // own slot discipline keeps this a no-op while a turn is already running.
+  if (!isChatBusy(sid)) pumpQueue(sid);
 }
 let _toastTimer = null;
 function toast(text, action) {
@@ -8183,13 +8213,18 @@ async function queueOp(op, chatId, extra) {
 
 // The queue chips belong to the chat on screen. Bound before the await so a switch mid-request
 // cannot paint one chat's queue under another's composer.
-async function refreshQueue() {
-  const chatId = displayedChat;
+async function refreshQueue(forChatId) {
+  const chatId = String(forChatId || displayedChat);   // bind the chat before any await
   try {
     const res = await fetch('/api/chat/queue?session=' + encodeURIComponent(chatId));
     const data = await res.json();
-    if (isDisplayed(chatId)) renderQueue((data && data.queue) || []);
-  } catch (e) { /* leave chips as-is on a transient error */ }
+    const items = (data && data.queue) || [];
+    // The displayed chat's strip repaints; a background chat's record is kept for the pump
+    // heartbeat, so its chips stay truthful without painting another chat's footer.
+    if (isDisplayed(chatId)) renderQueue(items);
+    else lastQueueItemsByChat.set(chatId, items);
+    return items;
+  } catch (e) { /* leave chips as-is on a transient error */ return null; }
 }
 
 // Presentation-only density cap: past this many chips the strip collapses the rest behind a
@@ -8382,11 +8417,19 @@ async function pumpQueue(forChatId) {
       // A send() can enqueue while this empty claim was on the wire, and its own pumpQueue() call
       // returns early against this hold -- so THIS pump is that item's only wakeup. Claim once
       // more when one arrived; the server's claim is a compare-and-swap, so the extra round
-      // either takes the item or comes back empty again with nothing left to run.
+      // either takes the item or comes back empty again with nothing left to run. Checked FIRST
+      // so a busy slot can never swallow that arrival signal: the recovery claim below either
+      // takes the item or defers it to the wakeup chain with the page still knowing it exists.
       if (owner.queueArrivals !== arrivals) continue;
-      owner.pumpHold = false; refreshQueue(); reflectComposer(); return;
+      // No new arrival, and the chat's slot is held by a live turn (this page's or another
+      // tab's -- the server's live-turn registry is the truth here). Do not spin against it:
+      // the running turn's completion pumps this queue again, and the sidebar heartbeat is the
+      // fallback wakeup when that tab is gone. Nothing is lost -- the item stays pending in the
+      // durable queue and this page's record of it was just refreshed.
+      if (res && res.turn_active) { owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return; }
+      owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return;
     }
-    refreshQueue();
+    refreshQueue(chatId);
     // The attachments the queued item owns, by the ids the server stored; names come from this
     // chat's own bucket (recorded when the item was queued) or fall back to a plain label.
     const queuedIds = (claimed.payload && Array.isArray(claimed.payload.attachments)) ? claimed.payload.attachments : [];
@@ -8547,6 +8590,66 @@ async function runTurn(text, queueItemId, opts) {
     if (res.status === 409 && typeof res.clone === 'function') {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      if (refusal && refusal.error === 'chat_turn_active') {
+        const owner = ownerOf(run);
+        if (run.queueItemId) {
+          // A CLAIMED message refused before execution: the item is already the queue's row.
+          // Return the ORIGINAL to its pending FIFO position through the queue's
+          // ownership-checked release -- same identity, same position, no duplicate row. A
+          // pump (this page's release pump, another tab's, or the heartbeat) claims it again
+          // once the chat's current turn frees the slot.
+          const released = await queueOp('release', chatId, { queue_item_id: run.queueItemId });
+          if (released && released.released) {
+            run.text = 'Queued \u2014 waiting for this chat\u2019s current turn to finish.';
+            if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+            if (run.textEl) run.textEl.textContent = run.text;
+            finishRun(run, 'cancelled', 'Returned to the queue behind the chat\u2019s active turn');
+            releaseComposer(run);
+            refreshQueue(chatId);
+            return;
+          }
+          // The release was refused (another dispatch consumed this claim) or the door
+          // failed. The row keeps its in_flight record -- restart recovery's owner -- and
+          // the turn ends failed with the honest state. Never a duplicate, never a loss.
+          run.text = 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.';
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          finishRun(run, 'failed', 'The claimed message could not start or return to the queue');
+          releaseComposer(run);
+          return;
+        }
+        // A DIRECT send refused on the race (two tabs sending in the same instant, or a turn
+        // that began between the check and this POST). Nothing executed -- the server
+        // refused before spending anything -- so the message goes to the SAME durable queue
+        // the busy-branch uses, idempotent under this run's turn id, and runs once the
+        // active turn frees the chat's slot.
+        const extra = { text: text, idempotency_key: 'reroute-' + (run.turnId || ('t-' + Date.now())) };
+        if (run.attachments && run.attachments.length) {
+          extra.attachments = run.attachments.map((a) => String(a.id));
+          run.attachments.forEach((a) => { owner.queuedAttachmentMeta[a.id] = a; });
+        }
+        const queued = await queueOp('enqueue', chatId, extra);
+        if (queued && queued.item) {
+          owner.queueArrivals++;
+          run.text = 'Queued \u2014 this chat is finishing a turn in another window.';
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          finishRun(run, 'cancelled', 'Queued behind the chat\'s active turn');
+          releaseComposer(run);
+          refreshQueue(chatId);
+          return;
+        }
+        // The queue door itself failed: recover exactly like the busy-branch's failed enqueue
+        // -- the text goes back to this chat's draft and the turn ends failed, never lost
+        // silently behind a bubble claiming it was queued.
+        if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, text);
+        run.text = 'The chat is finishing a turn and the message could not be queued. Its text was restored to this chat\u2019s draft.';
+        if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+        if (run.textEl) run.textEl.textContent = run.text;
+        finishRun(run, 'failed', 'This chat is finishing a turn and the message could not be queued');
+        releaseComposer(run);
+        return;
+      }
       if (refusal && refusal.error === 'council_model_pin_active') {
         setCouncilLock(true, String(refusal.detail || ''));
         if (window.VoolCouncilCard) { try { window.VoolCouncilCard.refreshLock(); } catch (e) {} }
@@ -8813,6 +8916,18 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   return false;
 }
 
+// The chat's slot, read from the ONE place that knows it across tabs: the server's live-turn
+// registry, served on the queue door's read. A page that sees its own state as idle still
+// enqueues when ANOTHER tab is executing this chat's turn. A failed read is not a busy signal
+// -- the server's typed 409 refuses a raced turn anyway, so the check only steers the common
+// case into the queue instead of into that refusal.
+async function chatSlotBusyOnServer(chatId) {
+  try {
+    const res = await fetchJsonWithin('/api/chat/queue?session=' + encodeURIComponent(chatId), null, 5000);
+    return !!(res && res.turn_active);
+  } catch (e) { return false; }
+}
+
 async function send() {
   // Refused BEFORE the draft is read or cleared: a disabled textarea is the visible half,
   // and a keyboard path or a stale handler must not get past it either -- nor eat what the
@@ -8860,7 +8975,12 @@ async function send() {
   }
   inputEl.value = '';
   if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
-  if (isChatBusy(chatId)) {
+  // Busy is a property of THE CHAT, not of this page: this page's own run or claim window, or a
+  // turn another tab is executing right now (the server's slot truth -- the only cross-tab
+  // witness). Either way the message is stored durably and runs once the slot frees.
+  let slotBusy = isChatBusy(chatId);
+  if (!slotBusy) slotBusy = await chatSlotBusyOnServer(chatId);
+  if (slotBusy) {
     // Do not drop it -- persist it in THIS chat's queue and show a chip. Another chat being busy
     // is irrelevant here; only this chat's own slot decides run-now vs enqueue. The staged
     // attachments travel with the queued item by id; their names are remembered in this chat's
