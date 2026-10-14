@@ -4366,11 +4366,20 @@ class MemoryFirstRouter:
             # provider/model pairing, unlike RequiredToolsNotOfferedError above (which is a runtime
             # capability mismatch, not model behavior). Never executed: the exception unwound
             # before any tool dispatch could see it.
-            error_kind = {
-                UnknownToolNameError: "unknown_tool_name",
-                MalformedToolArgumentsError: "malformed_tool_arguments",
-                DuplicateToolCallError: "duplicate_tool_call",
-            }.get(type(exc), "malformed_tool_call")
+            # isinstance, not the exact type: a schema violation is a typed subclass of
+            # MalformedToolArgumentsError and keeps that error kind.
+            error_kind = next(
+                (
+                    kind
+                    for error_type, kind in (
+                        (UnknownToolNameError, "unknown_tool_name"),
+                        (MalformedToolArgumentsError, "malformed_tool_arguments"),
+                        (DuplicateToolCallError, "duplicate_tool_call"),
+                    )
+                    if isinstance(exc, error_type)
+                ),
+                "malformed_tool_call",
+            )
             # The tool loop decides what a zero-executed-steps turn becomes AFTER this frame has
             # unwound, and "the model expressed a call the runtime refused" must stay
             # distinguishable there from "the provider never answered" — otherwise the refused

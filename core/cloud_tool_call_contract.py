@@ -31,6 +31,10 @@ class MalformedToolArgumentsError(ToolCallParseError):
     """Arguments were invalid JSON, not an object, or violated the offered schema."""
 
 
+class ToolArgumentSchemaError(MalformedToolArgumentsError):
+    """Arguments parsed to an object but violated the offered schema (keys or value types)."""
+
+
 class DuplicateToolCallError(ToolCallParseError):
     """The same call (by id, or by name+arguments when no id was sent) appeared twice in one batch."""
 
@@ -327,7 +331,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
     properties = dict(schema.get("properties") or {})
     unknown = sorted(set(arguments) - set(properties))
     if unknown and schema.get("additionalProperties") is False:
-        raise MalformedToolArgumentsError(f"native tool arguments contain unknown keys: {','.join(unknown)}")
+        raise ToolArgumentSchemaError(f"native tool arguments contain unknown keys: {','.join(unknown)}")
     for key in list(schema.get("required") or []):
         if key in arguments:
             continue
@@ -342,7 +346,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
         # argument across the WHOLE tool catalog, not just one field.
         if "null" in allowed_argument_types(properties.get(key)):
             continue
-        raise MalformedToolArgumentsError(f"native tool arguments are missing required key: {key}")
+        raise ToolArgumentSchemaError(f"native tool arguments are missing required key: {key}")
     for key, value in arguments.items():
         property_schema = properties.get(key)
         if not isinstance(property_schema, dict):
@@ -352,7 +356,7 @@ def _validate_arguments(arguments: dict[str, Any], schema: dict[str, Any]) -> No
             continue
         actual_type = _json_type(value)
         if actual_type not in allowed_types and not (actual_type == "integer" and "number" in allowed_types):
-            raise MalformedToolArgumentsError(f"native tool argument {key} has type {actual_type}, expected {sorted(allowed_types)}")
+            raise ToolArgumentSchemaError(f"native tool argument {key} has type {actual_type}, expected {sorted(allowed_types)}")
 
 
 def _json_type(value: Any) -> str:
@@ -376,6 +380,7 @@ def _json_type(value: Any) -> str:
 __all__ = [
     "DuplicateToolCallError",
     "MalformedToolArgumentsError",
+    "ToolArgumentSchemaError",
     "ToolCallParseError",
     "UnknownToolNameError",
     "allowed_argument_types",

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from tests.test_tool_schema_reask import _body, _invoke, paid_home, wire
 
 
@@ -186,3 +188,30 @@ def test_free_lane_resend_and_router_correction_never_stack_past_three_sends(wir
     response, error, _ = _invoke(wire, adapter_free_retry=True)
     assert response is None and error.startswith("unknown_tool_name:")
     assert len(wire.bodies) == 3
+
+
+@pytest.mark.parametrize(("arguments", "code"), [
+    ('{"left":19}', "schema_validation_failed"),  # schema violation (missing key)
+    ('{"left":19,', "malformed_arguments"),  # arguments are not JSON at all
+])
+def test_local_certification_still_tells_schema_violations_from_broken_json(tmp_path, arguments, code):
+    # Typing schema violations for the router must not relabel what the local tool
+    # certification records about a model that keeps sending them.
+    from core.local_model_tool_certification import run_local_model_tool_certification
+    from tests.test_local_model_tool_certification import ProbeExchange, _call, _manifest, _reply
+
+    class AlwaysBad(ProbeExchange):
+        def __call__(self, **kwargs):
+            if {tool.intent for tool in kwargs.get("tools") or ()} == {"probe.add", "probe.lookup_nonce"}:
+                self.calls.append(kwargs)
+                self.parallel_attempts += 1
+                return _reply(
+                    _call("vool_probe_add", arguments, "call-add"),
+                    _call("vool_probe_lookup_nonce", '{"key":"alpha"}', "call-nonce"),
+                )
+            return super().__call__(**kwargs)
+
+    exchange = AlwaysBad()
+    result = run_local_model_tool_certification(_manifest(), exchange=exchange, db_path=tmp_path / "cert.db")
+    assert exchange.parallel_attempts == 2
+    assert result["stages"]["adapter_translation"]["failure_code"] == code, result["stages"]
