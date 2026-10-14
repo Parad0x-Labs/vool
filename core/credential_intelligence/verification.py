@@ -27,7 +27,8 @@ Four laws, each measured broken on 2026-09-14 (validation-logs/autodetection-202
 
 The truths stay DISTINCT because each is a different operator situation: ``verified``; ``invalid``
 (the provider rejected the key — by status, or by an error code the descriptor says names the
-credential); ``unauthorized`` (valid, not permitted); ``exhausted`` (no credit or quota);
+credential); ``unauthorized`` (request not permitted; validity unknown); ``gateway_blocked`` (the
+provider's edge refused this client before the key was judged); ``exhausted`` (no credit or quota);
 ``rate_limited``; ``provider_unavailable`` (408/5xx); ``endpoint_not_found`` (404 — a wrong base
 URL); ``timeout``; ``network_unavailable``; ``redirected``; ``malformed_response``;
 ``unexpected_schema``; ``public_endpoint``; ``refused`` (nothing was sent); ``unexpected`` (anything
@@ -66,10 +67,12 @@ STATUS_REDIRECTED = "redirected"
 STATUS_MALFORMED_RESPONSE = "malformed_response"
 STATUS_UNEXPECTED_SCHEMA = "unexpected_schema"
 STATUS_PUBLIC_ENDPOINT = "public_endpoint"
+STATUS_GATEWAY_BLOCKED = "gateway_blocked"
 
 #: Outcomes that carry NO evidence about the key itself: the provider, the path or the policy was
 #: what answered. None of them may be surfaced as a rejected key or withdraw a working lane.
 INCONCLUSIVE_STATUSES = frozenset({
+    STATUS_GATEWAY_BLOCKED,
     STATUS_RATE_LIMITED,
     STATUS_NETWORK_UNAVAILABLE,
     STATUS_TIMEOUT,
@@ -100,7 +103,7 @@ _details = {
     STATUS_INVALID: "key rejected by provider",
     STATUS_EXHAUSTED: "account balance or quota exhausted",
     STATUS_RATE_LIMITED: "provider throttled the request",
-    STATUS_UNAUTHORIZED: "key valid but not permitted this request",
+    STATUS_UNAUTHORIZED: "request not permitted; key validity was not established",
     STATUS_NETWORK_UNAVAILABLE: "provider unreachable",
     STATUS_REFUSED: "verification refused before any request",
     STATUS_UNEXPECTED: "unexpected provider response",
@@ -110,6 +113,7 @@ _details = {
     STATUS_REDIRECTED: "provider redirected to another origin; the key was not sent there",
     STATUS_MALFORMED_RESPONSE: "the answer was not an API response",
     STATUS_UNEXPECTED_SCHEMA: "the answer does not have this provider's documented shape",
+    STATUS_GATEWAY_BLOCKED: "the provider gateway blocked this client request; key validity was not established",
     STATUS_PUBLIC_ENDPOINT: "the endpoint answers without a key, so it cannot confirm one; the key was not sent",
 }
 
@@ -371,6 +375,9 @@ def classify_verification_response(descriptor: ProviderDescriptor, *, status: in
         location = str(getattr(headers, "get", lambda _name: "")("Location") or "")
         return _outcome(STATUS_REDIRECTED, descriptor, status, host, redirect_origin=_origin_text(location))
     code = provider_error_code_from_body(body)
+    if is_gateway_denial(status, body):
+        # The edge refused this client before the provider looked at the key: no key evidence.
+        return _outcome(STATUS_GATEWAY_BLOCKED, descriptor, status, host)
     if code and code in descriptor.invalid_error_codes:
         return _outcome(STATUS_INVALID, descriptor, status, host, provider_error_code=code)
     if status in descriptor.invalid_statuses:
@@ -600,6 +607,7 @@ __all__ = [
     "INCONCLUSIVE_STATUSES",
     "STATUS_ENDPOINT_NOT_FOUND",
     "STATUS_EXHAUSTED",
+    "STATUS_GATEWAY_BLOCKED",
     "STATUS_INVALID",
     "STATUS_MALFORMED_RESPONSE",
     "STATUS_NETWORK_UNAVAILABLE",
