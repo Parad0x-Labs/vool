@@ -624,7 +624,7 @@ def release_unused_chat_row(chat_id: str) -> bool:
         if namespace is None or namespace.lifecycle_state != "active" or namespace.parent_chat_id:
             return False
         from core.chat_housekeeping import pinned_chat_ids
-        from core.memory.entries import _load_session_meta_raw, drop_session_meta, recent_conversation_events
+        from core.memory.entries import _drop_session_meta, _load_session_meta_raw, recent_conversation_events
 
         meta = _load_session_meta_raw().get(clean_chat)
         if meta is not None and not set(meta) <= _UNUSED_META_KEYS:
@@ -652,7 +652,7 @@ def release_unused_chat_row(chat_id: str) -> bool:
         finally:
             conn.close()
         if meta is not None:
-            drop_session_meta(clean_chat)
+            _drop_session_meta(clean_chat)
         return True
     except Exception:
         _log.warning("a private chat's unused row could not be released", exc_info=True)

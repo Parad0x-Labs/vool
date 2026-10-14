@@ -2130,7 +2130,7 @@ def _memory_erasure_row_owned(row: dict[str, Any], policy: ContextAccessPolicy) 
                 and project in policy.imported_project_ids)
 
 
-def drop_session_meta(session_id: str) -> bool:
+def _drop_session_meta(session_id: str) -> bool:
     """Remove one chat's entry from the session meta, live copy and backup alike. Used when a chat
     gives up its row before anything of it was saved (core.context_namespace.release_unused_chat_row)."""
     sid = str(session_id or "").strip()
