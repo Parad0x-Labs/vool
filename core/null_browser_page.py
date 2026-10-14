@@ -42,6 +42,16 @@ __VOOL_PALETTE_CSS__
     font-family:var(--font);font-size:14px;border-radius:var(--radius);padding:8px 12px;
     outline:none;transition:border-color .15s;}
   #addr:focus{border-color:var(--accent);}
+  /* The address field shrinks instead of pushing the buttons off a narrow screen. */
+  #addr{min-width:0;}
+  .toolbar>button,.toolbar>.spinner{flex-shrink:0;}
+  /* Phone width: the buttons keep the first row, the address and Go get a full row of their own. */
+  @media (max-width:480px){
+    .toolbar{flex-wrap:wrap;}
+    #addr{order:1;flex:1 1 calc(100% - 80px);}
+    #spin{order:2;}
+    #go{order:3;}
+  }
   #go{background:var(--accent);color:#000;border:none;border-radius:var(--radius);
     padding:8px 16px;font-family:var(--font);font-size:13px;font-weight:bold;cursor:pointer;}
   #go:hover{opacity:.85;}
