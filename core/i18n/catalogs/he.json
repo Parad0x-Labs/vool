@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "כאן כתוב שקודקס המיומנויות או VOOL ערבים למיומנות. רק קודקס המיומנויות יכול לומר זאת, אז הסירו את זה.",
     "addons.publish_line": "בשורה {line}",
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
-    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex."
+    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
+    "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

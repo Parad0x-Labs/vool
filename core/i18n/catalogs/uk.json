@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Тут сказано, що кодекс навичок або VOOL ручається за навичку. Так може казати лише кодекс навичок, тож приберіть це.",
     "addons.publish_line": "У рядку {line}",
     "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді.",
-    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex."
+    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
+    "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

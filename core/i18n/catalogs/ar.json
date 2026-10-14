@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "يقول هذا إن دليل المهارات أو VOOL يضمن المهارة. لا يقول ذلك إلا دليل المهارات، فاحذفه.",
     "addons.publish_line": "في السطر {line}",
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
-    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex."
+    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
+    "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

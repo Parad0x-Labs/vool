@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Hier steht, dass der Fertigkeiten-Codex oder VOOL für die Fertigkeit bürgt. Das darf nur der Fertigkeiten-Codex sagen, also entfernen Sie es.",
     "addons.publish_line": "In Zeile {line}",
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
-    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden."
+    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
+    "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

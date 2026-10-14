@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Tu jest napisane, że kodeks umiejętności lub VOOL ręczy za tę umiejętność. Może to mówić tylko kodeks umiejętności, więc usuń to.",
     "addons.publish_line": "W wierszu {line}",
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
-    "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex."
+    "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
+    "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

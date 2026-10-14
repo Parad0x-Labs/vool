@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Isto diz que o códice de habilidades ou o VOOL garante a habilidade. Só o códice de habilidades pode dizer isso, por isso retire-o.",
     "addons.publish_line": "Na linha {line}",
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
-    "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex."
+    "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
+    "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

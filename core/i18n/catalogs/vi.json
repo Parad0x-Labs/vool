@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Phần này nói rằng bộ sưu tập kỹ năng hoặc VOOL bảo đảm cho kỹ năng. Chỉ bộ sưu tập kỹ năng mới được nói vậy, nên hãy bỏ nó.",
     "addons.publish_line": "Ở dòng {line}",
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
-    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex."
+    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
+    "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

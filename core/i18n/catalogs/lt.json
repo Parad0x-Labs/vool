@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Čia teigiama, kad įgūdžių kodeksas ar VOOL laiduoja už šį įgūdį. Tai gali sakyti tik įgūdžių kodeksas, todėl pašalinkite tai.",
     "addons.publish_line": "{line} eilutėje",
     "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
-    "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex."
+    "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
+    "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

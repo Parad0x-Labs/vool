@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "这里说技能宝典或 VOOL 为这个技能作担保。只有技能宝典能这样说,请删除。",
     "addons.publish_line": "第 {line} 行",
     "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。",
-    "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。"
+    "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
+    "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Здесь сказано, что кодекс навыков или VOOL ручается за навык. Так может говорить только кодекс навыков, поэтому уберите это.",
     "addons.publish_line": "В строке {line}",
     "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде.",
-    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex."
+    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex.",
+    "keys.test.invalid": "{label} отклонил ключ{http}. Проверьте его заново или замените."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "0f2556ad5515a9632ddaad2e681af9c32845d6156917a26742efb96a720b8091",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
