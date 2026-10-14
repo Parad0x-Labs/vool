@@ -7,6 +7,10 @@ have. The page served by the production ``/chat`` route is loaded in Chromium un
 platform's navigator identity. macOS must render exactly as before, every other platform must
 name Ctrl, and pressing the hinted combination must reach the palette it advertises.
 
+Off Apple platforms Ctrl+N is advertised only inside the desktop shell (pywebview present): in a
+plain browser tab Ctrl+N belongs to the browser (it opens a window), so the hint withholds it
+there while every other cap still names Ctrl. Both shells are loaded and pinned.
+
 Availability lives in ``tests.served_browser.launch_chromium()`` (fails under the gate, skips
 outside it); nothing here skips on its own.
 """
@@ -60,6 +64,15 @@ CTRL_EN_HINT_TEXT = (
     "Ctrl+K palette · Ctrl+N new chat · Ctrl+J activity · Ctrl+/ pet appearance"
     " · Ctrl+F search chats · Ctrl+, settings · Esc stop"
 )
+# The same bar in a plain browser tab: Ctrl+N is the browser's own key there, so it is withheld.
+CTRL_EN_BROWSER_TAB_HINT_TEXT = (
+    "Ctrl+K palette · Ctrl+J activity · Ctrl+/ pet appearance"
+    " · Ctrl+F search chats · Ctrl+, settings · Esc stop"
+)
+# What the desktop shell (pywebview) exposes before any page script runs: the page only asks
+# whether a native bridge is present.
+DESKTOP_SHELL_SCRIPT = "window.pywebview = { api: {} };"
+SHELLS = ("desktop-shell", "browser-tab")
 
 
 class _Stamp:
@@ -103,10 +116,12 @@ def browser():
         manager.stop()
 
 
-def _open_chat(browser, platform_name: str, html: str):
+def _open_chat(browser, platform_name: str, html: str, *, desktop_shell: bool = False):
     platform, ua_data_platform, user_agent = PLATFORMS[platform_name]
     context = browser.new_context(user_agent=user_agent, viewport={"width": 1280, "height": 800})
     context.add_init_script(_identity_script(platform, ua_data_platform))
+    if desktop_shell:
+        context.add_init_script(DESKTOP_SHELL_SCRIPT)
     page = context.new_page()
 
     def route(route):
@@ -119,29 +134,42 @@ def _open_chat(browser, platform_name: str, html: str):
     page.goto("http://vool.test/chat", wait_until="domcontentloaded")
     page.wait_for_selector("#vpHint", state="attached", timeout=30_000)
     assert page.evaluate("navigator.platform") == platform
+    assert page.evaluate("!!(window.pywebview && window.pywebview.api)") is desktop_shell
     return context, page
 
 
+@pytest.mark.parametrize("shell", SHELLS)
 @pytest.mark.parametrize("locale", ["en", "lt"])
 @pytest.mark.parametrize("platform_name", sorted(PLATFORMS))
-def test_footer_hint_names_the_platform_modifier(browser, platform_name: str, locale: str) -> None:
+def test_footer_hint_names_the_platform_modifier(browser, platform_name: str, locale: str, shell: str) -> None:
     catalog = catalog_for(locale)
     apple = platform_name.startswith("macos")
-    context, page = _open_chat(browser, platform_name, _served_chat(locale))
+    desktop_shell = shell == "desktop-shell"
+    context, page = _open_chat(browser, platform_name, _served_chat(locale), desktop_shell=desktop_shell)
     try:
         hint = page.locator("#vpHint")
+        # Ctrl+N is the browser's own key in a plain tab; ⌘N never collides, so a Mac keeps it.
+        shown = [
+            (key, message) for key, message in HINT_KEYS
+            if apple or desktop_shell or key != "N"
+        ]
         caps = [cap.text_content() for cap in hint.locator("kbd").all()]
-        expected_caps = [("⌘" if apple else "Ctrl+") + key for key, _ in HINT_KEYS] + ["Esc"]
+        expected_caps = [("⌘" if apple else "Ctrl+") + key for key, _ in shown] + ["Esc"]
         assert caps == expected_caps
 
-        words = [catalog.text(message) for _, message in HINT_KEYS] + [catalog.text("palette.hint_esc_stop")]
+        words = [catalog.text(message) for _, message in shown] + [catalog.text("palette.hint_esc_stop")]
         assert hint.text_content() == " · ".join(f"{cap} {word}" for cap, word in zip(expected_caps, words, strict=True))
         if apple and locale == "en":
             assert hint.inner_html() == MACOS_EN_HINT_HTML
         if not apple:
             assert "⌘" not in hint.text_content()
+            if desktop_shell:
+                assert "Ctrl+N" in caps
+            else:
+                assert "Ctrl+N" not in hint.text_content()
+                assert catalog.text("palette.hint_new_chat") not in hint.text_content()
             if locale == "en":
-                assert hint.text_content() == CTRL_EN_HINT_TEXT
+                assert hint.text_content() == (CTRL_EN_HINT_TEXT if desktop_shell else CTRL_EN_BROWSER_TAB_HINT_TEXT)
     finally:
         context.close()
 
