@@ -149,13 +149,71 @@ def _security_of(creds: dict[str, Any], host: str) -> str:
     return raw
 
 
-def _smtp_connect(creds: dict[str, Any]) -> smtplib.SMTP:
+def _pinned_connection(addresses: tuple[str, ...], port: int, timeout: float | None,
+                       source_address: Any = None) -> socket.socket:
+    """A TCP connection to the first of ``addresses`` (already-resolved IPs) that answers.
+
+    Used when a caller checked WHERE a server name resolves (Local Only) and must connect to exactly
+    those addresses: a second name lookup could answer differently. TLS still verifies the server
+    NAME (the caller passes it as server_hostname), so pinning never weakens the certificate check."""
+    last: OSError | None = None
+    for address in addresses:
+        try:
+            return socket.create_connection((address, port), timeout, source_address)
+        except OSError as exc:
+            last = exc
+    raise last or OSError("no address to connect to")
+
+
+class _PinnedIMAP4(imaplib.IMAP4):
+    def __init__(self, host: str, port: int, *, addresses: tuple[str, ...], timeout: float):
+        self._vool_addresses = addresses
+        super().__init__(host, port, timeout=timeout)
+
+    def _create_socket(self, timeout):
+        return _pinned_connection(self._vool_addresses, self.port, timeout)
+
+
+class _PinnedIMAP4SSL(imaplib.IMAP4_SSL):
+    def __init__(self, host: str, port: int, *, addresses: tuple[str, ...], ssl_context: ssl.SSLContext, timeout: float):
+        self._vool_addresses = addresses
+        super().__init__(host, port, ssl_context=ssl_context, timeout=timeout)
+
+    def _create_socket(self, timeout):
+        sock = _pinned_connection(self._vool_addresses, self.port, timeout)
+        return self.ssl_context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedSMTP(smtplib.SMTP):
+    def __init__(self, host: str, port: int, *, addresses: tuple[str, ...], timeout: float):
+        self._vool_addresses = addresses
+        super().__init__(host, port, timeout=timeout)
+
+    def _get_socket(self, host, port, timeout):
+        return _pinned_connection(self._vool_addresses, port, timeout, self.source_address)
+
+
+class _PinnedSMTPSSL(smtplib.SMTP_SSL):
+    def __init__(self, host: str, port: int, *, addresses: tuple[str, ...], context: ssl.SSLContext, timeout: float):
+        self._vool_addresses = addresses
+        super().__init__(host, port, context=context, timeout=timeout)
+
+    def _get_socket(self, host, port, timeout):
+        sock = _pinned_connection(self._vool_addresses, port, timeout, self.source_address)
+        return self.context.wrap_socket(sock, server_hostname=self._host)
+
+
+def _smtp_connect(creds: dict[str, Any], *, addresses: tuple[str, ...] = (), timeout: float = 30) -> smtplib.SMTP:
+    """Open the account's SMTP transport. ``addresses`` pins the connection to already-resolved IPs
+    (the server name is still what TLS verifies); empty means an ordinary name lookup."""
     host = str(creds.get("host") or "")
     port = int(creds.get("port") or 465)
     security = _security_of(creds, host)
     if security == "ssl":
-        return smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=30)
-    client = smtplib.SMTP(host, port, timeout=30)
+        if addresses:
+            return _PinnedSMTPSSL(host, port, addresses=addresses, context=ssl.create_default_context(), timeout=timeout)
+        return smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=timeout)
+    client = _PinnedSMTP(host, port, addresses=addresses, timeout=timeout) if addresses else smtplib.SMTP(host, port, timeout=timeout)
     if security == "starttls":
         client.ehlo()
         client.starttls(context=ssl.create_default_context())
@@ -163,15 +221,19 @@ def _smtp_connect(creds: dict[str, Any]) -> smtplib.SMTP:
     return client
 
 
-def _imap_connect(creds: dict[str, Any]) -> imaplib.IMAP4:
+def _imap_connect(creds: dict[str, Any], *, addresses: tuple[str, ...] = (), timeout: float = 30) -> imaplib.IMAP4:
+    """Open the account's IMAP transport. ``addresses`` pins the connection to already-resolved IPs
+    (the server name is still what TLS verifies); empty means an ordinary name lookup."""
     host = str(creds.get("host") or "")
     port = int(creds.get("port") or 993)
     security = _security_of(creds, host)
     # imaplib's default context for implicit TLS is unverified (no certificate or host check),
     # so the context is always the verifying default, exactly as the SMTP transport uses.
     if security == "ssl":
-        return imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30)
-    client = imaplib.IMAP4(host, port, timeout=30)
+        if addresses:
+            return _PinnedIMAP4SSL(host, port, addresses=addresses, ssl_context=ssl.create_default_context(), timeout=timeout)
+        return imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=timeout)
+    client = _PinnedIMAP4(host, port, addresses=addresses, timeout=timeout) if addresses else imaplib.IMAP4(host, port, timeout=timeout)
     if security == "starttls":
         client.starttls(ssl.create_default_context())
     return client

@@ -2164,6 +2164,20 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/email/accounts/add": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/email/accounts/add",
+      "note": "email lane operator action (add a password account after one verified IMAP login)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/email/accounts/remove": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/email/accounts/remove",
+      "note": "email lane operator action (remove a password account)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/email/recovery/acknowledge": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/email/recovery/acknowledge",
@@ -3063,7 +3077,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 297,
+    "EXTERNAL_TRANSPORT_ONLY": 299,
     "GENERATED_ADAPTER": 131,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
