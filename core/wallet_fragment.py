@@ -1825,6 +1825,13 @@ function openSheet(p, cardControls, cardResult, opener){
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
           line.setAttribute('data-companion-outcome', companion.state || ''); cardResult.appendChild(line);
         }
+        // a pay-per-answer AI answer that could not go into the chat log (a private chat, or a save that failed) is shown here
+        var paidAi = res.data && res.data.paid_ai;
+        if (paidAi && paidAi.text && !paidAi.posted) {
+          var answerNode = el('div', 'vw-transfer-detail vw-paid-ai-answer', paidAi.text);
+          answerNode.style.whiteSpace = 'pre-wrap'; answerNode.setAttribute('data-paid-ai', paidAi.verdict || '');
+          cardResult.appendChild(answerNode);
+        }
         return;
       }
       var code = res.data && res.data.error;

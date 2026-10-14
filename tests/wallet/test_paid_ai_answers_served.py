@@ -252,3 +252,41 @@ def test_a_paid_request_the_service_never_answers_is_said_plainly_in_the_chat(se
         assert answer["x402_sdk"]["delivered"] is False and len(resource.paid_requests) == 1
     posted = _transcript(daemon, chat)
     assert "No answer arrived" in posted[-1]["content"] and "Check your wallet to see whether this payment went through" in posted[-1]["content"]
+
+
+def test_a_service_paused_after_the_question_is_not_paid_at_approval(served, monkeypatch):
+    daemon, chain, provider, wallet = served
+    _clear(daemon)
+    chat = f"openclaw:{0xA5:020x}"
+    monkeypatch.setattr(_rig_x402_sdk, "PAID_BODY", _completion(ASKED_MODEL, "Twelve."))
+    with ScriptedX402SdkResource(chain, amount_minor=AMOUNT, pay_to=PAYEE) as resource:
+        service = _add(daemon, resource, label="Later", max_price="0.10")
+        turn = daemon.chat("ask my paid model: what is seven plus five?", session_id=chat, model=MODEL, mode="auto")
+        text = str((turn.get("message") or {}).get("content") or "")
+        proposal_id = next(word.strip(".,:()") for word in text.split() if word.startswith("pay-"))
+        status, paused = _door(daemon, "/api/wallet/ai-endpoints", {"action": "set_on", "id": service["id"], "on": False})
+        assert status == 200
+        status, quote = _door(daemon, "/api/wallet/quote", {"proposal_id": proposal_id})
+        assert status == 200, quote
+        paid_before = chain.token_balance(PAYEE)
+        status, refused = _door(daemon, "/api/wallet/approve", {"proposal_id": proposal_id, "quote_id": quote["quote"]["quote_id"],
+                                                                 "quote_digest": quote["quote"]["digest"], "pin": PIN})
+        assert status == 409 and refused["error"] == "endpoint_paused", refused
+        assert resource.paid_requests == [] and chain.token_balance(PAYEE) == paid_before, "nothing reached the service"
+
+
+def test_a_private_chat_gets_its_paid_answer_on_the_card_and_nothing_in_the_log(served, monkeypatch):
+    daemon, chain, provider, wallet = served
+    _clear(daemon)
+    chat = f"openclaw:{0xA6:020x}"
+    monkeypatch.setattr(_rig_x402_sdk, "PAID_BODY", _completion(ASKED_MODEL, "A private twelve."))
+    daemon.chat("private chat", session_id=chat, model=MODEL, mode="auto")
+    with ScriptedX402SdkResource(chain, amount_minor=AMOUNT, pay_to=PAYEE) as resource:
+        _add(daemon, resource, label="Quiet", max_price="0.10")
+        turn = daemon.chat("ask my paid model: what is seven plus five?", session_id=chat, model=MODEL, mode="auto")
+        text = str((turn.get("message") or {}).get("content") or "")
+        proposal_id = next(word.strip(".,:()") for word in text.split() if word.startswith("pay-"))
+        answer = _approve_in_chat(daemon, proposal_id, session=chat, shows="A private twelve.")
+        assert answer["paid_ai"]["verdict"] == "match" and answer["paid_ai"]["posted"] is False, answer["paid_ai"]
+        assert len(resource.paid_requests) == 1
+    assert _transcript(daemon, chat) == [], "a private chat's paid answer is never written to the chat log"

@@ -68,6 +68,15 @@ class _Service:
     ("open-reasoner-70b", "", "unnamed"),
     ("open-reasoner-70b", None, "unnamed"),
     ("open-reasoner-70b", 70, "unnamed"),
+    # another publisher's model of the same name is not the paid one
+    ("openai/gpt-4o", "evil-finetunes/gpt-4o", "mismatch"),
+    ("gpt-4o", "someorg/gpt-4o-2024-05-13", "match"),
+    ("acme/gpt-4o", "acme/gpt-4o-2024-05-13", "match"),
+    ("acme/gpt-4o", "other/gpt-4o-2024-05-13", "mismatch"),
+    # a release date has to be a real one
+    ("open-reasoner-70b", "open-reasoner-70b-20991231", "mismatch"),
+    ("open-reasoner-70b", "open-reasoner-70b-2026-13-01", "mismatch"),
+    ("open-reasoner-70b", "other/", "mismatch"),
 ])
 def test_the_model_check_accepts_only_spellings_of_the_paid_model(ai, asked, reported, verdict):
     assert ai.model_verdict(asked, reported) == verdict
@@ -78,6 +87,8 @@ def test_the_model_check_accepts_only_spellings_of_the_paid_model(ai, asked, rep
     ({"base_url": "https://user:pw@example.com/v1"}, "endpoint_url_invalid"),
     ({"base_url": "https://example.com/v1?k=1"}, "endpoint_url_invalid"),
     ({"model": "two words"}, "endpoint_model_invalid"),
+    ({"model": "acme/"}, "endpoint_model_invalid"),
+    ({"model": "acme//x"}, "endpoint_model_invalid"),
     ({"max_price": "0"}, "endpoint_price_invalid"),
     ({"max_price": "-1"}, "endpoint_price_invalid"),
     ({"max_price": "0.0000001"}, "endpoint_price_invalid"),
@@ -182,3 +193,43 @@ def test_the_chat_offers_the_tool_only_when_the_owner_asks_a_paid_model(ai):
     assert "ai.paid_ask" in resolve_demand_signals("ask Reasoner via x402 what the weather word means").explicit_intents
     assert "ai.paid_ask" not in resolve_demand_signals("what is a paid model?").explicit_intents
     assert "ai.paid_ask" not in resolve_demand_signals("fetch the x402 resource at https://example.com/paid").explicit_intents
+
+
+def test_an_unreadable_list_is_refused_and_never_overwritten(ai, tmp_path):
+    (tmp_path / "x402_ai.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(ai.PaidAskError) as refused:
+        ai.add_endpoint(label="Reasoner", base_url="https://example.com/v1", model="open-reasoner-70b", max_price="0.05")
+    assert refused.value.code == "store_unreadable"
+    assert (tmp_path / "x402_ai.json").read_text(encoding="utf-8") == "{not json"
+
+
+def test_open_payments_keep_their_records_when_old_ones_are_trimmed(ai, tmp_path):
+    requests = {f"pay-{i:020x}": {"state": "answered", "asked_at": 1000 + i} for i in range(ai.MAX_TRACKED_REQUESTS + 5)}
+    requests["pay-open"] = {"state": "pending_approval", "asked_at": 1}
+    ai._save({"endpoints": [], "requests": requests})
+    kept = ai._load()["requests"]
+    assert "pay-open" in kept and len(kept) == ai.MAX_TRACKED_REQUESTS
+
+
+def test_a_repeated_approval_never_claims_the_answer(ai, tmp_path):
+    ai._save({"endpoints": [{"id": "ai-1", "label": "R", "model": "m", "on": True, "max_price_minor": 10}],
+              "requests": {"pay-1": {"endpoint_id": "ai-1", "state": "pending_approval", "amount_minor": 5, "asked_at": 1}}})
+    assert ai.after_approval("pay-1", {"transfer": {}, "duplicate": True}) is None
+    assert ai.after_approval("pay-1", {"transfer": {}}) is None
+    assert ai._load()["requests"]["pay-1"]["state"] == "pending_approval"
+
+
+def test_approval_is_refused_for_a_paused_removed_or_now_too_dear_service(ai, tmp_path):
+    ai._save({"endpoints": [{"id": "ai-1", "label": "R", "model": "m", "on": True, "max_price_minor": 10}],
+              "requests": {"pay-1": {"endpoint_id": "ai-1", "state": "pending_approval", "amount_minor": 5, "asked_at": 1}}})
+    assert ai.check_before_approval("pay-1") is None
+    assert ai.check_before_approval("pay-other") is None
+    ai.set_endpoint_on("ai-1", False)
+    assert ai.check_before_approval("pay-1").code == "endpoint_paused"
+    ai.set_endpoint_on("ai-1", True)
+    state = ai._load()
+    state["endpoints"][0]["max_price_minor"] = 4
+    ai._save(state)
+    assert ai.check_before_approval("pay-1").code == "offer_over_limit"
+    ai.remove_endpoint("ai-1")
+    assert ai.check_before_approval("pay-1").code == "endpoint_removed"

@@ -76,26 +76,43 @@ def _path():
     return data_path(_FILE)
 
 
+class StoreUnreadable(PaidAskError):
+    pass
+
+
 def _load() -> dict[str, Any]:
+    """The owner's list and the open requests. A file that exists but cannot be read is refused, never read as empty:
+    an empty read would let the next save drop the owner's services and the records of payments still waiting."""
     path = _path()
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        raw = {}
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {"endpoints": [], "requests": {}}
+    except OSError:
+        raise StoreUnreadable("store_unreadable", "Your pay-per-answer AI list could not be read right now. Nothing was sent or paid.") from None
+    try:
+        raw = json.loads(text)
+    except ValueError:
+        raise StoreUnreadable("store_unreadable", "Your pay-per-answer AI list could not be read right now. Nothing was sent or paid.") from None
     if not isinstance(raw, dict):
-        raw = {}
+        raise StoreUnreadable("store_unreadable", "Your pay-per-answer AI list could not be read right now. Nothing was sent or paid.")
     endpoints = [e for e in raw.get("endpoints") or [] if isinstance(e, dict) and e.get("id")]
     requests = {k: v for k, v in (raw.get("requests") or {}).items() if isinstance(v, dict)}
     return {"endpoints": endpoints[:MAX_ENDPOINTS], "requests": requests}
 
 
+_OPEN_STATES = frozenset({"pending_approval", "delivering", "confirming"})
+
+
 def _save(state: dict[str, Any]) -> None:
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    requests = state.get("requests") or {}
+    requests = dict(state.get("requests") or {})
     if len(requests) > MAX_TRACKED_REQUESTS:
-        keep = sorted(requests.items(), key=lambda kv: float(kv[1].get("asked_at") or 0))[-MAX_TRACKED_REQUESTS:]
-        requests = dict(keep)
+        # only finished records are trimmed, oldest first: a payment still open always keeps its record
+        finished = sorted((kv for kv in requests.items() if kv[1].get("state") not in _OPEN_STATES), key=lambda kv: float(kv[1].get("asked_at") or 0))
+        for key, _value in finished[: len(requests) - MAX_TRACKED_REQUESTS]:
+            requests.pop(key, None)
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps({"endpoints": state.get("endpoints") or [], "requests": requests}, indent=1, sort_keys=True), encoding="utf-8")
     tmp.replace(path)
@@ -139,7 +156,7 @@ def add_endpoint(*, label: Any, base_url: Any, model: Any, max_price: Any) -> di
     if not _LABEL_RE.fullmatch(clean_label):
         raise PaidAskError("endpoint_label_invalid", "Give the service a short name, up to 40 characters.")
     clean_model = str(model or "").strip()
-    if not _MODEL_RE.fullmatch(clean_model):
+    if not _MODEL_RE.fullmatch(clean_model) or any(not part for part in clean_model.split("/")):
         raise PaidAskError("endpoint_model_invalid", "Type the model name exactly as the service lists it.")
     entry = {"id": "ai-" + uuid.uuid4().hex[:12], "label": clean_label, "base_url": _clean_base_url(base_url), "model": clean_model,
              "max_price_minor": _price_minor(max_price), "on": True, "paused_reason": "", "last_verdict": "", "answers": 0}
@@ -198,17 +215,37 @@ def _norm(model: str) -> str:
     return str(model or "").strip().casefold()
 
 
+def _split(model: str) -> tuple[str, str]:
+    prefix, _, name = _norm(model).rpartition("/")
+    return prefix, name
+
+
+def _plausible_date(suffix: str) -> bool:
+    digits = suffix.replace("-", "")
+    year, month, day = int(digits[:4]), int(digits[4:6]), int(digits[6:8])
+    return 2020 <= year <= time.gmtime().tm_year + 1 and 1 <= month <= 12 and 1 <= day <= 31
+
+
 def model_verdict(asked: str, answered: Any) -> str:
-    """``match`` when the endpoint reports the model that was asked (and paid) for, allowing only the spellings that
-    name the same model: letter case, a provider prefix (``org/name``) on either side, and a dated release suffix
-    (``name-2025-01-31``) on the answer. Anything else is ``mismatch``; no name at all is ``unnamed``."""
+    """``match`` when the service reports the model that was asked (and paid) for, allowing only the spellings that
+    name the same model: letter case; a publisher prefix (``org/name``) on ONE side only (when both name a publisher,
+    the publishers must be equal); and a dated release suffix (``name-2025-01-31``) on the answer with a real date.
+    Anything else is ``mismatch``; no name at all is ``unnamed``."""
     got = _norm(answered) if isinstance(answered, str) else ""
     if not got:
         return VERDICT_UNNAMED
-    want = _norm(asked)
-    candidates = {got, got.rsplit("/", 1)[-1], _DATED_SUFFIX.sub("", got), _DATED_SUFFIX.sub("", got.rsplit("/", 1)[-1])}
-    wants = {want, want.rsplit("/", 1)[-1]}
-    return VERDICT_MATCH if candidates & wants else VERDICT_MISMATCH
+    want_prefix, want_name = _split(asked)
+    got_prefix, got_name = _split(got)
+    if not want_name or not got_name:
+        return VERDICT_MISMATCH
+    if want_prefix and got_prefix and want_prefix != got_prefix:
+        return VERDICT_MISMATCH
+    if got_name == want_name:
+        return VERDICT_MATCH
+    dated = _DATED_SUFFIX.search(got_name)
+    if dated and got_name[: dated.start()] == want_name and _plausible_date(dated.group(0)[1:]):
+        return VERDICT_MATCH
+    return VERDICT_MISMATCH
 
 
 # --------------------------------------------------------------------------- asking
@@ -273,7 +310,7 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
     if status != 402:
         if status >= 400:
             raise PaidAskError("endpoint_error", f"{endpoint['label']} could not answer right now (error {status}). Nothing was paid. Try again later.")
-        return {"status": "answered_free", **_finish(endpoint, answer.get("body") or b"", session_id=_session_of(source_context), paid=None)}
+        return {"status": "answered_free", **_finish(endpoint, answer.get("body") or b"", session_id="", paid=None)}
     response_headers = dict(answer.get("headers") or {})
     wallet_id = _pilot_wallet_for(response_headers)
     if not wallet_id:
@@ -294,13 +331,25 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
         raise PaidAskError("offer_not_payable", f"{endpoint['label']}'s payment offer could not be prepared. Nothing was paid.")
     with _LOCK:
         state = _load()
-        state["requests"][proposal_id] = {"endpoint_id": endpoint["id"], "model": endpoint["model"], "session_id": _session_of(source_context),
+        private = _private(source_context)
+        state["requests"][proposal_id] = {"endpoint_id": endpoint["id"], "model": endpoint["model"], "private": private,
+                                          "session_id": "" if private else _session_of(source_context),
                                           "asked_at": time.time(), "amount_minor": amount, "body_sha256": hashlib.sha256(body).hexdigest(),
                                           "state": "pending_approval"}
         _save(state)
     return {"status": "pending_approval", "proposal_id": proposal_id, "amount_minor": amount, "endpoint": endpoint["label"], "model": endpoint["model"],
-            "text": (f"{endpoint['label']} will answer with {endpoint['model']} for {_usd(amount)}. Nothing is paid yet. Approve the payment "
-                     f"in your wallet, and the answer will appear here.\nPayment ID: {proposal_id}")}
+            # the payment ID leads: a chat that shortens this line must still show which payment to approve
+            "text": (f"Payment {proposal_id}: {endpoint['label']} will answer with {endpoint['model']} for {_usd(amount)}. Nothing is paid yet. "
+                     "Approve the payment in your wallet, and the answer will appear here.")}
+
+
+def _private(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return bool(turn_is_private(source_context, _session_of(source_context)))
+    except Exception:  # unknown is treated as private: nothing of it is written to a chat log
+        return True
 
 
 def _session_of(source_context: dict[str, Any] | None) -> str:
@@ -321,6 +370,10 @@ def _parse_completion(raw: bytes) -> tuple[str, Any, dict[str, Any]]:
     return (content if isinstance(content, str) else ""), data.get("model"), usage
 
 
+#: the transcript keeps up to 8000 characters of one artifact; a longer answer is cut there, and says so
+_TRANSCRIPT_LIMIT = 7800
+
+
 def _finish(endpoint: dict[str, Any], raw: bytes, *, session_id: str, paid: dict[str, Any] | None) -> dict[str, Any]:
     content, reported, usage = _parse_completion(raw)
     verdict = model_verdict(endpoint["model"], reported)
@@ -336,10 +389,10 @@ def _finish(endpoint: dict[str, Any], raw: bytes, *, session_id: str, paid: dict
     else:
         head = (f"{endpoint['label']} did not say which model answered, so VOOL cannot check it against {endpoint['model']}. {paid_line}"
                 f"{paused_line}")
-    if not content:
-        body_text = "The service sent an answer VOOL could not read."
-    else:
-        body_text = content.strip()
+    body_text = content.strip() if content else "The service sent an answer VOOL could not read."
+    text = f"{head}\n{CHECK_LIMIT_NOTE}\n\n{body_text}"
+    if len(text) > _TRANSCRIPT_LIMIT:
+        text = text[:_TRANSCRIPT_LIMIT].rstrip() + "\n\n(The answer was longer than a chat message holds, so it is cut here.)"
     with _LOCK:
         state = _load()
         for entry in state["endpoints"]:
@@ -356,48 +409,140 @@ def _finish(endpoint: dict[str, Any], raw: bytes, *, session_id: str, paid: dict
                 record.update(state="answered", verdict=verdict, reported_model=reported_text,
                               usage={k: usage.get(k) for k in ("prompt_tokens", "completion_tokens", "total_tokens") if isinstance(usage.get(k), int)})
         _save(state)
-    text = f"{head}\n{CHECK_LIMIT_NOTE}\n\n{body_text}"
-    posted = False
-    if session_id and paid:
-        from core.persistent_memory import append_assistant_artifact_event
-
-        posted = append_assistant_artifact_event(session_id=session_id, text=text, artifact_kind="paid_ai_answer",
-                                                 artifact={"proposal_id": paid["proposal_id"], "endpoint": endpoint["label"],
-                                                           "model_asked": endpoint["model"], "model_reported": reported_text, "verdict": verdict})
+    posted = _post(session_id, text, {"proposal_id": paid["proposal_id"], "endpoint": endpoint["label"], "model_asked": endpoint["model"],
+                                      "model_reported": reported_text, "verdict": verdict}) if paid else False
     return {"verdict": verdict, "model_asked": endpoint["model"], "model_reported": reported_text, "text": text, "posted": posted}
+
+
+def _post(session_id: str, text: str, artifact: dict[str, Any]) -> bool:
+    """Into the chat that asked; never into a private chat (its record is kept without a chat id, so this is a no-op)."""
+    if not session_id:
+        return False
+    try:
+        from core.private_chat import is_private
+
+        if is_private(session_id):
+            return False
+    except Exception:
+        return False
+    from core.persistent_memory import append_assistant_artifact_event
+
+    return bool(append_assistant_artifact_event(session_id=session_id, text=text, artifact_kind="paid_ai_answer", artifact=artifact))
+
+
+def check_before_approval(proposal_id: str) -> PaidAskError | None:
+    """The approve door asks this BEFORE the owner's approval is used: a payment this module parked is refused when its
+    service was paused or removed since, or its price is now above the service's limit. Any other payment: None."""
+    with _LOCK:
+        state = _load()
+        record = state["requests"].get(str(proposal_id or ""))
+        if record is None:
+            return None
+        endpoint = next((e for e in state["endpoints"] if e["id"] == record.get("endpoint_id")), None)
+    if endpoint is None:
+        return PaidAskError("endpoint_removed", "This payment is for a pay-per-answer AI service you removed, so it was not paid. Cancel it in the card.")
+    if not endpoint.get("on"):
+        return PaidAskError("endpoint_paused", f"{endpoint['label']} is paused, so this payment was not made. Turn it back on in Settings → Crypto → "
+                            "Pay-per-answer AI, or cancel it in the card.")
+    if int(record.get("amount_minor") or 0) > int(endpoint.get("max_price_minor") or 0):
+        return PaidAskError("offer_over_limit", f"This answer costs more than your limit for {endpoint['label']} now, so it was not paid. Cancel it in the card.")
+    return None
+
+
+def _set_state(proposal_id: str, new_state: str, *, expect: str = "") -> bool:
+    with _LOCK:
+        state = _load()
+        record = state["requests"].get(proposal_id)
+        if record is None or (expect and record.get("state") != expect):
+            return False
+        record["state"] = new_state
+        _save(state)
+        return True
+
+
+def _unanswered(proposal_id: str, record: dict[str, Any], reason: str) -> dict[str, Any]:
+    _set_state(proposal_id, "paid_unanswered")
+    # whether money moved is the wallet's to say (its card and receipt), never guessed here
+    note = f"No answer arrived: {reason}. Check your wallet to see whether this payment went through."
+    posted = _post(str(record.get("session_id") or ""), note, {"proposal_id": proposal_id, "verdict": "unanswered"})
+    return {"verdict": "unanswered", "text": note, "posted": posted}
 
 
 def after_approval(proposal_id: str, approval_result: dict[str, Any] | None) -> dict[str, Any] | None:
     """Called by the wallet's approve door after a Crypto Pilot approval. For a payment this module parked, take the
-    answer the approval delivered (once) and post it, checked, into the chat that asked. Any other payment: None."""
+    answer the approval delivered (once) and post it, checked, into the chat that asked. Any other payment, or a repeat
+    of an approval already being handled: None."""
+    result = approval_result or {}
+    if result.get("duplicate") or "x402_sdk" not in result:
+        return None
+    proposal_id = str(proposal_id or "")
     with _LOCK:
         state = _load()
-        record = state["requests"].get(str(proposal_id or ""))
+        record = state["requests"].get(proposal_id)
         if record is None or record.get("state") != "pending_approval":
             return None
         endpoint = next((e for e in state["endpoints"] if e["id"] == record.get("endpoint_id")), None)
-    delivery = (approval_result or {}).get("x402_sdk") or {}
+        record["state"] = "delivering"
+        _save(state)
+    delivery = result.get("x402_sdk") or {}
     from core.wallet import x402_sdk
 
     raw = x402_sdk.delivered_body(proposal_id) if delivery.get("delivered") else None
-    if raw is None or endpoint is None:
-        reason = "the service was removed from your list" if endpoint is None else "the service did not send one"
-        with _LOCK:
-            state = _load()
-            if proposal_id in state["requests"]:
-                state["requests"][proposal_id]["state"] = "paid_unanswered"
-                _save(state)
-        # whether money moved is the wallet's to say (its card and receipt), never guessed here
-        note = f"No answer arrived: {reason}. Check your wallet to see whether this payment went through."
-        session_id = str(record.get("session_id") or "")
-        if session_id:
-            from core.persistent_memory import append_assistant_artifact_event
+    if raw is None:
+        held, _ = x402_sdk.held_body(proposal_id)
+        if held == "waiting":
+            # the service answered; the payment is still confirming. The answer is posted once it confirms.
+            _set_state(proposal_id, "confirming")
+            _watch_confirming(proposal_id)
+            note = "The service answered. VOOL is still confirming the payment, and the answer will appear here once it is confirmed."
+            return {"verdict": "confirming", "text": note, "posted": False}
+        return _unanswered(proposal_id, record, "the service did not send one")
+    if endpoint is None:
+        # paid and answered, then the service left the list before the answer was read: still the owner's answer
+        endpoint = {"id": record.get("endpoint_id"), "label": "the removed service", "model": str(record.get("model") or "")}
+    try:
+        return _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
+                       paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+    except Exception:
+        # the answer was paid for: it goes back to the wallet's one-time delivery so the card still shows it
+        x402_sdk._DELIVERED_BODIES[proposal_id] = raw
+        content = _parse_completion(raw)[0]
+        return {"verdict": "not_posted", "text": content or "The answer could not be saved to the chat.", "posted": False}
 
-            append_assistant_artifact_event(session_id=session_id, text=note, artifact_kind="paid_ai_answer",
-                                            artifact={"proposal_id": proposal_id, "verdict": "unanswered"})
-        return {"verdict": "unanswered", "text": note}
-    return _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
-                   paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+
+_WATCH_SECONDS = 900.0
+_WATCH_STEP = 5.0
+
+
+def _watch_confirming(proposal_id: str) -> None:
+    def run() -> None:
+        from core.wallet import x402_sdk
+
+        deadline = time.monotonic() + _WATCH_SECONDS
+        while time.monotonic() < deadline:
+            held, raw = x402_sdk.held_body(proposal_id)
+            if held == "waiting":
+                time.sleep(_WATCH_STEP)
+                continue
+            with _LOCK:
+                state = _load()
+                record = dict(state["requests"].get(proposal_id) or {})
+                endpoint = next((e for e in state["endpoints"] if e["id"] == record.get("endpoint_id")), None)
+            if not record or record.get("state") != "confirming":
+                return
+            if held == "confirmed" and raw is not None:
+                if endpoint is None:
+                    endpoint = {"id": record.get("endpoint_id"), "label": "the removed service", "model": str(record.get("model") or "")}
+                _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
+                        paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+            else:
+                _unanswered(proposal_id, record, "the payment did not complete")
+            return
+        record = dict(_load()["requests"].get(proposal_id) or {})
+        if record.get("state") == "confirming":
+            _unanswered(proposal_id, record, "the payment was still not confirmed after 15 minutes")
+
+    threading.Thread(target=run, name=f"x402-ai-confirm-{proposal_id[:12]}", daemon=True).start()
 
 
 # --------------------------------------------------------------------------- the chat tool

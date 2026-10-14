@@ -61,6 +61,9 @@ LOG_SPAN_BLOCKS = 500
 #: proposal_id -> the delivered resource body, for the caller of the approval that delivered it. Process memory only:
 #: a paid response is the caller's data, never written to the wallet store (its digest and size are).
 _DELIVERED_BODIES: dict[str, bytes] = {}
+#: proposal_id -> a resource body that arrived before its payment was confirmed. Process memory only; released by
+#: :func:`held_body` once the transfer is confirmed, dropped when it ends any other way.
+_HELD_BODIES: dict[str, bytes] = {}
 
 
 # --- availability ----------------------------------------------------------------------------------------------
@@ -324,6 +327,24 @@ def binding_for(proposal_id: str) -> dict[str, Any] | None:
 def delivered_body(proposal_id: str) -> bytes | None:
     """The resource body the approval of this proposal delivered, handed out once."""
     return _DELIVERED_BODIES.pop(str(proposal_id), None)
+
+
+def held_body(proposal_id: str) -> tuple[str, bytes | None]:
+    """A body held while its payment was still confirming: ``("confirmed", body)`` once (the transfer is confirmed now),
+    ``("waiting", None)`` while it is still in flight, ``("ended", None)`` when the transfer ended without confirming
+    (the body is dropped: an unpaid answer is never handed out), or ``("none", None)`` when nothing is held."""
+    from core.wallet import transfers
+
+    pid = str(proposal_id)
+    if pid not in _HELD_BODIES:
+        return "none", None
+    state = str((transfers.latest_receipt(pid) or {}).get("state") or "")
+    if state == transfers.STATE_CONFIRMED:
+        return "confirmed", _HELD_BODIES.pop(pid, None)
+    if state in transfers.TERMINAL_STATES:
+        _HELD_BODIES.pop(pid, None)
+        return "ended", None
+    return "waiting", None
 
 
 def pilot_quote_block(binding: dict[str, Any], proposal: proposals.TransactionProposal) -> dict[str, Any]:
