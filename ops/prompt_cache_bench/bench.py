@@ -774,9 +774,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
                     cost = data.get("total_cost_usd")
                     cost = float(cost) if isinstance(cost, (int, float)) else None
-                    billed = cost if args.route == "openrouter" else None
-                    notional = cost if args.route == "login" else None
-                    ledger.record(billed=billed, notional=notional, unknown=cost is None)
+                    # Claude Code's own figure. On API usage billing it is a real charge; on a
+                    # subscription it is list price. Either way it is held against the cap as billed.
+                    ledger.record(billed=cost, notional=None, unknown=cost is None)
                     input_tokens = int(usage.get("input_tokens") or 0)
                     cached = usage.get("cache_read_input_tokens")
                     written = usage.get("cache_creation_input_tokens")
@@ -804,7 +804,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
                         "cache_write_tokens": int(written) if isinstance(written, int) else None,
                         "output_tokens": int(usage.get("output_tokens") or 0),
                         "usd": round(cost, 8) if cost is not None else None,
-                        "usd_kind": "billed_openrouter" if args.route == "openrouter" else "notional_login",
+                        "usd_kind": "billed_openrouter" if args.route == "openrouter" else "claude_code_reported",
                         "model_usage": data.get("modelUsage"),
                         "stderr_tail": proc.stderr[-600:] if proc.returncode else "",
                     }
@@ -815,8 +815,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
                         f"${cost if cost is not None else float('nan'):.5f} exit={proc.returncode} | {_spend_line(ledger, results_path)}",
                         flush=True,
                     )
-                    if proc.returncode or row["is_error"] or not row["answer"].strip():
-                        reason = row["answer"].strip() or row["stderr_tail"].strip() or (f"exit {proc.returncode}" if proc.returncode else "empty answer")
+                    wrong_model = _wrong_cli_model(data, args.cli_model)
+                    if proc.returncode or row["is_error"] or not row["answer"].strip() or wrong_model:
+                        reason = wrong_model or row["answer"].strip() or row["stderr_tail"].strip() or (f"exit {proc.returncode}" if proc.returncode else "empty answer")
                         failure = f"turn {index}: {reason[:300]}"
                         _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt, "reason": failure})
                         break  # later turns resume this session; the chat is re-run whole on resume
@@ -1020,7 +1021,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         "",
         *(["**DRY RUN: stand-in provider and stand-in Claude Code. No number here is evidence.**", ""] if (root / DRYRUN_MARKER).exists() else []),
         f"Run root: `{root.name}`. Money counted against the cap: billed ${summary['ledger'].get('billed_usd', 0):.4f}, "
-        f"notional (Claude login, list price) ${summary['ledger'].get('notional_usd', 0):.4f}, "
+        f"(Claude Code turns are in billed, at Claude Code's own reported cost), "
         f"cap ${summary['ledger'].get('cap_usd', 0):.2f}.",
         "",
         "| Label | Arm | Model | Cache | Turns (failed) | Wall s total | Median turn s | Prompt tok | Cached tok | Cached share | Cache-write tok | Output tok | Out tok/s | USD total | USD/turn | Quality |",
@@ -1046,8 +1047,8 @@ def cmd_report(args: argparse.Namespace) -> int:
             lines.append(f"- {label}: {row['turns']} turns, {row['failed_chats']} failed chats, USD {fmt(row['usd'])}. {reasons}")
     lines += [
         "",
-        "Notes: USD for VOOL rows is what OpenRouter reported per call (usage.cost). USD for a Claude CLI row on a",
-        "login is Claude Code's own list-price figure, not a charge. Unknown means a provider reported nothing.",
+        "Notes: USD for VOOL rows is what OpenRouter reported per call (usage.cost). USD for a Claude Code row is",
+        "Claude Code's own total_cost_usd (a charge on API usage billing). Unknown means nothing was reported.",
     ]
     (root / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines))
@@ -1120,10 +1121,24 @@ def _check_claude_login(claude_bin: str, model: str, root: Path, ledger: SpendLe
         parsed = json.loads(proc.stdout.strip().splitlines()[-1])
         data = parsed if isinstance(parsed, dict) else {}
     cost = data.get("total_cost_usd")
-    ledger.record(billed=None, notional=float(cost) if isinstance(cost, (int, float)) else None, unknown=False)
+    ledger.record(billed=float(cost) if isinstance(cost, (int, float)) else None, notional=None, unknown=False)
     if proc.returncode or data.get("is_error") or not str(data.get("result") or "").strip():
         said = str(data.get("result") or proc.stderr or proc.stdout or "").strip().splitlines()
         return f"Claude Code is not ready: {(said[0] if said else f'exit {proc.returncode}')[:200]} (run claude, then /login)"
+    return _wrong_cli_model(data, model)
+
+
+def _wrong_cli_model(data: dict[str, Any], model: str) -> str:
+    """'' when the turn ran on the pinned model, else the reason. A stand-in reports no models."""
+    used = [str(name) for name in (data.get("modelUsage") or {})]
+    if not used:
+        return ""
+    family = model.lower().replace("claude-", "")
+    if not any(family in name.lower() for name in used):
+        return f"Claude Code did not answer on {model}: it used {', '.join(used)}"
+    big = [name for name in used if "opus" in name.lower()]
+    if big:
+        return f"Claude Code used {', '.join(big)} besides {model}; the run would cost more and not compare"
     return ""
 
 
@@ -1228,7 +1243,7 @@ def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tup
             line(False, f"OpenRouter key check failed: {type(exc).__name__}")
     if "cli-claude" in specs_kinds:
         reason = _check_claude_login(args.claude_bin, args.claude_cli, root, ledger)
-        line(not reason, reason or ("the Claude Code stand-in answers" if args.dryrun else f"Claude Code is signed in and answers on {args.claude_cli}"))
+        line(not reason, reason or ("the Claude Code stand-in answers" if args.dryrun else f"Claude Code is signed in and answers on {args.claude_cli} only"))
     if need_vool and key and clean:
         for sha in shas.values():
             reason = _check_boot(sha, key, args.claude_or, root, python_bin)

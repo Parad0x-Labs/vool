@@ -147,3 +147,10 @@ def test_a_keychain_profile_with_no_keychain_reader_is_named_not_read_as_no_key(
     monkeypatch.setattr(credential_store, "_load_keyring", lambda: None)
     assert bench._child_read_key(bench.KEY_NAME, 5.0, "keychain") == 5
     assert "cannot open the macOS Keychain" in capsys.readouterr().err
+
+
+def test_the_claude_code_arm_must_answer_on_the_pinned_model() -> None:
+    pinned = "claude-sonnet-4-5"
+    assert bench._wrong_cli_model({"modelUsage": {"claude-sonnet-4-5-20250929": {}, "claude-haiku-4-5": {}}}, pinned) == ""
+    assert "did not answer on" in bench._wrong_cli_model({"modelUsage": {"claude-opus-5-5": {}}}, pinned)
+    assert "opus" in bench._wrong_cli_model({"modelUsage": {"claude-sonnet-4-5": {}, "claude-opus-5-5": {}}}, pinned)
