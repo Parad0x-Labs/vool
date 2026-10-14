@@ -224,7 +224,27 @@ def key_usage_usd(key: str) -> float | None:
         return None
 
 
-def resolve_key(source: str) -> str:
+def installed_profile_home(explicit: str = "") -> Path:
+    """The profile the installed VOOL app uses: the one place ``vool-store`` reads the key from.
+
+    The packaged app selects its home with ``core.runtime_paths.native_runtime_home`` (macOS:
+    ~/Library/Application Support/VOOL/runtime, or the pre-rename NULLA one). A source checkout's
+    own default (``<clone>/.vool_local``) is never used: it is an empty profile, not the user's.
+    """
+    if explicit:
+        home = Path(explicit).expanduser().resolve()
+    else:
+        sys.path.insert(0, str(REPO))
+        from core.runtime_paths import native_runtime_home
+
+        clean = {k: v for k, v in os.environ.items() if k not in {"VOOL_HOME", "NULLA_HOME"}}
+        home = native_runtime_home(clean)
+    if not (home / "data").is_dir():
+        raise HarnessError(f"no installed VOOL profile at {home} (pass --key-home to name it)")
+    return home
+
+
+def resolve_key(source: str, key_home: str = "") -> str:
     """The OpenRouter key, held in memory only. Never printed, logged or written."""
     if source == "env":
         key = str(os.environ.get("OPENROUTER_API_KEY") or "").strip()
@@ -232,16 +252,22 @@ def resolve_key(source: str) -> str:
             raise HarnessError("OPENROUTER_API_KEY is not set (or use --key-source vool-store)")
         return key
     if source == "vool-store":
-        # VOOL's own saved key, read through VOOL's own credential store from the operator's
-        # normal profile. A VOOL_HOME pointing elsewhere would read a different profile.
-        if os.environ.get("VOOL_HOME"):
-            raise HarnessError("--key-source vool-store needs VOOL_HOME unset (it reads your normal VOOL profile)")
+        # VOOL's own saved key, read through VOOL's own credential store, pointed at the installed
+        # app's profile for this one read only. A VOOL_HOME in the shell would be ambiguous.
+        if os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME"):
+            raise HarnessError("--key-source vool-store needs VOOL_HOME unset (use --key-home to name a profile)")
+        home = installed_profile_home(key_home)
         sys.path.insert(0, str(REPO))
         from core import credential_store
+        from core.runtime_paths import configure_runtime_home
 
-        key = str(credential_store.get_credential("llm.cloud.openrouter") or "").strip()
+        configure_runtime_home(home)
+        try:
+            key = str(credential_store.get_credential("llm.cloud.openrouter") or "").strip()
+        finally:
+            configure_runtime_home(None)
         if not key:
-            raise HarnessError("VOOL has no saved OpenRouter key")
+            raise HarnessError(f"the VOOL profile at {home} has no saved OpenRouter key")
         return key
     raise HarnessError(f"unknown key source {source!r}")
 
@@ -436,7 +462,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
         print(json.dumps({"label": args.label, "status": "nothing_to_do"}))
         return EXIT_OK
     ledger.check(f"{args.label} boot")
-    key = resolve_key(args.key_source)
+    key = resolve_key(args.key_source, args.key_home)
 
     attempt_dir = arm_dir / f"attempt-{int(_now())}"
     attempt_dir.mkdir(parents=True)
@@ -549,8 +575,9 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     f"${usage['usd']:.5f} calls={usage['calls']} status={exchange.status} | {_spend_line(ledger, results_path)}",
                     flush=True,
                 )
-                if exchange.error or exchange.status != 200 or not answer:
-                    reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else "empty answer")
+                if exchange.error or exchange.status != 200 or not answer or not usage["calls"]:
+                    # VOOL answers a provider failure in words with HTTP 200; no model call means no measurement.
+                    reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else ("empty answer" if not answer else f"no model call: {answer}"))
                     failure = f"turn {index}: {str(reason)[:300]}"
                     _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name, "reason": failure})
                     break  # later turns build on this one; the chat is re-run whole on resume
@@ -627,7 +654,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
     attempt = f"attempt-{int(_now())}"
     env = dict(os.environ)
     if args.route == "openrouter":
-        key = resolve_key(args.key_source)
+        key = resolve_key(args.key_source, args.key_home)
         env.update({"ANTHROPIC_BASE_URL": "https://openrouter.ai/api", "ANTHROPIC_AUTH_TOKEN": key, "ANTHROPIC_API_KEY": ""})
     _write_json(
         arm_dir / f"{attempt}-manifest.json",
@@ -771,7 +798,7 @@ def _final_rows(root: Path) -> list[tuple[Path, dict[str, Any]]]:
 def cmd_grade(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
-    key = resolve_key(args.key_source)
+    key = resolve_key(args.key_source, args.key_home)
     tasks = {t["id"]: t for t in load_tasks()}
     grades_path = root / "grades.jsonl"
     graded = {(g["label"], g["task"], g["repeat"], g["turn"]) for g in _read_jsonl(grades_path)}
@@ -955,6 +982,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--cap-usd", type=float, required=True, help="hard cap for everything under the run root")
         p.add_argument("--cap-excludes-notional", action="store_true", help="do not count Claude-login list-price figures")
         p.add_argument("--key-source", choices=("env", "vool-store"), default="env")
+        p.add_argument("--key-home", default="", help="vool-store: the VOOL profile to read the key from (default: the installed app's)")
         p.add_argument("--tasks", default="", help="comma list of task ids (default all)")
         p.add_argument("--repeats", type=int, default=1)
 

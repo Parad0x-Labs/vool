@@ -3,7 +3,8 @@
 #   PY=<python with VOOL's deps> RUN_ROOT=<scratch folder> bash ops/prompt_cache_bench/run_mac.sh baseline|after|grade|after_grade
 # Runs nice'd from this clone; every arm uses a throwaway VOOL profile and HOME under RUN_ROOT and
 # removes it afterwards (evidence files stay). The OpenRouter key is VOOL's own saved key, read
-# through VOOL's credential store in memory; it is never printed or written. Hard stop: CAP_USD.
+# through VOOL's credential store in memory from the installed app's profile (KEY_HOME names another);
+# it is never printed or written. Hard stop: CAP_USD. ARMS=<label,...> runs only those arms.
 set -uo pipefail  # no -e: one failed arm must not stop the arms after it
 PHASE="${1:?baseline|after|grade|after_grade}"
 : "${PY:?set PY to a python with the VOOL dependencies}"
@@ -19,6 +20,7 @@ mkdir -p "$RUN_ROOT" || exit 3
 case "$RUN_ROOT" in "$(pwd)"*) echo "RUN_ROOT must be outside the clone"; exit 3;; esac
 B=(nice -n 10 "$PY" -m ops.prompt_cache_bench.bench)
 COMMON=(--run-root "$RUN_ROOT" --cap-usd "$CAP_USD" --key-source vool-store --repeats "$REPEATS")
+if [ -n "${KEY_HOME:-}" ]; then COMMON+=(--key-home "$KEY_HOME"); fi
 
 k3_id() {
   "${B[@]}" preflight --models "$CLAUDE_OR,$GPT_OR" --search kimi-k3 \
@@ -27,9 +29,15 @@ k3_id() {
 
 FAILED=""
 CAPPED=0
+ARMS="${ARMS:-}"  # optional comma list of labels to run, e.g. ARMS=cli-claude (default: every arm)
 
 # One arm: a failure is recorded and the next arm runs; the cap (exit 4) stops every later arm.
 arm() {
+  label=""; prev=""
+  for a in "$@"; do [ "$prev" = "--label" ] && label="$a"; prev="$a"; done
+  if [ -n "$ARMS" ] && [ -n "$label" ]; then
+    case ",$ARMS," in *",$label,"*) ;; *) echo "not in ARMS, skipped: $label"; return;; esac
+  fi
   if [ "$CAPPED" = 1 ]; then echo "skipped after cap stop: $*"; return; fi
   "${B[@]}" "$@"
   rc=$?
@@ -46,7 +54,7 @@ baseline() {
   if [ -n "$K3" ]; then
     arm vool "${COMMON[@]}" --label vool-base-k3 --sha "$BASE_SHA" --model "$K3" --cache off --clean-scratch
   else
-    FAILED="$FAILED k3:not_found"
+    case ",${ARMS:-vool-base-k3}," in *",vool-base-k3,"*) FAILED="$FAILED k3:not_found";; esac
   fi
 }
 
