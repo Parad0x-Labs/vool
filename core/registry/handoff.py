@@ -14,11 +14,13 @@ whose fragment carries the skill::
 A fragment never reaches a server; the page reads it, and the person signs in, chooses a category and
 sends it there. ORIGIN is the fixed constant of ``core.registry.client``.
 
-Only skills the person made qualify, exactly as for ``core.skill_package.export_skill``: first-party
-skills, skills inside someone else's package and skills marked ``local-only: true`` are refused. The
-website form carries one SKILL.md, so a skill folder holding anything else the person put there is
-refused too; the version history VOOL keeps next to SKILL.md (``core.skill_tools``) is not theirs and
-is ignored.
+Only skills the person made qualify. Beyond what ``core.skill_package.export_skill`` refuses
+(first-party skills, skills inside someone else's package, skills marked ``local-only: true``), a
+skill qualifies only in the person's own skill folders (``local-skills``, or a chat's or project's),
+never through a link, and never when its version history says it was installed from an imported
+file. The website form carries one SKILL.md, so a skill folder holding anything else the person put
+there is refused too; the version history VOOL keeps next to SKILL.md (``core.skill_tools``) is not
+theirs and is ignored.
 """
 from __future__ import annotations
 
@@ -33,6 +35,12 @@ from typing import Any
 PUBLISH_PATH = "/codex/skills/publish"
 #: The written-skill form's limit on the SKILL.md text (``Store.draft``).
 MAX_SKILL_MARKDOWN = 32768
+#: The website takes a draft request of at most this many bytes (``registry_service.api``), metadata included.
+MAX_FORM_BYTES = 32768
+# What the page sends with the text: the agreement (``registry_service.authority.AGREEMENT``), and room
+# for the details the person picks there (publisher name, category, languages).
+_AGREEMENT = "mit-own-work-v1"
+_FORM_ROOM = 512
 
 # Placeholder package details for the check only; the person chooses the real ones on the website.
 _PUBLISHER = "local"
@@ -76,7 +84,7 @@ REASONS = {
     "local_only": "This skill is marked local-only, so it stays on this device.",
     "unreadable": "VOOL couldn't read this skill's text.",
     "extra_files": "This skill has other files with it (listed below). For now the Skill Codex takes only the skill's text.",
-    "too_long_text": "The skill's text is longer than 32,768 characters, the most the Skill Codex form takes.",
+    "too_long_text": "The skill is too long for the Skill Codex form. Make its text shorter.",
     "too_long_body": "The skill's instructions are longer than 8,000 characters, the most VOOL reads.",
     "header": "The skill's header, the part between the --- lines at the top, is missing or can't be read.",
     "no_description": "Add a short description of what the skill does.",
@@ -155,6 +163,32 @@ def _extra_files(skill_dir: Path, *, limit: int = 12) -> list[str]:
         if len(found) >= limit:
             break
     return sorted(found)[:limit]
+
+
+def _made_here(skill_dir: Path, scope: str) -> None:
+    """Refuse a skill VOOL can tell the person did not write (export, which only copies, takes more)."""
+    from core import skill_tools
+    from core.skill_package import PackageRefused
+
+    slug = skill_dir.name
+    # The person's global skills live in local-skills; any other pack VOOL counts as theirs came from a file.
+    if scope == "global" and skill_dir.parent.parent.name != "local-skills":
+        raise PackageRefused("not_user_skill", f"`{slug}` came with the {skill_dir.parent.parent.name!r} package, "
+                                               "not from you; only skills you made can go on the Skill Codex")
+    # A link can lead to someone else's skill, or to one that ships with VOOL.
+    if any(path.is_symlink() for path in (skill_dir / "SKILL.md", skill_dir, skill_dir.parent, skill_dir.parent.parent)):
+        raise PackageRefused("not_user_skill", f"`{slug}` is a link to another skill; only skills you made can go "
+                                               "on the Skill Codex")
+    if any(str(row.get("source")) == "import" for row in skill_tools._read_history(skill_dir).get("versions") or []):
+        raise PackageRefused("not_user_skill", f"`{slug}` came from a file you imported; only skills you made can "
+                                               "go on the Skill Codex")
+
+
+def _form_bytes(info: dict[str, Any], text: str) -> int:
+    """The size of the request the website's page sends for this skill, as JSON.stringify writes it."""
+    metadata = {key: value for key, value in info.items() if key != "source"}
+    body = {"metadata": metadata, "skill_markdown": text, "agreement": _AGREEMENT}
+    return len(json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")) + _FORM_ROOM
 
 
 def _plain(value: str) -> str:
@@ -300,7 +334,8 @@ def publish_handoff(name: str, *, keys: dict[str, str] | None = None, scope: str
     from core.skill_tools import _MAX_BODY_CHARS
 
     try:
-        skill_dir, _scope = skill_package._user_skill_dir(name, keys, scope)
+        skill_dir, found_scope = skill_package._user_skill_dir(name, keys, scope)
+        _made_here(skill_dir, found_scope)
         raw = (skill_dir / "SKILL.md").read_bytes()
     except skill_package.PackageRefused as refused:
         # The export refusal stays as written; the page shows its own sentence for the code.
@@ -308,13 +343,15 @@ def publish_handoff(name: str, *, keys: dict[str, str] | None = None, scope: str
         return _refused([_reason(code, refused.message)])
     except OSError:
         return _refused([_reason("unreadable")])
-    if skill_package._is_local_only(raw):
-        return _refused([_reason("local_only")])
-
     reasons: list[dict[str, Any]] = []
     extra = _extra_files(skill_dir)
     if extra:
         reasons.append(_reason("extra_files", files=extra))
+    if len(raw) > MAX_FORM_BYTES:
+        # Too long for the form whatever it says, so it is not read any further.
+        return _refused([*reasons, _reason("too_long_text")])
+    if skill_package._is_local_only(raw):
+        return _refused([_reason("local_only")])
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -332,7 +369,7 @@ def publish_handoff(name: str, *, keys: dict[str, str] | None = None, scope: str
 
     info, problems = _metadata(slug, title, summary)
     reasons.extend(problems)
-    if len(text) > MAX_SKILL_MARKDOWN:
+    if len(text) > MAX_SKILL_MARKDOWN or (info and _form_bytes(info, text) > MAX_FORM_BYTES):
         # The form refuses the text before anything is packaged, so there is nothing more to check.
         reasons.append(_reason("too_long_text"))
     elif info:
@@ -367,16 +404,20 @@ def is_own_skill(skill_dir: Path) -> bool:
 
     The add-on page offers Publish only here: the name must lead to this very folder through the
     same lookup export uses (so a same-named skill in someone else's package never borrows the
-    button), and the skill must not be marked local-only."""
+    button), the skill must be one VOOL can tell the person made, and it must fit the form and not
+    be marked local-only."""
     from core import skill_package
 
     try:
-        found, _scope = skill_package._user_skill_dir(skill_dir.name, None)
+        found, scope = skill_package._user_skill_dir(skill_dir.name, None)
         if found.resolve() != Path(skill_dir).resolve():
             return False
-        return not skill_package._is_local_only((found / "SKILL.md").read_bytes())
+        _made_here(found, scope)
+        raw = (found / "SKILL.md").read_bytes()
+        # Nothing this long fits the form, so it is not read any further.
+        return len(raw) <= MAX_FORM_BYTES and not skill_package._is_local_only(raw)
     except (skill_package.PackageRefused, OSError):
         return False
 
 
-__all__ = ["MAX_SKILL_MARKDOWN", "PUBLISH_PATH", "REASONS", "handoff_url", "is_own_skill", "publish_handoff"]
+__all__ = ["MAX_FORM_BYTES", "MAX_SKILL_MARKDOWN", "PUBLISH_PATH", "REASONS", "handoff_url", "is_own_skill", "publish_handoff"]

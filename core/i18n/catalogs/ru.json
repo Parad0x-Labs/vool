@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Этот навык помечен как только локальный, поэтому он остаётся на этом устройстве.",
     "addons.publish_reason_unreadable": "VOOL не удалось прочитать текст этого навыка.",
     "addons.publish_reason_extra_files": "Вместе с этим навыком есть другие файлы (список ниже). Пока кодекс навыков принимает только текст навыка.",
-    "addons.publish_reason_too_long_text": "Текст навыка длиннее 32 768 символов — это максимум, который принимает форма кодекса навыков.",
+    "addons.publish_reason_too_long_text": "Навык слишком длинный для формы кодекса навыков. Сократите его текст.",
     "addons.publish_reason_too_long_body": "Инструкции навыка длиннее 8000 символов — это максимум, который читает VOOL.",
     "addons.publish_reason_header": "Заголовок навыка (часть между строками --- в начале) отсутствует или не читается.",
     "addons.publish_reason_no_description": "Добавьте короткое описание того, что делает навык.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Браузер",
     "addons.registry_need_files": "Ваши файлы"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

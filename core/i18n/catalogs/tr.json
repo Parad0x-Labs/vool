@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Bu beceri yalnızca yerel olarak işaretli, bu yüzden bu cihazda kalır.",
     "addons.publish_reason_unreadable": "VOOL bu becerinin metnini okuyamadı.",
     "addons.publish_reason_extra_files": "Bu becerinin yanında başka dosyalar da var (aşağıda listelendi). Şimdilik Beceri Kodeksi yalnızca becerinin metnini alır.",
-    "addons.publish_reason_too_long_text": "Becerinin metni 32.768 karakterden uzun; Beceri Kodeksi formu en fazla bu kadarını kabul ediyor.",
+    "addons.publish_reason_too_long_text": "Beceri, Beceri Kodeksi formu için fazla uzun. Metnini kısaltın.",
     "addons.publish_reason_too_long_body": "Becerinin talimatları 8.000 karakterden uzun; VOOL en fazla bu kadarını okur.",
     "addons.publish_reason_header": "Becerinin başlığı (en üstteki --- satırları arasındaki kısım) eksik veya okunamıyor.",
     "addons.publish_reason_no_description": "Becerinin ne yaptığını anlatan kısa bir açıklama ekleyin.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Tarayıcı",
     "addons.registry_need_files": "Dosyalarınız"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

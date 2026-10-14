@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Esta habilidad está marcada como solo local, así que se queda en este dispositivo.",
     "addons.publish_reason_unreadable": "VOOL no pudo leer el texto de esta habilidad.",
     "addons.publish_reason_extra_files": "Esta habilidad tiene otros archivos (abajo). Por ahora, el códice de habilidades solo acepta el texto de la habilidad.",
-    "addons.publish_reason_too_long_text": "El texto de la habilidad supera los 32.768 caracteres, el máximo que acepta el formulario del códice de habilidades.",
+    "addons.publish_reason_too_long_text": "La habilidad es demasiado larga para el formulario del códice de habilidades. Acorta su texto.",
     "addons.publish_reason_too_long_body": "Las instrucciones de la habilidad superan los 8.000 caracteres, el máximo que lee VOOL.",
     "addons.publish_reason_header": "Falta el encabezado de la habilidad, la parte entre las líneas --- del principio, o no se puede leer.",
     "addons.publish_reason_no_description": "Añade una breve descripción de lo que hace la habilidad.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Navegador",
     "addons.registry_need_files": "Tus archivos"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

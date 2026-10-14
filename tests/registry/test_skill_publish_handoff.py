@@ -285,6 +285,59 @@ def test_only_skills_you_made_can_go_and_each_refusal_keeps_its_own_words(home, 
     assert offline == []
 
 
+def test_a_skill_imported_from_someone_elses_file_is_not_yours_to_publish(home, offline):
+    from core import skill_package
+    from core.plugin_catalog import invalidate_storage_listing, read_plugin_catalog
+
+    text = skill("Release Notes", "Turn a CHANGELOG into short release notes: one line per change, grouped under "
+                                  "Added, Fixed and Removed.", description="Use when the user shares a CHANGELOG.")
+    shared = skill_package._zip_bytes([("release-notes/SKILL.md", text.encode("utf-8"))])
+    staged = skill_package.import_package(shared, source_name="release-notes.zip")
+    assert staged["status"] == "ok", staged
+    assert skill_tools.install_skill(staged["path"], overwrite=True)["status"] == "ok"
+    skill_dir = skill_tools.plugins_root() / "plugins" / "local-skills" / "skills" / "release-notes"
+    assert [row["source"] for row in skill_tools._read_history(skill_dir)["versions"]] == ["import"]
+
+    # Edited afterwards, it still started as someone else's.
+    (skill_dir / "SKILL.md").write_text(text.replace("short", "brief"), encoding="utf-8")
+    result = publish_handoff("release-notes")
+    assert codes(result) == ["not_user_skill"] and "imported" in result["reasons"][0]["text"]
+    invalidate_storage_listing()
+    marked = {row.get("slug", row["name"]): row.get("own") for plugin in read_plugin_catalog()["plugins"]
+              if plugin["id"] == "local-skills" for row in plugin["skills"]}
+    assert marked["release-notes"] is False
+    # One the person makes in chat, installed the same way, is theirs.
+    install("standup-notes", skill("Standup Notes", "Write the stand-up summary: what each person finished "
+                                                    "yesterday, what they do today and what is in their way."))
+    assert publish_handoff("standup-notes")["status"] == "ok"
+    assert offline == []
+
+
+@pytest.mark.parametrize("link", ["file", "folder"])
+def test_a_link_to_someone_elses_skill_is_not_yours_to_publish(home, offline, link):
+    from core.plugin_catalog import invalidate_storage_listing, read_plugin_catalog
+
+    pack = vendor_pack()
+    theirs = pack / "skills" / "vendor-skill"
+    local = skill_tools.plugins_root() / "plugins" / "local-skills" / "skills"
+    if link == "file":
+        mine = install("vendor-skill", skill("Vendor Skill", "A draft of my own, replaced below by a link."))
+        (mine / "SKILL.md").unlink()
+        (mine / "SKILL.md").symlink_to(theirs / "SKILL.md")
+    else:
+        local.mkdir(parents=True, exist_ok=True)
+        (local / "vendor-skill").symlink_to(theirs, target_is_directory=True)
+    invalidate_storage_listing()
+
+    result = publish_handoff("vendor-skill")
+
+    assert codes(result) == ["not_user_skill"] and "link" in result["reasons"][0]["text"]
+    marked = {(plugin["id"], row.get("slug", row["name"])): row.get("own")
+              for plugin in read_plugin_catalog()["plugins"] for row in plugin["skills"]}
+    assert not marked.get(("vendor-pack", "vendor-skill")) and not marked.get(("local-skills", "vendor-skill"))
+    assert offline == []
+
+
 def test_a_skill_with_files_the_form_cannot_carry_is_refused_and_names_them(home, offline):
     skill_dir = install("release-notes", skill("Release Notes", "Turn a CHANGELOG into short release notes: one line "
                                                                 "per change, grouped under Added, Fixed and Removed."))
@@ -312,10 +365,55 @@ def test_a_text_over_the_forms_limit_is_refused_before_anything_is_checked_or_wr
 
     result = publish_handoff("meeting-actions")
 
-    assert codes(result) == ["too_long_body", "too_long_text"]
-    assert result["reasons"][1]["text"] == REASONS["too_long_text"]
+    # Too long for the form whatever it says, so nothing more is read (no header, no body length).
+    assert codes(result) == ["too_long_text"] and result["reasons"][0]["text"] == REASONS["too_long_text"]
     assert used == [] and list(folder.iterdir()) == [] and tree(tmp_path) == before
     assert offline == []
+
+
+def test_ready_means_the_website_takes_the_request_whatever_the_script(home, tmp_path):
+    """The form takes 32,768 bytes, not characters: Japanese text needs three bytes for each one."""
+    from starlette.testclient import TestClient
+
+    from registry_service.api import PREFIX as API
+    from registry_service.authority import AGREEMENT
+    from tests.registry.helpers import NOW
+    from tests.registry.test_skill_codex import ORIGIN as SITE
+    from tests.registry.test_skill_codex import account, service
+
+    def japanese(triggers: int) -> str:
+        listed = "".join(f"  - 会議メモ{number}番の決定事項をまとめて\n" for number in range(triggers))
+        return ("---\nname: Meeting Actions\ndescription: 会議のメモから決定事項をまとめる\ntriggers:\n" + listed +
+                "---\n\n" + "会議のメモを読み、決まったことと担当者と期限を一覧にしてください。\n" * 200)
+
+    def sent(text: str):
+        body = {"metadata": {"id": "alice/meeting-actions", "kind": "skill", "version": "1.0.0", "title": "Meeting Actions",
+                             "summary": "会議のメモから決定事項をまとめる", "category": "productivity",
+                             "subcategory": "meetings", "license": "MIT", "languages": ["ja"]},
+                "skill_markdown": text, "agreement": AGREEMENT}
+        # As the page's JSON.stringify writes it: no spaces, letters as they are.
+        return json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    store, catalog, app, *_ = service(tmp_path / "codex", [])
+    try:
+        alice, token, csrf = account(store, "1", "alice", created=NOW - 60 * 86400)
+        with TestClient(app, base_url=SITE) as client:
+            client.cookies.set("vool_registry", token)
+            headers = {"Origin": SITE, "X-Vool-CSRF": csrf, "Content-Type": "application/json"}
+            long_text, fitting = japanese(330), japanese(200)
+            assert len(long_text) < 32768 < len(sent(long_text)) and 30000 < len(sent(fitting)) < 32768
+            edited("meeting-actions", long_text)
+            assert codes(publish_handoff("meeting-actions")) == ["too_long_text"]
+            assert client.post(API + "/drafts", content=sent(long_text), headers=headers).json() == {
+                "error": "request exceeds byte limit"}
+            edited("meeting-actions", fitting)
+            result = publish_handoff("meeting-actions")
+            assert result["status"] == "ok", result
+            response = client.post(API + "/drafts", content=sent(carried(result["url"])["skill_markdown"]),
+                                   headers=headers)
+            assert response.status_code == 201 and response.json()["state"] == "checking", response.text
+    finally:
+        catalog.close()
 
 
 def test_a_refused_check_leaves_nothing_behind(home, tmp_path, offline, private_tmp):
@@ -338,8 +436,8 @@ def test_the_listing_marks_as_yours_exactly_the_skills_publish_resolves_to(home,
     install("meeting-actions", SKILL)
     install("diary-helper", skill("Diary Helper", "Help the user write today's diary entry.", front="local-only: true\n"))
     vendor_pack()
-    # A pack the person made, holding one skill of its own and one that shares a name with a
-    # local skill: Publish by that name resolves to the local one, so only that card is theirs.
+    # A pack brought in from a file: VOOL marks it as the person's to remove, but they did not write
+    # it, so none of its cards is theirs to publish, not even one sharing a name with their own skill.
     team = skill_tools.plugins_root() / "plugins" / "team-kit"
     (team / ".codex-plugin").mkdir(parents=True)
     (team / ".codex-plugin" / "plugin.json").write_text(json.dumps({"name": "team-kit", "vool": {"origin": "user"}}))
@@ -363,11 +461,12 @@ def test_the_listing_marks_as_yours_exactly_the_skills_publish_resolves_to(home,
         ("local-skills", "diary-helper"): False,
         ("local-skills", "meeting-actions"): True,
         ("team-kit", "meeting-actions"): False,
-        ("team-kit", "standup-notes"): True,
+        ("team-kit", "standup-notes"): False,
         ("vendor-pack", "vendor-skill"): False,
     }
     assert any(key[0] == "native-library" for key in marked)
     assert not any(own for key, own in marked.items() if key[0] == "native-library")
+    assert codes(publish_handoff("standup-notes")) == ["not_user_skill"]
     # Each card marked as theirs publishes that very card's text (the shadowed team copy never does).
     for plugin_id, slug in [key for key, own in marked.items() if own]:
         path = skill_tools.plugins_root() / "plugins" / plugin_id / "skills" / slug / "SKILL.md"

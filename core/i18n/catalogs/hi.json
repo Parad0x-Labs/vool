@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "यह कौशल सिर्फ़ स्थानीय के रूप में चिह्नित है, इसलिए यह इसी डिवाइस पर रहता है।",
     "addons.publish_reason_unreadable": "VOOL इस कौशल का टेक्स्ट नहीं पढ़ सका।",
     "addons.publish_reason_extra_files": "इस कौशल के साथ दूसरी फ़ाइलें भी हैं (नीचे दी गई हैं)। अभी कौशल कोडेक्स सिर्फ़ कौशल का टेक्स्ट लेता है।",
-    "addons.publish_reason_too_long_text": "कौशल का टेक्स्ट 32,768 वर्णों से लंबा है, जो कौशल कोडेक्स के फ़ॉर्म की सीमा है।",
+    "addons.publish_reason_too_long_text": "यह कौशल, कौशल कोडेक्स के फ़ॉर्म के लिए बहुत लंबा है। इसका टेक्स्ट छोटा करें।",
     "addons.publish_reason_too_long_body": "कौशल के निर्देश 8,000 वर्णों से लंबे हैं, जितना VOOL अधिकतम पढ़ता है।",
     "addons.publish_reason_header": "कौशल का हेडर (सबसे ऊपर --- पंक्तियों के बीच का हिस्सा) मौजूद नहीं है या पढ़ा नहीं जा सकता।",
     "addons.publish_reason_no_description": "कौशल क्या करता है, इसका एक छोटा विवरण जोड़ें।",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "ब्राउज़र",
     "addons.registry_need_files": "आपकी फ़ाइलें"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Ta umiejętność jest oznaczona jako tylko lokalna, więc zostaje na tym urządzeniu.",
     "addons.publish_reason_unreadable": "VOOL nie może odczytać tekstu tej umiejętności.",
     "addons.publish_reason_extra_files": "Ta umiejętność ma inne pliki (wymienione niżej). Na razie kodeks umiejętności przyjmuje tylko jej tekst.",
-    "addons.publish_reason_too_long_text": "Tekst umiejętności ma ponad 32 768 znaków, a formularz kodeksu umiejętności przyjmuje najwyżej tyle.",
+    "addons.publish_reason_too_long_text": "Umiejętność jest za długa dla formularza kodeksu umiejętności. Skróć jej tekst.",
     "addons.publish_reason_too_long_body": "Instrukcje umiejętności mają ponad 8000 znaków, a VOOL czyta najwyżej tyle.",
     "addons.publish_reason_header": "Brakuje nagłówka umiejętności (części między liniami --- na górze) albo nie da się go odczytać.",
     "addons.publish_reason_no_description": "Dodaj krótki opis tego, co robi umiejętność.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Przeglądarka",
     "addons.registry_need_files": "Twoje pliki"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

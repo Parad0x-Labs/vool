@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "המיומנות הזו מסומנת כמקומית בלבד, ולכן היא נשארת במכשיר הזה.",
     "addons.publish_reason_unreadable": "VOOL לא הצליח לקרוא את הטקסט של המיומנות הזו.",
     "addons.publish_reason_extra_files": "למיומנות הזו מצורפים קבצים נוספים (מפורטים למטה). בינתיים קודקס המיומנויות מקבל רק את הטקסט של המיומנות.",
-    "addons.publish_reason_too_long_text": "הטקסט של המיומנות ארוך מ־32,768 תווים, המקסימום שהטופס של קודקס המיומנויות מקבל.",
+    "addons.publish_reason_too_long_text": "המיומנות ארוכה מדי לטופס של קודקס המיומנויות. קצרו את הטקסט שלה.",
     "addons.publish_reason_too_long_body": "ההוראות של המיומנות ארוכות מ־8,000 תווים, המקסימום ש־VOOL קורא.",
     "addons.publish_reason_header": "הכותרת של המיומנות, החלק שבין שורות ה־--- בראש הקובץ, חסרה או שאי אפשר לקרוא אותה.",
     "addons.publish_reason_no_description": "כדאי להוסיף תיאור קצר של מה שהמיומנות עושה.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "דפדפן",
     "addons.registry_need_files": "הקבצים שלך"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "此技能被标记为仅限本地,因此会留在本设备上。",
     "addons.publish_reason_unreadable": "VOOL 无法读取此技能的文本。",
     "addons.publish_reason_extra_files": "这个技能还带有其他文件(见下方)。目前技能宝典只接收技能的文本。",
-    "addons.publish_reason_too_long_text": "此技能的文本超过 32,768 个字符,这是技能宝典表单能接受的上限。",
+    "addons.publish_reason_too_long_text": "此技能对技能宝典表单来说太长了。请缩短它的文本。",
     "addons.publish_reason_too_long_body": "此技能的指令超过 8,000 个字符,这是 VOOL 能读取的上限。",
     "addons.publish_reason_header": "此技能的头部(顶部 --- 行之间的部分)缺失或无法读取。",
     "addons.publish_reason_no_description": "请添加一段简短说明,介绍此技能的作用。",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "浏览器",
     "addons.registry_need_files": "你的文件"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

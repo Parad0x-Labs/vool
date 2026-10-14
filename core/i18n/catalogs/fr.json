@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Cette compétence est marquée « locale uniquement », elle reste donc sur cet appareil.",
     "addons.publish_reason_unreadable": "VOOL n'a pas pu lire le texte de cette compétence.",
     "addons.publish_reason_extra_files": "Cette compétence est accompagnée d'autres fichiers (listés ci-dessous). Pour l'instant, le codex des compétences ne prend que son texte.",
-    "addons.publish_reason_too_long_text": "Le texte de la compétence dépasse 32 768 caractères, le maximum accepté par le formulaire du codex des compétences.",
+    "addons.publish_reason_too_long_text": "La compétence est trop longue pour le formulaire du codex des compétences. Raccourcissez son texte.",
     "addons.publish_reason_too_long_body": "Les instructions de la compétence dépassent 8 000 caractères, le maximum que VOOL lit.",
     "addons.publish_reason_header": "L'en-tête de la compétence, la partie entre les lignes --- en haut, est absent ou illisible.",
     "addons.publish_reason_no_description": "Ajoutez une courte description de ce que fait la compétence.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Navigateur",
     "addons.registry_need_files": "Vos fichiers"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

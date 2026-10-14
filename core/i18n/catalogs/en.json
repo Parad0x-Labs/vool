@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "This skill is marked local-only, so it stays on this device.",
     "addons.publish_reason_unreadable": "VOOL couldn't read this skill's text.",
     "addons.publish_reason_extra_files": "This skill has other files with it (listed below). For now the Skill Codex takes only the skill's text.",
-    "addons.publish_reason_too_long_text": "The skill's text is longer than 32,768 characters, the most the Skill Codex form takes.",
+    "addons.publish_reason_too_long_text": "The skill is too long for the Skill Codex form. Make its text shorter.",
     "addons.publish_reason_too_long_body": "The skill's instructions are longer than 8,000 characters, the most VOOL reads.",
     "addons.publish_reason_header": "The skill's header, the part between the --- lines at the top, is missing or can't be read.",
     "addons.publish_reason_no_description": "Add a short description of what the skill does.",

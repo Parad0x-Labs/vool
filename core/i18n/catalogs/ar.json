@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "هذه المهارة محدّدة على أنها محلية فقط، لذا تبقى على هذا الجهاز.",
     "addons.publish_reason_unreadable": "تعذّر على VOOL قراءة نص هذه المهارة.",
     "addons.publish_reason_extra_files": "مع هذه المهارة ملفات أخرى (مذكورة أدناه). يقبل دليل المهارات حاليًا نص المهارة فقط.",
-    "addons.publish_reason_too_long_text": "نص المهارة أطول من 32,768 حرفًا، وهو أقصى ما يقبله نموذج دليل المهارات.",
+    "addons.publish_reason_too_long_text": "المهارة أطول مما يقبله نموذج دليل المهارات. اجعل نصها أقصر.",
     "addons.publish_reason_too_long_body": "تعليمات المهارة أطول من 8,000 حرف، وهو أقصى ما يقرؤه VOOL.",
     "addons.publish_reason_header": "ترويسة المهارة، أي الجزء الواقع بين سطري --- في الأعلى، مفقودة أو لا يمكن قراءتها.",
     "addons.publish_reason_no_description": "أضف وصفًا قصيرًا لما تفعله المهارة.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "المتصفح",
     "addons.registry_need_files": "ملفاتك"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

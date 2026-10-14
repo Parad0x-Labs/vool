@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Diese Fertigkeit ist als „nur lokal“ markiert und bleibt deshalb auf diesem Gerät.",
     "addons.publish_reason_unreadable": "VOOL konnte den Text dieser Fertigkeit nicht lesen.",
     "addons.publish_reason_extra_files": "Zu dieser Fertigkeit gehören weitere Dateien (unten aufgeführt). Vorerst nimmt der Fertigkeiten-Codex nur den Text der Fertigkeit an.",
-    "addons.publish_reason_too_long_text": "Der Text der Fertigkeit ist länger als 32.768 Zeichen, das Maximum, das das Formular des Fertigkeiten-Codex annimmt.",
+    "addons.publish_reason_too_long_text": "Die Fertigkeit ist zu lang für das Formular des Fertigkeiten-Codex. Kürzen Sie ihren Text.",
     "addons.publish_reason_too_long_body": "Die Anweisungen der Fertigkeit sind länger als 8.000 Zeichen, das Maximum, das VOOL liest.",
     "addons.publish_reason_header": "Der Kopfbereich der Fertigkeit, der Teil zwischen den Zeilen mit --- ganz oben, fehlt oder kann nicht gelesen werden.",
     "addons.publish_reason_no_description": "Fügen Sie eine kurze Beschreibung hinzu, was die Fertigkeit tut.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Webbrowser",
     "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

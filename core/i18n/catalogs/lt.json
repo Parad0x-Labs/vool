@@ -1880,7 +1880,7 @@
     "addons.publish_reason_local_only": "Šis įgūdis pažymėtas kaip tik vietinis, todėl lieka šiame įrenginyje.",
     "addons.publish_reason_unreadable": "VOOL nepavyko perskaityti šio įgūdžio teksto.",
     "addons.publish_reason_extra_files": "Kartu su šiuo įgūdžiu yra kitų failų (išvardyti žemiau). Kol kas įgūdžių kodeksas priima tik įgūdžio tekstą.",
-    "addons.publish_reason_too_long_text": "Įgūdžio tekstas ilgesnis nei 32 768 simboliai – tiek daugiausia priima įgūdžių kodekso forma.",
+    "addons.publish_reason_too_long_text": "Įgūdis per ilgas įgūdžių kodekso formai. Sutrumpinkite jo tekstą.",
     "addons.publish_reason_too_long_body": "Įgūdžio nurodymai ilgesni nei 8000 simbolių – tiek daugiausia skaito VOOL.",
     "addons.publish_reason_header": "Įgūdžio antraštės (dalies tarp --- eilučių viršuje) nėra arba jos nepavyksta perskaityti.",
     "addons.publish_reason_no_description": "Pridėkite trumpą aprašymą, ką daro šis įgūdis.",
@@ -1992,7 +1992,7 @@
     "addons.registry_need_browser": "Naršyklė",
     "addons.registry_need_files": "Jūsų failai"
   },
-  "source_catalog_sha256": "21ebde2e270a0074ff2b4ed75294a7c2d5db6833a37891aca3ae9bca5eaddee7",
+  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
