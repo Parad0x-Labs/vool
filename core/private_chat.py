@@ -219,6 +219,29 @@ def private_request_session(request_id: str | None = None) -> str:
     return entry[1] if entry else ""
 
 
+# Chat-door requests still running, by request id: a private chat's records are erased only when no
+# other request of the same chat is still in flight (a second tab, a queued send, a saved turn after
+# "turn recording back on"), so a running turn never loses rows it is writing.
+_DOOR_REQUESTS: dict[str, str] = {}
+_DOOR_REQUESTS_MAX = 2048
+
+
+def _note_door_request(session_id: str) -> None:
+    rid = _current_request_id()
+    if not rid or not session_id:
+        return
+    with _LOCK:
+        _DOOR_REQUESTS[rid] = session_id
+        while len(_DOOR_REQUESTS) > _DOOR_REQUESTS_MAX:
+            _DOOR_REQUESTS.pop(next(iter(_DOOR_REQUESTS)), None)
+
+
+def chat_has_request_in_flight(session_id: str, *, besides: str = "") -> bool:
+    sid = _clean(session_id)
+    with _LOCK:
+        return any(owner == sid and rid != besides for rid, owner in _DOOR_REQUESTS.items())
+
+
 def end_private_request(request_id: str) -> int:
     """Request end for a private turn: blank the words its working ledgers held while it ran, and
     erase the run records of a chat that has nothing saved.
@@ -226,15 +249,20 @@ def end_private_request(request_id: str) -> int:
     No-op for an ordinary request. Returns how many records were scrubbed.
     """
     rid = _clean(request_id)
+    with _LOCK:
+        _DOOR_REQUESTS.pop(rid, None)
     if not rid or not request_is_private(rid):
         return 0
     from core.conductor.obligation_ledger import scrub_request_texts
 
     scrubbed = scrub_request_texts(rid)
-    # A chat with nothing saved leaves no run record that it existed (core.private_chat_traces).
+    # A chat with nothing saved leaves no run record that it existed (core.private_chat_traces),
+    # once none of its requests is still running.
     from core.private_chat_traces import erase_if_unsaved
 
-    erase_if_unsaved(private_request_session(rid))
+    sid = private_request_session(rid)
+    if sid and not chat_has_request_in_flight(sid):
+        erase_if_unsaved(sid)
     return scrubbed
 
 
@@ -582,6 +610,7 @@ def observe_private_door(
     """
     context = source_context if isinstance(source_context, dict) else None
     sid = _clean(session_id)
+    _note_door_request(sid)
     currently = is_private(sid) if sid else False
     try:
         command = parse_private_command(user_text, currently_private=currently)

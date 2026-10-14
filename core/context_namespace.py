@@ -629,9 +629,16 @@ def release_unused_chat_row(chat_id: str) -> bool:
         meta = _load_session_meta_raw().get(clean_chat)
         if meta is not None and not set(meta) <= _UNUSED_META_KEYS:
             return False
-        if recent_conversation_events(clean_chat, limit=1) or clean_chat in pinned_chat_ids():
+        if recent_conversation_events(clean_chat, limit=1, include_artifacts=True) or clean_chat in pinned_chat_ids():
             return False
         grants = {(g.scope, g.source_id): replace(g) for g in list_context_imports(clean_chat)}
+        # Only what opening the chat gave it: the defaults and its own project. An import the person
+        # granted would not survive a restart in this process, so such a chat keeps its row.
+        own = {("user_profile", "profile:confirmed"), ("action_receipt", f"chat:{clean_chat}")}
+        if namespace.project_id:
+            own.add(("project", f"project:{namespace.project_id}"))
+        if not set(grants) <= own:
+            return False
         with _UNSAVED_LOCK:
             _UNSAVED.pop(clean_chat, None)
             _UNSAVED[clean_chat] = (namespace, grants)

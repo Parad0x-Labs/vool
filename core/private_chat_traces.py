@@ -28,6 +28,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,20 @@ _RUN_RECORDS: tuple[tuple[str, str, str], ...] = (
     ("execution_facts", "session_id", "eq"),
     ("turn_context_generations", "session_id", "eq"),
     ("semantic_admissions", "sr_id", "in"),
+    ("message_queue", "session_id", "eq"),
+    ("runtime_tool_receipts", "session_id", "eq"),
+    ("runtime_followup_resolutions", "session_id", "eq"),
+    ("operator_action_requests", "session_id", "eq"),
+    ("fault_records", "session_id", "eq"),
+    ("dialogue_turns", "session_id", "eq"),
+    ("dialogue_sessions", "session_id", "eq"),
+)
+#: The chat is waiting on the person (an approval, a queued message, a turn to resume): its records
+#: are what that wait runs on, so nothing is erased until it is over.
+_WAITING: tuple[tuple[str, str], ...] = (
+    ("runtime_checkpoints", "status IN ('running', 'interrupted', 'pending_approval')"),
+    ("message_queue", "status IN ('pending', 'in_flight')"),
+    ("operator_action_requests", "status IN ('pending', 'pending_approval')"),
 )
 #: Kept when the chat has a money record: a model spend reservation is traced back to its task.
 _MONEY_LINKED: tuple[tuple[str, str, str], ...] = (
@@ -74,7 +89,7 @@ def chat_is_unsaved(session_id: str) -> bool:
             return False
         if sid in _load_session_meta_raw():
             return False
-        return not recent_conversation_events(sid, limit=1)
+        return not recent_conversation_events(sid, limit=1, include_artifacts=True)
     except Exception:
         _log.warning("could not tell whether a private chat has saved records; leaving them", exc_info=True)
         return False
@@ -84,9 +99,21 @@ def _tables(conn: sqlite3.Connection) -> set[str]:
     return {str(row[0]) for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
 
 
+def _waiting(conn: sqlite3.Connection, sid: str, tables: set[str]) -> bool:
+    for table, condition in _WAITING:
+        if table in tables and conn.execute(
+            f'SELECT 1 FROM "{table}" WHERE session_id = ? AND {condition} LIMIT 1', (sid,)
+        ).fetchone():
+            return True
+    return False
+
+
 def _has_money(conn: sqlite3.Connection, sid: str, tables: set[str]) -> bool:
+    tasks = "(SELECT task_id FROM local_tasks WHERE session_id = ?)" if "local_tasks" in tables else "(SELECT NULL)"
     if "effect_budget_money_liabilities" in tables and conn.execute(
-        "SELECT 1 FROM effect_budget_money_liabilities WHERE session_id = ? LIMIT 1", (sid,)
+        "SELECT 1 FROM effect_budget_money_liabilities WHERE session_id = ? "
+        f"OR (task_id != '' AND task_id IN {tasks}) LIMIT 1",
+        (sid, sid) if "local_tasks" in tables else (sid,),
     ).fetchone():
         return True
     return {"model_spend_reservations", "local_tasks"} <= tables and conn.execute(
@@ -119,6 +146,21 @@ def _ledger_files(sid: str) -> list[Path]:
     return files
 
 
+def _checkpoint(conn: sqlite3.Connection, *, attempts: int = 20) -> bool:
+    """Copy the WAL into the database and empty it, so no WAL frame keeps a deleted row. A reader
+    holding a snapshot makes it busy; it is retried briefly, then left to the next erase."""
+    for _ in range(attempts):
+        try:
+            busy = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        except sqlite3.DatabaseError:
+            return False
+        if not busy or not busy[0]:
+            return True
+        time.sleep(0.1)
+    _log.info("private chat erase: the WAL is still in use; it is emptied at the next erase")
+    return False
+
+
 def erase_chat_traces(session_id: str) -> dict[str, Any]:
     """Delete every run record that names the chat and remove its receipt ledgers.
 
@@ -131,7 +173,18 @@ def erase_chat_traces(session_id: str) -> dict[str, Any]:
     removed: dict[str, int] = {}
     conn = get_connection()
     try:
+        # One write transaction: the checks below and the deletes see the same rows, so a spend
+        # or a saved row landing in between cannot be erased with the rest.
+        conn.execute("BEGIN IMMEDIATE")
         tables = _tables(conn)
+        if conn.execute("SELECT 1 FROM context_namespaces WHERE chat_id = ? LIMIT 1", (sid,)).fetchone() if (
+            "context_namespaces" in tables
+        ) else None:
+            conn.rollback()
+            return {"removed": {}, "kept_for_money": [], "skipped": "saved"}
+        if _waiting(conn, sid, tables):
+            conn.rollback()
+            return {"removed": {}, "kept_for_money": [], "skipped": "waiting"}
         money = _has_money(conn, sid, tables)
         wanted = _RUN_RECORDS + (() if money else _MONEY_LINKED)
         for table, column, how in wanted:
@@ -146,8 +199,7 @@ def erase_chat_traces(session_id: str) -> dict[str, Any]:
             if count:
                 removed[table] = count
         conn.commit()
-        with contextlib.suppress(sqlite3.DatabaseError):
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        _checkpoint(conn)
     finally:
         conn.close()
     files = 0

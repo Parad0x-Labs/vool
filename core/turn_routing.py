@@ -858,9 +858,8 @@ def _read_events() -> list[dict[str, Any]]:
     # Rotated file first (older), then current — stable chronological order.
     with _EVENTS_LOCK:
         held = [dict(row) for row in _PRIVATE_EVENTS]
-    if held:
-        rows = sorted(rows + held, key=lambda row: int(row.get("recorded_at_unix_ms") or 0))
-    return rows
+    # Held rows were recorded in this process, after everything already in the file.
+    return rows + held
 
 
 def record_routing_provenance(plan: TurnRoutingPlan) -> None:

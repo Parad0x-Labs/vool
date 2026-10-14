@@ -45,8 +45,8 @@ NEVER = ("routing_decisions.jsonl", "routing_authority_v2_shadow", "turn_routing
 
 
 def _needles(key: str) -> tuple[bytes, ...]:
-    """The chat's id, and the digest prefix per-chat ledger files are named with."""
-    return key.encode(), hashlib.sha256(f"openclaw:{key}".encode()).hexdigest()[:24].encode()
+    """The chat's id, and the digest prefix per-chat files and folders are named with."""
+    return key.encode(), hashlib.sha256(f"openclaw:{key}".encode()).hexdigest()[:16].encode()
 
 
 def _traces(home: Path, key: str) -> list[str]:
@@ -60,7 +60,7 @@ def _traces(home: Path, key: str) -> list[str]:
             raw = path.read_bytes()
         except OSError:
             continue
-        if any(n in raw for n in needles) or any(n.decode() in path.name for n in needles):
+        if any(n in raw for n in needles) or any(n.decode() in part for n in needles for part in path.parts):
             found.append(str(path.relative_to(home)))
     for path in home.rglob("*.db"):
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
@@ -213,5 +213,46 @@ def test_money_a_private_chat_spent_keeps_the_record_it_is_traced_to(tmp_path, m
             assert rows("runtime_sessions", "session_id", paid) == rows("runtime_sessions", "session_id", free) == 0
         finally:
             conn.close()
+    finally:
+        configure_runtime_home(None)
+
+
+def test_the_eraser_waits_for_a_queued_message_then_takes_every_run_table_and_the_wal(tmp_path, monkeypatch):
+    """A queued send is a wait on the person: nothing is erased while it is pending. Once it is done,
+    the queue row and the tool receipts go too, and a reader holding a WAL snapshot only delays the
+    WAL being emptied until the next erase."""
+    from core import private_chat
+    from core.private_chat_traces import erase_if_unsaved
+    from core.runtime_continuity import append_runtime_event, complete_queue_item, enqueue_message, store_tool_receipt
+    from core.runtime_paths import configure_runtime_home
+    from storage.db import active_default_db_path, get_connection
+    from storage.migrations import run_migrations
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
+    configure_runtime_home(tmp_path / "home")
+    run_migrations()
+    try:
+        chat = "openclaw:" + "b8" * 10
+        private_chat.set_private(chat, True)
+        append_runtime_event(session_id=chat, event_type="task_started", message="private chat")
+        queued = enqueue_message(session_id=chat, payload={"text": "next"})
+        store_tool_receipt(receipt_key="r-1", session_id=chat, checkpoint_id="c-1", tool_name="clock",
+                           idempotency_key="i-1", arguments={}, execution={"ok": True})
+        assert erase_if_unsaved(chat)["skipped"] == "waiting"
+        complete_queue_item(queued["queue_item_id"])
+        reader = get_connection()
+        try:
+            reader.execute("BEGIN")
+            reader.execute("SELECT COUNT(*) FROM runtime_sessions").fetchone()
+            removed = erase_if_unsaved(chat)["removed"]
+        finally:
+            reader.close()
+        assert {"message_queue", "runtime_tool_receipts", "runtime_sessions"} <= set(removed), removed
+        private_chat.set_private(chat, False)
+        erase_if_unsaved(chat)  # the next erase empties the WAL the reader held
+        db = Path(active_default_db_path())
+        for path in (db, db.with_name(db.name + "-wal")):
+            if path.exists():
+                assert ("b8" * 10).encode() not in path.read_bytes(), path
     finally:
         configure_runtime_home(None)
