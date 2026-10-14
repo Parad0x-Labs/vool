@@ -63,9 +63,10 @@ CREDENTIALS = "/api/settings/credentials"
 SETUP_STATE = "/api/setup/state"
 VERSION = "/api/runtime/version"
 PROFILE = "/api/profile"
-# The Web lookups row reads the live boundary truth through the pact GET projection
-# (view=boundary: the owning policy's values, no tour state) and writes through the existing
-# boundary command POST /api/onboarding/pact/boundary from its own widget.
+# The Web lookups and Automatic online checks rows read the live boundary truth through the
+# pact GET projection (view=boundary: the owning policy's values, no tour state) and write
+# through the existing boundary command POST /api/onboarding/pact/boundary from their own
+# widgets.
 WEB_LOOKUPS_READ = "/api/onboarding/pact?view=boundary"
 # Email: the account authority's listing (credential NAMES and identities, never a secret) and the
 # draft store's recovery hold. Both are owner-local reads served by this runtime (core/web/api/service.py).
@@ -361,6 +362,20 @@ def _settings_groups() -> list[dict]:
                     ),
                     read={"url": WEB_LOOKUPS_READ},
                     keywords="web search lookups online internet browse network access fallback allow",
+                ),
+                _row(
+                    id="automatic_checks",
+                    label="Automatic online checks",
+                    kind="custom",
+                    widget="automatic_checks",
+                    help=(
+                        "Lets VOOL go online by itself — for example to look for model updates, "
+                        "refresh its model list, sync its presence with peers, or research topics "
+                        "of its own while the machine is idle. Questions you ask are not affected. "
+                        "Nothing goes online by itself until you switch this on."
+                    ),
+                    read={"url": WEB_LOOKUPS_READ},
+                    keywords="automatic online checks outbound background network updates presence idle research telemetry",
                 ),
                 _row(
                     id="mode_note",
@@ -1551,6 +1566,7 @@ function renderWidget(row, host) {
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
+  if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -4352,6 +4368,86 @@ function widgetWebLookups(stack) {
       const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
       if (!back || !!back.allow_web_fallback !== want) {
         if (back) sw.setAttribute('aria-checked', (!!back.allow_web_fallback && !back.local_only_mode) ? 'true' : 'false');
+        sw.disabled = !!(back && back.local_only_mode);
+        st.className = 'state stale';
+        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
+        return;
+      }
+      sw.setAttribute('aria-checked', want ? 'true' : 'false');
+      sw.disabled = false;
+      st.className = 'state saved'; st.textContent = 'Saved';
+      setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
+    } catch (e) {
+      sw.disabled = false;
+      st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
+    }
+  });
+}
+
+/* --- Automatic online checks. Same shape as Web lookups, one policy key away: the switch owns
+   network.outbound_enabled (VOOL's own unattended network work) and nothing else. Local-only mode
+   vetoes turning it on exactly as it vetoes web lookups; turning it off is always allowed, and the
+   row never changes local-only mode itself. */
+function widgetAutomaticChecks(stack) {
+  const err = state.sourceErr[WEB_LOOKUPS_URL];
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  const src = state.sources[WEB_LOOKUPS_URL];
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+
+  const localOnly = !!src.local_only_mode;
+  const on = !!src.outbound_enabled && !localOnly;
+  const st = el('div', 'state idle');
+  const line = el('div', 'inline');
+  const sw = el('button', 'sw');
+  sw.type = 'button';
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-checked', on ? 'true' : 'false');
+  sw.setAttribute('aria-label', T('settings.row.automatic_checks.label', 'Automatic online checks'));
+  if (localOnly) sw.disabled = true;
+  line.appendChild(sw);
+  stack.appendChild(line);
+  if (localOnly) {
+    stack.appendChild(el('div', 'subtle',
+      tfmt('settings.row.automatic_checks.local_only_note', 'Local-only mode is on. Turn it off first.')));
+  }
+  stack.appendChild(st);
+
+  sw.addEventListener('click', async () => {
+    if (sw.disabled) return;
+    /* The target is decided from the authority's last read, not from the value at render time. */
+    const now = state.sources[WEB_LOOKUPS_URL] || {};
+    const want = !(!!now.outbound_enabled && !now.local_only_mode);
+    sw.disabled = true;
+    st.className = 'state saving'; st.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/onboarding/pact/boundary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'automatic_checks', value: want }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok === false) {
+        /* Refused or failed: say it in plain words (never a raw error code), then re-read the
+           authority so the switch shows what is really in effect -- a partial or failed write
+           must not leave the switch claiming a state VOOL is not in. */
+        const code = String((j && j.error) || '');
+        const why = code === 'invalid_transition'
+          ? T('settings.row.automatic_checks.local_only_note', 'Local-only mode is on. Turn it off first.')
+          : T('settings.row.automatic_checks.retry_note', 'VOOL could not change this right now. Try again in a moment.');
+        if (await readSource(WEB_LOOKUPS_URL)) {
+          const live = state.sources[WEB_LOOKUPS_URL] || {};
+          sw.setAttribute('aria-checked', (!!live.outbound_enabled && !live.local_only_mode) ? 'true' : 'false');
+          sw.disabled = !!live.local_only_mode;
+        } else {
+          sw.disabled = false;
+        }
+        st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
+        return;
+      }
+      /* Read back from the authority rather than trusting the 200. */
+      const ok = await readSource(WEB_LOOKUPS_URL);
+      const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
+      if (!back || !!back.outbound_enabled !== want) {
+        if (back) sw.setAttribute('aria-checked', (!!back.outbound_enabled && !back.local_only_mode) ? 'true' : 'false');
         sw.disabled = !!(back && back.local_only_mode);
         st.className = 'state stale';
         st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';

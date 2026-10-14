@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "Quand vous posez une question qui nécessite une recherche, VOOL peut consulter le web pour y répondre. Désactivé par défaut : rien ne part en ligne pour des recherches tant que vous ne l'activez pas.",
     "settings.row.web_lookups.label": "Recherches web",
     "settings.row.web_lookups.local_only_note": "Le mode local uniquement est activé. Désactivez-le d'abord.",
-    "settings.row.web_lookups.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant."
+    "settings.row.web_lookups.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
+    "settings.row.automatic_checks.local_only_note": "Le mode local uniquement est activé. Désactivez-le d'abord.",
+    "settings.row.automatic_checks.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
+    "settings.row.automatic_checks.label": "Vérifications en ligne automatiques",
+    "settings.row.automatic_checks.help": "Laisse VOOL se connecter seul à internet — par exemple pour chercher des mises à jour de modèles, actualiser sa liste de modèles, synchroniser sa présence avec ses pairs ou faire ses propres recherches pendant que la machine est inactive. Les questions que vous posez ne sont pas concernées. Rien ne se connecte en ligne de lui-même tant que vous n'activez pas cette option."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

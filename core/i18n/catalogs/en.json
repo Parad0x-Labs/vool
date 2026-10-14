@@ -1902,7 +1902,11 @@
     "private.saving_again": "Saving again from here",
     "private.banner_short": "Private",
     "private.end_short": "Save again",
-    "private.reload_note": "This chat is private. Private messages are not saved, so they don't show here after a reload."
+    "private.reload_note": "This chat is private. Private messages are not saved, so they don't show here after a reload.",
+    "settings.row.automatic_checks.label": "Automatic online checks",
+    "settings.row.automatic_checks.help": "Lets VOOL go online by itself — for example to look for model updates, refresh its model list, sync its presence with peers, or research topics of its own while the machine is idle. Questions you ask are not affected. Nothing goes online by itself until you switch this on.",
+    "settings.row.automatic_checks.local_only_note": "Local-only mode is on. Turn it off first.",
+    "settings.row.automatic_checks.retry_note": "VOOL could not change this right now. Try again in a moment."
   },
   "html_keys": [
     "bypass.modal_limits",

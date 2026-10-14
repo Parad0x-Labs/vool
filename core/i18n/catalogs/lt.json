@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "Kai klausiate ko nors, kam reikia paieškos, VOOL gali ieškoti atsakymo internete. Numatytai išjungta: kol to neįjungsite, paieškai niekas neišeina į internetą.",
     "settings.row.web_lookups.label": "Interneto paieška",
     "settings.row.web_lookups.local_only_note": "Įjungtas režimas „Tik lokaliai“. Pirmiausia jį išjunkite.",
-    "settings.row.web_lookups.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą."
+    "settings.row.web_lookups.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą.",
+    "settings.row.automatic_checks.local_only_note": "Įjungtas režimas „Tik lokaliai“. Pirmiausia jį išjunkite.",
+    "settings.row.automatic_checks.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą.",
+    "settings.row.automatic_checks.label": "Automatiniai interneto patikrinimai",
+    "settings.row.automatic_checks.help": "Leidžia VOOL pačiam eiti į internetą — pavyzdžiui, ieškoti modelių atnaujinimų, atnaujinti savo modelių sąrašą, sinchronizuoti savo būseną su lygiarangiais arba tirti pačio pasirinktas temas, kai kompiuteris nenaudojamas. Jūsų užduodami klausimai nuo to nepasikeičia. Kol to neįjungsite, niekas iš savęs neina į internetą."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

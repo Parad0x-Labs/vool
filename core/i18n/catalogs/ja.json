@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "調べる必要があることを尋ねると、VOOL は回答のためにウェブを検索することがあります。既定ではオフです。オンにするまで、検索のためにオンラインへ接続することはありません。",
     "settings.row.web_lookups.label": "ウェブ検索",
     "settings.row.web_lookups.local_only_note": "ローカルのみモードが有効です。先にオフにしてください。",
-    "settings.row.web_lookups.retry_note": "VOOL は今これを変更できませんでした。少し待ってからもう一度お試しください。"
+    "settings.row.web_lookups.retry_note": "VOOL は今これを変更できませんでした。少し待ってからもう一度お試しください。",
+    "settings.row.automatic_checks.local_only_note": "ローカルのみモードが有効です。先にオフにしてください。",
+    "settings.row.automatic_checks.retry_note": "VOOL は今これを変更できませんでした。少し待ってからもう一度お試しください。",
+    "settings.row.automatic_checks.label": "自動オンライン確認",
+    "settings.row.automatic_checks.help": "VOOL が自らオンラインに接続できるようになります。たとえばモデルの更新確認、モデル一覧の更新、ピアとのプレゼンス同期、マシンが暇なときの自主的なテーマの調査などです。あなたが尋ねた質問には影響しません。これをオンにするまで、何も自らオンラインに接続することはありません。"
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

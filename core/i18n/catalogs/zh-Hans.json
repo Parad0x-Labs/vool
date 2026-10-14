@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "当你的问题需要查询时，VOOL 可能会上网搜索来回答。默认关闭：在你开启之前，不会为查询连接网络。",
     "settings.row.web_lookups.label": "网络查询",
     "settings.row.web_lookups.local_only_note": "仅本地模式已开启。请先将其关闭。",
-    "settings.row.web_lookups.retry_note": "VOOL 暂时无法更改此项。请稍后再试。"
+    "settings.row.web_lookups.retry_note": "VOOL 暂时无法更改此项。请稍后再试。",
+    "settings.row.automatic_checks.local_only_note": "仅本地模式已开启。请先将其关闭。",
+    "settings.row.automatic_checks.retry_note": "VOOL 暂时无法更改此项。请稍后再试。",
+    "settings.row.automatic_checks.label": "自动联网检查",
+    "settings.row.automatic_checks.help": "允许 VOOL 自行联网——例如查看模型更新、刷新模型列表、与同伴节点同步在线状态，或在电脑空闲时自行研究课题。你提出的问题不受影响。在你开启之前，不会有任何操作自行联网。"
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -851,7 +851,10 @@ def claim_denial(
 BOUNDARY_KEY_COMPOSITE = "local_only_composite"
 BOUNDARY_KEY_MEMORY = "memory_paused"
 BOUNDARY_KEY_WEB = "web_lookups"
-BOUNDARY_KEYS = frozenset({BOUNDARY_KEY_COMPOSITE, BOUNDARY_KEY_MEMORY, BOUNDARY_KEY_WEB})
+BOUNDARY_KEY_OUTBOUND = "automatic_checks"
+BOUNDARY_KEYS = frozenset(
+    {BOUNDARY_KEY_COMPOSITE, BOUNDARY_KEY_MEMORY, BOUNDARY_KEY_WEB, BOUNDARY_KEY_OUTBOUND}
+)
 
 
 def boundary_live() -> dict[str, Any]:
@@ -922,12 +925,15 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
             current = load_state()
             if current is None:
                 current = _seed_locked()
-            # Web lookups is also a plain Settings switch (Privacy & Permissions > Web lookups),
-            # so a home that predates the tour (``not_applicable``) may flip it without taking
-            # the tour. That write touches ONLY the owning policy: the pact file is left exactly
-            # as it is (LP6), and the local-only veto below applies unchanged. Every other
-            # boundary key stays refused there.
-            settings_only = clean_key == BOUNDARY_KEY_WEB and current.get("state") == STATE_NOT_APPLICABLE
+            # Web lookups and automatic online checks are also plain Settings switches
+            # (Privacy & Permissions), so a home that predates the tour (``not_applicable``)
+            # may flip them without taking the tour. That write touches ONLY the owning
+            # policy: the pact file is left exactly as it is (LP6), and the local-only veto
+            # below applies unchanged. Every other boundary key stays refused there.
+            settings_only = (
+                clean_key in {BOUNDARY_KEY_WEB, BOUNDARY_KEY_OUTBOUND}
+                and current.get("state") == STATE_NOT_APPLICABLE
+            )
             if not settings_only:
                 _require_mututable(current)
             # CAS VALIDITY FIRST — a stale request is refused before ANY authority
@@ -964,6 +970,19 @@ def set_boundary(key: str, value: bool, *, expect_revision: int | None = None) -
                         )
                     _effect("web_lookups", lambda: policy_engine.set_operator_policy_values(
                         {"system.allow_web_fallback": value}))
+                elif clean_key == BOUNDARY_KEY_OUTBOUND:
+                    # One policy key, one meaning: VOOL's own unattended network work. The
+                    # switch never touches local-only mode (or any other boundary) — turning
+                    # the composite off elsewhere is what raises this key, never this row.
+                    live = boundary_live()
+                    if live["local_only_mode"] and value:
+                        raise PactFault(
+                            FAULT_INVALID_TRANSITION,
+                            "automatic online checks stay off while "
+                            "'Keep everything on this machine' is on",
+                        )
+                    _effect("automatic_checks", lambda: policy_engine.set_operator_policy_values(
+                        {"network.outbound_enabled": value}))
             except LockUnavailable as exc:
                 # the owning policy lock refused: typed, and ZERO authority effects
                 # have occurred when this is the first effect (it is the policy write)

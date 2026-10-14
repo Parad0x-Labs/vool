@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "Cuando preguntas algo que requiere una consulta, VOOL puede buscar en la web para responder. Desactivado por defecto: nada se conecta a internet para consultas hasta que lo actives.",
     "settings.row.web_lookups.label": "Búsquedas web",
     "settings.row.web_lookups.local_only_note": "El modo de solo local está activado. Desactívalo primero.",
-    "settings.row.web_lookups.retry_note": "VOOL no pudo cambiar esto ahora. Inténtalo de nuevo en un momento."
+    "settings.row.web_lookups.retry_note": "VOOL no pudo cambiar esto ahora. Inténtalo de nuevo en un momento.",
+    "settings.row.automatic_checks.local_only_note": "El modo de solo local está activado. Desactívalo primero.",
+    "settings.row.automatic_checks.retry_note": "VOOL no pudo cambiar esto ahora. Inténtalo de nuevo en un momento.",
+    "settings.row.automatic_checks.label": "Comprobaciones en línea automáticas",
+    "settings.row.automatic_checks.help": "Permite que VOOL se conecte a internet por sí solo, por ejemplo para buscar actualizaciones de modelos, refrescar su lista de modelos, sincronizar su presencia con los pares o investigar temas propios mientras la máquina está inactiva. Las preguntas que haces no se ven afectadas. Nada se conecta a internet por sí solo hasta que actives esto."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

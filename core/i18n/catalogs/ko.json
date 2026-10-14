@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "조회가 필요한 질문을 하면 VOOL이 답하기 위해 웹을 검색할 수 있습니다. 기본값은 꺼짐입니다. 이 설정을 켜기 전에는 조회를 위해 온라인에 연결하지 않습니다.",
     "settings.row.web_lookups.label": "웹 검색",
     "settings.row.web_lookups.local_only_note": "로컬 전용 모드가 켜져 있습니다. 먼저 끄십시오.",
-    "settings.row.web_lookups.retry_note": "VOOL이 지금 이 설정을 바꾸지 못했습니다. 잠시 후 다시 시도하십시오."
+    "settings.row.web_lookups.retry_note": "VOOL이 지금 이 설정을 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.",
+    "settings.row.automatic_checks.local_only_note": "로컬 전용 모드가 켜져 있습니다. 먼저 끄십시오.",
+    "settings.row.automatic_checks.retry_note": "VOOL이 지금 이 설정을 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.",
+    "settings.row.automatic_checks.label": "자동 온라인 확인",
+    "settings.row.automatic_checks.help": "VOOL이 스스로 온라인에 연결할 수 있게 합니다. 예를 들어 모델 업데이트 확인, 모델 목록 갱신, 피어와의 프레즌스 동기화, 컴퓨터가 유휴 상태일 때 스스로 주제를 조사하는 일 등입니다. 사용자가 묻는 질문은 영향을 받지 않습니다. 이 설정을 켜기 전에는 아무 것도 스스로 온라인에 연결하지 않습니다."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

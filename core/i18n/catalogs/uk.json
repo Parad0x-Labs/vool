@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "Коли ви запитуєте про те, що потребує пошуку, VOOL може шукати відповідь в інтернеті. Типово вимкнено: доки ви це не ввімкнете, нічого не виходить в інтернет для пошуку.",
     "settings.row.web_lookups.label": "Веб-пошук",
     "settings.row.web_lookups.local_only_note": "Увімкнено режим «лише локально». Спершу вимкніть його.",
-    "settings.row.web_lookups.retry_note": "VOOL не зміг змінити це зараз. Спробуйте ще раз трохи згодом."
+    "settings.row.web_lookups.retry_note": "VOOL не зміг змінити це зараз. Спробуйте ще раз трохи згодом.",
+    "settings.row.automatic_checks.local_only_note": "Увімкнено режим «лише локально». Спершу вимкніть його.",
+    "settings.row.automatic_checks.retry_note": "VOOL не зміг змінити це зараз. Спробуйте ще раз трохи згодом.",
+    "settings.row.automatic_checks.label": "Автоматичні онлайн-перевірки",
+    "settings.row.automatic_checks.help": "Дозволяє VOOL самостійно виходити в інтернет — наприклад шукати оновлення моделей, освіжати свій перелік моделей, синхронізувати свою присутність із вузлами або досліджувати власні теми, коли комп'ютер простоює. Ваші запитання від цього не змінюються. Доки ви це не ввімкнете, нічого не виходить в інтернет саме собою."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

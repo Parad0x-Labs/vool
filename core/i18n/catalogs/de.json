@@ -1902,9 +1902,13 @@
     "settings.row.web_lookups.help": "Wenn du etwas fragst, das eine Recherche braucht, kann VOOL dafür im Web suchen. Standardmäßig aus: Für Suchen geht nichts online, bis du das einschaltest.",
     "settings.row.web_lookups.label": "Websuchen",
     "settings.row.web_lookups.local_only_note": "Der Nur-lokal-Modus ist an. Schalte ihn zuerst aus.",
-    "settings.row.web_lookups.retry_note": "VOOL konnte das gerade nicht ändern. Versuche es gleich noch einmal."
+    "settings.row.web_lookups.retry_note": "VOOL konnte das gerade nicht ändern. Versuche es gleich noch einmal.",
+    "settings.row.automatic_checks.local_only_note": "Der Nur-lokal-Modus ist an. Schalte ihn zuerst aus.",
+    "settings.row.automatic_checks.retry_note": "VOOL konnte das gerade nicht ändern. Versuche es gleich noch einmal.",
+    "settings.row.automatic_checks.label": "Automatische Online-Prüfungen",
+    "settings.row.automatic_checks.help": "Lässt VOOL von selbst online gehen – zum Beispiel nach Modell-Updates suchen, seine Modellliste auffrischen, seine Präsenz mit Peers abgleichen oder eigene Themen recherchieren, während der Rechner untätig ist. Deine Fragen sind davon nicht betroffen. Nichts geht von selbst online, bis du das einschaltest."
   },
-  "source_catalog_sha256": "52c0ba4539ab3fabe061956af84493b672d3e1e71d608547e3bc1e0758600e7a",
+  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
