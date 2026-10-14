@@ -1859,9 +1859,10 @@ var walletHome = (function(){
     if (!host) return;  // the Settings page carries no Home menu; its wallet surface stays Settings → Crypto
     var btn = document.getElementById('vwHomeBtn');
     if (st.enabled && !btn) {
-      btn = el('button', 'side-foot-btn'); btn.type = 'button'; btn.id = 'vwHomeBtn';
+      // The same line icon as every other Home row (core/ui_icons.py), never a colour emoji.
+      btn = el('button', 'side-foot-btn vi'); btn.type = 'button'; btn.id = 'vwHomeBtn'; btn.dataset.ico = 'wallet';
       btn.title = 'VOOL Wallet — accounts, balance, receive, send and activity';
-      btn.appendChild(document.createTextNode('\uD83D\uDC5B Wallet'));
+      btn.appendChild(document.createTextNode('Wallet'));
       btn.addEventListener('click', function(){ openPanel(); });
       var anchor = document.getElementById('settingsBtn') || host.querySelector('.home-support');
       if (anchor && anchor.parentNode === host) host.insertBefore(btn, anchor); else host.appendChild(btn);

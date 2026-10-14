@@ -272,7 +272,9 @@ def test_enable_adds_exactly_one_entry_and_opening_creates_nothing(browser):
     page.evaluate("window.VoolWallet.refresh()")
     page.wait_for_selector("#vwHomeBtn", state="visible")
     assert _entry(page).count() == 1
-    assert _entry(page).text_content().strip() == "👛 Wallet"
+    assert _entry(page).text_content().strip() == "Wallet"
+    # The same line icon as the other Home rows, not a colour emoji.
+    assert _entry(page).evaluate("el => el.classList.contains('vi') && el.dataset.ico") == "wallet"
     posts_before = _creating_posts(facts)
     assert not posts_before, "enabling and showing the entry must not create anything"
     _open_panel(page)

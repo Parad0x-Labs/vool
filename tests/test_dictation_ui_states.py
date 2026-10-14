@@ -295,9 +295,9 @@ def test_composer_row_has_distinct_mic_and_voice_controls() -> None:
     assert 'id="dictateBtn"' in HTML and "Dictate into this message" in HTML
     mic_html = HTML.split('id="dictateBtn"')[1].split("</button>")[0]
     assert "Dictate</button>" not in HTML, "the old text button must be gone"
-    assert "&#127897;" in mic_html, "the dictate control carries the standing microphone glyph"
+    assert 'data-ico="mic"' in mic_html, "the dictate control carries the microphone line icon"
     voice_html = HTML.split('id="voiceModeBtn"')[1].split("</button>")[0]
-    assert "&#128266;" in voice_html, "the voice control carries a DISTINCT speaker glyph"
+    assert 'data-ico="voice"' in voice_html, "the voice control carries a DISTINCT speaker line icon"
     assert "aria-pressed" in voice_html
     assert "Voice conversation" in voice_html or "voiceModeBtn" in HTML
 

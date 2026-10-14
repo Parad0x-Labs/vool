@@ -1210,8 +1210,8 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
   <div class="composer-row">
     <textarea id="input" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
-    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#127897;</span></button>
-    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#128266;</span></button>
+    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="mic" aria-hidden="true"></span></button>
+    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="voice" aria-hidden="true"></span></button>
     <button id="send" data-i18n="composer.send">Send</button>
   </div>
   <div id="dictationNotice" hidden><div id="dictationNote" role="status" hidden></div><button id="dictationDismiss" type="button" aria-label="Dismiss speech notice permanently" title="Don't show this notice again">×</button></div>
