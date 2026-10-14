@@ -12,18 +12,39 @@ from __future__ import annotations
 
 import faulthandler
 import inspect
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 from apps import vool_api_server
 
+REPO = Path(__file__).resolve().parents[1]
+
+# pytest arms faulthandler for its own session, so an in-process check could not tell a real
+# arming from one that was already there (and re-arming would redirect pytest's own crash
+# output). The positive control runs in a fresh interpreter that starts with it disarmed.
+_FRESH_ARMING = """
+import faulthandler
+before = faulthandler.is_enabled()
+from apps import vool_api_server
+after_import = faulthandler.is_enabled()
+armed = vool_api_server._arm_fatal_signal_diagnostics()
+print("ARMING", before, after_import, armed, faulthandler.is_enabled())
+"""
+
 
 def test_arming_reports_true_only_when_actually_enabled():
-    was_enabled = faulthandler.is_enabled()
-    try:
-        assert vool_api_server._arm_fatal_signal_diagnostics() is True
-        assert faulthandler.is_enabled() is True
-    finally:
-        if not was_enabled:
-            faulthandler.disable()
+    env = {key: value for key, value in os.environ.items() if key != "PYTHONFAULTHANDLER"}
+    result = subprocess.run(
+        [sys.executable, "-c", _FRESH_ARMING], cwd=REPO, env=env,
+        capture_output=True, text=True, timeout=180, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    lines = [line for line in result.stdout.splitlines() if line.startswith("ARMING ")]
+    assert lines, result.stdout
+    # Disarmed before the call (so the call is what armed it), True reported, actually enabled.
+    assert lines[-1].split()[1:] == ["False", "False", "True", "True"], lines[-1]
 
 
 def test_a_refused_arming_is_reported_false_and_never_raises(monkeypatch):
