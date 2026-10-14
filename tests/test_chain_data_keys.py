@@ -39,6 +39,7 @@ def chain_hosts(monkeypatch):
         verify = {
             "helius": f"{base}/helius/", "alchemy": f"{base}/alchemy/eth-mainnet/v2",
             "solscan": f"{base}/solscan/v2.0/token/meta", "etherscan": f"{base}/etherscan/v2/api",
+            "moralis": f"{base}/moralis/erc20/owners",
         }
         patched = {pid: dataclasses.replace(cfg, verify_url=verify[pid]) for pid, cfg in cp.CHAIN_PROVIDERS.items()}
         monkeypatch.setattr(cp, "CHAIN_PROVIDERS", patched)
@@ -423,7 +424,7 @@ def test_guide_lists_the_chain_providers_with_their_setup_steps():
 
     chain = {g["id"]: g for g in provider_key_guide()}["chain"]
     rows = {r["provider"]: r for r in chain["providers"]}
-    assert list(rows) == ["helius", "alchemy", "solscan", "etherscan"]
+    assert list(rows) == ["helius", "alchemy", "solscan", "etherscan", "moralis"]
     assert any("Networks tab" in step for step in rows["alchemy"]["steps"])
     assert any("LaserStream" in note for note in rows["helius"]["notes"])
     assert rows["alchemy"]["chains"] == ["Solana", "Ethereum", "Base", "BNB Smart Chain", "Robinhood Chain"]

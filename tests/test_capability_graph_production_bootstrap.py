@@ -135,6 +135,9 @@ print(json.dumps({
 #  P2: family hints differentiate — workspace, web, media are distinct sets
 # ---------------------------------------------------------------------------
 
+WEB_FAMILY_TOKEN_TOOLS = frozenset({"token.research", "token.launches"})
+
+
 def test_P2_family_hints_differentiate_workspace_web_media() -> None:
     """RED at base: all three hints return the identical fallback eight."""
     out = _run_probe(
@@ -158,6 +161,10 @@ print(json.dumps(sets))
         family_tools = [i for i in visible if i not in RESERVED]
         assert family_tools, f"{fam} hint returned no family tools"
         for intent in family_tools:
+            # Token research and new launches read public web data and are seated in the web
+            # family on purpose (core/token_research.py); they are the only named exceptions.
+            if fam == "web" and intent in WEB_FAMILY_TOKEN_TOOLS:
+                continue
             assert intent.startswith(f"{fam}."), f"foreign tool in {fam} set: {intent}"
 
 
