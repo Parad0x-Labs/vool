@@ -22,10 +22,20 @@ ORDINARY_WORD = "Corrowick"  # authored marker for an ordinary turn
 
 
 class _EchoingModel(_Provider):
-    """Answers a chat turn by repeating the marker it was told, the way a real model echoes a message."""
+    """Answers a chat turn by repeating the marker it was told, the way a real model echoes a message.
+
+    While it is answering the private turn, the turn is still running: every file under the home is read then, so a
+    row written at intake and blanked or deleted at the end of the turn (measured on the 0.7.1 Mac smoke:
+    obligation_sets.snapshot_json held the request text for the 20-30 s a private turn ran) is caught in the act.
+    """
+
+    home: Path | None = None
+    mid_turn_holders: list[str] | None = None
 
     def reply(self, model: str, body: dict[str, Any]) -> Any:
         sent = json.dumps(body)
+        if PRIVATE_WORD in sent and self.home is not None and self.mid_turn_holders is None:
+            self.mid_turn_holders = _files_holding(self.home, PRIVATE_WORD)
         for word in (PRIVATE_WORD, ORDINARY_WORD):
             if word in sent and not body.get("tools"):
                 return f"Noted: {word} Hall on Friday."
@@ -48,6 +58,7 @@ def _benchmark_rows(home: Path) -> list[dict[str, Any]]:
 def test_a_private_turn_through_the_local_model_writes_none_of_its_words(tmp_path):
     home = tmp_path / "home"
     provider = _EchoingModel({MODEL: "Sounds lovely."})
+    provider.home = home
     with provider:
         run_in_home(home, SEED.format(root=REPO, base_url=provider.base_url, models=[(MODEL, {})]))
         with ServedDaemon(home, env_extra={"VOOL_MODEL_LOAD_FLOOR_GB": "0"}) as daemon:
@@ -77,6 +88,8 @@ def test_a_private_turn_through_the_local_model_writes_none_of_its_words(tmp_pat
             # The words really went through the local model and came back in its answer.
             assert any(PRIVATE_WORD in call.get("full_prompt", "") for call in provider.calls[before:])
             assert PRIVATE_WORD in answer, answer
+            # Mid-turn, the database and its WAL already held nothing of the private words.
+            assert provider.mid_turn_holders == [], provider.mid_turn_holders
 
             assert len(_benchmark_rows(home)) == rows_before_private, "the private turn recorded a speed fact"
             assert PRIVATE_WORD not in json.dumps(_history(daemon, chat))
