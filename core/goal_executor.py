@@ -807,8 +807,13 @@ def _paused_or_stopped(worker) -> bool:
 def _latest_approval_id(session_id: str, turn_id: str) -> str:
     """The approval the step's OWN turn minted, from the durable ledger events."""
     for event in reversed(_step_events(session_id, turn_id)):
+        # The model tool loop records ``approval``; the builder and fast lanes record only
+        # ``approval_request`` (on ``task_pending_approval``). Both name the same approval id.
         approval = event.get("approval") if isinstance(event.get("approval"), dict) else {}
-        approval_id = str(approval.get("approval_id") or event.get("approval_id") or "").strip()
+        request = event.get("approval_request") if isinstance(event.get("approval_request"), dict) else {}
+        approval_id = str(
+            approval.get("approval_id") or request.get("approval_id") or event.get("approval_id") or ""
+        ).strip()
         if approval_id:
             return approval_id
     return ""
