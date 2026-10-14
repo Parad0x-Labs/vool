@@ -355,7 +355,7 @@ window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW
 """
 
 
-def normalise_companion_payload(payload: object = None) -> dict[str, str]:
+def normalise_companion_payload(payload: object = None) -> dict[str, object]:
     """Return the complete, presentation-only payload accepted by either renderer."""
     raw = payload if isinstance(payload, dict) else {}
     state = str(raw.get("state") or "idle").lower()

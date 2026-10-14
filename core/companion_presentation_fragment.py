@@ -685,8 +685,10 @@ function vnBoundChatTitle(chatId) {
    - Finished: a "done" line for a few seconds, then the bubble goes quiet.
    - Failed, cancelled, flagged, unverified: the reducer's own plain phrase, no joke, for a while.
    Playful lines are English; other languages keep the translated plain phrase. */
-const VN_DONE_LINGER_MS = 8000, VN_PROBLEM_LINGER_MS = 20000;
-let vnQuip = { key: "", since: 0, line: "" };
+const VN_DONE_LINGER_MS = 12000, VN_QUIP_HOLD_MS = 4000;
+// One record PER CHAT: going back to a finished chat does not replay its "done" line, and a
+// working chat keeps its line across chat switches (navigation is not a reducer change).
+const vnQuipByChat = new Map();
 const vnQuipCursor = {};
 function vnPlayful() {
   const root = document.documentElement;
@@ -703,7 +705,7 @@ function vnQuipPool(pres, nextState) {
     const act = vnActivity(pres);
     return act && VN_QUIPS[act] ? act : "think";
   }
-  return "";  // failure, cancelled, flagged, unknown: no joke
+  return "";  // failure, cancelled, flagged, unverified: the plain phrase, no joke
 }
 function vnNextQuip(pool) {
   const lines = VN_QUIPS[pool] || [];
@@ -714,17 +716,26 @@ function vnNextQuip(pool) {
   return line;
 }
 function vnBubbleLine(chatId, pres, nextState, now) {
-  if (!pres || nextState === "idle") { vnQuip = { key: "", since: 0, line: "" }; return ""; }
+  const id = String(chatId || "");
+  if (!pres || nextState === "idle") { vnQuipByChat.delete(id); return ""; }
   const pool = vnQuipPool(pres, nextState);
-  const key = String(chatId || "") + "|" + pres.state + "|" + nextState + "|" + (vnActivity(pres) || "") + "|" + (pres.phraseId || "");
-  if (key !== vnQuip.key) {
+  const key = pres.state + "|" + nextState + "|" + (vnActivity(pres) || "") + "|" + (pres.phraseId || "");
+  let q = vnQuipByChat.get(id);
+  if (!q || key !== q.key) {
     const plain = pres.phraseText ? String(pres.phraseText) : vnStateWord(nextState);
-    vnQuip = { key: key, since: now, line: pool && vnPlayful() ? vnNextQuip(pool) : plain };
+    const playful = !!pool && vnPlayful();
+    // A fresh joke at most every few seconds within the same kind of work, so a burst of
+    // events does not flicker the bubble; a change of kind (working -> asking) shows at once.
+    const hold = q && playful && q.pool === pool && now - q.lineAt < VN_QUIP_HOLD_MS;
+    const line = hold ? q.line : (playful ? vnNextQuip(pool) : plain);
+    q = { key: key, pool: pool, since: q && q.pool === pool ? q.since : now,
+          line: line, lineAt: hold ? q.lineAt : now };
+    vnQuipByChat.set(id, q);
   }
-  const age = now - vnQuip.since;
-  if (pool === "done" && age > VN_DONE_LINGER_MS) return "";
-  if (!pool && age > VN_PROBLEM_LINGER_MS) return "";
-  return vnQuip.line;
+  // Only a finished job goes quiet on its own. Asking, failures and flagged results stay up
+  // until something changes, because they are what the user needs to see on coming back.
+  if (pool === "done" && now - q.since > VN_DONE_LINGER_MS) return "";
+  return q.line;
 }
 /* Two grounded lines. `activity` is a line chosen from the typed state (see vnBubbleLine). */
 function vnSetBubble(title, activity, visible) {
@@ -1226,7 +1237,7 @@ function vnPaintNow(now) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
     } else if (nextState === "idle") {
       line2 = "";
-      vnQuip = { key: "", since: 0, line: "" };
+      vnQuipByChat.delete(String(chatId || ""));
     } else {
       line2 = vnBubbleLine(chatId, pres, nextState, now);
     }
@@ -1326,7 +1337,9 @@ function vnLoop() {
 let vnLoopTimer = null;
 // Re-assert tick: re-paints CURRENT reducer truth over house card repaints. It reads
 // state and paints; it can never derive, advance or rotate a phrase by itself.
-setInterval(function () { if (vnBooted && !document.hidden) vnPaintNow(Date.now()); }, 1200);
+// It also runs while the window is hidden if the pet is out on the desktop, so the desktop
+// pet's bubble still goes quiet after a finished job.
+setInterval(function () { if (vnBooted && (!document.hidden || vnDesktopActive)) vnPaintNow(Date.now()); }, 1200);
 
 // ---------------------------------------------------------------------------
 // Popover: identity inspection from typed fields only. Provenance renders as data
@@ -1832,6 +1845,8 @@ function vnBoot() {
      cannot push it when its text changes. */
   vnBubble = document.createElement("div");
   vnBubble.className = "vn-bubble";
+  // Visual flavour only: screen readers get the plain state from the pet's own label.
+  vnBubble.setAttribute("aria-hidden", "true");
   vnBubbleTitle = document.createElement("div");
   vnBubbleTitle.className = "vn-bubble-title";
   vnBubbleActivity = document.createElement("div");

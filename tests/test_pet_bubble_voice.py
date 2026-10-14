@@ -17,7 +17,7 @@ from core.companion_world_fragment import normalise_companion_payload, render_de
 from tests.served_browser import launch_chromium
 from tests.test_pet_ux_squad import _run
 
-ASK_WORDS = re.compile(r"decision|verdict|\bOK\b|call|approval|word|blessing|say-so|over to you", re.I)
+ASK_WORDS = re.compile(r"decision|verdict|\bOK\b|approv|answer|decree", re.I)
 OVERCLAIM = re.compile(r"correct|checked|verified|perfect|nailed|right|success", re.I)
 
 
@@ -57,12 +57,16 @@ try {
   VC.consume("c2", { type: "task.started", seq: 1 });
   VC.consume("c2", { type: "task.completed", seq: 2 });
   res.done = look(t0 + 700000);
-  res.doneLater = look(t0 + 700000 + 9000);
+  res.doneLater = look(t0 + 700000 + 13000);
+  displayedChat = "c1"; look(t0 + 700000 + 14000);
+  displayedChat = "c2";
+  res.doneReopened = look(t0 + 700000 + 15000);
   displayedChat = "c3";
   VC.consume("c3", { type: "task.started", seq: 1 });
   VC.consume("c3", { type: "task.failed", seq: 2 });
   res.failed = look(t0 + 800000);
   res.failedPhrase = VC.resolve(VC.view("c3")).phraseText;
+  res.failedLater = look(t0 + 900000 - 1000);
   document.documentElement.lang = "de";
   displayedChat = "c4";
   VC.consume("c4", { type: "task.started", seq: 1 });
@@ -83,7 +87,9 @@ def test_the_bubble_is_quiet_when_idle_playful_at_work_and_clear_when_it_needs_y
     assert out["askLater"]["shown"] == "flex", "a waiting decision stays visible until it is answered"
     assert out["done"]["shown"] == "flex" and out["done"]["line"] in QUIPS["done"], out["done"]
     assert out["doneLater"]["shown"] == "none", "after the moment passes the finished pet goes quiet"
+    assert out["doneReopened"]["shown"] == "none", "opening a finished chat again does not replay its done line"
     assert out["failed"]["line"] == out["failedPhrase"] and out["failedPhrase"], "no jokes about a failure"
+    assert out["failedLater"]["shown"] == "flex", "a failure stays up until something changes"
     assert out["german"]["line"] == out["germanPhrase"], "other languages keep the translated plain phrase"
 
 
