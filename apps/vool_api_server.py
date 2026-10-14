@@ -693,7 +693,7 @@ def main() -> int:
 
         register_served_port(int(args.port))
         logger.info("VOOL API listening on http://%s:%s", args.bind, args.port)
-        logger.info("OpenClaw can connect to this as an Ollama provider.")
+        logger.info("Ollama-compatible clients can connect to this API.")
         server = uvicorn.Server(
             uvicorn.Config(
                 app,

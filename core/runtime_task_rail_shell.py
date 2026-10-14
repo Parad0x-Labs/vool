@@ -45,7 +45,7 @@ RUNTIME_TASK_RAIL_SHELL_HTML = """
         </section>
         <section class="detail-block detail-main" id="sessionDetail">
           <h2>No session selected</h2>
-          <p>Run a task through OpenClaw. Recent sessions and their causal rails will appear here.</p>
+          <p>Run a task in VOOL. Recent sessions and their causal rails will appear here.</p>
         </section>
         <section class="detail-block trace-selected-step">
           <div class="wk-panel-eyebrow">Selected step</div>
