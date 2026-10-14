@@ -40,6 +40,7 @@ from core.runtime_task_events import (
 )
 from core.runtime_task_rail import render_runtime_task_rail_html
 from core.self_update_offer import maybe_handle_update_offer
+from core.ui_palette import appearance_from_cookie_header
 from core.vool_agent_brake import maybe_handle_agent_brake
 from core.vool_workstation_ui import VOOL_WORKSTATION_DEPLOYMENT_VERSION
 from core.web.api import diagnostics
@@ -1081,6 +1082,7 @@ def dispatch_get(
                 render_vool_chat_html(
                     build_commit=str((runtime.runtime_version_stamp or {}).get("commit") or ""),
                     ui_locale=resolve_page_locale(query, headers),
+                    appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
                 ),
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,
@@ -1106,6 +1108,7 @@ def dispatch_get(
                 render_vool_settings_html(
                     build_commit=str((runtime.runtime_version_stamp or {}).get("commit") or ""),
                     ui_locale=resolve_page_locale(query, headers),
+                    appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
                 ),
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,
@@ -1129,6 +1132,7 @@ def dispatch_get(
                 render_vool_setup_html(
                     build_commit=str((runtime.runtime_version_stamp or {}).get("commit") or ""),
                     ui_locale=resolve_page_locale(query, headers),
+                    appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
                 ),
                 headers={
                     "X-Vool-Workstation-Version": VOOL_WORKSTATION_DEPLOYMENT_VERSION,

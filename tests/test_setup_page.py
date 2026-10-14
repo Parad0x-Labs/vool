@@ -126,8 +126,10 @@ def test_a_light_and_a_dark_palette_are_both_declared_and_the_host_chooses() -> 
     light = html.split(':root[data-theme="light"] {', 1)[1].split("}", 1)[0]
     for token in ("--bg", "--panel", "--ink", "--muted", "--accent", "--border", "--mk-bg"):
         assert token + ":" in root and token + ":" in light, token
-    # Dark by default like the chat and Settings; the OS scheme alone never flips a framed page light.
-    assert "prefers-color-scheme" not in html
+    # Dark by default like the chat and Settings; the OS scheme alone never flips a framed page light:
+    # it is consulted only for a person who chose "Same as this computer" (data-theme="system").
+    for at in [i for i in range(len(html)) if html.startswith("prefers-color-scheme", i)]:
+        assert html[at:].split("{", 1)[1].lstrip().startswith(':root[data-theme="system"]'), html[at - 40:at + 120]
     assert "document.documentElement.dataset.theme = 'light'" in html
 
 

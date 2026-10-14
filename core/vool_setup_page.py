@@ -17,8 +17,9 @@ WCAG 2.2.2 pause/stop/hide, Appcues checklist research):
 - "Skip for now" on every step, "Do this later" everywhere, Back/Next, progress dots; nothing
   modal traps the user — the chat stays usable behind it.
 
-Self-contained: inline CSS and JS, no CDN, no external font; dark by default with a light palette
-the host selects (``?theme=light`` or ``data-theme="light"`` on ``<html>``).
+Self-contained: inline CSS and JS, no CDN, no external font; dark by default; light when the person
+chose it in Settings > Appearance (Light, or "Same as this computer" on a light OS) or the host asks
+(``?theme=light``).
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ import json
 import sys
 
 from core.setup_progress import STEPS
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 COPY = {
     "title": "Set up VOOL",
@@ -64,11 +65,10 @@ _SETUP_HTML = r"""<!doctype html>
 <title>VOOL Setup</title>
 <style>
 __VOOL_PALETTE_CSS__
-/* The light palette is a HOST choice (?theme=light, or data-theme set on <html>), not the OS setting:
-   the chat and Settings surfaces are dark-only today, and a framed page that followed the OS would
-   sit light inside a dark window (seen 2026-09-07 in the frame overlay). Same tokens, both ways. */
-:root[data-theme="light"] { --bg:#f4f5f8; --panel:#ffffff; --field:#eef0f4; --ink:#14171c; --muted:#5b6472; --accent:#655642; --accent-ink:#ffffff;
-          --accent-soft:rgba(101,86,66,.18); --border:#d9dde5; --ok:#15803d; --bad:#b91c1c; --mk-bg:#e9ecf1; --mk-border:#c9cfda; --shadow:rgba(0,0,0,.14); }
+/* Light is the person's CHOICE, never the OS setting alone: a framed page that followed the OS would
+   sit light inside a dark window (seen 2026-09-07 in the frame overlay). Settings > Appearance
+   "Light" (or the host's ?theme=light) turns it on; "Same as this computer" follows the OS exactly
+   as the chat window does, so a framed setup always matches the window around it. */
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; flex-direction:column; }
@@ -285,6 +285,11 @@ const ON_MAC = __SETUP_ON_MAC__;
 """
 
 _SETUP_JS = r"""<script>
+/* An open setup (its own tab or framed in the chat) follows a theme change made in Settings at once,
+   like the chat window. A host that asked for ?theme=light keeps its own choice. */
+if (!/[?&]theme=light\b/.test(String(location.search || ''))) {
+/*__VOOL_APPEARANCE_JS__*/
+}
 /* ------------------------------------------------------------------ state: read, never owned */
 const view = { snap: null, index: 0, motion: 'auto' };
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -924,7 +929,7 @@ def _localized_captions(ui_locale: str) -> dict:
     return {step_id: catalog.text(_platform_key(f"setup.caption.{step_id}")) for step_id in CAPTIONS}
 
 
-def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     """The guided setup page: the step model from core.setup_progress, rendered by one script.
 
     ``ui_locale`` resolves exactly like /chat and /settings (``?ui_locale=`` > the
@@ -939,7 +944,10 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
 
     tag = catalog_for(ui_locale).locale
     direction = (get_locale(tag) or get_locale("en")).direction
-    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+    # Light on the person's choice: Settings > Appearance > Light (or the host's ?theme=light), or
+    # "Same as this computer" with a light operating system -- the same choice the chat follows.
+    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
+    page = page.replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))
@@ -949,5 +957,5 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
         # The bootstrap defines VOOLT before the page's own script runs (setup has no
         # document-order law; a plain head-adjacent injection is the documented form).
         .replace("<script>\nconst STEPS", render_i18n_bootstrap(tag) + "\n<script>\nconst STEPS", 1)
-        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}">')
+        .replace('<html lang="en">', f'<html lang="{tag}" dir="{direction}"{appearance_html_attrs(appearance)}>')
     )

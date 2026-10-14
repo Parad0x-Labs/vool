@@ -12,7 +12,7 @@ message has a Copy button.
 from __future__ import annotations
 
 from core.ui_icons import ICON_CSS
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 _VOOL_CHAT_HTML = r"""<!doctype html>
 <html lang="en">
@@ -413,10 +413,12 @@ header a:hover { text-decoration:underline; }
 #jumpLatest { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.28); }
 #jumpLatest:hover, #jumpLatest:focus-visible { border-color:var(--accent); }
 #jumpLatest[hidden] { display:none; }
+/* Settings > Appearance > Text size scales the conversation itself (1 by default). */
+#log { font-size:calc(14px * var(--vool-text-scale, 1)); }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
 .msg.user { align-self:flex-end; background:var(--user); border:1px solid var(--border); }
-.msg.assistant { align-self:stretch; width:100%; max-width:100%; min-width:0; padding:14px 0; border:0; border-radius:0; background:transparent; font-size:15px; line-height:1.65; }
+.msg.assistant { align-self:stretch; width:100%; max-width:100%; min-width:0; padding:14px 0; border:0; border-radius:0; background:transparent; font-size:calc(15px * var(--vool-text-scale, 1)); line-height:1.65; }
 .msg.assistant.pending { color:var(--muted); }
 .msg-text a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
 .msg-text a:hover { text-decoration:none; }
@@ -1623,6 +1625,7 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
 </div>
 <script>
+/*__VOOL_APPEARANCE_JS__*/
 // The sidebar's native disclosure groups existing actions without changing their handlers.
 (function wireHomeMenu() {
   const menu = document.getElementById('homeMenu');
@@ -13740,7 +13743,9 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + ICON_CSS)
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS).replace(
+    "/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1
+)
 
 
 def _page_fragments() -> tuple[str, ...]:
@@ -13789,7 +13794,7 @@ def _page_fragments() -> tuple[str, ...]:
 
 
 
-def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
     from base64 import b64encode
     from pathlib import Path
@@ -13825,7 +13830,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> s
     return (
         page.replace(
             '<html lang="en">',
-            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}">',
+            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}"{appearance_html_attrs(appearance)}>',
         )
         .replace(
             "<script>\n",
