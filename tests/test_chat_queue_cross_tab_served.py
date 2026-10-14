@@ -53,6 +53,12 @@ class _GatedProvider(rig.CapturingProvider):
             if message.get("role") == "user":
                 text = str(message.get("content") or "")
                 break
+        # Only the ANSWER call is held. v0.7 memory's helper calls around a turn carry the same
+        # user words; holding one stalled the turn before its answer call for the helper's whole
+        # budget (four times longer on a machine with no GPU), so "the turn is live at the
+        # provider" was never reached in time.
+        if rig._all_text(messages).lstrip().startswith(_MEMORY_HELPER_PROMPTS):
+            return self._answers.get(text.strip(), "Acknowledged.")
         gate = self._gates.get(text.strip())
         if gate is not None:
             gate.wait(timeout=60)
