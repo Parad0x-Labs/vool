@@ -17,15 +17,16 @@ WCAG 2.2.2 pause/stop/hide, Appcues checklist research):
 - "Skip for now" on every step, "Do this later" everywhere, Back/Next, progress dots; nothing
   modal traps the user — the chat stays usable behind it.
 
-Self-contained: inline CSS and JS, no CDN, no external font; dark by default with a light palette
-the host selects (``?theme=light`` or ``data-theme="light"`` on ``<html>``).
+Self-contained: inline CSS and JS, no CDN, no external font; dark by default; light when the person
+chose it in Settings > Appearance (Light, or "Same as this computer" on a light OS) or the host asks
+(``?theme=light``).
 """
 from __future__ import annotations
 
 import json
 
 from core.setup_progress import STEPS
-from core.ui_palette import DARK_PALETTE_CSS, LIGHT_ONLY_PALETTE_CSS, appearance_html_attrs
+from core.ui_palette import DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 COPY = {
     "title": "Set up VOOL",
@@ -61,9 +62,10 @@ _SETUP_HTML = r"""<!doctype html>
 <title>VOOL Setup</title>
 <style>
 __VOOL_PALETTE_CSS__
-/* The light palette is a HOST choice (?theme=light, or data-theme set on <html>), not the OS setting:
-   a framed page that followed the OS would sit light inside a dark window (seen 2026-09-07 in the
-   frame overlay). Settings > Appearance "Light" turns it on with the same warm tokens as the chat. */
+/* Light is the person's CHOICE, never the OS setting alone: a framed page that followed the OS would
+   sit light inside a dark window (seen 2026-09-07 in the frame overlay). Settings > Appearance
+   "Light" (or the host's ?theme=light) turns it on; "Same as this computer" follows the OS exactly
+   as the chat window does, so a framed setup always matches the window around it. */
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; flex-direction:column; }
@@ -721,8 +723,9 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", app
 
     tag = catalog_for(ui_locale).locale
     direction = (get_locale(tag) or get_locale("en")).direction
-    # The explicit Light choice only (the host's ?theme=light, or Settings > Appearance > Light).
-    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_ONLY_PALETTE_CSS)
+    # Light on the person's choice: Settings > Appearance > Light (or the host's ?theme=light), or
+    # "Same as this computer" with a light operating system -- the same choice the chat follows.
+    page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))

@@ -206,3 +206,36 @@ def test_setup_light_uses_the_same_warm_colours_as_the_chat():
     assert LIGHT_ONLY_PALETTE_CSS in html
     assert html.count(':root[data-theme="light"] {') == 1
     assert "--bg:#f3f1ed" in html.split(':root[data-theme="light"] {')[1].split("}", 1)[0]
+
+
+def test_setup_follows_the_same_choice_as_the_chat(tmp_path):
+    # "Same as this computer" turns setup light on a light OS, like the chat; with no choice made the
+    # OS alone never flips it (a framed setup must match the dark window around it).
+    with rig.CapturingProvider(default="ok") as provider:
+        daemon = rig.ServedDaemon(tmp_path / "home", provider=provider)
+        try:
+            daemon.start(timeout=120)
+            manager, browser = served_browser.launch_chromium()
+            try:
+                host = daemon.base_url.split("//", 1)[1].split(":", 1)[0]
+                seen = {}
+                for cookie, scheme in (("system.100", "light"), ("system.100", "dark"), (None, "light")):
+                    context = browser.new_context(viewport={"width": 1280, "height": 800}, color_scheme=scheme)
+                    if cookie:
+                        context.add_cookies([{"name": "vool_appearance", "value": cookie, "domain": host, "path": "/"}])
+                    page = context.new_page()
+                    errors = _guard(page, daemon.base_url)
+                    page.goto(daemon.base_url + "/setup", wait_until="domcontentloaded")
+                    seen[(cookie, scheme)] = _luma(page.evaluate(BG))
+                    if cookie and scheme == "light":
+                        assert page.evaluate(DARK_SPOTS) == []
+                    assert not errors, errors
+                    context.close()
+                assert seen[("system.100", "light")] > 180, seen
+                assert seen[("system.100", "dark")] < 60, seen
+                assert seen[(None, "light")] < 60, seen
+            finally:
+                browser.close()
+                manager.stop()
+        finally:
+            daemon.stop()
