@@ -862,6 +862,20 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/chat/import/sources": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/import/sources",
+      "note": "chat-import lane (which local apps exist; existence checks only)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/chat/import/status": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/import/status",
+      "note": "chat-import lane (progress of the one running import)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/chat/pins": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/chat/pins",
@@ -1947,6 +1961,27 @@
       "registry_command_id": "chat.followup",
       "surface": "http"
     },
+    "http:POST:/api/chat/import/discard": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat/import/discard",
+      "note": "chat-import lane (drops the preview and the staged file)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/import/preview": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat/import/preview",
+      "note": "chat-import lane (reads the source the user picked, lists its chats)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/import/start": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/chat/import/start",
+      "note": "chat-import lane (imports the ticked chats from the preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/chat/pin": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/chat/pin",
@@ -2864,6 +2899,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:UPLOAD:/api/chat/import/upload": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "UPLOAD /api/chat/import/upload",
+      "note": "chat-import lane (export-zip staging door; nothing parsed until preview)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:UPLOAD:/api/session/bundle/upload": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "UPLOAD /api/session/bundle/upload",
@@ -3056,7 +3098,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 297,
+    "EXTERNAL_TRANSPORT_ONLY": 303,
     "GENERATED_ADAPTER": 130,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

@@ -1344,6 +1344,14 @@ def dispatch_get(
             runtime,
         )
 
+    if normalized_path in ("/api/chat/import/sources", "/api/chat/import/status"):
+        # Bring chats from other AI apps (Settings): which local apps are present (existence
+        # checks only) and how a running import is going. Owner-only, same guards as X setup.
+        from core.web.api.chat_import_api import handle_get as _chat_import_get
+
+        _ci_status, _ci_payload = _chat_import_get(normalized_path, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
+
     if normalized_path == "/api/chat/attachments/limits":
         # The rules the composer states up front, from the same tables the door enforces.
         from core.chat_attachments import limits_payload
@@ -1465,6 +1473,12 @@ def dispatch_get(
                     json_response(404, {"error": "session not found"}),
                     runtime,
                 )
+            # A chat brought in from another app: its messages come first, as history. They
+            # are marked `imported` so the page shows them and never sends them to a model.
+            if not str((query.get("event_kind") or [""])[0]):
+                from core.chat_import.store import imported_history_messages
+
+                messages.extend(imported_history_messages(session_id))
             # `include_artifacts=True` is what makes this the TRANSCRIPT reader rather than
             # a recall reader: assistant-authored artifacts (a council verdict card) are
             # part of what the chat log shows and part of nothing the model is fed.
@@ -3460,15 +3474,24 @@ BUNDLE_UPLOAD_PATH = "/api/session/bundle/upload"
 BUNDLE_UPLOAD_CEILING = 256 * 1024 * 1024
 
 
+#: An export zip of chats from another AI app (core.web.api.chat_import_api).
+CHAT_IMPORT_UPLOAD_PATH = "/api/chat/import/upload"
+
+
 def is_raw_upload_path(path: str) -> bool:
-    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH)
+    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH)
 
 
 def raw_upload_body_ceiling(path: str = "") -> int:
     """The largest body the raw door will hold whole: the per-file limit plus header slack,
-    or the bundle ceiling for the session-bundle door."""
+    or the bundle ceiling for the session-bundle door, or the export-zip ceiling for the chat
+    import door."""
     if (str(path or "").rstrip("/") or "/") == BUNDLE_UPLOAD_PATH:
         return BUNDLE_UPLOAD_CEILING
+    if (str(path or "").rstrip("/") or "/") == CHAT_IMPORT_UPLOAD_PATH:
+        from core.web.api.chat_import_api import upload_ceiling
+
+        return upload_ceiling()
     from core.chat_attachments import MAX_BYTES_PER_FILE
 
     return MAX_BYTES_PER_FILE + 64 * 1024
@@ -3519,6 +3542,14 @@ def dispatch_upload(
 
     def _out(response: ApiResponse) -> ApiResponse:
         return apply_runtime_headers(response, runtime) if runtime is not None else response
+
+    if path == "/api/chat/import/upload":
+        # An export zip of chats from another AI app, picked in Settings: kept owner-only under
+        # the data folder and answered with an opaque id. Nothing is read until the preview.
+        from core.web.api.chat_import_api import handle_upload as _chat_import_upload
+
+        _ciu_status, _ciu_payload = _chat_import_upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(_ciu_status, _ciu_payload))
 
     if path == "/api/session/bundle/upload":
         # A session-bundle file the operator picked for import: staged under the home's
@@ -5156,6 +5187,14 @@ def _dispatch_post_inner(
 
         _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()})
         return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
+
+    if normalized_path in ("/api/chat/import/preview", "/api/chat/import/start", "/api/chat/import/discard"):
+        # Bring chats from other AI apps (Settings): preview a source the user picked, import the
+        # chats they ticked, or drop the preview. Owner-only, same guards as /api/x/setup below.
+        from core.web.api.chat_import_api import handle_post as _chat_import_post
+
+        _ci_status, _ci_payload = _chat_import_post(normalized_path, body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
 
     if normalized_path == "/api/x/setup":
         # Guided X (Twitter) connection from Settings: check, save, test or remove the user's own X
