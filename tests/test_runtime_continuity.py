@@ -7,8 +7,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-import pytest
-
 from apps.vool_agent import VoolAgent
 from apps.vool_api_server import _dispatch_post
 from core.curiosity_roamer import CuriosityResult
@@ -777,8 +775,7 @@ class RuntimeContinuityTests(unittest.TestCase):
         self.assertNotIn('"tool_surface":', history[0]["content"])
         self.assertNotIn("Real tool result from", history[0]["content"])
 
-    @pytest.mark.xfail(reason="Pre-existing: workflow planner output format changed")
-    def test_workflow_planner_can_chain_real_tools_without_reasking_model_each_step(self) -> None:
+    def _workflow_planner_repair_case(self, *, authorize: bool, old_marker: str = "TODO"):
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")
         agent.start()
         stub_context = SimpleNamespace(
@@ -815,27 +812,69 @@ class RuntimeContinuityTests(unittest.TestCase):
             (workspace / "app.py").write_text(
                 "from pathlib import Path\n"
                 "text = Path(__file__).read_text(encoding='utf-8')\n"
-                "if 'TODO' in text:\n"
+                "if ''.join(map(chr, [84, 79, 68, 79])) in text:\n"
                 "    print('app.py:1 TODO marker still present')\n"
                 "    raise SystemExit(1)\n"
                 "print('clean')\n",
                 encoding="utf-8",
             )
+            authority = None
+            if authorize:
+                authority = grant_internal_authority(
+                    label="workflow-marker-repair",
+                    actions=_CHAIN_WRITE_ACTIONS | {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS},
+                    duration_seconds=300,
+                    workspace_root=tmpdir,
+                )
+                self.addCleanup(revoke_internal_authority, authority)
             with mock.patch("core.agent_runtime.agent.orchestrate_parent_task", return_value=None):
                 result = agent.run_once(
-                    "run `python3 app.py`, replace `TODO` with `DONE` in app.py, then retry",
+                    f"run `python3 app.py`, replace `{old_marker}` with `DONE` in app.py, then retry",
                     session_id_override="openclaw:workflow-planner",
-                    source_context={"surface": "openclaw", "platform": "openclaw", "workspace": tmpdir},
+                    source_context={
+                        "surface": "openclaw", "platform": "openclaw", "workspace": tmpdir,
+                        **({"internal_authority_token": authority, "operating_mode": "auto"} if authority else {}),
+                    },
                 )
 
-            self.assertEqual(result["mode"], "tool_executed")
-            self.assertIn("retry passed", result["response"].lower())
-            self.assertEqual(agent.memory_router.resolve_tool_intent.call_count, 0)
-            self.assertIn("DONE", (workspace / "app.py").read_text(encoding="utf-8"))
-            final_history = list(agent.memory_router.resolve.call_args.kwargs["source_context"].get("conversation_history") or [])
-            joined_history = "\n".join(str(item.get("content") or "") for item in final_history)
-            self.assertIn('"intent": "workspace.replace_in_file"', joined_history)
-            self.assertIn('"intent": "sandbox.run_command"', joined_history)
+            content = (workspace / "app.py").read_text(encoding="utf-8")
+            history = list((agent.memory_router.resolve.call_args.kwargs["source_context"].get("conversation_history") or []) if agent.memory_router.resolve.call_args else [])
+            return result, content, history, agent.memory_router.resolve_tool_intent.call_count
+
+    def test_workflow_planner_can_chain_real_tools_without_reasking_model_each_step(self) -> None:
+        result, content, history, model_calls = self._workflow_planner_repair_case(authorize=True)
+        self.assertEqual(result["mode"], "tool_executed", result.get("response"))
+        self.assertTrue(result["success"])
+        self.assertEqual(model_calls, 0)
+        self.assertIn("DONE", content)
+        self.assertNotIn("TODO", content)
+        steps = result["details"]["builder_controller"]["executed_steps"]
+        self.assertEqual([s["tool_name"] for s in steps], [
+            "sandbox.run_command", "workspace.read_file", "workspace.replace_in_file", "sandbox.run_command",
+        ])
+        commands = [s for s in steps if s["tool_name"] == "sandbox.run_command"]
+        self.assertEqual([s["details"]["returncode"] for s in commands], [1, 0])
+        self.assertEqual([s["mode"] for s in commands], ["tool_failed", "tool_executed"])
+        self.assertIn("clean", commands[-1]["details"]["stdout"])
+
+    def test_workflow_planner_repair_keeps_unapproved_source_unchanged(self) -> None:
+        result, content, _history, model_calls = self._workflow_planner_repair_case(authorize=False)
+        self.assertEqual(result["mode"], "tool_preview")
+        self.assertIn("TODO", content)
+        self.assertNotIn("DONE", content)
+        self.assertEqual(model_calls, 0)
+
+    def test_failed_planner_repair_does_not_publish_model_success_claim(self) -> None:
+        result, content, _history, model_calls = self._workflow_planner_repair_case(
+            authorize=True, old_marker="MISSING",
+        )
+        self.assertEqual(result["mode"], "tool_failed")
+        self.assertFalse(result["success"])
+        self.assertIn("TODO", content)
+        self.assertNotIn("DONE", content)
+        self.assertNotIn("retry passed", result["response"].lower())
+        self.assertIn("attempted", result["response"].lower())
+        self.assertEqual(model_calls, 0)
 
     def test_builder_controller_runs_bounded_scaffold_loop_without_reasking_model(self) -> None:
         agent = VoolAgent(backend_name="test-backend", device="channel-test", persona_id="default")

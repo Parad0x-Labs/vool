@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.0"
+version = "0.7.1"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -31,7 +31,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.19.0",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==6.20.1",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.0.1",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -71,6 +71,13 @@ evm = [
 # construct-typing pin keeps `solana` at 0.36, which caps solders below 0.27 (the base install resolves a newer one).
 pay = [
     "solana-pay-kit==0.10.0; python_version >= '3.11'",
+]
+# x402 on Base through the x402 Foundation SDK (core/wallet/x402_sdk.py), paid from a Crypto Pilot wallet: the SDK reads
+# the 402 and builds the EIP-3009 authorization; the wallet keeps the cap, the approval, the signature and the receipt.
+# OPTIONAL: without it that lane reports wallet_x402_sdk_unavailable and nothing else changes. Its `evm` extra is
+# needed because the SDK's EVM package imports web3 at import time. Pinned to the release the lane was tested against.
+x402 = [
+    "x402[evm]==2.25.0",
 ]
 models = [
     # PyTorch publishes no Intel-macOS wheel since 2.3: torch and the packages that require it
@@ -127,7 +134,7 @@ dev = [
     "pytest==9.1.1",
     # Same pin as the CI gate, so `pip install -e ".[dev]"` and the gate cannot disagree about
     # which rules exist. Bump both lines together.
-    "ruff==0.16.10",
+    "ruff==0.17.0",
     "mypy>=1.8",
     # tests/test_daemon_survives_concurrent_load.py imports httpx to drive /healthz while chat turns
     # are in flight. It was never declared, so it passed only on machines that happened to have it

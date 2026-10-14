@@ -3,6 +3,42 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## [0.7.1-beta] — 2026-10-14
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta).
+Updating from 0.7.0: download 0.7.1 and install it over 0.7.0. Your chats and settings live
+in your profile, outside the app.
+
+### Added
+- **Private chat.** Say "private chat", "don't record this" or "off the record", and nothing from that chat is saved: no transcript, no memory, no summary, no log. A small ghost marks its messages. Say "turn recording back on" to end it. A private chat stays private after a restart.
+- **Answers as files.** Ask for an answer as a Word document, spreadsheet, slides, PDF, Markdown, CSV, JSON, YAML, XML, HTML, ZIP or tar.gz. VOOL checks that each file opens before offering it as a download link in the chat.
+- **Scanned PDFs.** Multi-page scanned PDFs are recognised as scanned and read with the Mac's built-in text recognition.
+- **Crypto (off by default).**
+  - Arbitrum One joins Solana, Base, Ethereum, BNB Smart Chain and Robinhood Chain, with Arbitrum Sepolia for testing. Arbitrum supports sending ETH.
+  - Settings > Crypto > Payment channels lists every way the wallet can pay a website. Each has its own on/off switch; a channel that's off refuses before anything is signed.
+  - Websites that ask for x402 payment in USDC on Base or Base Sepolia can be paid from your Crypto Pilot wallet: one approval with your PIN, within your limits.
+
+### Changed
+- **Secrets stay out.** PINs, card numbers and passwords you type are kept out of memory and out of later prompts sent to a model.
+- **Forget, the way you say it.** "Forget what I told you about X" removes it from VOOL's memory, so it isn't recalled or listed again. After you ask VOOL to forget something in a chat, it won't take that same fact back in that chat; start a new chat to tell it again.
+- **Follow-ups keep the task going.** A message sent while VOOL is working joins the running task instead of restarting it.
+- **No surprise tool fees.** VOOL refuses to use a cloud model that runs paid web or code tools at the provider without reporting the cost.
+- **Custom endpoints and keys.** Keys for custom model endpoints go where the endpoint expects them, and their models are listed. Market-data API keys are kept through a refusal or a key change.
+- **Intel Macs.** Local-model certification allows for slower processors.
+
+### Known limitations
+- On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now.
+- Paying websites through Solana pay-kit is not included in the downloads. That channel shows as not usable on this install.
+- No live mainnet payment has been made yet with the new x402 options.
+- Private chat commands work in English only.
+- 0.7.1 is installed by download.
+- Before a local model can write answers, press **Certify** for it once (Settings > Models & Providers > Local models).
+- Scanned-PDF reading works on Macs only.
+- Forget clears VOOL's memory, but the original chat messages stay in VOOL's local activity records. Clearing those too comes in 0.7.2.
+- Skill Codex browsing is not open yet.
+- The macOS apps are not notarized.
+
 ## [0.7.0-beta] — 2026-10-13
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
@@ -13,7 +49,7 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
   - Separate self-contained macOS x86_64 and arm64 apps. The launcher checks your CPU and macOS version and explains a mismatch instead of failing.
   - A self-contained Linux x86_64 package. It needs no sudo or system Python, and adds menu and desktop shortcuts.
 - **Bundled local-model runner.** The macOS app ships the runner its local models need, per CPU slice.
-- **Signed one-press updates with rollback** for each supported platform. The update feed starts with 0.7.1; 0.7.0 is installed by download:
+- **Signed update support with rollback** for each supported platform, not switched on in 0.7.0; 0.7.0 is installed by download:
   - the v0.7 release publisher key is pinned;
   - update checks need explicit consent;
   - your current data is kept on rollback.
@@ -86,15 +122,15 @@ Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
 - Patched dependency releases are pinned.
 
 ### Known limitations
-- x402 for websites works on test networks only in 0.7.0 (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet). One exception: the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet. Each call waits for your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been tested on a real chain. Mainnet x402 for websites is planned for 0.7.1.
+- x402 for websites works on test networks only in 0.7.0 (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet). One exception: the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet. Each call waits for your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been tested on a real chain.
 - Skill Codex browsing is not open yet.
 - X is drafting plus guided read-only setup; trending is hidden.
 - The macOS apps are not notarized.
-- No in-app update is offered for 0.7.0 itself; one-press updates start with 0.7.1.
-- Before a local model can answer, open Settings > Models & Providers > **Local models** and press **Certify** for it once. A clearer prompt comes in 0.7.1.
+- No in-app update is offered for 0.7.0; it is installed by download.
+- Before a local model can answer, open Settings > Models & Providers > **Local models** and press **Certify** for it once.
 - On Intel Macs, local models run on the CPU and may be too slow to pass the one-time Certify check or to answer in time, so use a cloud model there for now. We tested the Intel build under Rosetta on an Apple Silicon Mac, not yet on an Intel Mac.
 - Saying "don't record this" does not stop a chat from being saved yet. Ask VOOL to forget it afterwards.
-- Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1.
+- Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings.
 
 ## [0.6.0-beta] — 2026-09-19
 

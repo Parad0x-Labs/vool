@@ -6,12 +6,10 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-Update checks are off on a fresh install. Press **Check for updates** to allow them; after
-that VOOL checks in the background and **never takes the running app down**. When an update
-is ready you choose to install it; the installer is gesture-gated. VOOL 0.7.0 is installed
-by download, and the first update offered this way will be 0.7.1.
+VOOL 0.7.1 is installed by download. Updating from 0.7.0: download 0.7.1 and install it
+over 0.7.0. Your chats and settings live in your profile, outside the app.
 
-Every update runs a verified pipeline with automatic rollback:
+A signed update package runs a verified pipeline with automatic rollback:
 
 1. **Download** — verified against a signed manifest.
 2. **Staged install** — the new version is installed beside the old one.

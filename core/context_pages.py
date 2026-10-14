@@ -45,6 +45,7 @@ from core.memory.revocation import fenced_writer
 from storage.cas import get_bytes, put_bytes
 from storage.cas_integrity import CasCorruptionError
 from storage.db import get_connection
+from storage.event_hash_chain import _init_table as _init_event_chain
 from storage.event_hash_chain import append_hashed_event
 
 _log = logging.getLogger(__name__)
@@ -206,6 +207,25 @@ def admit_page(page: ContextPage) -> dict[str, Any]:
                 json.dumps(page.metadata, sort_keys=True),
             ),
         )
+        # The same words admitted again after their page was erased (a user repeating a sentence in a new chat after
+        # forgetting it in an old one): this is a new admission, so the row becomes the new one, with the new owner,
+        # task, retention, trust and permission. Left as it was, the page could never be served, the next forget
+        # refused to erase it a second time, and an old ERASABLE class could let an unguarded erase remove a page
+        # admitted as PERSISTENT. The chat that erased it keeps nothing of it.
+        revived = conn.execute(
+            "UPDATE context_pages SET trust_class = ?, retention_class = ?, permission_class = ?, session_id = ?, "
+            "task_id = ?, bytes = ?, content_ref = ?, erased = 0, created_at = ?, metadata_json = ? "
+            "WHERE page_hash = ? AND erased = 1",
+            (page.trust_class, page.retention_class, page.permission_class, page.session_id, page.task_id,
+             len(page.content.encode("utf-8")), content_ref, _utcnow(), json.dumps(page.metadata, sort_keys=True),
+             page.page_hash),
+        ).rowcount
+        if revived and page.task_id:
+            # Its task's pin holds it again, even if that task had released the page before it was erased.
+            conn.execute(
+                "UPDATE context_page_pins SET released_at = NULL WHERE page_hash = ? AND pin_id = ?",
+                (page.page_hash, f"task:{page.task_id}"),
+            )
         if page.task_id:
             # Inside this open write transaction: the pin rides the caller's connection so the
             # page and its residency pin commit together (per-use connection contract).
@@ -416,7 +436,7 @@ def archive_closed_pages(
             "session_id": row["session_id"],
             "task_id": row["task_id"],
         }
-        append_hashed_event(f"ctx-page-archived:{page_hash}", receipt)
+        _append_page_event("ctx-page-archived", page_hash, receipt)
         digest_records.append(
             {
                 "record": "archived_page",
@@ -528,8 +548,10 @@ def erase_page(
     if row["content_ref"]:
         _delete_cas_content(str(row["content_ref"]), require_exclusive=require_exclusive_blob)
 
+    # One chain event per erasure, under an id of its own: a page whose words were admitted again after an erasure
+    # is erased again, and two erasers at once never pick the same id (no count-then-append window).
     event_hash = append_hashed_event(
-        f"ctx-page-erased:{page_hash}",
+        f"ctx-page-erased:{page_hash}:{uuid.uuid4().hex}",
         {
             "event": "context.page_erased",
             "page_hash": page_hash,
@@ -544,6 +566,31 @@ def erase_page(
         event_hash[:12],
     )
     return {"page_hash": page_hash, "erasure_receipt": event_hash}
+
+
+def _append_page_event(kind: str, page_hash: str, payload: dict[str, Any]) -> str:
+    """Append one page event to the hash chain under ``<kind>:<page_hash>``, or ``:<n>`` for the n-th.
+
+    A page lives more than once when its words are admitted again after an erasure, so a later archive of it needs
+    an id of its own. Redelivering the page's latest event of this kind is idempotent. The id is chosen and the
+    event appended inside one write transaction, so two writers never pick the same id.
+    """
+    base = f"{kind}:{page_hash}"
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _init_event_chain(conn)
+        earlier = conn.execute(
+            "SELECT event_hash, payload_json FROM event_hash_chain WHERE event_id = ? OR event_id LIKE ? "
+            "ORDER BY seq", (base, base + ":%"),
+        ).fetchall()
+        if earlier and json.loads(str(earlier[-1][1])) == payload:
+            return str(earlier[-1][0])
+        event_hash = append_hashed_event(base + (f":{len(earlier) + 1}" if earlier else ""), payload, conn=conn)
+        conn.commit()
+        return event_hash
+    finally:
+        conn.close()
 
 
 def _delete_cas_content(blob_hash: str, *, require_exclusive: bool = False) -> None:

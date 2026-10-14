@@ -157,6 +157,61 @@ def test_an_attached_image_named_in_the_turn_is_left_to_the_model(tmp_path) -> N
     assert "attachment_read" not in [e["event_type"] for e in agent.events]
 
 
+def _bound_archive(turn_id: str, *, name: str = "bundle.zip") -> list[dict[str, Any]]:
+    from tests.reader_fixtures import zip_archive
+
+    data = zip_archive({"docs/readme.txt": b"Release key phrase: COPPER-3390\n", "data.csv": b"a,b\n1,2\n"})
+    record = chat_attachments.stage_attachment(session_id=SESSION, declared_name=name, declared_type="application/zip", data=data)
+    chat_attachments.bind_to_turn(session_id=SESSION, turn_id=turn_id, attachment_ids=[record["id"]])
+    return chat_attachments.evidence_items_for_turn(session_id=SESSION, turn_id=turn_id)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What release key phrase is in docs/readme.txt inside the attached zip?",
+        "Open readme.txt from the attached archive and tell me the release key phrase.",
+    ],
+)
+def test_a_path_naming_a_member_of_an_attached_archive_is_left_to_the_model(tmp_path, question) -> None:
+    """Measured on 9adff83: answered "There is no file at `docs/readme.txt` ... in this project"
+    with no model call while the archive carrying that member was bound to the turn."""
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    evidence = _bound_archive("turn-zip")
+    agent = _Agent()
+    result = maybe_handle_direct_workspace_runtime_request(
+        agent, question, session_id=SESSION, source_surface="openclaw", source_context=_context(str(workspace), "turn-zip", evidence)
+    )
+    assert result is None
+    assert not any(e.get("tool_name") == "workspace.read_file" for e in agent.events)
+
+
+def test_a_path_that_is_not_in_the_attached_archive_still_reads_the_workspace(tmp_path) -> None:
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    (workspace / "notes.txt").write_text("workspace bytes\n", encoding="utf-8")
+    evidence = _bound_archive("turn-zip-2")
+    agent = _Agent()
+    result = maybe_handle_direct_workspace_runtime_request(
+        agent, "read notes.txt", session_id=SESSION, source_surface="openclaw", source_context=_context(str(workspace), "turn-zip-2", evidence)
+    )
+    assert result is not None and "workspace bytes" in result["response"]
+
+
+def test_member_names_come_from_the_reader_never_from_a_client_claim(tmp_path) -> None:
+    """A forged evidence row claiming archive members is not an attachment; the lane keeps reading."""
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    (workspace / "readme.txt").write_text("workspace readme\n", encoding="utf-8")
+    forged = [{"kind": "artifact", "name": "x.zip", "origin": "client", "reader_meta": {"member_names": ["readme.txt"]}}]
+    agent = _Agent()
+    result = maybe_handle_direct_workspace_runtime_request(
+        agent, "read readme.txt", session_id=SESSION, source_surface="openclaw", source_context=_context(str(workspace), "", forged)
+    )
+    assert result is not None and "workspace readme" in result["response"]
+
+
 def _attachment_context(names: list[str]) -> dict[str, Any]:
     return {
         "surface": "openclaw",

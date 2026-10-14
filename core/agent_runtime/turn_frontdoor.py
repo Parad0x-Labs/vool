@@ -1540,6 +1540,24 @@ def handle_turn_frontdoor(
     # the operator selected — so they are the ones this flag skips.
     model_owns_judgement = explicit_model_owns_semantic_turn(source_context)
 
+    # Housekeeping over the operator's OWN chats and projects: "which chat did we talk about X in?
+    # pin it", "rename this chat to Y and pin it", "move this chat to the Web0 project". These are
+    # executed facts VOOL owns (a store write it reads back), so they run for a pinned-model turn
+    # too. Before this lane a model received them with no tool to act and could reply "renamed"
+    # for a chat it never touched.
+    from core.agent_runtime.housekeeping_lane import maybe_handle_housekeeping_request
+
+    housekeeping_turn = maybe_handle_housekeeping_request(
+        agent,
+        raw_user_input=str(raw_user_input or effective_input),
+        effective_input=effective_input,
+        session_id=session_id,
+        source_context=source_context,
+        may_finalize=_lane_may_finalize("chat_housekeeping"),
+    )
+    if housekeeping_turn is not None:
+        return housekeeping_turn
+
     # A named skill reaches the skill tools, for the same reason a named PDF reaches the PDF tools.
     # `skill.create`/`validate`/`install` work when called directly and NOTHING routed chat to them:
     # `plan_tool_workflow` returns handled=False for every create and validate phrasing measured, so

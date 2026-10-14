@@ -5,6 +5,7 @@ import hashlib
 import http.server
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -106,7 +107,8 @@ def test_one_press_restarts_installed_source_and_keeps_data(tmp_path, scenario):
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         shutil.copy2(REPO / "pyproject.toml", code / "pyproject.toml")
         path = code / "core/app_version.py"
-        path.write_text(path.read_text().replace('VOOL_VERSION = "0.7.0"', f'VOOL_VERSION = "{version}"'))
+        # Whatever version the checkout carries, the installed copy is 0.7.0 and the feed's is 0.7.1.
+        path.write_text(re.sub(r'VOOL_VERSION = "[^"]+"', f'VOOL_VERSION = "{version}"', path.read_text(), count=1))
         # The same POSIX fixture runs on the development Mac. Ubuntu uses its
         # actual sys.platform/uname, so CI exercises production detection too.
         if sys.platform != "linux":

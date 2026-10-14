@@ -197,6 +197,12 @@ BINDING_VERSION_PAYKIT = 3
 #: The binding version of an MPP charge built by Solana pay-kit (core.wallet.paykit_mpp): offer_json holds the challenge.
 BINDING_VERSION_PAYKIT_MPP = 4
 PAYKIT_BINDING_VERSIONS = (BINDING_VERSION_PAYKIT, BINDING_VERSION_PAYKIT_MPP)
+#: The binding version of an x402 payment built by the x402 Foundation SDK (core.wallet.x402_sdk): offer_json holds the
+#: one ``exact`` entry and the resource the challenge named.
+BINDING_VERSION_X402_SDK = 5
+#: The lanes whose binding keeps the request itself and whose payment goes once, with that request, at approval: a
+#: re-fetch never sends it again (``paykit_x402.existing_outcome`` answers for all of them).
+ONE_SHOT_BINDING_VERSIONS = (*PAYKIT_BINDING_VERSIONS, BINDING_VERSION_X402_SDK)
 ALLOW_LOOPBACK_ENV = "VOOL_WALLET_X402_ALLOW_LOOPBACK"
 _BINDING_COLS = "binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, tx_signature, state, resource_status, resource_digest, resource_bytes, created_at, updated_at, version, offer_json, resource_origin, resource_method, facilitator_id, eip712_name, eip712_version, asset_transfer_method, nonce, deadline, expires_at, max_facilitator_fee_minor, max_network_fee_minor, sponsored_gas, fee_asset, max_timeout_seconds, asset_address, request_body_b64, request_headers_json, fee_payer"
 #: A request's binding is never handed to another proposal while its own proposal is being prepared, waits on its
@@ -403,7 +409,7 @@ def names_a_request(proposal: proposals.TransactionProposal, *, conn: Any = None
     the same: its door binds its request when it mints it, so one proposed with a pay-kit origin and no fetch (the
     owner's ``/api/wallet/propose`` takes the origin as given) is refused before the owner is asked. On ``conn`` when
     given."""
-    if proposal.origin not in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS):
+    if proposal.origin not in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS, proposals.ORIGIN_X402_SDK):
         return True
     if conn is None:
         with connection() as own:
@@ -616,6 +622,12 @@ def fetch_paid_resource(url: str, *, wallet_id: str, source_context: dict[str, A
     if paykit_mpp.claims_challenge(response_headers, wallet_id=wallet_id):
         # an MPP Solana challenge (WWW-Authenticate: Payment): the same pay-kit lane, its MPP terms
         return paykit_mpp.park_challenge(answer, url=clean_url, method=method, headers=headers, body=b"", wallet_id=wallet_id, source_context=source_context)
+    from core.wallet import x402_sdk
+
+    if x402_sdk.claims_challenge(response_headers, body, wallet_id=wallet_id):
+        # a v2 EVM offer met by a Crypto Pilot wallet: the x402 Foundation SDK builds the EIP-3009 authorization, this
+        # wallet approves it on the Pilot sheet and signs it. Without the optional `x402` extra, refused typed, naming it
+        return x402_sdk.park_challenge(answer, url=clean_url, method=method, headers=headers, body=b"", wallet_id=wallet_id, source_context=source_context)
     # a v2 challenge is parsed ONLY by the v2 parser: never silently downgraded to v1
     from core.wallet import x402_v2
 
@@ -663,9 +675,9 @@ def _bound_outcome(binding: dict[str, Any] | None, *, timeout: float, source_con
     (nothing holds the request: it may be fetched afresh)."""
     if not binding or not binding.get("proposal_id"):
         return None
-    if int(binding.get("version") or 1) in PAYKIT_BINDING_VERSIONS:
-        # one key per request: a request the pay-kit lane holds answers as that lane answers it, never with this
-        # lane's delivery
+    if int(binding.get("version") or 1) in ONE_SHOT_BINDING_VERSIONS:
+        # one key per request: a request the pay-kit or SDK lane holds answers as that lane answers it, never with
+        # this lane's delivery
         from core.wallet import paykit_x402
 
         return paykit_x402.existing_outcome(str(binding["request_digest"]), source_context=source_context, timeout=timeout)
@@ -798,13 +810,14 @@ def retry_paid_resource(proposal_id: str, *, source_context: dict[str, Any] | No
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"proposal_id": str(proposal_id), "reason": "no_x402_binding"}, source_context=source_context)
     if int(binding.get("version") or 1) == 2:
         raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "v2_delivery_happens_at_submission"}, source_context=source_context)
-    if int(binding.get("version") or 1) in PAYKIT_BINDING_VERSIONS:
-        # the pay-kit lane delivers exactly once, at approval: its signed payment is a one-shot instrument the
-        # resource settles, so a retry here would replay it (or, worse, re-send it with another request). A retry
+    if int(binding.get("version") or 1) in ONE_SHOT_BINDING_VERSIONS:
+        # the pay-kit and SDK lanes deliver exactly once, at approval: their signed payment is a one-shot instrument
+        # the resource settles, so a retry here would replay it (or, worse, re-send it with another request). A retry
         # hands back the body that approval delivered, once, and sends nothing.
-        from core.wallet import paykit_x402
+        from core.wallet import paykit_x402, x402_sdk
 
-        delivered = paykit_x402.delivered_body(proposal.proposal_id)
+        lane = x402_sdk if int(binding.get("version") or 1) == BINDING_VERSION_X402_SDK else paykit_x402
+        delivered = lane.delivered_body(proposal.proposal_id)
         if delivered is not None:
             return X402Outcome(status=OUTCOME_DELIVERED, http_status=int(binding.get("resource_status") or 200), body=delivered, proposal_id=proposal.proposal_id,
                                binding_id=str(binding.get("binding_id") or ""), tx_signature=proposal.tx_signature)

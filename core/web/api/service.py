@@ -1321,11 +1321,21 @@ def dispatch_get(
             counts[str(row.get("project_id") or "")] = (
                 counts.get(str(row.get("project_id") or ""), 0) + 1
             )
+        # Pinned chats ride along whatever their recency: a chat pinned months ago is exactly the
+        # one that would otherwise fall outside the 100-row page.
+        from core.chat_housekeeping import pinned_chat_ids_from
+
+        pinned_at = pinned_chat_ids_from({str(r.get("session_id") or ""): r for r in every_session})
+        for row in every_session:
+            sid = str(row.get("session_id") or "")
+            row["pinned"] = sid in pinned_at
+            row["pinned_at"] = pinned_at.get(sid, "")
+        page = [r for r in every_session if r["pinned"]] + [r for r in every_session if not r["pinned"]][:100]
         return apply_runtime_headers(
             json_response(
                 200,
                 {
-                    "sessions": every_session[:100],
+                    "sessions": page,
                     "counts": counts,
                     "total": sum(counts.values()),
                     "page_size": 100,
@@ -1415,6 +1425,13 @@ def dispatch_get(
         from core.web.api.chat_export_api import handle_chat_export_get
 
         return handle_chat_export_get(query=query, runtime=runtime, client_host=client_host)
+
+    if normalized_path == "/api/chat/deliverable":
+        # A file the assistant built in this chat (core.deliverables), downloaded by its owner.
+        # Guards, lookup and headers live in core.web.api.deliverables_api.
+        from core.web.api.deliverables_api import handle_deliverable_get
+
+        return handle_deliverable_get(query=query, runtime=runtime, client_host=client_host)
 
     if normalized_path == "/api/context/pages":
         # C09/C13 turn-context inspect (additive delegation): scoped, provenance-
@@ -1567,8 +1584,16 @@ def dispatch_get(
                             **(artifact_meta if isinstance(artifact_meta, dict) else {}),
                         }
                     messages.append(assistant_message)
+        # Private chat (core.private_chat): the page shows the ghost while the chat is private.
+        # Present only when it is, so an ordinary chat's history is byte-identical.
+        history_payload: dict[str, Any] = {"session_id": session_id, "messages": messages}
+        if session_id:
+            from core.private_chat import is_private
+
+            if is_private(session_id):
+                history_payload["private_chat"] = True
         return apply_runtime_headers(
-            json_response(200, {"session_id": session_id, "messages": messages}),
+            json_response(200, history_payload),
             runtime,
         )
 
@@ -1785,11 +1810,24 @@ def dispatch_get(
     if normalized_path == "/api/cloud/providers":
         # The provider catalog for the Settings selector: id + label + key-id style, so the UI can
         # offer "Auto-detect / OpenAI / Anthropic / …" without hardcoding the list. No secrets.
-        from core.cloud_providers import PROVIDERS
+        # `key_from_environment` says, by presence only, that the provider's key comes from the
+        # environment (the lane routes on it although no Settings slot holds it), so the picker can
+        # count it as connected. A custom endpoint needs its base URL there too.
+        from core.cloud_providers import PROVIDERS, env_key_present
+
+        def _env_keyed(cfg) -> bool:
+            if not env_key_present(cfg.provider_id):
+                return False
+            if cfg.base_url_env_names:
+                import os as _os
+
+                return any(str(_os.environ.get(name) or "").strip() for name in cfg.base_url_env_names)
+            return True
 
         provider_rows = [
             {"id": cfg.provider_id, "label": cfg.label, "model_id_style": cfg.model_id_style,
-             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement}
+             "user_base_url": cfg.user_base_url, "auth_placement": cfg.auth_placement,
+             "key_from_environment": _env_keyed(cfg)}
             for cfg in PROVIDERS.values()
         ]
         return apply_runtime_headers(json_response(200, {"providers": provider_rows}), runtime)
@@ -1971,6 +2009,7 @@ def dispatch_get(
         # state. Registration is curated by default (boot registers the bundle's models, not
         # everything a user happens to have in Ollama), so an installed-but-unregistered model is
         # invisible to every other surface -- this listing is what makes it addressable at all.
+        from core.local_compute_budget import apple_silicon_build_notice
         from core.local_model_policy import resolve_local_model_policy
         from core.local_model_tool_certification import certification_status
         from core.model_registry import ModelRegistry
@@ -2006,6 +2045,7 @@ def dispatch_get(
                 {
                     "models": models,
                     "local_models_disabled": bool(policy.local_models_disabled),
+                    "apple_silicon_notice": apple_silicon_build_notice(),
                 },
             ),
             runtime,
@@ -2517,6 +2557,64 @@ def dispatch_get(
             if _up_refresh is not None:
                 _up_payload["refresh"] = _up_refresh
             return apply_runtime_headers(json_response(200, _up_payload), runtime)
+
+        if prov == "custom":
+            # The operator's own endpoint has no curated list: its catalogue is what capability
+            # discovery OBSERVED at the endpoint now configured (?refresh=1 observes it again). Only
+            # rows seen available under the live key/endpoint generations are offered; a list from a
+            # previous endpoint, or one degraded to unknown, never is. Prices are not published by
+            # an operator endpoint, so none are invented.
+            from core.credential_intelligence.discovery import discovery_snapshot, refresh_discovery
+
+            _cu_refresh: dict[str, Any] | None = None
+            if str((query.get("refresh") or [""])[0] or "").strip() in {"1", "true", "yes"}:
+                try:
+                    _cu_assertion = refresh_discovery("custom")
+                    _cu_status = str(getattr(_cu_assertion, "last_refresh_status", "") or "")
+                    _cu_refresh = {"ok": _cu_status in {"verified", "public_endpoint", "empty_catalogue"},
+                                   "status": _cu_status}
+                    if not _cu_refresh["ok"]:
+                        _cu_refresh["error"] = _cu_status or "no catalogue observed"
+                except Exception as exc:
+                    _cu_refresh = {"ok": False, "error": f"catalogue fetch failed ({type(exc).__name__})"}
+            _cu_entry = discovery_snapshot(["custom"]).get("custom") or {}
+            _cu_rows: list[dict[str, Any]] = []
+            if _cu_entry.get("generations_match"):
+                for _cu_model in _cu_entry.get("models") or []:
+                    if _cu_model.get("status") != "available" or _cu_model.get("evidence") != "observed":
+                        continue
+                    _cu_id = str(_cu_model.get("model_id") or "")
+                    if not _cu_id:
+                        continue
+                    _cu_rows.append({
+                        "id": _cu_id,
+                        "name": str(_cu_model.get("display_name") or _cu_id),
+                        "context_length": int(_cu_model.get("context_window") or 0),
+                        "free": False,
+                        "coding": False,
+                        "provider": "custom",
+                        "supports_images": "image" in {str(x).lower() for x in (_cu_model.get("input_modalities") or ())},
+                    })
+            if order == "name" or order == "featured":
+                _cu_rows.sort(key=lambda r: str(r["id"]).lower())
+            elif order == "context":
+                _cu_rows.sort(key=lambda r: int(r.get("context_length") or 0), reverse=True)
+            _cu_cfg = config_for("custom")
+            _cu_payload: dict[str, Any] = {
+                "provider": "custom",
+                "label": _cu_cfg.label if _cu_cfg else "Custom",
+                "models": _cu_rows,
+                "free_count": 0,
+                "age_seconds": None,
+                "order": order,
+                "catalogue_status": str(_cu_entry.get("last_refresh_status") or ""),
+                # The picker offers a typed model id for this provider: an endpoint may serve models
+                # it does not list, or list none at all.
+                "accepts_typed_model": True,
+            }
+            if _cu_refresh is not None:
+                _cu_payload["refresh"] = _cu_refresh
+            return apply_runtime_headers(json_response(200, _cu_payload), runtime)
 
         # Direct provider: curated static list (no live free catalog).
         from core.cloud_model_catalog import curated_models
@@ -3682,6 +3780,14 @@ def _flush_staged_transcript_rows(request_id: str) -> None:
         flush_staged_conversation_events(str(request_id or ""))
     except Exception:
         logging.getLogger(__name__).exception("staged transcript rows were not flushed at request end")
+    # Private chat (core.private_chat): at request end, drop the words the turn's working ledgers
+    # had to hold while it ran.
+    try:
+        from core.private_chat import end_private_request
+
+        end_private_request(str(request_id or ""))
+    except Exception:
+        logging.getLogger(__name__).exception("private chat request-end scrub failed")
 
 
 def _flush_staged_transcript_after(request_id: str, stream: Iterable[bytes]) -> Iterator[bytes]:
@@ -6310,6 +6416,38 @@ def _dispatch_post_inner(
         state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
+    if normalized_path == "/api/chat/followup":
+        # A message sent while this chat's task is still working. It never waits behind the task:
+        # a stop stops it, a note is attached to it, a plan change is held for a yes/no, and a
+        # question comes back as route `answer` for the page to run as a side answer. With no live
+        # task the route is `run_now`. Owner-local with the same transport guards as cancel.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.followup_continuity import handle_followup
+        from core.web.api.runtime import host_header_allowed
+
+        def _ph_followup(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ct = _ph_followup("content-type").lower()
+        if ct and "json" not in ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _ph_followup("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        unknown = set(body.keys()) - {"session_id", "text", "idempotency_key"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        outcome = handle_followup(
+            str(body.get("session_id") or ""),
+            str(body.get("text") or ""),
+            idempotency_key=str(body.get("idempotency_key") or ""),
+        )
+        return apply_runtime_headers(json_response(200 if outcome.get("ok") else 400, outcome), runtime)
+
     if normalized_path == "/api/chat/pin":
         # Pin or unpin one message to a chat (owner-local snapshot). Loopback + the same POST guards.
         # Enforced, not assumed: pin/unpin into any session must not be
@@ -6368,6 +6506,47 @@ def _dispatch_post_inner(
         servable_ids = {p.get("id") for p in message_pins.list_servable_pins(session_id)}
         echoed_pin = pin if ok and pin.get("id") in servable_ids else {}
         return apply_runtime_headers(json_response(200 if ok else 400, {"ok": ok, "pin": echoed_pin, "pins": message_pins.list_servable_pins(session_id)}), runtime)
+
+    if normalized_path == "/api/chat/pin-chat":
+        # Pin or unpin a whole chat to the top of the sidebar. Same owner-local guards as
+        # /api/chat/pin; the write is read back by core.chat_housekeeping before it reports ok.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        import json as _json
+
+        from core import chat_housekeeping
+        from core.web.api.runtime import host_header_allowed
+
+        def _pch(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        ct = _pch("content-type").lower()
+        if ct and "json" not in ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        origin = _pch("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 4096:
+                return apply_runtime_headers(json_response(413, {"error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"error": "unserializable body"}), runtime)
+        if not isinstance(body, dict):
+            return apply_runtime_headers(json_response(400, {"error": "invalid body"}), runtime)
+        unknown = set(body.keys()) - {"session_id", "pinned"}
+        if unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown)}"}), runtime)
+        session_id = body.get("session_id")
+        if not isinstance(session_id, str) or not session_id.strip():
+            return apply_runtime_headers(json_response(400, {"error": "missing or invalid session_id"}), runtime)
+        if not isinstance(body.get("pinned"), bool):
+            return apply_runtime_headers(json_response(400, {"error": "pinned must be true or false"}), runtime)
+        result = chat_housekeeping.set_chat_pinned(session_id.strip(), body["pinned"])
+        status = 200 if result.ok else (404 if result.error in ("chat_not_found", "chat_deleted") else 400)
+        return apply_runtime_headers(json_response(status, {"ok": result.ok, "error": result.error or None, "pinned": bool(result.after.get("pinned")), "changed": result.changed}), runtime)
 
     if normalized_path in {"/api/model-radar/dismiss", "/api/model-radar/viewed", "/api/model-radar/preferences", "/api/model-radar/try-once"}:
         # One family with the same guard suite as the other owner-local
@@ -7202,15 +7381,45 @@ def _dispatch_post_inner(
             # existing desktop namespace by presenting a guessed canonical id.
             allow_canonical_resume=owner_local,
         )
+        # Private chat (core.private_chat), decided at the door before anything below can record the
+        # turn: a chat already private, or a message turning it on, makes this whole request private.
+        from core.private_chat import observe_private_door
+
+        observe_private_door(
+            user_text,
+            session_id=session_id,
+            source_context=inbound_source_context,
+            page_believes_private=body.get("private_chat") is True,
+        )
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,
             user_text=user_text,
         )
+        # The browser re-sends every earlier message as typed. A PIN, card number or password in
+        # one is masked here, after the chat id is derived, so no later lane, prompt or record of
+        # this turn carries it; the current message still reaches secret intake as typed.
+        from core.secret_redaction import redacted_copy
+
+        client_history = redacted_copy(client_history)
+        history = redacted_copy(history)
         # The client sends a per-turn id it also uses to cancel; stamp it so stream_agent_with_events
         # registers a cancel Event under (session_id, turn_id) for this turn.
         inbound_source_context["price_wait_queue_id"] = str(body.get("queue_item_id") or "").strip()[:200] if owner_local else ""
         inbound_source_context["cancel_turn_id"] = str(body.get("turn_id") or "").strip()[:80]
+        # A question asked while a task runs in this chat is answered beside it, not after it. The
+        # side-answer marker is server-owned: a caller-sent copy is always dropped, and the page's
+        # request for one is honoured only while this chat really has a live task (owner-local).
+        from core import followup_continuity as _followups
+
+        inbound_source_context.pop(_followups.SIDE_ANSWER_CONTEXT_KEY, None)
+        inbound_source_context.pop(_followups.SIDE_ANSWER_SNAPSHOT_KEY, None)
+        inbound_source_context.pop(_followups.FOLLOWUP_NOTES_CONTEXT_KEY, None)
+        if owner_local and str(body.get("followup_mode") or "").strip() == "side_answer":
+            _active_snapshot = _followups.task_snapshot(session_id)
+            if _active_snapshot is not None:
+                inbound_source_context[_followups.SIDE_ANSWER_CONTEXT_KEY] = True
+                inbound_source_context[_followups.SIDE_ANSWER_SNAPSHOT_KEY] = _active_snapshot
         requested_workspace = str(
             body.get("workspace")
             or body.get("workspace_root")
@@ -7681,12 +7890,16 @@ def _dispatch_post_inner(
         # and the per-turn cancel signal must reach the in-flight tool (a long command in a code
         # task) rather than only the visible reply. Registered before the call, released in the
         # finally, on every exit path.
+        from core import followup_continuity as _buf_followups
         from core.live_turns import register_turn as _buf_register_turn
         from core.live_turns import unregister_turn as _buf_unregister_turn
 
         _buf_cancel_turn = str(source_context.get("cancel_turn_id") or "").strip()
+        _buf_task_turn = bool(_buf_cancel_turn) and not source_context.get(_buf_followups.SIDE_ANSWER_CONTEXT_KEY)
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
+        if _buf_task_turn:
+            _buf_followups.begin_task(session_id, _buf_cancel_turn, user_text)
         try:
             with _update_turn_guard(source_context, session_id):
                 result = run_agent_provider(
@@ -7706,6 +7919,8 @@ def _dispatch_post_inner(
         finally:
             if _buf_cancel_turn:
                 _buf_unregister_turn(session_id, _buf_cancel_turn)
+            if _buf_task_turn:
+                _buf_followups.end_task(session_id, _buf_cancel_turn)
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)

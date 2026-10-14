@@ -719,6 +719,36 @@ def _attached_text_files_by_name(source_context: dict[str, object] | None) -> di
     return out
 
 
+def _bound_archive_member_names(source_context: dict[str, object] | None) -> frozenset[str]:
+    """Paths, and last components, of every member of an archive bound to this turn, case-folded.
+
+    Only ingress-bound attachment rows count, exactly as for text attachments above. The names
+    come from the archive reader's own listing (`reader_meta.member_names`), never from text the
+    user typed, so a typed path can only match a member that is really inside the attachment.
+    """
+    names: set[str] = set()
+    for item in list((source_context or {}).get("external_evidence") or []):
+        if not isinstance(item, dict) or item.get("origin") != "chat_attachment" or not item.get("attachment_id"):
+            continue
+        meta = item.get("reader_meta")
+        if not isinstance(meta, dict):
+            continue
+        for member in meta.get("member_names") or []:
+            path = str(member or "").replace("\\", "/").strip().strip("/").casefold()
+            if path:
+                names.add(path)
+                names.add(_attachment_lookup_name(path))
+    return frozenset(names)
+
+
+def _names_a_bound_archive_member(path: str, members: frozenset[str]) -> bool:
+    typed = str(path or "").replace("\\", "/").strip().casefold()
+    while typed.startswith("./"):
+        typed = typed[2:]
+    typed = typed.strip("/")
+    return bool(typed) and (typed in members or _attachment_lookup_name(typed) in members)
+
+
 def _read_attached_file(item: dict[str, Any], read_request: dict[str, object]) -> Any:
     """Render an attached text file the way `workspace.read_file` renders a workspace file."""
     from core.runtime_execution_tools import RuntimeExecutionResult
@@ -900,6 +930,19 @@ def maybe_handle_direct_workspace_runtime_request(
         # touches the workspace for a file the turn brought along. A name that matches no
         # attachment is still a workspace read.
         attached_by_name = _attached_text_files_by_name(source_context)
+        # A path that names a member of an ARCHIVE bound to this turn ("what is in docs/readme.txt
+        # inside the attached zip") is a question about the attachment, not a workspace read.
+        # Measured on 9adff83: this lane answered "There is no file at `docs/readme.txt` ... in
+        # this project" with no model call while the archive and its extracted member sat in the
+        # turn. The attachment's extraction (and the question-targeted member re-read) is what
+        # answers it, so the lane stands down and the attachment-aware model answers.
+        archive_members = _bound_archive_member_names(source_context)
+        if archive_members and any(
+            _attachment_lookup_name(str(request.get("path") or "")) not in attached_by_name
+            and _names_a_bound_archive_member(str(request.get("path") or ""), archive_members)
+            for request in direct_reads
+        ):
+            return None
         for read_request in direct_reads:
             attached = attached_by_name.get(_attachment_lookup_name(str(read_request.get("path") or "")))
             if attached is not None:

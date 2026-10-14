@@ -45,7 +45,7 @@ find "${BUNDLE}/python" -name EXTERNALLY-MANAGED -type f -delete
 # Resolve ONLY from the checked-in lock. No training stack, GUI bindings, sdists,
 # build tools, host Python, or install-time package download is needed by users.
 (cd "${BUNDLE}/app" && uv export --locked --no-dev --no-default-groups --no-emit-project --no-header --no-annotate \
-  --extra companion --extra evm --output-file "${BUNDLE}/requirements-linux.txt" >/dev/null)
+  --extra companion --extra evm --extra x402 --output-file "${BUNDLE}/requirements-linux.txt" >/dev/null)
 uv pip sync --python "${BUNDLE}/python/bin/python3" --no-build --require-hashes --strict \
   --no-compile-bytecode "${BUNDLE}/requirements-linux.txt"
 cp "${BUNDLE}/app/installer/bundle/linux/"* "${BUNDLE}/"

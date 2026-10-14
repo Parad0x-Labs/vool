@@ -891,3 +891,40 @@ def _fresh_web_engine_memory():
         _wr._reset_engine_memory_for_tests()
     except Exception:
         pass
+
+
+# These modules exercise mocked providers or an owned HTTP fixture, never a real model load.
+# Their transport assertions must not depend on live host RAM or resident user models.
+_MOCK_PROVIDER_RESOURCE_MODULES = {
+    "test_prompt_budget_guard.py",
+    "test_openai_compatible_adapter.py",
+    "test_ollama_tools_required_repair.py",
+    "test_provider_model_attestation.py",
+    "test_required_tools_final_boundary.py",
+    "test_tool_call_recovery_adapter.py",
+    "test_tool_call_resolution_served_visibility.py",
+    "test_typed_tool_call_error_lane_equivalence.py",
+}
+_MOCK_LOCAL_ROUTING_CASES = {
+    "test_router_reports_a_typed_terminal_state_not_prose_when_every_candidate_lacks_tools",
+    "test_router_keeps_the_generic_label_when_failures_are_mixed",
+}
+
+
+@pytest.fixture(autouse=True)
+def isolated_mock_provider_host_state(request, monkeypatch):
+    module = request.node.path.name
+    if module in _MOCK_PROVIDER_RESOURCE_MODULES:
+        from tests.provider_fixture_resources_20261007 import pin_fixture_host_memory
+
+        pin_fixture_host_memory(monkeypatch)
+    if (
+        module == "test_small_project_build_planner.py"
+        or (
+            module == "test_required_tools_final_boundary.py"
+            and request.node.originalname in _MOCK_LOCAL_ROUTING_CASES
+        )
+    ):
+        # The builder helper stubs its generator/executor; these router cases stub invocation.
+        # Enable the lane under test, without enabling local inference for unrelated modules.
+        monkeypatch.setenv("VOOL_LOCAL_MODELS_ENABLED", "1")

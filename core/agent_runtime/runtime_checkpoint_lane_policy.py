@@ -344,6 +344,16 @@ def should_keep_ai_first_chat_lane(
         task_class=task_class,
     ):
         return False
+    # The answer wanted AS A FILE ("as a Word document", "export the table to CSV", "zip these")
+    # needs the file tool, which this tools-less lane cannot offer. Read through the same
+    # recogniser that seats `file.deliver` in the offer and admits it at the tool gate
+    # (core.tool_demand_signals), so the three cannot disagree. Measured on the served daemon:
+    # "Export that table to Excel." was kept here (route ordinary_plain_text_chat) and answered
+    # with pasted text while the delivery tool was never offered.
+    from core.tool_demand_signals import asks_for_a_file
+
+    if asks_for_a_file(user_input):
+        return False
     from core.stipulated_frame import stipulated_frame_active
 
     if stipulated_frame_active(user_input, source_context=source_context):

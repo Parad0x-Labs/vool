@@ -3,31 +3,31 @@
 This is the canonical install and quickstart doc.
 
 The quickest route is the app download from the
-[v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta):
-`VOOL-0.7.0-beta-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.0-beta-macos-x86_64.dmg` for
+[v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta):
+`VOOL-0.7.1-beta-macos-arm64.dmg` for Apple Silicon Macs, `VOOL-0.7.1-beta-macos-x86_64.dmg` for
 Intel Macs (both macOS 14 or newer), and the Linux x86_64 tarball described
 [below](#linux-x86_64-tarball). The macOS first-open steps are in
 [Install](getting-started/install.md#first-open-on-a-mac). The rest of this page covers
 source installs and the Linux tarball in detail.
 
-macOS / Linux source installs are pinned to `v0.7.0-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
+macOS / Linux source installs are pinned to `v0.7.1-beta`. Development on `main` is an explicit opt-in with `--ref main` and a matching script URL.
 
 ## Fast Path
 
 macOS / Linux:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.0-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.1-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.1-beta
 ```
 
-To pin another release, change the tag in both the script URL and `--ref`. `--ref` takes a branch name or a release tag (`v0.7.0-beta`), not a commit hash:
+To pin another release, change the tag in both the script URL and `--ref`. `--ref` takes a branch name or a release tag (`v0.7.1-beta`), not a commit hash:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.1-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.1-beta --install-profile ollama-max && rm -f "$tmp"
 ```
 
-On Windows the same pin is `-Ref v0.7.0-beta`.
+On Windows the same pin is `-Ref v0.7.1-beta`.
 
 Windows PowerShell:
 
@@ -66,9 +66,9 @@ bash Probe_VOOL_Stack.sh
 Force a supported install profile instead of taking the auto recommendation:
 
 ```bash
-bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.1-beta --install-profile local-only
 
-bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.1-beta --install-profile local-max
 ```
 
 ```powershell
@@ -78,11 +78,11 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1 -InstallProfile lo
 Safe one-line profile shortcuts for macOS / Linux:
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-only && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.1-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.1-beta --install-profile ollama-only && rm -f "$tmp"
 ```
 
 ```bash
-tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.0-beta --install-profile ollama-max && rm -f "$tmp"
+tmp="$(mktemp)" && curl -fsSLo "$tmp" https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.1-beta/installer/bootstrap_vool.sh && bash "$tmp" --ref v0.7.1-beta --install-profile ollama-max && rm -f "$tmp"
 ```
 
 After install, inspect or switch profiles without editing env vars:
@@ -109,7 +109,7 @@ The probe reports:
 Manual local shortcut:
 
 ```bash
-git clone --branch v0.7.0-beta --depth 1 https://github.com/Parad0x-Labs/vool.git
+git clone --branch v0.7.1-beta --depth 1 https://github.com/Parad0x-Labs/vool.git
 cd vool
 bash Install_And_Run_VOOL.sh
 ```
@@ -117,16 +117,16 @@ bash Install_And_Run_VOOL.sh
 
 ## Linux x86_64 tarball
 
-Download `vool-0.7.0-beta-linux-x86_64.tar.gz` and its `.sha256` sidecar from the
-[v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta),
+Download `vool-0.7.1-beta-linux-x86_64.tar.gz` and its `.sha256` sidecar from the
+[v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta),
 check it, and run the bundled installer:
 
 ```bash
-curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz
-curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz.sha256
-sha256sum -c vool-0.7.0-beta-linux-x86_64.tar.gz.sha256
-tar -xzf vool-0.7.0-beta-linux-x86_64.tar.gz
-bash vool-0.7.0-beta-linux-x86_64/install.sh
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.1-beta/vool-0.7.1-beta-linux-x86_64.tar.gz
+curl -fLO https://github.com/Parad0x-Labs/vool/releases/download/v0.7.1-beta/vool-0.7.1-beta-linux-x86_64.tar.gz.sha256
+sha256sum -c vool-0.7.1-beta-linux-x86_64.tar.gz.sha256
+tar -xzf vool-0.7.1-beta-linux-x86_64.tar.gz
+bash vool-0.7.1-beta-linux-x86_64/install.sh
 ~/.local/bin/vool
 # Server only: ~/.local/bin/vool --headless
 # Remove package: bash ~/.local/share/vool/current/uninstall.sh
@@ -139,7 +139,7 @@ The desktop opens the local chat in your browser; closing the browser does not
 stop the runtime. Headless mode ends with Ctrl-C. Runtime profiles survive uninstall.
 The runtime and lean dependencies are included; Ollama/models and optional
 training/native GTK capabilities are separate. Supported package test targets:
-Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.0.
+Ubuntu 22.04 and 24.04 on x86_64. The tarball is the only Linux package in 0.7.1.
 
 ## What The Source Installer Does
 
@@ -210,7 +210,7 @@ VOOL will detect `MLX_BASE_URL` at boot and route eligible requests through the 
 
 ## Optional Public Hive Write Auth (research only)
 
-Public Hive is retained experimental research and is not part of the 0.7.0 release. This
+Public Hive is retained experimental research and is not part of the 0.7.1 release. This
 section applies only to research deployments that run their own watch server. Public Hive
 reads can exist without write auth, but signed write hydration is a separate step.
 
@@ -294,7 +294,7 @@ VOOL_ENABLE_NULL_DIAL=1 .venv/bin/python -m apps.vool_cli dial web0.null "summar
 
 To make it persistent, export the flag or set `system.allow_null_dial: true` in `config/default_policy.yaml`.
 
-The dial never pays. If the endpoint answers with HTTP 402 (payment required), you get a no-spend preview of what it is asking for; the old `--allow-spend` pay step is retired and refuses. Payments go only through VOOL's wallet, as a proposal you approve, and in 0.7.0 x402 runs on test networks only.
+The dial never pays. If the endpoint answers with HTTP 402 (payment required), you get a no-spend preview of what it is asking for; the old `--allow-spend` pay step is retired and refuses. Payments go only through VOOL's wallet, as a proposal you approve.
 
 In chat, use `/dial <name>.null "<task>"`. While dial is off, the CLI prints how to enable it and makes zero network calls. The SSRF guard rejects any endpoint that resolves to a private, loopback, link-local, or otherwise internal address.
 

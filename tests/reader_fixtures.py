@@ -675,17 +675,22 @@ def xlsx_workbook(
         "</Relationships>"
     )
     buffer = io.BytesIO()
+    def member(name: str) -> zipfile.ZipInfo:
+        entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+        entry.compress_type = zipfile.ZIP_DEFLATED
+        return entry
+
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", _xlsx_content_types(with_macro=with_macro))
-        archive.writestr("_rels/.rels", _DOCX_RELS)
-        archive.writestr("xl/workbook.xml", workbook)
-        archive.writestr("xl/_rels/workbook.xml.rels", rels)
-        archive.writestr("xl/sharedStrings.xml", shared)
-        archive.writestr("xl/styles.xml", _xlsx_styles())
-        archive.writestr("xl/worksheets/sheet1.xml", _quarterly_sheet_xml(with_cached_totals=with_cached_totals))
-        archive.writestr("xl/worksheets/sheet2.xml", sheet2)
+        archive.writestr(member("[Content_Types].xml"), _xlsx_content_types(with_macro=with_macro))
+        archive.writestr(member("_rels/.rels"), _DOCX_RELS)
+        archive.writestr(member("xl/workbook.xml"), workbook)
+        archive.writestr(member("xl/_rels/workbook.xml.rels"), rels)
+        archive.writestr(member("xl/sharedStrings.xml"), shared)
+        archive.writestr(member("xl/styles.xml"), _xlsx_styles())
+        archive.writestr(member("xl/worksheets/sheet1.xml"), _quarterly_sheet_xml(with_cached_totals=with_cached_totals))
+        archive.writestr(member("xl/worksheets/sheet2.xml"), sheet2)
         if with_macro:
-            archive.writestr("xl/vbaProject.bin", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+            archive.writestr(member("xl/vbaProject.bin"), b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
     return buffer.getvalue()
 
 

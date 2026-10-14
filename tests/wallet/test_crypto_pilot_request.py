@@ -237,6 +237,34 @@ def test_words_without_a_pilot_coin_are_not_a_wallet_demand(text):
     assert "wallet.propose" not in resolve_demand_signals(text).explicit_intents
 
 
+@pytest.mark.parametrize("text", [
+    "pay 0x5555555555555555555555555555555555555555 1 USDC on base",
+    "send 0x5555555555555555555555555555555555555555 0.001 ETH on base",
+    "Pay 2fgqQMyTitjLceky7ZTFwQDKCFjitKAc5A4EpVpk54FQ 0.0005 SOL for the devnet proof",
+    "transfer 2.5 BNB 0x5555555555555555555555555555555555555555 on bnb",
+])
+def test_a_payment_that_names_the_recipient_without_to_is_a_wallet_demand(text):
+    """Users put the address first and drop the "to" ("pay 0x... 1 USDC on base"); with an exact amount of a pilot
+    coin beside the address, that is the same wallet demand as the "to" phrasing, and the wallet alone is offered."""
+    from core.tool_demand_signals import resolve_demand_signals
+
+    signals = resolve_demand_signals(text)
+    assert signals.explicit_intents == ("wallet.propose",) and signals.required_families == ("wallet",)
+
+
+@pytest.mark.parametrize("text", [
+    "send 0x5555555555555555555555555555555555555555 the ETH whitepaper",
+    "transfer 2fgqQMyTitjLceky7ZTFwQDKCFjitKAc5A4EpVpk54FQ notes about sol",
+    "pay 0x5555555555555555555555555555555555555555 for the ETH course",
+    "what did 0x5555555555555555555555555555555555555555 pay for 1 ETH?",
+    "pay 0x5555555555555555555555555555555555555555. Then buy 1 ETH",
+])
+def test_an_address_and_a_coin_without_an_amount_to_pay_it_are_not_a_wallet_demand(text):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert "wallet.propose" not in resolve_demand_signals(text).explicit_intents
+
+
 def test_a_legacy_external_signer_account_still_proposes_with_a_decimal_amount_and_no_hints(nodes):
     from core.wallet import custody, transfers
 

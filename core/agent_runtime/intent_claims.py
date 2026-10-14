@@ -203,7 +203,7 @@ _NO_ACTION_RE = re.compile(
     re.IGNORECASE,
 )
 _SPECIFIC_NO_ACTION_RE = re.compile(
-    r"\bdo\s+not\s+(?:inspect|open|read|list|search|check|run|write|create|edit|change|delete|remove|rename|move)\b",
+    r"\b(?:do\s+not|don['’]?t)\s+(?:inspect|open|read|list|search|check|run|write|create|edit|change|delete|remove|rename|move)\b",
     re.IGNORECASE,
 )
 _CONVERSATIONAL_OPENING_RE = re.compile(
@@ -294,7 +294,7 @@ _MUTATING_NEGATED_VERBS = frozenset({"write", "create", "edit", "change", "delet
 _SCOPED_NEGATION_OBJECT_RE = re.compile(
     r"^\s+(?:the\s+|a\s+|an\s+|any\s+|its\s+|these\s+|those\s+|my\s+|our\s+)*"
     r"(?:tests?|test\s+(?:suite|file|files|module|modules)|suite|unit\s+tests?|"
-    r"it|them|code|script|app|file|command|commands|benchmarks?|linters?|lint)"
+    r"it|them|code|scripts?|apps?|files?|command|commands|benchmarks?|linters?|lint)"
     r"(?![\w-])",
     re.IGNORECASE,
 )
@@ -341,8 +341,9 @@ def _negation_is_scoped(value: str, match: re.Match[str]) -> bool:
     if not _SCOPED_NEGATION_OBJECT_RE.match(value[match.end() :]):
         return False
     from core.agent_runtime import build_request_intent
+    from core.tool_demand_signals import asks_for_a_file
 
-    return bool(build_request_intent.imperative_build_sentences(value))
+    return bool(build_request_intent.imperative_build_sentences(value) or asks_for_a_file(value))
 
 
 def action_policy_for_text(text: str) -> ActionPolicy:
@@ -372,6 +373,13 @@ def turn_action_constraints(text: str) -> TurnActionConstraints:
         # the action lane for the entire turn.
         tail = value[match.end() :]
         if re.match(r"\s+(?:anything|any\s+\w+)\s+else\b", tail, re.IGNORECASE):
+            continue
+        # "Don't write any files, just explain" opens the turn and bans the lane. A "don't" after
+        # the turn's own request ("delete it, yes. Actually, don't delete it", "go ahead, but don't
+        # remove it") withholds that request's approval: the approval reading owns it and asks.
+        if not match.group(0).lower().startswith("do ") and re.search(
+            r"\w", re.sub(r"^\W*(?:please\W+)?", "", value[: match.start()], flags=re.IGNORECASE)
+        ):
             continue
         if _negation_is_scoped(value, match):
             continue

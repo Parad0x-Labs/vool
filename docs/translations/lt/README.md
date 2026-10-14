@@ -20,7 +20,7 @@ VOOL yra vietinė AI darbalaukio aplinka. Ji veikia jūsų kompiuteryje, pagal n
 * **Patikrinamas.** Kiekvienas įrankio iškvietimas įrašomas su įvestimi ir rezultatu.
 
 {% hint style="warning" %}
-VOOL 0.7.0-beta išleista Mac kompiuteriams su Apple silicon ir Intel bei Linux x86_64. Mac programos dar nenotarizuotos, todėl macOS pirmą kartą paprašys patvirtinimo; žingsniai pateikti [Diegimo](getting-started/install.md) puslapyje.
+VOOL 0.7.1-beta išleista Mac kompiuteriams su Apple silicon ir Intel bei Linux x86_64. Mac programos dar nenotarizuotos, todėl macOS pirmą kartą paprašys patvirtinimo; žingsniai pateikti [Diegimo](getting-started/install.md) puslapyje.
 {% endhint %}
 
 ## Dvi būsenos

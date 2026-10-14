@@ -28,7 +28,9 @@ own unattempted slots `unsupported`.
 """
 from __future__ import annotations
 
+import copy
 import json
+import threading
 import uuid
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -76,6 +78,57 @@ _FAILED_DISPATCH_STATES = frozenset({"FAILED", "UNSUPPORTED_ENTITY"})
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# A private chat turn's sets (core.private_chat). The database row holds only ids, kinds and states; the words the
+# turn's own sweep needs live here, in this process, until the request ends. Measured on the 0.7.1 Mac smoke: every
+# private turn wrote its request text into obligation_sets.snapshot_json for the 20-30 s the turn ran, where a
+# copy can outlive the scrub in free pages and the WAL.
+_PRIVATE_SNAPSHOTS: dict[tuple[str, str], dict[str, Any]] = {}
+_PRIVATE_LOCK = threading.Lock()
+
+
+def _request_is_private(request_id: str) -> bool:
+    try:
+        from core.private_chat import request_is_private
+
+        return request_is_private(request_id) or request_is_private()
+    except Exception:
+        return False
+
+
+def _without_words(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The snapshot with the request's words blanked: identities, kinds and states stay."""
+    bare = copy.deepcopy(snapshot)
+    bare["request_text"] = ""
+    bare.pop("request_graph", None)
+    for item in bare.get("obligations") or []:
+        if isinstance(item, dict):
+            item["text"] = ""
+    for receipt in [*(bare.get("consumption") or []), *(bare.get("dispatches") or [])]:
+        if isinstance(receipt, dict):
+            for key in [k for k, v in receipt.items() if isinstance(v, str) and k not in {
+                "unit_id", "slice_id", "obligation_id", "lane", "state", "kind", "subtask_id", "recorded_at",
+            }]:
+                receipt[key] = ""
+    return bare
+
+
+def _decode(set_id: str, version: str, stored: str) -> dict[str, Any]:
+    with _PRIVATE_LOCK:
+        held = _PRIVATE_SNAPSHOTS.get((str(set_id), str(version)))
+        if held is not None:
+            return copy.deepcopy(held)
+    return json.loads(stored)
+
+
+def _encode(set_id: str, version: str, snapshot: dict[str, Any]) -> str:
+    key = (str(set_id), str(version))
+    with _PRIVATE_LOCK:
+        if key in _PRIVATE_SNAPSHOTS:
+            _PRIVATE_SNAPSHOTS[key] = copy.deepcopy(snapshot)
+            return json.dumps(_without_words(snapshot))
+    return json.dumps(snapshot)
 
 
 def bind_active_set(set_id: str, version: str) -> Any:
@@ -153,6 +206,9 @@ def open_obligation_set(
             for item in (obligations or [])
         ],
     }
+    if _request_is_private(str(request_id or "")):
+        with _PRIVATE_LOCK:
+            _PRIVATE_SNAPSHOTS[(clean_set_id, version)] = snapshot
     conn = get_connection()
     try:
         conn.execute(
@@ -160,7 +216,7 @@ def open_obligation_set(
             INSERT INTO obligation_sets (set_id, version, status, snapshot_json, created_at)
             VALUES (?, ?, 'OPEN', ?, ?)
             """,
-            (clean_set_id, version, json.dumps(snapshot), _utcnow()),
+            (clean_set_id, version, _encode(clean_set_id, version, snapshot), _utcnow()),
         )
         conn.commit()
     finally:
@@ -224,7 +280,7 @@ def record_disposition(
         ).fetchone()
         if row is None:
             return False
-        snapshot = json.loads(row["snapshot_json"])
+        snapshot = _decode(set_id, version, row["snapshot_json"])
         changed = False
         for item in snapshot["obligations"]:
             if item["obligation_id"] == obligation_id and item["state"] in (
@@ -239,7 +295,7 @@ def record_disposition(
             return False
         conn.execute(
             "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
-            (json.dumps(snapshot), set_id, version),
+            (_encode(set_id, version, snapshot), set_id, version),
         )
         conn.commit()
         return True
@@ -258,7 +314,7 @@ def _obligation_kind(set_id: str, version: str, obligation_id: str) -> str:
         conn.close()
     if row is None:
         return ""
-    for item in json.loads(row["snapshot_json"])["obligations"]:
+    for item in _decode(set_id, version, row["snapshot_json"])["obligations"]:
         if item["obligation_id"] == obligation_id:
             return str(item.get("kind") or "prose")
     return ""
@@ -294,7 +350,7 @@ def closure_verdict(set_id: str, version: str) -> dict[str, Any]:
         conn.close()
     if row is None:
         return {"covered": False, "open_count": -1, "set_version": version}
-    snapshot = json.loads(row["snapshot_json"])
+    snapshot = _decode(set_id, version, row["snapshot_json"])
     open_count = sum(
         1 for item in snapshot["obligations"] if item["state"] in _BLOCKING_STATES
     )
@@ -315,7 +371,7 @@ def _read_snapshot(set_id: str, version: str) -> dict[str, Any] | None:
         conn.close()
     if row is None:
         return None
-    return json.loads(row["snapshot_json"])
+    return _decode(set_id, version, row["snapshot_json"])
 
 
 def demand_obligations(set_id: str, version: str) -> tuple[dict[str, Any], ...]:
@@ -352,12 +408,46 @@ def set_for_request(request_id: str) -> tuple[str, str] | None:
         conn.close()
     for row in rows:
         try:
-            snapshot = json.loads(row["snapshot_json"])
+            snapshot = _decode(row["set_id"], row["version"], row["snapshot_json"])
         except Exception:
             continue
         if str(snapshot.get("request_id") or "") == clean:
             return (str(row["set_id"]), str(row["version"]))
     return None
+
+
+def scrub_request_texts(request_id: str) -> int:
+    """Blank the words a request's obligation sets froze, once the request has ended.
+
+    For a private chat turn (core.private_chat): the snapshot keeps the request text only so the
+    closure sweep can run after the turn's scope exits; once the request is over nothing needs it.
+    Identities, kinds and states stay. Returns how many sets were scrubbed.
+    """
+    clean = str(request_id or "").strip()
+    if not clean:
+        return 0
+    scrubbed = 0
+    conn = get_connection()
+    try:
+        rows = conn.execute("SELECT set_id, version, snapshot_json FROM obligation_sets").fetchall()
+        for row in rows:
+            try:
+                snapshot = _decode(row["set_id"], row["version"], row["snapshot_json"])
+            except Exception:
+                continue
+            if str(snapshot.get("request_id") or "") != clean:
+                continue
+            with _PRIVATE_LOCK:
+                _PRIVATE_SNAPSHOTS.pop((str(row["set_id"]), str(row["version"])), None)
+            conn.execute(
+                "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
+                (json.dumps(_without_words(snapshot)), str(row["set_id"]), str(row["version"])),
+            )
+            scrubbed += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return scrubbed
 
 
 def request_text(set_id: str, version: str) -> str:
@@ -414,7 +504,7 @@ def record_slice_consumption(
         ).fetchone()
         if row is None:
             return False
-        snapshot = json.loads(row["snapshot_json"])
+        snapshot = _decode(set_id, version, row["snapshot_json"])
         receipts = list(snapshot.get("consumption") or [])
         entry = {
             "unit_id": clean_unit,
@@ -433,7 +523,7 @@ def record_slice_consumption(
         snapshot["consumption"] = receipts
         conn.execute(
             "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
-            (json.dumps(snapshot), set_id, version),
+            (_encode(set_id, version, snapshot), set_id, version),
         )
         conn.commit()
         return True
@@ -487,7 +577,7 @@ def record_slice_dispatch(
         ).fetchone()
         if result is None:
             return False
-        snapshot = json.loads(result["snapshot_json"])
+        snapshot = _decode(set_id, version, result["snapshot_json"])
         dispatches = list(snapshot.get("dispatches") or [])
         if any(
             item.get("unit_id") == row["unit_id"]
@@ -501,7 +591,7 @@ def record_slice_dispatch(
         snapshot["dispatches"] = dispatches
         conn.execute(
             "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
-            (json.dumps(snapshot), set_id, version),
+            (_encode(set_id, version, snapshot), set_id, version),
         )
         conn.commit()
         return True
@@ -730,7 +820,7 @@ def assert_prose_cannot_close_pending_effect(set_id: str, version: str) -> bool:
         conn.close()
     if row is None:
         return False
-    for item in json.loads(row["snapshot_json"])["obligations"]:
+    for item in _decode(set_id, version, row["snapshot_json"])["obligations"]:
         if item.get("kind") == "effect" and item["state"] in _BLOCKING_STATES:
             return True
     return False
@@ -761,7 +851,7 @@ def register_effect_obligation(
         ).fetchone()
         if row is None:
             return False
-        snapshot = json.loads(row["snapshot_json"])
+        snapshot = _decode(set_id, version, row["snapshot_json"])
         if any(item["obligation_id"] == clean for item in snapshot["obligations"]):
             return True
         snapshot["obligations"].append(
@@ -774,7 +864,7 @@ def register_effect_obligation(
         )
         conn.execute(
             "UPDATE obligation_sets SET snapshot_json = ? WHERE set_id = ? AND version = ?",
-            (json.dumps(snapshot), set_id, version),
+            (_encode(set_id, version, snapshot), set_id, version),
         )
         conn.commit()
         return True

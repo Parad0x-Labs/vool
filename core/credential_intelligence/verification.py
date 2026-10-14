@@ -435,11 +435,13 @@ def _place_credential(key: str | None, descriptor: ProviderDescriptor) -> tuple[
             query_data = json.dumps(dict(descriptor.verify_body)).encode("utf-8")
             query_headers["Content-Type"] = "application/json"
         return _merge_query(descriptor.verify_endpoint, {**dict(descriptor.verify_query), name: key}), query_headers, query_data
-    if not (style == "bearer" or (style == "header" and name) or (style == "body" and name and method == "POST")):
+    open_endpoint = style == "none" and descriptor.user_endpoint
+    if not (style == "bearer" or (style == "header" and name) or (style == "body" and name and method == "POST")
+            or open_endpoint):
         return None
     headers = {"Accept": "application/json"}
     body = dict(descriptor.verify_body) if descriptor.verify_body else None
-    if key is not None:
+    if key is not None and not open_endpoint:
         if style == "bearer":
             headers["Authorization"] = f"Bearer {key}"
         elif style == "header":
@@ -556,6 +558,22 @@ def verify_provider_credential(secret: str, descriptor: ProviderDescriptor,
                         detail=f"unsupported key placement {descriptor.auth_style!r}")
 
     with named_background_effect_scope(scope):
+        if descriptor.user_endpoint and str(descriptor.auth_style or "").strip().lower() == "none":
+            # An endpoint the operator says is OPEN: no key exists to send, so the keyless answer is
+            # the whole verdict. Its documented shape proves the address serves this API; a 401/403
+            # says it demands a key after all, and that is named, never read as a bad key.
+            first = _ask(keyless, descriptor, timeout_s, host, keyed=False)
+            if isinstance(first, VerificationOutcome):
+                return first
+            status, body, headers = first
+            if status in _KEY_DEMANDED_STATUSES:
+                return _outcome(STATUS_UNAUTHORIZED, descriptor, status, host,
+                                detail="this endpoint asks for a key; choose where the key goes instead of no key",
+                                provider_error_code=provider_error_code_from_body(body))
+            judged = classify_verification_response(descriptor, status=status, body=body, headers=headers, host=host)
+            if judged.status == STATUS_VERIFIED:
+                return _outcome(STATUS_VERIFIED, descriptor, status, host, detail="open endpoint; no key is sent")
+            return judged
         if descriptor.user_endpoint:
             first = _ask(keyless, descriptor, timeout_s, host, keyed=False)
             if isinstance(first, VerificationOutcome):

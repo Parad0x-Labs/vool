@@ -76,6 +76,12 @@ class RuntimeToolContract:
     # owner-local surface that owns them -- but never a model-facing one, and the offer
     # census counts them under that owner path instead of demanding a model seat.
     model_visible: bool = True
+    # A successful call of this tool IS the whole answer to the turn (a file handed over with its
+    # download link). The tool loop stops asking the model for further rounds after it, and the
+    # published answer is the tool's own text. Without this a model under tool_choice="required"
+    # must call SOMETHING every round: measured live 2026-10-06 it rebuilt the same file up to five
+    # times, then closed with respond.direct prose that dropped the download link.
+    completes_turn: bool = False
 
     @property
     def read_only(self) -> bool:
@@ -945,7 +951,7 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
                 "kind": "string (email|phone|messaging|wallet)",
                 "label": "string optional",
                 "network": "string optional (wallet network, e.g. solana-devnet, base-sepolia, ethereum)",
-                "chain": "string optional (solana|base|ethereum|bnb|robinhood)",
+                "chain": "string optional (solana|base|ethereum|bnb|robinhood|arbitrum)",
                 "channel": "string optional (messaging channel)",
                 "account": "string optional (messaging account or workspace)",
             },
@@ -1878,6 +1884,63 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             claim=ToolClaim(target_argument="path", resolved_target_key="path", asserts_action=True),
         ),
         RuntimeToolContract(
+            intent="file.deliver",
+            description=(
+                "Hand the user a downloadable FILE built from text you write: a Word document (.docx), Excel workbook "
+                "(.xlsx), PowerPoint deck (.pptx), PDF, CSV/TSV, JSON, YAML, XML, HTML, Markdown, plain text, a source "
+                "file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a "
+                "file, to export or download it, or names a file format for the answer. Write `content` as markdown for "
+                "docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one "
+                "sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a "
+                "PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and "
+                "`files`, never one call per file. The "
+                "file is checked and the reply gives the user a download link. Not for editing project files: that is "
+                "workspace.write_file."
+            ),
+            tool_surface="file",
+            capability_id="file.deliver",
+            capability_claim="build a document, spreadsheet, slide deck, PDF, data, code or archive file from text and hand it to the user as a download",
+            supported=True,
+            unsupported_reason="File delivery is unavailable on this runtime.",
+            input_schema={
+                "filename": "string (e.g. report.docx; the extension picks the format)",
+                "content": "string optional (markdown, CSV, or the exact file text; required unless files is given)",
+                "format": "string optional (docx|xlsx|pptx|pdf|csv|tsv|json|yaml|xml|html|md|txt|zip|tar.gz)",
+                "title": "string optional (document title)",
+                "files": "list[object] optional (for zip/tar.gz: {filename, content, format})",
+            },
+            output_schema={"filename": "string", "format": "string", "size_bytes": "integer", "url": "string", "sha256": "string"},
+            # Writes only into this runtime's own data directory, never the workspace or the user's
+            # folders; the user takes the file with an explicit download. Same class as a saved note.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="file",
+            error_contract="returns_structured_error_result",
+            permission_actions=("create_files",),
+            renders_final_answer=True,
+            completes_turn=True,
+            json_schema={
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string"},
+                    "content": {"type": "string"},
+                    "format": {"type": "string", "enum": ["docx", "xlsx", "pptx", "pdf", "csv", "tsv", "json", "yaml", "xml", "html", "md", "txt", "code", "zip", "tar.gz"]},
+                    "title": {"type": "string"},
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"filename": {"type": "string"}, "content": {"type": "string"}, "format": {"type": "string"}},
+                            "required": ["filename", "content"],
+                        },
+                    },
+                },
+                "required": ["filename"],
+            },
+        ),
+        RuntimeToolContract(
             intent="workspace.replace_in_file",
             description="Replace text inside a workspace file.",
             tool_surface="workspace",
@@ -2595,13 +2658,13 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         ),
         RuntimeToolContract(
             intent="wallet.propose",
-            description="Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol, optionally the chain (solana, base, ethereum, bnb, robinhood) or the wallet_id. The proposal is simulated and limit-checked and then WAITS for the owner's PIN, biometric or external-wallet approval. This tool cannot approve, sign or send anything.",
+            description="Propose a payment for the owner to approve: destination address, the amount as a decimal string in the coin's units (or amount_minor in atomic units), the asset symbol, optionally the chain (solana, base, ethereum, bnb, robinhood, arbitrum) or the wallet_id. The proposal is simulated and limit-checked and then WAITS for the owner's PIN, biometric or external-wallet approval. This tool cannot approve, sign or send anything.",
             tool_surface="wallet",
             capability_id="wallet.propose",
             capability_claim="propose a payment for owner approval",
             supported=wallet_tools_enabled,
             unsupported_reason="The wallet is switched off on this runtime (VOOL_WALLET_ENABLED).",
-            input_schema={"destination": "str", "amount": "str decimal (optional when amount_minor is given)", "amount_minor": "int (optional when amount is given)", "asset": "str", "chain": "str (optional: solana|base|ethereum|bnb|robinhood)", "network": "str (optional)", "wallet_id": "str (optional)", "memo": "str (optional)", "idempotency_key": "str (optional)"},
+            input_schema={"destination": "str", "amount": "str decimal (optional when amount_minor is given)", "amount_minor": "int (optional when amount is given)", "asset": "str", "chain": "str (optional: solana|base|ethereum|bnb|robinhood|arbitrum)", "network": "str (optional)", "wallet_id": "str (optional)", "memo": "str (optional)", "idempotency_key": "str (optional)"},
             output_schema={"proposal_id": "str", "state": "str"},
             # local, reversible state (a proposal row that the owner may reject), the same class as profile.remember / set.save
             side_effect_class="creative_state",

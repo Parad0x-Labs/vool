@@ -12,7 +12,8 @@ state: capabilities are added lane by lane, and each lane below says exactly wha
 
 ## Network environments
 
-When Crypto is on, VOOL runs on **Mainnet**: Solana, Robinhood Chain, Base, Ethereum and BNB.
+When Crypto is on, VOOL runs on **Mainnet**: Solana, Robinhood Chain, Base, Ethereum, BNB and
+Arbitrum One.
 Normal setup never asks you to pick a network environment.
 
 * **Mainnet** — the default for every install, including installs upgraded with older
@@ -32,9 +33,10 @@ transfers and payments sections below for exactly which lanes exist on mainnet.
 
 ## What moves on which lane
 
-* **Pilot transfers move native coins only** (SOL on Solana, ETH on Base/Ethereum).
-* **The one Mainnet token is USDC on Solana**, and it exists for the x402 payment lane only:
-  automatic payments to AI services. Proposals refuse it for every other origin.
+* **Pilot transfers move native coins only** (for example SOL on Solana, ETH on Base,
+  Ethereum or Arbitrum One).
+* **The Mainnet tokens are USDC on Solana and USDC on Base**, and they exist for x402
+  payments only. Proposals refuse them for every other origin.
 * Every transfer is previewed (a **quote**: amount, fee ceiling, recipient, network) and needs
   your explicit approval bound to exactly that preview. Change anything and the approval is
   void — nothing is signed.
@@ -50,10 +52,15 @@ attempts locks the wallet for a while — deliberately, with a stated wait.
 
 ## x402 automatic payments
 
-x402 is a per-request payment protocol some AI services speak. **For websites, 0.7.0 runs it
-on test networks only** (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet), in
-Developer options; mainnet x402 for websites is planned for 0.7.1. **One exception:** the
-pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet
+x402 is a per-request payment protocol some websites and AI services speak. **Websites that
+ask for x402 payment in USDC on Base** (or Base Sepolia, in Developer options) can be paid
+from your Crypto Pilot wallet: one approval with your PIN, within your limits. The website's
+payment service covers the network fee. **No live mainnet payment has been made with this
+yet.** The other test networks (Solana Devnet, Ethereum Sepolia and BNB testnet) stay in
+Developer options. **Settings → Crypto → Payment channels** lists every way the wallet can
+pay a website, each with its own on/off switch; a channel that's off refuses before anything
+is signed. Paying through Solana pay-kit is not included in the downloads, so that channel
+shows as not usable. **Model marketplace:** the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet
 Crypto Pilot wallet in USDC or SOL. Each call waits for your approval within your wallet
 limits and shows the 0.1% VOOL fee. That path has not yet been tested on a real chain.
 When a paid resource uses x402:

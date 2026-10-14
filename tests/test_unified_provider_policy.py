@@ -229,8 +229,9 @@ def test_probe_separates_account_exhaustion_from_key_validity(probe_env):
 
 def test_public_custom_endpoint_cannot_green_the_probe(probe_env, tmp_path):
     """The unified policy's keyless-first rule reaches the Test button: a custom endpoint whose
-    /models answers without any key cannot confirm one, so the probe refuses — and never sends
-    the stored key there."""
+    /models answers without any key cannot confirm one, so the probe never greens — it reports the
+    key as untested (the endpoint answered, but nothing it serves can judge the key; a working key
+    there is not a failed one) — and never sends the stored key there."""
     with FakeProviderServer(
         responses=lambda record: (200, {"object": "list", "data": [{"id": "pub/model", "object": "model"}]})
     ) as server:
@@ -241,6 +242,7 @@ def test_public_custom_endpoint_cannot_green_the_probe(probe_env, tmp_path):
         from core import cloud_connection_state as ccs
 
         result = ccs.run_auth_probe(provider="custom", now=2000.0)
-        assert result["state"] == ccs.STATE_FAILED, result
-        assert result["detail"] == "public_endpoint"
+        assert result["state"] == ccs.STATE_UNTESTED, result
+        assert result["state"] != ccs.STATE_OK
+        assert "cannot confirm keys" in result["detail"]
         assert _no_bearer_was_sent(server), "the stored key was sent to a public endpoint"

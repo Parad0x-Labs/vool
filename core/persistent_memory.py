@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.context_scope import ContextAccessPolicy
-from core.memory.revocation import fenced_writer
+from core.memory.revocation import RevokedContentWrite, fenced_writer
 
 # Serializes the per-turn memory write sequence (conversation-log append + trim, and every
 # downstream load-modify-rewrite: facts, heuristics, session summary, dialogue). The daemon
@@ -278,6 +278,11 @@ _FORGET_TARGET_RE = re.compile(
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
+_FORGET_TOLD_YOU_ABOUT_RE = re.compile(
+    r"^(?:what|everything|anything|all)\s+(?:that\s+)?i(?:'ve|\s+have)?\s+"
+    r"(?:told\s+you|said(?:\s+to\s+you)?|shared(?:\s+with\s+you)?|gave\s+you)\s+about\s+(?=\S)",
+    re.IGNORECASE,
+)
 _REFERENTIAL_FORGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:(?:[a-z0-9][a-z0-9_-]*\s+){0,4})?"
@@ -542,6 +547,9 @@ def _forget_target_without_preservation_clause(raw_target: str) -> str:
 def _normalize_forget_target(raw_target: str) -> str:
     """Extract the value from natural forget wording without broad deletion."""
     target = _forget_target_without_preservation_clause(raw_target)
+    # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
+    # lead-in is how people say it, not part of anything they stored.
+    target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
     match = _FORGET_TARGET_RE.fullmatch(target)
     if match:
         target = match.group("value")
@@ -742,7 +750,7 @@ def ensure_memory_files() -> None:
     _ensure_memory_files(ensure_policy_table=_ensure_session_policy_table)
 
 
-def _memory_persistence_suppressed(source_context: dict[str, Any] | None) -> bool:
+def _memory_persistence_suppressed(source_context: dict[str, Any] | None, session_id: str | None = None) -> bool:
     """True when this turn must execute but persist NOTHING to the shared memory store.
 
     Test/audit/eval drivers set source_context['memory_scope']='ephemeral' (or export
@@ -761,6 +769,12 @@ def _memory_persistence_suppressed(source_context: dict[str, Any] | None) -> boo
     if scope in {"ephemeral", "audit", "test", "probe", "none"}:
         return True
     if ctx.get("persist_memory") is False or bool(ctx.get("ephemeral_memory")):
+        return True
+    # Private chat (core.private_chat): the turn was stamped private at the front door, or its chat
+    # is private now. A chat whose switch cannot be read counts as private (fail closed).
+    from core.private_chat import turn_is_private
+
+    if turn_is_private(ctx, session_id):
         return True
     return str(os.environ.get("VOOL_EPHEMERAL_MEMORY") or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -852,7 +866,7 @@ def append_conversation_event(
     ``core.finalization.finalize_answer`` with the committed bytes -- see the staging note above.
     ``persist_now`` is the explicit opt-out for a caller that owns its own commit semantics.
     """
-    if _memory_persistence_suppressed(source_context):
+    if _memory_persistence_suppressed(source_context, session_id):
         return
     declared = bool((source_context or {}).get(TRANSCRIPT_COMMIT_BOUNDARY_KEY)) if isinstance(source_context, dict) else False
     request_id = "" if (persist_now or not declared) else _current_request_lineage()
@@ -1014,7 +1028,7 @@ def _write_conversation_event(
     # Audit/test/eval turns execute fully but must never enter the shared live memory store, or
     # cross-session/global recall will replay them into a real user's later prompt (this is how the
     # "vool_audit_probe.txt / HELLO2" audit strings leaked into a live chat turn).
-    if _memory_persistence_suppressed(source_context):
+    if _memory_persistence_suppressed(source_context, session_id):
         return
     ensure_memory_files()
     from core.reply_control_sanitizer import strip_reply_control_tokens
@@ -1816,6 +1830,13 @@ def maybe_handle_memory_command(
             return False, ""
         if _capture_object_is_another_lanes_effect(capture_match.group("verb"), text):
             return False, ""
+    if capture_match or _CORRECTION_RE.match(text):
+        # Private chat (core.private_chat): nothing from a private chat is saved, an explicit
+        # "remember" included. Said plainly instead of claiming a save that never happens.
+        from core.private_chat import REPLY_REMEMBER_REFUSED, turn_is_private
+
+        if turn_is_private(source_context, session_id):
+            return True, REPLY_REMEMBER_REFUSED
     independent_operations = []
     parsed_forget = _FORGET_RE.match(text)
     if parsed_forget:
@@ -1990,22 +2011,36 @@ def maybe_handle_memory_command(
             return True, "Memory update skipped: fact is too short."
         facts = _split_explicit_memory_facts(fact)
         added_count = 0
+        refused = False
         for memory_fact in facts:
             for eligible_fact, eligible_scope, eligible_source in _admitted_remember_facts(
                 memory_fact,
                 policy=resolved_policy,
             ):
-                added_count += int(
-                    add_memory_fact(
-                        " ".join(eligible_fact.split()),
-                        session_id=resolved_session,
-                        scope=eligible_scope,
-                        authority="confirmed_memory",
-                        source=eligible_source,
-                        access_policy=resolved_policy,
+                try:
+                    added_count += int(
+                        add_memory_fact(
+                            " ".join(eligible_fact.split()),
+                            session_id=resolved_session,
+                            scope=eligible_scope,
+                            authority="confirmed_memory",
+                            source=eligible_source,
+                            access_policy=resolved_policy,
+                        )
                     )
-                )
+                except RevokedContentWrite:
+                    # The forget law holds in this chat; it is an answer, not a failed turn (measured 2026-10-14:
+                    # saying a forgotten fact again here ended the turn with HTTP 500).
+                    refused = True
+        if refused:
+            kept = "Locked in for the rest. " if added_count else ""
+            return True, (kept + "You asked me to forget that in this chat, so I won't keep it here. "
+                          "In a new chat I can remember it again.")
         if added_count:
+            if (source_context or {}).get("_secret_intake_consumed"):
+                # The same reply already says a PIN, card number or password was NOT saved; a bare
+                # "I'll remember that" beside it reads as if the secret was. Say what was kept.
+                return True, f"Locked in. I’ll remember \"{'; '.join(facts).rstrip('.!?')}\"."
             return True, "Locked in. I’ll remember that."
         return True, "I already had that in memory."
 

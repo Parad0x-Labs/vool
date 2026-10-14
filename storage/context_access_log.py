@@ -46,6 +46,17 @@ def _init_table() -> None:
 
 def record_context_access(report: dict[str, Any]) -> str:
     _init_table()
+    # Private chat (core.private_chat): a private turn's access report keeps its counts, never the
+    # context it quoted.
+    from core.private_chat import turn_is_private
+
+    if turn_is_private(None):
+        report = {
+            key: value
+            for key, value in report.items()
+            if isinstance(value, (bool, int, float)) or key in {"task_id", "trace_id", "retrieval_confidence"}
+        }
+        report["private_chat"] = True
     log_id = str(uuid.uuid4())
     conn = get_connection()
     try:

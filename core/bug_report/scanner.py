@@ -47,7 +47,7 @@ from core.bug_report.redaction import (
     _is_v6_candidate,
     _looks_like_secret_run,
 )
-from core.secret_redaction import contains_secret, mnemonic_redaction_available
+from core.secret_redaction import contains_personal_secret, contains_secret, mnemonic_redaction_available
 
 # Spans the pipeline itself generated from sanitized material (content-free digests).
 _DIGEST_FIELD_RE = re.compile(
@@ -168,7 +168,9 @@ def scan_text(text: str) -> tuple[ScanFinding, ...]:
 
     # Boolean backstop from the repo-wide secret masker. Our own redaction markers must be
     # ignored first: "token: [redacted]" would otherwise look like a labelled secret.
-    if contains_secret(_MARKER_RE.sub(" ", value)):
+    # Plain-word card numbers, PINs and passwords are checked by the rules below under their own
+    # names; the personal backstop comes after them.
+    if contains_secret(_MARKER_RE.sub(" ", value), personal=False):
         findings.append(ScanFinding(rule="secret_vendor", start=0))
 
     # Fail closed on a degraded install: without the canonical wordlist the backstop above
@@ -200,6 +202,10 @@ def scan_text(text: str) -> tuple[ScanFinding, ...]:
 
     for rule, pattern in _dynamic_patterns():
         check(rule, pattern)
+
+    own = {"card_number", "pin_code", "labeled_secret"}
+    if not own & {f.rule for f in findings} and contains_personal_secret(_MARKER_RE.sub(" ", value)):
+        findings.append(ScanFinding(rule="personal_secret", start=0))
 
     return tuple(findings)
 

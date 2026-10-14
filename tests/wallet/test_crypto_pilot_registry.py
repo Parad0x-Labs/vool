@@ -1,4 +1,4 @@
-"""Crypto Pilot, stage 1: ten network rows, the wallet-owned network environment, per-network capability.
+"""Crypto Pilot, stage 1: twelve network rows, the wallet-owned network environment, per-network capability.
 
 Every assertion reads an environment fact (registry rows, the persisted preference, typed refusals,
 the scripted endpoint's call log, the status payload), never prose. Chain facts were verified against
@@ -32,6 +32,8 @@ PILOT_ROWS = {
     "eip155:97": ("bnb", "testnet", "BNB", 18, "97", "BscScan", "https://testnet.bscscan.com/tx/", "https://bsc-testnet-dataseed.bnbchain.org"),
     "eip155:4663": ("robinhood", "mainnet", "ETH", 18, "4663", "Robinhood Explorer", "https://robinhoodchain.blockscout.com/tx/", "https://rpc.mainnet.chain.robinhood.com"),
     "eip155:46630": ("robinhood", "testnet", "ETH", 18, "46630", "Robinhood Explorer", "https://explorer.testnet.chain.robinhood.com/tx/", "https://rpc.testnet.chain.robinhood.com"),
+    "eip155:42161": ("arbitrum", "mainnet", "ETH", 18, "42161", "Arbiscan", "https://arbiscan.io/tx/", "https://arb1.arbitrum.io/rpc"),
+    "eip155:421614": ("arbitrum", "testnet", "ETH", 18, "421614", "Arbiscan", "https://sepolia.arbiscan.io/tx/", "https://sepolia-rollup.arbitrum.io/rpc"),
 }
 
 CAPABILITIES = {"list", "create", "backup", "balance", "quote", "sign", "send", "receipt"}
@@ -105,7 +107,7 @@ def _no_wallet_network(monkeypatch) -> None:
 
 # --- the registry -------------------------------------------------------------------------------------
 
-def test_registry_declares_the_ten_pilot_rows_and_nothing_else(pilot_env):
+def test_registry_declares_the_twelve_pilot_rows_and_nothing_else(pilot_env):
     from core.wallet import chains, config
 
     assert set(chains.REGISTRY) == set(PILOT_ROWS)
@@ -128,7 +130,7 @@ def test_registry_declares_the_ten_pilot_rows_and_nothing_else(pilot_env):
         link = chains.explorer_tx_url(network, sample)
         assert link.startswith(tx_prefix) and link.count(sample) == 1, link
         environments_by_chain.setdefault(spec.chain_key, []).append(spec.environment)
-    assert {k: sorted(v) for k, v in environments_by_chain.items()} == {k: ["mainnet", "testnet"] for k in ("solana", "ethereum", "base", "bnb", "robinhood")}
+    assert {k: sorted(v) for k, v in environments_by_chain.items()} == {k: ["mainnet", "testnet"] for k in ("solana", "ethereum", "base", "bnb", "robinhood", "arbitrum")}
     assert "cluster=devnet" in chains.explorer_tx_url(SOLANA_DEVNET, "5" * 88)
     assert "cluster" not in chains.explorer_tx_url(SOLANA_MAINNET, "5" * 88)
 

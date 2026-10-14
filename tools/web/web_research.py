@@ -1865,6 +1865,35 @@ def reset_quote_cache_for_test() -> None:
         _quote_cache.clear()
 
 
+def _coingecko_get_json(path: str, *, timeout: float, limit: int) -> Any:
+    """One CoinGecko API GET through this module's door, with the operator's key when one is stored.
+
+    The key rides only its plan's documented header (``core.coingecko_auth``), attached unredirected
+    so it never follows a redirect. A key CoinGecko refuses is remembered and the request is asked
+    again with the next stored key, then without one: a dead key costs the higher limits, never the
+    answer."""
+    import logging
+    import urllib.error
+
+    from core import coingecko_auth
+
+    for _attempt in range(len(coingecko_auth.PLANS) + 1):
+        url, auth, plan = coingecko_auth.request_for(path)
+        req = urllib.request.Request(url, headers={"User-Agent": "VOOL-PRICE/1.0"})
+        for name, value in auth.items():
+            req.add_unredirected_header(name, value)
+        try:
+            with _open_remote(req, timeout=timeout) as resp:
+                return json.loads(resp.read(limit).decode("utf-8", errors="ignore"))
+        except urllib.error.HTTPError as exc:
+            if plan == "keyless" or exc.code not in coingecko_auth.REFUSED_KEY_STATUSES:
+                raise
+            coingecko_auth.note_refused(plan, next(iter(auth.values()), ""))
+            logging.getLogger(__name__).warning(
+                "CoinGecko refused the stored %s key (HTTP %s); asking with the next key, or none", plan, exc.code)
+    raise RuntimeError("CoinGecko request could not be built")
+
+
 def _simple_price_payload(coin_ids: list[str], *, timeout_s: float) -> dict[str, Any]:
     """CoinGecko `simple/price` for `coin_ids`, serving anything cached within the TTL.
 
@@ -1886,15 +1915,12 @@ def _simple_price_payload(coin_ids: list[str], *, timeout_s: float) -> dict[str,
                 missing.append(coin_id)
     if not missing:
         return payload
-    api_url = (
-        f"https://api.coingecko.com/api/v3/simple/price"
-        f"?ids={urllib.parse.quote(','.join(missing))}"
+    path = (
+        f"/simple/price?ids={urllib.parse.quote(','.join(missing))}"
         f"&vs_currencies=usd,eur,btc"
         f"&include_24hr_change=true&include_market_cap=true&include_last_updated_at=true"
     )
-    req = urllib.request.Request(api_url, headers={"User-Agent": "VOOL-PRICE/1.0"})
-    with _open_remote(req, timeout=min(max(timeout_s, 3.0), 12.0)) as resp:
-        fetched = json.loads(resp.read(200000).decode("utf-8", errors="ignore"))
+    fetched = _coingecko_get_json(path, timeout=min(max(timeout_s, 3.0), 12.0), limit=200000)
     if not isinstance(fetched, dict):
         return payload
     stamped = time.monotonic()

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import math
+import sys
 import threading
 import time
 
@@ -264,11 +265,66 @@ def visible_frames() -> list[Rect]:
     return frames
 
 
+def install_nonactivating_pet_host() -> None:
+    """Create only the companion as an NSPanel with nonactivation set at creation.
+
+    focus=False prevents key-window status on pywebview's NSWindow, but does not
+    prevent macOS activating its owning application when the operator clicks it.
+    A nonactivating panel closes that distinction. Other windows keep their host.
+    """
+    import AppKit
+    import objc
+    from webview.platforms import cocoa
+
+    if getattr(cocoa, '_vool_pet_panel_installed', False):
+        return
+
+    class VoolCompanionPanel(AppKit.NSPanel):
+        def initWithContentRect_styleMask_backing_defer_(self, rect, mask, backing, defer):  # noqa: N802 -- public Cocoa selector
+            return objc.super(VoolCompanionPanel, self).initWithContentRect_styleMask_backing_defer_(
+                rect, mask | AppKit.NSWindowStyleMaskNonactivatingPanel, backing, defer)
+
+        def canBecomeKeyWindow(self):  # noqa: N802 -- public Cocoa selector
+            return False
+
+        def canBecomeMainWindow(self):  # noqa: N802 -- public Cocoa selector
+            return False
+
+    original_init = cocoa.BrowserView.__init__
+
+    def init_host(view, window):
+        pet = (window.title == 'VOOL Companion' and window.focus is False
+               and window.frameless and window.transparent and window.easy_drag)
+        if not pet:
+            return original_init(view, window)
+        # BrowserView construction is serialized on the Cocoa main thread.
+        original_host = cocoa.BrowserView.WindowHost
+        try:
+            cocoa.BrowserView.WindowHost = VoolCompanionPanel
+            return original_init(view, window)
+        finally:
+            cocoa.BrowserView.WindowHost = original_host
+
+    def acceptsFirstMouse_(view, event):  # noqa: N802 -- public Cocoa selector
+        if isinstance(view.window(), VoolCompanionPanel):
+            return True
+        # Every other window keeps WKWebView's own first-click behaviour.
+        return objc.super(cocoa.BrowserView.WebKitHost, view).acceptsFirstMouse_(event)
+
+    objc.classAddMethods(cocoa.BrowserView.WebKitHost, [
+        objc.selector(acceptsFirstMouse_, selector=b'acceptsFirstMouse:', signature=b'Z@:@')])
+    cocoa.BrowserView.__init__ = init_host
+    cocoa._vool_pet_panel_installed = True
+
+
 def configure_pet_window(ns_window) -> dict:
     """Apply the pet's window policy. Must already be on the main thread."""
     import AppKit
 
     ns_window.setLevel_(PET_WINDOW_LEVEL)
+    if isinstance(ns_window, AppKit.NSPanel):
+        ns_window.setHidesOnDeactivate_(False)
+        ns_window.setBecomesKeyOnlyIfNeeded_(True)
     # Follow the operator across Spaces and be allowed over a full-screen app, while never being
     # promoted into a window that takes part in full-screen itself.
     ns_window.setCollectionBehavior_(
@@ -281,6 +337,8 @@ def configure_pet_window(ns_window) -> dict:
     ns_window.setIgnoresMouseEvents_(False)
     return {
         "level": int(ns_window.level()),
+        "nonactivating_panel": bool(isinstance(ns_window, AppKit.NSPanel)
+            and ns_window.styleMask() & AppKit.NSWindowStyleMaskNonactivatingPanel),
         "collection_behavior": int(ns_window.collectionBehavior()),
         "is_opaque": bool(ns_window.isOpaque()),
         "has_shadow": bool(ns_window.hasShadow()),
@@ -344,7 +402,7 @@ class PetWindowTracker:
     the caller can persist it.
     """
 
-    def __init__(self, ns_window, interval: float = TRACK_INTERVAL_SECONDS, on_drop=None) -> None:
+    def __init__(self, ns_window, interval: float = TRACK_INTERVAL_SECONDS, on_drop=None, on_interaction=None) -> None:
         self._window = ns_window
         self._interval = float(interval)
         self._timer = None
@@ -354,6 +412,9 @@ class PetWindowTracker:
         self._running = False
         self._dragging = False
         self._on_drop = on_drop
+        self._on_interaction = on_interaction
+        self._interaction = None
+        self._pet_drag = False
         # The operator-answer region the pet currently yields to (AppKit coords), or None.
         # Written from the window-api bridge thread, read on the main-thread tick: assignment of
         # an immutable tuple is atomic enough for a presentation-only pointer-routing hint.
@@ -392,6 +453,9 @@ class PetWindowTracker:
                 self._timer.invalidate()
             self._timer = None
             self._running = False
+            # A re-show starts from no reported hover/drag, so the controls never stick on.
+            self._interaction = None
+            self._pet_drag = False
             # Leave the window accepting input, so a re-show is never stuck click-through.
             self._window.setIgnoresMouseEvents_(False)
 
@@ -410,6 +474,16 @@ class PetWindowTracker:
                 float(frame_rect.size.width), float(frame_rect.size.height),
             )
             dragging = bool(AppKit.NSEvent.pressedMouseButtons() & 1)
+            point = AppKit.NSEvent.mouseLocation()
+            hovered = point_hits_pet(float(point.x), float(point.y), frame, self._yield_rect)
+            if dragging and not self._dragging:
+                self._pet_drag = hovered
+            if not dragging:
+                self._pet_drag = False
+            interaction = (hovered, self._pet_drag)
+            if interaction != self._interaction and self._on_interaction is not None:
+                if self._on_interaction(*interaction):
+                    self._interaction = interaction
             action, corrected = settle_decision(
                 frame, visible_frames(), button_down=dragging, drag_seen=self._dragging
             )
@@ -548,10 +622,26 @@ class PetWindowController:
 
         facts = on_main_thread(_apply)
         if self._tracker is None:
-            self._tracker = PetWindowTracker(window, on_drop=self._report_settled)
+            self._tracker = PetWindowTracker(window, on_drop=self._report_settled, on_interaction=self._report_interaction)
         self._tracker.start()
         facts["ok"] = True
         return facts
+
+    def _report_interaction(self, hovered: bool, dragging: bool) -> bool:
+        """Main-thread, transition-only DOM notification; no blocking evaluate_js bridge.
+
+        WKWebView hover can remain stuck when click-through is enabled before its
+        mouseleave arrives. Native pointer tracking owns desktop hover visibility.
+        """
+        from webview.platforms import cocoa
+        instance = cocoa.BrowserView.instances.get(self._pywebview_window.uid)
+        loaded = getattr(self._pywebview_window.events, 'loaded', None)
+        if instance is None or loaded is None or not loaded.is_set():
+            return False
+        script = ('window.VoolDesktopCompanion&&window.VoolDesktopCompanion.interaction('
+                  + str(hovered).lower() + ',' + str(dragging).lower() + ')')
+        instance.webview.evaluateJavaScript_completionHandler_(script, None)
+        return True
 
     def _report_settled(self, origin: tuple[float, float]) -> None:
         """A drag just settled: hand the final position to the host's persistence seam.
@@ -653,6 +743,10 @@ class PetWindowController:
         def _reset():
             import AppKit
 
+            # Only a pet that is on the desktop is reset. Ordering a hidden or returned pet's
+            # window front would put a second pet on screen beside the in-app one.
+            if not window.isVisible():
+                return None
             frame = default_pet_frame(visible_frames())
             window.setFrame_display_(AppKit.NSMakeRect(*frame), True)
             order_front_without_focus(window)
@@ -668,3 +762,17 @@ class PetWindowController:
 
     def stats(self) -> dict:
         return self._tracker.stats() if self._tracker is not None else {"running": False, "ticks": 0}
+
+
+def cursor_position() -> dict | None:
+    """Place a newly detached pet at the actual desktop cursor, not DOM coordinates."""
+    if sys.platform != "darwin":
+        return None
+
+    def read():
+        import AppKit
+
+        point = AppKit.NSEvent.mouseLocation()
+        return {"x": float(point.x) - PET_WINDOW_WIDTH / 2, "y": float(point.y) - PET_WINDOW_HEIGHT / 2}
+
+    return on_main_thread(read)

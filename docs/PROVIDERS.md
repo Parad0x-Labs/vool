@@ -20,18 +20,19 @@ big for the local model. `auto` bursts up to a daily call cap you set; the cap a
 changed only from your own local session. Per-call approval prompts are not wired in this
 build (`ask` stays local) — an honest limitation, see [STATUS](STATUS.md).
 
-## 3. UsePod prepaid
+## 3. Prepaid metered provider
 
-A prepaid metered lane (`https://api.usepod.ai/proxy/<token>/...`) authenticated by a path
-token you provision. Turn it on in provider settings. Spending draws down your prepaid balance;
+A prepaid metered lane authenticated by a path token you provision. Turn it on in provider settings. Spending draws down your prepaid balance;
 VOOL treats the path token as a credential (it is redacted in every log and receipt by
 construction).
 
-## 4. Wallet / x402 (disabled by default)
+## 4. Wallet / x402 (off by default)
 
-Optional Solana wallet for Web0 `.null` names and metered x402 spends — **disabled in this
-build**; the spend lane is frozen with `/stopx402` semantics. Details, custody and spending
-controls: [Wallet & Web0 guide](WALLET_WEB0_GUIDE.md).
+Optional crypto wallet, off by default. Websites that ask for x402 payment in USDC on Base can
+be paid from your Crypto Pilot wallet, one PIN approval within your limits; no live mainnet
+payment has been made with this yet. Every payment goes through VOOL's wallet, with its
+limits, your approval and a receipt. Details, custody and spending controls:
+[Wallet & Web0 guide](WALLET_WEB0_GUIDE.md).
 
 ## Model selection and honesty
 

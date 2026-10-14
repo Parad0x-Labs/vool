@@ -220,21 +220,24 @@ def _terms_from_requirement(requirement: dict[str, Any], *, wallet_network: str,
 
 def existing_outcome(digest: str, *, source_context: dict[str, Any] | None = None, timeout: float = 20.0) -> Any:
     """What a request already bound gets, before anything is sent: its parked proposal while one waits, a typed
-    refusal once it was paid (its payment is delivered once and never sent again), else None. A request VOOL's own
-    x402 lanes hold (one key per request) answers as those lanes answer it."""
+    refusal once it was paid (its payment is delivered once and never sent again), else None. The same for a request
+    the x402 SDK lane holds (its binding keeps the request too). A request VOOL's own x402 lanes hold (one key per
+    request) answers as those lanes answer it."""
     from core.wallet import x402
 
     binding = x402.binding_for_digest(digest)
     if not binding or not binding.get("proposal_id"):
         return None
-    if int(binding.get("version") or 1) not in x402.PAYKIT_BINDING_VERSIONS:
+    version = int(binding.get("version") or 1)
+    if version not in x402.ONE_SHOT_BINDING_VERSIONS:
         return x402._bound_outcome(binding, timeout=timeout, source_context=source_context)
     parked = proposals.get_proposal(binding["proposal_id"])
     if parked is not None and parked.state in {proposals.STATE_PENDING_APPROVAL, proposals.STATE_APPROVED, proposals.STATE_AWAITING_SIGNATURE, proposals.STATE_SIGNED}:
         return x402.X402Outcome(status=x402.OUTCOME_PAYMENT_REQUIRED, http_status=402, proposal_id=parked.proposal_id, binding_id=binding["binding_id"])
     if parked is not None and parked.state in {proposals.STATE_CONFIRMED, proposals.STATE_BROADCAST}:
         # this exact request was paid: its payment was delivered once and is never sent again
-        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": "paykit_request_already_paid"}, source_context=source_context)
+        reason = "x402_sdk_request_already_paid" if version == x402.BINDING_VERSION_X402_SDK else "paykit_request_already_paid"
+        raise wallet_fault("wallet_duplicate_payment", authority=AUTHORITY, context={"proposal_id": parked.proposal_id, "reason": reason}, source_context=source_context)
     x402.end_abandoned_prepare(parked, source_context=source_context)
     if parked is not None:
         x402.refuse_while_dispatched(parked, authority=AUTHORITY, source_context=source_context)
@@ -299,12 +302,27 @@ def fetch_paid(url: str, *, wallet_id: str, method: str = "GET", headers: dict[s
     return park_challenge(answer, url=clean_url, method=clean_method, headers=headers, body=raw_body, wallet_id=wallet_id, source_context=source_context)
 
 
+def pilot_lane_ready(wallet_id: str, network: str) -> bool:
+    """Whether a pay-kit payment from this wallet on this row is paid from the Crypto Pilot sheet: a Crypto Pilot wallet
+    whose setup is finished, on a Solana row whose Pilot lane is ready. Reads only."""
+    from core.wallet import capabilities
+
+    if custody.seal_policy(wallet_id) != custody.PILOT_SEAL_POLICY or custody.setup_state(wallet_id) not in {"", "ready"}:
+        return False
+    spec = chains.resolve_network(network)
+    return spec.is_svm and capabilities.pilot_transfer_ready(spec)
+
+
 def refuse_pilot_lane(wallet_id: str, terms: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> None:
-    """A Crypto Pilot wallet, or a row whose native coin moves only through the Pilot lane, pays from its quote sheet as
-    a plain transfer, which a pay-kit resource never sees: such a payment would buy nothing. Refused before any proposal."""
+    """A payment from a Crypto Pilot wallet, or on a row whose native coin moves only through the Pilot lane, is paid
+    from the Pilot sheet (one quote, one credential, one paid request), so only a wallet :func:`pilot_lane_ready` parks
+    one. Anything else is refused before any proposal: a Pilot wallet whose setup is unfinished, a row whose Pilot lane
+    has not landed, a wallet of another custody on a Pilot row."""
     from core.wallet import transfers
 
-    if transfers.is_pilot_transfer_parts(wallet_id=wallet_id, network=terms["network"], asset=terms["asset"]):
+    if not transfers.is_pilot_transfer_parts(wallet_id=wallet_id, network=terms["network"], asset=terms["asset"]):
+        return
+    if not pilot_lane_ready(wallet_id, terms["network"]):
         raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "paykit_pilot_lane_not_supported", "network": terms["network"]}, source_context=source_context)
 
 
@@ -442,14 +460,16 @@ def _ata(owner: str, mint: str, token_program: str) -> str:
 
 
 def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_minor: int, mint: str, decimals: int, fee_payer: str,
-                           payer_pays_fee: bool = False) -> dict[str, Any]:
+                           payer_pays_fee: bool = False, recent_blockhash: str = "") -> dict[str, Any]:
     """Prove the bytes pay-kit asks this wallet to sign move EXACTLY the approved amount of the approved asset from
     this wallet to the approved payee, and nothing else: a v0 message with no lookup tables, the resource's fee
     payer first, this wallet signing only as the transfer authority, and no instruction beyond compute-budget
     settings, one transfer and one memo. Returns the facts it proved; raises ``wallet_signature_invalid`` otherwise.
 
     ``payer_pays_fee`` (an unsponsored MPP charge): this wallet is the fee payer and the only signer, and the
-    priority fee the compute-budget settings would charge it is bounded by :data:`MAX_PAYER_PRIORITY_LAMPORTS`."""
+    priority fee the compute-budget settings would charge it is bounded by :data:`MAX_PAYER_PRIORITY_LAMPORTS`.
+    ``recent_blockhash`` (the Crypto Pilot lane): the message must carry exactly that blockhash, the one the lane read
+    and recorded with the claim, so the signed bytes' validity window is the one the lane observes."""
     from solders.message import MessageV0
 
     def refuse(reason: str) -> Exception:
@@ -466,6 +486,8 @@ def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_mi
         raise refuse("paykit_message_not_canonical")
     if list(parsed.address_table_lookups):
         raise refuse("paykit_message_uses_lookup_tables")
+    if recent_blockhash and str(parsed.recent_blockhash) != str(recent_blockhash):
+        raise refuse("paykit_blockhash_not_the_one_read")
     keys = [str(key) for key in parsed.account_keys]
     required = int(parsed.header.num_required_signatures)
     if payer_pays_fee:
@@ -528,7 +550,7 @@ def verify_payment_message(message: bytes, *, payer: str, pay_to: str, amount_mi
         # the priority fee is micro-lamports per compute unit, paid by the fee payer: here, this wallet
         raise refuse("paykit_priority_fee_above_bound")
     return {"fee_payer": payer if payer_pays_fee else fee_payer, "payer": payer, "pay_to": pay_to, "amount_minor": int(amount_minor), "mint": mint,
-            "payer_pays_fee": bool(payer_pays_fee), "message_digest": hashlib.sha256(data).hexdigest()}
+            "payer_pays_fee": bool(payer_pays_fee), "recent_blockhash": str(parsed.recent_blockhash), "message_digest": hashlib.sha256(data).hexdigest()}
 
 
 class _PublicKeyOnly:
@@ -541,6 +563,18 @@ class _PublicKeyOnly:
 
     def pubkey(self) -> Any:
         return self._pubkey
+
+
+class PilotKeySigner:
+    """A Crypto Pilot signing session's key in the shape :class:`GuardedSigner` wraps: the public key, and one Ed25519
+    signature over bytes the guard has already proved (the session verifies its own signature before handing it out)."""
+
+    def __init__(self, session: Any) -> None:
+        self._session = session
+        self.public_key = str(session.public_key)
+
+    def sign(self, message: bytes) -> bytes:
+        return bytes(self._session.sign_svm(bytes(message)))
 
 
 class GuardedSigner:
@@ -609,6 +643,23 @@ def terms_for(binding: dict[str, Any], proposal: proposals.TransactionProposal) 
     asset = chains.asset_for(spec.network, proposal.asset)
     return {"pay_to": proposal.destination, "amount_minor": int(proposal.amount_minor), "mint": "" if asset.native else asset.address,
             "decimals": int(asset.decimals), "fee_payer": str(binding.get("fee_payer") or "")}
+
+
+def pilot_quote_block(binding: dict[str, Any], proposal: proposals.TransactionProposal) -> dict[str, Any]:
+    """The pay-kit facts a Crypto Pilot quote shows and its digest binds: the protocol and the one request the payment is
+    for, who pays the network fee, and the most this wallet's own fee can be (0 when the resource's fee payer pays it).
+    The approval reads the binding again and compares, so a binding that changed after the preview is refused before
+    the credential."""
+    from core.wallet import x402
+
+    mpp = int(binding.get("version") or 0) == x402.BINDING_VERSION_PAYKIT_MPP
+    fee_payer = str(binding.get("fee_payer") or "")
+    return {
+        "protocol": "mpp" if mpp else "x402", "origin": str(proposal.origin), "binding_id": str(binding.get("binding_id") or ""),
+        "request_digest": str(binding.get("request_digest") or ""), "url": str(binding.get("url") or ""), "method": str(binding.get("method") or "GET"),
+        "resource_origin": str(binding.get("resource_origin") or ""), "fee_payer": fee_payer, "sponsored": bool(fee_payer),
+        "payer_fee_max_minor": 0 if fee_payer else int(binding.get("max_network_fee_minor") or 0),
+    }
 
 
 def settlement_claim(headers: dict[str, Any] | None) -> dict[str, Any]:

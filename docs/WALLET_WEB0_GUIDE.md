@@ -1,11 +1,13 @@
 # Wallet & Web0 guide (optional, disabled by default)
 
 Crypto is **off by default**. When you turn it on, VOOL's wallet covers the mainnet chains
-listed below, with caps, your approval and a receipt for every payment. In 0.7.0, x402
-for websites works on test networks only. One exception: the pay-per-call option in the
-model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet; each call
-waits for your approval within your limits and shows the 0.1% VOOL fee, and it has not yet
-been tested on a real chain.
+listed below, with caps, your approval and a receipt for every payment. Websites that ask
+for x402 payment in USDC on Base or Base Sepolia can be paid from your Crypto Pilot wallet:
+one approval with your PIN, within your limits. No live mainnet payment has been made with
+this yet, and paying through Solana pay-kit is not included in the downloads. The
+pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet
+Crypto Pilot wallet; each call waits for your approval within your limits and shows the
+0.1% VOOL fee, and it has not yet been tested on a real chain.
 
 ## Enablement
 
@@ -15,8 +17,8 @@ VOOL rename.
 
 ## Supported chains
 
-- Mainnet is the default once Crypto is on: Solana, Robinhood Chain, Base, Ethereum and BNB
-  mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
+- Mainnet is the default once Crypto is on: Solana, Robinhood Chain, Base, Ethereum, BNB and
+  Arbitrum One mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
 - Test networks (Solana devnet and the EVM testnets) are reachable only in
   **Settings → Crypto → Developer options**.
 - The Web0 `null_registrar v2` program: exercised in tests.
@@ -43,7 +45,7 @@ VOOL rename.
 `.null` registration costs the on-chain fee plus name rent (order of ~0.01 SOL, read live
 from the registrar config before you commit; 1–3 character names go through auction).
 `vool register <name>.null` previews the exact live cost. Signing a registration is not
-available in 0.7.0: the command shows the preview and stops.
+available yet: the command shows the preview and stops.
 
 See also: [SPEND_CAPS](SPEND_CAPS.md), [x402-proof](x402-proof.md), and the wallet faults in
 the [Error Book](ERROR_BOOK.md).

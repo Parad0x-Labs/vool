@@ -1,6 +1,6 @@
 {
   "channel_name": "beta",
-  "release_version": "0.7.0-beta",
+  "release_version": "0.7.1-beta",
   "protocol_version": 1,
   "schema_generation": 1,
   "minimum_compatible_release": "0.4.0-closed-test",
@@ -8,6 +8,6 @@
   "update_strategy": "signed_atomic_one_press",
   "requires_clean_runtime": true,
   "signed_write_required": true,
-  "notes": "VOOL 0.7.0 beta uses platform-specific signed GitHub release updates. Release builds require the owner’s pinned public publisher key and signed manifest assets. No distributable assets are claimed by this configuration.",
+  "notes": "VOOL 0.7.1 beta uses platform-specific signed GitHub release updates. Release builds require the owner’s pinned public publisher key and signed manifest assets. No distributable assets are claimed by this configuration.",
   "artifacts": []
 }

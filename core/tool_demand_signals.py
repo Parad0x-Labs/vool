@@ -115,8 +115,14 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         ),
     ),
     # -- wallet (propose/read only; approval is never a tool) ----------------
-    # a decimal amount ("0.0005 SOL", "0.001 ETH") is not a sentence boundary; the native coins of every pilot row count
-    ("wallet.propose", "wallet", re.compile(r"\b(?:pay|send|transfer|prepare|propose)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\bto\b", re.I)),
+    # a decimal amount ("0.0005 SOL", "0.001 ETH") is not a sentence boundary; the native coins of every pilot row count.
+    # The recipient may also be a bare address with no "to" ("pay 0x... 1 USDC on base"): then an exact amount must
+    # stand before the coin, so an address and a coin name alone are not a payment
+    ("wallet.propose", "wallet", re.compile(
+        r"\b(?:pay|send|transfer|prepare|propose)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\bto\b"
+        r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b"
+        r"|\b(?:pay|send|transfer)\b(?:[^.?!]|\.(?=\d)){0,60}?\b\d[\d,]*(?:\.\d+)?\s*(?:lamports?|sol|eth|bnb|usdc)\b(?:[^.?!]|\.(?=\d)){0,60}?\b(?:0x[0-9a-f]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\b",
+        re.I)),
     # -- contacts (the saved people and services; resolution itself happens inside each consumer) -----------
     # possession or the address-book name, never a bare mention: "contact card"/"Contacts are stored locally"
     # is prose about contacts, not a demand on them (the design-review boundary this base pins)
@@ -164,6 +170,57 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "workspace",
         re.compile(
             r"\b(?:run|running|format|formatting)\b[^.?!]{0,30}?\b(?:formatter|prettier|black|ruff format)\b", re.I
+        ),
+    ),
+    # -- a file handed to the user ---------------------------------------------
+    # The answer wanted AS a file in a named format ("as a Word document", "export to CSV",
+    # "give me a .xlsx", "zip these"). Seats the delivery tool beside the workspace writer below;
+    # the tool descriptions tell the model which one a request means.
+    (
+        "file.deliver",
+        "file",
+        re.compile(
+            # "as a Word document", "to Excel", "in a short one-page PDF", "as a .rar file". The
+            # words between the preposition and the format may not be a determiner of material
+            # already present ("in the attached pdf" asks about a file, it does not order one).
+            r"\b(?:as|in|into|to)\s+(?:an?\.?\s+)?(?:(?!the\b|this\b|that\b|these\b|those\b|attached\b|uploaded\b|my\b|your\b|our\b)[\w-]+\s+){0,3}?"
+            # "Word" alone is the program only when capitalized: "answer in exactly one word" and
+            # "in a word" constrain the reply, they order no document.
+            r"\.?\s?(?:(?-i:Word|WORD)|word\s+(?:docs?|documents?|files?)|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|zip|rar|7z|tar(?:\.gz|ball)?|spreadsheet|workbook|slide\s*deck)\b"
+            # "a CSV file", "a JSON file", "a PowerPoint file", "a Word document": a NEW file of a
+            # named type. Data formats need the noun, so "answer in JSON" stays a reply format.
+            r"|\ban?\s+(?:(?!attached\b|uploaded\b)[\w-]+\s+){0,2}?\.?(?:word|docx|excel|xlsx|powerpoint|pptx|pdf|csv|tsv|json|yaml|xml|html|markdown|md|txt|text|zip|rar|7z)\s+"
+            r"(?:file|document|doc|spreadsheet|workbook|deck|archive)\b"
+            # "export ... .docx", "make me a slide deck", "give me a downloadable copy".
+            r"|\b(?:export|download|give\s+me|send\s+me|make|create|generate|produce|build|prepare|convert|turn|save)\b[^.?!]{0,80}?"
+            r"(?:\.(?:docx|xlsx|pptx|pdf|csv|tsv|json|zip|rar|7z)\b|\b(?:word\s+(?:doc|document|file)|excel\s+(?:file|sheet|workbook|spreadsheet)|powerpoint|slide\s*deck|downloadable\s+\w+)\b)"
+            # "export the notes to word": a conversion verb makes a lowercase "word" the program.
+            r"|\b(?:export|convert|save|turn)\b[^.?!]{0,80}?\b(?:to|into|as)\s+(?:ms\s+|microsoft\s+)?word\b"
+            r"|\b(?:zip|compress)\s+(?:\w+\s+){0,2}?(?:up\s+)?(?:these|those|them|it|the\s+files|all\s+of\s+(?:it|them))\b"
+            r"|\b(?:zip|compress)\s+(?:them|it|these|those)\s+up\b"
+            # "...plus a usage note, and zip both files", "zip all of the files": the zip ordered by
+            # quantity rather than a pronoun (measured live 2026-10-06: answered as chat prose).
+            r"|\b(?:zip|compress)\s+(?:up\s+)?(?:both|all)\b(?:\s+(?:of\s+)?(?:the\s+)?(?:files?|them|together))?"
+            # "Export a CSV of the five largest states", "make me a PDF of...": a verb ordering a NEW
+            # file of a named type with no "file" noun (measured live: answered as chat prose).
+            # Data formats that double as reply formats (json, yaml) stay out, as in the pattern above,
+            # and "how to make a PDF ..." asks about the task instead of ordering it.
+            r"|(?<!how to )\b(?:export|download|give\s+me|send\s+me|make\s+me|make|create|generate|produce|prepare)\s+an?\s+"
+            r"(?:(?:sample|short|simple|brief|one-page)\s+){0,2}"
+            r"(?:csv|tsv|pdf|xlsx|docx|pptx|excel|zip)\b(?!\s+(?:format|formatting|response|answer|reply)\b)"
+            # A direct desire for a concrete artifact is also an order, not prose formatting.
+            r"|\bi\s+(?:need|want|would\s+like)\s+an?\s+(?:short\s+|sample\s+)?(?:pdf|csv|tsv|zip|docx|xlsx|pptx)\b(?!\s+(?:format|formatting|response|answer|reply|syntax|explanation)\b)"
+            r"|\b(?:zip|compress)\s+the\s+(?:csv|pdf|docx|xlsx|files?)\b"
+            # These nouns name deliverable artifacts without needing an extra "file" noun.
+            r"|\b(?:i\s+(?:need|want|would\s+like)|(?:make|create|build|generate|prepare)(?:\s+me)?)\s+"
+            r"(?:an?\s+)?(?:(?!to\b|about\b|know\b|understand\b|learn\b|how\b)[\w-]+\s+){0,3}?"
+            r"(?:spreadsheet|workbook|presentation|slide\s*deck)\b"
+            # "I need a spreadsheet of my monthly subscriptions ... Excel please": a spreadsheet or
+            # workbook is a file by its nature, so a turn that wants one orders a file (measured live
+            # 2026-10-06: answered with a fabricated "working on it" and no file).
+            r"|\b(?:i\s+(?:need|want|would\s+like)|give\s+me|send\s+me|make\s+me|make|create|build|put\s+together|set\s+up)"
+            r"\s+(?:me\s+)?an?\s+(?:(?:excel|google|simple|small|quick|new|monthly|weekly|basic)\s+){0,2}(?:spreadsheet|workbook)s?\b",
+            re.I,
         ),
     ),
     # -- workspace mutation --------------------------------------------------
@@ -748,6 +805,105 @@ def outgoing_message_intents(text: str) -> tuple[str, ...]:
     return ()
 
 
+_QUESTION_HEAD_RE = re.compile(r"^\s*(?:what|which|why|how|is|are|was|were|does|do|did|should|when|where|who)\b", re.I)
+_REQUEST_RE = re.compile(
+    r"\b(?:give\s+me|send\s+me|get\s+me|make\s+me|export|download|create|generate|produce|build|prepare|convert|"
+    r"turn|save|put|write|draft|zip|compress|i\s+(?:need|want|would\s+like)|can\s+you|could\s+you|would\s+you|please)\b",
+    re.I,
+)
+
+
+def _separate_file_execution_clause(text: str) -> bool:
+    raw = str(text or "")
+    from core.instructional_request import asks_how_to
+
+    # Read distinct action clauses before applying the instructional veto. A
+    # question mark does not turn "make me one" into a tutorial, and the artifact
+    # referred to by "one" may be named only in the preceding explanation.
+    parts = re.split(r"([.!?;]\s+|,\s*(?:and\s+)?|\band\s+)", raw, flags=re.I)
+    instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
+    explanatory = asks_how_to(instruction) or re.match(
+        r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
+    )
+    format_context = bool(re.search(r"\b(?:pdfs?|csv|tsv|docx|xlsx|pptx|word\s+documents?|excel|zip|tarball|powerpoint|spreadsheet|workbook|presentation|markdown|json|ya?ml|files?|downloadable)\b", raw, re.I))
+    if not format_context:
+        return False
+    for separator, clause in zip(parts[1::2], parts[2::2], strict=True):
+        action = re.sub(r"^\s*(?:then\s+|also\s+)?(?:please\s+)?", "", clause, flags=re.I)
+        if asks_how_to(action):
+            continue
+        if format_context and re.match(r"(?:make|create|generate|produce)\s+(?:me\s+(?:(?:a|an)\s+)?(?:sample\s+)?one|one)\b", action, re.I):
+            # Bare 'make one' needs an execution connector; 'make me one' is
+            # unambiguously addressed to this assistant.
+            if re.search(r"\bme\b", action, re.I) or re.search(r"\b(?:then|also)\b", clause, re.I):
+                return True
+        if re.match(r"(?:export|create|make|generate|produce)\s+one\s+of\s+(?:these|those|the|my|your)\b", action, re.I):
+            return True
+        # An explanation can list parallel steps: 'how to export a CSV and
+        # create a workbook'. A bare conjunction does not turn the second step
+        # into an order. Preserve an independent sentence or an explicit
+        # execution connector/address before seating its artifact demand.
+        if explanatory and not (
+            separator.lstrip().startswith((".", "!", "?", ";"))
+            or re.match(r"\s*(?:then|also)\b", clause, re.I)
+            or re.search(r"\b(?:for\s+me|(?:make|create|give|send)\s+me)\b", action, re.I)
+        ):
+            continue
+        if re.match(r"(?:export|create|make|generate|produce|prepare|give\s+me|send\s+me|zip|compress)\b", action, re.I):
+            if "file.deliver" in resolve_demand_signals(action).explicit_intents:
+                return True
+    return False
+
+
+#: "Can you explain how to make a PDF accessible?" asks for an explanation in a polite request's
+#: clothes; it starts with no question word, so the imperative reading below took it as an order.
+_POLITE_HOW_RE = re.compile(
+    r"^\s*(?:can|could|would|will)\s+you\s+(?:please\s+)?"
+    r"(?:explain|tell\s+me|show\s+me|teach\s+me|walk\s+me\s+through|describe|remind\s+me)\s+how\b",
+    re.I,
+)
+#: ...unless the same turn also hands the result over as a file ("... and give it to me as a PDF").
+_DELIVERY_ORDER_RE = re.compile(
+    r"\b(?:give|send|hand)\s+(?:it|this|that|them|the\s+\w+)\s+(?:over\s+|back\s+)?(?:to\s+me\s+)?(?:as|in)\b"
+    r"|\bas\s+an?\s+(?:downloadable\s+)?file\b|\b(?:export|save|put)\s+(?:it|this|that|them)\s+(?:as|to|in(?:to)?)\b",
+    re.I,
+)
+
+
+def asks_for_a_file(text: str) -> bool:
+    """Is this turn ordering a FILE (the `file.deliver` demand), not asking ABOUT a format?
+
+    The demand pattern above seats the tool; this is the stricter reading the routing gates use
+    to send a turn into the tool loop. A question about formats ("is a PDF better than a Word
+    document?", "how do I export to Excel from Sheets?") names formats without ordering anything,
+    and must stay an ordinary answer.
+    """
+    raw = str(text or "")
+    from core.instructional_request import asks_how_to
+
+    if _separate_file_execution_clause(raw):
+        return True
+    if "file.deliver" not in resolve_demand_signals(raw).explicit_intents:
+        return False
+    instruction = re.sub(r"^\s*(?:can|could|would)\s+you\s+(?:please\s+)?", "", raw, flags=re.I)
+    explanatory = asks_how_to(instruction) or re.match(
+        r"^\s*(?:(?:explain|describe|tell\s+me|show\s+me)\s+how|teach\s+me\s+(?:how|to))\b", instruction, re.I
+    )
+    # ...unless the same turn also hands the result over as a file ("... and give it to me as a PDF").
+    if explanatory and not _DELIVERY_ORDER_RE.search(raw):
+        return False
+
+    if not _QUESTION_HEAD_RE.match(raw):
+        # An imperative ("write a script and zip it up", "export this to CSV") orders the file
+        # even when it also asks for authored text: the file is the deliverable.
+        return True
+    from core.instructional_request import asks_for_instructions_not_execution
+
+    if asks_for_instructions_not_execution(raw):
+        return False
+    return bool(_REQUEST_RE.search(raw))
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
@@ -793,6 +949,11 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 ("workspace.write", "workspace.replace", "workspace.apply", "workspace.rollback")
             ):
                 write_demand = True
+
+    # Share the reader with front-door ownership: an anaphoric artifact order
+    # must seat file.deliver too, not only classify as a file after seating.
+    if _separate_file_execution_clause(cleaned):
+        _note("file.deliver", "file")
 
     # A save/store request whose object is a saved contact ("save Alex Chen as a contact",
     # "store Zoë Ng in my address book") is a Contacts demand even though the word-form rules above
