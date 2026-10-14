@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Tu jest napisane, że kodeks umiejętności lub VOOL ręczy za tę umiejętność. Może to mówić tylko kodeks umiejętności, więc usuń to.",
     "addons.publish_line": "W wierszu {line}",
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
-    "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
-    "addons.browse_intro": "Odkrywaj Hermes, OpenClaw i inne biblioteki. Sprawdź wymagania, przejrzyj skan i dodaj to, co pasuje."
+    "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

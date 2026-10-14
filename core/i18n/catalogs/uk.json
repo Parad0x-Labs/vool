@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Тут сказано, що кодекс навичок або VOOL ручається за навичку. Так може казати лише кодекс навичок, тож приберіть це.",
     "addons.publish_line": "У рядку {line}",
     "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді.",
-    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
-    "addons.browse_intro": "Досліджуйте Hermes, OpenClaw та інші бібліотеки. Перевірте вимоги, перегляньте сканування та додайте те, що підходить."
+    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Hier steht, dass der Fertigkeiten-Codex oder VOOL für die Fertigkeit bürgt. Das darf nur der Fertigkeiten-Codex sagen, also entfernen Sie es.",
     "addons.publish_line": "In Zeile {line}",
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
-    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
-    "addons.browse_intro": "Erkunde Hermes, OpenClaw und weitere Bibliotheken. Prüfe die Voraussetzungen, lies den Scan und füge hinzu, was passt."
+    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

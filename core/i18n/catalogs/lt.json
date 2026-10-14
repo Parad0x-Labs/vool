@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Čia teigiama, kad įgūdžių kodeksas ar VOOL laiduoja už šį įgūdį. Tai gali sakyti tik įgūdžių kodeksas, todėl pašalinkite tai.",
     "addons.publish_line": "{line} eilutėje",
     "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
-    "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
-    "addons.browse_intro": "Tyrinėkite Hermes, OpenClaw ir kitas bibliotekas. Patikrinkite reikalavimus, peržiūrėkite nuskaitymą ir pridėkite, kas tinka."
+    "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "스킬 코덱스나 VOOL이 이 스킬을 보증한다고 쓰여 있습니다. 그렇게 말할 수 있는 것은 스킬 코덱스뿐이니 빼세요.",
     "addons.publish_line": "{line}번째 줄",
     "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
-    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
-    "addons.browse_intro": "Hermes, OpenClaw 및 기타 라이브러리를 탐색하세요. 요구 사항을 확인하고 검사를 검토한 후 맞는 것을 추가하세요."
+    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

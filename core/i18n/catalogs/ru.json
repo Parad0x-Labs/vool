@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Здесь сказано, что кодекс навыков или VOOL ручается за навык. Так может говорить только кодекс навыков, поэтому уберите это.",
     "addons.publish_line": "В строке {line}",
     "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде.",
-    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex.",
-    "addons.browse_intro": "Открывайте Hermes, OpenClaw и другие библиотеки. Проверьте требования, изучите сканирование и добавьте подходящее."
+    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

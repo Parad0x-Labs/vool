@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "يقول هذا إن دليل المهارات أو VOOL يضمن المهارة. لا يقول ذلك إلا دليل المهارات، فاحذفه.",
     "addons.publish_line": "في السطر {line}",
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
-    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
-    "addons.browse_intro": "استكشف Hermes وOpenClaw ومكتبات أخرى. تحقق من المتطلبات، راجع الفحص، ثم أضف ما يناسبك."
+    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

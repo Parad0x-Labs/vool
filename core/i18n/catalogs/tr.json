@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Burada Beceri Kodeksinin veya VOOL'un bu beceriye kefil olduğu yazıyor. Bunu yalnızca Beceri Kodeksi söyleyebilir, bu yüzden kaldırın.",
     "addons.publish_line": "{line}. satırda",
     "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
-    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
-    "addons.browse_intro": "Hermes, OpenClaw ve diğer kitaplıkları keşfedin. Gereksinimleri kontrol edin, taramayı inceleyin ve uygun olanı ekleyin."
+    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

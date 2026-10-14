@@ -2598,10 +2598,9 @@
     "addons.publish_reason_check_endorsed": "Ceci affirme que le codex des compétences ou VOOL se porte garant de la compétence. Seul le codex des compétences peut le dire, retirez-le donc.",
     "addons.publish_line": "À la ligne {line}",
     "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
-    "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
-    "addons.browse_intro": "Explorez Hermes, OpenClaw et d'autres bibliothèques. Vérifiez les prérequis, consultez l'analyse, puis ajoutez ce qui vous convient."
+    "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex."
   },
-  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
+  "source_catalog_sha256": "6d783594e7dca16e5889c874fd25f53ca6769351f9dd39a033a0cd4b9d05eef7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
