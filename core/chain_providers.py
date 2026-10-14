@@ -19,6 +19,8 @@ is indistinguishable to the user from a bad key:
 * Solscan Pro API v2 takes the key in the ``token`` request header (pro-api.solscan.io docs).
 * Etherscan API V2 takes the key only as the ``apikey`` query parameter, one key for every chain it
   serves, the chain chosen by ``chainid``.
+* Moralis' Web3 Data API takes the key in the ``X-API-Key`` request header
+  (deep-index.moralis.io authentication docs), which keeps the key out of the URL.
 
 A key that must ride the URL (Helius, Etherscan) is registered as an exact secret before any request
 is built, so every ledger, receipt and error that could quote the URL scrubs it, and such a request
@@ -38,16 +40,18 @@ CHAIN_SOLANA = "solana"
 CHAIN_ETHEREUM = "ethereum"
 CHAIN_BASE = "base"
 CHAIN_BNB = "bnb"
+CHAIN_ARBITRUM = "arbitrum"
 CHAIN_ROBINHOOD = "robinhood"
-CHAINS: tuple[str, ...] = (CHAIN_SOLANA, CHAIN_ETHEREUM, CHAIN_BASE, CHAIN_BNB, CHAIN_ROBINHOOD)
-EVM_CHAINS: tuple[str, ...] = (CHAIN_ETHEREUM, CHAIN_BASE, CHAIN_BNB, CHAIN_ROBINHOOD)
+CHAINS: tuple[str, ...] = (CHAIN_SOLANA, CHAIN_ETHEREUM, CHAIN_BASE, CHAIN_BNB, CHAIN_ARBITRUM, CHAIN_ROBINHOOD)
+EVM_CHAINS: tuple[str, ...] = (CHAIN_ETHEREUM, CHAIN_BASE, CHAIN_BNB, CHAIN_ARBITRUM, CHAIN_ROBINHOOD)
 
 #: EVM chain ids (the same ids ``core/wallet/chains.py`` declares for these mainnets).
-EVM_CHAIN_IDS: dict[str, str] = {CHAIN_ETHEREUM: "1", CHAIN_BASE: "8453", CHAIN_BNB: "56", CHAIN_ROBINHOOD: "4663"}
+EVM_CHAIN_IDS: dict[str, str] = {CHAIN_ETHEREUM: "1", CHAIN_BASE: "8453", CHAIN_BNB: "56",
+                                 CHAIN_ARBITRUM: "42161", CHAIN_ROBINHOOD: "4663"}
 
 CHAIN_LABELS: dict[str, str] = {
     CHAIN_SOLANA: "Solana", CHAIN_ETHEREUM: "Ethereum", CHAIN_BASE: "Base",
-    CHAIN_BNB: "BNB Smart Chain", CHAIN_ROBINHOOD: "Robinhood Chain",
+    CHAIN_BNB: "BNB Smart Chain", CHAIN_ARBITRUM: "Arbitrum", CHAIN_ROBINHOOD: "Robinhood Chain",
 }
 
 #: Words a person uses for each chain, mapped to its key. Anything else is refused, never guessed.
@@ -56,13 +60,14 @@ CHAIN_ALIASES: dict[str, str] = {
     "ethereum": CHAIN_ETHEREUM, "eth": CHAIN_ETHEREUM, "mainnet": CHAIN_ETHEREUM, "ethereum mainnet": CHAIN_ETHEREUM,
     "base": CHAIN_BASE,
     "bnb": CHAIN_BNB, "bsc": CHAIN_BNB, "bnb smart chain": CHAIN_BNB, "bnb chain": CHAIN_BNB, "binance smart chain": CHAIN_BNB,
+    "arbitrum": CHAIN_ARBITRUM, "arb": CHAIN_ARBITRUM, "arbitrum one": CHAIN_ARBITRUM,
     "robinhood": CHAIN_ROBINHOOD, "robinhood chain": CHAIN_ROBINHOOD,
 }
 
 #: Native asset of each chain: (symbol, decimals).
 NATIVE_ASSETS: dict[str, tuple[str, int]] = {
     CHAIN_SOLANA: ("SOL", 9), CHAIN_ETHEREUM: ("ETH", 18), CHAIN_BASE: ("ETH", 18),
-    CHAIN_BNB: ("BNB", 18), CHAIN_ROBINHOOD: ("ETH", 18),
+    CHAIN_BNB: ("BNB", 18), CHAIN_ARBITRUM: ("ETH", 18), CHAIN_ROBINHOOD: ("ETH", 18),
 }
 
 #: The read operations the chain tool offers. Every one is a read of public chain data.
@@ -72,7 +77,12 @@ OP_HISTORY = "history"
 OP_TOKEN_INFO = "token_info"
 OP_HOLDERS = "holders"
 OP_TRANSACTION = "transaction"
-OPERATIONS: tuple[str, ...] = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION)
+#: A token's transfer history, in pages from the newest: the bulk source ``core/market_data.py``
+#: collects into a local dataset. Not one of the chat lookup words (``core/chain_data._OP_WORDS``):
+#: the chat reaches it through ``market.collect``, never as a bare lookup.
+OP_TOKEN_TRANSFERS = "token_transfers"
+OPERATIONS: tuple[str, ...] = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION,
+                               OP_TOKEN_TRANSFERS)
 
 #: Alchemy's documented network hosts for the chains this table serves.
 ALCHEMY_NETWORKS: dict[str, str] = {
@@ -83,9 +93,18 @@ ALCHEMY_NETWORKS: dict[str, str] = {
 HELIUS_RPC_URL = "https://mainnet.helius-rpc.com/"
 SOLSCAN_API_ORIGIN = "https://pro-api.solscan.io"
 ETHERSCAN_API_URL = "https://api.etherscan.io/v2/api"
+MORALIS_API_ORIGIN = "https://deep-index.moralis.io/api/v2.2"
 
 #: Wrapped SOL's mint: a token every Solscan plan can describe, used for the one verification read.
 WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112"
+
+#: WETH on Ethereum mainnet: a token every Moralis plan can describe, used for the one verification read.
+WETH_MAINNET = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+
+#: Moralis' documented chain names for the chains its holders read serves.
+MORALIS_CHAINS: dict[str, str] = {
+    CHAIN_ETHEREUM: "eth", CHAIN_BASE: "base", CHAIN_BNB: "bsc", CHAIN_ARBITRUM: "arbitrum",
+}
 
 
 def etherscan_body_verdict(payload: object) -> str:
@@ -147,9 +166,9 @@ class ChainProviderConfig:
         return op in self.coverage.get(chain, ())
 
 
-_SOLANA_RPC_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION)
-_ALCHEMY_EVM_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_TRANSACTION)
-_ETHERSCAN_OPS = (OP_BALANCE, OP_HISTORY, OP_TRANSACTION)
+_SOLANA_RPC_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
+_ALCHEMY_EVM_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
+_ETHERSCAN_OPS = (OP_BALANCE, OP_HISTORY, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
 
 # Order matters: it is the order the settings list shows and the order a chain's providers are tried
 # when the operator names none.
@@ -172,8 +191,8 @@ CHAIN_PROVIDERS: dict[str, ChainProviderConfig] = {
             "Choose Helius in the list, paste the key, and press Save key. VOOL asks Helius once whether it accepts it.",
         ),
         setup_notes=(
-            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders.",
-            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups do not use them, and VOOL does not open a stream.",
+            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders. When you ask VOOL to collect trade data for a token, it also reads that token's transfer history with this key.",
+            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups and trade data collection do not use them, and VOOL does not open a stream.",
         ),
     ),
     "alchemy": ChainProviderConfig(
@@ -239,6 +258,30 @@ CHAIN_PROVIDERS: dict[str, ChainProviderConfig] = {
             "Etherscan's free plan may not cover Base or BNB Smart Chain. If it does not, chat says so and names the chain.",
         ),
     ),
+    # The holders list for EVM tokens: Alchemy has none, Etherscan's is a paid-plan endpoint, so the
+    # one keyed source here is Moralis' documented top-holders read (one key, every chain it serves).
+    "moralis": ChainProviderConfig(
+        provider_id="moralis",
+        label="Moralis",
+        auth_style="header",
+        auth_name="X-API-Key",
+        coverage={chain: (OP_HOLDERS,) for chain in MORALIS_CHAINS},
+        # the verification read is the same documented owners read the tool makes, one row of WETH
+        verify_url=f"{MORALIS_API_ORIGIN}/erc20/{WETH_MAINNET}/owners",
+        verify_query={"chain": "eth", "limit": "1"},
+        signup_url="https://admin.moralis.io/",
+        description="Token holder lists on Ethereum, Base, BNB Smart Chain and Arbitrum.",
+        setup_steps=(
+            "Sign in at admin.moralis.io (the free plan works) and open your account.",
+            "On the Moralis site, open Settings, then API Keys, and copy your key.",
+            "Choose Moralis in the list, paste the key, and press Save key.",
+        ),
+        setup_notes=(
+            "Optional: VOOL uses your Moralis key only to read token holder lists on Ethereum, Base, BNB Smart Chain and Arbitrum. "
+            "Without it, everything else works.",
+            "The free plan has a daily compute-unit allowance. When it runs out, holder lists answer with a clear refusal in chat until it resets.",
+        ),
+    ),
 }
 
 
@@ -293,6 +336,7 @@ __all__ = [
     "CHAIN_PROVIDERS",
     "EVM_CHAINS",
     "EVM_CHAIN_IDS",
+    "MORALIS_CHAINS",
     "NATIVE_ASSETS",
     "OPERATIONS",
     "ChainProviderConfig",

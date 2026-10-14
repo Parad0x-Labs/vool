@@ -1170,6 +1170,13 @@
       "registry_command_id": "learning.list",
       "surface": "http"
     },
+    "http:GET:/api/market/watches": {
+      "classification": "LEGACY_UNMIGRATED",
+      "name": "GET /api/market/watches",
+      "note": "",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/memory/entries": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/memory/entries",
@@ -2262,6 +2269,27 @@
       "registry_command_id": "learning.invalidate",
       "surface": "http"
     },
+    "http:POST:/api/market/watches/pause": {
+      "classification": "LEGACY_UNMIGRATED",
+      "name": "POST /api/market/watches/pause",
+      "note": "",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/market/watches/remove": {
+      "classification": "LEGACY_UNMIGRATED",
+      "name": "POST /api/market/watches/remove",
+      "note": "",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/market/watches/resume": {
+      "classification": "LEGACY_UNMIGRATED",
+      "name": "POST /api/market/watches/resume",
+      "note": "",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/memory/forget": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/memory/forget",
@@ -3128,7 +3156,7 @@
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 305,
     "GENERATED_ADAPTER": 132,
-    "LEGACY_UNMIGRATED": 0,
+    "LEGACY_UNMIGRATED": 4,
     "REGISTRY_OWNED": 8
   }
 }

@@ -938,6 +938,20 @@ def dispatch_get(
                 json_response(500, {"ok": False, "error": "notification_store_unavailable", "reason": type(exc).__name__}), runtime
             )
         return apply_runtime_headers(json_response(200, view), runtime)
+    # Market watches (Settings > Notifications > Watching): the wallet and price watch list.
+    # Owner-local read, exactly like the notification preference reads above it.
+    if normalized_path == "/api/market/watches":
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import market_watch
+
+        try:
+            view = market_watch.settings_view()
+        except Exception as exc:
+            return apply_runtime_headers(
+                json_response(500, {"ok": False, "error": "market_watch_unavailable", "reason": type(exc).__name__}), runtime
+            )
+        return apply_runtime_headers(json_response(200, view), runtime)
     if normalized_path == "/api/calendar/alerts":
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
@@ -3097,6 +3111,7 @@ def dispatch_post(
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
         "/api/calendar/accounts/reconnect",
+        "/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove",
     }:
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
@@ -3170,6 +3185,30 @@ def dispatch_post(
             patch = body.get("preferences")
             result = notification_center.save_preferences(patch if isinstance(patch, dict) else {})
             return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
+        # Market watches: owner-local actions on the watch list (pause, resume, remove), the
+        # same lane shape as the notification preference writes above them.
+        if normalized_path in {"/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove"}:
+            from core import market_watch
+
+            # Same-origin only, like the X setup routes: a page on another site cannot pause or
+            # remove a watch through the owner's browser.
+            fetch_site = next((str(value or "") for key, value in (headers or {}).items()
+                               if str(key).lower() == "sec-fetch-site"), "")
+            if fetch_site.lower() == "cross-site":
+                return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross_site_refused"}), runtime)
+
+            selector = {"id": str(body.get("id") or ""), "subject": str(body.get("subject") or "")}
+            try:
+                if normalized_path.endswith("/pause"):
+                    result = market_watch.set_state(selector, "paused")
+                elif normalized_path.endswith("/resume"):
+                    result = {"ok": True, "watch": market_watch.resume_watch(selector)}
+                else:
+                    result = market_watch.remove_watch(selector)
+            except market_watch.WatchError as exc:
+                status_code = 404 if exc.code == "unknown_watch" else 400 if exc.code == "requirement_missing" else 409
+                return apply_runtime_headers(json_response(status_code, {"ok": False, "reason": exc.code, "detail": exc.message}), runtime)
+            return apply_runtime_headers(json_response(200, result), runtime)
         if normalized_path == "/api/calendar/alerts/policy":
             result = calendar_alerts.set_lead_minutes(
                 account_id=str(body.get("account_id") or ""), calendar_id=str(body.get("calendar_id") or ""),
