@@ -52,7 +52,10 @@ def load_service(config: dict, *, now: int):
             continue
         raw = store.admitted_artifact(entry["artifact_sha256"])
         if raw is None:
-            raw = (Path(config["artifact_dir"]) / (entry["artifact_sha256"] + ".json")).read_bytes()
+            cached = Path(config["artifact_dir"]) / (entry["artifact_sha256"] + ".json")
+            if online is not None and not cached.exists():
+                continue  # its bytes left with a deleted account before they were published; it is not served
+            raw = cached.read_bytes()
         store.publish(trust, info["id"], info["version"], config["target"], raw, now=now)
     store.prune(now=now)
     providers = []

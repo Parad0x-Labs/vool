@@ -26,6 +26,7 @@ import hmac
 import json
 import os
 import secrets
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -55,6 +56,9 @@ RENEW_BEFORE = 5 * 86400
 AUTHORIZE_BEFORE = 3 * 86400
 ROOT_SECONDS = 2 * 365 * 86400
 REVIEW_ATTEMPTS = 3
+# Paid reviews per publisher name per month, so one account cannot use up everyone's budget.
+REVIEWS_PER_CREATOR = 30
+_FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120}
 STEP = 30
 
 
@@ -105,6 +109,21 @@ def _raw_key(key: Ed25519PrivateKey) -> bytes:
 
 def _public(key: Ed25519PrivateKey) -> str:
     return key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
+
+
+def _shown(findings: list) -> list:
+    """Refusal reasons in the exact shape the service stores, so a refusal is never itself refused."""
+    shown = []
+    for item in findings[:200]:
+        value = {key: " ".join(str(item[key]).split())[:limit] for key, limit in _FINDING_KEYS.items()
+                 if isinstance(item.get(key), str) and item[key].strip()}
+        value.setdefault("check", "package")
+        value.setdefault("path", "package")
+        value.setdefault("reason", "This skill can't be published.")
+        if type(item.get("line")) is int and 0 < item["line"] <= 10 ** 7:
+            value["line"] = item["line"]
+        shown.append(value)
+    return shown
 
 
 def _exclusive(method):
@@ -209,20 +228,54 @@ class Authority:
 
     def check(self, raw: bytes, *, official: bool) -> dict:
         """{"refused": findings} or {"admission": envelope}, or {} while the model review is unavailable."""
-        from registry_service.model_review import CapReached, ReviewUnavailable
+        try:
+            return self._check(raw, official=official)
+        except Exception as exc:  # anything unexpected about one package refuses it, never stops the signer
+            if isinstance(exc, (OSError, MemoryError)):
+                raise  # this Mac's own trouble, not the package's
+            print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
+                  " ".join(str(exc).split())[:300], file=sys.stderr)
+            return {"refused": [{"check": "archive", "path": "package", "reason":
+                                 "Our checks couldn't read this skill. Make it plainer, then upload it again."}]}
+
+    def _clash(self, metadata: dict) -> str | None:
+        """A version number this skill already used or passed, which the signed list cannot hold twice."""
+        mine = [item["signed"]["metadata"] for item in self.state["entries"]] + \
+            [item["admission"]["signed"]["metadata"] for item in self.state.get("pending", {}).values()]
+        for other in mine:
+            if other["id"] == metadata["id"] and version_key(other["version"]) >= version_key(metadata["version"]):
+                return "Version " + metadata["version"] + " is not higher than " + other["version"] + \
+                       ", which is already listed. Use a higher version number."
+        return None
+
+    def _check(self, raw: bytes, *, official: bool) -> dict:
+        from registry_service.model_review import CapReached, NoAnswer, ReviewUnavailable
 
         outcome = checks.run(raw, self.dir / "scratch", targets=self.state["targets"], official=official)
         findings = [item for items in outcome["findings"].values() for item in items]
         if findings:
             return {"refused": findings[:200]}
         artifact = outcome["artifact"]
+        clash = self._clash(artifact["metadata"])
+        if clash and artifact["sha256"] not in {item["signed"]["artifact_sha256"] for item in self.state["entries"]}:
+            return {"refused": [{"check": "source", "path": "registry.json", "reason": clash}]}
         cached = self.state["verdicts"].get(artifact["sha256"])
+        if cached is not None and "refused" in cached:
+            return {"refused": cached["refused"]}
         if cached is None:
+            publisher = artifact["metadata"]["id"].split("/")[0]
+            month = time.strftime("%Y-%m", time.gmtime(self.now()))
+            used = self.state.setdefault("reviews", {}).setdefault(month, {})
+            if not official and used.get(publisher, 0) >= REVIEWS_PER_CREATOR:
+                return {"refused": [{"check": "instructions-secondary", "path": "package", "reason":
+                                     "This account has used this month's checks. Upload it again next month."}]}
+            self.state["reviews"] = {month: used}  # older months are done with
             try:
                 result = self.review.review(artifact, self._texts(artifact))
-            except CapReached:
-                return {}
+            except (CapReached, NoAnswer):
+                return {}  # nothing was answered: it waits, and nothing counts against it
             except ReviewUnavailable:
+                used[publisher] = used.get(publisher, 0) + 1
                 attempts = self.state["attempts"].get(artifact["sha256"], 0) + 1
                 self.state["attempts"][artifact["sha256"]] = attempts
                 if attempts < REVIEW_ATTEMPTS:
@@ -231,7 +284,10 @@ class Authority:
                         "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again."}]}
             except RegistryError as exc:
                 return {"refused": [{"check": "instructions-secondary", "path": "package", "reason": str(exc)}]}
+            used[publisher] = used.get(publisher, 0) + 1
             if result["verdict"] == "refuse":
+                # The same bytes uploaded again get the same answer without another paid review.
+                self.state["verdicts"][artifact["sha256"]] = {"refused": result["findings"]}
                 return {"refused": result["findings"]}
             cached = {"model": self.review.name, "reviewed_at": self.now()}
             self.state["verdicts"][artifact["sha256"]] = cached
@@ -311,10 +367,12 @@ class Authority:
             try:
                 raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
                 require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
-                result = self.check(raw, official=item["official"])
+                # Whether a skill is the team's comes from this Mac's own signed marks, never from the service's reply.
+                publisher = item["package_id"].split("/")[0]
+                result = self.check(raw, official=publisher in self.state["marks"]["teams"])
                 if "refused" in result:
                     self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
-                                                                             "refused": result["refused"]})
+                                                                             "refused": _shown(result["refused"])})
                     report["refused"].append(label)
                 elif "admission" in result:
                     self._store(raw)

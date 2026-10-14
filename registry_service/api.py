@@ -20,7 +20,7 @@ from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
 from registry_service import community, reports
 from registry_service.auth import Auth
-from registry_service.authority import HEADER, verify_request
+from registry_service.authority import HEADER, precheck_request, verify_request
 from registry_service.curation import labels, load_curation, picture_approvals
 from registry_service.store import Store
 
@@ -430,6 +430,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     async def signed(request, *, limit=65536) -> bytes:
         """Body of a request the signing Mac made; anything else is refused before it is read further."""
+        # A stranger's request is refused on its header alone, before up to 8 MB of body is read.
+        precheck_request(catalog.root, request.headers.get(HEADER, ""), now=now())
         raw = await body(request, limit=limit)
         await run_in_threadpool(verify_request, catalog.root, request.headers.get(HEADER, ""), request.method,
                                 request.url.path, raw, now=now(),

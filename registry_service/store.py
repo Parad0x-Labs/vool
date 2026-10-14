@@ -466,6 +466,7 @@ class Store:
 
         value = verify(envelope, root, "admission")
         validate_entry(value, root, now)
+        refusal = None
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT artifact, state FROM submissions WHERE id=? AND sha256=? AND artifact IS NOT NULL AND "
@@ -473,18 +474,36 @@ class Store:
             require(row, "this upload is not waiting for checks")
             if row[1] != "checking":
                 return value  # the Mac sent it again after a lost answer; the first admission stands
-            artifact = inspect(row[0])
-            require(value["artifact_sha256"] == sha256 and value["artifact_length"] == len(row[0]) and
-                    value["native_digest"] == artifact["native_digest"] and value["metadata"] == artifact["metadata"] and
-                    value["publication"] == {"service": "skill-codex", "artifact_sha256": sha256},
-                    "the admission describes different bytes")
-            db.execute("UPDATE submissions SET state='admitted', admission=? WHERE id=?", (canonical(envelope), identifier))
+            info = value["metadata"]
+            creator = db.execute("SELECT accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account "
+                                 "WHERE submissions.id=?", (identifier,)).fetchone()
+            check = "source"
+            if {creator[0] if creator else None, info["id"].split("/")[0]} & set(self._marks(db)["suspended"]):
+                check, refusal = "creator", "This creator can't publish right now."  # suspended while the Mac checked
+            elif db.execute("SELECT 1 FROM submissions WHERE package_id=? AND version=? AND sha256<>? AND state IN "
+                            "('admitted','published') UNION SELECT 1 FROM public_versions WHERE package_id=? AND version=? "
+                            "AND sha256<>?", (info["id"], info["version"], sha256, info["id"], info["version"], sha256)).fetchone():
+                refusal = "Version " + info["version"] + " is already used. Use a higher version number."
+            if refusal:
+                # Refused here, so the Mac leaves it out of its list; one version number never names two packages.
+                db.execute("UPDATE submissions SET state='refused', artifact=NULL, findings=? WHERE id=?", (canonical([
+                    {"check": check, "path": "package", "reason": refusal}]), identifier))
+            else:
+                artifact = inspect(row[0])
+                require(value["artifact_sha256"] == sha256 and value["artifact_length"] == len(row[0]) and
+                        value["native_digest"] == artifact["native_digest"] and value["metadata"] == artifact["metadata"] and
+                        value["publication"] == {"service": "skill-codex", "artifact_sha256": sha256},
+                        "the admission describes different bytes")
+                db.execute("UPDATE submissions SET state='admitted', admission=? WHERE id=?", (canonical(envelope), identifier))
+        require(refusal is None, "this upload is not waiting for checks")
         return value
 
     def admitted_artifact(self, sha256: str) -> bytes | None:
+        """Bytes the Mac admitted; once published they live on in public_versions, even if the account is deleted."""
         with self.connection() as db:
             row = db.execute("SELECT artifact FROM submissions WHERE sha256=? AND state IN ('admitted','published') "
-                             "AND artifact IS NOT NULL ORDER BY created LIMIT 1", (sha256,)).fetchone()
+                             "AND artifact IS NOT NULL ORDER BY created LIMIT 1", (sha256,)).fetchone() or \
+                db.execute("SELECT artifact FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
         return row[0] if row else None
 
     def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None, _via: str = "upload",
@@ -519,6 +538,14 @@ class Store:
                                                       (artifact["metadata"]["id"],))]
         require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in published),
                 "this version is already published; use a higher version number for the update")
+        if agreement:
+            with self.connection() as db:
+                waiting = [row[0] for row in db.execute(
+                    "SELECT version FROM submissions WHERE package_id=? AND state IN ('checking','admitted')",
+                    (artifact["metadata"]["id"],))]
+            # Two different packages under one version number would stop the signed list for everyone.
+            require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in waiting),
+                    "this version is already waiting for checks; use a higher version number")
         findings = secret_findings(artifact["files"])
         # Advisory, as in the command-line check: the instructions look like they use something "needs" leaves out.
         notices = undeclared_needs(artifact["metadata"], artifact["files"])

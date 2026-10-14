@@ -75,8 +75,8 @@ def sign_request(private_key: Ed25519PrivateKey, method: str, path: str, body: b
     return f"keyid={keyid(private_key)},ts={now},nonce={nonce},sig={sig}"
 
 
-def verify_request(root: dict, header: str, method: str, path: str, body: bytes, *, now: int, remember) -> str:
-    """Return the signing key id, or refuse. `remember(nonce, expires)` must refuse a nonce seen before."""
+def precheck_request(root: dict, header: str, *, now: int) -> dict:
+    """Everything that can be checked before the body is read: shape, time and a known key."""
     require(isinstance(header, str) and 0 < len(header) <= 512, "authority signature required")
     fields = {}
     for part in header.split(","):
@@ -85,9 +85,15 @@ def verify_request(root: dict, header: str, method: str, path: str, body: bytes,
         fields[match.group(1)] = match.group(2)
     require(set(fields) == {"keyid", "ts", "nonce", "sig"} and HEX.fullmatch(fields["keyid"]) and
             fields["ts"].isdigit() and re.fullmatch(r"[0-9a-f]{32}", fields["nonce"]), "invalid authority signature")
-    ts = int(fields["ts"])
-    require(abs(now - ts) <= SKEW, "authority signature is stale; check the signing Mac's clock")
+    require(abs(now - int(fields["ts"])) <= SKEW, "authority signature is stale; check the signing Mac's clock")
     require(fields["keyid"] in root["roles"]["admission"]["keyids"], "unknown authority key")
+    return fields
+
+
+def verify_request(root: dict, header: str, method: str, path: str, body: bytes, *, now: int, remember) -> str:
+    """Return the signing key id, or refuse. `remember(nonce, expires)` must refuse a nonce seen before."""
+    fields = precheck_request(root, header, now=now)
+    ts = int(fields["ts"])
     try:
         public = Ed25519PublicKey.from_public_bytes(bytes.fromhex(root["keys"][fields["keyid"]]))
         public.verify(base64.b64decode(fields["sig"], validate=True), _message(method, path, ts, fields["nonce"], body))

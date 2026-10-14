@@ -45,10 +45,19 @@ python -m registry_service.mac_authority status --dir FOLDER                    
 What happens when something stops:
 
 - The Mac is off for more than seven days: the signed list expires, and browsing, downloads and installs stop with "catalog freshness expired" until the next run. Nothing unsigned is served.
-- The review model is unreachable or answers in the wrong shape: the upload keeps waiting. After three unclear answers it is refused with a plain reason. The monthly cap (`monthly_cap` in `FOLDER/config.json`) stops paid calls; uploads then wait for the next month.
+- The review model is unreachable: the upload keeps waiting, and the outage never counts against it. A model that answers in the wrong shape gets three tries, then the upload is refused with a plain reason. The monthly cap (`monthly_cap` in `FOLDER/config.json`) stops paid calls; uploads then wait for the next month.
+- One publisher name sends many uploads: each name gets 30 model reviews a month (`REVIEWS_PER_CREATOR` in `registry_service/mac_authority.py`; the team's name has no limit), then its uploads are refused until the next month. The same refused bytes sent again reuse the first answer.
 - A suspended creator's waiting uploads are refused at the next run, and new ones at once.
+- A package makes the checks fail in a way nobody planned for: that upload is refused with "Our checks couldn't read this skill", the run goes on with the others, and the Mac's log shows `Refused <checksum> after an unexpected <error>`. Send that line to whoever maintains the checks.
 
 The authenticator code protects the hand-action commands. The admission and review keys are files readable only by the Mac account that runs the signer; the root key is encrypted with its passphrase. Anyone who controls that Mac account can sign, so keep it for this job, with FileVault and a login password. Removing a skill revokes its versions in every VOOL at the next Browse; downloads already made are not taken back.
+
+Limits the owner chose, so say nothing stronger:
+
+- One signature per role is enough, and the admission and review keys have no passphrase so the signer runs unattended. Whoever controls the Mac account can sign.
+- The Mac's signed list lasts 7 days. Someone who took over the server could keep serving the last list the Mac signed, without later removals, until those 7 days run out.
+- The signed record names the check suite and its major version, not the exact rule text. Tightening a rule does not mark older entries by itself; each renewal checks them again under today's rules.
+- One review model reads each skill, and its refusal reasons go back to the creator word for word, as the automatic checks' do. A skill written to fool that one model can pass the model step; the automatic checks still apply to it, and reports and removal are the backstop.
 
 The signed list keeps every version of every skill. VOOL reads a list of at most 4 MB, and one short skill's entry is about 1.3 KB, so plan to take older versions out of the list before it reaches a few thousand versions.
 

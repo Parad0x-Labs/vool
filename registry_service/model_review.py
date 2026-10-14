@@ -7,6 +7,7 @@ never published unchecked.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import time
 import urllib.error
@@ -52,6 +53,10 @@ class CapReached(ReviewUnavailable):
     """The monthly spend cap is used up."""
 
 
+class NoAnswer(ReviewUnavailable):
+    """The review service could not be reached; an outage never counts against a skill."""
+
+
 class ModelReview:
     def __init__(self, provider: str, model: str, *, ledger: Path, monthly_cap: float = 20.0, key: str = "",
                  request=None, clock=time.time):
@@ -90,8 +95,8 @@ class ModelReview:
         try:
             with urllib.request.urlopen(request, timeout=180) as response:
                 return json.loads(response.read(2 * 1024 * 1024))
-        except (urllib.error.URLError, TimeoutError, ValueError, OSError) as exc:
-            raise ReviewUnavailable(type(exc).__name__) from None
+        except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ValueError, OSError) as exc:
+            raise NoAnswer(type(exc).__name__) from None
 
     def review(self, artifact: dict, texts: dict[str, str]) -> dict:
         """Return {"verdict", "findings"} for these exact files, or raise ReviewUnavailable."""
@@ -127,7 +132,8 @@ def parse(answer: object, paths: set[str]) -> dict:
         raise ReviewUnavailable("the review model answered in the wrong shape")
     findings = []
     for item in value["findings"]:
-        if not (isinstance(item, dict) and isinstance(item.get("reason"), str) and 0 < len(item["reason"].strip()) <= 400):
+        if not (isinstance(item, dict) and isinstance(item.get("reason"), str) and 0 < len(item["reason"].strip()) <= 400
+                and isinstance(item.get("path", ""), str) and type(item.get("line", 1)) is int):
             raise ReviewUnavailable("the review model answered in the wrong shape")
         finding = {"check": "instructions-secondary", "path": item.get("path") if item.get("path") in paths else "package",
                    "reason": " ".join(item["reason"].split())}

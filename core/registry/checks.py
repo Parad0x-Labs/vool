@@ -6,6 +6,7 @@ names the file and line and says what to change; a secret is never quoted back.
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 
@@ -21,62 +22,113 @@ DETERMINISTIC = ("source", "archive", "secrets", "code", "dependencies", "licens
 
 TEXT_SUFFIXES = (".md", ".txt")
 # Line breaks, tabs, joiners some scripts need, and direction marks; never bidi overrides or zero-width spaces.
-_ALLOWED_MARKS = {"\n", "\t", "\r", "\u200c", "\u200d", "\u200e", "\u200f"}
+_ALLOWED_MARKS = {"\n", "\t", "\r", "‌", "‍", "‎", "‏"}
+# Letters that show as nothing, refused like control characters (variation selectors 1-14 too; 15-16 pick emoji style).
+_INVISIBLE = {"͏", "ᅟ", "ᅠ", "឴", "឵", "⠀", "ㅤ", "ﾠ",
+              *(chr(code) for code in range(0xFE00, 0xFE0E)), *(chr(code) for code in range(0xE0100, 0xE01F0))}
 MIN_INSTRUCTIONS = 80
 QUOTE = 120
+# The review model reads at most this much, so nothing longer can pass; refusing early also bounds the work.
+MAX_TEXT = 120_000
 
-_MIT = (
-    re.compile(r"permission is hereby granted, free of charge, to any person obtaining a copy of this software"),
-    re.compile(r"the above copyright notice and this permission notice shall be included in all copies or "
-               r"substantial portions of the software"),
-    re.compile(r"the software is provided \"as is\", without warranty of any kind"),
-)
+_MIT = r"""MIT License
+
+Copyright (c) {year} {holder}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+# The whole licence is the MIT text; only the copyright lines are the creator's.
+_MIT_BODY = " ".join(_MIT.split("\n\n", 2)[2].casefold().split())
+_MIT_FULL = re.compile(r"(?:(?:the )?mit licen[cs]e(?: \(mit\))? )?(?:copyright (?:\(c\) |© )?[^©]{1,200}? )+?" +
+                       re.escape(_MIT_BODY))
 # Words that read as the Skill Codex vouching for a skill. Only the team's own skills may use them.
 _RESERVED = re.compile(r"\b(?:verified|official|certified|endorsed|tested by|parad0x|paradox labs|vool team|"
                        r"vool-team|safe to use|security checked)\b", re.IGNORECASE)
 _ENDORSED = re.compile(r"\b(?:verified|approved|certified|endorsed|tested|checked|reviewed)\s+by\s+(?:vool|the skill codex|"
                        r"parad0x|paradox)\b|\b(?:official|verified)\s+(?:vool|skill codex)\b|\bparad0x\s+labs\b|"
                        r"\bvool[- ]team\b", re.IGNORECASE)
+_SHELL = r"(?:/(?:usr/)?(?:local/)?bin/)?(?:env\s+)?(?:ba|z|da|k|fi)?sh"
+# Rules run on folded text: NFKC, invisible marks and combining marks taken out, look-alike letters made Latin, and
+# every line joined with a space, so nothing hides behind a line break, a continuation or a different alphabet.
 _RULES = (
     ("install", re.compile(
-        r"\b(?:curl|wget|iwr|invoke-webrequest|invoke-restmethod)\b[^\n|]{0,200}\|\s*(?:sudo\s+)?(?:ba|z|da|k)?sh\b|"
-        r"\b(?:bash|sh|zsh)\s+-c\b|\b(?:bash|sh)\s+<\(\s*(?:curl|wget)|\biex\b|invoke-expression|"
-        r"powershell(?:\.exe)?\s+[^\n]{0,40}-(?:enc|encodedcommand|e)\b|"
-        r"\b(?:pip3?|pipx|uv)\s+install\b|\bnpm\s+(?:install|i)\b|\bnpx\s+\S|\byarn\s+(?:global\s+)?add\b|"
-        r"\bpnpm\s+(?:add|install)\b|\bbrew\s+(?:install|tap)\b|\bapt(?:-get)?\s+install\b|\bcargo\s+install\b|"
-        r"\bgo\s+install\b|\bgem\s+install\b|\bchmod\b|\bxattr\s+-[a-z]*d\b|spctl\s+--master-disable|"
-        r"\bsudo\s+\S|\bosascript\b|\blaunchctl\s+load\b|\bcrontab\s+-", re.IGNORECASE),
+        r"\b(?:curl|wget)\s+(?:-|['\"`]?https?://)|\b(?:iwr|irm|invoke-webrequest|invoke-restmethod|certutil|bitsadmin|"
+        r"mshta|rundll32|regsvr32|iex|invoke-expression)\b|\|\s*(?:sudo\s+)?" + _SHELL + r"\b|"
+        r"\b(?:ba|z|da|k|fi)?sh\s+(?:-[a-z]*c\b|\S{1,200}\.(?:sh|command)\b|<\()|"
+        r"(?:^|[\s`'\"])/(?:usr/)?(?:local/)?(?:s?bin)/\S|(?:^|[\s`'\";&|])\./\S|"
+        r"\b(?:python[0-9.]*|py|node|nodejs|perl|ruby|php|deno|bun|lua|rscript|osascript)\s+"
+        r"(?:-[a-z]*[cer]\b|run\b|\S{1,200}\.(?:py|js|mjs|cjs|ts|pl|rb|php|lua|r|scpt|applescript)\b)|"
+        r"\b(?:npx|bunx|uvx|pipx\s+run)\s+\S|powershell(?:\.exe)?\s+-|\bpwsh\s+-|"
+        r"\b(?:pip[0-9.]*|pipx|uv|conda|poetry|mamba)\s+(?:install|add)\b|\bnpm\s+(?:install|i|exec|run|x)\b|"
+        r"\byarn\s+(?:global\s+)?(?:add|dlx)\b|\bpnpm\s+(?:add|install|i|dlx)\b|\bbrew\s+(?:install|tap|reinstall)\b|"
+        r"\b(?:apt|apt-get|dnf|yum|pacman|apk|zypper|snap|flatpak|port|choco|winget|scoop|nix-env)\s+(?:install|add|-S)\b|"
+        r"\bcargo\s+install\b|\bgo\s+install\b|\bgem\s+install\b|\bchmod\b|\bxattr\s+-[a-z]*[dc]\b|"
+        r"\bspctl\b|\bsudo\s+\S|\bosascript\b|\blaunchctl\s+(?:load|bootstrap|submit|enable)\b|\bcrontab\b|"
+        r"\bsource\s+\S{1,200}\.sh\b|\bdocker\s+(?:run|exec|pull)\b|\bgit\s+clone\b", re.IGNORECASE),
         "Skills on the Skill Codex can't ask anyone to install or run software. Describe the task in words instead."),
     ("download", re.compile(
-        r"https?://\S+?\.(?:exe|msi|dmg|pkg|app|zip|rar|7z|tar|gz|tgz|bz2|xz|sh|bash|command|ps1|bat|cmd|vbs|"
-        r"js|py|jar|apk|deb|rpm|bin|scr|iso|img)(?:[?#]\S*)?(?=[\s)\]>\"'`]|$)", re.IGNORECASE),
+        r"https?://\S{1,500}?\.(?:exe|msi|msix|appx|dmg|pkg|app|appimage|run|zip|rar|7z|tar|gz|tgz|bz2|xz|zst|sh|bash|"
+        r"zsh|command|ps1|psm1|bat|cmd|vbs|wsf|hta|lnk|reg|scpt|workflow|js|mjs|py|jar|apk|ipa|deb|rpm|bin|scr|iso|img|"
+        r"crx|xpi|vsix|whl|egg|nupkg|snap|torrent)(?:[?#]\S{0,500})?(?=[\s)\]>\"'`]|$)", re.IGNORECASE),
         "Skills can't link to programs or archives to download. Take the link out."),
     ("address", re.compile(
-        r"https?://(?:\d{1,3}\.){3}\d{1,3}\b|https?://\[[0-9a-f:]+\]|"
+        r"https?://(?:\d{1,3}\.){3}\d{1,3}\b|https?://\[[0-9a-f:]+\]|https?://[^\s/]*@|"
         r"https?://(?:www\.)?(?:bit\.ly|tinyurl\.com|t\.co|is\.gd|cutt\.ly|rb\.gy|goo\.gl|ow\.ly|"
         r"pastebin\.com|paste\.ee|hastebin\.com|glot\.io|rentry\.co|ghostbin\.\w+)/", re.IGNORECASE),
         "Skills can't use short links, raw addresses or paste sites. Link to the real page, or take the link out."),
     ("secret-ask", re.compile(
-        r"\b(?:send|paste|enter|share|provide|type|give|upload|reveal|tell)\b[^\n.]{0,60}\b(?:recovery|seed|secret|"
-        r"mnemonic)\s+(?:phrase|words)|\b(?:send|paste|enter|share|provide|type|give|upload|reveal|tell)\b[^\n.]{0,60}"
-        r"\b(?:private\s+key|password|passcode|api\s+key|access\s+token|2fa\s+code|one-time\s+code)", re.IGNORECASE),
+        r"\b(?:send|paste|enter|share|provide|type(?!\s+of\b)|give|upload|reveal|tell|input|submit|copy|dm)\b[^.!?\n]{0,60}?"
+        r"\b(?:(?:recovery|seed|secret|backup|wallet)\s+(?:phrase|words|key)|mnemonic|private\s+keys?|keystore|"
+        r"wallet\s+file|password|passcode|passphrase|api\s+keys?|access\s+tokens?|session\s+(?:token|cookie)s?|"
+        r"2fa\s+codes?|one-time\s+codes?|verification\s+codes?|security\s+codes?|pin\s+(?:code|number)s?|ssh\s+keys?)",
+        re.IGNORECASE),
         "Skills can't ask for recovery phrases, keys, passwords or codes. Take that out."),
     ("wallet", re.compile(r"\b0x[0-9a-fA-F]{40}\b|\b(?:bc1|tb1)[02-9ac-hj-np-z]{11,71}\b|"
                           r"(?<![A-Za-z0-9/])(?=[1-9A-HJ-NP-Za-km-z]*\d)(?=[1-9A-HJ-NP-Za-km-z]*[A-HJ-NP-Z])"
                           r"(?=[1-9A-HJ-NP-Za-km-z]*[a-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![A-Za-z0-9])"),
      "Skills can't contain wallet addresses. Take the address out."),
     ("injection", re.compile(
-        r"\b(?:ignore|disregard|forget)\b[^\n.]{0,30}\b(?:all|any|previous|prior|earlier|above|other)\b[^\n.]{0,20}"
-        r"\b(?:instructions|rules|messages|prompts?)\b|\bsystem prompt\b|\bdeveloper mode\b|\bjailbreak\b|"
-        r"\byou are now\b|\bdo not (?:tell|inform|show|let) (?:the )?(?:user|owner|person)\b|"
-        r"\bwithout (?:telling|asking|informing|showing) (?:the )?(?:user|owner|person)\b|"
-        r"\b(?:secretly|silently|quietly|covertly)\b[^\n.]{0,40}\b(?:send|upload|forward|copy|transfer|pay|run|delete)\b",
-        re.IGNORECASE),
+        r"\b(?:ignore|disregard|forget|override|bypass)\b[^.!?\n]{0,30}?\b(?:all|any|previous|prior|earlier|above|"
+        r"other|your|system|safety)\b[^.!?\n]{0,20}?\b(?:instructions|rules|messages|prompts?|guidelines|limits|"
+        r"approvals?)\b|"
+        r"\bsystem prompt\b|\bdeveloper mode\b|\bjailbreak\b|\byou are now\b|"
+        r"\b(?:do not|don't) (?:tell|inform|show|let|alert|notify) (?:the )?(?:user|owner|person)\b|"
+        r"\bwithout (?:telling|asking|informing|showing|notifying|alerting) (?:the )?(?:user|owner|person)\b|"
+        r"\b(?:secretly|silently|quietly|covertly|invisibly)\b[^.!?\n]{0,40}?\b(?:send|upload|forward|copy|transfer|pay|run|"
+        r"delete|post|share|email)\b", re.IGNORECASE),
         "This reads like an attempt to change VOOL's instructions or hide what the skill does. Rewrite it plainly."),
-    ("hidden", re.compile(r"<!--(?:(?!-->).){3,}?-->|data:[a-z]+/[a-z0-9.+-]+;base64,|[A-Za-z0-9+/]{200,}={0,2}",
-                          re.IGNORECASE | re.DOTALL),
-     "Skills can't carry hidden comments or encoded blobs. Write everything as plain visible text."),
+    ("hidden", re.compile(r"<!--|\[[^\]]{0,100}\]:\s*(?:#|<>)|data:[a-z]+/[a-z0-9.+-]+;base64,|"
+                          r"(?<![A-Za-z0-9+/])(?:[A-Za-z0-9+/]{200,}={0,2}|(?:[A-Za-z0-9+/]{40,}={0,2}\s+){3,})|"
+                          r"\\u[0-9a-f]{4}|\\x[0-9a-f]{2}|"
+                          r"&#x?[0-9a-f]{2,6};", re.IGNORECASE),
+     "Skills can't carry hidden comments, escape codes or encoded blobs. Write everything as plain visible text."),
+    ("letters", re.compile(r"(?<!\w)(?=\w*[A-Za-z])(?=\w*[Ͱ-ϿЀ-ԯ])\w+"),
+     "This word mixes letters from different alphabets, which can hide what it says. Retype it in one alphabet."),
 )
+# Look-alike letters from other alphabets, read as the Latin letter they imitate.
+_LOOKALIKE = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c", "т": "t", "у": "y",
+    "х": "x", "і": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ӏ": "l", "ԛ": "q", "ԝ": "w", "ү": "y", "һ": "h",
+    "А": "A", "В": "B", "Е": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C", "Т": "T", "Х": "X",
+    "І": "I", "Ј": "J", "Ѕ": "S", "Ү": "Y", "α": "a", "ο": "o", "ρ": "p", "ν": "v", "ι": "i", "κ": "k", "τ": "t",
+    "υ": "u", "ϲ": "c", "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N",
+    "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X"})
 
 
 def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None) -> dict:
@@ -117,8 +169,8 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
                                                   "their pictures only."))
             continue
         hidden = next((index for index, char in enumerate(text)
-                       if unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} and char not in _ALLOWED_MARKS and
-                       not (index == 0 and char == "\ufeff")), None)
+                       if (unicodedata.category(char) in {"Cc", "Cf", "Co", "Cs"} or char in _INVISIBLE) and
+                       char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
         if hidden is not None:
             findings.append(_finding("instructions-primary", name, "This file has invisible or control characters. "
                                      "Retype the line as plain text.", line=_line(text, hidden)))
@@ -177,13 +229,14 @@ def _secrets(texts: dict[str, str], artifact: dict) -> list[dict]:
     for name, text in texts.items():
         lines = set()
         for number, line in enumerate(text.splitlines(), 1):
-            plain = _PLACEHOLDER.sub(r"\1x", line)
-            if secret_findings({name: line.encode()}) or contains_secret(plain) or _HEX_KEY.search(line):
-                lines.add(number)
+            for form in {line, _fold(line)[0]}:  # also with joiners and marks taken out, as the rules read it
+                plain = _PLACEHOLDER.sub(r"\1x", form)
+                if secret_findings({name: form.encode()}) or contains_secret(plain) or _HEX_KEY.search(form):
+                    lines.add(number)
         # A recovery phrase may be spread over several lines: 11 list words in any 12, across the file.
         tokens = []
         for number, line in enumerate(text.splitlines(), 1):
-            spaced = _LIST_MARKERS.sub(" ", unicodedata.normalize("NFKC", line).casefold())
+            spaced = _LIST_MARKERS.sub(" ", _fold(line)[0].casefold())
             tokens += [(token.strip(".,;:!?\"'()[]*`_"), number) for token in spaced.split()]
         listed = [token in words for token, _ in tokens]
         for start in range(max(1, len(tokens) - 11)):
@@ -197,32 +250,86 @@ def _secrets(texts: dict[str, str], artifact: dict) -> list[dict]:
     return findings
 
 
-_NEGATABLE = {"install", "download", "secret-ask"}
-_NEGATED = re.compile(r"\b(?:never|don't|do not|must not|mustn't|should not|shouldn't|cannot|can't|won't|"
-                      r"no one|nobody|not)\b", re.IGNORECASE)
+# "Never paste your recovery phrase" is advice: a negation right before the verb, nowhere else, excuses an ask.
+_NEGATED_ASK = re.compile(r"(?i)(?:\bnever|\bnot|n't|\bcannot|\bnobody|\bno one)\s+(?:\w+\s+)?$")
 # "never silently send" forbids hiding; the negation must sit right before the word.
-_SILENT = re.compile(r"(?i)(?:secretly|silently|quietly|covertly)\b")
+_SILENT = re.compile(r"(?i)(?:secretly|silently|quietly|covertly|invisibly)\b")
 _NEGATED_BEFORE = re.compile(r"(?i)\b(?:never|not|don't|do not|must not)\s+$")
 MAX_FINDINGS = 50
 
 
+def _strings(value) -> list[str]:
+    """Every string a JSON file holds, keys included, as VOOL reads them after decoding."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for key, item in value.items() for text in [key, *_strings(item)]]
+    if isinstance(value, list):
+        return [text for item in value for text in _strings(item)]
+    return []
+
+
+def _fold(line: str) -> tuple[str, str]:
+    """(plain, folded): plain is NFKC without invisible and combining marks; folded also reads look-alikes as Latin."""
+    plain = "".join(char for char in unicodedata.normalize("NFKC", line)
+                    if char not in _ALLOWED_MARKS and char not in _INVISIBLE and unicodedata.category(char) != "Mn")
+    return plain, plain.translate(_LOOKALIKE)
+
+
+def _flat(lines: list[str]) -> tuple[str, str, list[int], list[int]]:
+    """Lines joined with spaces, so a line break or a continuation splits nothing; with each line's start offset."""
+    plain, folded, plain_starts, folded_starts = [], [], [], []
+    plain_at = folded_at = 0
+    for line in lines:
+        line = line[:-1] if line.endswith("\\") else line
+        one, two = _fold(line)
+        plain_starts.append(plain_at)
+        folded_starts.append(folded_at)
+        plain.append(one)
+        folded.append(two)
+        plain_at += len(one) + 1
+        folded_at += len(two) + 1
+    return " ".join(plain), " ".join(folded), plain_starts, folded_starts
+
+
 def _instructions(texts: dict[str, str]) -> list[dict]:
+    """Every rule over every text a person or VOOL reads: the skill files, registry.json and the manifest."""
+    import bisect
+
     findings = []
     for name, text in texts.items():
-        if not name.startswith("skills/"):
-            continue
+        if name == "LICENSE":
+            continue  # checked word for word against the MIT text
+        lines = text.splitlines()
+        if name.endswith(".json"):
+            try:
+                # Package paths such as "./skills/" are structure the loader checks, not words anyone reads.
+                lines = [line for value in _strings(json.loads(text)) if not value.startswith("./")
+                         for line in value.splitlines()]
+            except ValueError:
+                lines = text.splitlines()
+            numbered = False  # decoded strings have no line in the file
+        else:
+            numbered = True
+        if name.endswith("/SKILL.md") and text.startswith("---"):
+            end = text.find("\n---", 3)
+            if end > 0 and "\\" in text[3:end]:
+                at = text.index("\\", 3)
+                findings.append(_finding("instructions-primary", name, "Write the name and description in plain words, "
+                                         "without backslash codes.", line=_line(text, at), quote=_quote(text, at, at + 1)))
+        plain, folded, plain_starts, folded_starts = _flat(lines)
         for rule, pattern, reason in _RULES:
-            for match in pattern.finditer(text):
-                if rule in _NEGATABLE:
-                    # "Never paste your recovery phrase anywhere" is good advice, not an ask.
-                    sentence = re.split(r"[.!?\n]", text[:match.start()])[-1]
-                    if _NEGATED.search(sentence):
-                        continue
-                elif rule == "injection" and _SILENT.match(match.group(0)) and \
-                        _NEGATED_BEFORE.search(text[max(0, match.start() - 12):match.start()]):
+            subject, starts = (plain, plain_starts) if rule == "letters" else (folded, folded_starts)
+            for match in pattern.finditer(subject):
+                before = subject[max(0, match.start() - 30):match.start()]
+                if rule == "secret-ask" and _NEGATED_ASK.search(before):
                     continue
-                findings.append(_finding("instructions-primary", name, reason, line=_line(text, match.start()),
-                                         quote=_quote(text, match.start(), match.end())))
+                if rule == "injection" and _SILENT.match(match.group(0)) and _NEGATED_BEFORE.search(before[-12:]):
+                    continue
+                index = bisect.bisect_right(starts, match.start()) - 1
+                findings.append(_finding("instructions-primary", name, reason,
+                                         line=index + 1 if numbered else None,
+                                         quote=" ".join(lines[index].split()) if lines else None))
                 if len(findings) >= MAX_FINDINGS:
                     return findings
     return findings
@@ -230,8 +337,9 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
 
 def _license(artifact: dict) -> list[dict]:
     text = " ".join(artifact["files"].get("LICENSE", b"").decode("utf-8", "replace").casefold().split())
-    if artifact["metadata"]["license"] != "MIT" or not all(pattern.search(text) for pattern in _MIT):
-        return [_finding("license", "LICENSE", "Every Skill Codex skill uses the MIT licence. Put the MIT licence text in LICENSE.")]
+    if artifact["metadata"]["license"] != "MIT" or not _MIT_FULL.fullmatch(text):
+        return [_finding("license", "LICENSE", "Every Skill Codex skill uses the MIT licence. Put the MIT licence text "
+                                               "in LICENSE, with only your copyright line, and nothing else.")]
     return []
 
 
@@ -252,6 +360,7 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
             if len(body.strip()) < MIN_INSTRUCTIONS:
                 findings.append(_finding("quality", name, "The instructions are too short to be useful. Say what the "
                                                           "skill does, step by step."))
+        if name.startswith("skills/") or name.endswith(".json"):
             if not official:
                 match = _ENDORSED.search(text)
                 if match:
@@ -278,6 +387,11 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     for item in text_findings:
         findings[item["check"]].append(item)
     findings["code"] += _code(artifact)
+    if sum(len(text) for text in texts.values()) > MAX_TEXT:
+        # Nothing this long can be read in full, so nothing else is worth running on it.
+        findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
+                                            "text under 120,000 characters."))
+        return {"artifact": artifact, "findings": findings, "results": {}}
     findings["secrets"] += _secrets(texts, artifact)
     findings["instructions-primary"] += _instructions(texts)
     findings["license"] += _license(artifact)

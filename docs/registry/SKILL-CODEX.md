@@ -21,9 +21,16 @@ The server checks every upload at once. A clean one has state `checking` while t
 - never ask anyone to install, download or run software, paste commands into a terminal, or open a short link, raw address or paste site;
 - never ask for a recovery phrase, key, password or code, contain a wallet address, or carry hidden comments, invisible characters or encoded blobs;
 - never try to change VOOL's own rules, spending limits or approvals, or hide what they do from the user;
-- use the MIT licence, have instructions long enough to be useful, and never call themselves verified, official, tested or endorsed (only the team's own skills may).
+- carry the MIT licence text with only the creator's copyright line, have instructions long enough to be useful, and never call themselves verified, official, tested or endorsed (only the team's own skills may);
+- keep all their text under 120,000 characters ("This skill is too long to check. Keep all its text under 120,000 characters.").
 
-The review model also refuses a skill that does something its summary does not say, sends anything somewhere the user did not choose, moves money, or is harmful. If the model cannot give a clear answer after three tries, the skill is refused with "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again." While the monthly review budget is used up, uploads wait in `checking`; they are never published unchecked.
+The checks read the instructions, summary and manifest the way a person would: a command split over lines with `\` is read as one, and full-width letters, joiners and look-alike letters from other alphabets are read as the plain letters they imitate. A word that mixes alphabets is refused on its own. Commands are refused even inside advice about them; write the advice in words instead.
+
+The review model also refuses a skill that does something its summary does not say, sends anything somewhere the user did not choose, moves money, or is harmful. If the model cannot give a clear answer after three tries, the skill is refused with "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again." While the monthly review budget is used up, or the review service cannot be reached, uploads wait in `checking`; they are never published unchecked, and the wait never counts against them. The same refused bytes sent again get the same answer without another review.
+
+Each publisher name gets 30 model reviews a month (the team's name has no limit). Past that, an upload is refused with "This account has used this month's checks. Upload it again next month." A package the checks cannot read at all is refused with "Our checks couldn't read this skill. Make it plainer, then upload it again."
+
+A version number names one package for good. While one version waits for checks, another upload of the same or a lower version is refused with "this version is already waiting for checks; use a higher version number". If two uploads of one version still arrive together (two team members at once), the first is listed and the other is refused with "Version X is not higher than X, which is already listed. Use a higher version number."
 
 Other refusals the page shows as they come: "accept the Skill Codex agreement to publish", "Skill Codex skills use the MIT licence", "new accounts can publish 14 days after they start; yours can from YYYY-MM-DD" (counted from the older of the GitHub account and the Skill Codex account) and "this creator can't publish right now" (a suspended creator).
 
