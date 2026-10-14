@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "Cette version ne peut ni signer EVM ni encoder l'ABI : les bibliothèques Ethereum ne sont pas installées sur cette machine. Rien n'a été signé ni envoyé. Solana, la garde et les plafonds de dépense ne sont pas affectés ; une fois les bibliothèques installées, réessayez.",
     "fault.wallet_paykit_unavailable.action": "Installez l'extra optionnel pay de VOOL sous Python 3.11 ou plus récent pour activer les paiements pay-kit ; le portefeuille garde dans tous les cas son propre signataire, ses plafonds de dépense et son approbation.",
     "fault.wallet_paykit_unavailable.message": "Cette version ne peut pas payer les offres x402 ou MPP sur Solana : l'extra optionnel pay (Solana pay-kit, Python 3.11 ou plus récent) n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez.",
+    "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
+    "fault.wallet_payment_channel_off.message": "Ce paiement passe par un canal de paiement désactivé, donc rien n'a été signé ni envoyé. Activez le canal dans Réglages, Crypto, Canaux de paiement, puis réessayez.",
+    "fault.wallet_x402_sdk_unavailable.action": "Installez l'extra optionnel x402 de VOOL pour payer les offres x402 sur Base depuis un portefeuille Crypto Pilot ; le portefeuille garde dans tous les cas son propre signataire, ses plafonds de dépense et son approbation.",
+    "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez.",
     "fault.wallet_disabled.action": "Activez le portefeuille explicitement (VOOL_WALLET_ENABLED=1) seulement si des paiements sont voulus sur cette installation.",
     "fault.wallet_disabled.message": "Le portefeuille est désactivé, donc aucun paiement n'a été proposé ni envoyé. Activez-le d'abord, puis réessayez.",
     "fault.wallet_duplicate_payment.action": "Vérifiez le reçu de la proposition existante ; utilisez une nouvelle clé d'idempotence pour un paiement réellement nouveau.",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "Navigateur",
     "addons.registry_need_files": "Vos fichiers"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -9,62 +9,58 @@ in passing; when they disagree with this page, this page wins.
 
 ## Current stage
 
-VOOL is in **beta**. The release supported by this repository is **from source** — see
-[Install](../getting-started/install.md). Nothing is published on the
-[releases page](https://github.com/Parad0x-Labs/vool/releases): the only GitHub release is
-a **private draft** (`0.6.0-beta-migrated-20260919`) for owner review.
+VOOL is in **beta**. The current release is
+[**v0.7.0-beta**](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta), a GitHub
+release built from `main` at `ef99b3e`. It has app downloads for three platforms,
+each with a published SHA-256 checksum. Installing from source with the bootstrap script
+remains supported on macOS, Linux and Windows; see [Install](../getting-started/install.md).
 
-Two distinct macOS artifacts exist across the verified channels (checked 2026-09-28):
+| Download | For |
+| --- | --- |
+| `VOOL-0.7.0-beta-macos-arm64.dmg` | Apple Silicon Macs, macOS 14 or newer |
+| `VOOL-0.7.0-beta-macos-x86_64.dmg` | Intel Macs, macOS 14 or newer |
+| `vool-0.7.0-beta-linux-x86_64.tar.gz` | Linux x86_64, tested on Ubuntu 22.04 and 24.04 |
 
-1. **GitHub private draft** — `VOOL-0.6.0-beta-macos-arm64.dmg`, a self-contained bundle
-   (macOS 14+) built from the repository's initial public source commit `e1034c9b`, not
-   from current `main`. Draft-only: not publicly downloadable, with draft `SHA256SUMS`
-   and a `BUILD_MANIFEST.json` recording that source.
-2. **vool.dev public download** — `https://vool.dev/downloads/VOOL-0.6.0-beta-cffc5c3-macos-arm64.dmg`,
-   publicly served (HTTP 200, Cloudflare, last modified 2026-09-19) with a sidecar
-   `.sha256` (`82d78398…b23e8f7`, which matched the served bytes when checked). Its
-   in-bundle `BUILD_MANIFEST.json` self-attests source commit `cffc5c36…` built
-   2026-09-19. That manifest is embedded by the build, not signed by a release authority:
-   it is provenance as claimed by the artifact, independently verified only down to the
-   published checksum. The two channel artifacts differ in name, size and digest — they
-   are not the same file.
-
-This repository's release records cover the GitHub channel; the website channel is
-operated separately. Source remains the supported install route documented here.
+This repository's release records cover the GitHub channel. Other download channels are
+operated separately; verify any download against the checksum published on the GitHub
+release.
 
 | | Status |
 | --- | --- |
-| Public installers | macOS DMG publicly downloadable from vool.dev (see above); no published GitHub release, no Windows/Linux artifacts on any verified channel |
-| Owner-review draft | macOS arm64 DMG only (private draft release, not published) |
-| Published checksums | vool.dev sidecar `.sha256` (verified against served bytes) and draft-release `SHA256SUMS` |
-| Code signing | Ad-hoc, both macOS artifacts (verified on the vool.dev artifact: `codesign -dv` reports `Signature=adhoc`, no TeamIdentifier); not Developer ID |
-| macOS notarization | Not notarized (the vool.dev artifact is rejected by `spctl -a`; its own page tells users to bypass Gatekeeper) |
-| Signed update manifest | No configured update feed in either artifact (empty `manifest_url`, empty trusted-publisher keys ⇒ the signed updater fails closed); automatic updates are not operational |
+| Public downloads | macOS Apple Silicon DMG, macOS Intel DMG, Linux x86_64 tarball on the v0.7.0-beta GitHub release |
+| Published checksums | SHA-256 for every download, on the release |
+| Code signing | macOS apps are ad-hoc signed, not Developer ID. Signing is added after this beta and does not gate it |
+| macOS notarization | Not notarized. macOS asks you to confirm the first open (see below) |
+| Windows | No Windows download in this release; Windows installs from source and is experimental |
+| Updates | 0.7.0 is installed by download. It carries one-press signed updates with rollback; the first update offered through it will be 0.7.1. Update checks stay off until you allow them, and an update installs only when it is signed by the pinned publisher key. See [Updates and migration](../reference/updates-migration.md) |
 | API stability | Changing between builds |
-
-Windows and Linux installer artifacts do not exist on any verified channel (the website
-marks them "coming soon"). Source installs on those platforms are covered by CI (Windows
-gauntlet, Linux test shards), which is source compatibility, not a shipped desktop release.
 
 ## What that means for you
 
-* If you run a macOS artifact, Gatekeeper will refuse it on first launch — ad-hoc signing
-  without notarization is expected at this stage, not a sign of a corrupted download.
-  Verify the checksum published beside the download before bypassing the warning.
+* On first launch of a Mac app, macOS refuses to open it because it is not notarized.
+  This is expected at this stage, not a sign of a damaged download. Verify the checksum,
+  then open **System Settings → Privacy & Security** and click **Open Anyway**. On
+  macOS 14 you can instead Control-click the app and choose **Open**.
+* Pick the Mac download that matches your chip. The Apple Silicon app does not run on an
+  Intel Mac and says so at launch.
 * Configuration formats can change between builds.
-* Do not expect automatic updates: no update feed is configured for any artifact, and the
-  signed-manifest updater correctly reports updates unavailable rather than fetching
-  anything.
+* Nothing goes online on a fresh install until you turn it on, update checks included.
 
 ## Beta and pilot limitations, stated explicitly
 
 | Capability | State in this build |
 | --- | --- |
-| Wallet (Crypto Pilot) | Optional, off by default; pilot lanes only — see [Wallet](../guides/wallet.md). |
+| Crypto and wallet | Off by default. When you turn it on, VOOL uses mainnet; test networks are in Developer options. Every payment goes through VOOL's wallet, with its limits, your approval and a receipt. See [Wallet](../guides/wallet.md). |
 | Mainnet transfers | Native coins only; the sole Mainnet token (USDC on Solana) exists for the x402 payment lane only. |
+| Paying with x402 | x402 for websites works on test networks only in 0.7.0 (Solana Devnet, Base Sepolia, Ethereum Sepolia and BNB testnet). One exception: the pay-per-call option in the model marketplace in Settings can pay from the Solana Mainnet Crypto Pilot wallet. Each call waits for your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been tested on a real chain. |
+| X | Drafting posts in chat, plus a guided setup that checks your keys read-only. No posting from VOOL in this release. |
 | Dictation | Temporarily unavailable in this beta build; it returns in an update. |
 | Cloud "burst" ask mode | The per-call prompt is not wired yet in this build. |
-| Skills/plugins catalogue | The public catalogue and authoring format are still being finalised. |
+| Local models | Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. VOOL does not prompt for this in 0.7.0; a clearer prompt comes in 0.7.1. |
+| Intel Macs | On Intel Macs, local models run on the CPU and may be too slow to pass the one-time Certify check or to answer in time, so use a cloud model there for now. We tested the Intel build under Rosetta on an Apple Silicon Mac, not yet on an Intel Mac. |
+| Off the record | Saying "don't record this" does not stop a chat from being saved yet. Ask VOOL to forget it afterwards. |
+| Desktop pet | Dragging the pet out of the VOOL window does not move it to the desktop. Use right-click > **Move to desktop**, or the button in Settings. A fix is planned for 0.7.1. |
+| Skill Codex | The tab is on the Add-ons page. Browsing is not open yet in this release, and the tab says so. |
 
-Signed and notarized builds, published checksums and a configured update feed are the next
-steps on the release path; none of them is claimed today.
+Developer ID signing and notarization for macOS, and signed checksums for Linux, are the
+next steps on the release path; neither is claimed today.

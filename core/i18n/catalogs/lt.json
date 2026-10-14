@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "Ši versija negali atlikti EVM pasirašymo ar ABI kodavimo: šiame kompiuteryje nėra įdiegtos Ethereum bibliotekos. Niekas nebuvo pasirašyta ar išsiųsta. Solana, saugojimas ir išlaidų ribos nepaveiktos; įdiegus bibliotekas bandykite dar kartą.",
     "fault.wallet_paykit_unavailable.action": "Įdiekite pasirenkamą VOOL papildinį pay su Python 3.11 ar naujesniu, kad įjungtumėte pay-kit mokėjimus; piniginė bet kuriuo atveju išlaiko savo pasirašytoją, išlaidų ribas ir patvirtinimą.",
     "fault.wallet_paykit_unavailable.message": "Ši versija negali apmokėti Solana x402 ar MPP pasiūlymų: šiame kompiuteryje neįdiegtas pasirenkamas papildinys pay (Solana pay-kit, Python 3.11 ar naujesnis). Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą.",
+    "fault.wallet_payment_channel_off.action": "Įjunkite mokėjimo kanalą Kripto nustatymuose tik jei norite, kad mokėjimai eitų per jį; riba ir jūsų patvirtinimas galioja kiekviename kanale.",
+    "fault.wallet_payment_channel_off.message": "Šis mokėjimas eina per išjungtą mokėjimo kanalą, todėl niekas nebuvo pasirašyta ar išsiųsta. Įjunkite kanalą Nustatymuose, Kripto, Mokėjimo kanalai, tada bandykite dar kartą.",
+    "fault.wallet_x402_sdk_unavailable.action": "Įdiekite pasirenkamą VOOL papildinį x402, kad galėtumėte apmokėti x402 pasiūlymus Base tinkle iš Crypto Pilot piniginės; piniginė bet kuriuo atveju išlaiko savo pasirašytoją, išlaidų ribas ir patvirtinimą.",
+    "fault.wallet_x402_sdk_unavailable.message": "Ši versija negali apmokėti x402 pasiūlymų Base tinkle per x402 Foundation SDK: šiame kompiuteryje neįdiegtas pasirenkamas papildinys x402. Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą.",
     "fault.wallet_disabled.action": "Įjunkite piniginę aiškiai (VOOL_WALLET_ENABLED=1) tik jei šiame diegime norimi mokėjimai.",
     "fault.wallet_disabled.message": "Piniginė išjungta, todėl mokėjimas nebuvo pasiūlytas ar išsiųstas. Pirmiausia ją įjunkite, tada bandykite dar kartą.",
     "fault.wallet_duplicate_payment.action": "Patikrinkite esamo prašymo kvitą; iš tikrųjų naujam mokėjimui naudokite naują idempotencijos raktą.",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "Naršyklė",
     "addons.registry_need_files": "Jūsų failai"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

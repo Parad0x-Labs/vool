@@ -88,6 +88,8 @@ _WALLET_CSS = """
 .vw-cx-row{border:1px solid var(--border,#262b35);border-radius:10px;padding:10px 12px;margin:8px 0}
 .vw-cx-row.inactive{opacity:.85;border-style:dashed}
 .vw-cx-title{font-weight:600;font-size:13.5px}
+.vw-cx-channel{margin:8px 0}
+.vw-cx-channel label{font-weight:600;margin-left:6px}
 .vw-cx-caps{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .vw-cx-cap{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--border,#262b35);color:var(--muted,#9aa1af)}
 .vw-cx-cap.on{border-color:#34d399;color:#34d399}
@@ -750,7 +752,47 @@ function drawCrypto(st){
     box.appendChild(el('div', 'vw-cx-env', 'Accounts on the other network environment stay listed with their own network; changing the environment moves nothing.'));
     inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
   }
+  box.appendChild(channelControls(cp));
   box.appendChild(devOptions(cp, inactiveEmpty.sort(byOrder)));
+}
+var CHANNEL_REASONS = {
+  paykit_not_installed: 'the optional pay extra (Solana pay-kit) is not installed',
+  python_below_3_11: 'Solana pay-kit needs Python 3.11 or newer',
+  x402_sdk_not_installed: 'the optional x402 extra (x402 Foundation SDK) is not installed'
+};
+function channelControls(cp){
+  // The owner's choice of how paid requests (x402, MPP) are paid, through the trusted Settings door. The wallet's own
+  // cap, approval and receipt apply on every channel; a channel that is off pays nothing, and a payment already parked
+  // on it waits for approval until the channel is on again.
+  var box = el('div', 'vw-cx-row vw-cx-channels'); box.id = 'vwCxChannels';
+  box.appendChild(el('div', 'vw-cx-title', 'Payment channels'));
+  box.appendChild(el('div', 'vw-cx-env', 'Choose how VOOL may pay for paid requests. Whichever channel a payment goes through, it needs your approval, stays under your caps and gets a receipt. A channel that is off pays nothing: a payment already waiting on it cannot be approved until you turn the channel back on, and a request already sent to an external wallet still expires on its usual timer.'));
+  var msg = el('div', 'vw-msg');
+  (cp.payment_channels || []).forEach(function(c){
+    if (c && c.error) { var unread = el('div', 'vw-cx-warn', 'The payment channels could not be shown right now. Reload this page to try again.'); unread.id = 'vwCxChannelsUnread'; box.appendChild(unread); return; }
+    if (!c || !c.channel_id) return;
+    var row = el('div', 'vw-cx-channel'); row.setAttribute('data-channel', c.channel_id); row.setAttribute('data-on', c.on ? 'true' : 'false');
+    var toggle = el('input'); toggle.type = 'checkbox'; toggle.id = 'vwCh_' + c.channel_id; toggle.checked = !!c.on;
+    var label = el('label', null, c.label); label.setAttribute('for', toggle.id);
+    row.appendChild(toggle); row.appendChild(label);
+    row.appendChild(el('div', 'vw-cx-env', c.description || ''));
+    var facts = 'Built by ' + (c.built_by || '?') + ' · pays on ' + ((c.network_names || []).join(', ') || 'no network yet');
+    if (!c.available) facts += ' · not usable on this install: ' + (CHANNEL_REASONS[c.reason] || c.reason || 'unavailable');
+    row.appendChild(el('div', 'vw-cx-env', facts));
+    toggle.addEventListener('change', function(){
+      var wanted = toggle.checked; toggle.disabled = true;
+      postJson('/api/wallet/channels', { channel: c.channel_id, on: wanted }).then(function(res){
+        toggle.disabled = false;
+        if (!res.ok) { toggle.checked = !wanted; cxMsg(msg, faultMessage(res, 'The payment channel was not changed.'), true); return; }
+        var saved = (res.data && res.data.channel) || {};
+        toggle.checked = !!saved.on; row.setAttribute('data-on', saved.on ? 'true' : 'false');
+        cxMsg(msg, (saved.label || c.label) + (saved.on ? ' is on.' : ' is off: nothing is paid through it.'));
+      }).catch(function(){ toggle.disabled = false; toggle.checked = !wanted; cxMsg(msg, 'The payment channel request did not complete.', true); });
+    });
+    box.appendChild(row);
+  });
+  box.appendChild(msg);
+  return box;
 }
 function capChips(r){
   var caps = r.capabilities || {};
@@ -779,7 +821,7 @@ function rowCard(r, cp, st){
   title.appendChild(el('span', 'vw-badge' + (r.environment === 'mainnet' ? '' : ' testnet'), r.badge));
   if (!r.active) title.appendChild(el('span', 'vw-badge mode', 'not active'));
   card.appendChild(title);
-  card.appendChild(el('div', 'vw-cx-env', (r.value_note || '') + ' · native coin ' + (r.native_display_symbol || r.native_symbol) + (r.chain_key === 'robinhood' ? ' · Robinhood Chain is a public network, not the Robinhood brokerage or its wallet' : '')));
+  card.appendChild(el('div', 'vw-cx-env', (r.value_note || '') + ' · native coin ' + (r.native_display_symbol || r.native_symbol) + (r.explorer_label ? ' · explorer: ' + r.explorer_label : '') + (r.chain_key === 'robinhood' ? ' · Robinhood Chain is a public network, not the Robinhood brokerage or its wallet' : '')));
   card.appendChild(capChips(r));
   var accounts = r.accounts || [];
   var caps = r.capabilities || {};
@@ -1099,6 +1141,14 @@ function cardFor(p){
   card.appendChild(el('div', 'vw-row', p.amount_minor + ' ' + p.asset + ' ' + WT('wallet.minor_units', '(minor units)')));
   card.appendChild(maskedLine('destination', p.destination, 'vwDest-' + p.proposal_id));
   card.appendChild(el('div', 'vw-row', WT('wallet.proposed_by', 'proposed by ') + (p.origin || 'unknown') + (p.memo ? ' · ' + p.memo : '') + ' · ' + p.proposal_id));
+  if (p.payment_channel) {
+    // a payment parked on a channel the owner turned off is refused at approval: say so before the PIN is typed
+    var channelOn = p.payment_channel.on;
+    var channelNote = channelOn === true ? '' : (channelOn === false ? ' (turned off: turn it on in Settings, Crypto, Payment channels to approve this payment)' : ' (could not be read right now)');
+    var channelRow = el('div', 'vw-row' + (channelOn === true ? '' : ' vw-cx-warn'), 'payment channel: ' + p.payment_channel.label + channelNote);
+    channelRow.setAttribute('data-channel', p.payment_channel.channel_id); channelRow.setAttribute('data-channel-on', channelOn === true ? 'true' : (channelOn === false ? 'false' : 'unknown'));
+    card.appendChild(channelRow);
+  }
   var ack = renderMeaning(card, p.meaning);
   function ackText(){ return (p.meaning && p.meaning.tier === 'red') ? p.meaning.ack_text : undefined; }
   var controls = el('div', 'vw-row');
@@ -1368,6 +1418,11 @@ function sheetRow(host, name, label, value){
   return value_el;
 }
 var transferCards = {};
+// Status reads are numbered as the page asks them. A transfer card drawn from a newer answer (an approval's or a
+// cancel's own reply, a later read) keeps it: a read asked before that, answering late, never takes the card back.
+var statusAsked = 0;
+function markAsked(host, asked){ host.setAttribute('data-status-asked', String(asked)); }
+function askedBefore(host, asked){ return asked <= Number(host.getAttribute('data-status-asked') || 0); }
 function transferLine(t){
   var line = el('div', 'vw-transfer');
   line.setAttribute('data-transfer-state', t.state || '');
@@ -1419,7 +1474,7 @@ function openExitSheet(t, host){
     var body = { proposal_id: t.proposal_id, pin: cred.value }; cred.value = '';
     postJson(terms.door, body).then(function(res){
       body = null;
-      if (res.ok && res.data && res.data.transfer) { close(); renderTransfer(host.parentNode || host, res.data.transfer); return; }
+      if (res.ok && res.data && res.data.transfer) { close(); renderTransfer(host.parentNode || host, res.data.transfer); markAsked(host.parentNode || host, statusAsked); return; }
       confirm.disabled = false; state.textContent = (res.data && (res.data.message || res.data.error)) || 'Not done.'; state.className = 'vw-msg err';
     }).catch(function(){ body = null; confirm.disabled = false; state.textContent = 'The request did not complete.'; state.className = 'vw-msg err'; });
   });
@@ -1442,13 +1497,13 @@ function transferCardFor(t){
   transferCards[t.proposal_id] = result;
   return card;
 }
-function syncTransfers(st){
+function syncTransfers(st, asked){
   var seen = {};
   (st.in_flight || []).concat(st.transfers || []).forEach(function(t){
     if (!t || !t.proposal_id || seen[t.proposal_id]) return;
     seen[t.proposal_id] = true;
     var host = transferCards[t.proposal_id];
-    if (host && host.getAttribute('data-transfer-state') !== t.state) { renderTransfer(host, t); host.setAttribute('data-transfer-state', t.state); }
+    if (host && host.getAttribute('data-transfer-state') !== t.state && !askedBefore(host, asked)) { renderTransfer(host, t); host.setAttribute('data-transfer-state', t.state); markAsked(host, asked); }
   });
 }
 var pilotCards = {};
@@ -1457,7 +1512,7 @@ var ENDED_TEXT = {
   expired: 'This request expired before a decision. Nothing was signed or sent.',
   failed: 'This request ended without a payment. Nothing was sent.'
 };
-function syncPilotCards(st){
+function syncPilotCards(st, asked){
   // A pending card belongs to the request, not to this page: when the request is approved, cancelled or expired on
   // another surface (another window, the API, a restart), the card follows the authoritative status -- a transfer
   // record replaces the Review action with the receipt line; an ended proposal says how it ended. Reading only:
@@ -1471,7 +1526,7 @@ function syncPilotCards(st){
     var entry = pilotCards[pid];
     var t = rows[pid];
     if (t) {
-      entry.controls.remove(); renderTransfer(entry.result, t); transferCards[pid] = entry.result; entry.result.setAttribute('data-transfer-state', t.state || '');
+      entry.controls.remove(); renderTransfer(entry.result, t); transferCards[pid] = entry.result; entry.result.setAttribute('data-transfer-state', t.state || ''); markAsked(entry.result, asked);
       delete pilotCards[pid];
       return;
     }
@@ -1697,7 +1752,7 @@ function openSheet(p, cardControls, cardResult, opener){
         var transfer = (res.data && (res.data.transfer || res.data.receipt)) || {};
         delete pilotCards[p.proposal_id];
         close(); cardControls.remove(); renderTransfer(cardResult, transfer); transferCards[p.proposal_id] = cardResult;
-        cardResult.setAttribute('data-transfer-state', transfer.state || '');
+        cardResult.setAttribute('data-transfer-state', transfer.state || ''); markAsked(cardResult, statusAsked);
         var companion = res.data && res.data.companion;
         if (companion && companion.collection_id) {
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
@@ -1723,10 +1778,10 @@ function openSheet(p, cardControls, cardResult, opener){
         var t = data.transfer || null;
         // the copy follows what was true when the request was cancelled: nothing signed, or signed and never sent
         cardResult.textContent = (t && t.state !== 'cancelled') ? 'Cancel requested. Nothing will be sent.' : (t && t.state_label && data.reason !== 'rejected_before_claim' ? 'Cancelled. Nothing was sent.' : 'Cancelled. Nothing was signed or sent.');
-        if (t) { transferCards[p.proposal_id] = cardResult; cardResult.setAttribute('data-transfer-state', t.state || ''); }
+        if (t) { transferCards[p.proposal_id] = cardResult; cardResult.setAttribute('data-transfer-state', t.state || ''); markAsked(cardResult, statusAsked); }
       } else if (res.ok && data.transfer) {
         cardControls.remove(); renderTransfer(cardResult, data.transfer); transferCards[p.proposal_id] = cardResult;
-        cardResult.setAttribute('data-transfer-state', data.transfer.state || '');
+        cardResult.setAttribute('data-transfer-state', data.transfer.state || ''); markAsked(cardResult, statusAsked);
       } else cardResult.textContent = (data.message || data.error) || 'The request could not be cancelled.';
     }).catch(function(){ cancel.disabled = false; setState('The cancel request did not complete.', true); });
   });
@@ -1750,7 +1805,7 @@ function syncSheet(st){
   var row = (st.pending || []).filter(function(x){ return x && x.proposal_id === sheetOpen.proposalId; })[0] || null;
   sheetOpen.sync(row, st);
 }
-function placeCards(){
+function placeCards(asked){
   var a = actions();
   var host = a && a.chatLog ? a.chatLog() : null;
   if (!host || !lastStatus || !lastStatus.enabled) return;
@@ -1764,18 +1819,19 @@ function placeCards(){
   (lastStatus.in_flight || []).forEach(function(t){
     if (!t || !t.proposal_id || rendered[t.proposal_id]) return;
     rendered[t.proposal_id] = true;
-    host.appendChild(transferCardFor(t));
+    host.appendChild(transferCardFor(t)); markAsked(transferCards[t.proposal_id], asked);
     host.scrollTop = host.scrollHeight;
   });
-  syncTransfers(lastStatus);
-  syncPilotCards(lastStatus);
+  syncTransfers(lastStatus, asked);
+  syncPilotCards(lastStatus, asked);
 }
 function refreshStatus(){
+  var asked = ++statusAsked;
   return getJson('/api/wallet/status').then(function(j){
     var st = (j && j.status) || null;
     if (!st) return null;
     lastStatus = st;
-    if (st.enabled) placeCards();
+    if (st.enabled) placeCards(asked);
     syncSheet(st);
     walletHome.onStatus(st);
     // the Settings surface follows the switch above it: on, the rows appear; off, they go

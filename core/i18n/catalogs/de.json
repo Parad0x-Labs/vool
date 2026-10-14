@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "Dieser Build kann EVM-Signaturen oder ABI-Kodierung nicht durchführen: Die Ethereum-Bibliotheken sind auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Solana, Verwahrung und Ausgabengrenzen sind nicht betroffen; nach Installation der Bibliotheken versuche es erneut.",
     "fault.wallet_paykit_unavailable.action": "Installiere die optionale Erweiterung pay von VOOL unter Python 3.11 oder neuer, um pay-kit-Zahlungen zu aktivieren; die Wallet behält in jedem Fall ihren eigenen Signierer, ihre Ausgabengrenzen und ihre Freigabe.",
     "fault.wallet_paykit_unavailable.message": "Dieser Build kann keine Solana-Angebote über x402 oder MPP bezahlen: Die optionale Erweiterung pay (Solana pay-kit, Python 3.11 oder neuer) ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut.",
+    "fault.wallet_payment_channel_off.action": "Schalte einen Zahlungskanal in den Krypto-Einstellungen nur ein, wenn Zahlungen darüber laufen sollen; die Obergrenze und deine Freigabe gelten auf jedem Kanal.",
+    "fault.wallet_payment_channel_off.message": "Diese Zahlung läuft über einen Zahlungskanal, der ausgeschaltet ist, daher wurde nichts signiert oder gesendet. Schalte den Kanal unter Einstellungen, Crypto, Zahlungskanäle ein und versuche es dann erneut.",
+    "fault.wallet_x402_sdk_unavailable.action": "Installiere die optionale Erweiterung x402 von VOOL, um x402-Angebote auf Base aus einer Crypto-Pilot-Wallet zu bezahlen; die Wallet behält in jedem Fall ihren eigenen Signierer, ihre Ausgabengrenzen und ihre Freigabe.",
+    "fault.wallet_x402_sdk_unavailable.message": "Dieser Build kann keine x402-Angebote auf Base über das x402 Foundation SDK bezahlen: Die optionale Erweiterung x402 ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut.",
     "fault.wallet_disabled.action": "Aktiviere die Wallet ausdrücklich (VOOL_WALLET_ENABLED=1), nur wenn Zahlungen auf dieser Installation gewollt sind.",
     "fault.wallet_disabled.message": "Das Wallet ist ausgeschaltet, daher wurde keine Zahlung vorgeschlagen oder gesendet. Aktiviere es zuerst und versuche es dann erneut.",
     "fault.wallet_duplicate_payment.action": "Prüfe den Beleg des bestehenden Antrags; nutze für eine wirklich neue Zahlung einen neuen Idempotenz-Schlüssel.",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "Webbrowser",
     "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

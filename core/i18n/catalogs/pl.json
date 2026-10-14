@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "Ta wersja nie potrafi podpisywać EVM ani kodować ABI: na tym komputerze nie ma bibliotek Ethereum. Nic nie podpisano ani nie wysłano. Solana, przechowywanie i limity wydatków nie są dotknięte; po zainstalowaniu bibliotek spróbuj ponownie.",
     "fault.wallet_paykit_unavailable.action": "Zainstaluj opcjonalny dodatek pay VOOL na Pythonie 3.11 lub nowszym, by włączyć płatności pay-kit; portfel w każdym przypadku zachowuje własnego sygnatariusza, limity wydatków i zatwierdzanie.",
     "fault.wallet_paykit_unavailable.message": "Ta wersja nie potrafi opłacać ofert x402 ani MPP w Solanie: na tym komputerze nie ma opcjonalnego dodatku pay (Solana pay-kit, Python 3.11 lub nowszy). Nic nie podpisano ani nie wysłano. Każda inna funkcja portfela działa bez niego; po zainstalowaniu spróbuj ponownie.",
+    "fault.wallet_payment_channel_off.action": "Włącz kanał płatności w ustawieniach Krypto tylko wtedy, gdy chcesz, by płatności przez niego szły; limit i twoja zgoda obowiązują na każdym kanale.",
+    "fault.wallet_payment_channel_off.message": "Ta płatność idzie przez wyłączony kanał płatności, więc nic nie podpisano ani nie wysłano. Włącz kanał w Ustawieniach, Krypto, Kanały płatności, potem spróbuj ponownie.",
+    "fault.wallet_x402_sdk_unavailable.action": "Zainstaluj opcjonalny dodatek x402 VOOL, by opłacać oferty x402 w sieci Base z portfela Crypto Pilot; portfel w każdym przypadku zachowuje własnego sygnatariusza, limity wydatków i zatwierdzanie.",
+    "fault.wallet_x402_sdk_unavailable.message": "Ta wersja nie potrafi opłacać ofert x402 w sieci Base przez x402 Foundation SDK: na tym komputerze nie ma opcjonalnego dodatku x402. Nic nie podpisano ani nie wysłano. Każda inna funkcja portfela działa bez niego; po zainstalowaniu spróbuj ponownie.",
     "fault.wallet_disabled.action": "Włącz portfel jawnie (VOOL_WALLET_ENABLED=1) tylko jeśli płatności są chciane na tej instalacji.",
     "fault.wallet_disabled.message": "Portfel jest wyłączony, więc nie zaproponowano ani nie wysłano płatności. Najpierw go włącz, potem spróbuj ponownie.",
     "fault.wallet_duplicate_payment.action": "Sprawdź pokwitowanie istniejącego wniosku; dla naprawdę nowej płatności użyj nowego klucza idempotencji.",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "Przeglądarka",
     "addons.registry_need_files": "Twoje pliki"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

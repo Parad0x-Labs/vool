@@ -32,7 +32,7 @@ MECHANISM_DIRECT = "Direct transfer"
 MECHANISM_X402 = "Service payment · x402"
 MECHANISM_CREDIT = "Provider credit · UsePod top-up"
 #: binding version -> the label of a pay-kit lane (3: x402 through Solana pay-kit, 4: an MPP charge through it)
-_MECHANISM_BY_VERSION = {3: f"{MECHANISM_X402} (Solana pay-kit)", 4: "Service payment · MPP (Solana pay-kit)"}
+_MECHANISM_BY_VERSION = {3: f"{MECHANISM_X402} (Solana pay-kit)", 4: "Service payment · MPP (Solana pay-kit)", 5: f"{MECHANISM_X402} (x402 Foundation SDK)"}
 
 CHARGE_ONE_RESPONSE = "one paid response for this resource"
 CHARGE_PREPAID_CREDIT = "prepayment: credit held by the provider, spent by later requests"
@@ -139,7 +139,7 @@ def purpose_for(proposal: Any) -> dict[str, Any]:
     origin = str(getattr(proposal, "origin", "") or "")
     if origin in _DIRECT_ORIGINS:
         return _direct(proposal)
-    if origin in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS):
+    if origin in (proposals.ORIGIN_X402, *proposals.PAYKIT_ORIGINS, proposals.ORIGIN_X402_SDK):
         return _service(proposal)
     if origin == proposals.ORIGIN_USEPOD:
         return _usepod_payment(proposal)

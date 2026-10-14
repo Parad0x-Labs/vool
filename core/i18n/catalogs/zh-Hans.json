@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "此构建无法进行 EVM 签名或 ABI 编码：这台机器上没有安装以太坊库。没有签名或发送任何内容。Solana、保管和支出上限不受影响；安装库之后请重试。",
     "fault.wallet_paykit_unavailable.action": "在 Python 3.11 或更高版本上安装 VOOL 的可选 pay 扩展以启用 pay-kit 支付；无论如何，钱包都保留自己的签名者、支出上限和审批。",
     "fault.wallet_paykit_unavailable.message": "此构建无法支付 Solana 上的 x402 或 MPP 报价：这台机器上没有安装可选的 pay 扩展（Solana pay-kit，Python 3.11 或更高版本）。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
+    "fault.wallet_payment_channel_off.action": "只有在希望通过某个支付通道付款时，才在加密设置中打开它；上限和你的批准在每个通道上都适用。",
+    "fault.wallet_payment_channel_off.message": "这笔付款经过一个已关闭的支付通道，因此没有签名或发送任何内容。请在设置、加密、支付通道中打开该通道后重试。",
+    "fault.wallet_x402_sdk_unavailable.action": "安装 VOOL 的可选 x402 扩展，即可从 Crypto Pilot 钱包支付 Base 上的 x402 报价；无论如何，钱包都保留自己的签名者、支出上限和审批。",
+    "fault.wallet_x402_sdk_unavailable.message": "此构建无法通过 x402 Foundation SDK 支付 Base 上的 x402 报价：这台机器上没有安装可选的 x402 扩展。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。",
     "fault.wallet_disabled.action": "仅当此安装确实需要付款时，才显式启用钱包（VOOL_WALLET_ENABLED=1）。",
     "fault.wallet_disabled.message": "钱包处于关闭状态，因此没有提出或发送任何付款。请先启用它，然后重试。",
     "fault.wallet_duplicate_payment.action": "检查现有提案的收据；真正的新付款请使用新的幂等键。",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "浏览器",
     "addons.registry_need_files": "你的文件"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -20,7 +20,7 @@ VOOL 是本地优先的 AI 桌面运行时。它在你的电脑上运行，默�
 * **可检查。** 每次工具调用都会记录输入和结果，事后可以回读。
 
 {% hint style="warning" %}
-VOOL macOS 测试版已面向 Apple 芯片发布。测试版安装包未签名，macOS 版本未经过公证 — 系统在首次启动时会发出警告。
+VOOL 0.7.0-beta 已发布，支持 Apple 芯片和 Intel 的 Mac 以及 Linux x86_64。Mac 应用尚未经过公证，首次打开时 macOS 会要求确认；步骤见[安装](getting-started/install.md)页面。
 {% endhint %}
 
 ## 两种状态

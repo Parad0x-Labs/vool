@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "لا يستطيع هذا الإصدار التوقيع بـ EVM أو ترميز ABI: مكتبات Ethereum غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. سولانا والحفظة وحدود الإنفاق غير متأثرة؛ بعد تثبيت المكتبات أعد المحاولة.",
     "fault.wallet_paykit_unavailable.action": "ثبّت الإضافة الاختيارية pay لـ VOOL على Python 3.11 أو أحدث لتمكين مدفوعات pay-kit؛ تحتفظ المحفظة بموقّعها وحدود إنفاقها وموافقتها في كل الأحوال.",
     "fault.wallet_paykit_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 أو MPP على Solana: الإضافة الاختيارية pay (Solana pay-kit، Python 3.11 أو أحدث) غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة.",
+    "fault.wallet_payment_channel_off.action": "شغّل قناة دفع في إعدادات العملات المشفرة فقط إن أردت أن تتم الدفعات عبرها؛ الحد الأقصى وموافقتك يسريان على كل قناة.",
+    "fault.wallet_payment_channel_off.message": "تمر تلك الدفعة عبر قناة دفع متوقفة، فلم يوقَّع أو يُرسل شيء. شغّل القناة في الإعدادات، عملات مشفرة، قنوات الدفع، ثم أعد المحاولة.",
+    "fault.wallet_x402_sdk_unavailable.action": "ثبّت الإضافة الاختيارية x402 لـ VOOL لدفع عروض x402 على Base من محفظة Crypto Pilot؛ تحتفظ المحفظة بموقّعها وحدود إنفاقها وموافقتها في كل الأحوال.",
+    "fault.wallet_x402_sdk_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 على Base عبر x402 Foundation SDK: الإضافة الاختيارية x402 غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة.",
     "fault.wallet_disabled.action": "فعّل المحفظة صراحةً (VOOL_WALLET_ENABLED=1) فقط إن كانت المدفوعات مرغوبة في هذه التثبيتة.",
     "fault.wallet_disabled.message": "المحفظة مطفأة، فلم يُقترح أو يُرسل أي دفع. فعّلها أولًا ثم أعد المحاولة.",
     "fault.wallet_duplicate_payment.action": "تحقق من إيصال المقترح القائم؛ استخدم مفتاح تكرار جديد لدفعة جديدة حقًا.",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "المتصفح",
     "addons.registry_need_files": "ملفاتك"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -42,9 +42,40 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 
 ## Install
 
-**Current version: 0.7.0-beta.** Start from source with the commands below — this repository publishes no installer release (only a private owner-review draft). A macOS DMG is separately downloadable from the project website; that channel is not built from these release records, so verify its sidecar checksum and see the [release status](docs/trust/release-status.md) page for the authoritative state of artifacts, signing and updates.
+**Current version: 0.7.0-beta.** Download the app for your computer from the [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta), or install from source with the bootstrap script below.
 
-### macOS / Linux
+### Downloads
+
+| Your computer | Download |
+| --- | --- |
+| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
+| **Mac with an Intel chip** | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
+| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
+
+Each download has a SHA-256 checksum on the release page. Check it before you open the file ([how](docs/getting-started/install.md#verify-a-download)). Not sure which Mac you have? Open the Apple menu and choose **About This Mac**: "Apple M…" means Apple Silicon, "Intel" means Intel. The macOS app needs macOS 14 Sonoma or newer.
+
+**First open on a Mac.** This beta is not notarized by Apple yet, so macOS asks you to confirm the first time:
+
+1. Open the DMG and drag **VOOL** into Applications.
+2. Double-click VOOL. macOS says it can't check the app; click **Done** (or **Cancel**).
+3. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to VOOL. Confirm with your password. (On macOS 14 you can instead Control-click VOOL and choose **Open**.) You only do this once.
+
+**Linux.** Unpack the tarball and run its installer; no sudo is needed. Full steps are in the [install guide](docs/INSTALL.md#linux-x86_64-tarball).
+
+**Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
+
+Nothing goes online on a fresh install until you turn it on. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
+
+| Platform | Getting started |
+| --- | --- |
+| **macOS / Apple Silicon** | App download (`macos-arm64` DMG) or the source installer; macOS CI coverage. |
+| **macOS / Intel** | Separate app download (`macos-x86_64` DMG) or the source installer. Local models run on the CPU and may be too slow to certify or answer in time, so use a cloud model there for now; see [Intel Macs](docs/getting-started/install.md#intel-macs). |
+| **Linux** | Self-contained x86_64 tarball, tested on Ubuntu 22.04 and 24.04, or the source installer; Linux test shards cover the source installer. |
+| **Windows** | Experimental desktop path from source; PowerShell installer and Windows gauntlet coverage. No Windows download in this release. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
+
+For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).
+
+### From source: macOS / Linux
 
 Download the bootstrap script, then run it:
 
@@ -53,7 +84,7 @@ curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/voo
 bash bootstrap_vool.sh --ref v0.7.0-beta
 ```
 
-### Windows PowerShell
+### From source: Windows PowerShell
 
 ```powershell
 Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/installer/bootstrap_vool.ps1 -OutFile bootstrap_vool.ps1
@@ -61,14 +92,6 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
 The installer prepares the Python environment, checks your hardware, sets up the local model, and launches the local services. Allow time and disk space for the initial model download. Local model inference works offline after setup; web tools and cloud models need a connection. Legacy integration cleanup is tracked in the [repository scope map](docs/REPOSITORY_SCOPE.md#retired-openclaw-integration).
-
-| Platform | Getting started |
-| --- | --- |
-| **macOS / Apple Silicon** | Primary desktop development target; source installer and macOS CI coverage. |
-| **Linux** | Linux test shards cover the source installer; Linux x86_64 has a beta-tag source installer, self-contained tarball build and Ubuntu 22.04/24.04 package acceptance in CI. See the install guide for artifact availability. |
-| **Windows** | Experimental desktop path; PowerShell installer and Windows gauntlet coverage. Use WSL2/Linux for jobs requiring a Linux kernel sandbox. |
-
-For model choices, system requirements, checksums, and troubleshooting, see the [install guide](docs/INSTALL.md) and [Windows capability matrix](docs/WINDOWS_CAPABILITY_MATRIX.md).
 
 <details>
 <summary><strong>Choose a local profile or run from a checkout</strong></summary>
@@ -146,4 +169,4 @@ VOOL also includes optional wallet/payment integrations and bounded local helper
 | Build status and troubleshooting | [CI](https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml) · [Engineering status](docs/STATUS.md) · [Error reference](docs/ERROR_BOOK.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) |
 | Security and licensing | [Security policy](SECURITY.md) · [MIT license](LICENSE) · [Third-party notices](third_party/NOTICES/README.md) |
 
-Built by **[Parad0x Labs](https://parad0xlabs.com)**. Contributor: **sls_0x**.
+Built by **[Parad0x Labs](https://github.com/Parad0x-Labs)**. Contributor: **sls_0x**.

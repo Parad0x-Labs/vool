@@ -241,13 +241,71 @@ class _RpcForPayKit:
         return SimpleNamespace(value=SimpleNamespace(owner=str(value["owner"])) if isinstance(value, dict) and value.get("owner") else None)
 
 
-def build_authorization(binding: dict[str, Any], signer: Any, *, rpc: Any, proposal: proposals.TransactionProposal) -> tuple[str, str]:
+class _ReadBeforeSigning:
+    """pay-kit's two reads answered from values read BEFORE a Crypto Pilot key opened: the blockhash the lane read and
+    recorded with its claim, and the owner of each account read then. Any other read is refused, so no network read
+    happens while the key is open."""
+
+    def __init__(self, *, blockhash: str, owners: dict[str, str]) -> None:
+        self._blockhash = str(blockhash)
+        self._owners = dict(owners)
+
+    async def get_latest_blockhash(self, commitment: Any = None) -> Any:
+        from types import SimpleNamespace
+
+        from solders.hash import Hash
+
+        return SimpleNamespace(value=SimpleNamespace(blockhash=Hash.from_string(self._blockhash)))
+
+    async def get_account(self, pubkey: Any) -> Any:
+        from types import SimpleNamespace
+
+        key = str(pubkey)
+        if key not in self._owners:
+            raise wallet_fault("wallet_signing_unavailable", authority=AUTHORITY, context={"reason": "paykit_read_while_key_open"})
+        owner = self._owners[key]
+        return SimpleNamespace(value=SimpleNamespace(owner=owner) if owner else None)
+
+
+def refuse_unpayable_on_pilot(binding: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> None:
+    """What the Crypto Pilot lane cannot pay from an MPP binding, refused typed before any credential: an expired
+    challenge, and a challenge that names its own recent blockhash (the lane signs only over the blockhash it read and
+    observes its validity window; one the server picked has a window the lane cannot see)."""
+    challenge = challenge_from_binding(binding)
+    if challenge.expires and challenge.is_expired():
+        raise wallet_fault("wallet_quote_expired", authority=AUTHORITY, context={"reason": "mpp_challenge_expired"}, source_context=source_context)
+    try:
+        _request, details = _charge_of(challenge)
+    except Exception:
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "mpp_request_unparseable"}, source_context=source_context) from None
+    if str(details.recent_blockhash or ""):
+        raise wallet_fault("x402_scheme_unavailable", authority=AUTHORITY, context={"reason": "mpp_server_blockhash_not_supported"}, source_context=source_context)
+
+
+def reader_before_signing(binding: dict[str, Any], rpc: Any, *, blockhash: str) -> _ReadBeforeSigning:
+    """Every read pay-kit's charge builder can make for this binding, made now through this wallet's proven endpoint:
+    for a token charge that names no token program, the owner of its mint. The answer serves the builder while the
+    Crypto Pilot key is open (:class:`_ReadBeforeSigning`)."""
+    challenge = challenge_from_binding(binding)
+    request, details = _charge_of(challenge)
+    owners: dict[str, str] = {}
+    currency = str(request.currency or "")
+    if currency.upper() != "SOL" and not str(details.token_program or ""):
+        mint = _import_paykit("solana_pay_kit._paycore.solana").resolve_mint(currency, str(details.network)) or currency
+        result = rpc._call("getAccountInfo", [mint, {"encoding": "base64"}])
+        value = (result or {}).get("value") if isinstance(result, dict) else None
+        owners[mint] = str(value["owner"]) if isinstance(value, dict) and value.get("owner") else ""
+    return _ReadBeforeSigning(blockhash=blockhash, owners=owners)
+
+
+def build_authorization(binding: dict[str, Any], signer: Any, *, rpc: Any, proposal: proposals.TransactionProposal, reader: Any = None) -> tuple[str, str]:
     """(header name, value) for the stored challenge, built by pay-kit, signed through the guard. pay-kit's own
-    amount and network guards are armed with the approved amount and the challenge's network."""
+    amount and network guards are armed with the approved amount and the challenge's network. ``reader`` answers
+    pay-kit's reads instead of ``rpc`` (the Crypto Pilot lane: :func:`reader_before_signing`)."""
     challenge = challenge_from_binding(binding)
     _request, details = _charge_of(challenge)
     value = _run(_mpp("client.charge").build_credential_header(
-        signer, _RpcForPayKit(rpc), challenge, max_amount_base_units=int(proposal.amount_minor), expected_network=str(details.network),
+        signer, reader if reader is not None else _RpcForPayKit(rpc), challenge, max_amount_base_units=int(proposal.amount_minor), expected_network=str(details.network),
     ))
     return AUTHORIZATION_HEADER, value
 

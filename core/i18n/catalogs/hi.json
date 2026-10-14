@@ -531,6 +531,10 @@
     "fault.wallet_dependency_unavailable.message": "यह बिल्ड EVM हस्ताक्षर या ABI एन्कोडिंग नहीं कर सकता: Ethereum लाइब्रेरियाँ इस मशीन पर नहीं हैं। कुछ हस्ताक्षरित या भेजा नहीं गया। Solana, कस्टडी और खर्च छत अप्रभावित हैं; लाइब्रेरियाँ लगने पर दोबारा कोशिश करें।",
     "fault.wallet_paykit_unavailable.action": "pay-kit भुगतान सक्षम करने के लिए Python 3.11 या नए पर VOOL का वैकल्पिक pay ऐड-ऑन लगाएँ; वॉलेट हर हाल में अपना हस्ताक्षरकर्ता, खर्च छत और स्वीकृति रखता है।",
     "fault.wallet_paykit_unavailable.message": "यह बिल्ड Solana के x402 या MPP ऑफ़र का भुगतान नहीं कर सकता: वैकल्पिक pay ऐड-ऑन (Solana pay-kit, Python 3.11 या नया) इस मशीन पर नहीं है। कुछ हस्ताक्षरित या भेजा नहीं गया। वॉलेट की बाकी हर सुविधा इसके बिना चलती है; इसे लगाने पर दोबारा कोशिश करें।",
+    "fault.wallet_payment_channel_off.action": "क्रिप्टो सेटिंग्स में भुगतान चैनल तभी चालू करें जब आप उसके ज़रिए भुगतान चाहते हों; सीमा और आपकी मंज़ूरी हर चैनल पर लागू होती है।",
+    "fault.wallet_payment_channel_off.message": "वह भुगतान एक ऐसे भुगतान चैनल से जाता है जो बंद है, इसलिए कुछ भी हस्ताक्षरित या भेजा नहीं गया। सेटिंग्स, क्रिप्टो, भुगतान चैनल में चैनल चालू करें, फिर कोशिश करें।",
+    "fault.wallet_x402_sdk_unavailable.action": "Crypto Pilot वॉलेट से Base पर x402 ऑफ़र का भुगतान करने के लिए VOOL का वैकल्पिक x402 ऐड-ऑन लगाएँ; वॉलेट हर हाल में अपना हस्ताक्षरकर्ता, खर्च छत और स्वीकृति रखता है।",
+    "fault.wallet_x402_sdk_unavailable.message": "यह बिल्ड x402 Foundation SDK के ज़रिए Base पर x402 ऑफ़र का भुगतान नहीं कर सकता: वैकल्पिक x402 ऐड-ऑन इस मशीन पर नहीं है। कुछ हस्ताक्षरित या भेजा नहीं गया। वॉलेट की बाकी हर सुविधा इसके बिना चलती है; इसे लगाने पर दोबारा कोशिश करें।",
     "fault.wallet_disabled.action": "केवल तभी वॉलेट स्पष्ट रूप से सक्षम करें (VOOL_WALLET_ENABLED=1) जब इस इंस्टॉल पर भुगतान चाहिए।",
     "fault.wallet_disabled.message": "वॉलेट बंद है, इसलिए कोई भुगतान प्रस्तावित या भेजा नहीं गया। पहले उसे सक्षम करें, फिर कोशिश करें।",
     "fault.wallet_duplicate_payment.action": "मौजूदा प्रस्ताव की रसीद जाँचें; सचमुच नए भुगतान के लिए नई आइडेम्पोटेंसी कुंजी लें।",
@@ -1875,7 +1879,7 @@
     "addons.registry_need_browser": "ब्राउज़र",
     "addons.registry_need_files": "आपकी फ़ाइलें"
   },
-  "source_catalog_sha256": "3dcaa10ea54b41aa80d416a4c690bc4cb7f652bc08eb00bc5f337737565c52af",
+  "source_catalog_sha256": "dce2be53a8554d9da5bde3fe4b5f2ae2169b104fe8932c1b46493e43b52d463b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

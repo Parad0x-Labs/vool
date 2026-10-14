@@ -2570,6 +2570,13 @@
       "registry_command_id": "wallet.approve",
       "surface": "http"
     },
+    "http:POST:/api/wallet/channels": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/channels",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.channels.set",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/dna-fees/policy": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/wallet/dna-fees/policy",
@@ -3029,7 +3036,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 296,
-    "GENERATED_ADAPTER": 127,
+    "GENERATED_ADAPTER": 128,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
