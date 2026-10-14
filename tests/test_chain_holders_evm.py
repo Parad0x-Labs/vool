@@ -6,10 +6,14 @@ are never contacted. Every lookup goes through the model's door (``execute_runti
 from __future__ import annotations
 
 import dataclasses
+import re
 
 import pytest
 
 from tests._credential_intelligence_support import FakeProviderServer, isolated_home, vault_home
+
+# The setup text names Moralis' sign-in host as a whole word, not as part of a longer name.
+_ADMIN_HOST = re.compile(r"(?<![\w.-])admin\.moralis\.io(?![\w-])")
 
 MORALIS_KEY = "eyJhbGciOiJIUzI1NiJ9.fixture.moralis-not-real"
 HELIUS_KEY = "1b2c3d4e-5f60-4a7b-8c9d-0e1f2a3b4c5d"
@@ -202,7 +206,7 @@ def test_settings_picks_the_new_provider_up_from_chain_providers():
     chain = next(group for group in provider_key_guide("en") if group["id"] == "chain")
     row = next(p for p in chain["providers"] if p["provider"] == "moralis")
     assert row["slot"] == "chain.data.moralis" and row["label"] == "Moralis"
-    assert len(row["steps"]) == 3 and "admin.moralis.io" in row["steps"][0]
+    assert len(row["steps"]) == 3 and _ADMIN_HOST.search(row["steps"][0])
     assert "Ethereum" in row["description"] and "Arbitrum" in row["description"]
 
 
@@ -210,7 +214,7 @@ def test_the_served_settings_page_carries_the_provider_row():
     from core.vool_settings_page import render_vool_settings_html
 
     html = render_vool_settings_html()
-    assert "Moralis" in html and "admin.moralis.io" in html
+    assert "Moralis" in html and _ADMIN_HOST.search(html)
 
 
 def test_the_setup_text_is_translated_not_copied():
@@ -219,6 +223,6 @@ def test_the_setup_text_is_translated_not_copied():
     en = catalog_for("en").text("keyguide.provider.moralis.step1")
     de = catalog_for("de").text("keyguide.provider.moralis.step1")
     ja = catalog_for("ja").text("keyguide.provider.moralis.step1")
-    assert "admin.moralis.io" in en
-    assert de != en and "admin.moralis.io" in de and "Melde dich" in de
+    assert _ADMIN_HOST.search(en)
+    assert de != en and _ADMIN_HOST.search(de) and "Melde dich" in de
     assert ja != en and "サインイン" in ja

@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from core import x_usage
 
@@ -703,14 +703,31 @@ def _same_token(name: str, token: str) -> bool:
 # --------------------------------------------------------------------------- accounts
 
 
+_PROFILE_HOSTS = frozenset({"x.com", "www.x.com", "mobile.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com"})
+
+
+def _profile_link_handle(text: str) -> str:
+    """The username in an X profile link (x.com/name, https://twitter.com/name/status/1, ...).
+
+    Only X's own hosts count, and the name is the first path part, so another site's link or a
+    post link never turns into a different account."""
+    link = text if "://" in text else "https://" + text
+    parts = urlsplit(link)
+    host = (parts.hostname or "").lower()
+    name = parts.path.strip("/").split("/", 1)[0]
+    if parts.scheme not in ("http", "https") or host not in _PROFILE_HOSTS or not name:
+        raise XReadError("invalid_arguments", f"'{text[:40]}' is not an X profile link.")
+    return name
+
+
 def _user_id(who: Any, saved: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
     text = str(who or "").strip()
     if not text or text.lower() in {"me", "@me", "my", "mine"}:
         payload = _request("/2/users/me", {"user.fields": USER_FIELDS}, user_context=True, saved=saved)
         user = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         return str(user.get("id") or ""), user
-    if text.startswith("https://") or text.startswith("x.com/") or text.startswith("twitter.com/"):
-        text = text.rstrip("/").rsplit("/", 1)[-1]
+    if "/" in text:
+        text = _profile_link_handle(text)
     if text.startswith("id:") and _ID_RE.fullmatch(text[3:]):
         return text[3:], None
     if _ID_RE.fullmatch(text) and len(text) > 15:
