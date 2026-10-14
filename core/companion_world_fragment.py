@@ -383,6 +383,9 @@ def normalise_companion_payload(payload: object = None) -> dict[str, str]:
     clean["chatTitle"] = chat_title
     activity = str(raw.get("activity") or "").strip().lower()
     clean["activity"] = activity if activity in {"read", "search", "dig", "code", "exec", "test", "watch"} else ""
+    # The chat page says when its bubble has gone quiet (a finished job's moment has passed).
+    if raw.get("quiet") is True:
+        clean["quiet"] = True
     if raw.get("motion") in {"system", "reduced", "allow"}:
         clean["motion"] = raw["motion"]
     # The pet's last native position, when the page has one to restore. Presentation only, and
@@ -478,7 +481,8 @@ function vcwSetBubble(title,activity){
  const t=vcwSafeText(title,42),a=vcwSafeText(activity,34);
  if(vcwBubbleTitle.textContent!==t)vcwBubbleTitle.textContent=t;
  if(vcwBubbleActivity.textContent!==a)vcwBubbleActivity.textContent=a;
- vcwBubble.style.display=t?'flex':'none';
+ // Quiet unless there is something to say: the second line is empty while idle.
+ vcwBubble.style.display=a?'flex':'none';
 }
 function vcwPaint(now){
  if(vcwStarted===null)vcwStarted=now;
@@ -501,15 +505,16 @@ window.VoolDesktopCompanion={
   if(next&&typeof next==='object'){
    if(next.state&&next.state!==vcwState.state)vcwStarted=null;
    Object.assign(vcwState,next);
+   vcwState.quiet=next.quiet===true;  // a snapshot: an omitted flag means "speak"
   }
   /* Idle keeps the title and drops the activity line, so a finished turn stops advertising
      stale work. Otherwise the line is the reducer-resolved activity, never model prose. */
   const idle=String(vcwState.state||'idle')==='idle';
-  vcwSetBubble(vcwState.chatTitle||'',idle?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+  vcwSetBubble(vcwState.chatTitle||'',idle||vcwState.quiet?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
  },
  interaction:function(hover,drag){vcwNativeInteraction=true;vcwInteraction(hover,drag);}
 };
-vcwSetBubble(vcwState.chatTitle||'',vcwState.state==='idle'?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+vcwSetBubble(vcwState.chatTitle||'',vcwState.state==='idle'||vcwState.quiet?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
 function vcwBridge(name){
  return window.pywebview&&window.pywebview.api&&window.pywebview.api[name]?window.pywebview.api[name]:null;
 }

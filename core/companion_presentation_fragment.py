@@ -678,7 +678,55 @@ function vnBoundChatTitle(chatId) {
   }
   return "";
 }
-/* Two grounded lines. `activity` is only ever a reducer-resolved phrase or typed state name. */
+/* The bubble's second line, chosen from the TYPED state only.
+   - Working: a playful line for the typed activity (search, read, ...), a new one each time the
+     reducer moves on (a new phrase, activity or state) -- never on a timer.
+   - Waiting on the user: a line that always says a decision is needed. Stays until answered.
+   - Finished: a "done" line for a few seconds, then the bubble goes quiet.
+   - Failed, cancelled, flagged, unverified: the reducer's own plain phrase, no joke, for a while.
+   Playful lines are English; other languages keep the translated plain phrase. */
+const VN_DONE_LINGER_MS = 8000, VN_PROBLEM_LINGER_MS = 20000;
+let vnQuip = { key: "", since: 0, line: "" };
+const vnQuipCursor = {};
+function vnPlayful() {
+  const root = document.documentElement;
+  const lang = String((root && (root.lang || (root.getAttribute && root.getAttribute("lang")))) || "en");
+  return lang.toLowerCase().indexOf("en") === 0;
+}
+function vnQuipPool(pres, nextState) {
+  if (pres.state === "APPROVAL_REQUIRED") return "ask";
+  if (pres.state === "COMPLETED_UNREVIEWED" || pres.state === "PASS") return "done";
+  if (nextState === "retry") return "retry";
+  if (nextState === "waiting") return "queued";
+  if (nextState === "starting" || nextState === "thinking") return "think";
+  if (nextState === "tool") {
+    const act = vnActivity(pres);
+    return act && VN_QUIPS[act] ? act : "think";
+  }
+  return "";  // failure, cancelled, flagged, unknown: no joke
+}
+function vnNextQuip(pool) {
+  const lines = VN_QUIPS[pool] || [];
+  if (!lines.length) return "";
+  if (!(pool in vnQuipCursor)) vnQuipCursor[pool] = Math.floor(Math.random() * lines.length);
+  const line = lines[vnQuipCursor[pool] % lines.length];
+  vnQuipCursor[pool] = (vnQuipCursor[pool] + 1) % lines.length;
+  return line;
+}
+function vnBubbleLine(chatId, pres, nextState, now) {
+  if (!pres || nextState === "idle") { vnQuip = { key: "", since: 0, line: "" }; return ""; }
+  const pool = vnQuipPool(pres, nextState);
+  const key = String(chatId || "") + "|" + pres.state + "|" + nextState + "|" + (vnActivity(pres) || "") + "|" + (pres.phraseId || "");
+  if (key !== vnQuip.key) {
+    const plain = pres.phraseText ? String(pres.phraseText) : vnStateWord(nextState);
+    vnQuip = { key: key, since: now, line: pool && vnPlayful() ? vnNextQuip(pool) : plain };
+  }
+  const age = now - vnQuip.since;
+  if (pool === "done" && age > VN_DONE_LINGER_MS) return "";
+  if (!pool && age > VN_PROBLEM_LINGER_MS) return "";
+  return vnQuip.line;
+}
+/* Two grounded lines. `activity` is a line chosen from the typed state (see vnBubbleLine). */
 function vnSetBubble(title, activity, visible) {
   if (!vnBubble) return;
   vnBubbleTitle.textContent = vnSafeText(title, VN_TITLE_MAX);
@@ -1178,12 +1226,14 @@ function vnPaintNow(now) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";
     } else if (nextState === "idle") {
       line2 = "";
-    } else if (pres && pres.phraseText) {
-      line2 = String(pres.phraseText);
+      vnQuip = { key: "", since: 0, line: "" };
     } else {
-      line2 = vnStateWord(nextState);
+      line2 = vnBubbleLine(chatId, pres, nextState, now);
     }
-    vnSetBubble(bound, line2, true);
+    vnPaint.bubbleLine = line2;
+    // The bubble speaks only while there is something to say: working, waiting on the user,
+    // or just finished. A pet doing nothing is quiet.
+    vnSetBubble(bound, line2, !!line2);
   }
   // The caption carries the ACTIVITY LANGUAGE, not just the sprite state: the phrase is the
   // thing the operator reads ("Searching the web…", "Collecting facts on disk…"), and the pack's
@@ -1600,6 +1650,10 @@ function vnNotify(text) {
 }
 function vnDesktopPayload(pres, state) {
   const payload = {state:state||vnSpriteState(pres),caption:pres&&pres.phraseText?pres.phraseText:String((pres&&pres.state)||"IDLE"),character:vnPos.personality,pack:vnPos.pack,motion:vnPos.motion};
+  // The desktop pet says the same bubble line as the in-app one, and is quiet when it is.
+  if (typeof vnPaint.bubbleLine === "string") {
+    if (vnPaint.bubbleLine) payload.caption = vnPaint.bubbleLine; else payload.quiet = true;
+  }
   /* The bound chat's title and the activity substate travel with the pet, so the DETACHED pet
      says the same two grounded lines as the in-app one. Both come from the reducer's resolution
      for the bound chat; neither is model prose, and the native side re-validates both. */
@@ -1908,11 +1962,13 @@ else vnBoot();
 
 def render_companion_fragment() -> str:
     """The companion layer as ``<style> + <script>``, concatenated after the page."""
+    from core.companion_quips import quips_json
     from core.companion_world_fragment import COMPANION_WORLD_JS
 
     return (
         "<style>" + _VN_CSS + "</style>"
         + "<script>(function(){\n'use strict';\n"
-        + COMPANION_WORLD_JS + "\n" + _VN_LIBRARY_JS + "\n" + _VN_ENGINE_JS
+        + COMPANION_WORLD_JS + "\n" + _VN_LIBRARY_JS + "\n"
+        + "const VN_QUIPS = " + quips_json() + ";\n" + _VN_ENGINE_JS
         + "\n})();</script>"
     )
