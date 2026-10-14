@@ -168,6 +168,24 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("token.launches", "web", re.compile(
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
         r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
+    # -- market watches (core/market_watch; watch a wallet or a price and get an alert) --
+    # noun+verb anchored: a watch verb on a wallet/token/address, or an alert/tell-me-when shape
+    # with a condition verb. "watch the meeting" (no wallet/token noun) seats nothing.
+    ("watch.add", "web", re.compile(
+        r"\b(?:watch|track|keep\s+(?:an?\s+)?eye\s+on)\b[^.?!]{0,80}?\b(?:wallet|address|token|mint|contract|price)\b"
+        r"|\b(?:alert|notify|warn)\s+me\b[^.?!]{0,80}?\b(?:when|if|goes?|drops?|rises?|falls?|moves?|above|below|past)\b"
+        r"|\b(?:tell|let)\s+me\s+(?:know\s+)?(?:when|if)\b[^.?!]{0,80}?\b(?:goes?|drops?|rises?|falls?|moves?|above|below|past|sends?|receives?)\b", re.I)),
+    ("watch.list", "web", re.compile(
+        r"\bwhat\s+am\s+i\s+watching\b"
+        r"|\b(?:list|show|see|check)\b[^.?!]{0,40}?\b(?:my|the)\s+(?:watches|watch\s+list)\b"
+        r"|\b(?:my|the)\s+(?:watches|watch\s+list)\b[^.?!]{0,40}?\b(?:list|show|what|open)\b", re.I)),
+    ("watch.remove", "web", re.compile(
+        r"\b(?:stop|remove|delete|drop|unwatch)\b[^.?!]{0,60}?\b(?:watch(?:ing)?|tracker|alert)s?\b", re.I)),
+    ("watch.pause", "web", re.compile(
+        r"\b(?:pause|suspend|mute|quiet)\b[^.?!]{0,60}?\b(?:watch(?:ing)?|tracker|alert)s?\b"
+        r"|\b(?:watch|tracker|alert)s?\b[^.?!]{0,40}?\b(?:pause|suspend|mute)\b", re.I)),
+    ("watch.resume", "web", re.compile(
+        r"\b(?:resume|unpause|unmute)\b[^.?!]{0,60}?\b(?:watch(?:ing)?|tracker|alert)s?\b", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",

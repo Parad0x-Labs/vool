@@ -256,6 +256,40 @@ def test_the_watch_contracts_declare_a_local_write_with_no_approval():
         assert contract.capability_id == "market.watch"
 
 
+@pytest.mark.parametrize(("text", "seated"), [
+    ("watch this wallet 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU on solana", "watch.add"),
+    ("tell me when BONK goes above 0.00005", "watch.add"),
+    ("alert me if FDOG drops 20% in an hour", "watch.add"),
+    ("what am I watching", "watch.list"),
+    ("stop watching that wallet", "watch.remove"),
+    ("pause the watch on my team wallet", "watch.pause"),
+    ("resume the FDOG watch", "watch.resume"),
+])
+def test_a_plain_sentence_names_its_watch_tool(text, seated):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert seated in resolve_demand_signals(text).explicit_intents
+
+
+@pytest.mark.parametrize("text", [
+    "watch this movie tonight",
+    "how did the meeting go",
+    "what are you doing",
+])
+def test_plain_prose_seats_no_watch_tool(text):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert not any(intent.startswith("watch.") for intent in resolve_demand_signals(text).explicit_intents)
+
+
+def test_the_offer_seats_the_watch_tool_for_a_plain_sentence():
+    from core.capability_graph import model_visible_specs
+
+    specs = model_visible_specs(user_text="watch this wallet 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU on solana")
+    intents = {str(spec.get("intent") or "") for spec in specs}
+    assert "watch.add" in intents
+
+
 def test_rules_in_words():
     from core.market_watch import rule_in_words
 
