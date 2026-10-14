@@ -1714,7 +1714,7 @@ class PaymentLifecycle:
         )
         if delivered:
             x402_sdk._DELIVERED_BODIES[pid] = body
-        elif answer is not None and status < 400 and state != transfers.STATE_FAILED_ON_CHAIN:
+        elif answer is not None and status < 400 and state != transfers.STATE_FAILED_ON_CHAIN and x402_sdk.wants_hold(pid):
             # the resource answered but the payment was not yet confirmed inside the budget: the answer is held, and handed
             # out (once) only after the chain confirms this transfer (:func:`core.wallet.x402_sdk.held_body`)
             x402_sdk._HELD_BODIES[pid] = body

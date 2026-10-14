@@ -29,6 +29,7 @@ anything is parked. VOOL's own x402 client keeps every other wallet's offers, un
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import json
 import sys
@@ -64,6 +65,9 @@ _DELIVERED_BODIES: dict[str, bytes] = {}
 #: proposal_id -> a resource body that arrived before its payment was confirmed. Process memory only; released by
 #: :func:`held_body` once the transfer is confirmed, dropped when it ends any other way.
 _HELD_BODIES: dict[str, bytes] = {}
+#: payments whose caller waits for a held body (pay-per-answer AI registers its own just before approval); any other
+#: payment's early answer is not held, so nothing collects bodies no one will ever read
+_HOLD_FOR: set[str] = set()
 
 
 # --- availability ----------------------------------------------------------------------------------------------
@@ -345,6 +349,41 @@ def held_body(proposal_id: str) -> tuple[str, bytes | None]:
         _HELD_BODIES.pop(pid, None)
         return "ended", None
     return "waiting", None
+
+
+def hold_for(proposal_id: str) -> None:
+    _HOLD_FOR.add(str(proposal_id))
+
+
+def wants_hold(proposal_id: str) -> bool:
+    return str(proposal_id) in _HOLD_FOR
+
+
+def peek_held(proposal_id: str) -> bytes | None:
+    """The held body, NOT handed out: only for a check that must act before the payment confirms (never shown)."""
+    return _HELD_BODIES.get(str(proposal_id))
+
+
+def release_hold(proposal_id: str) -> None:
+    """The caller stopped waiting: drop the held body and the registration."""
+    _HELD_BODIES.pop(str(proposal_id), None)
+    _HOLD_FOR.discard(str(proposal_id))
+
+
+def forget_request(proposal_id: str) -> None:
+    """Blank the stored request (body and headers) of this payment's binding once it can no longer be sent: the SDK lane
+    delivers once and never re-sends, and a pay-per-answer question must not outlive its payment. Freed bytes are
+    zeroed (secure_delete) so the question does not linger in the database file."""
+    from core.wallet import x402
+    from core.wallet.store import connection
+
+    with connection() as conn:
+        conn.execute("PRAGMA secure_delete = ON")
+        conn.execute("UPDATE wallet_x402_bindings SET request_body_b64 = '', request_headers_json = '{}' WHERE proposal_id = ? AND version = ?",
+                     (str(proposal_id), int(x402.BINDING_VERSION_X402_SDK)))
+    # a write-ahead log still holds the old page until a checkpoint copies it back and truncates the log
+    with contextlib.suppress(Exception), connection() as conn:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
 
 def pilot_quote_block(binding: dict[str, Any], proposal: proposals.TransactionProposal) -> dict[str, Any]:

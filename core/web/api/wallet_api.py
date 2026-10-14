@@ -402,13 +402,16 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 # a pay-per-answer AI payment whose service was paused or removed since, or now costs above its limit, is not paid
                 from core import x402_ai
 
-                try:
-                    stale = x402_ai.check_before_approval(proposal_id)
-                except x402_ai.PaidAskError as exc:
-                    stale = exc
-                if stale is not None:
-                    return _json(409, {"ok": False, "error": stale.code, "message": stale.message})
-                result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""), approver=pilot_approver)
+                # (the check and the approval share one gate with every pause or removal, so neither slips in between)
+                with x402_ai.approval_gate():
+                    try:
+                        stale = x402_ai.check_before_approval(proposal_id)
+                    except x402_ai.PaidAskError as exc:
+                        stale = exc
+                    if stale is not None:
+                        return _json(409, {"ok": False, "error": stale.code, "message": stale.message})
+                    result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""),
+                                                           approver=pilot_approver)
                 # a pay-per-answer AI payment: its one delivered answer is checked and posted into the chat that asked
                 try:
                     paid_ai = x402_ai.after_approval(proposal_id, result)

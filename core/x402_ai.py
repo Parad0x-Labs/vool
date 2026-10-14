@@ -29,6 +29,7 @@ says that in one line, and the Settings card says it too.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -53,6 +54,12 @@ _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$")
 _LABEL_RE = re.compile(r"^[^\x00-\x1f<>]{1,40}$")
 _DATED_SUFFIX = re.compile(r"-(?:\d{8}|\d{4}-\d{2}-\d{2})$")
 _LOCK = threading.RLock()
+#: held by the approve door across its stale check and the approval, and by every pause or removal: a service paused
+#: while a payment is being approved either stops that approval or waits until it is done, never slips in between.
+#: Order: _GATE before _LOCK.
+_GATE = threading.RLock()
+#: payments being delivered or watched by THIS process; an open record outside it was left by an earlier run
+_ACTIVE: set[str] = set()
 
 VERDICT_MATCH = "match"
 VERDICT_MISMATCH = "mismatch"
@@ -123,6 +130,7 @@ def _public_view(endpoint: dict[str, Any]) -> dict[str, Any]:
 
 
 def endpoints() -> list[dict[str, Any]]:
+    _recover()
     with _LOCK:
         return [_public_view(e) for e in _load()["endpoints"]]
 
@@ -172,7 +180,7 @@ def add_endpoint(*, label: Any, base_url: Any, model: Any, max_price: Any) -> di
 
 
 def set_endpoint_on(endpoint_id: Any, on: bool) -> dict[str, Any]:
-    with _LOCK:
+    with _GATE, _LOCK:
         state = _load()
         for entry in state["endpoints"]:
             if entry["id"] == str(endpoint_id or ""):
@@ -185,7 +193,7 @@ def set_endpoint_on(endpoint_id: Any, on: bool) -> dict[str, Any]:
 
 
 def remove_endpoint(endpoint_id: Any) -> None:
-    with _LOCK:
+    with _GATE, _LOCK:
         state = _load()
         kept = [e for e in state["endpoints"] if e["id"] != str(endpoint_id or "")]
         if len(kept) == len(state["endpoints"]):
@@ -285,6 +293,7 @@ def ask(endpoint_name: Any, question: Any, *, source_context: dict[str, Any] | N
     from core.wallet import channels, config, custody, outbound
 
     custody.require_enabled(source_context=source_context)
+    _recover()
     text = str(question or "").strip()
     if not text:
         raise PaidAskError("question_missing", "There is no question to send.")
@@ -393,7 +402,7 @@ def _finish(endpoint: dict[str, Any], raw: bytes, *, session_id: str, paid: dict
     text = f"{head}\n{CHECK_LIMIT_NOTE}\n\n{body_text}"
     if len(text) > _TRANSCRIPT_LIMIT:
         text = text[:_TRANSCRIPT_LIMIT].rstrip() + "\n\n(The answer was longer than a chat message holds, so it is cut here.)"
-    with _LOCK:
+    with _GATE, _LOCK:
         state = _load()
         for entry in state["endpoints"]:
             if entry["id"] == endpoint["id"]:
@@ -430,13 +439,49 @@ def _post(session_id: str, text: str, artifact: dict[str, Any]) -> bool:
     return bool(append_assistant_artifact_event(session_id=session_id, text=text, artifact_kind="paid_ai_answer", artifact=artifact))
 
 
+def approval_gate() -> Any:
+    """Held by the approve door across :func:`check_before_approval` and the approval itself."""
+    return _GATE
+
+
+def _ours(proposal_id: str) -> bool:
+    """Whether this payment was parked by :func:`ask`, read from the wallet's own binding (not from this module's
+    store, so a lost or unreadable store cannot hide it): an x402 SDK POST to a ``/chat/completions`` address whose
+    body carries the ``vool-`` end-user id only :func:`ask` writes. A blanked body (already delivered) is not needed:
+    such a payment is past its approval."""
+    from core.wallet import x402
+
+    binding = x402.binding_for_proposal(proposal_id) or {}
+    if int(binding.get("version") or 0) != int(x402.BINDING_VERSION_X402_SDK) or str(binding.get("method") or "").upper() != "POST":
+        return False
+    if not str(binding.get("url") or "").endswith("/chat/completions"):
+        return False
+    try:
+        import base64
+
+        sent = json.loads(base64.b64decode(str(binding.get("request_body_b64") or "")) or b"{}")
+    except Exception:
+        return False
+    return isinstance(sent, dict) and str(sent.get("user") or "").startswith("vool-")
+
+
 def check_before_approval(proposal_id: str) -> PaidAskError | None:
-    """The approve door asks this BEFORE the owner's approval is used: a payment this module parked is refused when its
-    service was paused or removed since, or its price is now above the service's limit. Any other payment: None."""
+    """The approve door asks this, under :func:`approval_gate`, BEFORE the owner's approval is used: a payment this
+    module parked is refused when its service was paused or removed since, or its price is now above the service's
+    limit or the wallet's x402 cap. A payment of ours with no readable record is refused too (fail closed). A payment
+    already past its approval is left to the wallet's duplicate answer. Any other payment: None."""
+    proposal_id = str(proposal_id or "")
+    if not _ours(proposal_id):
+        return None
+    from core.wallet import config, x402_sdk
+
     with _LOCK:
-        state = _load()
-        record = state["requests"].get(str(proposal_id or ""))
+        state = _load()  # unreadable: StoreUnreadable, refused by the door
+        record = state["requests"].get(proposal_id)
         if record is None:
+            return PaidAskError("record_missing", "VOOL lost track of which service this payment is for, so it was not paid. Cancel it in the card "
+                                "and ask again.")
+        if record.get("state") != "pending_approval":
             return None
         endpoint = next((e for e in state["endpoints"] if e["id"] == record.get("endpoint_id")), None)
     if endpoint is None:
@@ -444,8 +489,10 @@ def check_before_approval(proposal_id: str) -> PaidAskError | None:
     if not endpoint.get("on"):
         return PaidAskError("endpoint_paused", f"{endpoint['label']} is paused, so this payment was not made. Turn it back on in Settings → Crypto → "
                             "Pay-per-answer AI, or cancel it in the card.")
-    if int(record.get("amount_minor") or 0) > int(endpoint.get("max_price_minor") or 0):
+    if int(record.get("amount_minor") or 0) > min(int(endpoint.get("max_price_minor") or 0), config.x402_cap_minor()):
         return PaidAskError("offer_over_limit", f"This answer costs more than your limit for {endpoint['label']} now, so it was not paid. Cancel it in the card.")
+    # an answer that arrives before the payment confirms is held for this payment, never handed out unconfirmed
+    x402_sdk.hold_for(proposal_id)
     return None
 
 
@@ -484,30 +531,92 @@ def after_approval(proposal_id: str, approval_result: dict[str, Any] | None) -> 
         endpoint = next((e for e in state["endpoints"] if e["id"] == record.get("endpoint_id")), None)
         record["state"] = "delivering"
         _save(state)
-    delivery = result.get("x402_sdk") or {}
+        _ACTIVE.add(proposal_id)
     from core.wallet import x402_sdk
 
-    raw = x402_sdk.delivered_body(proposal_id) if delivery.get("delivered") else None
-    if raw is None:
-        held, _ = x402_sdk.held_body(proposal_id)
-        if held == "waiting":
-            # the service answered; the payment is still confirming. The answer is posted once it confirms.
-            _set_state(proposal_id, "confirming")
-            _watch_confirming(proposal_id)
-            note = "The service answered. VOOL is still confirming the payment, and the answer will appear here once it is confirmed."
-            return {"verdict": "confirming", "text": note, "posted": False}
-        return _unanswered(proposal_id, record, "the service did not send one")
-    if endpoint is None:
-        # paid and answered, then the service left the list before the answer was read: still the owner's answer
-        endpoint = {"id": record.get("endpoint_id"), "label": "the removed service", "model": str(record.get("model") or "")}
+    watching = False
     try:
-        return _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
-                       paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
-    except Exception:
-        # the answer was paid for: it goes back to the wallet's one-time delivery so the card still shows it
-        x402_sdk._DELIVERED_BODIES[proposal_id] = raw
-        content = _parse_completion(raw)[0]
-        return {"verdict": "not_posted", "text": content or "The answer could not be saved to the chat.", "posted": False}
+        delivery = result.get("x402_sdk") or {}
+        raw = x402_sdk.delivered_body(proposal_id) if delivery.get("delivered") else None
+        if raw is None:
+            held, _ = x402_sdk.held_body(proposal_id)
+            if held == "waiting":
+                # the service answered; the payment is still confirming. A service that named another model is paused
+                # now, so no other payment there is approved while this one confirms; the answer is posted once it does.
+                _pause_early(record, x402_sdk.peek_held(proposal_id))
+                _set_state(proposal_id, "confirming")
+                _watch_confirming(proposal_id)
+                watching = True
+                note = "The service answered. VOOL is still confirming the payment, and the answer will appear here once it is confirmed."
+                return {"verdict": "confirming", "text": note, "posted": False}
+            return _unanswered(proposal_id, record, "the service did not send one")
+        if endpoint is None:
+            # paid and answered, then the service left the list before the answer was read: still the owner's answer
+            endpoint = {"id": record.get("endpoint_id"), "label": "the removed service", "model": str(record.get("model") or "")}
+        try:
+            return _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
+                           paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+        except Exception:
+            # the answer was paid for: it goes back to the wallet's one-time delivery so the card still shows it
+            x402_sdk._DELIVERED_BODIES[proposal_id] = raw
+            _set_state(proposal_id, "not_posted")
+            content = _parse_completion(raw)[0]
+            return {"verdict": "not_posted", "text": content or "The answer could not be saved to the chat.", "posted": False}
+    finally:
+        if not watching:
+            _done(proposal_id)
+
+
+def _done(proposal_id: str) -> None:
+    """This payment can no longer be sent or delivered here: stop holding for it and blank its stored question."""
+    from core.wallet import x402_sdk
+
+    _ACTIVE.discard(proposal_id)
+    x402_sdk.release_hold(proposal_id)
+    with contextlib.suppress(Exception):
+        x402_sdk.forget_request(proposal_id)
+
+
+def _pause_early(record: dict[str, Any], raw: bytes | None) -> None:
+    if raw is None:
+        return
+    reported = _parse_completion(raw)[1]
+    verdict = model_verdict(str(record.get("model") or ""), reported)
+    if verdict == VERDICT_MATCH:
+        return
+    reported_text = str(reported)[:128] if isinstance(reported, str) else ""
+    with _GATE, _LOCK:
+        state = _load()
+        for entry in state["endpoints"]:
+            if entry["id"] == record.get("endpoint_id") and entry.get("on"):
+                entry["on"] = False
+                entry["paused_reason"] = (f"it reported {reported_text} instead of {record.get('model')}" if verdict == VERDICT_MISMATCH
+                                          else "it did not say which model answered")
+        _save(state)
+
+
+def _recover() -> None:
+    """Records an earlier run left open: a payment that was being delivered or confirmed when VOOL stopped is told in
+    its chat (its answer, held only in memory, is gone; the wallet's card and receipt say whether it was paid), and a
+    question whose payment ended without approval has its stored request blanked."""
+    from core.wallet import proposals
+
+    try:
+        with _LOCK:
+            state = _load()
+            open_records = {pid: dict(r) for pid, r in state["requests"].items() if r.get("state") in _OPEN_STATES and pid not in _ACTIVE}
+    except PaidAskError:
+        return
+    for pid, record in open_records.items():
+        if record.get("state") == "pending_approval":
+            proposal = proposals.get_proposal(pid)
+            if proposal is None or str(proposal.state) in proposals.TERMINAL_REFUSAL_STATES:
+                if _set_state(pid, "ended", expect="pending_approval"):
+                    _done(pid)
+            continue
+        if _set_state(pid, "delivering_lost", expect=str(record.get("state"))):
+            _unanswered(pid, record, "VOOL stopped before the answer arrived")
+            _done(pid)
 
 
 _WATCH_SECONDS = 900.0
@@ -515,7 +624,7 @@ _WATCH_STEP = 5.0
 
 
 def _watch_confirming(proposal_id: str) -> None:
-    def run() -> None:
+    def watch() -> None:
         from core.wallet import x402_sdk
 
         deadline = time.monotonic() + _WATCH_SECONDS
@@ -533,14 +642,34 @@ def _watch_confirming(proposal_id: str) -> None:
             if held == "confirmed" and raw is not None:
                 if endpoint is None:
                     endpoint = {"id": record.get("endpoint_id"), "label": "the removed service", "model": str(record.get("model") or "")}
-                _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
-                        paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+                try:
+                    _finish(endpoint, raw, session_id=str(record.get("session_id") or ""),
+                            paid={"proposal_id": proposal_id, "amount_minor": int(record.get("amount_minor") or 0)})
+                except Exception:
+                    # paid and confirmed: the answer goes back to the wallet's one-time delivery, and the chat is told
+                    x402_sdk._DELIVERED_BODIES[proposal_id] = raw
+                    _set_state(proposal_id, "not_posted")
+                    _post(str(record.get("session_id") or ""), "Your answer was paid for and arrived, but VOOL could not save it to this chat.",
+                          {"proposal_id": proposal_id, "verdict": "not_posted"})
             else:
                 _unanswered(proposal_id, record, "the payment did not complete")
             return
         record = dict(_load()["requests"].get(proposal_id) or {})
         if record.get("state") == "confirming":
             _unanswered(proposal_id, record, "the payment was still not confirmed after 15 minutes")
+
+    def run() -> None:
+        try:
+            watch()
+        except Exception:
+            try:
+                record = dict(_load()["requests"].get(proposal_id) or {})
+                if record.get("state") == "confirming":
+                    _unanswered(proposal_id, record, "VOOL could not finish checking the payment")
+            except Exception:
+                pass
+        finally:
+            _done(proposal_id)
 
     threading.Thread(target=run, name=f"x402-ai-confirm-{proposal_id[:12]}", daemon=True).start()
 

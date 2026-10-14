@@ -219,9 +219,23 @@ def test_a_repeated_approval_never_claims_the_answer(ai, tmp_path):
     assert ai._load()["requests"]["pay-1"]["state"] == "pending_approval"
 
 
-def test_approval_is_refused_for_a_paused_removed_or_now_too_dear_service(ai, tmp_path):
+def _bind(proposal_id: str, *, user: str = "vool-0123456789abcdef", url: str = "https://ai.example/v1/chat/completions", version: int = 5) -> None:
+    """The wallet's own binding for a parked payment, as park_challenge writes it (only the columns the check reads)."""
+    import base64
+
+    from core.wallet.store import connection
+
+    body = json.dumps({"model": "m", "messages": [{"role": "user", "content": "q"}], "user": user}).encode()
+    with connection() as conn:
+        conn.execute("INSERT INTO wallet_x402_bindings (binding_id, request_digest, url, method, pay_to, amount_minor, asset, network, proposal_id, state, "
+                     "created_at, updated_at, version, request_body_b64) VALUES (?, ?, ?, 'POST', '0xpay', 5, 'USDC', 'eip155:84532', ?, 'payment_required', "
+                     "'t', 't', ?, ?)", ("b-" + proposal_id, "d-" + proposal_id, url, proposal_id, version, base64.b64encode(body).decode()))
+
+
+def test_approval_is_refused_for_a_paused_removed_or_now_too_dear_service(ai, tmp_path, monkeypatch):
     ai._save({"endpoints": [{"id": "ai-1", "label": "R", "model": "m", "on": True, "max_price_minor": 10}],
               "requests": {"pay-1": {"endpoint_id": "ai-1", "state": "pending_approval", "amount_minor": 5, "asked_at": 1}}})
+    _bind("pay-1")
     assert ai.check_before_approval("pay-1") is None
     assert ai.check_before_approval("pay-other") is None
     ai.set_endpoint_on("ai-1", False)
@@ -231,5 +245,59 @@ def test_approval_is_refused_for_a_paused_removed_or_now_too_dear_service(ai, tm
     state["endpoints"][0]["max_price_minor"] = 4
     ai._save(state)
     assert ai.check_before_approval("pay-1").code == "offer_over_limit"
+    state["endpoints"][0]["max_price_minor"] = 10
+    ai._save(state)
+    # the wallet's x402 cap lowered after the question was parked counts at approval too
+    from core.wallet import config
+
+    monkeypatch.setattr(config, "x402_cap_minor", lambda: 4)
+    assert ai.check_before_approval("pay-1").code == "offer_over_limit"
+    monkeypatch.setattr(config, "x402_cap_minor", lambda: 10)
+    assert ai.check_before_approval("pay-1") is None
     ai.remove_endpoint("ai-1")
     assert ai.check_before_approval("pay-1").code == "endpoint_removed"
+
+
+def test_a_payment_of_ours_without_a_readable_record_is_refused_and_any_other_payment_is_not_blocked(ai, tmp_path):
+    _bind("pay-lost")
+    _bind("pay-theirs", user="someone-else")
+    _bind("pay-elsewhere", url="https://shop.example/item")
+    # the store was deleted, or never saved after parking: ours fails closed
+    assert ai.check_before_approval("pay-lost").code == "record_missing"
+    (tmp_path / "x402_ai.json").write_text("{broken", encoding="utf-8")
+    with pytest.raises(ai.StoreUnreadable):
+        ai.check_before_approval("pay-lost")
+    # a payment this feature did not park is never blocked by its store
+    assert ai.check_before_approval("pay-theirs") is None
+    assert ai.check_before_approval("pay-elsewhere") is None
+    assert ai.check_before_approval("pay-nobinding") is None
+
+
+def test_a_payment_already_past_its_approval_is_left_to_the_wallets_duplicate_answer(ai):
+    ai._save({"endpoints": [{"id": "ai-1", "label": "R", "model": "m", "on": False, "max_price_minor": 10}],
+              "requests": {"pay-1": {"endpoint_id": "ai-1", "state": "answered", "amount_minor": 5, "asked_at": 1}}})
+    _bind("pay-1")
+    assert ai.check_before_approval("pay-1") is None
+
+
+def test_records_an_earlier_run_left_open_are_closed_and_the_chat_is_told(ai, monkeypatch):
+    posted = []
+    monkeypatch.setattr(ai, "_post", lambda session, text, artifact: posted.append((session, text)) or True)
+    ai._save({"endpoints": [], "requests": {
+        "pay-d": {"endpoint_id": "ai-1", "state": "delivering", "session_id": "openclaw:00000000000000000001", "asked_at": 1},
+        "pay-c": {"endpoint_id": "ai-1", "state": "confirming", "session_id": "openclaw:00000000000000000002", "asked_at": 1},
+        "pay-p": {"endpoint_id": "ai-1", "state": "pending_approval", "session_id": "", "asked_at": 1}}})
+    _bind("pay-p")
+    ai.endpoints()
+    requests = ai._load()["requests"]
+    assert requests["pay-d"]["state"] == requests["pay-c"]["state"] == "paid_unanswered"
+    # no wallet proposal behind it any more: the question's record ends and its stored request is blanked
+    assert requests["pay-p"]["state"] == "ended"
+    from core.wallet import x402
+
+    assert x402.binding_for_proposal("pay-p")["request_body_b64"] == ""
+    assert sorted(s for s, _ in posted) == ["openclaw:00000000000000000001", "openclaw:00000000000000000002"]
+    assert all("VOOL stopped before the answer arrived" in text for _, text in posted)
+    # a second look changes nothing and tells no one twice
+    ai.endpoints()
+    assert len(posted) == 2

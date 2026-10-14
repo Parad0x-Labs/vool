@@ -283,10 +283,53 @@ def test_a_private_chat_gets_its_paid_answer_on_the_card_and_nothing_in_the_log(
     daemon.chat("private chat", session_id=chat, model=MODEL, mode="auto")
     with ScriptedX402SdkResource(chain, amount_minor=AMOUNT, pay_to=PAYEE) as resource:
         _add(daemon, resource, label="Quiet", max_price="0.10")
-        turn = daemon.chat("ask my paid model: what is seven plus five?", session_id=chat, model=MODEL, mode="auto")
+        turn = daemon.chat(f"ask my paid model: {PRIVATE_QUESTION}", session_id=chat, model=MODEL, mode="auto")
         text = str((turn.get("message") or {}).get("content") or "")
         proposal_id = next(word.strip(".,:()") for word in text.split() if word.startswith("pay-"))
         answer = _approve_in_chat(daemon, proposal_id, session=chat, shows="A private twelve.")
         assert answer["paid_ai"]["verdict"] == "match" and answer["paid_ai"]["posted"] is False, answer["paid_ai"]
         assert len(resource.paid_requests) == 1
+        assert PRIVATE_QUESTION in json.loads(resource.paid_requests[0]["body"])["messages"][0]["content"], "the question did reach the service"
     assert _transcript(daemon, chat) == [], "a private chat's paid answer is never written to the chat log"
+    # once paid and delivered, the question is nowhere under VOOL's home: not in the wallet's stored request, not in a
+    # freed database page, not in a write-ahead log, not in any other file
+    leaks = _files_holding(daemon.home, PRIVATE_QUESTION.encode())
+    assert leaks == [], f"the private question is still on disk in {leaks}"
+
+
+PRIVATE_QUESTION = "what do quiet herons count on tuesdays?"
+
+
+def _files_holding(root, needle: bytes) -> list[str]:
+    """Every file under ``root`` holding ``needle`` as text, JSON-escaped text, or inside base64 at any alignment."""
+    import base64
+
+    forms = {needle, json.dumps(needle.decode())[1:-1].encode()}
+    for pad in range(3):
+        encoded = base64.b64encode(b"\0" * pad + needle)
+        forms.add(encoded[4:-4])
+    found = []
+    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+        name = str(path.relative_to(root))
+        if name in _RUNTIME_DBS:
+            # KNOWN, NOT THIS FEATURE'S: the chat runtime's own tool receipts (runtime_tool_receipts) keep every tool's
+            # arguments for a private chat too, for any tool; reported to the private-chat traces work. Every other
+            # table of that database is still read, row by row.
+            import sqlite3
+
+            with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
+                tables = [t for (t,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'") if t != "runtime_tool_receipts"]
+                for table in tables:
+                    if any(any(form.decode() in str(value) for form in forms for value in row) for row in conn.execute(f'SELECT * FROM "{table}"')):
+                        found.append(f"{name}:{table}")
+            continue
+        try:
+            blob = path.read_bytes()
+        except OSError:
+            continue
+        if any(form in blob for form in forms):
+            found.append(name)
+    return found
+
+
+_RUNTIME_DBS = {"data/vool_web0_v2.db"}
