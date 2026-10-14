@@ -186,6 +186,16 @@ def require_wallet_key_owner(rpc: Any, owner: str, *, mint: str, source_context:
         raise wallet_fault("wallet_recipient_refused", authority=AUTHORITY, context={**context, "reason": reason}, source_context=source_context)
 
 
+def _owner_worded(fault: Any, token: chains.AssetSpec) -> Any:
+    """The owner's own token send (USDT) gets its specific line; a payment lane keeps the catalog's."""
+    if chains.is_user_transfer_token(token.chain, token.symbol):
+        from core.wallet import token_text
+
+        native = chains.native_asset(token.chain)
+        token_text.worded(fault, symbol=token.symbol, gas=native.symbol, chain=chains.resolve_network(token.chain).display_name)
+    return fault
+
+
 def require_payable(
     rpc: Any, *, network: str, asset: str, payer: str, recipient_owner: str, amount_minor: int, held_token_minor: int = 0,
     fee_max_minor: int | None = None, held_native_minor: int = 0, allow_create: bool = False, source_context: dict[str, Any] | None = None,
@@ -216,7 +226,7 @@ def require_payable(
     balance = 0 if payer_account is None or payer_account.frozen else payer_account.amount_minor
     spendable = balance - max(0, int(held_token_minor))
     if spendable < int(amount_minor):
-        raise wallet_fault("wallet_insufficient_funds", authority=AUTHORITY, context={**context, "reason": "token_balance_below_amount", "shortfall_minor": int(amount_minor) - spendable, "gas_asset": token.symbol}, source_context=source_context)
+        raise _owner_worded(wallet_fault("wallet_insufficient_funds", authority=AUTHORITY, context={**context, "reason": "token_balance_below_amount", "shortfall_minor": int(amount_minor) - spendable, "gas_asset": token.symbol}, source_context=source_context), token)
     facts: dict[str, Any] = {
         "principal_balance_minor": balance, "recipient_token_account": associated_account(recipient_owner, token.address),
         "payer_token_account": associated_account(payer, token.address), "mint": token.address, "decimals": token.decimals,
@@ -230,10 +240,10 @@ def require_payable(
         rent_minimum = int(rpc._call("getMinimumBalanceForRentExemption", [0]))
         if int(native_balance) - max(0, int(held_native_minor)) - int(fee_max_minor) - account_rent < rent_minimum:
             native = chains.native_asset(token.chain)
-            raise wallet_fault("wallet_insufficient_funds", authority=AUTHORITY, context={
+            raise _owner_worded(wallet_fault("wallet_insufficient_funds", authority=AUTHORITY, context={
                 **context, "reason": "fee_balance_below_fee_and_rent", "fee_max_minor": int(fee_max_minor), "rent_minimum_minor": rent_minimum,
                 "recipient_account_rent_minor": account_rent, "gas_asset": native.symbol,
-            }, source_context=source_context)
+            }, source_context=source_context), token)
         facts.update({"fee_balance_minor": int(native_balance), "rent_minimum_minor": rent_minimum})
     return facts
 

@@ -141,14 +141,17 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
         fault = wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
         here = in_chain_order([spec for spec in rows if any(t.symbol.upper() == symbol for t in chains.user_transfer_tokens(spec.network))
                                and (not family_hint or spec.family == family_hint)])
-        where = _names(here or carried_by)
+        where, where_or = _names(here or carried_by), _names(here or carried_by, joiner="or")
         named = [spec for spec in rows if (explicit_network and spec.network == chains.resolve_network(explicit_network).network) or (chain_key and spec.chain_key == chain_key)]
         if named and not any(t.symbol.upper() == symbol for spec in named for t in chains.user_transfer_tokens(spec.network)):
-            fault.user_message = f"This wallet does not send {symbol} on {_names([spec.display_name for spec in named], joiner='or')}. It goes out on {where}."
+            fault.user_message = (f"This wallet can't send {symbol} on {_names([spec.display_name for spec in named], joiner='or')}. Nothing was sent. "
+                                  f"You can send {symbol} on {where_or}.")
         elif here:
-            fault.user_message = f"{symbol} goes out from a Crypto Pilot account on {where}, and this wallet has no account there yet."
+            fault.user_message = (f"{symbol} can be sent only from a Crypto Pilot account on {where_or}, and you don't have one there yet. Nothing was sent. "
+                                  "You can create one in Settings, Crypto.")
         else:
-            fault.user_message = f"{symbol} can be sent on Mainnet only ({where}). Switch the wallet to Mainnet to send it."
+            fault.user_message = (f"{symbol} can be sent only on Mainnet ({where}), and the wallet is set to test networks. Nothing was sent. "
+                                  f"To send real {symbol}, switch to Mainnet in Settings, Crypto, Developer options.")
         raise fault
     if len(candidates) > 1 and not wanted_wallet and not any(c["token"] for c in candidates):
         # (a token request on several chains is never settled by the default account: the owner says which chain)
@@ -162,7 +165,7 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
             "reason": "several_accounts_fit", "candidates": [{k: c[k] for k in ("wallet_id", "label", "network", "display_name", "asset")} for c in candidates[:8]],
         }, source_context=source_context)
         if any(c["token"] for c in candidates):
-            fault.user_message = f"{candidates[0]['asset']} can go out on {_names([c['display_name'] for c in candidates], joiner='or')}. Which chain should it use?"
+            fault.user_message = f"{candidates[0]['asset']} can be sent on {_names([c['display_name'] for c in candidates], joiner='or')}. Which network should I use? Nothing has been sent yet."
         raise fault
     chosen = candidates[0]
     decimals = int(chosen["decimals"])
@@ -376,6 +379,12 @@ EXIT_TERMS: dict[str, dict[str, str]] = {
         "door": "/api/wallet/transfers/stop-waiting",
         "risk": "VOOL could not confirm this transfer. It keeps counting against today's limits, because it may still be included; if it is, it pays the recipient you approved. Other transfers from this account can continue.",
     },
+    "stop_waiting_unproven": {
+        "title": "Stop waiting on this transfer",
+        "action": "Stop waiting",
+        "door": "/api/wallet/transfers/stop-waiting",
+        "risk": "This transfer is final on the network, but VOOL could not confirm that the {asset} moved. It keeps counting against today's limits. Check it with the explorer link before sending again, so you don't pay twice. Other transfers from this account can continue.",
+    },
     "stop_waiting_slot_used": {
         "title": "Stop waiting: this account's transaction slot was used",
         "action": "Stop waiting",
@@ -440,6 +449,11 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
         detail = "The network accepted this transfer; waiting for it to appear in a block."
     elif state == STATE_UNKNOWN:
         detail = "The outcome is not known yet. The transfer stays counted until the network answers."
+    unproven = chains.is_user_transfer_token(spec.network, principal.symbol) and state in (STATE_PENDING, STATE_STOPPED_WAITING) and '"principal_unproven"' in str(row.get("evidence_json") or "")
+    if unproven:
+        label = "Not confirmed"
+        detail = (f"The network processed this transfer, but VOOL could not confirm that the {principal.symbol} reached the recipient. The network fee was paid. "
+                  "Check it with the explorer link before sending again.")
     if state == STATE_FAILED_ON_CHAIN and row.get("authorization_json"):
         label, detail = "Expired unused", "The site did not use this payment before its time window closed, and the network can no longer use it. Nothing moved and no fee was charged."
     tx_id = str(row.get("tx_id") or "")
@@ -502,7 +516,7 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
         "balance_after_minor": None if balance_after is None else str(int(balance_after)), "balance_after_human": _human(balance_after, native.decimals),
         "balance_after_label": "observed after confirmation" if state == STATE_CONFIRMED and balance_after is not None else "projected",
         "offered_exit": str(offered.get("exit") or "") if isinstance(offered, dict) else "",
-        "exit_terms": dict(EXIT_TERMS.get(str(offered.get("exit") or "") if isinstance(offered, dict) else "", {})),
+        "exit_terms": {key: value.replace("{asset}", principal_symbol) for key, value in EXIT_TERMS.get(str(offered.get("exit") or "") if isinstance(offered, dict) else "", {}).items()},
         "cancel_requested": bool(row.get("cancel_requested_at")), "in_flight": state in IN_FLIGHT_STATES, "terminal": state in TERMINAL_STATES,
         "attempts_sent": int(row.get("attempts_sent") or 0), "a6_outcome": row.get("a6_outcome") or "",
         "created_at": row["created_at"], "updated_at": row["updated_at"],

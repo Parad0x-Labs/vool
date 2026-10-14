@@ -60,6 +60,8 @@ EXIT_STOP_WAITING = "stop_waiting"
 EXIT_RESEND = "resend"
 EXIT_SLOT_USED = "stop_waiting_slot_used"
 EXIT_REFUSED = "stop_waiting_refused"
+#: a token transfer final on the network whose contract never showed the approved amount moving
+EXIT_UNPROVEN = "stop_waiting_unproven"
 #: passes with the base fee above the quoted ceiling before the refused exit is offered, and the span they must cover
 FEE_SPIKE_PASSES = 3
 FEE_SPIKE_SPAN_SECONDS = 600.0
@@ -812,7 +814,7 @@ def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
                 answer = "transfer_event_disagrees" if proven is False else "no_logs"
                 columns = {"block_ref": number, "block_hash": receipt_hash, "evidence_json": appended_evidence(row, "principal_unproven", block=number, answer=answer)}
                 if finalized_number is not None and number <= finalized_number and state != transfers.STATE_STOPPED_WAITING:
-                    columns["offered_exit_json"] = json.dumps({"exit": EXIT_STOP_WAITING, "observed_at": clock(), "answer": answer, "block": number, "finalized": finalized_number}, sort_keys=True)
+                    columns["offered_exit_json"] = json.dumps({"exit": EXIT_UNPROVEN, "observed_at": clock(), "answer": answer, "block": number, "finalized": finalized_number}, sort_keys=True)
                 if state in (transfers.STATE_UNKNOWN, transfers.STATE_DISPATCHING):
                     return apply_transition(proposal_id, transfers.STATE_PENDING, state, **columns)
                 with connection() as conn:
@@ -1143,7 +1145,7 @@ def owner_stop_waiting(proposal_id: str, *, decision_note: str = "") -> dict[str
         raise ExitUnavailableError("row_busy")
     try:
         offered = _fresh_offer(row)
-        if offered not in (EXIT_STOP_WAITING, EXIT_SLOT_USED, EXIT_REFUSED):
+        if offered not in (EXIT_STOP_WAITING, EXIT_SLOT_USED, EXIT_REFUSED, EXIT_UNPROVEN):
             raise ExitUnavailableError(f"exit_no_longer_available:{offered or 'none'}")
         row = transfers.get_transfer_by_id(proposal_id) or row
         now = clock()

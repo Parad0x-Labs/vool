@@ -2598,7 +2598,8 @@ def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
     if empty:
         lines.append("Nothing held on: " + ", ".join(name(r) for r in empty) + ".")
     if unknown:
-        lines.append("Could not be read (unknown, not zero): " + ", ".join(f"{name(r)} ({r.get('reason') or 'unavailable'})" for r in unknown) + ".")
+        # why each read failed stays in the data below, not in the owner's line
+        lines.append("Could not be read just now (unknown, not zero): " + ", ".join(name(r) for r in unknown) + ".")
     public = [{k: r.get(k) for k in ("wallet_id", "label", "network", "display_name", "asset", "token", "state", "reason", "balance_minor", "balance_human", "ref")} for r in rows]
     return {"lines": lines, "balances": public, "read": len(held) + len(empty), "unavailable": len(unknown)}
 
@@ -2620,9 +2621,11 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
     context = source_context if isinstance(source_context, dict) else None
 
     def refusal(exc: WalletFault) -> RuntimeExecutionResult:
+        said = exc.user_message or exc.code
         return RuntimeExecutionResult(
             handled=True, ok=False, status=exc.code,
-            response_text=f"{exc.user_message or exc.code} Nothing was signed and nothing was sent.",
+            # a line that already says nothing was sent is not told twice
+            response_text=said if "nothing was sent" in said.lower() else f"{said} Nothing was signed and nothing was sent.",
             details={"fault": exc.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status=exc.code, fault_code=exc.code)},
         )
 

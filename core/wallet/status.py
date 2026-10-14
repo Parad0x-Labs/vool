@@ -176,6 +176,8 @@ def wallet_status() -> dict[str, Any]:
                 "family": spec.family, "testnet": spec.testnet, "public_key": entry["public_key"], "label": entry["label"], "approval_method": entry.get("approval_method", ""),
                 # the durable setup state of a Crypto Pilot wallet (ready / awaiting_backup / backup_revealed / cancelled): one owner, both lists
                 "setup_state": str(entry.get("setup_state") or "") or "ready", "seal_policy": str(entry.get("seal_policy") or ""),
+                # tokens (USDT) go out only from a Crypto Pilot account (proposals._require_token_lane)
+                "can_send_tokens": str(entry.get("seal_policy") or "") == custody.PILOT_SEAL_POLICY,
             })
         status["declared_networks"] = [spec.network for spec in chains.all_networks()]
     except Exception:
@@ -264,9 +266,9 @@ def _asset_support() -> dict[str, Any]:
     symbols = sorted({token.symbol for spec in rows for token in chains.user_transfer_tokens(spec.network)})
     names = [spec.display_name for spec in rows]
     where = names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
-    note = "The Crypto Pilot sends each row's native coin (SOL, ETH, BNB)"
+    note = "The Crypto Pilot sends each network's native coin (SOL, ETH, BNB)"
     note += f" and {', '.join(symbols)} on {where}." if symbols else "."
-    note += " Other tokens such as USDC are not sent by this wallet; a token balance that can be read is not a token that can be spent."
+    note += " You can't send other tokens, such as USDC, from here, even when their balance shows."
     return {"native_coin_transfers": True, "token_transfers": bool(symbols), "tokens": symbols, "note": note}
 
 

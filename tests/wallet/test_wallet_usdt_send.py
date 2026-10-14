@@ -242,6 +242,27 @@ def test_a_token_account_or_a_program_address_is_not_a_wallet_to_open_an_account
     assert node.distinct_sends() == 0
 
 
+def test_usdt_without_enough_sol_for_the_fee_says_to_add_sol(chain) -> None:
+    node = chain
+    _wallet(node, lamports=FEE)  # USDT to send, but not the SOL its fee and rent-exempt remainder need
+    asked = _propose(destination=_person(node, usdt_account=True), asset="USDT", amount="5", network=SOLANA_MAINNET)
+    assert (asked.ok, asked.status) == (False, "wallet_insufficient_funds"), asked.response_text
+    assert asked.details["fault"]["context"]["reason"] == "fee_balance_below_fee_and_rent", asked.details["fault"]
+    assert asked.response_text == ("Sending USDT needs a little SOL in this account to pay the network fee, and there isn't enough. "
+                                   "Nothing was sent. Add some SOL to this account, then try again."), asked.response_text
+    assert node.distinct_sends() == 0
+
+
+def test_more_usdt_than_the_account_holds_says_to_lower_the_amount_or_add_usdt(chain) -> None:
+    node = chain
+    _wallet(node, usdt=1_000_000)
+    asked = _propose(destination=_person(node, usdt_account=True), asset="USDT", amount="5", network=SOLANA_MAINNET)
+    assert (asked.ok, asked.status) == (False, "wallet_insufficient_funds"), asked.response_text
+    assert asked.details["fault"]["context"]["reason"] == "token_balance_below_amount", asked.details["fault"]
+    assert asked.response_text == "This account doesn't hold enough USDT for this amount. Nothing was sent. Lower the amount or add USDT, then try again."
+    assert node.distinct_sends() == 0
+
+
 def test_only_the_owners_own_requests_move_usdt(chain) -> None:
     from core.wallet import proposals
     from core.wallet.errors import WalletFault
@@ -278,7 +299,7 @@ def test_on_test_networks_usdt_is_refused_with_where_it_can_go(chain) -> None:
     environment.set_active_environment("testnet")
     asked = _propose(destination=_person(chain, usdt_account=True), asset="USDT", amount="1")
     assert not asked.ok and asked.status == "wallet_not_found"
-    assert "USDT can be sent on Mainnet only (Solana, Ethereum, BNB Smart Chain and Arbitrum One)." in asked.response_text, asked.response_text
+    assert "USDT can be sent only on Mainnet (Solana, Ethereum, BNB Smart Chain and Arbitrum One), and the wallet is set to test networks. Nothing was sent." in asked.response_text, asked.response_text
 
 
 def test_wallet_balances_in_chat_include_usdt(chain) -> None:

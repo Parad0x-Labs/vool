@@ -147,7 +147,10 @@ def test_a_successful_call_without_the_contracts_exact_transfer_event_is_not_cal
     assert _holds(pid)[0][4] == "reserved", "an unproven principal stays counted against the caps"
 
     # the block is final: the owner may stop waiting, which keeps the spend counted and frees the account for the next send
-    assert transfers.view_of(transfer)["offered_exit"] == "stop_waiting", transfer.get("offered_exit_json")
+    view = transfers.view_of(transfer)
+    assert view["offered_exit"] == "stop_waiting_unproven", transfer.get("offered_exit_json")
+    assert view["state_label"] == "Not confirmed" and "could not confirm that the USDT reached the recipient" in view["detail"], view["detail"]
+    assert "could not confirm that the USDT moved" in view["exit_terms"]["risk"] and "pay twice" in view["exit_terms"]["risk"], view["exit_terms"]
     stopped = settlement.owner_stop_waiting(pid)
     assert stopped["state"] == "stopped_waiting", stopped
     assert [hold[4] for hold in _holds(pid)] == ["settled", "settled"], "the stopped transfer keeps counting against the caps"
@@ -246,7 +249,7 @@ def test_usdt_on_two_chains_is_asked_about_not_settled_by_the_default_account(ho
     _wallet(home["arb"], ARBITRUM, USDT_ARBITRUM)
     asked = _propose(destination=TOMAS, asset="USDT", amount="10")
     assert not asked.ok and asked.status == "wallet_request_ambiguous", asked.response_text
-    assert "USDT can go out on Ethereum or Arbitrum One. Which chain should it use?" in asked.response_text, asked.response_text
+    assert "USDT can be sent on Ethereum or Arbitrum One. Which network should I use? Nothing has been sent yet." in asked.response_text, asked.response_text
     chosen = _propose(destination=TOMAS, asset="USDT", amount="10", chain="arbitrum")
     assert chosen.ok and chosen.details["proposal"]["network"] == ARBITRUM, chosen.response_text
 
@@ -266,7 +269,7 @@ def test_usdt_asked_on_a_chain_that_does_not_carry_it_says_where_it_goes(home) -
     _wallet(home["eth"], ETHEREUM, USDT_ETHEREUM)
     asked = _propose(destination=TOMAS, asset="USDT", amount="1", chain="base")
     assert not asked.ok and asked.status == "wallet_not_found"
-    assert "This wallet does not send USDT on Base. It goes out on Ethereum, BNB Smart Chain and Arbitrum One." in asked.response_text, asked.response_text  # (a 0x address: not Solana)
+    assert "This wallet can't send USDT on Base. Nothing was sent. You can send USDT on Ethereum, BNB Smart Chain or Arbitrum One." in asked.response_text, asked.response_text  # (a 0x address: not Solana)
 
 
 def test_usdt_on_ethereum_is_not_quoted_while_its_transfer_fee_is_switched_on(home) -> None:
@@ -281,6 +284,7 @@ def test_usdt_on_ethereum_is_not_quoted_while_its_transfer_fee_is_switched_on(ho
     with pytest.raises(WalletFault) as refused:
         quotes.mint_quote(pid)
     assert refused.value.context["reason"] == "token_takes_a_transfer_fee", refused.value.context
+    assert refused.value.user_message.startswith("USDT on Ethereum can't be sent right now: its token contract would take a cut"), refused.value.user_message
 
     eth.tokens[USDT_ETHEREUM.lower()]["fee_switch"] = False  # the switch cannot be read: never assumed off
     with pytest.raises(WalletFault) as unreadable:

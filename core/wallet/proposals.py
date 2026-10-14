@@ -338,11 +338,16 @@ def _require_token_lane(network: str, asset: str, *, origin: str, pilot: bool = 
         if pilot:
             return
         reason = "token_transfers_need_a_crypto_pilot_wallet"
-    raise wallet_fault(
+    fault = wallet_fault(
         "wallet_network_disabled", authority=AUTHORITY,
         context={"network": spec.network, "asset": str(asset)[:16], "origin": origin[:16], "reason": reason},
         source_context=source_context,
     )
+    if reason == "token_transfers_need_a_crypto_pilot_wallet":
+        from core.wallet import token_text
+
+        token_text.worded(fault, symbol=registered.symbol)
+    raise fault
 
 
 EVENT_APPROVAL_REFUSED = "approval_refused"

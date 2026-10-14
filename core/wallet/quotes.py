@@ -24,7 +24,7 @@ import time
 import uuid
 from typing import Any
 
-from core.wallet import amounts, chains, custody, environment, limits, proposals, transfers
+from core.wallet import amounts, chains, custody, environment, limits, proposals, token_text, transfers
 from core.wallet.errors import WalletFault
 from core.wallet.security import wallet_fault
 from core.wallet.store import connection
@@ -202,7 +202,7 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
     cues = _check_evm_recipient(spec, proposal.destination, source_context=source_context)
     if token is not None and str(proposal.destination).lower() == token.address.lower():
         # tokens sent to their own contract are lost: never quoted
-        raise _fault("wallet_recipient_refused", network=spec.network, reason="recipient_is_the_token_contract", source_context=source_context)
+        raise token_text.worded(_fault("wallet_recipient_refused", network=spec.network, reason="recipient_is_the_token_contract", source_context=source_context), symbol=token.symbol)
     url = chains.network_rpc_url(spec.network)
     _prove(spec, url, lambda method: _evm_rpc(spec, url, method, [], source_context=source_context), source_context=source_context)
 
@@ -211,8 +211,11 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
 
     token_facts: dict[str, Any] = {}
     if token is not None:
-        evm_tokens.require_contract(call, token, source_context=source_context)
-        evm_tokens.require_no_transfer_fee(call, token, source_context=source_context)
+        try:
+            evm_tokens.require_contract(call, token, source_context=source_context)
+            evm_tokens.require_no_transfer_fee(call, token, source_context=source_context)
+        except WalletFault as fault:
+            raise token_text.worded(fault, symbol=token.symbol, chain=spec.display_name) from None
         token_facts["principal_balance_minor"] = evm_tokens.balance_minor(call, token, account_address, source_context=source_context)
     balance = int(_evm_rpc(spec, url, "eth_getBalance", [account_address, "latest"], source_context=source_context), 16)
     block = _evm_rpc(spec, url, "eth_getBlockByNumber", ["latest", False], source_context=source_context)
@@ -692,11 +695,12 @@ def _mint_evm_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: An
     principal_balance, fee_balance = int(specific.pop("principal_balance_minor")), int(specific["balance_minor"])
     fee_estimate, fee_max = int(specific["fee_estimate_minor"]), int(specific["fee_max_minor"])
     if principal_balance - held_token < amount:
-        raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="token_balance_below_amount", shortfall_minor=amount - (principal_balance - held_token),
-                     gas_asset=token.symbol, source_context=source_context)
+        raise token_text.worded(_fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="token_balance_below_amount", shortfall_minor=amount - (principal_balance - held_token),
+                                       asset=token.symbol, source_context=source_context), symbol=token.symbol, gas=gas, chain=spec.display_name)
     if fee_balance - held_native < fee_max:
-        raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="fee_balance_below_fee_ceiling", shortfall_minor=fee_max - (fee_balance - held_native),
-                     shortfall_human=amounts.format_minor(fee_max - (fee_balance - held_native), native.decimals), gas_asset=gas, source_context=source_context)
+        raise token_text.worded(_fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="fee_balance_below_fee_ceiling", shortfall_minor=fee_max - (fee_balance - held_native),
+                                       shortfall_human=amounts.format_minor(fee_max - (fee_balance - held_native), native.decimals), gas_asset=gas, source_context=source_context),
+                                symbol=token.symbol, gas=gas, chain=spec.display_name)
     now = _now()
     fields: dict[str, Any] = {
         "proposal_id": proposal.proposal_id, "network": spec.network, "chain_key": spec.chain_key,

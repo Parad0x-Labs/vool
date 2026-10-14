@@ -89,7 +89,7 @@ def test_choosing_usdt_on_the_send_form_asks_for_usdt_in_its_own_units(browser, 
     page.locator("#vwCxBackupSaved").click()
     page.wait_for_selector("#vwHomeAccount", timeout=15_000)
     account = next(a for a in _get(daemon, "/api/wallet/status")["status"]["accounts"] if a["label"] == "Everyday")
-    assert (account["mode"], account["network"]) == ("pocket_sealed", SOLANA_MAINNET), account
+    assert (account["mode"], account["network"], account["can_send_tokens"]) == ("pocket_sealed", SOLANA_MAINNET, True), account
     node.fund_sol(account["public_key"], 20_000_000)
     node.fund_token(account["public_key"], USDT_MINT, 25_000_000)
 
@@ -100,7 +100,11 @@ def test_choosing_usdt_on_the_send_form_asks_for_usdt_in_its_own_units(browser, 
     assert page.locator("label[for=vwHomeSendAmount]").text_content() == "Amount (SOL)"
     page.select_option("#vwHomeSendAsset", "USDT")
     assert page.locator("label[for=vwHomeSendAmount]").text_content() == "Amount (USDT)"
-    assert page.locator("#vwHomeSendAmount").get_attribute("aria-label") == "amount in whole USDT units"
+    note = page.locator("#vwHomeBody [aria-live=polite]").text_content() or ""
+    assert "network fee is paid in SOL" in note and "balance line above" not in note, note
+    page.select_option("#vwHomeSendAsset", "SOL")
+    assert "balance line above" in (page.locator("#vwHomeBody [aria-live=polite]").text_content() or "")
+    page.select_option("#vwHomeSendAsset", "USDT")
 
     tomas = Keypair().pubkey()
     node.fund_sol(str(tomas), 5_000_000)

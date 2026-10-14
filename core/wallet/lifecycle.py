@@ -1043,7 +1043,9 @@ class PaymentLifecycle:
                 evm_tokens.require_no_transfer_fee(call, token, source_context=self.source_context)
             except WalletFault as exc:
                 if (exc.context or {}).get("reason") == "token_takes_a_transfer_fee":
-                    raise expired("token_takes_a_transfer_fee") from None
+                    from core.wallet import token_text
+
+                    raise token_text.worded(expired("token_takes_a_transfer_fee"), symbol=token.symbol, chain=spec.display_name) from None
                 raise
             try:
                 token_balance = evm_tokens.balance_minor(call, token, profile.public_key, source_context=self.source_context)
