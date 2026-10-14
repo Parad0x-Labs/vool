@@ -393,7 +393,7 @@ def resolve_provider_routing_plan_for_envelope(
         if rejection_reason:
             rejected.append({"provider_id": manifest.provider_id, "reason": rejection_reason})
             continue
-        score, terms = _envelope_manifest_score(
+        score, terms = _envelope_manifest_score_terms(
             capability,
             requirements=requirements,
             provider_role=resolved_role,
@@ -782,6 +782,27 @@ def provider_hardware_fit_rejection(
 
 
 def _envelope_manifest_score(
+    capability: ProviderCapabilityTruth,
+    *,
+    requirements: dict[str, Any],
+    provider_role: str,
+    rank_index: int,
+    total_candidates: int,
+) -> float:
+    """Score one eligible candidate. The float contract the envelope callers and the hardware-fit
+    laws have always consumed; the decision receipt's per-term breakdown lives beside it in
+    ``_envelope_manifest_score_terms`` so the two can never drift apart.
+    """
+    return _envelope_manifest_score_terms(
+        capability,
+        requirements=requirements,
+        provider_role=provider_role,
+        rank_index=rank_index,
+        total_candidates=total_candidates,
+    )[0]
+
+
+def _envelope_manifest_score_terms(
     capability: ProviderCapabilityTruth,
     *,
     requirements: dict[str, Any],
