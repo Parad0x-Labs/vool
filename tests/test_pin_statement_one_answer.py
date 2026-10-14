@@ -57,6 +57,17 @@ def test_other_content_is_kept_and_named(harness):
     assert not any("PIN" in fact or "[redacted" in fact for fact in written), written
 
 
+def test_a_pin_then_remember_it_is_one_answer(harness):
+    # Measured on the v0.7.1 Mac smoke: this answered "I didn't save your PIN ..." and then
+    # 'Locked in. I'll remember "it".'
+    answer, written = _turn_and_writes(harness, "My card PIN is 4821, please remember it.")
+    assert NOT_SAVED in answer, answer
+    assert answer.count(NOT_SAVED) == 1, answer
+    assert "Locked in" not in answer and '"it"' not in answer, answer
+    assert "4821" not in answer
+    assert written == [], f"a back-reference to the PIN was remembered: {written}"
+
+
 @pytest.mark.parametrize(
     ("said", "left"),
     [
@@ -70,6 +81,10 @@ def test_other_content_is_kept_and_named(harness):
          "Remember that salt and pepper go in the left drawer"),
         # A whole sentence that held the password goes; the next sentence stays.
         ("My email password is Qx7-plover-91. Also explain entropy briefly.", "Also explain entropy briefly."),
+        # An ask that only points back at the secret goes with it: no "I'll remember "it"".
+        ("My card PIN is 4821, please remember it.", ""),
+        ("My PIN is 4821. Keep it in mind for me!", ""),
+        ("My PIN is 4821, remember that the dog eats at six.", "remember that the dog eats at six."),
     ],
 )
 def test_only_the_secret_clause_leaves_the_turn(said, left):

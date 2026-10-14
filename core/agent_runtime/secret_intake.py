@@ -235,6 +235,12 @@ _STATEMENT_LEAD_RE = re.compile(
     r"^(?:please\s+)?(?:remember|note|save|store|keep\s+in\s+mind|don'?t\s+forget|memori[sz]e)(?:\s+that)?\s+",
     re.IGNORECASE,
 )
+# "..., please remember it." once the secret's clause is gone: the ask only points back at the secret.
+_BACK_REFERENCE_RE = re.compile(
+    r"^(?:please\s+)?(?:(?:remember|note|save|store|memori[sz]e|don'?t\s+forget)\s+(?:it|that|this|them|those)"
+    r"|keep\s+(?:it|that|this|them|those)\s+in\s+mind)(?:\s+for\s+me)?(?:,?\s+please)?\s*[.!?]*$",
+    re.IGNORECASE,
+)
 _PERSONAL_MARKERS = ("[redacted]", "[redacted-card-number]")
 
 
@@ -256,6 +262,8 @@ def _without_personal_secret_clauses(remainder: str) -> str:
             lead = _STATEMENT_LEAD_RE.match(clause)
             if lead and not kept:
                 carried_lead = lead.group(0)
+            continue
+        if _BACK_REFERENCE_RE.match(clause.strip()):
             continue
         if kept:
             kept.append(breaks[index - 1])
