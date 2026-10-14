@@ -1428,8 +1428,9 @@ def dispatch_get(
             ):
                 # Background refresh uses the same governed transcript projection,
                 # with only reminder artifacts crossing the wire.
-                event_kind = str((query.get("event_kind") or [""])[0])
-                if event_kind and str(event.get("artifact_kind") or "") != event_kind:
+                # one kind, or several comma-separated (reminders and paid AI answers share the idle refresh)
+                event_kinds = {k for k in str((query.get("event_kind") or [""])[0]).split(",") if k}
+                if event_kinds and str(event.get("artifact_kind") or "") not in event_kinds:
                     continue
                 user_text = str(event.get("user") or "").strip()
                 assistant_text = str(event.get("assistant") or "").strip()

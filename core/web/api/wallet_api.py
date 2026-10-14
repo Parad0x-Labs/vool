@@ -296,6 +296,25 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 return _json(400, {"ok": False, "error": "channel_choice_invalid", "reason": "on_must_be_true_or_false"})
             changed = channels.set_on(str(body.get("channel") or ""), raw, source_context=source_context)
             return _ok({"channel": changed, "payment_channels": channels.status()})
+        if path == "/api/wallet/ai-endpoints":
+            # the owner's pay-per-answer AI endpoints (Settings, Crypto, Pay-per-answer AI): touches nothing but the list
+            from core import x402_ai
+
+            action = str(body.get("action") or "")
+            try:
+                if action == "add":
+                    x402_ai.add_endpoint(label=body.get("label"), base_url=body.get("base_url"), model=body.get("model"), max_price=body.get("max_price"))
+                elif action == "set_on":
+                    if not isinstance(body.get("on"), bool):
+                        return _json(400, {"ok": False, "error": "endpoint_choice_invalid", "message": "on must be true or false"})
+                    x402_ai.set_endpoint_on(body.get("id"), body["on"])
+                elif action == "remove":
+                    x402_ai.remove_endpoint(body.get("id"))
+                elif action != "list":
+                    return _json(400, {"ok": False, "error": "endpoint_action_invalid"})
+            except x402_ai.PaidAskError as exc:
+                return _json(400, {"ok": False, "error": exc.code, "message": exc.message})
+            return _ok({"ai_endpoints": x402_ai.endpoints()})
         if path == "/api/wallet/limits":
             from core.wallet import limits
 
@@ -381,10 +400,17 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
                 else:
                     pilot_approver = approval.PinApprover(str(body.get("pin") or ""))
                 result = engine.approve_pilot_transfer(proposal_id, quote_id=str(body.get("quote_id") or ""), quote_digest=str(body.get("quote_digest") or ""), approver=pilot_approver)
+                # a pay-per-answer AI payment: its one delivered answer is checked and posted into the chat that asked
+                from core import x402_ai
+
+                try:
+                    paid_ai = x402_ai.after_approval(proposal_id, result)
+                except Exception as exc:  # the payment already happened: its answer failing to post must not read as a failed approval
+                    paid_ai = {"verdict": "not_posted", "error": type(exc).__name__}
                 # ``companion``: what happened to the collection of previously accrued DNA fees that rode this approval (None when none did);
                 # ``paykit`` / ``x402_sdk``: for a pay-kit or x402 SDK payment, whether its one paid request was answered and delivered (None for a transfer)
                 return _ok({"transfer": result["transfer"], "duplicate": bool(result.get("duplicate")), "receipt": result["transfer"], "companion": result.get("companion"),
-                            "paykit": result.get("paykit"), "x402_sdk": result.get("x402_sdk")})
+                            "paykit": result.get("paykit"), "x402_sdk": result.get("x402_sdk"), "paid_ai": paid_ai})
             _require_acknowledged(_proposal_meaning_for(proposal_id), body, source_context=source_context)
             if str(body.get("method") or "").strip().lower() == "external":
                 # The owner approves by signing in their own wallet: hand out the exact bytes, nothing more.
