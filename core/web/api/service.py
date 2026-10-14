@@ -3022,6 +3022,55 @@ def dispatch_get(
     return apply_runtime_headers(json_response(404, {"error": "not found"}), runtime)
 
 
+#: Body fields that carry a credential on the Settings routes that write one. They are withheld from the
+#: accept-once digest (invocation_requests.raw_digest): an unkeyed hash of a body holding a password is
+#: an offline guessing target. The digest still binds every other field of the request.
+_DIGEST_WITHHELD_FIELDS: dict[str, tuple[str, ...]] = {
+    "/api/email/accounts/add": ("password",),
+    "/api/x/setup": ("bearer_token", "credentials"),
+}
+
+
+def _body_for_digest(normalized_path: str, body: dict[str, Any]) -> dict[str, Any]:
+    withheld = _DIGEST_WITHHELD_FIELDS.get(normalized_path)
+    if not withheld:
+        return body
+    return {key: ("<withheld>" if key in withheld else value) for key, value in body.items()}
+
+
+def _credential_page_refusal(headers: dict[str, Any] | None, client_host: str) -> str:
+    """Why a Settings POST that writes a credential is refused, or '' when it may proceed.
+
+    'owner': not this machine's loopback peer, or the browser says another site (any port) sent it.
+    'content_type': not exactly application/json. An empty type is refused too: a page on another
+    local port can send a typeless body without a CORS preflight.
+    'origin': an Origin that is not this app's own scheme, host AND port (the Host header). A request
+    with no Origin (a local non-browser client) passes the other checks unchanged."""
+    from urllib.parse import urlsplit
+
+    from core.web.api.runtime import host_header_allowed
+
+    lowered = {str(key).lower(): str(value or "") for key, value in (headers or {}).items()}
+    if not is_loopback_host(client_host):
+        return "owner"
+    site = lowered.get("sec-fetch-site", "").strip().lower()
+    if site and site not in ("same-origin", "none"):
+        return "owner"
+    if lowered.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        return "content_type"
+    origin = lowered.get("origin", "").strip()
+    if origin:
+        host = lowered.get("host", "").strip().lower()
+        try:
+            parts = urlsplit(origin)
+            netloc = parts.netloc.lower()
+        except ValueError:
+            return "origin"
+        if parts.scheme not in ("http", "https") or not host or netloc != host or not host_header_allowed(host):
+            return "origin"
+    return ""
+
+
 def dispatch_post(
     *,
     path: str,
@@ -3240,7 +3289,7 @@ def dispatch_post(
             else f"channel:http:{client_host or 'unknown'}"
         )
         _raw_digest = "sha256:" + _hashlib.sha256(
-            json.dumps(body, sort_keys=True, ensure_ascii=True, default=str).encode("utf-8")
+            json.dumps(_body_for_digest(normalized_path, body), sort_keys=True, ensure_ascii=True, default=str).encode("utf-8")
         ).hexdigest()
         _accepted = accept_invocation(
             external_kind="http",
@@ -5163,21 +5212,12 @@ def _dispatch_post_inner(
         # same-origin only; the response never carries key material.
         import json as _json
 
-        from core.web.api.runtime import host_header_allowed
-
-        def _x_setup_header(name: str) -> str:
-            for key, value in (headers or {}).items():
-                if str(key).lower() == name:
-                    return str(value or "")
-            return ""
-
-        if not is_loopback_host(client_host) or _x_setup_header("sec-fetch-site").lower() == "cross-site":
+        _xs_refusal = _credential_page_refusal(headers, client_host)
+        if _xs_refusal == "owner":
             return apply_runtime_headers(json_response(403, {"error": "X setup is only available inside this VOOL app"}), runtime)
-        content_type = _x_setup_header("content-type").lower()
-        if content_type and "json" not in content_type:
+        if _xs_refusal == "content_type":
             return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
-        origin = _x_setup_header("origin").strip()
-        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+        if _xs_refusal:
             return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
         try:
             if len(_json.dumps(body)) > 65536:
@@ -5196,27 +5236,20 @@ def _dispatch_post_inner(
 
     if normalized_path in ("/api/email/accounts/add", "/api/email/accounts/remove"):
         # Add or remove a password (IMAP/SMTP) email account from Settings (core/email_setup.py). Adding
-        # signs in to the IMAP server once, with the certificate verified, and stores the account only after
-        # the login is accepted. The guards are the ones /api/x/setup uses: owner-local and same-origin only,
-        # JSON, bounded body. The response never carries the password.
+        # signs in to the mail servers once, with certificates verified, and stores the account only after
+        # they accept the login. The guards are the ones /api/x/setup uses (_credential_page_refusal):
+        # owner-local, same origin including the port, application/json only, bounded body. The response
+        # never carries the password, and the accept-once digest withholds it (_body_for_digest).
         import json as _json
 
         from core import email_setup
-        from core.web.api.runtime import host_header_allowed
 
-        def _email_setup_header(name: str) -> str:
-            for key, value in (headers or {}).items():
-                if str(key).lower() == name:
-                    return str(value or "")
-            return ""
-
-        if not is_loopback_host(client_host) or _email_setup_header("sec-fetch-site").lower() == "cross-site":
+        _es_refusal = _credential_page_refusal(headers, client_host)
+        if _es_refusal == "owner":
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        content_type = _email_setup_header("content-type").lower()
-        if content_type and "json" not in content_type:
+        if _es_refusal == "content_type":
             return apply_runtime_headers(json_response(415, {"ok": False, "error": "content-type must be application/json"}), runtime)
-        origin = _email_setup_header("origin").strip()
-        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+        if _es_refusal:
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross-origin request not allowed"}), runtime)
         try:
             if len(_json.dumps(body)) > 65536:
