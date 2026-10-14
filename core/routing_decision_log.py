@@ -155,6 +155,18 @@ def _fold_session_ref(session_id: str) -> str:
     return canonical_chat_session_id(str(session_id or ""))
 
 
+def _turn_is_private(session_id: str) -> bool:
+    """A private turn (core.private_chat) keeps no routing telemetry: the row names the chat, and
+    the shadow record's digest of the message would let a guess at the private words be confirmed.
+    An unreadable switch answers private (fail closed)."""
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(None, str(session_id or "").strip())
+    except Exception:
+        return True
+
+
 def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
     """True when this chat is deleted and must not grow or keep routing telemetry.
 
@@ -174,7 +186,6 @@ def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
     """
     try:
         from core.context_namespace import chat_namespace_deleted_for_identity
-
         for handle in dict.fromkeys((folded_ref, str(raw_handle or "").strip())):
             if not handle:
                 continue
@@ -335,6 +346,8 @@ def record_decision(
     The dispatched message is NOT persisted in any form: the JSONL row is metadata-only
     (schema 2); the shadow record keeps its existing digest of the redacted text.
     """
+    if _turn_is_private(session_id):
+        return
     redacted_message = ""
     try:
         folded_session_ref = _fold_session_ref(session_id)

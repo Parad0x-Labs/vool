@@ -2130,6 +2130,23 @@ def _memory_erasure_row_owned(row: dict[str, Any], policy: ContextAccessPolicy) 
                 and project in policy.imported_project_ids)
 
 
+def drop_session_meta(session_id: str) -> bool:
+    """Remove one chat's entry from the session meta, live copy and backup alike. Used when a chat
+    gives up its row before anything of it was saved (core.context_namespace.release_unused_chat_row)."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return False
+    from core.memory.revocation import writing
+
+    with writing({}, sid), _SESSION_META_LOCK:
+        meta = _load_session_meta_raw()
+        if sid not in meta:
+            return False
+        meta.pop(sid)
+        _write_session_meta_atomic(meta)
+    return True
+
+
 def _write_session_meta_atomic(meta: dict[str, Any]) -> None:
     from core.memory.carriers import session_metadata_payload
     from core.memory.revocation import writing

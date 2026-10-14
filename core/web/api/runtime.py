@@ -885,6 +885,15 @@ def bootstrap_runtime_services(
             type(exc).__name__,
         )
 
+    # Private chat (core.private_chat_traces): a private chat with nothing saved whose last turn
+    # was cut off by a stop keeps that turn's run records until they are erased here.
+    try:
+        from core.private_chat_traces import sweep_unsaved_private_chats
+
+        sweep_unsaved_private_chats()
+    except Exception as exc:
+        logger.warning("Private chat sweep at boot skipped (boot continues): %s", type(exc).__name__)
+
     peer_id = get_local_peer_id()
     from core.credit_ledger import ensure_starter_credits
 
