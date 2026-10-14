@@ -75,7 +75,7 @@ REASONS = {
     "not_found": "VOOL couldn't find this skill. It may have been turned off or removed.",
     "local_only": "This skill is marked local-only, so it stays on this device.",
     "unreadable": "VOOL couldn't read this skill's text.",
-    "extra_files": "This skill has extra files, which the Skill Codex form can't carry yet.",
+    "extra_files": "This skill has other files with it (listed below). For now the Skill Codex takes only the skill's text.",
     "too_long_text": "The skill's text is longer than 32,768 characters, the most the Skill Codex form takes.",
     "too_long_body": "The skill's instructions are longer than 8,000 characters, the most VOOL reads.",
     "header": "The skill's header, the part between the --- lines at the top, is missing or can't be read.",
@@ -95,6 +95,27 @@ REASONS = {
     # The automatic checks' own sentence goes in "text"; this is only the fallback.
     "codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "check_failed": "VOOL couldn't finish checking this skill. Nothing was sent.",
+    # The Skill Codex's automatic checks, one per stable rule code (``core.registry.checks``).
+    "check_install": "This asks someone to install or run software. Describe the task in words instead.",
+    "check_download": "This links to a program or archive to download. Take the link out.",
+    "check_address": "This uses a short link, a raw address or a paste site. Link to the real page, or take the link out.",
+    "check_secret_ask": "This asks for a recovery phrase, key, password or code. Take that out.",
+    "check_wallet": "This contains a wallet address. Take the address out.",
+    "check_injection": ("This reads like an attempt to change VOOL's instructions or hide what the skill does. "
+                        "Rewrite it plainly."),
+    "check_hidden": "This holds a hidden comment, escape code or encoded text. Write everything as plain visible text.",
+    "check_letters": ("A word here mixes letters from different alphabets, which can hide what it says. "
+                      "Retype it in one alphabet."),
+    "check_invisible": "This line has invisible or control characters. Retype it as plain text.",
+    "check_escapes": "Write the skill's name and description in plain words, without backslash codes.",
+    "check_reserved_name": ("The skill's name uses a word only the Skill Codex may use, such as \"official\" or "
+                            "\"verified\". Take it out of the name."),
+    "check_reserved_summary": ("The skill's description uses a word only the Skill Codex may use, such as \"official\" or "
+                               "\"verified\". Take it out of the description."),
+    "check_summary": "The skill's description is too short. Say in one sentence what the skill does.",
+    "check_short": "The instructions are too short to be useful. Say what the skill does, step by step.",
+    "check_endorsed": ("This says the Skill Codex or VOOL vouches for the skill. Only the Skill Codex can say that, "
+                       "so take it out."),
 }
 
 
@@ -204,7 +225,7 @@ def _server_check(info: dict[str, Any], skill_markdown: str) -> tuple[dict[str, 
 
 
 def _automatic_reason(finding: dict[str, Any], slug: str) -> dict[str, Any]:
-    """One automatic check finding, in the words the website shows for it."""
+    """One automatic check finding, by its stable rule code so the page can show it in the person's language."""
     check = str(finding.get("check") or "")
     if check == "secrets":
         return _reason("secret")  # never quoted back
@@ -216,11 +237,19 @@ def _automatic_reason(finding: dict[str, Any], slug: str) -> dict[str, Any]:
     if check not in {"instructions-primary", "quality"}:
         return _reason("format")  # the parts VOOL fills in itself: licence, manifest, package
     path = str(finding.get("path") or "")
-    reason: dict[str, Any] = {"code": "codex_check", "text": _plain(finding.get("reason", "")) or REASONS["codex_check"]}
-    if path == f"skills/{slug}/SKILL.md" and type(finding.get("line")) is int:
-        reason["line"] = finding["line"]  # the line in the person's own SKILL.md, written byte for byte
-    if isinstance(finding.get("quote"), str) and finding["quote"].strip():
-        reason["quote"] = finding["quote"]
+    code = "check_" + str(finding.get("rule") or "").replace("-", "_")
+    if code in REASONS:
+        reason = _reason(code)
+    else:
+        # A reason without a code VOOL knows: shown in the checks' own (English) words.
+        reason = {"code": "codex_check", "text": _plain(finding.get("reason", "")) or REASONS["codex_check"]}
+    if path == f"skills/{slug}/SKILL.md":
+        # The line and words in the person's own SKILL.md, written byte for byte. Package details such as
+        # the placeholder id are VOOL's own, so they are never quoted.
+        if type(finding.get("line")) is int:
+            reason["line"] = finding["line"]
+        if isinstance(finding.get("quote"), str) and finding["quote"].strip():
+            reason["quote"] = finding["quote"]
     return reason
 
 
