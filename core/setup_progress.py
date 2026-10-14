@@ -55,13 +55,13 @@ STEPS: tuple[StepSpec, ...] = (
         id="permissions",
         title="What may it do alone?",
         sentence="Choose how often it should stop and ask you before it changes anything.",
-        later="Settings → Privacy & Permissions → Autonomy",
+        later="Settings → Privacy & Permissions → What VOOL may do alone",
     ),
     StepSpec(
         id="name",
         title="What should it call you?",
         sentence="Optional. A first name or nickname is enough, and it stays on this Mac.",
-        later="Settings → Memory & Personalisation → What should VOOL call you?",
+        later="Settings → Memory & Personalisation, in the name field",
     ),
 )
 

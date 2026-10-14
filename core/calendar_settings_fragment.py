@@ -136,7 +136,14 @@ function mountInto(host){
     var card = h('div', 'vcs-card');
     var head = h('div', 'vcs-head');
     head.appendChild(h('strong', null, account.label || capability.label || account.provider));
-    head.appendChild(h('span', 'vcs-chip vcs-' + account.status, stateText(account.status, account.status)));
+    /* "Connected" and "Last good sync" are said only once VOOL has really read this account: a sync
+       with nothing chosen reports success without contacting the server, so an address that does not
+       answer would otherwise look connected. */
+    var readCals = (account.calendars || []).filter(function(c){ return c.present !== false; });
+    var unconfirmed = account.status === 'connected' && !readCals.length;
+    head.appendChild(unconfirmed
+      ? h('span', 'vcs-chip vcs-configured', CE('vcs.state.unconfirmed', 'Not confirmed yet'))
+      : h('span', 'vcs-chip vcs-' + account.status, stateText(account.status, account.status)));
     card.appendChild(head);
     /* The source line, without repeating the title when the account has no name of its own; the sign-in is
        named as provider data through CTF (CT would leave a literal "{binding}" in the line). */
@@ -201,7 +208,7 @@ function mountInto(host){
       act('/api/calendar/accounts/disconnect', {account_id: account.account_id}, CT('vcs.saved.disconnected', 'Disconnected. Pending alerts from this account were cancelled; alerts already shown stay in the bell.'));
     }));
     card.appendChild(actions);
-    if (account.last_sync_ok_at) card.appendChild(h('div', 'vcs-detail', CTF('vcs.detail.last_sync', 'Last good sync: {when}', {when: new Date(account.last_sync_ok_at).toLocaleString()})));
+    if (account.last_sync_ok_at && !unconfirmed && readCals.some(function(c){ return c.selected; })) card.appendChild(h('div', 'vcs-detail', CTF('vcs.detail.last_sync', 'Last good sync: {when}', {when: new Date(account.last_sync_ok_at).toLocaleString()})));
     return card;
   }
   function calendarRow(account, calendar){
