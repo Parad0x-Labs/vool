@@ -399,6 +399,16 @@ def _evidenced_input_language(text: str) -> str:
     return _english_evidence(text)
 
 
+def evidenced_input_language(text: str) -> str:
+    """The language ``text`` carries exclusive evidence of (see the table above), or ``""``.
+
+    The policy's own input reading, exposed so a module that must keep English-only rewrites off
+    another language (``core.input_normalizer``) reads this one authority instead of a second copy
+    of the evidence tables.
+    """
+    return _evidenced_input_language(str(text or ""))
+
+
 def _english_evidence(text: str) -> str:
     tokens = _ALPHABETIC_TOKEN.findall(text)
     if len(tokens) < _SHORT_TURN_MIN_MATCHES:
