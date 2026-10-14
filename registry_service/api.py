@@ -65,8 +65,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         except RegistryError:
             return None
 
-    async def with_starred(request, rows):
-        viewer = optional_account(request)
+    async def with_starred(viewer, rows):
         if viewer:
             starred = await run_in_threadpool(store.starred, viewer)
             for row in rows:
@@ -102,7 +101,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
             return JSONResponse({"channel": "discovery", "entries": CATALOG if discovery is None else discovery,
                                  "notice": "Import compatibility is not public registry admission."})
-        rows = await with_starred(request, await approved_rows())
+        viewer = optional_account(request)
+        rows = await with_starred(viewer, await approved_rows(viewer))
         query = request.query_params
         require(len(query.multi_items()) == len(query) and set(query) <= {"q", "category", "subcategory", "origin", "sort"},
                 "unknown catalog query")
@@ -124,7 +124,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         return JSONResponse({"channel": "approved", "entries": rows, "target": target, "sort": sort,
                              "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
 
-    async def approved_rows():
+    async def approved_rows(viewer=None):
         rows = []
         if catalog.current is None:
             require(False, "approved catalog is not configured")
@@ -132,6 +132,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         # Dependencies are native plugin ids; name the ones that are registry packages by package id.
         packages = {native_identity(envelope["signed"]["metadata"]["id"]): envelope["signed"]["metadata"]["id"]
                     for envelope in catalog.current["entries"]}
+        # Only a skill's own creator learns that its pictures wait for a person's look.
+        owned = await run_in_threadpool(store.owned, viewer, set(packages.values())) if viewer else set()
         for envelope in catalog.current["entries"]:
             value = envelope["signed"]
             info = value["metadata"]
@@ -144,7 +146,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             creator = await run_in_threadpool(store.public_profile, info["id"].split("/")[0])
             requirements = boundaries["requirements"]
             rows.append({**{key: val for key, val in info.items() if key not in KINDS},
-                         **shown_pictures(info["id"], boundaries["pictures"]), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
+                         **shown_pictures(info["id"], boundaries["pictures"], owner=info["id"] in owned), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
                          "creator": creator, "publication": approved["publication"],
                          "requirements": {**requirements, "dependencies": sorted(
                              packages.get(item, item) for item in requirements["dependencies"])},
@@ -175,12 +177,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             row.update(labels(curation, row["id"], row["version"]))
         return rows
 
-    def shown_pictures(package_id: str, pictures: dict) -> dict:
-        """Pictures approved for this skill as a page shows them; the rest are named as waiting for a person's look."""
+    def shown_pictures(package_id: str, pictures: dict, *, owner: bool) -> dict:
+        """Pictures approved for this skill as a page shows them; its owner also learns which wait for a person's look."""
         shown = {kind: {"sha256": item["sha256"], "type": item["type"], "width": item["width"], "height": item["height"],
                         "url": PREFIX + "/pictures/" + package_id + "/" + item["sha256"]}
                  for kind, item in pictures.items() if (package_id, item["sha256"]) in approvals}
-        pending = [kind for kind in KINDS if kind in pictures and kind not in shown]
+        pending = [kind for kind in KINDS if kind in pictures and kind not in shown] if owner else []
         return shown | ({"pictures_pending": pending} if pending else {})
 
     async def picture(request):
@@ -211,7 +213,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     async def profile_page(request):
         namespace = request.path_params["namespace"]
         require(isinstance(namespace, str) and len(namespace) <= 64, "invalid namespace")
-        rows = await with_starred(request, [row for row in await approved_rows() if row["id"].split("/")[0] == namespace])
+        viewer = optional_account(request)
+        rows = await with_starred(viewer, [row for row in await approved_rows(viewer)
+                                           if row["id"].split("/")[0] == namespace])
         profile = await run_in_threadpool(store.public_profile, namespace)
         return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"]
                              else "community", "packages": rows})
@@ -231,12 +235,28 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         return JSONResponse(await run_in_threadpool(community.report_comment, store, who,
                                                     request.path_params["identifier"], now=now()))
 
+    def listed(package_id) -> bool:
+        """Whether the catalog lists this skill now: reports are about skills people can find there."""
+        require(catalog.current is not None, "approved catalog is not configured")
+        require(now() < catalog.current["expires"], "catalog freshness expired")
+        for envelope in catalog.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if info["id"] == package_id:
+                try:
+                    entry(info["id"], info["version"])
+                    return True
+                except RegistryError:
+                    continue
+        return False
+
     async def skill_reports(request):
         if request.method == "GET":
+            require(listed(request.query_params.get("id")), "this skill is not listed")
             return JSONResponse(await run_in_threadpool(reports.status, store, request.query_params.get("id"),
                                                         optional_account(request), now=now()))
         who = account(request, mutation=True)
         value = await json_body(request)
+        require(listed(value.get("id")), "this skill is not listed")
         return JSONResponse(await run_in_threadpool(reports.file_report, store, who, value, now=now()), status_code=201)
 
     async def downloads_allowed(package_id):

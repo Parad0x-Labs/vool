@@ -26,6 +26,7 @@ def creator(store, subject, namespace):
     """An account that owns a publisher name, as linking the GitHub publisher leaves it."""
     who, token, csrf = account(store, subject, None)
     with store.connection() as db:
+        db.execute("UPDATE accounts SET namespace=? WHERE id=?", (namespace, who))
         db.execute("DELETE FROM namespace_owners WHERE namespace=?", (namespace,))
         db.execute("INSERT INTO namespace_owners(namespace,account,verified) VALUES (?,?,1)", (namespace, who))
     return who, token, csrf
@@ -49,7 +50,14 @@ def test_three_safety_reports_from_signed_in_people_pause_downloads_of_that_skil
     readers = [account(store, str(10 + index), f"reader{index}") for index in range(3)]
     with TestClient(app, base_url=ORIGIN) as client:
         signed_out = client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json()
-        assert signed_out == {"reasons": reports.public_reasons(), "note_limit": 500, "can_report": False}
+        assert signed_out == {"reasons": reports.public_reasons(), "note_limit": 500, "can_report": False,
+                              "can_report_reason": "signed_out"}
+        gone, ended, _ = account(store, "9", "ended")
+        with store.connection() as db:
+            db.execute("UPDATE sessions SET expires=? WHERE account=?", (NOW - 1, gone))
+        client.cookies.set("vool_registry", ended)
+        assert client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json() == signed_out
+        client.cookies.clear()
         assert [reason["id"] for reason in signed_out["reasons"]] == ["scam", "harmful", "stolen", "picture", "broken", "other"]
         assert report(client, readers[0][2]).status_code == 400  # no session
 
@@ -81,6 +89,65 @@ def test_three_safety_reports_from_signed_in_people_pause_downloads_of_that_skil
         public = json.dumps([client.get(PREFIX + "/catalog").json(), client.get(PREFIX + "/profiles/alice").json()])
         assert "wallet words" not in public and "reader" not in public and "report" not in public
         assert client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json() == signed_out
+    catalog.close()
+
+
+def test_reports_are_only_about_skills_the_catalog_lists_now(tmp_path):
+    from core.registry.artifact import inspect
+    from tests.registry.test_skill_pictures import app as served
+    from tests.registry.test_skill_pictures import published, skill_package
+
+    notes, plain = skill_package(tmp_path, "alice/notes"), skill_package(tmp_path, "bob/plain")
+    store, catalog, _ = published(tmp_path, [notes, plain], listed=[notes])  # bob/plain was published, then delisted
+    _, token, csrf = account(store, "10", "reader")
+    with TestClient(served(store, catalog), base_url=ORIGIN) as client:
+        client.cookies.set("vool_registry", token)
+        assert client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json()["can_report"] is True
+        assert client.get(PREFIX + "/reports").json() == {"error": "this skill is not listed"}
+        for package_id in ("bob/plain", "carol/missing", ""):
+            assert client.get(PREFIX + "/reports", params={"id": package_id}).json() == {"error": "this skill is not listed"}
+            assert report(client, csrf, id=package_id).json() == {"error": "this skill is not listed"}
+    with TestClient(served(store, catalog, clock=NOW + 30 * DAY), base_url=ORIGIN) as client:
+        # An out-of-date catalog says so, rather than calling a listed skill unlisted.
+        assert client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json() == {"error": "catalog freshness expired"}
+    with store.connection() as db:
+        assert db.execute("SELECT count(*) FROM skill_reports").fetchone()[0] == 0
+    catalog.close()
+
+    # A revoked skill is not listed, and a server with no catalog yet lists nothing.
+    for name, listed, revoked, error in (("revoked", [notes], [inspect(notes)["sha256"]], "this skill is not listed"),
+                                         ("empty", [], [], "approved catalog is not configured")):
+        store, catalog, _ = published(tmp_path / name, [notes], listed=listed, revoked=revoked)
+        _, token, csrf = account(store, "10", "reader")
+        with TestClient(served(store, catalog), base_url=ORIGIN) as client:
+            client.cookies.set("vool_registry", token)
+            assert client.get(PREFIX + "/reports", params={"id": "alice/notes"}).json() == {"error": error}
+            assert report(client, csrf).json() == {"error": error}
+        with store.connection() as db:
+            assert db.execute("SELECT count(*) FROM skill_reports").fetchone()[0] == 0
+        catalog.close()
+
+
+def test_only_the_skills_real_creator_counts_as_its_owner(tmp_path):
+    store, catalog, app, *_ = service(tmp_path, SKILLS)
+    squatter, token, _ = account(store, "5", None)
+    with store.connection() as db:
+        # A claim on "alice" that publishing her GitHub skills left unverified is not alice.
+        db.execute("UPDATE accounts SET namespace='alice' WHERE id=?", (squatter,))
+        db.execute("DELETE FROM namespace_owners WHERE namespace='alice'")
+        db.execute("INSERT INTO namespace_owners(namespace,account,verified) VALUES ('alice',?,0)", (squatter,))
+        # Nor is a draft for someone else's skill id that was never published.
+        db.execute("INSERT INTO submissions(id, account, created, package_id, version, state) VALUES (?,?,?,?,?,?)",
+                   ("draft", squatter, NOW, "bob/plain", "1.0.0", "quarantined"))
+    with TestClient(app, base_url=ORIGIN) as client:
+        client.cookies.set("vool_registry", token)
+        for package_id in ("alice/notes", "bob/plain"):
+            assert client.get(PREFIX + "/reports", params={"id": package_id}).json()["can_report"] is True
+    assert store.owned(squatter, {"alice/notes", "bob/plain"}) == set()  # so no pending-picture notes either
+    with store.connection() as db:
+        db.execute("UPDATE namespace_owners SET verified=1 WHERE namespace='alice'")
+        db.execute("UPDATE submissions SET state='published' WHERE id='draft'")
+    assert store.owned(squatter, {"alice/notes", "bob/plain"}) == {"alice/notes", "bob/plain"}
     catalog.close()
 
 

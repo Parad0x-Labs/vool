@@ -73,7 +73,7 @@ def undeclared_needs(metadata: dict, files: dict[str, bytes]) -> list[dict]:
     text = "\n".join(data.decode("utf-8", "replace") for name, data in sorted(files.items())
                      if name.endswith("SKILL.md")).casefold()
     return [{"need": need, "label": NEEDS[need][0],
-             "reason": f"SKILL.md looks like it uses {NEEDS[need][0].lower()}; add \"{need}\" to needs if it does"}
+             "reason": f"SKILL.md seems to use \"{NEEDS[need][0]}\". If it does, add \"{need}\" to needs."}
             for need, pattern in _SIGNS.items() if need not in declared and re.search(pattern, text)]
 
 

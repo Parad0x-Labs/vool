@@ -20,7 +20,24 @@ from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require, version_key
 from core.registry.intake import secret_findings
 from core.registry.media import KINDS
-from core.registry.requirements import package_requirements, require_for_new_version
+from core.registry.requirements import package_requirements, require_for_new_version, undeclared_needs
+
+
+def owned_by(db, account: str) -> tuple[set[str], set[str]]:
+    """Publisher names the account holds, as its public profile shows them, and skills it had published."""
+    # An unverified claim on a name that publishes through GitHub is not ownership, as on the public profile.
+    names = {row[0] for row in db.execute("""SELECT owner.namespace FROM namespace_owners AS owner JOIN accounts
+        ON owner.account=accounts.id AND owner.namespace=accounts.namespace WHERE accounts.id=?
+        AND (owner.verified=1 OR NOT EXISTS (SELECT 1 FROM publisher_names WHERE namespace=owner.namespace))""",
+        (account,))}
+    packages = {row[0] for row in db.execute(
+        "SELECT DISTINCT package_id FROM submissions WHERE account=? AND state='published'", (account,))}
+    return names, packages
+
+
+def owns(db, account: str, package_id: str) -> bool:
+    names, packages = owned_by(db, account)
+    return package_id.split("/")[0] in names or package_id in packages
 
 
 class Store:
@@ -76,6 +93,7 @@ class Store:
                 CREATE UNIQUE INDEX IF NOT EXISTS skill_reports_open ON skill_reports(package_id,account)
                     WHERE state='open';
                 CREATE INDEX IF NOT EXISTS skill_reports_account ON skill_reports(account,created);
+                CREATE INDEX IF NOT EXISTS submissions_account ON submissions(account,created);
                 CREATE TABLE IF NOT EXISTS paused_packages (package_id TEXT PRIMARY KEY, created INTEGER NOT NULL,
                     cause TEXT NOT NULL);
             """)
@@ -87,6 +105,8 @@ class Store:
                 db.execute("ALTER TABLE submissions ADD COLUMN publisher_bound INTEGER NOT NULL DEFAULT 0")
             if "auto_consent" not in columns:
                 db.execute("ALTER TABLE submissions ADD COLUMN auto_consent INTEGER NOT NULL DEFAULT 0")
+            if "needs_notices" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN needs_notices BLOB NOT NULL DEFAULT X'5B5D'")  # []
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
@@ -217,6 +237,11 @@ class Store:
         with self.connection() as db:
             return {row[0] for row in db.execute("SELECT package_id FROM stars WHERE account=?", (account,))}
 
+    def owned(self, account: str, package_ids) -> set[str]:
+        with self.connection() as db:
+            names, packages = owned_by(db, account)
+        return {package_id for package_id in package_ids if package_id.split("/")[0] in names or package_id in packages}
+
     def link_github_publisher(self, account: str, namespace: object, github) -> dict:
         """Link a publisher name that already publishes through GitHub to its proven owner.
 
@@ -340,6 +365,8 @@ class Store:
         require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in published),
                 "this version is already published; use a higher version number for the update")
         findings = secret_findings(artifact["files"])
+        # Advisory, as in the command-line check: the instructions look like they use something "needs" leaves out.
+        notices = undeclared_needs(artifact["metadata"], artifact["files"])
         identifier = secrets.token_hex(16)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -347,9 +374,10 @@ class Store:
             self._check_upload_slot(db, account, _slot, completed)
             count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
             require(count < 10, "daily submission quota reached")
-            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings) VALUES (?,?,?,?,?,?,?,?,?)",
+            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings,needs_notices) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?)",
                        (identifier, account, completed, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
-                        None if findings else raw, "rejected" if findings else "quarantined", canonical(findings)))
+                        None if findings else raw, "rejected" if findings else "quarantined", canonical(findings), canonical(notices)))
         return self.submission(account, identifier)
 
     def draft(self, account: str, value: dict, *, now: int, _slot: str | None = None) -> dict:
@@ -494,7 +522,7 @@ class Store:
             row = db.execute("SELECT * FROM submissions WHERE id=? AND account=?", (identifier, account)).fetchone()
         require(row, "submission not found")
         return {key: row[key] for key in ("id", "created", "package_id", "version", "sha256", "state", "consent", "github_url")} | {
-            "findings": decode(row["findings"])}
+            "findings": decode(row["findings"]), "needs_notices": decode(row["needs_notices"])}
 
     def submissions(self, account: str) -> list[dict]:
         with self.connection() as db:

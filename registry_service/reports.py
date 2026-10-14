@@ -16,6 +16,7 @@ import unicodedata
 from core.registry.codec import DOWNLOADS_PAUSED, require
 from core.secret_redaction import _bip39_index, contains_secret, mnemonic_redaction_available
 from registry_service.community import NEW_ACCOUNT_SECONDS, _published
+from registry_service.store import owns
 
 REASONS = {
     "scam": "Scam, or asks for money, passwords, keys or a recovery phrase",
@@ -45,9 +46,7 @@ def public_reasons() -> list[dict]:
 
 def _eligibility(db, account: str, package_id: str, *, now: int) -> tuple[str, str] | None:
     """Return (reason code, message) when the account may not report this skill, else None."""
-    publisher = package_id.split("/")[0]
-    if db.execute("SELECT 1 FROM namespace_owners WHERE namespace=? AND account=?", (publisher, account)).fetchone() or \
-            db.execute("SELECT 1 FROM submissions WHERE account=? AND package_id=?", (account, package_id)).fetchone():
+    if owns(db, account, package_id):
         return "own_skill", "you cannot report your own skill"
     if db.execute("SELECT 1 FROM skill_reports WHERE account=? AND package_id=? AND state='open'",
                   (account, package_id)).fetchone():
@@ -61,14 +60,10 @@ def _eligibility(db, account: str, package_id: str, *, now: int) -> tuple[str, s
 def status(store, package_id: object, viewer: str | None, *, now: int) -> dict:
     with store.connection() as db:
         package_id = _published(db, package_id)
-        result = {"reasons": public_reasons(), "note_limit": MAX_NOTE, "can_report": False}
-        if viewer:
-            # Signed-out viewers get no reason code; the website knows from /me.
-            refusal = _eligibility(db, viewer, package_id, now=now)
-            result["can_report"] = refusal is None
-            if refusal:
-                result["can_report_reason"] = refusal[0]
-    return result
+        # A signed-out viewer, or one whose session has ended, is told to sign in.
+        refusal = _eligibility(db, viewer, package_id, now=now) if viewer else ("signed_out", "")
+    return {"reasons": public_reasons(), "note_limit": MAX_NOTE, "can_report": refusal is None} | (
+        {"can_report_reason": refusal[0]} if refusal else {})
 
 
 def _looks_secret(note: str) -> bool:

@@ -400,19 +400,36 @@ def picture_url(package_id, sha):
     return PREFIX + "/pictures/" + package_id + "/" + sha
 
 
+def catalog_rows(client, token=None):
+    """Catalog rows as a visitor sees them, or as the account behind `token`."""
+    client.cookies.clear()
+    if token:
+        client.cookies.set("vool_registry", token)
+    return {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+
+
 def test_pictures_show_only_after_a_person_approves_that_exact_file_for_that_skill(tmp_path):
+    from tests.registry.test_skill_reports import creator
+
     store, catalog, _ = published(tmp_path, [with_pictures(tmp_path), skill_package(tmp_path, "bob/plain")])
+    owner, visitor = creator(store, "1", "alice")[1], account(store, "2", "visitor")[1]
     with TestClient(app(store, catalog), base_url=ORIGIN) as client:
-        rows = {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        # That pictures wait for a look is the creator's business: visitors and other accounts see no trace of them.
+        for token in (None, visitor):
+            rows = catalog_rows(client, token)
+            assert not {"icon", "banner", "pictures_pending"} & (set(rows["alice/notes"]) | set(rows["bob/plain"]))
+            assert "pictures_pending" not in client.get(PREFIX + "/profiles/alice").json()["packages"][0]
+        rows = catalog_rows(client, owner)
         assert "icon" not in rows["alice/notes"] and "banner" not in rows["alice/notes"]
         assert rows["alice/notes"]["pictures_pending"] == ["icon", "banner"]
+        assert client.get(PREFIX + "/profiles/alice").json()["packages"][0]["pictures_pending"] == ["icon", "banner"]
         assert not {"icon", "banner", "pictures_pending"} & set(rows["bob/plain"])
         refused = client.get(picture_url("alice/notes", ICON_SHA))
         assert refused.status_code == 400 and refused.json() == {"error": "picture not found"}
 
     with TestClient(app(store, catalog, approved=[("alice/notes", ICON_SHA)]), base_url=ORIGIN) as client:
+        row = catalog_rows(client, owner)["alice/notes"]
         catalog_response = client.get(PREFIX + "/catalog")
-        row = {row["id"]: row for row in catalog_response.json()["entries"]}["alice/notes"]
         assert row["icon"] == {"sha256": ICON_SHA, "type": "image/png", "width": 256, "height": 256,
                                "url": picture_url("alice/notes", ICON_SHA)}
         assert "banner" not in row and row["pictures_pending"] == ["banner"]
@@ -431,7 +448,7 @@ def test_pictures_show_only_after_a_person_approves_that_exact_file_for_that_ski
 
     with TestClient(app(store, catalog, approved=[("alice/notes", BANNER_SHA)]), base_url=ORIGIN) as client:
         # Taking an approval out of curation hides that picture again.
-        row = client.get(PREFIX + "/catalog").json()["entries"][0]
+        row = catalog_rows(client, owner)["alice/notes"]
         assert "icon" not in row and row["banner"]["width"] == 1500 and row["pictures_pending"] == ["icon"]
         assert client.get(picture_url("alice/notes", ICON_SHA)).status_code == 400
         assert client.get(picture_url("alice/notes", BANNER_SHA)).content == BANNER
@@ -440,11 +457,15 @@ def test_pictures_show_only_after_a_person_approves_that_exact_file_for_that_ski
 
 def test_an_approval_never_carries_over_to_another_skill_reusing_the_same_file(tmp_path):
     copycat = skill_package(tmp_path, "mallory/notes-pro", pictures={"icon": ("icon.png", ICON)})
+    from tests.registry.test_skill_reports import creator
+
     store, catalog, _ = published(tmp_path, [with_pictures(tmp_path), copycat, skill_package(tmp_path, "bob/plain")])
+    mallory = creator(store, "3", "mallory")[1]
     approved = [("alice/notes", ICON_SHA), ("bob/plain", ICON_SHA)]  # bob's listing does not carry this file
     with TestClient(app(store, catalog, approved=approved), base_url=ORIGIN) as client:
-        rows = {row["id"]: row for row in client.get(PREFIX + "/catalog").json()["entries"]}
+        rows = catalog_rows(client, mallory)
         assert rows["alice/notes"]["icon"]["sha256"] == ICON_SHA
+        assert "pictures_pending" not in rows["alice/notes"]  # alice's banner still waits; owning another skill shows nothing
         assert "icon" not in rows["mallory/notes-pro"] and rows["mallory/notes-pro"]["pictures_pending"] == ["icon"]
         assert client.get(picture_url("alice/notes", ICON_SHA)).content == ICON
         assert client.get(picture_url("mallory/notes-pro", ICON_SHA)).status_code == 400

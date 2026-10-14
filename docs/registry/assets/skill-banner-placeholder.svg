@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500" aria-hidden="true" focusable="false">
-  <rect width="1500" height="500" fill="#eef1f4"/>
-  <path d="M0 410l260-150 170 100 150-90 230 140 210-120 240 130 240-150V500H0z" fill="#e1e6eb"/>
-  <g fill="none" stroke="#9aa4b1" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+  <rect width="1500" height="500" fill="#f3eee8" style="fill:var(--skill-placeholder-bg,#f3eee8)"/>
+  <path d="M0 410l260-150 170 100 150-90 230 140 210-120 240 130 240-150V500H0z" fill="#e8e0d6" style="fill:var(--skill-placeholder-shape,#e8e0d6)"/>
+  <g fill="none" stroke="#938373" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" style="stroke:var(--skill-placeholder-mark,#938373)">
     <rect x="660" y="170" width="180" height="150" rx="28"/>
     <path d="M688 292l42-42 26 26 22-22 38 36"/>
   </g>
-  <circle cx="718" cy="214" r="14" fill="#9aa4b1"/>
+  <circle cx="718" cy="214" r="14" fill="#938373" style="fill:var(--skill-placeholder-mark,#938373)"/>
 </svg>

@@ -641,6 +641,41 @@ def test_github_publisher_name_links_to_the_repository_owner_and_then_accepts_dr
     catalog.close()
 
 
+
+def test_website_drafts_note_needs_the_instructions_seem_to_use_but_do_not_list(tmp_path):
+    store, catalog, app, *_ = service(tmp_path, [])
+    _, token, csrf = account(store, "1", "alice")
+    uses = SKILL + "Search the web for the meeting topic, then check your wallet balance.\n"
+    with TestClient(app, base_url=ORIGIN) as client:
+        client.cookies.set("vool_registry", token)
+        created = client.post(PREFIX + "/drafts", headers=mutation(csrf), json={
+            "metadata": {**METADATA, "needs": ["search_web"]}, "skill_markdown": uses, "license_text": "Test fixture licence.\n"})
+        assert created.status_code == 201, created.text
+        result = created.json()
+        # Advice, not a refusal: the draft goes on to its checks with web search declared and the wallet named.
+        assert result["state"] == "quarantined" and result["findings"] == []
+        assert result["needs_notices"] == [{"need": "wallet", "label": "VOOL wallet",
+                                            "reason": 'SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to needs.'}]
+        assert client.get(PREFIX + "/submissions/" + result["id"]).json()["needs_notices"] == result["needs_notices"]
+        assert client.get(PREFIX + "/submissions").json()["submissions"][0]["needs_notices"] == result["needs_notices"]
+        plain = client.post(PREFIX + "/drafts", headers=mutation(csrf), json={
+            "metadata": {**METADATA, "version": "1.0.1"}, "skill_markdown": SKILL, "license_text": "Test fixture licence.\n"})
+        assert plain.json()["needs_notices"] == []
+        # An uploaded package gets the same advice as a written draft.
+        info = inspect(package(tmp_path, "alice/notes", version="2.0.0"))["metadata"]
+        skill = tmp_path / "src-alice-notes-2.0.0" / "skills" / "notes" / "SKILL.md"
+        skill.write_text(skill.read_text() + "Then check your wallet balance.\n")
+        uploaded = client.post(PREFIX + "/submissions", content=pack(skill.parents[2], info, tmp_path / "repack"),
+                               headers={**mutation(csrf), "Content-Type": "application/vnd.vool.registry+json"})
+        assert uploaded.status_code == 201, uploaded.text
+        assert [item["need"] for item in uploaded.json()["needs_notices"]] == ["wallet"]
+    # A submission stored before notices were recorded reads as having none.
+    with store.connection() as db:
+        db.execute("ALTER TABLE submissions DROP COLUMN needs_notices")
+    upgraded = Store(store.path)
+    assert [item["needs_notices"] for item in upgraded.submissions(store.authenticate(token, now=NOW))] == [[], [], []]
+    catalog.close()
+
 @pytest.mark.parametrize("case, message", [
     ("google-only", "sign in with GitHub"),
     ("other-owner", "must belong to the GitHub account"),

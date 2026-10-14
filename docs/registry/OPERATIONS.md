@@ -58,6 +58,8 @@ location /registry/api/ {
 }
 ```
 
+The website's Skill Codex pages are static files, so nginx sends their framing rule. Add `add_header Content-Security-Policy "frame-ancestors 'none'" always;` to the location that serves `/codex/skills/`, so no other site can frame the report, account, publishing or consent pages and trick someone into pressing a button. An `add_header` inside a location replaces the ones it would inherit, so repeat there any security headers the server block sets.
+
 Review and run `nginx -t` on the complete server configuration before applying it. Mirror the rejecting defaults for any IPv6 listeners. The TLS rejection directive requires nginx 1.19.4 or later. Passing `$host` preserves the app's Host check; replacing every incoming Host with `vool.dev` would make that check ineffective. Origin and CSRF checks remain required. The per-client zone processes addresses in shared memory; do not persist them or claim they are never processed. See the nginx [request limiter](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html), [TLS rejection](https://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_reject_handshake) and [default-server routing](https://nginx.org/en/docs/http/request_processing.html) documentation. Request limiting, TLS and log retention grant no package permissions. Keep diagnostics as aggregate health/error counters without identities or request payloads.
 
 ## v0.7.1 service limits
