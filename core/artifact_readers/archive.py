@@ -366,7 +366,12 @@ def _archive_result(
 ) -> ReaderResult:
     """The listing unit, one unit per member read, and the result -- the same shape for every container."""
     units: list[ReaderUnit] = []
-    listing_lines = [f"{len(members)} member(s) in {name}{listed_note}:"]
+    # Folders are entries too (`zip -r` and friends write them), but "what is in this archive"
+    # is a question about files: count only those as members, and mention folders separately.
+    files = [m for m in members if not m.is_dir]
+    folders = [m for m in members if m.is_dir]
+    folder_note = f" (plus {len(folders)} folder{'' if len(folders) == 1 else 's'})" if folders else ""
+    listing_lines = [f"{len(files)} member(s) in {name}{folder_note}{listed_note}:"]
     total_size = 0
     nested: list[str] = []
     for member in members:
@@ -390,7 +395,7 @@ def _archive_result(
             locator="archive listing",
             kind=UNIT_MEMBER,
             text="\n".join(listing_lines),
-            meta={"members": len(members), "total_uncompressed_bytes": total_size, "read": len(contents), "unread": len(unread)},
+            meta={"members": len(files), "folders": len(folders), "total_uncompressed_bytes": total_size, "read": len(contents), "unread": len(unread)},
         )
     )
     for member, text in contents:
@@ -418,7 +423,8 @@ def _archive_result(
         omitted=tuple(omitted),
         source_sha256=digest,
         meta={
-            "members": len(members),
+            "members": len(files),
+            "folders": len(folders),
             "members_read": len(contents),
             "members_refused": len(refused),
             "nested_archives": nested,
