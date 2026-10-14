@@ -39,6 +39,7 @@ Money and privacy rules this module keeps:
 """
 from __future__ import annotations
 
+import contextvars
 import re
 import unicodedata
 from collections.abc import Callable
@@ -599,6 +600,51 @@ REPLY_NOT_OWNER = (
 )
 REPLY_FAILED = "I couldn't save that setting, so nothing changed."
 
+#: Catalog key prefix for the chat replies above: ``own_tools.reply.<name>`` (lowercase, e.g.
+#: ``own_tools.reply.already_on``). The constants stay the English source; other app languages
+#: read the same meaning from their catalog.
+REPLY_KEY_PREFIX = "own_tools.reply."
+#: The app language a turn's own-tools replies speak when nobody bound one (the frontdoor's other
+#: callers have no page and no cookie, and English is what they served before the catalog existed).
+REPLY_LOCALE_DEFAULT = "en"
+# The app language of the chat turn in flight. The request handler binds it from the page's
+# locale cookie for exactly the length of the turn (core/web/api/service.py): the replies are
+# served from deep inside the turn, past layers that cannot grow a locale argument, so the
+# binding rides a ContextVar -- the same carrier the ingress context already uses to keep
+# request state alive across the streaming worker thread.
+_REPLY_LOCALE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "vool_own_tools_reply_locale", default=REPLY_LOCALE_DEFAULT
+)
+
+
+def bind_reply_locale(locale: str) -> contextvars.Token:
+    """Bind the app language this turn's own-tools replies speak; returns the reset token."""
+    return _REPLY_LOCALE.set(str(locale or REPLY_LOCALE_DEFAULT).strip() or REPLY_LOCALE_DEFAULT)
+
+
+def reset_reply_locale(token: contextvars.Token) -> None:
+    """Release a :func:`bind_reply_locale` token; the turn's replies stop following that language."""
+    _REPLY_LOCALE.reset(token)
+
+
+def reply_locale() -> str:
+    """The bound app language of the current turn (``"en"`` when none was bound)."""
+    return _REPLY_LOCALE.get()
+
+
+def reply_text(name: str, locale: str = "") -> str:
+    """One own-tools chat reply in the app's language.
+
+    ``name`` is the lowercase reply name (``"on"``, ``"already_on"``, ``"not_owner"``, ...). An
+    explicit ``locale`` wins over the turn's bound app language; empty means the bound one. Any
+    unknown, missing or English locale serves the English source -- ``catalog_for``'s own fallback
+    law -- so the meaning of every reply stays exactly what the constants above say.
+    """
+    from core.i18n.catalog import catalog_for
+
+    tag = str(locale or "").strip() or reply_locale() or REPLY_LOCALE_DEFAULT
+    return catalog_for(tag).text(REPLY_KEY_PREFIX + name)
+
 
 def parse_tools_command(text: str) -> str:
     """``"on"`` / ``"off"`` / ``"status"`` for a message that is only this command, else ``""``."""
@@ -622,19 +668,19 @@ def handle_tools_command(text: str) -> tuple[bool, str]:
         return False, ""
     current = mode_on()
     if action == "status":
-        return True, REPLY_STATUS_ON if current else REPLY_STATUS_OFF
+        return True, reply_text("status_on" if current else "status_off")
     want = action == "on"
     if want == current:
-        return True, REPLY_ALREADY_ON if want else REPLY_ALREADY_OFF
+        return True, reply_text("already_on" if want else "already_off")
     try:
         stored = set_mode(want)
     except Exception:
-        return True, REPLY_FAILED
+        return True, reply_text("failed")
     if stored != want:
-        return True, REPLY_FAILED
-    reply = REPLY_ON if want else REPLY_OFF
+        return True, reply_text("failed")
+    reply = reply_text("on" if want else "off")
     if re.search(r"\bthis\s+chat\b", str(text or ""), re.IGNORECASE):
-        reply += REPLY_ALL_CHATS
+        reply += reply_text("all_chats")
     return True, reply
 
 
@@ -656,6 +702,7 @@ __all__ = [
     "UNPRICED_BUILTIN_TOOLS_REFUSAL",
     "ProviderToolGrant",
     "admit_provider_search",
+    "bind_reply_locale",
     "citation_sources",
     "close_provider_search_on_failure",
     "granted_provider_tools",
@@ -669,6 +716,9 @@ __all__ = [
     "provider_tool_reservation_allowance_usd",
     "provider_tools_for",
     "record_provider_search",
+    "reply_locale",
+    "reply_text",
+    "reset_reply_locale",
     "search_admitted",
     "searched_call_cost_estimate",
     "set_mode",
