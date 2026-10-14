@@ -47,6 +47,14 @@ The intended runtime order is:
 8. Existing review or promotion gates
 9. Final response shaping
 
+Auto requires a declared tool capability before selecting a model for a tool step.
+An explicit paid model selection owns both the answer and its tool rounds, even when
+the manifest has no tool capability tag. The selected adapter must carry and validate
+the tool request; unsupported tools or provider failures are reported for that model,
+without silently substituting another. Locality, spend authorization, license, trust,
+structured-output and media requirements still apply. A sticky Auto preference does
+not receive this exception. Background memory extraction remains on the local model.
+
 ## Setup Principle
 
 Easy setup should not mean unsafe setup.

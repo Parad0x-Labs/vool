@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from core import policy_engine
 from core.local_model_bundles import model_parameter_billions
-from core.model_capabilities import capability_score, required_capabilities
+from core.model_capabilities import capability_score, normalize_capabilities, required_capabilities
 from core.model_health import circuit_is_open
 from core.model_trust import provider_base_trust
 from storage.model_provider_manifest import ModelProviderManifest
@@ -28,6 +28,9 @@ class ModelSelectionRequest:
     # same way — as a HARD exclusion below, never as a score penalty a strong cloud model could
     # out-rank.
     local_only: bool = False
+    # A resolved operator pin, distinct from Auto's preferred/sticky model. Paid pins own
+    # their tool rounds; the adapter reports actual tool support rather than static tags.
+    explicit_model_pin: bool = False
 
 
 def provider_cost_class(manifest: ModelProviderManifest) -> str:
@@ -112,6 +115,115 @@ def reported_cost_class(manifest: ModelProviderManifest) -> str:
     return provider_cost_class(manifest)
 
 
+# Required capabilities that are the turn's CONTRACT rather than a skill description: a structured
+# output (structured_json), a tool selection (tool_intent), media it must read (multimodal). A
+# manifest that does not declare one cannot serve a turn that requires it, whatever else it covers
+# and however few alternatives exist. Measured on 57fdc03, an "availability" fallback handed a tool
+# step to a model declaring no tool selection, a JSON turn to a JSON-less model and an external
+# image to a text-only model. The other required tags (summarize, classify, format, extract,
+# code_*, long_context) describe what a model is good at; they rank candidates through
+# `capability_score`. They never remove a candidate that declares at least one of the turn's
+# required tags. An explicit paid pin may attempt its own tool round even without a
+# tool_intent declaration: adapter tool-carrier and output validation still bind, and the
+# router reports its actual failure without substituting. Auto receives no such exception.
+# The older zero-overlap rule (`no_required_capability` in
+# `_hard_exclusion_reason`) still excludes a candidate that declares none of them.
+#
+# `structured_json` is a contract only where the OUTPUT is structured: the output contract owner
+# (`core.model_output_contracts`) rejects non-JSON for json_object, action_plan and summary_block,
+# and JSON mode is sent only to endpoints that declare it. A task kind that merely lists
+# structured_json under a plain_text output asks for prose, and on a tool-selection turn the
+# runtime builds the intent itself, from the provider's native tool call (`canonical_intent_text`)
+# or by parsing the prompted tool dialect (measured on the served usepod lane: tool_dialect
+# native, JSON mode off, a real tool executed). There `tool_intent` is the contract.
+HARD_REQUIRED_CAPABILITIES = frozenset({"structured_json", "tool_intent", "multimodal"})
+STRUCTURED_OUTPUT_MODES = frozenset({"json_object", "action_plan", "summary_block"})
+PROMPTED_TOOL_EXCLUSION_REASON = "prompted_tool_dialect_without_structured_output"
+
+
+def declares_prompted_tools_without_structured_output(manifest: ModelProviderManifest) -> bool:
+    """Whether a tool step to this lane, which declares a prompted tool dialect and no
+    structured-output mode, would leave with neither tool carrier.
+
+    A tool_intent turn requires a tool call (the router sets ``tools_required``), and the
+    adapter's final guard (``core.execution_requirements.assert_envelope_carries_tools``) lets
+    such a call reach the wire only when the built payload carries native ``tools`` or a
+    structured-output fallback. The adapter builds the fallback only for an endpoint that declares
+    JSON mode or JSON schema. Whether native tools are sent is the adapter's decision, and the
+    declaration is not always what decides it: with ``capability_tool_dialect`` off the adapter
+    ignores ``tool_dialect`` and keeps the historical OpenRouter rule, and the native Ollama chat
+    lane follows ``ollama_native_tools``. So the declaration only nominates the lane; the
+    adapter's own rule (``_lane_sends_native_tools``) says whether its payload still carries
+    native tools. Only a lane that would carry neither is excluded.
+
+    Only an explicit prompted declaration is read. An undeclared dialect is decided per call by
+    the adapter (catalog facts, a loopback probe), and the final guard stays the backstop there.
+    """
+    runtime_config = getattr(manifest, "runtime_config", None) or {}
+    dialect = str(runtime_config.get("tool_dialect") or "").strip().lower()
+    if dialect != "prompted":
+        return False
+    if bool(runtime_config.get("supports_json_mode", False)) or bool(
+        runtime_config.get("supports_json_schema", False)
+    ):
+        return False
+    return not _lane_sends_native_tools(manifest)
+
+
+def _lane_sends_native_tools(manifest: ModelProviderManifest) -> bool:
+    """The adapter's answer to "does a tool step to this lane carry native tools?".
+
+    Read from the transport owner (``OpenAICompatibleAdapter``, which every tool-carrying adapter
+    type inherits this rule from) rather than restated here, so selection and the payload cannot
+    disagree. It is asked only for an explicit prompted declaration, where the answer depends on
+    configuration alone: runtime flags, the lane's family and provider identity. No catalog read,
+    probe or request happens. An answer that cannot be obtained is not a yes: the lane is treated
+    as carrying no native tools, which is what its declaration says.
+    """
+    try:
+        from types import SimpleNamespace
+
+        from adapters.openai_compatible_adapter import OpenAICompatibleAdapter
+        from core.cloud_provider_contract import CloudToolDefinition
+
+        adapter = OpenAICompatibleAdapter(manifest)
+        if adapter._uses_native_ollama_chat():
+            # The native Ollama rule filters the step's tool definitions; ask it with one.
+            question = SimpleNamespace(
+                output_mode="tool_intent",
+                tools=(
+                    CloudToolDefinition(
+                        intent="selection.native_tool_question",
+                        name="selection__native_tool_question",
+                        description="Eligibility question only; never sent.",
+                        parameters={"type": "object", "properties": {}},
+                    ),
+                ),
+            )
+            return bool(adapter._ollama_native_tools(question))
+        return bool(adapter._supports_native_tools())
+    except Exception:
+        return False
+
+
+def missing_hard_capabilities(
+    manifest: ModelProviderManifest,
+    required: object,
+    *,
+    output_mode: str = "plain_text",
+) -> tuple[str, ...]:
+    """The turn's hard-contract capabilities this manifest does not declare, sorted."""
+    if not isinstance(required, (set, frozenset, list, tuple)) or not required:
+        return ()
+    hard = set(HARD_REQUIRED_CAPABILITIES)
+    if str(output_mode or "").strip().lower() not in STRUCTURED_OUTPUT_MODES:
+        hard.discard("structured_json")
+    declared = set(normalize_capabilities(manifest.capabilities))
+    return tuple(
+        sorted({str(capability) for capability in required if capability in hard and capability not in declared})
+    )
+
+
 def _hard_exclusion_reason(
     manifest: ModelProviderManifest,
     request: ModelSelectionRequest,
@@ -150,8 +262,24 @@ def _hard_exclusion_reason(
         return SELECTION_EXCLUSION_REASON
     if not request.allow_paid_fallback and charges_the_user(manifest, cost_class=cost_class):
         return "paid_not_permitted"
-    if required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
+    pinned_tool_attempt = (
+        request.explicit_model_pin
+        and request.preferred_provider == manifest.provider_name
+        and request.preferred_model == manifest.model_name
+        and cost_class == "paid_cloud"
+        and "tool_intent" in required
+    )
+    if not pinned_tool_attempt and required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
         return "no_required_capability"
+    missing_contract = missing_hard_capabilities(manifest, required, output_mode=request.output_mode)
+    if pinned_tool_attempt:
+        missing_contract = tuple(capability for capability in missing_contract if capability != "tool_intent")
+    if missing_contract:
+        return "missing_required_capability:" + ",".join(missing_contract)
+    if not pinned_tool_attempt and str(request.output_mode or "").strip().lower() == "tool_intent" and (
+        declares_prompted_tools_without_structured_output(manifest)
+    ):
+        return PROMPTED_TOOL_EXCLUSION_REASON
     if provider_base_trust(manifest) < request.min_trust:
         return "below_min_trust"
     return ""
@@ -242,6 +370,10 @@ def rank_providers(
     (``source="no_provider_available"``). The relaxed pass still enforces every hard constraint
     (enabled, license, capability, trust, local-only, paid gating), so it never fails open to a paid
     cloud lane — it only degrades the model-tag preference.
+
+    Neither pass relaxes a hard capability (``HARD_REQUIRED_CAPABILITIES``): a pinned model that
+    does not declare one is excluded from that step, and an empty result goes to the caller's
+    existing refusal (selected model blocked / no provider) instead of a model that cannot do it.
     """
     strict = _rank_once(manifests, request, relax_model_preference=False)
     ranked = strict or _rank_once(manifests, request, relax_model_preference=True)
@@ -291,12 +423,24 @@ def explain_provider_exclusions(
     required = required_capabilities(request.task_kind, request.output_mode)
     rows: list[dict[str, str]] = []
     for manifest in manifests:
+        reason = _hard_exclusion_reason(manifest, request, required=required)
+        complete = (
+            ""
+            if not required
+            else ("1" if required.issubset(set(normalize_capabilities(manifest.capabilities))) else "0")
+        )
         rows.append(
             {
                 "provider_id": str(manifest.provider_id),
                 "model": str(manifest.model_name),
                 "enabled": "1" if manifest.enabled else "0",
-                "status": _hard_exclusion_reason(manifest, request, required=required) or "eligible",
+                "status": reason or "eligible",
+                # Completeness against every required tag, preferences included: "" when the turn
+                # requires nothing, else whether all of them are declared. A missing HARD tag is
+                # already the status itself (`missing_required_capability:<tags>`); a "0" on an
+                # eligible row means a preference tag is absent, or the explicit paid pin is
+                # attempting its own tool round without a static tool_intent declaration.
+                "required_capability_complete": complete,
             }
         )
     return rows

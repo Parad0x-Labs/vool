@@ -59,10 +59,20 @@ def _clear_manifests() -> None:
         conn.close()
 
 
+# Tool selection is declared per role exactly as the real bundle profile does
+# (core.local_model_bundles.manifest_profile_for_model): the tiny and general lanes select tools,
+# the reasoning lane does not.
+_TOOL_SELECTING_ROLES = {"lightweight_utility", "general"}
+
+
 def _register(model_name: str, bundle_role: str, orchestration_role: str = "drone") -> None:
+    capabilities = list(_COMMON["capabilities"])
+    if bundle_role in _TOOL_SELECTING_ROLES:
+        capabilities.append("tool_intent")
     ModelRegistry().register_manifest(
         {
             **_COMMON,
+            "capabilities": capabilities,
             "provider_name": "ollama-local",
             "model_name": model_name,
             "metadata": {
