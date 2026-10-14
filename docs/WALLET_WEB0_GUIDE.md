@@ -15,8 +15,8 @@ VOOL rename.
 
 ## Supported chains
 
-- Mainnet is the default once Crypto is on: Solana, Robinhood Chain, Base, Ethereum and BNB
-  mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
+- Mainnet is the default once Crypto is on: Solana, Robinhood Chain, Base, Ethereum, BNB and
+  Arbitrum One mainnet rows. See [the wallet guide](guides/wallet.md) for what each lane moves.
 - Test networks (Solana devnet and the EVM testnets) are reachable only in
   **Settings → Crypto → Developer options**.
 - The Web0 `null_registrar v2` program: exercised in tests.

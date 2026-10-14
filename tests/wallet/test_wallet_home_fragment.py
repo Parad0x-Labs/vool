@@ -72,7 +72,7 @@ def _status(enabled=True, accounts=(), rows=None, pending=(), transfers=(), in_f
         "crypto_pilot": {
             "active_environment": "testnet", "environment_source": "fresh_install", "environment_source_label": "the fresh-install default",
             "environment_label": "Test networks", "environment_choices": [], "environment_note": "", "caller_binding": "unbound", "frozen": False,
-            "chain_order": ["solana", "robinhood", "base", "ethereum", "bnb"],
+            "chain_order": ["solana", "robinhood", "base", "ethereum", "bnb", "arbitrum"],
             "networks": rows if rows is not None else [_row(SOL, accounts=[a for a in accounts if a["network"] == SOL]), _row(BASE, accounts=[a for a in accounts if a["network"] == BASE])],
             "credential_policy": {"pin": {"min": 4, "max": 8, "text": "4–8 digits"}, "password": {"min": 10, "max": 128, "text": "10–128 characters"}, "device": {"available": False, "text": "not available on this machine"}},
             "asset_support": {"native_coin_transfers": True, "token_transfers": False, "note": "native coin only"},

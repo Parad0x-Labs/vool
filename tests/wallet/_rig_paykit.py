@@ -21,6 +21,20 @@ MAINNET_CAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
 PAID_BODY = b'{"report": "quarterly numbers", "paid": true}'
 
 
+def _land(rpc: Any, landed: Any, *, fails: bool) -> str:
+    """Hand the cosigned transaction to the chain stand-in. A simulated node executes it and decides itself ('' when it
+    would not land at all); the scripted RPC records it as landed, failed when ``fails``. Returns its id."""
+    land = getattr(rpc, "land_versioned", None)
+    if land is not None:
+        return str(land(bytes(landed), fail=fails))
+    tx_id = str(landed.signatures[0])
+    rpc.transactions[tx_id] = bytes(landed)
+    rpc.landed.add(tx_id)
+    if fails:
+        rpc.failed_transactions.add(tx_id)
+    return tx_id
+
+
 def _answer_oddly(handler: BaseHTTPRequestHandler, how: str) -> bool:
     """Answer a paid request whose payment already landed the way ``how`` names: 'status:<code>' a bare status (no
     headers, no body), 'redirect' a 302 to another path on the same origin, 'oversize' a body over the wallet's byte
@@ -153,11 +167,9 @@ class ScriptedPayKitResource:
                 return ""
         signatures[0] = self.fee_payer.sign_message(signed_bytes)
         landed = VersionedTransaction.populate(message, signatures)
-        tx_id = str(signatures[0])
-        self.rpc.transactions[tx_id] = bytes(landed)
-        self.landed.append(tx_id)
-        if self.mode == "settle_fails":
-            self.rpc.failed_transactions.add(tx_id)
+        tx_id = _land(self.rpc, landed, fails=self.mode == "settle_fails")
+        if tx_id:
+            self.landed.append(tx_id)
         return tx_id
 
     @property
@@ -301,11 +313,9 @@ class ScriptedMppResource:
         if self.sponsored:
             signatures[0] = self.fee_payer.sign_message(signed_bytes)
         landed = VersionedTransaction.populate(message, signatures)
-        tx_id = str(signatures[0])
-        self.rpc.transactions[tx_id] = bytes(landed)
-        self.landed.append(tx_id)
-        if self.mode == "settle_fails":
-            self.rpc.failed_transactions.add(tx_id)
+        tx_id = _land(self.rpc, landed, fails=self.mode == "settle_fails")
+        if tx_id:
+            self.landed.append(tx_id)
         return tx_id
 
     @property

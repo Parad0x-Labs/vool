@@ -59,6 +59,7 @@ def open_pilot_proposals(wallet_id: str, network: str) -> int:
 _CHAIN_HINTS: dict[str, str] = {
     "solana": "solana", "sol": "solana", "base": "base", "ethereum": "ethereum", "eth": "ethereum", "mainnet": "ethereum",
     "bnb": "bnb", "bsc": "bnb", "binance": "bnb", "robinhood": "robinhood", "robinhood chain": "robinhood",
+    "arbitrum": "arbitrum", "arb": "arbitrum", "arbitrum one": "arbitrum",
 }
 
 
@@ -195,6 +196,7 @@ class _Projection:
     amount_moved: bool = True
     requires_no_cancel: bool = False
     tx_signature_from_row: bool = False
+    authorization_only: bool = False  # an edge only an EIP-3009 authorization row may take
 
 
 _SETTLED = ("broadcast", "confirmed")
@@ -222,6 +224,10 @@ PROJECTION: dict[tuple[str, str], _Projection] = {
     (STATE_PENDING, STATE_STOPPED_WAITING): _Projection(None, _HOLD_SETTLE, "owner_stopped_waiting", amount_moved=True),
     (STATE_STOPPED_WAITING, STATE_CONFIRMED): _Projection(_SETTLED, _HOLD_RESETTLE, "confirmed_after_owner_stopped_waiting", amount_moved=True),
     (STATE_STOPPED_WAITING, STATE_FAILED_ON_CHAIN): _Projection(_FAILED_ON_CHAIN, _HOLD_RESETTLE, "wallet_transfer_failed_on_chain", amount_moved=False),
+    # an x402 SDK authorization that left but the chain never used, read at a finalized block past its window: it can
+    # never be used, so it failed with nothing moved and no fee. It was sent, so it is never ``released``; no other row
+    # may leave ``unknown`` for a failure without a receipt
+    (STATE_UNKNOWN, STATE_FAILED_ON_CHAIN): _Projection(_FAILED_ON_CHAIN, _HOLD_SETTLE, "authorization_expired_unused", amount_moved=False, authorization_only=True),
 }
 
 #: columns a transition may write besides state, updated_at and the terminal byte drop
@@ -229,7 +235,7 @@ _WRITABLE: frozenset[str] = frozenset({
     "tx_id", "raw_b64", "owner_token", "lease_until", "dispatch_claimed_at", "attempts_sent", "cancel_requested_at", "evidence_json",
     "evidence_kind", "charged_fee_minor", "balance_after_minor", "block_ref", "block_hash", "finality_seen", "effect_instance_id",
     "a6_resolved_at", "a6_outcome", "offered_exit_json", "crossing_block", "crossing_block_hash", "stopped_waiting_at", "observe_until",
-    "fee_state", "fee_known_minor", "fee_missing_json", "fee_fork",
+    "fee_state", "fee_known_minor", "fee_missing_json", "fee_fork", "payer_signature", "authorization_json",
 })
 
 #: the fee the record settled with: exact (every component the row's receipt must carry was read) or bounded (the
@@ -399,6 +405,8 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
         detail = "The network accepted this transfer; waiting for it to appear in a block."
     elif state == STATE_UNKNOWN:
         detail = "The outcome is not known yet. The transfer stays counted until the network answers."
+    if state == STATE_FAILED_ON_CHAIN and row.get("authorization_json"):
+        label, detail = "Expired unused", "The site did not use this payment before its time window closed, and the network can no longer use it. Nothing moved and no fee was charged."
     tx_id = str(row.get("tx_id") or "")
     dispatched = state not in (STATE_CLAIMED, STATE_SIGNED, STATE_SIGNED_REVOKED, *NEVER_SENT_STATES)
     link = explorer_url(spec, tx_id) if dispatched and tx_id else ""
@@ -506,9 +514,11 @@ def claim_resend(conn: Any, proposal_id: str, *, owner_token: str, attempts_sent
 
 
 def live_for_account(conn: Any, network: str, from_address: str) -> dict[str, Any] | None:
-    """The live transfer holding this account's next slot, if any (an EVM account sends one at a time)."""
+    """The live transfer holding this account's next slot, if any (an EVM account sends one at a time). An x402 SDK
+    authorization takes no account nonce, so it never holds the slot."""
     placeholders = ", ".join("?" for _ in LIVE_STATES)
-    cursor = conn.execute(f"SELECT * FROM wallet_transfers WHERE network = ? AND from_address = ? AND state IN ({placeholders}) LIMIT 1", (str(network), str(from_address), *LIVE_STATES))
+    cursor = conn.execute(f"SELECT * FROM wallet_transfers WHERE network = ? AND from_address = ? AND state IN ({placeholders}) AND authorization_json = '' LIMIT 1",
+                          (str(network), str(from_address), *LIVE_STATES))
     row = cursor.fetchone()
     return {d[0]: row[i] for i, d in enumerate(cursor.description)} if row else None
 
@@ -516,7 +526,7 @@ def live_for_account(conn: Any, network: str, from_address: str) -> dict[str, An
 def insert_claim(conn: Any, *, proposal: Any, quote_id: str, quote_digest: str, challenge_digest: str, environment: str, family: str,
                  from_address: str, fee_max_minor: int, owner_token: str, lease_until: float, dispatch_deadline: float,
                  epochs: dict[str, int], enabled_generation: int, now: float, nonce: int | None = None, blockhash: str | None = None,
-                 blockhash_slot: int | None = None, last_valid_block_height: int | None = None) -> dict[str, Any]:
+                 blockhash_slot: int | None = None, last_valid_block_height: int | None = None, authorization_json: str = "") -> dict[str, Any]:
     """The claim row of v5 §2.2 on the caller's connection (inside the claim's BEGIN IMMEDIATE): proposal
     ``pending_approval → approved``, the hold of amount plus the fee maximum, the transfer row and its receipt."""
     from core.wallet import limits, proposals, receipts
@@ -529,12 +539,12 @@ def insert_claim(conn: Any, *, proposal: Any, quote_id: str, quote_digest: str, 
     conn.execute(
         "INSERT INTO wallet_transfers (proposal_id, wallet_id, network, environment, family, from_address, to_address, asset, amount_minor, "
         "fee_max_minor, quote_id, quote_digest, challenge_digest, nonce, blockhash, blockhash_slot, last_valid_block_height, owner_token, "
-        "lease_until, dispatch_deadline, epoch_freeze, epoch_enabled, epoch_environment, enabled_generation, state, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "lease_until, dispatch_deadline, epoch_freeze, epoch_enabled, epoch_environment, enabled_generation, state, created_at, updated_at, authorization_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (proposal.proposal_id, proposal.wallet_id, proposal.network, environment, family, from_address, proposal.destination, proposal.asset,
          int(proposal.amount_minor), int(fee_max_minor), quote_id, quote_digest, challenge_digest, nonce, blockhash, blockhash_slot,
          last_valid_block_height, owner_token, float(lease_until), float(dispatch_deadline), int(epochs["freeze"]), int(epochs["enabled"]),
-         int(epochs["environment"]), int(enabled_generation), STATE_CLAIMED, stamp, stamp),
+         int(epochs["environment"]), int(enabled_generation), STATE_CLAIMED, stamp, stamp, str(authorization_json or "")),
     )
     approved = proposals._get(conn, proposal.proposal_id)
     receipt = receipts._record(conn, approved, state=approved.state, extra={"transfer_state": STATE_CLAIMED})
@@ -584,6 +594,8 @@ def transition(conn: Any, proposal_id: str, new_state: str, *, expected_state: s
         where_values.append(owner_token)
     if projection.requires_no_cancel:
         where.append("cancel_requested_at IS NULL")
+    if projection.authorization_only:
+        where.append("authorization_json <> ''")
     cursor = conn.execute(f"UPDATE wallet_transfers SET {', '.join(sets)} WHERE {' AND '.join(where)}", (*values, *where_values))
     if cursor.rowcount != 1:
         row = get_transfer(conn, proposal_id)
@@ -593,10 +605,16 @@ def transition(conn: Any, proposal_id: str, new_state: str, *, expected_state: s
             raise TransferTransitionError(f"expected_{expected_state}_found_{row['state']}")
         if owner_token is not None and row["owner_token"] != owner_token:
             raise TransferTransitionError("owner_token_mismatch")
+        if projection.authorization_only and not row.get("authorization_json"):
+            raise TransferTransitionError(f"edge_not_allowed:{expected_state}->{new_state}")
         raise TransferTransitionError("cancel_requested")
     row = get_transfer(conn, proposal_id) or {}
     if projection.proposal_edge is not None:
         extra_columns: dict[str, Any] = {"tx_signature": row.get("tx_id") or ""} if projection.tx_signature_from_row else {}
+        if not extra_columns and row.get("tx_id") and ((row.get("payer_signature") and row["payer_signature"] != row["tx_id"]) or row.get("authorization_json")):
+            # a sponsored pay-kit payment's id is the fee payer's signature, and an x402 SDK payment's the facilitator's
+            # transaction, each known only once the chain proved it: the proposal carries it from the edge after the proof
+            extra_columns = {"tx_signature": str(row["tx_id"])}
         proposals._transition(conn, str(proposal_id), projection.proposal_edge[1], expected_state=projection.proposal_edge[0],
                               detail={"transfer_state": new_state, "reason": projection.reason, **dict(detail or {})}, **extra_columns)
     if projection.hold == _HOLD_RELEASE:

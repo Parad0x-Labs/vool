@@ -38,7 +38,11 @@ ORIGIN_X402_PAYKIT = "x402_paykit"
 ORIGIN_MPP_PAYKIT = "mpp_paykit"
 #: The origins whose payment pay-kit builds and the resource settles: the wallet never broadcasts a transfer for them.
 PAYKIT_ORIGINS = (ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
-ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT)
+#: An x402 `exact` payment on an EVM row built by the x402 Foundation SDK (core.wallet.x402_sdk) and paid from a Crypto
+#: Pilot wallet: an EIP-3009 authorization signed only after it proves it moves exactly the approved amount of the
+#: registry's token to the approved payee, which the resource's facilitator submits. The wallet broadcasts nothing.
+ORIGIN_X402_SDK = "x402_sdk"
+ORIGINS = (ORIGIN_USER, ORIGIN_MODEL, ORIGIN_SKILL, ORIGIN_PLUGIN, ORIGIN_X402, ORIGIN_USEPOD, ORIGIN_DNA_FEE, ORIGIN_X402_PAYKIT, ORIGIN_MPP_PAYKIT, ORIGIN_X402_SDK)
 
 STATE_PROPOSED = "proposed"
 STATE_SIMULATED = "simulated"
@@ -182,6 +186,10 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "account_network_mismatch", "wallet_network": _canonical_network(profile.network), "proposal_network": _canonical_network(resolved_network)}, source_context=source_context)
     if origin not in ORIGINS:
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "unknown_origin", "origin": str(origin)}, source_context=source_context)
+    from core.wallet import channels
+
+    # a payment channel the owner turned off parks nothing, whichever door proposes on it
+    channels.require_origin_on(str(origin), source_context=source_context)
     dest = str(destination or "").strip()
     if not chains.destination_matches_family(resolved_network, dest):
         raise wallet_fault("wallet_not_found", authority=AUTHORITY, context={"reason": "invalid_destination"}, source_context=source_context)
@@ -309,12 +317,12 @@ def _validated_asset(network: str, asset: str, *, source_context: dict[str, Any]
 
 
 def _require_token_lane(network: str, asset: str, *, origin: str, source_context: dict[str, Any] | None) -> None:
-    """A token on a Mainnet row moves only for a service payment lane (UsePod's x402, or a pay-kit x402 or MPP payment to any site) and
-    the DNA fee collection; the pilot's own transfers there stay native coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
+    """A token on a Mainnet row moves only for a service payment lane (UsePod's x402, a pay-kit x402 or MPP payment, or an x402
+    SDK payment, to any site) and the DNA fee collection; the pilot's own transfers there stay native coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
     from core.wallet import chains
 
     spec = chains.resolve_network(network)
-    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS) or chains.asset_for(spec.network, asset).native:
+    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS, ORIGIN_X402_SDK) or chains.asset_for(spec.network, asset).native:
         return
     raise wallet_fault(
         "wallet_network_disabled", authority=AUTHORITY,
@@ -407,6 +415,7 @@ __all__ = [
     "ORIGIN_USER",
     "ORIGIN_X402",
     "ORIGIN_X402_PAYKIT",
+    "ORIGIN_X402_SDK",
     "PAYKIT_ORIGINS",
     "STATE_APPROVED",
     "STATE_AWAITING_SIGNATURE",

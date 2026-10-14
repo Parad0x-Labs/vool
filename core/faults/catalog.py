@@ -137,6 +137,8 @@ FAULT_WALLET_QUOTE_MISMATCH = "wallet_quote_mismatch"
 FAULT_WALLET_INSUFFICIENT_FUNDS = "wallet_insufficient_funds"
 FAULT_WALLET_RECIPIENT_REFUSED = "wallet_recipient_refused"
 FAULT_WALLET_REQUEST_AMBIGUOUS = "wallet_request_ambiguous"
+FAULT_WALLET_PAYMENT_CHANNEL_OFF = "wallet_payment_channel_off"
+FAULT_WALLET_X402_SDK_UNAVAILABLE = "wallet_x402_sdk_unavailable"
 
 
 class FaultVocabularyError(Exception):
@@ -483,6 +485,14 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               user_message="This payment offer needs a scheme this wallet cannot prove end to end, so nothing was signed. Try an offer whose scheme, token and facilitator are verified for this network.",
               operator_action="Use an offer whose scheme, token and facilitator are verified for the network; partial signing support is never improvised.",
               authority="core.wallet.x402"),
+    FaultSpec(code=FAULT_WALLET_PAYMENT_CHANNEL_OFF, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="That payment goes through a payment channel that is turned off, so nothing was signed or sent. Turn the channel on in Settings, Crypto, Payment channels, then try again.",
+              operator_action="Turn a payment channel on in Crypto settings only if you want payments made through it; the cap and your approval apply on every channel.",
+              authority="core.wallet.channels"),
+    FaultSpec(code=FAULT_WALLET_X402_SDK_UNAVAILABLE, category=CATEGORY_POLICY, severity=SEVERITY_MEDIUM, retry=RETRY_AFTER_CHANGE,
+              user_message="This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
+              operator_action="Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way.",
+              authority="core.wallet.x402_sdk"),
 )
 
 #: The effect state of every code, EXPLICIT: one row per entry, no defaults. Applied (and
@@ -541,6 +551,8 @@ _EFFECT_BY_CODE: dict[str, str] = {
     FAULT_WALLET_RECIPIENT_REFUSED: EFFECT_NONE,
     FAULT_WALLET_REQUEST_AMBIGUOUS: EFFECT_NONE,
     FAULT_WALLET_RECOVERY_REFUSED: EFFECT_NONE,
+    FAULT_WALLET_PAYMENT_CHANNEL_OFF: EFFECT_NONE,
+    FAULT_WALLET_X402_SDK_UNAVAILABLE: EFFECT_NONE,
 }
 
 

@@ -106,7 +106,7 @@ def test_t6_status_surface_lists_chain_qualified_accounts(wallet_env):
     st = status.wallet_status()
     accounts = st.get("accounts") or []
     assert any(a["chain"] == BASE_SEPOLIA and a["family"] == "evm" for a in accounts)
-    assert st.get("declared_networks") == list(chains.DECLARED_NETWORKS) and len(st["declared_networks"]) == 10
+    assert st.get("declared_networks") == list(chains.DECLARED_NETWORKS) and len(st["declared_networks"]) == 12
     blob = json.dumps(st)
     for secret in ("recovery_phrase", "private_key", "sealed_blob", "pin"):
         assert secret not in blob

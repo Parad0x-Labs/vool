@@ -82,7 +82,7 @@ def test_b4_aliases_confusables_and_unknown_networks_refuse(wallet_env):
     for bad in (
         "solana:5eykt4UsFv8P8NJdTREpYojv6fgkHiE7W",  # solana mainnet
         "solana-mainnet", "mainnet-beta",
-        "eip155:137", "eip155:42161", "eip155:46631",  # undeclared chains; the declared Mainnet rows are asserted below
+        "eip155:137", "eip155:46631",  # undeclared chains; the declared Mainnet rows are asserted below
         "base-mainnet", "ethereum", "base", "bnb", "bsc", "polygon", "arbitrum", "optimism",
         "eip155:84532x", "eip155:845 32", " EIP155:84532",  # confusable mutations
         "devnet", "testnet", "localhost", "http://127.0.0.1:8899",  # never select from a URL/loose word
@@ -94,7 +94,7 @@ def test_b4_aliases_confusables_and_unknown_networks_refuse(wallet_env):
         assert refused.value.code == "wallet_network_disabled", bad
     # Crypto Pilot: Ethereum, Base and BNB Smart Chain mainnets are declared rows, each its own chain and
     # environment, never a Test networks row under another name
-    for network, twin in (("eip155:1", "eip155:11155111"), ("eip155:8453", "eip155:84532"), ("eip155:56", "eip155:97")):
+    for network, twin in (("eip155:1", "eip155:11155111"), ("eip155:8453", "eip155:84532"), ("eip155:56", "eip155:97"), ("eip155:42161", "eip155:421614")):
         spec, test_row = chains.resolve_network(network), chains.resolve_network(twin)
         assert (spec.network, spec.environment, test_row.environment) == (network, "mainnet", "testnet")
         assert spec.chain_id != test_row.chain_id and spec.chain_key == test_row.chain_key

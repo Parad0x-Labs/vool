@@ -31,7 +31,7 @@ MODE_NATIVE_CAPABILITY_INVALID = "native_capability_invalid"
 TRUSTED_DOORS: frozenset[str] = frozenset({
     "/api/wallet/approve", "/api/wallet/pocket/create", "/api/wallet/pocket/restore", "/api/wallet/export",
     "/api/wallet/approval-method", "/api/wallet/limits", "/api/wallet/external/submit", "/api/wallet/x402/fetch",
-    "/api/wallet/x402/retry", "/api/wallet/environment",
+    "/api/wallet/x402/retry", "/api/wallet/environment", "/api/wallet/channels",
     "/api/wallet/setup/create", "/api/wallet/setup/reveal", "/api/wallet/setup/acknowledge", "/api/wallet/setup/cancel",
     "/api/wallet/setup/resume", "/api/wallet/quote",
     "/api/wallet/transfers/stop-waiting", "/api/wallet/transfers/resend", "/api/wallet/transfers/discard",

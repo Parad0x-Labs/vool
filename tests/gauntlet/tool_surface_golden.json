@@ -1346,7 +1346,7 @@
             ]
           },
           "chain": {
-            "description": "string optional (solana|base|ethereum|bnb|robinhood)",
+            "description": "string optional (solana|base|ethereum|bnb|robinhood|arbitrum)",
             "type": [
               "string",
               "null"

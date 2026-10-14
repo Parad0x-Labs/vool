@@ -9,6 +9,11 @@ fails the transaction. The fee is ``lamports_per_signature`` per required signat
 What it exists for: composition proofs where the wallet's real custody signs real bytes, the chain role is played
 locally, and the provider stand-in verifies a payment by reading what this node actually executed. Fault knobs
 cover a lost send answer, hidden status reads and a refused preflight. Every value it serves is synthetic.
+
+A v0 transaction a resource's fee payer cosigned (the pay-kit lanes) lands through :meth:`land_versioned`, the
+resource's own broadcast: Compute Budget settings and a Memo are accepted as no-ops, an instruction that fails lands as
+a failed transaction that still charges its fee. ``getTransaction`` answers ``base64`` encoding with the landed bytes,
+and ``getSignaturesForAddress`` lists what landed.
 """
 from __future__ import annotations
 
@@ -21,6 +26,8 @@ from typing import Any
 
 SYSTEM_PROGRAM = "11111111111111111111111111111111"
 TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111"
+MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
 MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
 #: the documented USDC mint on Solana mainnet; in this node it is just a synthetic mint with the same address
 USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -59,6 +66,8 @@ class SimulatedSolanaNode:
         self.advance_blocks(0)
         #: fault knobs -- "send_mode": "ok" | "record_then_drop_answer" | "refuse_preflight"; "hide_status_reads": int
         self.faults: dict[str, Any] = {}
+        #: the commitment every status read reports ("finalized" lets a failed transaction be final)
+        self.confirmation_status = "confirmed"
         node = self
 
         class _Handler(BaseHTTPRequestHandler):
@@ -163,6 +172,41 @@ class SimulatedSolanaNode:
         with self.lock:
             account = self.token_accounts.get(self.token_account_address(owner, mint))
             return int(account["amount"]) if account else 0
+
+    def land_versioned(self, raw: bytes, *, fail: bool = False) -> str:
+        """A resource's broadcast of a v0 transaction it cosigned: every signature must verify and the blockhash must be
+        live, or nothing lands (''). An instruction that fails, or ``fail``, lands as a failed transaction that charges
+        its fee and moves nothing else. Returns the transaction's id."""
+        from solders.transaction import VersionedTransaction
+
+        with self.lock:
+            transaction = VersionedTransaction.from_bytes(bytes(raw))
+            if not all(transaction.verify_with_results()):
+                return ""
+            try:
+                if fail:
+                    raise _Failure({"InstructionError": [0, {"Custom": 1}]}, "failed by the test")
+                self._execute(transaction, apply=False, verify_signatures=True)
+            except _Failure as failure:
+                if not (isinstance(failure.err, dict) and "InstructionError" in failure.err):
+                    return ""
+                return self._record_failed(transaction, bytes(raw), failure.err)
+            self._execute(transaction, apply=True, verify_signatures=True, raw=bytes(raw))
+            return str(transaction.signatures[0])
+
+    def _record_failed(self, transaction: Any, raw: bytes, err: Any) -> str:
+        keys = [str(key) for key in transaction.message.account_keys]
+        fee = self.lamports_per_signature * int(transaction.message.header.num_required_signatures)
+        pre_balances = [self.lamports.get(key, 0) for key in keys]
+        self.lamports[keys[0]] = self.lamports.get(keys[0], 0) - fee
+        tokens = _token_balances(keys, self.token_accounts, self.mints)
+        signature = str(transaction.signatures[0])
+        self.transactions[signature] = {
+            "slot": self.slot, "err": err, "fee": fee, "fee_payer": keys[0], "account_keys": keys, "payments": [], "raw": raw,
+            "meta": {"err": err, "fee": fee, "preBalances": pre_balances, "postBalances": [self.lamports.get(key, 0) for key in keys],
+                     "preTokenBalances": tokens, "postTokenBalances": tokens, "logMessages": ["SIMULATION: failed"]},
+        }
+        return signature
 
     def payment_to(self, signature: str) -> dict[str, Any] | None:
         """What an executed, successful transaction paid, per recipient owner: the provider's verification read."""
@@ -276,7 +320,7 @@ class SimulatedSolanaNode:
         except _Failure as failure:
             return {"error": {"code": -32002, "message": f"Transaction simulation failed: {failure.log}", "data": {"err": failure.err, "logs": [failure.log]}}}
         self.sent.append(raw)
-        self._execute(transaction, apply=True, verify_signatures=True)
+        self._execute(transaction, apply=True, verify_signatures=True, raw=raw)
         if mode == "record_then_drop_answer":
             return _DROP
         return {"result": signature}
@@ -289,7 +333,7 @@ class SimulatedSolanaNode:
             if record is None or hidden > 0:
                 values.append(None)
                 continue
-            values.append({"slot": record["slot"], "confirmations": None, "err": record["err"], "confirmationStatus": "confirmed"})
+            values.append({"slot": record["slot"], "confirmations": None, "err": record["err"], "confirmationStatus": self.confirmation_status})
         if hidden > 0:
             self.faults["hide_status_reads"] = hidden - 1
         return {"result": {"context": self._context(), "value": values}}
@@ -298,11 +342,21 @@ class SimulatedSolanaNode:
         record = self.transactions.get(str(params[0]))
         if record is None:
             return {"result": None}
+        options = params[1] if len(params) > 1 and isinstance(params[1], dict) else {}
+        if str(options.get("encoding") or "") == "base64" and record.get("raw"):
+            return {"result": {"slot": record["slot"], "blockTime": None, "meta": dict(record["meta"]), "transaction": [base64.b64encode(record["raw"]).decode("ascii"), "base64"]}}
         return {"result": {"slot": record["slot"], "blockTime": None, "meta": dict(record["meta"]), "transaction": {"signatures": [str(params[0])], "message": {"accountKeys": list(record["account_keys"])}}}}
+
+    def _rpc_getSignaturesForAddress(self, params: list[Any]) -> dict[str, Any]:
+        address = str(params[0]) if params else ""
+        options = params[1] if len(params) > 1 and isinstance(params[1], dict) else {}
+        found = [{"signature": signature, "slot": record["slot"], "err": record["err"], "memo": None, "blockTime": None, "confirmationStatus": self.confirmation_status}
+                 for signature, record in reversed(list(self.transactions.items())) if address in record["account_keys"]]
+        return {"result": found[: int(options.get("limit") or 1000)]}
 
     # --- execution ------------------------------------------------------------------------------------------
 
-    def _execute(self, transaction: Any, *, apply: bool, verify_signatures: bool) -> None:
+    def _execute(self, transaction: Any, *, apply: bool, verify_signatures: bool, raw: bytes = b"") -> None:
         message = transaction.message
         keys = [str(key) for key in message.account_keys]
         header = message.header
@@ -326,6 +380,8 @@ class SimulatedSolanaNode:
             program = keys[int(instruction.program_id_index)]
             accounts = [keys[int(position)] for position in bytes(instruction.accounts)]
             data = bytes(instruction.data)
+            if program in (COMPUTE_BUDGET_PROGRAM, MEMO_PROGRAM):
+                continue  # compute settings and a memo change no balance here
             if program == SYSTEM_PROGRAM:
                 if len(data) != 12 or int.from_bytes(data[:4], "little") != 2 or len(accounts) != 2:
                     raise _Failure({"InstructionError": [index, "InvalidInstructionData"]}, "only the System transfer is executed")
@@ -373,7 +429,7 @@ class SimulatedSolanaNode:
         self.lamports = lamports
         self.token_accounts = tokens
         self.transactions[signature] = {
-            "slot": self.slot, "err": None, "fee": fee, "fee_payer": fee_payer, "account_keys": keys, "payments": payments,
+            "slot": self.slot, "err": None, "fee": fee, "fee_payer": fee_payer, "account_keys": keys, "payments": payments, "raw": bytes(raw),
             "meta": {
                 "err": None, "fee": fee, "preBalances": pre_balances, "postBalances": [lamports.get(key, 0) for key in keys],
                 "preTokenBalances": pre_tokens, "postTokenBalances": _token_balances(keys, tokens, self.mints), "logMessages": ["SIMULATION: executed"],
