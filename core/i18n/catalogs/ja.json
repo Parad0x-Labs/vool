@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "外観の設定を読み込めませんでした。設定を再読み込みしてもう一度お試しください。",
     "settings.appearance.unsaved": "保存できなかったため、このウィンドウにのみ適用されます。",
     "settings.row.appearance_theme.help": "ライトかダークを選ぶか、「このコンピューターに合わせる」でコンピューターの設定に従います。文字サイズで会話が読みやすくなります。",
-    "settings.row.appearance_theme.label": "テーマと文字サイズ"
+    "settings.row.appearance_theme.label": "テーマと文字サイズ",
+    "run.refused_reason": "VOOL はこのターンを実行しませんでした: {reason}",
+    "run.refused_status": "VOOL はこのターンを実行しませんでした (HTTP {status})。"
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

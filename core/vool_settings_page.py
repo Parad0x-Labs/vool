@@ -2932,7 +2932,7 @@ function widgetKeys(stack) {
     if (outcome === 'network_unavailable' || outcome === 'timeout') return tfmt('keys.quarantine_outcome.unreachable', 'VOOL could not reach {label}. Check your internet connection and try again. The key stays saved, unused.', p);
     if (outcome === 'invalid' || outcome === 'unauthorized') return tfmt('keys.quarantine_outcome.rejected', '{label} turned this key down. Check you copied all of it, or delete it.', p);
     if (outcome === 'exhausted') return tfmt('keys.quarantine_outcome.exhausted', '{label} says this key has no credit left. Add credit with {label}, then try again.', p);
-    if (outcome === 'rate_limited' || outcome === 'provider_unavailable') return tfmt('keys.quarantine_outcome.busy', '{label} is busy right now. Try again in a little while. The key stays saved, unused.', p);
+    if (outcome === 'rate_limited' || outcome === 'provider_unavailable') return tfmt('keys.quarantine_outcome.busy', '{label} has too many requests right now. Try again in a little while. The key stays saved, unused.', p);
     return tfmt('keys.quarantine_outcome.unclear', '{label} did not give a clear answer, so the key is still not checked. It stays saved, unused.', p);
   }
   /* One sentence per verification outcome. The server keeps a rejected key apart from throttling, an

@@ -2231,7 +2231,7 @@
     "keys.quarantine_outcome.unreachable": "VOOL could not reach {label}. Check your internet connection and try again. The key stays saved, unused.",
     "keys.quarantine_outcome.rejected": "{label} turned this key down. Check you copied all of it, or delete it.",
     "keys.quarantine_outcome.exhausted": "{label} says this key has no credit left. Add credit with {label}, then try again.",
-    "keys.quarantine_outcome.busy": "{label} is busy right now. Try again in a little while. The key stays saved, unused.",
+    "keys.quarantine_outcome.busy": "{label} has too many requests right now. Try again in a little while. The key stays saved, unused.",
     "keys.quarantine_outcome.unclear": "{label} did not give a clear answer, so the key is still not checked. It stays saved, unused.",
     "keys.save_note": "Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.",
     "settings.models.this_mac": "This Mac",
@@ -2375,7 +2375,9 @@
     "settings.appearance.unavailable": "Appearance controls did not load. Reload Settings and try again.",
     "settings.appearance.unsaved": "Could not be saved, so it applies to this window only.",
     "settings.row.appearance_theme.help": "Choose Light or Dark, or \"Same as this computer\" to follow your computer's setting. Text size makes the conversation easier to read.",
-    "settings.row.appearance_theme.label": "Theme and text size"
+    "settings.row.appearance_theme.label": "Theme and text size",
+    "run.refused_reason": "VOOL did not run this turn: {reason}",
+    "run.refused_status": "VOOL did not run this turn (HTTP {status})."
   },
   "html_keys": [
     "bypass.modal_limits",

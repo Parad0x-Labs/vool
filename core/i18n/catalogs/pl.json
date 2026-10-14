@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "Nie wczytano ustawień wyglądu. Odśwież Ustawienia i spróbuj ponownie.",
     "settings.appearance.unsaved": "Nie udało się zapisać, więc dotyczy tylko tego okna.",
     "settings.row.appearance_theme.help": "Wybierz jasny lub ciemny albo „Jak na tym komputerze”, aby używać ustawienia komputera. Rozmiar tekstu ułatwia czytanie rozmowy.",
-    "settings.row.appearance_theme.label": "Motyw i rozmiar tekstu"
+    "settings.row.appearance_theme.label": "Motyw i rozmiar tekstu",
+    "run.refused_reason": "VOOL nie wykonał tej tury: {reason}",
+    "run.refused_status": "VOOL nie wykonał tej tury (HTTP {status})."
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

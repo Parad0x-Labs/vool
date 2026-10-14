@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "外观设置未能加载。请重新加载设置后再试。",
     "settings.appearance.unsaved": "无法保存，因此仅对此窗口生效。",
     "settings.row.appearance_theme.help": "选择浅色或深色，或选择“与这台电脑一致”以跟随电脑的设置。文字大小让对话更易阅读。",
-    "settings.row.appearance_theme.label": "主题和文字大小"
+    "settings.row.appearance_theme.label": "主题和文字大小",
+    "run.refused_reason": "VOOL 未运行本轮：{reason}",
+    "run.refused_status": "VOOL 未运行本轮（HTTP {status}）。"
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

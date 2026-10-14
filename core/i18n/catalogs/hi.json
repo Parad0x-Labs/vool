@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "दिखावट के नियंत्रण लोड नहीं हुए। सेटिंग्स दोबारा लोड करके फिर कोशिश करें।",
     "settings.appearance.unsaved": "सहेजा नहीं जा सका, इसलिए यह सिर्फ़ इसी विंडो पर लागू है।",
     "settings.row.appearance_theme.help": "लाइट या डार्क चुनें, या अपने कंप्यूटर की सेटिंग अपनाने के लिए \"इस कंप्यूटर जैसा\" चुनें। टेक्स्ट का आकार बातचीत को पढ़ना आसान बनाता है।",
-    "settings.row.appearance_theme.label": "थीम और टेक्स्ट का आकार"
+    "settings.row.appearance_theme.label": "थीम और टेक्स्ट का आकार",
+    "run.refused_reason": "VOOL ने यह बारी नहीं चलाई: {reason}",
+    "run.refused_status": "VOOL ने यह बारी नहीं चलाई (HTTP {status})।"
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

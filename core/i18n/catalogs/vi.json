@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "Không tải được các tùy chọn giao diện. Hãy tải lại Cài đặt và thử lại.",
     "settings.appearance.unsaved": "Không lưu được, nên chỉ áp dụng cho cửa sổ này.",
     "settings.row.appearance_theme.help": "Chọn Sáng hoặc Tối, hoặc \"Giống máy tính này\" để theo cài đặt của máy tính. Cỡ chữ giúp cuộc trò chuyện dễ đọc hơn.",
-    "settings.row.appearance_theme.label": "Giao diện và cỡ chữ"
+    "settings.row.appearance_theme.label": "Giao diện và cỡ chữ",
+    "run.refused_reason": "VOOL không chạy lượt này: {reason}",
+    "run.refused_status": "VOOL không chạy lượt này (HTTP {status})."
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

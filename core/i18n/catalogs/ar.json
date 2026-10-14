@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "لم تُحمَّل عناصر التحكم في المظهر. أعد تحميل الإعدادات وحاول مرة أخرى.",
     "settings.appearance.unsaved": "تعذّر الحفظ، لذا يسري على هذه النافذة فقط.",
     "settings.row.appearance_theme.help": "اختر الفاتح أو الداكن، أو «مثل هذا الكمبيوتر» ليتبع إعداد جهازك. حجم النص يجعل المحادثة أسهل في القراءة.",
-    "settings.row.appearance_theme.label": "المظهر وحجم النص"
+    "settings.row.appearance_theme.label": "المظهر وحجم النص",
+    "run.refused_reason": "لم يشغّل VOOL هذا الدور: {reason}",
+    "run.refused_status": "لم يشغّل VOOL هذا الدور (HTTP {status})."
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

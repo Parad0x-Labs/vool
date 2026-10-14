@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "Os controles de aparência não carregaram. Recarregue as Configurações e tente de novo.",
     "settings.appearance.unsaved": "Não foi possível salvar, então vale só para esta janela.",
     "settings.row.appearance_theme.help": "Escolha Claro ou Escuro, ou \"Igual a este computador\" para seguir a definição do seu computador. O tamanho do texto torna a conversa mais fácil de ler.",
-    "settings.row.appearance_theme.label": "Tema e tamanho do texto"
+    "settings.row.appearance_theme.label": "Tema e tamanho do texto",
+    "run.refused_reason": "O VOOL não executou este turno: {reason}",
+    "run.refused_status": "O VOOL não executou este turno (HTTP {status})."
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -36,7 +36,15 @@ def main():
     approve = sub.add_parser("approve")
     approve.add_argument("sid")
     approve.add_argument("task_id")
-    args = parser.parse_args()
+    # Fingerprints and links are base64url, so one can start with "-": end option parsing right
+    # after the subcommand, or argparse would read such a pin as an unknown flag.
+    argv = list(sys.argv[1:])
+    for i, word in enumerate(argv):
+        if word in ("invite", "join"):
+            if i + 1 >= len(argv) or argv[i + 1] != "--":
+                argv.insert(i + 1, "--")
+            break
+    args = parser.parse_args(argv)
     print(WARNING, file=sys.stderr)
     try:
         require_enabled()

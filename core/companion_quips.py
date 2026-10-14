@@ -26,7 +26,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
     "think": (
         "Thinking cap on…",
         "Pondering deeply…",
-        "Consulting the goblins…",
+        "Consulting my notes…",
         "Warming up the brain…",
         "Doing the thinky thing…",
         "Hmm, let me see…",
@@ -44,7 +44,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Gears are turning…",
         "I'm on it…",
         "Give me a sec…",
-        "Goblins conferring…",
+        "Mulling it over…",
     ),
     "search": (
         "Fetching unicorns…",
@@ -85,7 +85,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Digging deep…",
         "Checking under the couch…",
         "Dusting off old files…",
-        "Goblins arrived, digging…",
+        "Helpers arrived, digging…",
         "Shovel in hand…",
     ),
     "code": (
@@ -102,7 +102,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Fitting the pieces…",
     ),
     "exec": (
-        "Goblins arrived, working…",
+        "Helpers arrived, working…",
         "Running the machine…",
         "Pulling levers…",
         "Pressing the big button…",
@@ -110,7 +110,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Cranking the handle…",
         "Letting the tools work…",
         "Stoking the furnace…",
-        "Goblins on the job…",
+        "Little helpers on the job…",
         "Gears are whirring…",
         "Machines humming…",
         "Elves at work…",

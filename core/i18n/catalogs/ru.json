@@ -2375,9 +2375,11 @@
     "settings.appearance.unavailable": "Настройки оформления не загрузились. Перезагрузите настройки и попробуйте снова.",
     "settings.appearance.unsaved": "Не удалось сохранить, поэтому действует только в этом окне.",
     "settings.row.appearance_theme.help": "Выберите светлую или тёмную тему или «Как на этом компьютере», чтобы следовать настройке компьютера. Размер текста делает разговор удобнее для чтения.",
-    "settings.row.appearance_theme.label": "Тема и размер текста"
+    "settings.row.appearance_theme.label": "Тема и размер текста",
+    "run.refused_reason": "VOOL не выполнил этот ход: {reason}",
+    "run.refused_status": "VOOL не выполнил этот ход (HTTP {status})."
   },
-  "source_catalog_sha256": "de3be71c5e40f532af05d0d90b533d405ed86cfcfed87f158f023001edb0df4a",
+  "source_catalog_sha256": "c93c7a60d5ce39af1c062bdfe737bdd8ed671de44783679dd5a06dab8f055342",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
