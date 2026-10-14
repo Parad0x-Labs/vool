@@ -105,6 +105,17 @@ location /registry/api/pictures/ {
 
 A VOOL build that predates the `icon`, `banner`, `languages` or `needs` metadata fields refuses a whole catalog in which any entry carries one, including builds whose owner installed a trust anchor through `VOOL_REGISTRY_ROOT_FILE`. Ship the first registry trust anchor only in a build that knows every field the catalog will carry. Upgrade the registry service before signing any entry with pictures, because an older service refuses that catalog too. Builds without a trust anchor never read the catalog, so they are unaffected.
 
+## Skill reports
+
+Read open reports with `vool-registry reports-open --config CONFIG` (see [SKILL-CODEX.md](SKILL-CODEX.md#skill-reports)). It lists every skill with open reports or a pause, including a pause whose reports are gone. Each report shows its id, reason, note, time, whether it counted toward a pause and `reporter`, an opaque handle that is the same for every report from one account. Read the reported version from `<artifact_dir>/<sha256>.json` (downloads of a paused skill are refused) and check the claim against its files: instructions that ask for money, passwords, keys or a recovery phrase, behaviour the description does not mention, a copy of someone else's work, a misleading picture, or a skill that does not work.
+
+- Nothing wrong: `reports-close` closes the reports, wipes their notes and ends a pause the reports caused.
+- Harmful or stolen: `skill-pause` keeps downloads paused, then revoke the version in the next signed catalog so VOOL stops listing it. A pause alone does not change what VOOL lists. `skill-resume` ends an operator's pause.
+- A bad picture: remove its entry from `approved_pictures` and restart the service, then `reports-close`.
+- Reports in bad faith: `reporter-mute --target REPORT_ID` for each report. That account's open and later reports stop counting and its comments are held. A closed report never counts again either: the same account cannot pause that skill a second time.
+
+A paused skill stays paused until an operator acts. Check the list every day while the registry is open.
+
 ## Native activation and release limits
 
 Ship the reviewed public trust anchor as `core/registry/trusted-root.json` in the actual v0.7.1 release, or install an operator-controlled anchor explicitly through local configuration. The native client verifies the existing packaged `BUILD_MANIFEST.json`: exact SHA/version, clean/release verdict, native verification and architecture. It does not accept a target, trust root or fetch URL from website input. Current released-manifest discovery covers macOS; other platform identity formats require their own real release integration before claiming support.

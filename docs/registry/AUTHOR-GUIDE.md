@@ -188,6 +188,10 @@ A person looks at every new picture before it shows on the website or in VOOL; u
 
 With GitHub import, name the pictures by their path inside the imported folder.
 
+## When someone reports your skill
+
+People can report a skill on the website as a scam, harmful, copied, a misleading picture, broken or something else. Reports are private, and nobody sees how many a skill has or who sent them. When three accounts older than a day report a skill as a scam, harmful or copied, its downloads pause until a person on our side looks. People who try to download it meanwhile see that downloads are paused. A pause is not a verdict: if the reports don't hold up, downloads continue and the notes are deleted; if they do, that version is removed from the next signed catalog. You cannot report your own skill.
+
 ## Private states, failed review and public consent
 
 | API state | Meaning and author action |

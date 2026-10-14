@@ -18,7 +18,7 @@ from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
 from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
-from registry_service import community
+from registry_service import community, reports
 from registry_service.auth import Auth
 from registry_service.curation import labels, load_curation, picture_approvals
 from registry_service.store import Store
@@ -161,6 +161,10 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             if prior is None or version_key(row["version"]) > version_key(prior["version"]):
                 latest[row["id"]] = row
         rows = list(latest.values())
+        held = await run_in_threadpool(reports.paused, store)
+        for row in rows:
+            if row["id"] in held:
+                row["downloads_paused"] = True
         rows.sort(key=lambda row: (-row["stars"], row["id"]))
         category_counts = {}
         for rank, row in enumerate(rows, 1):
@@ -226,6 +230,17 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         who = account(request, mutation=True)
         return JSONResponse(await run_in_threadpool(community.report_comment, store, who,
                                                     request.path_params["identifier"], now=now()))
+
+    async def skill_reports(request):
+        if request.method == "GET":
+            return JSONResponse(await run_in_threadpool(reports.status, store, request.query_params.get("id"),
+                                                        optional_account(request), now=now()))
+        who = account(request, mutation=True)
+        value = await json_body(request)
+        return JSONResponse(await run_in_threadpool(reports.file_report, store, who, value, now=now()), status_code=201)
+
+    async def downloads_allowed(package_id):
+        require(package_id not in await run_in_threadpool(reports.paused, store), reports.PAUSED)
 
     async def github_import(request):
         require(github is not None, "GitHub import is not configured")
@@ -312,6 +327,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     async def ticket(request):
         approved = entry(request.query_params.get("id"), request.query_params.get("version"))
+        await downloads_allowed(approved["metadata"]["id"])
         token = await run_in_threadpool(store.ticket, approved["artifact_sha256"], now=now())
         return JSONResponse({"sha256": approved["artifact_sha256"], "length": approved["artifact_length"],
             "url": PREFIX + "/artifacts/" + approved["artifact_sha256"] + "?ticket=" + token,
@@ -321,6 +337,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         sha256 = request.path_params["sha256"]
         _, admission = await run_in_threadpool(store.public_artifact, sha256)
         entry(admission["metadata"]["id"], admission["metadata"]["version"])
+        await downloads_allowed(admission["metadata"]["id"])  # also tickets handed out before the pause
         raw = await run_in_threadpool(store.download, sha256, request.query_params.get("ticket", ""), now=now())
         # A signed-in website download makes the account eligible to comment.
         who = optional_account(request)
@@ -379,6 +396,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/profiles/{namespace}", profile_page),
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
         Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),
+        Route(PREFIX + "/reports", skill_reports, methods=["GET", "POST"]),
         Route(PREFIX + "/imports", github_import, methods=["POST"]),
         Route(PREFIX + "/publisher-link", publisher_link, methods=["POST"]),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),

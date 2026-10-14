@@ -1862,6 +1862,9 @@
     "addons.registry_network": "Diese Schaltfläche ruft das öffentliche Verzeichnis ab. Konten, Chats, lokale Dateien und Anbieter-Schlüssel werden nicht gesendet.",
     "addons.registry_empty": "Keine gelisteten Versionen passen zu diesem genauen VOOL-Build und Ihrer Suche.",
     "addons.registry_inspect": "Zur Prüfung herunterladen",
+    "addons.registry_report": "Diese Fertigkeit melden",
+    "addons.registry_report_note": "Öffnet die Website des Fertigkeiten-Codex in Ihrem Browser. Melden Sie sich dort an, wählen Sie einen Grund und senden Sie die Meldung ab. VOOL selbst sendet nichts.",
+    "addons.registry_paused": "Downloads dieser Fertigkeit sind pausiert, während eine Person sie prüft. Bitte schauen Sie später wieder vorbei.",
     "addons.registry_category_writing": "Schreiben",
     "addons.registry_category_productivity": "Produktivität",
     "addons.registry_category_research_learning": "Recherche & Lernen",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "Webbrowser",
     "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

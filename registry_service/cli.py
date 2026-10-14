@@ -48,14 +48,15 @@ def load_service(config: dict, *, now: int):
     return store, trust, auth
 
 
-MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending")
+MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending",
+              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute")
 
 
 def moderate(args) -> int:
     """Operator-only moderation against the private store. There is no HTTP route for this."""
     import json
 
-    from registry_service import community
+    from registry_service import community, reports
 
     try:
         config = decode(args.config.read_bytes(), 65536)
@@ -77,6 +78,20 @@ def moderate(args) -> int:
                     with (folder / (sha256 + ".png")).open("xb") as handle:
                         handle.write(store.picture(sha256)[1])
             print(json.dumps(pending, indent=2))
+        elif args.command == "reports-open":
+            print(json.dumps(reports.open_reports(store), indent=2))
+        elif args.command == "reports-close":
+            reports.close(store, args.target)
+            print("Done.")
+        elif args.command == "skill-pause":
+            reports.pause(store, args.target, now=int(time.time()))
+            print("Done.")
+        elif args.command == "skill-resume":
+            reports.resume(store, args.target)
+            print("Done.")
+        elif args.command == "reporter-mute":
+            reports.mute_reporter(store, args.target, now=int(time.time()))
+            print("Done.")
         elif args.command == "comments-held":
             print(json.dumps(community.held(store), indent=2))
         elif args.command in {"comment-publish", "comment-remove"}:
@@ -96,8 +111,8 @@ def main(argv=None) -> int:
     parser.add_argument("command", choices=["check-config", "serve", *MODERATION])
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--port", type=int, default=8791)
-    parser.add_argument("--target", default="", help="comment id or account namespace for moderation commands; "
-                        "for pictures-pending, a new folder to write the waiting pictures into")
+    parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
+                        "for moderation commands; for pictures-pending, a new folder to write the waiting pictures into")
     args = parser.parse_args(argv)
     trust = None
     if args.command in MODERATION:

@@ -1862,6 +1862,9 @@
     "addons.registry_network": "이 버튼은 공개 레지스트리를 요청합니다. 계정, 채팅, 로컬 파일이나 공급자 키는 전송하지 않습니다.",
     "addons.registry_empty": "이 특정 VOOL 빌드와 검색에 맞는 등록된 버전이 없습니다.",
     "addons.registry_inspect": "확인용으로 다운로드",
+    "addons.registry_report": "이 스킬 신고",
+    "addons.registry_report_note": "브라우저에서 스킬 코덱스 웹사이트를 엽니다. 그곳에서 로그인하고 사유를 골라 신고를 보내세요. VOOL은 직접 아무것도 보내지 않습니다.",
+    "addons.registry_paused": "담당자가 확인하는 동안 이 스킬의 다운로드가 일시 중지되었습니다. 나중에 다시 확인해 주세요.",
     "addons.registry_category_writing": "글쓰기",
     "addons.registry_category_productivity": "생산성",
     "addons.registry_category_research_learning": "리서치 및 학습",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "브라우저",
     "addons.registry_need_files": "내 파일"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

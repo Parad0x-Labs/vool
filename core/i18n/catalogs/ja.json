@@ -1862,6 +1862,9 @@
     "addons.registry_network": "このボタンは公開レジストリに問い合わせます。アカウント、チャット、ローカルファイル、プロバイダーのキーは送信されません。",
     "addons.registry_empty": "この特定の VOOL ビルドと検索条件に一致する掲載バージョンはありません。",
     "addons.registry_inspect": "確認用にダウンロード",
+    "addons.registry_report": "このスキルを報告",
+    "addons.registry_report_note": "ブラウザでスキルコーデックスのウェブサイトを開きます。そこでサインインし、理由を選んで報告を送信してください。VOOL からは何も送信されません。",
+    "addons.registry_paused": "担当者が確認しているため、このスキルのダウンロードは一時停止中です。しばらくしてからもう一度ご確認ください。",
     "addons.registry_category_writing": "文章作成",
     "addons.registry_category_productivity": "生産性",
     "addons.registry_category_research_learning": "リサーチと学習",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "ブラウザー",
     "addons.registry_need_files": "あなたのファイル"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1862,6 +1862,9 @@
     "addons.registry_network": "Ten przycisk odpytuje publiczny rejestr. Konta, rozmowy, pliki lokalne i klucze dostawców nie są wysyłane.",
     "addons.registry_empty": "Żadna opublikowana wersja nie pasuje do tej dokładnej kompilacji VOOL i wyszukiwania.",
     "addons.registry_inspect": "Pobierz do sprawdzenia",
+    "addons.registry_report": "Zgłoś tę umiejętność",
+    "addons.registry_report_note": "Otwiera stronę kodeksu umiejętności w przeglądarce. Zaloguj się tam, wybierz powód i wyślij zgłoszenie. VOOL sam niczego nie wysyła.",
+    "addons.registry_paused": "Pobieranie tej umiejętności jest wstrzymane, dopóki ktoś jej nie sprawdzi. Zajrzyj później.",
     "addons.registry_category_writing": "Pisanie",
     "addons.registry_category_productivity": "Produktywność",
     "addons.registry_category_research_learning": "Badania i nauka",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "Przeglądarka",
     "addons.registry_need_files": "Twoje pliki"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

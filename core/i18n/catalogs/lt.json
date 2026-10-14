@@ -1862,6 +1862,9 @@
     "addons.registry_network": "Šis mygtukas užklausia viešą registrą. Paskyros, pokalbiai, vietiniai failai ir tiekėjų raktai nesiunčiami.",
     "addons.registry_empty": "Nė viena paskelbta versija neatitinka šio konkretaus VOOL rinkinio ir paieškos.",
     "addons.registry_inspect": "Atsisiųsti peržiūrai",
+    "addons.registry_report": "Pranešti apie šį įgūdį",
+    "addons.registry_report_note": "Naršyklėje atidaro įgūdžių kodekso svetainę. Ten prisijunkite, pasirinkite priežastį ir išsiųskite pranešimą. VOOL pats nieko nesiunčia.",
+    "addons.registry_paused": "Šio įgūdžio atsisiuntimai sustabdyti, kol žmogus jį peržiūri. Užsukite vėliau.",
     "addons.registry_category_writing": "Rašymas",
     "addons.registry_category_productivity": "Produktyvumas",
     "addons.registry_category_research_learning": "Tyrimai ir mokymasis",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "Naršyklė",
     "addons.registry_need_files": "Jūsų failai"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

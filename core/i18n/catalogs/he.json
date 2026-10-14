@@ -1862,6 +1862,9 @@
     "addons.registry_network": "כפתור זה מבקש את המאגר הציבורי. חשבונות, שיחות, קבצים מקומיים או מפתחות ספקים אינם נשלחים.",
     "addons.registry_empty": "אין גרסאות רשומות התואמות לבניית VOOL המסוימת הזו ולחיפוש.",
     "addons.registry_inspect": "הורדה לבדיקה",
+    "addons.registry_report": "דיווח על המיומנות הזו",
+    "addons.registry_report_note": "פותח את אתר קודקס המיומנויות בדפדפן. שם מתחברים, בוחרים סיבה ושולחים את הדיווח. VOOL לא שולח דבר בעצמו.",
+    "addons.registry_paused": "ההורדות של המיומנות הזו מושהות בזמן שאדם בודק אותה. נסו שוב מאוחר יותר.",
     "addons.registry_category_writing": "כתיבה",
     "addons.registry_category_productivity": "פרודוקטיביות",
     "addons.registry_category_research_learning": "מחקר ולמידה",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "דפדפן",
     "addons.registry_need_files": "הקבצים שלך"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

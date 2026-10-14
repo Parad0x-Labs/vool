@@ -1862,6 +1862,9 @@
     "addons.registry_network": "此按钮会请求公开注册表。不会发送账户、聊天、本地文件或提供商密钥。",
     "addons.registry_empty": "没有已上架版本符合此确切 VOOL 构建和搜索条件。",
     "addons.registry_inspect": "下载以检查",
+    "addons.registry_report": "举报此技能",
+    "addons.registry_report_note": "在浏览器中打开技能宝典网站。请在那里登录、选择原因并发送举报。VOOL 本身不会发送任何内容。",
+    "addons.registry_paused": "此技能的下载已暂停，正在由人工查看。请稍后再来。",
     "addons.registry_category_writing": "写作",
     "addons.registry_category_productivity": "效率",
     "addons.registry_category_research_learning": "研究与学习",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "浏览器",
     "addons.registry_need_files": "你的文件"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

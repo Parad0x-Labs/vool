@@ -1862,6 +1862,9 @@
     "addons.registry_network": "यह बटन सार्वजनिक रजिस्ट्री से अनुरोध करता है। खाते, चैट, स्थानीय फ़ाइलें या प्रदाता की कुंजियाँ नहीं भेजी जातीं।",
     "addons.registry_empty": "इस निश्चित VOOL बिल्ड और खोज के लिए कोई सूचीबद्ध संस्करण नहीं मिला।",
     "addons.registry_inspect": "जाँच के लिए डाउनलोड करें",
+    "addons.registry_report": "इस कौशल की रिपोर्ट करें",
+    "addons.registry_report_note": "आपके ब्राउज़र में कौशल कोडेक्स वेबसाइट खोलता है। वहाँ साइन इन करें, कारण चुनें और रिपोर्ट भेजें। VOOL खुद कुछ नहीं भेजता।",
+    "addons.registry_paused": "इस कौशल के डाउनलोड रुके हुए हैं, जब तक कोई व्यक्ति इसकी जाँच कर रहा है। कृपया बाद में देखें।",
     "addons.registry_category_writing": "लेखन",
     "addons.registry_category_productivity": "उत्पादकता",
     "addons.registry_category_research_learning": "शोध और सीखना",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "ब्राउज़र",
     "addons.registry_need_files": "आपकी फ़ाइलें"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

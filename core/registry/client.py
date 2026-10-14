@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import http.client
 import os
 import platform
 import threading
@@ -12,7 +13,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import COMMIT, HEX, RegistryError, decode, require
+from core.registry.codec import COMMIT, DOWNLOADS_PAUSED, HEX, RegistryError, decode, require
 from core.registry.media import LIMITS, describe
 from core.registry.native import STATE_NAME, _write, home, install, preview
 from core.registry.trust import TrustedCatalog
@@ -40,6 +41,17 @@ def fetch(url: str, *, limit: int) -> bytes:
             raw = response.read(limit + 1)
             require(len(raw) <= limit, "registry response exceeds byte limit")
             return raw
+    except urllib.error.HTTPError as error:
+        # One refusal is shown as it is, because a person can act on it; any other answer stays generic.
+        try:
+            answer = decode(error.read(4097), 4096) if error.code == 400 else None
+        except (RegistryError, OSError, ValueError, http.client.HTTPException):
+            answer = None
+        finally:
+            error.close()
+        if isinstance(answer, dict) and answer.get("error") == DOWNLOADS_PAUSED:
+            raise RegistryError(DOWNLOADS_PAUSED) from None
+        raise RegistryError("registry unavailable; existing discovery and local skills remain available") from None
     except (urllib.error.URLError, OSError):
         raise RegistryError("registry unavailable; existing discovery and local skills remain available") from None
 
@@ -96,8 +108,9 @@ class Client:
             _PICTURE_STATE["browsed"] = True
         from core.registry.requirements import public_requirements
 
+        # Reporting happens on the website, after the person picks a reason; VOOL only opens the page.
         return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target,
-                "requirements": public_requirements()}
+                "requirements": public_requirements(), "report_page": self.origin + "/codex/skills/report"}
 
     def picture(self, package_id: str, sha256: str, *, approved: bool, now: int) -> dict:
         """A listed skill's approved icon, checked against the signed listing from this run's Browse."""
@@ -122,13 +135,18 @@ class Client:
         return {"status": "ok", "id": package_id, "sha256": sha256, "type": "image/png",
                 "data": base64.b64encode(cached).decode("ascii")}
 
-    def prepare(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
-        require(approved is True, "explicit package download consent required")
-        entry = self.catalog.resolve(package_id, version, target=self.target, now=now)
+    def _ticket(self, entry: dict, package_id: str, version: str) -> dict:
+        # The registry refuses a ticket while downloads of the skill are paused; asking does not count as a download.
         query = urllib.parse.urlencode({"id": package_id, "version": version})
         ticket = decode(self.request(self.origin + PREFIX + "/download?" + query, limit=65536), 65536)
         require(isinstance(ticket, dict) and ticket.get("sha256") == entry["artifact_sha256"] and
                 ticket.get("length") == entry["artifact_length"], "download ticket differs from admission")
+        return ticket
+
+    def prepare(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
+        require(approved is True, "explicit package download consent required")
+        entry = self.catalog.resolve(package_id, version, target=self.target, now=now)
+        ticket = self._ticket(entry, package_id, version)
         parsed = urllib.parse.urlsplit(str(ticket.get("url", "")))
         params = urllib.parse.parse_qs(parsed.query, max_num_fields=2)
         require(not parsed.scheme and not parsed.netloc and not parsed.fragment and
@@ -144,6 +162,9 @@ class Client:
     def accept(self, package_id: str, version: str, review_id: str, *, accepted: bool, enable: bool, now: int) -> dict:
         entry = self.catalog.resolve(package_id, version, target=self.target, now=now)
         require(review_id == entry["artifact_sha256"], "review does not name this exact package version")
+        if accepted:
+            # A skill paused after it was downloaded for inspection is not installed from the local copy either.
+            self._ticket(entry, package_id, version)
         stage = home() / "registry_staging" / (entry["artifact_sha256"] + ".json")
         try:
             raw = stage.read_bytes()

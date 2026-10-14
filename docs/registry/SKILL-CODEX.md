@@ -60,6 +60,29 @@ vool-registry mute --config CONFIG --target NAMESPACE                # hides the
 vool-registry unmute --config CONFIG --target NAMESPACE
 ```
 
+## Skill reports
+
+Anyone signed in can report a skill from the website. A report holds the skill's ID, one reason and an optional note the person typed, and it is tied to the sender's account and the time it was sent; the account is never shown, not even to operators. The website sends nothing else. The VOOL app only opens the report page (`/codex/skills/report?id=publisher%2Fname`) in the browser and sends nothing itself.
+
+| Request | Contract |
+|---|---|
+| `GET /reports?id=publisher/name` | `{reasons:[{id, label}], note_limit, can_report}`. A signed-in viewer who cannot report also receives `can_report_reason`: `own_skill`, `already_reported` or `daily_limit`. Signed out, `can_report` is false with no reason code. A skill that is published but no longer listed still answers; check the catalog before showing the form. |
+| `POST /reports` | Same-origin JSON `{id, reason, note?}`. Returns HTTP 201 `{status: "received"}`, or HTTP 400 `{error}`. |
+
+The reasons are `scam`, `harmful`, `stolen`, `picture`, `broken` and `other`; read their labels from `GET /reports`. `other` needs a note. A note is plain text of at most 500 characters and may name a link, for example to the original of a copied skill. A note that looks like it holds a key, password or recovery phrase (also numbered, split up or with a typo) is refused and not stored. This check can miss things, so the form asks people not to paste them. Each account can report a skill once while its earlier report is open, at most ten reports in any 24 hours, and never a skill it publishes.
+
+Reports are private. No page shows how many reports a skill has, their reasons or who sent them. Three open `scam`, `harmful` or `stolen` reports pause downloads of every version of that skill. They count only from accounts older than one day, that are not muted, and that have not already reported that skill in a report an operator closed. A pause refuses new download tickets and tickets already handed out, with HTTP 400 `{"error": "downloads of this skill are paused while a person looks into it"}`, and the skill's catalog row carries `downloads_paused: true`. The skill stays listed, because only the signed catalog decides what is listed. Other reports reach the operator but never pause a skill. VOOL says in the person's language that downloads are paused when someone tries to download or install a paused skill, including one downloaded for inspection before the pause. Installing that inspected copy asks the registry again, so it waits until VOOL can reach the registry.
+
+Operators read and act on reports on the server, never over HTTP:
+
+```sh
+vool-registry reports-open --config CONFIG                           # every skill with open reports or a pause
+vool-registry reports-close --config CONFIG --target PUBLISHER/NAME  # looked at: closes them, wipes notes, ends a pause they caused
+vool-registry skill-pause --config CONFIG --target PUBLISHER/NAME    # an operator's pause; reports-close does not end it
+vool-registry skill-resume --config CONFIG --target PUBLISHER/NAME   # ends any pause and closes open reports
+vool-registry reporter-mute --config CONFIG --target REPORT_ID       # the account behind that report stops counting
+```
+
 ## Updates
 
 An update keeps the stable package ID and must use a higher version than every published one. The server refuses a reused or lower version before scanning. Stars, download requests and comments stay with the stable ID.

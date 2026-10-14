@@ -1862,6 +1862,9 @@
     "addons.registry_network": "Эта кнопка запрашивает публичный реестр. Аккаунты, переписки, локальные файлы и ключи провайдеров не отправляются.",
     "addons.registry_empty": "Нет опубликованных версий для этой конкретной сборки VOOL и вашего поиска.",
     "addons.registry_inspect": "Скачать для просмотра",
+    "addons.registry_report": "Сообщить о проблеме с навыком",
+    "addons.registry_report_note": "Открывает сайт кодекса навыков в браузере. Войдите там, выберите причину и отправьте сообщение. VOOL сам ничего не отправляет.",
+    "addons.registry_paused": "Загрузка этого навыка приостановлена, пока его проверяет человек. Загляните позже.",
     "addons.registry_category_writing": "Тексты",
     "addons.registry_category_productivity": "Продуктивность",
     "addons.registry_category_research_learning": "Исследования и обучение",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "Браузер",
     "addons.registry_need_files": "Ваши файлы"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

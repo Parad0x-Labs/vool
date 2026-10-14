@@ -1862,6 +1862,9 @@
     "addons.registry_network": "Este botão consulta o registro público. Contas, conversas, arquivos locais e chaves de provedores não são enviados.",
     "addons.registry_empty": "Nenhuma versão publicada corresponde a esta compilação exata do VOOL e à sua busca.",
     "addons.registry_inspect": "Baixar para inspecionar",
+    "addons.registry_report": "Reportar esta habilidade",
+    "addons.registry_report_note": "Abre o site do códice de habilidades no seu navegador. Entre na sua conta, escolha um motivo e envie o relato. O VOOL não envia nada por conta própria.",
+    "addons.registry_paused": "Os downloads desta habilidade estão pausados enquanto uma pessoa a analisa. Volte mais tarde.",
     "addons.registry_category_writing": "Escrita",
     "addons.registry_category_productivity": "Produtividade",
     "addons.registry_category_research_learning": "Pesquisa e aprendizado",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "Navegador",
     "addons.registry_need_files": "Seus arquivos"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

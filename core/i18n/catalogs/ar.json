@@ -1862,6 +1862,9 @@
     "addons.registry_network": "يطلب هذا الزر السجل العام. لا تُرسل الحسابات أو المحادثات أو الملفات المحلية أو مفاتيح المزودين.",
     "addons.registry_empty": "لا توجد إصدارات مدرجة تطابق بناء VOOL المحدد هذا والبحث.",
     "addons.registry_inspect": "تنزيل للفحص",
+    "addons.registry_report": "الإبلاغ عن هذه المهارة",
+    "addons.registry_report_note": "يفتح موقع دليل المهارات في متصفحك. سجّل الدخول هناك، واختر سببًا، ثم أرسل البلاغ. لا يرسل VOOL أي شيء بنفسه.",
+    "addons.registry_paused": "تنزيلات هذه المهارة متوقفة مؤقتًا بينما يراجعها شخص ما. يُرجى العودة لاحقًا.",
     "addons.registry_category_writing": "الكتابة",
     "addons.registry_category_productivity": "الإنتاجية",
     "addons.registry_category_research_learning": "البحث والتعلّم",
@@ -1941,7 +1944,7 @@
     "addons.registry_need_browser": "المتصفح",
     "addons.registry_need_files": "ملفاتك"
   },
-  "source_catalog_sha256": "b9aca7c680211621f96c8e3ac041a757520543aa5d0a0a2628efd9c0f2deef31",
+  "source_catalog_sha256": "f17343688460ae293fbd903515d4f83e45b3be02035c08702d3694fc3af88840",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

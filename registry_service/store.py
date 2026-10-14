@@ -70,6 +70,14 @@ class Store:
                     ON DELETE CASCADE, created INTEGER NOT NULL);
                 CREATE TABLE IF NOT EXISTS public_pictures (sha256 TEXT PRIMARY KEY, type TEXT NOT NULL,
                     data BLOB NOT NULL);
+                CREATE TABLE IF NOT EXISTS skill_reports (id TEXT PRIMARY KEY, package_id TEXT NOT NULL,
+                    account TEXT REFERENCES accounts(id) ON DELETE CASCADE, created INTEGER NOT NULL,
+                    reason TEXT NOT NULL, note TEXT NOT NULL, counted INTEGER NOT NULL, state TEXT NOT NULL);
+                CREATE UNIQUE INDEX IF NOT EXISTS skill_reports_open ON skill_reports(package_id,account)
+                    WHERE state='open';
+                CREATE INDEX IF NOT EXISTS skill_reports_account ON skill_reports(account,created);
+                CREATE TABLE IF NOT EXISTS paused_packages (package_id TEXT PRIMARY KEY, created INTEGER NOT NULL,
+                    cause TEXT NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
