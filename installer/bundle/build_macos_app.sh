@@ -323,6 +323,162 @@ bundle_ollama_runtime() {
   return 0
 }
 
+# ── Builder-footprint roots ────────────────────────────────────────────────────────────────
+# A distributed bundle must not carry ANY absolute path of the machine or run that built it.
+# The 0.6.0-beta release scan found 3,907 files embedding the builder's home and the scrub below
+# was written against ${HOME} alone — but a build run from a checkout or output on an external
+# disk (/Volumes/...), a staging or mktemp folder (/private/var/folders/...), or a python staged
+# from outside the home (/opt/homebrew, /Library/Frameworks, a UV_PYTHON_INSTALL_DIR anywhere) is
+# neither scrubbed nor caught by a home-only gate. Every scrub step and the gate therefore work
+# from ONE list of builder roots:
+#   * the builder's home (${HOME}),
+#   * the checkout/staging root (${PROJECT_ROOT}),
+#   * the build output root (${OUT_DIR}) — every staging dir the script creates lives under it,
+#   * the embedded CPython's original prefix (dist_root, passed by the caller — the same prefix
+#     _sysconfigdata and libpython's install name carry),
+#   * ${TMPDIR} when set — the platform's mktemp puts the provenance audit and the DMG staging
+#     dir there; with TMPDIR unset those land under /tmp, which the length rule below drops.
+# Roots that are "/" or shorter than 5 characters are DROPPED, on purpose: "/" matches every
+# absolute path ever written, and a shared system directory ("/tmp", "/var", "/usr") is bytes a
+# legitimately bundled file may carry (docs, defaults, a wheel's own build directories) — gating
+# those fails honest builds while protecting nothing a real build layout uses.
+# ALLOWED EXCEPTIONS (written once, here): "/private/etc/ssl" bytes inside the bundled
+# cryptography wheel are that wheel's own OpenSSL prefix/openssldir (installer/bundle/
+# built_wheels.json) — a fixed macOS system path, not a builder root, and no root this list can
+# emit is a substring of it, so it must never be treated as a leak.
+builder_root_list() {
+  # Emit the deduplicated roots LONGEST FIRST — a nested root (a repo under ${HOME}, TMPDIR
+  # under /var/folders) must be rewritten whole before its parent is, or the parent's rewrite
+  # leaves it half-replaced. Trailing slashes are normalised away so a TMPDIR like
+  # /var/folders/xx/T/ still matches the bare directory bytes. A root that exists is ALSO
+  # emitted in its symlink-resolved form: the script derives its roots with a logical `pwd`, but
+  # tools that record where they ran (compilers, installers) write the physical path, so a
+  # checkout reached through a link (~/work -> /Volumes/<disk>/work) would otherwise leak its
+  # physical bytes past the gate.
+  local r
+  {
+    for r in "${HOME:-}" "${PROJECT_ROOT:-}" "${OUT_DIR:-}" "${TMPDIR:-}" "$@"; do
+      [[ -n "${r}" ]] || continue
+      printf '%s\n' "${r}"
+      if [[ -d "${r}" ]]; then (cd "${r}" 2>/dev/null && pwd -P) || true; fi
+    done
+  } | sed 's:/*$::' | awk 'NF && $0 != "/" && length($0) >= 5' | LC_ALL=C sort -u \
+    | awk '{ printf "%d %s\n", length($0), $0 }' | LC_ALL=C sort -rn | cut -d' ' -f2-
+}
+
+# Quote a literal for use as a BRE pattern with | as the sed delimiter (builder paths carry
+# dots in version strings; an unescaped dot would over-match).
+sed_quote() { printf '%s' "$1" | sed 's/[.[\*^$|]/\\&/g'; }
+
+builder_footprint_gate() {
+  # THE GATE: no file in the bundle may carry ANY builder root's bytes. Binary-safe (-a, the
+  # grep spelling of --binary-files=text) because .pyc/.dylib are binary; a text-only grep is
+  # exactly how the 0.6.0-beta leak slipped through. Roots arrive on stdin (builder_root_list).
+  # The failure names the root by its LAST path part and up to 5 files RELATIVE to the bundle —
+  # never the builder's full home path.
+  local app="$1" root tail_name hits hit
+  while IFS= read -r root; do
+    [[ -n "${root}" ]] || continue
+    hits="$(grep -r -a -l -F "${root}" "${app}" 2>/dev/null | head -5 || true)"
+    if [[ -n "${hits}" ]]; then
+      tail_name="${root##*/}"
+      while IFS= read -r hit; do
+        printf '  %s\n' "${hit#"${app}"/}" >&2
+      done <<< "${hits}"
+      die "the bundle still carries build-machine path bytes under root \"${tail_name}\"; refusing to ship"
+    fi
+  done
+}
+
+scrub_builder_footprint() {
+  # <staged-resources> <embedded-python> <python-original-prefix>: the four repairs and the
+  # gate, run for EVERY builder root (see builder_root_list), longest root first. All of it
+  # happens before any code signature — signed bytes never change.
+  local res="$1" embedded="$2" python_prefix="$3"
+  local scrubbed_prefix="/install"
+  local roots root escaped sysconf libpython old_id macho
+  roots="$(builder_root_list "${python_prefix}")"
+  # An empty list would make every repair a no-op and the gate vacuous: an unknown footprint
+  # is refused, never shipped.
+  [[ -n "${roots}" ]] \
+    || die "no builder root survived the root-list rules; refusing a build whose footprint gate would check nothing"
+  # (a) the prefixes inside _sysconfigdata: replace FIRST so the full recompile below
+  #     regenerates its .pyc from the scrubbed source.
+  sysconf="$(find "${res}/python/lib" -maxdepth 3 -name '_sysconfigdata*.py' -type f | head -1 || true)"
+  if [[ -n "${sysconf}" ]]; then
+    while IFS= read -r root; do
+      [[ -n "${root}" ]] || continue
+      escaped="$(sed_quote "${root}")"
+      sed -i '' "s|${escaped}|${scrubbed_prefix}|g" "${sysconf}" \
+        || die "could not scrub the builder root \"${root##*/}\" out of _sysconfigdata"
+    done <<< "${roots}"
+    rm -f "${sysconf}c"
+    say "        scrubbed _sysconfigdata prefixes"
+  fi
+  # (b) libpython's install name (and every dependent load of it) -> @rpath, for an original
+  #     prefix anywhere on this machine, not only under the home directory.
+  for libpython in "${res}/python/lib"/libpython*.dylib; do
+    [[ -f "${libpython}" ]] || continue
+    old_id="$(otool -D "${libpython}" 2>/dev/null | tail -1 | sed 's/^ *//')"
+    if [[ -n "${old_id}" ]]; then
+      while IFS= read -r root; do
+        [[ -n "${root}" ]] || continue
+        [[ "${old_id}" == "${root}"* ]] || continue
+        install_name_tool -id "@rpath/$(basename "${libpython}")" "${libpython}" \
+          || die "could not rewrite libpython install name"
+        while IFS= read -r -d '' macho; do
+          install_name_tool -change "${old_id}" "@rpath/$(basename "${libpython}")" "${macho}" 2>/dev/null || true
+        done < <(find "${res}/python" -type f \( -name 'python3*' -o -name '*.dylib' -o -name '*.so' \) -print0)
+        say "        rewrote libpython install name to @rpath"
+        break
+      done <<< "${roots}"
+    fi
+  done
+  # (c) console scripts in python/bin embed the interpreter path they were generated with —
+  #     under any builder root when the artifact is built outside the home. TWO forms exist and
+  #     both must die:
+  #       * the classic absolute shebang  -> rewritten to an env-based shebang;
+  #       * uv's newer #!/bin/sh exec-wrapper, whose SECOND line is a python string constant
+  #         ('''exec' '<abs interpreter>' "$0" "$@") — invisible to a shebang rewrite, carried
+  #         into any bytecode compiled from the script, and a text grep over line 1 misses it.
+  #         The quoted interpreter path becomes 'python3' (sh resolves it from PATH; python
+  #         still sees a harmless string). The scrubbed scripts are then recompiled by (d), so
+  #         bytecode regenerated from them carries no builder bytes either.
+  #     ONLY files that start with "#!" are touched: python/bin also holds the interpreter and
+  #     other Mach-O binaries, and a line-1 rewrite of one of those would corrupt it. Any root
+  #     left inside a binary is the gate's to refuse, never a text edit's to "repair". The list
+  #     is never empty here (refused above): BSD grep reads an EMPTY -f pattern file as "match
+  #     everything". The 400-byte head is read through a process substitution, not a pipe, so
+  #     grep -q exiting early can never SIGPIPE the reader into a false "no match" under pipefail.
+  if [[ -n "${roots}" ]]; then
+    while IFS= read -r -d '' macho; do
+      [[ "$(head -c 2 "${macho}" 2>/dev/null)" == "#!" ]] || continue
+      if ! grep -q -F -f <(printf '%s\n' "${roots}" | sed '/^$/d') <(head -c 400 "${macho}" 2>/dev/null); then
+        continue
+      fi
+      if [[ "$(head -1 "${macho}")" == "#!/bin/sh" ]]; then
+        while IFS= read -r root; do
+          [[ -n "${root}" ]] || continue
+          escaped="$(sed_quote "${root}")"
+          sed -i '' "s|'${escaped}[^']*'|'python3'|g" "${macho}" \
+            || die "could not scrub the exec-wrapper interpreter path in ${macho}"
+        done <<< "${roots}"
+      else
+        sed -i '' "1s|.*|#!/usr/bin/env python3|" "${macho}"
+      fi
+    done < <(find "${res}/python/bin" -maxdepth 1 -type f -print0)
+  fi
+  # (d) ONE full recompile of python + app bytecode with the recorded prefix REWRITTEN:
+  #     -s strips this build's absolute path, -p stamps the canonical install location.
+  #     Hash-based invalidation as before, so the first boot never rewrites the bundle.
+  PYTHONHASHSEED=0 "${embedded}" -m compileall --invalidation-mode unchecked-hash -q -f -j 0 \
+    -s "${APP}" -p /Applications/VOOL.app "${res}" >/dev/null \
+    || die "footprint-scrubbing recompile failed"
+  # (e) THE GATE over every root (see builder_footprint_gate).
+  builder_footprint_gate "${APP}" <<< "${roots}"
+  say "        builder-footprint scrub verified (no builder-root bytes in the bundle)"
+}
+
 stage_self_contained() {
   local res="$1"
   command -v uv >/dev/null 2>&1 || die "--self-contained needs uv (astral.sh) to supply a relocatable CPython"
@@ -553,71 +709,14 @@ stage_self_contained() {
   [[ -x "${res}/ollama/ollama" ]] || say "        WARNING: no ollama binary bundled; the app will use a system ollama if present"
 
   # ---- BUILDER-FOOTPRINT SCRUB (must run before any code signature) ------------------------
-  # A distributed bundle must not carry the BUILD MACHINE's home directory: compiled .pyc
-  # bytecode records the path it was compiled at, uv's Python carries its install prefix in
-  # _sysconfigdata and libpython's install name, and console-script shebangs point into the
-  # builder's home (found by the release scan of the 0.6.0-beta DMG: 3,907 files embedded
-  # /Users/<builder>/...). Four repairs, all before signing -- signed bytes never change.
-  local scrubbed_prefix="/install"
-  # (a) uv's prefix inside _sysconfigdata: replace FIRST so the full recompile below
-  #     regenerates its .pyc from the scrubbed source.
-  local sysconf
-  sysconf="$(find "${res}/python/lib" -maxdepth 3 -name '_sysconfigdata*.py' -type f | head -1 || true)"
-  if [[ -n "${sysconf}" ]]; then
-    sed -i '' "s|${HOME}|${scrubbed_prefix}|g" "${sysconf}" \
-      || die "could not scrub the builder home out of ${sysconf}"
-    rm -f "${sysconf}c"
-    say "        scrubbed _sysconfigdata prefix"
-  fi
-  # (b) libpython's install name (and every dependent load of it) -> @rpath.
-  local libpython old_id macho
-  for libpython in "${res}/python/lib"/libpython*.dylib; do
-    [[ -f "${libpython}" ]] || continue
-    old_id="$(otool -D "${libpython}" 2>/dev/null | tail -1 | sed 's/^ *//')"
-    if [[ -n "${old_id}" && "${old_id}" == "${HOME}"* ]]; then
-      install_name_tool -id "@rpath/$(basename "${libpython}")" "${libpython}" \
-        || die "could not rewrite libpython install name"
-      while IFS= read -r -d '' macho; do
-        install_name_tool -change "${old_id}" "@rpath/$(basename "${libpython}")" "${macho}" 2>/dev/null || true
-      done < <(find "${res}/python" -type f \( -name 'python3*' -o -name '*.dylib' -o -name '*.so' \) -print0)
-      say "        rewrote libpython install name to @rpath"
-    fi
-  done
-  # (c) console scripts in python/bin embed the interpreter path they were generated with, which
-  #     is under $HOME whenever the artifact is built to (or the interpreter staged from) a home-
-  #     nested path. TWO forms exist and both must die:
-  #       * the classic absolute shebang  -> rewritten to an env-based shebang;
-  #       * uv's newer #!/bin/sh exec-wrapper, whose SECOND line is a python string constant
-  #         ('''exec' '<abs interpreter>' "$0" "$@") -- invisible to a shebang rewrite, carried
-  #         into any bytecode compiled from the script, and a text grep over line 1 misses it.
-  #         The quoted interpreter path becomes 'python3' (sh resolves it from PATH; python
-  #         still sees a harmless string). The scrubbed scripts are then recompiled by (d), so
-  #         bytecode regenerated from them carries no home bytes either.
-  while IFS= read -r -d '' macho; do
-    if ! head -c 400 "${macho}" 2>/dev/null | grep -q -F "${HOME}"; then
-      continue
-    fi
-    if [[ "$(head -1 "${macho}")" == "#!/bin/sh" ]]; then
-      sed -i '' "s|'${HOME}[^']*'|'python3'|g" "${macho}" \
-        || die "could not scrub the exec-wrapper interpreter path in ${macho}"
-    else
-      sed -i '' "1s|.*|#!/usr/bin/env python3|" "${macho}"
-    fi
-  done < <(find "${res}/python/bin" -maxdepth 1 -type f -print0)
-  # (d) ONE full recompile of python + app bytecode with the recorded prefix REWRITTEN:
-  #     -s strips this build's absolute path, -p stamps the canonical install location.
-  #     Hash-based invalidation as before, so the first boot never rewrites the bundle.
-  PYTHONHASHSEED=0 "${embedded}" -m compileall --invalidation-mode unchecked-hash -q -f -j 0 \
-    -s "${APP}" -p /Applications/VOOL.app "${res}" >/dev/null \
-    || die "footprint-scrubbing recompile failed"
-  # (e) THE GATE: no file in the bundle may carry the builder's home bytes. Binary-safe
-  #     (--binary-files=text) because .pyc/.dylib are binary; a text-only grep is exactly
-  #     how the 0.6.0-beta leak slipped through.
-  if grep -r -a -l -F "${HOME}" "${APP}" >/dev/null 2>&1; then
-    grep -r -a -l -F "${HOME}" "${APP}" | head -5 >&2
-    die "the bundle still carries the builder's home path (${HOME}); refusing to ship"
-  fi
-  say "        builder-footprint scrub verified (no ${HOME} bytes in the bundle)"
+  # A distributed bundle must not carry the BUILD MACHINE's footprint: compiled .pyc bytecode
+  # records the path it was compiled at, the staged CPython carries its original prefix in
+  # _sysconfigdata and libpython's install name, and console-script shebangs point at the
+  # interpreter uv generated them with (found by the release scan of the 0.6.0-beta DMG: 3,907
+  # files embedded the builder's home). The repairs and the gate run for EVERY builder root —
+  # home, checkout, output dir, the embedded python's original prefix, TMPDIR — not only
+  # ${HOME}; see builder_root_list above scrub_builder_footprint.
+  scrub_builder_footprint "${res}" "${embedded}" "${dist_root}"
 }
 
 
