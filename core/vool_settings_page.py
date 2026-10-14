@@ -424,7 +424,12 @@ def _settings_groups() -> list[dict]:
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
-                    help="Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+                    help=(
+                        "Add, test or remove your keys. One store on this machine holds them all — "
+                        "model providers, web search and security scans — so they live together here, "
+                        "not in the sections that use them. VOOL runs locally without any of them. "
+                        "Saving verifies a key with that one service; search checks may use credits."
+                    ),
                     read={"url": CREDENTIALS},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,

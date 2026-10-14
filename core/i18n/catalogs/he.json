@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "דמות",
     "settings.row.character_mode.placeholder": "ריק — VOOL כעצמו",
     "settings.row.cloud_keys.effect": "חל מיד.",
-    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו מפתחות ספקים. השמירה מאמתת שירות אחד שנבחר; בדיקות חיפוש עשויות לצרוך קרדיטים.",
+    "settings.row.cloud_keys.help": "הוסיפו, בדקו או הסירו את המפתחות שלכם. מאגר אחד במכונה זו מחזיק את כולם — ספקי מודלים, חיפוש באינטרנט וסריקות אבטחה — ולכן הם נמצאים כאן יחד ולא באזורים שמשתמשים בהם. VOOL פועל מקומית גם בלי אף אחד מהם. השמירה מאמתת מפתח רק מול השירות שלו; בדיקות חיפוש עשויות לצרוך קרדיטים.",
     "settings.row.cloud_keys.label": "המפתחות שלכם",
     "settings.row.communication_style.effect": "חל מההודעה הבאה שלך. תשובה שכבר נכתבת שומרת על ההגדרה הקודמת.",
     "settings.row.communication_style.help": "הטון שבו VOOL כותב. הוא משנה את הניסוח, לא את מה ש-VOOL מוכן לעשות.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "כאן כתוב שקודקס המיומנויות או VOOL ערבים למיומנות. רק קודקס המיומנויות יכול לומר זאת, אז הסירו את זה.",
     "addons.publish_line": "בשורה {line}",
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
-    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex."
+    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
+    "addons.browse_intro": "חקרו את Hermes, OpenClaw וספריות נוספות. בדקו דרישות, סקרו את הבדיקה והוסיפו מה שמתאים."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

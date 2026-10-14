@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Nhân vật",
     "settings.row.character_mode.placeholder": "trống — VOOL như chính nó",
     "settings.row.cloud_keys.effect": "Áp dụng ngay.",
-    "settings.row.cloud_keys.help": "Thêm, kiểm tra hoặc xóa khóa của nhà cung cấp. Khi lưu, một dịch vụ đã chọn được xác minh; kiểm tra tìm kiếm có thể dùng tín dụng.",
+    "settings.row.cloud_keys.help": "Thêm, kiểm tra hoặc xóa khóa của bạn. Một kho duy nhất trên máy này giữ tất cả các khóa — nhà cung cấp mô hình, tìm kiếm web và quét bảo mật — nên chúng nằm chung ở đây thay vì trong các mục sử dụng chúng. VOOL vẫn chạy cục bộ khi không có khóa nào. Khi lưu, khóa chỉ được xác minh với dịch vụ của chính nó; kiểm tra tìm kiếm có thể dùng tín dụng.",
     "settings.row.cloud_keys.label": "Khóa của bạn",
     "settings.row.communication_style.effect": "Áp dụng từ tin nhắn tiếp theo của bạn. Câu trả lời đang được viết vẫn giữ cài đặt cũ.",
     "settings.row.communication_style.help": "Giọng văn VOOL dùng khi viết. Nó đổi cách diễn đạt, không đổi những gì VOOL sẵn sàng làm.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Phần này nói rằng bộ sưu tập kỹ năng hoặc VOOL bảo đảm cho kỹ năng. Chỉ bộ sưu tập kỹ năng mới được nói vậy, nên hãy bỏ nó.",
     "addons.publish_line": "Ở dòng {line}",
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
-    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex."
+    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
+    "addons.browse_intro": "Khám phá Hermes, OpenClaw và các thư viện khác. Kiểm tra yêu cầu, xem lại bản quét, rồi thêm những gì phù hợp."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

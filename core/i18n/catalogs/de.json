@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Rolle",
     "settings.row.character_mode.placeholder": "leer — VOOL als es selbst",
     "settings.row.cloud_keys.effect": "Wirkt sofort.",
-    "settings.row.cloud_keys.help": "Anbieterschlüssel hinzufügen, testen oder entfernen. Beim Speichern wird ein ausgewählter Dienst geprüft; Suchtests können Guthaben verbrauchen.",
+    "settings.row.cloud_keys.help": "Schlüssel hinzufügen, testen oder entfernen. Ein Speicher auf dieser Maschine hält sie alle — Modellanbieter, Websuche und Sicherheitsprüfungen —, darum stehen sie hier zusammen statt in den Bereichen, die sie nutzen. VOOL läuft lokal auch ganz ohne sie. Beim Speichern wird ein Schlüssel nur bei seinem eigenen Dienst geprüft; Suchtests können Guthaben verbrauchen.",
     "settings.row.cloud_keys.label": "Deine Schlüssel",
     "settings.row.communication_style.effect": "Gilt ab deiner nächsten Nachricht. Eine Antwort, die gerade geschrieben wird, behält die alte Einstellung.",
     "settings.row.communication_style.help": "Der Ton, in dem VOOL schreibt. Er ändert die Wortwahl, nicht das, was VOOL zu tun bereit ist.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Hier steht, dass der Fertigkeiten-Codex oder VOOL für die Fertigkeit bürgt. Das darf nur der Fertigkeiten-Codex sagen, also entfernen Sie es.",
     "addons.publish_line": "In Zeile {line}",
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
-    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden."
+    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
+    "addons.browse_intro": "Erkunde Hermes, OpenClaw und weitere Bibliotheken. Prüfe die Voraussetzungen, lies den Scan und füge hinzu, was passt."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

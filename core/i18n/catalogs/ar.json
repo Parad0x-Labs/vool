@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "الشخصية",
     "settings.row.character_mode.placeholder": "فارغ — VOOL كما هو",
     "settings.row.cloud_keys.effect": "يسري فورًا.",
-    "settings.row.cloud_keys.help": "أضف مفاتيح المزودين أو اختبرها أو أزلها. يتحقق الحفظ من خدمة واحدة مختارة؛ وقد تستهلك اختبارات البحث رصيدًا.",
+    "settings.row.cloud_keys.help": "أضف مفاتيحك أو اختبرها أو أزلها. مخزن واحد على هذه الآلة يحفظها كلها — مفاتيح مزوّدي النماذج وبحث الويب وفحوصات الأمان — لذا تجتمع هنا لا في الأقسام التي تستخدمها. يعمل VOOL محليًا من دون أي منها. يتحقق الحفظ من المفتاح لدى خدمته وحدها؛ وقد تستهلك اختبارات البحث رصيدًا.",
     "settings.row.cloud_keys.label": "مفاتيحك",
     "settings.row.communication_style.effect": "يُطبَّق من رسالتك التالية. الإجابة التي تُكتب الآن تحتفظ بالإعداد القديم.",
     "settings.row.communication_style.help": "النبرة التي يكتب بها VOOL. تغيّر الصياغة، لا ما يقبل VOOL فعله.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "يقول هذا إن دليل المهارات أو VOOL يضمن المهارة. لا يقول ذلك إلا دليل المهارات، فاحذفه.",
     "addons.publish_line": "في السطر {line}",
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
-    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex."
+    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
+    "addons.browse_intro": "استكشف Hermes وOpenClaw ومكتبات أخرى. تحقق من المتطلبات، راجع الفحص، ثم أضف ما يناسبك."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "b503306f41866d8227fd023a42a5bf7464d280e8628e1457b65c0565026d1890",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

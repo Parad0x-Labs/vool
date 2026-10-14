@@ -1508,7 +1508,7 @@
     "settings.row.character_mode.label": "Character",
     "settings.row.character_mode.placeholder": "empty — VOOL as itself",
     "settings.row.cloud_keys.effect": "Applies immediately.",
-    "settings.row.cloud_keys.help": "Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+    "settings.row.cloud_keys.help": "Add, test or remove your keys. One store on this machine holds them all — model providers, web search and security scans — so they live together here, not in the sections that use them. VOOL runs locally without any of them. Saving verifies a key with that one service; search checks may use credits.",
     "settings.row.cloud_keys.label": "Your keys",
     "settings.row.communication_style.effect": "Applies from your next message. An answer already being written keeps the old setting.",
     "settings.row.communication_style.help": "The tone VOOL writes in. It changes wording, not what VOOL is willing to do.",
@@ -2598,7 +2598,8 @@
     "addons.publish_reason_check_endorsed": "This says the Skill Codex or VOOL vouches for the skill. Only the Skill Codex can say that, so take it out.",
     "addons.publish_line": "In line {line}",
     "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
-    "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex."
+    "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex.",
+    "addons.browse_intro": "Explore Hermes, OpenClaw and other libraries. Check requirements, review the scan, then add what fits."
   },
   "html_keys": [
     "bypass.modal_limits",
