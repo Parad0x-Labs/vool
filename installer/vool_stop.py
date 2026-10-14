@@ -22,11 +22,11 @@ respawning the API), then frees port 11435 with ``lsof`` + ``kill`` (SIGTERM, th
 SIGKILL for any survivor), with the pidfile as a fallback. ``main`` dispatches by platform, so
 the Windows ``hard_stop`` sequence above is unchanged.
 
-The opposite direction is ``rearm_after_open``: the Open_Chat/Open_Web0 launchers call it on
-every start, so opening VOOL on purpose re-arms the supervisor a Stop disarmed (Windows
-VOOL_Daemon task, macOS KeepAlive agent, Linux systemd unit) and clears the ``.vool_stopped``
-marker again. A Stop with no later open leaves everything disarmed: the watchdog's own
-restart loop and logon runs never call it.
+The opposite direction is ``rearm_after_open`` (``--rearm``): the Open_Chat/Open_Web0
+launchers call it when the ``.vool_stopped`` marker is present, so opening VOOL on purpose
+re-arms the supervisor a Stop disarmed (Windows VOOL_Daemon task, macOS KeepAlive agent,
+Linux systemd unit) and clears the marker. A Stop with no later open leaves everything
+disarmed: the watchdog's own restart loop and logon runs never call it.
 """
 from __future__ import annotations
 
@@ -291,20 +291,31 @@ def hard_stop_posix(
     }
 
 
+def _ok(res: Any) -> bool:
+    return res is not None and getattr(res, "returncode", 1) == 0
+
+
 def rearm_after_open(project_root: Path, *, run: Runner = subprocess.run) -> dict[str, Any]:
     """Re-arm auto-restart after a Stop, for a launch the user made on purpose.
 
     A Stop disarmed the keep-alive supervisor (Windows VOOL_Daemon task, macOS KeepAlive
     agent, Linux systemd unit) and wrote the ``.vool_stopped`` marker. The Open_Chat /
-    Open_Web0 launchers call this on every start; while the marker shows a Stop is in
-    effect they arm the supervisor again -- Windows enables the task (the launcher's own
-    ``schtasks /run`` starts it), macOS bootstraps the agent back into the GUI domain
-    (RunAtLoad starts the supervisor immediately, so ``supervisor_started`` is True and
-    the launcher gives it the port before starting a second API itself), Linux re-enables
-    the unit for the next login without starting it now -- and the marker is cleared.
-    Nothing else may call this: the watchdog's restart loop and logon runs must leave a
-    Stop in place, so it lives behind the user launchers only. Without an earlier Stop
-    there is no marker and no command runs at all.
+    Open_Web0 launchers call this while the marker shows a Stop is in effect, and it undoes
+    what the Stop did on this platform:
+
+      * Windows enables the task again (it is an onlogon task; the launcher's own
+        ``schtasks /run`` then starts it for this session),
+      * macOS bootstraps the agent back into ``gui/<uid>`` (RunAtLoad starts it now),
+      * Linux enables the unit again and starts it now (``enable --now``).
+
+    ``supervisor_started`` is True only when the supervisor itself now owns starting the
+    API (macOS, Linux), so the launcher waits for it instead of starting a second API.
+
+    Fails safe: the marker is cleared only when the re-arm worked or there was nothing to
+    re-arm (no task, agent or unit installed). If a command fails the marker stays, nothing
+    is reported as started, the launcher falls back to its plain start, and the next open
+    tries again. Nothing else may call this: the watchdog's restart loop and logon runs must
+    leave a Stop in place. Without an earlier Stop there is no marker and no command runs.
     """
     project_root = Path(project_root)
     marker = project_root / STOPPED_MARKER
@@ -316,29 +327,43 @@ def rearm_after_open(project_root: Path, *, run: Runner = subprocess.run) -> dic
             "marker_cleared": False,
         }
 
-    watchdog_rearmed = False
+    rearmed = False
     supervisor_started = False
+    nothing_to_rearm = False
     if sys.platform == "win32":
-        enable_watchdog(run)
-        watchdog_rearmed = True
+        if not _ok(_run(run, ["schtasks", "/query", "/tn", WATCHDOG_TASK])):
+            nothing_to_rearm = True  # no watchdog task on this install
+        else:
+            rearmed = _ok(_run(run, ["schtasks", "/change", "/tn", WATCHDOG_TASK, "/enable"]))
     elif sys.platform == "darwin":
         plist = launch_agent_plist_path()
-        if plist.exists():
-            res = _run(run, ["launchctl", "bootstrap", f"gui/{os.getuid()}", str(plist)])
-            if res is None or getattr(res, "returncode", 0) != 0:
+        if not plist.exists():
+            nothing_to_rearm = True
+        else:
+            domain = f"gui/{os.getuid()}"
+            if _ok(_run(run, ["launchctl", "bootstrap", domain, str(plist)])):
+                rearmed = True
+            else:
+                # Older launchctl, or the agent is already loaded (RunAtLoad at a later
+                # login): try the legacy load, then trust only what launchd reports.
                 _run(run, ["launchctl", "load", "-w", str(plist)])
-            watchdog_rearmed = True
-            supervisor_started = True
+                rearmed = _ok(_run(run, ["launchctl", "print", f"{domain}/{LAUNCH_AGENT_LABEL}"]))
+            supervisor_started = rearmed
     elif sys.platform.startswith("linux") and shutil.which("systemctl") is not None:
         res = _run(run, ["systemctl", "--user", "list-unit-files", SYSTEMD_UNIT])
-        if SYSTEMD_UNIT in _stdout(res):
-            _run(run, ["systemctl", "--user", "enable", SYSTEMD_UNIT])
-            watchdog_rearmed = True
+        if SYSTEMD_UNIT not in _stdout(res):
+            nothing_to_rearm = True
+        else:
+            rearmed = _ok(_run(run, ["systemctl", "--user", "enable", "--now", SYSTEMD_UNIT]))
+            supervisor_started = rearmed
+    else:
+        nothing_to_rearm = True  # no supervisor that a Stop disarms on this platform
 
-    clear_stopped_marker(project_root)
+    if rearmed or nothing_to_rearm:
+        clear_stopped_marker(project_root)
     return {
         "stopped": True,
-        "watchdog_rearmed": watchdog_rearmed,
+        "watchdog_rearmed": rearmed,
         "supervisor_started": supervisor_started,
         "marker_cleared": not marker.exists(),
     }
