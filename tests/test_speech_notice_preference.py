@@ -21,14 +21,13 @@ def test_dismissal_is_persisted_and_read_back_without_changing_other_preferences
 def test_browser_dismissal_survives_a_fresh_private_context():
     """Real page + real preference doors; dictation availability and other APIs are fixtures."""
     import json
+    import re
     from urllib.parse import urlsplit
 
     from playwright.sync_api import expect, sync_playwright
 
     from core.user_preferences import load_preferences
     from core.vool_chat_page import render_vool_chat_html
-
-    import re
 
     # This build ships the mic switched off, and the page then shows no speech notice at all.
     # Turn the mic button on in the served page so the notice and its dismissal are exercised.
