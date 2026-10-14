@@ -462,7 +462,8 @@ def plan_update(conn: sqlite3.Connection, contact_id: str, *, expected_revision:
         merged = {
             "kind": current["kind"], "value": change.get("value", current["value"]), "label": change.get("label", current["label"]),
             "channel": change.get("channel", current["channel"]), "provider_account": change.get("provider_account", current["provider_account"]),
-            "network": change.get("network", current["chain_network"]),
+            # a blank network on a change keeps the saved chain; detection is only for new entries
+            "network": change.get("network") or current["chain_network"],
         }
         try:
             normalized = normalize_endpoint(merged)
