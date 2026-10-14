@@ -17,9 +17,9 @@ from core.registry.trust import verify
 
 _INSTALL_LOCK = threading.RLock()
 STATE_NAME = "registry_trust.sqlite"
-# The Skill Codex checks VOOL runs again on this device. Wording and licence rules stay the Skill Codex's own, and
-# install() validates the native format itself.
-SAFETY_CHECKS = ("archive", "secrets", "code", "dependencies", "instructions-primary", "native-boundaries")
+# The Skill Codex checks VOOL runs again on this device, on every kind of package. Wording and licence rules stay
+# the Skill Codex's own, and install() validates the native format and the signed dependencies itself.
+TEXT_CHECKS = ("archive", "secrets", "instructions-primary", "native-boundaries")
 
 
 def home() -> Path:
@@ -149,21 +149,29 @@ def recover(plugin_id: str, root: Path) -> None:
     plugin_catalog.invalidate_storage_listing()
 
 
-def safety_check(artifact: dict, raw: bytes) -> None:
-    """A signature alone never installs a skill: VOOL runs the Skill Codex's safety checks again itself.
+def unsafe(artifact: dict, raw: bytes) -> bool:
+    """A signature alone never installs a package: VOOL runs the Skill Codex's safety checks again itself.
 
-    If whoever signs the list were ever taken over, a skill that asks for keys, installs software or
-    tries to get around VOOL's own rules still stops here. Plugins are reviewed another way.
+    If whoever signs the list were ever taken over, a package that asks for keys, installs software or
+    tries to get around VOOL's own rules still stops here. A skill also may not carry or declare code.
     """
-    if artifact["metadata"]["kind"] != "skill":
-        return
     from core.registry import checks
 
-    with tempfile.TemporaryDirectory(prefix="vool-registry-check-") as scratch:
-        outcome = checks.run(raw, Path(scratch), targets=[])
-    # No results means the checks stopped early (a skill too long to read in full): unchecked never installs.
-    if not outcome["results"] or any(outcome["findings"].get(name) for name in SAFETY_CHECKS):
-        raise RegistryError(FAILED_SAFETY_CHECKS)
+    try:
+        with tempfile.TemporaryDirectory(prefix="vool-registry-check-") as scratch:
+            outcome = checks.run(raw, Path(scratch), targets=[])
+    except OSError:
+        raise  # this device's own trouble (disk, permissions), not the package's
+    except Exception:
+        return True  # a package the checks can't finish on is not checked, and unchecked never installs
+    # No results means the checks stopped early (a skill too long to read in full).
+    if not outcome["results"]:
+        return True
+    findings = [item for name in TEXT_CHECKS for item in outcome["findings"].get(name, [])]
+    if artifact["metadata"]["kind"] == "skill":
+        # Where a file sits is the Skill Codex's own tidiness rule; install() checks the native layout itself.
+        findings += [item for item in outcome["findings"].get("code", []) if item.get("rule") != "layout"]
+    return bool(findings)
 
 
 def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
@@ -191,6 +199,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     # Only the application-owned state path may authorize the runtime predicate.
     require(Path(catalog.db.execute("PRAGMA database_list").fetchone()[2]).resolve() ==
             (home() / "config" / STATE_NAME).resolve(), "client trust state belongs to another runtime")
+    refused = unsafe(artifact, raw)  # before the locks: the checks take a moment and need none of them
     root = plugin_catalog.configured_plugins_root()
     destination = root / "plugins" / plugin_id
     with _INSTALL_LOCK, plugin_lifecycle._lock, _filesystem_lock(root) as scratch, execution_directory(scratch) as owned:
@@ -201,7 +210,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         findings = native_format_findings(snapshot, artifact)
         require(not findings, "native skill validation failed: " + "; ".join(
             item["path"] + ": " + item["reason"] for item in findings))
-        safety_check(artifact, raw)  # after the format check, so a malformed package keeps its exact reason
+        require(not refused, FAILED_SAFETY_CHECKS)  # after the format check, so a malformed package keeps its reason
         recover(plugin_id, root)
         for dependency, pin in entry["dependencies"].items():
             child = plugin_lifecycle.record_for(dependency)
@@ -278,7 +287,7 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     boundaries["native_control_overlaps"] = notices(
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
-    safety_check(value, raw)
+    require(not unsafe(value, raw), FAILED_SAFETY_CHECKS)
     return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
             **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},

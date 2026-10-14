@@ -1865,7 +1865,7 @@
     "addons.registry_report": "Diese Fertigkeit melden",
     "addons.registry_report_note": "Öffnet die Website des Fertigkeiten-Codex in Ihrem Browser. Melden Sie sich dort an, wählen Sie einen Grund und senden Sie die Meldung ab. VOOL selbst sendet nichts.",
     "addons.registry_paused": "Downloads dieser Fertigkeit sind pausiert, während eine Person sie prüft. Bitte schauen Sie später wieder vorbei.",
-    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden und kann daher nicht installiert werden.",
+    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "addons.publish_button": "Im Fertigkeiten-Codex veröffentlichen",
     "addons.publish_ready": "Bereit zum Senden an den Fertigkeiten-Codex",
     "addons.publish_goes_along": "Nur diese Fertigkeit wird mitgegeben: ihr Name, ihre Beschreibung und ihr Text. Keine Chats, keine Erinnerungen, keine Schlüssel.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "Webbrowser",
     "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

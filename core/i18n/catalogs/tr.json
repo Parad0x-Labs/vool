@@ -1865,7 +1865,7 @@
     "addons.registry_report": "Bu beceriyi bildir",
     "addons.registry_report_note": "Beceri Kodeksi web sitesini tarayıcınızda açar. Orada oturum açın, bir neden seçin ve bildirimi gönderin. VOOL kendiliğinden hiçbir şey göndermez.",
     "addons.registry_paused": "Bir kişi inceleyene kadar bu becerinin indirmeleri duraklatıldı. Lütfen daha sonra tekrar bakın.",
-    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden yüklenemez.",
+    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "addons.publish_button": "Beceri Kodeksinde yayınla",
     "addons.publish_ready": "Beceri Kodeksine göndermeye hazır",
     "addons.publish_goes_along": "Yalnızca bu beceri gider: adı, açıklaması ve metni. Sohbetler, bellek veya anahtarlar gitmez.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "Tarayıcı",
     "addons.registry_need_files": "Dosyalarınız"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1865,7 +1865,7 @@
     "addons.registry_report": "이 스킬 신고",
     "addons.registry_report_note": "브라우저에서 스킬 코덱스 웹사이트를 엽니다. 그곳에서 로그인하고 사유를 골라 신고를 보내세요. VOOL은 직접 아무것도 보내지 않습니다.",
     "addons.registry_paused": "담당자가 확인하는 동안 이 스킬의 다운로드가 일시 중지되었습니다. 나중에 다시 확인해 주세요.",
-    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 설치할 수 없습니다.",
+    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
     "addons.publish_button": "스킬 코덱스에 게시",
     "addons.publish_ready": "스킬 코덱스에 보낼 준비가 되었습니다",
     "addons.publish_goes_along": "이 스킬의 이름, 설명, 텍스트만 함께 전달됩니다. 채팅, 메모리, 키는 전달되지 않습니다.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "브라우저",
     "addons.registry_need_files": "내 파일"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

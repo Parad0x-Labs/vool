@@ -1865,7 +1865,7 @@
     "addons.registry_report": "इस कौशल की रिपोर्ट करें",
     "addons.registry_report_note": "आपके ब्राउज़र में कौशल कोडेक्स वेबसाइट खोलता है। वहाँ साइन इन करें, कारण चुनें और रिपोर्ट भेजें। VOOL खुद कुछ नहीं भेजता।",
     "addons.registry_paused": "इस कौशल के डाउनलोड रुके हुए हैं, जब तक कोई व्यक्ति इसकी जाँच कर रहा है। कृपया बाद में देखें।",
-    "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए इसे इंस्टॉल नहीं किया जा सकता।",
+    "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
     "addons.publish_button": "कौशल कोडेक्स पर प्रकाशित करें",
     "addons.publish_ready": "कौशल कोडेक्स को भेजने के लिए तैयार",
     "addons.publish_goes_along": "सिर्फ़ यह कौशल साथ जाता है: इसका नाम, विवरण और टेक्स्ट। कोई चैट, मेमोरी या कुंजी नहीं।",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "ब्राउज़र",
     "addons.registry_need_files": "आपकी फ़ाइलें"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -13,7 +13,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import COMMIT, DOWNLOADS_PAUSED, HEX, RegistryError, decode, require
+from core.registry.codec import COMMIT, DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, HEX, RegistryError, decode, require
 from core.registry.media import LIMITS, describe
 from core.registry.native import STATE_NAME, _write, home, install, preview
 from core.registry.trust import TrustedCatalog
@@ -170,8 +170,13 @@ class Client:
             raw = stage.read_bytes()
         except OSError:
             raise RegistryError("package has not been downloaded for local review") from None
-        result = install(self.catalog, raw, package_id=package_id, version=version, target=self.target,
-                         accepted=accepted, enable=enable, now=now)
+        try:
+            result = install(self.catalog, raw, package_id=package_id, version=version, target=self.target,
+                             accepted=accepted, enable=enable, now=now)
+        except RegistryError as exc:
+            if str(exc) == FAILED_SAFETY_CHECKS:
+                stage.unlink(missing_ok=True)  # a copy VOOL's own checks refused is not kept either
+            raise
         stage.unlink()
         return result
 

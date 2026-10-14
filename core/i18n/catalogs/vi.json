@@ -1865,7 +1865,7 @@
     "addons.registry_report": "Báo cáo kỹ năng này",
     "addons.registry_report_note": "Mở trang web bộ sưu tập kỹ năng trong trình duyệt. Đăng nhập ở đó, chọn lý do và gửi báo cáo. VOOL không tự gửi gì cả.",
     "addons.registry_paused": "Lượt tải kỹ năng này đang tạm dừng trong khi có người xem xét. Vui lòng quay lại sau.",
-    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên không thể cài đặt.",
+    "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "addons.publish_button": "Đăng lên bộ sưu tập kỹ năng",
     "addons.publish_ready": "Sẵn sàng gửi lên bộ sưu tập kỹ năng",
     "addons.publish_goes_along": "Chỉ kỹ năng này đi kèm: tên, mô tả và văn bản của nó. Không có cuộc trò chuyện, bộ nhớ hay khóa nào.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "Trình duyệt",
     "addons.registry_need_files": "Tệp của bạn"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

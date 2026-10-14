@@ -1865,7 +1865,7 @@
     "addons.registry_report": "Повідомити про проблему з навичкою",
     "addons.registry_report_note": "Відкриває сайт кодексу навичок у браузері. Увійдіть там, оберіть причину й надішліть повідомлення. VOOL сам нічого не надсилає.",
     "addons.registry_paused": "Завантаження цієї навички призупинено, поки її перевіряє людина. Загляньте пізніше.",
-    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому її не можна встановити.",
+    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
     "addons.publish_button": "Опублікувати в кодексі навичок",
     "addons.publish_ready": "Готова до надсилання в кодекс навичок",
     "addons.publish_goes_along": "Передається лише ця навичка: її назва, опис і текст. Жодних чатів, пам'яті чи ключів.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "Браузер",
     "addons.registry_need_files": "Ваші файли"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

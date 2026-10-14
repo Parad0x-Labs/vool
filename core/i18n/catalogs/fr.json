@@ -1865,7 +1865,7 @@
     "addons.registry_report": "Signaler cette compétence",
     "addons.registry_report_note": "Ouvre le site du codex des compétences dans votre navigateur. Connectez-vous, choisissez un motif et envoyez le signalement. VOOL n'envoie rien lui-même.",
     "addons.registry_paused": "Les téléchargements de cette compétence sont en pause pendant qu'une personne l'examine. Revenez plus tard.",
-    "addons.registry_unsafe": "Cette compétence n'a pas passé les contrôles de sécurité de VOOL, elle ne peut donc pas être installée.",
+    "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
     "addons.publish_button": "Publier dans le codex des compétences",
     "addons.publish_ready": "Prête à envoyer au codex des compétences",
     "addons.publish_goes_along": "Seule cette compétence est transmise : son nom, sa description et son texte. Ni discussions, ni mémoire, ni clés.",
@@ -1993,7 +1993,7 @@
     "addons.registry_need_browser": "Navigateur",
     "addons.registry_need_files": "Vos fichiers"
   },
-  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
+  "source_catalog_sha256": "bbd73fcd56b0227967833fe3400751ad5817e82562ee9eac764ca7b66ddba5ba",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
