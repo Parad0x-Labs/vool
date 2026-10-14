@@ -379,7 +379,7 @@ builder_footprint_gate() {
   local app="$1" root tail_name hits hit
   while IFS= read -r root; do
     [[ -n "${root}" ]] || continue
-    hits="$(grep -r -a -l -F "${root}" "${app}" 2>/dev/null | head -5 || true)"
+    hits="$(grep -r -a -l -F "${root}" "${app}" 2>/dev/null | LC_ALL=C sort | head -5 || true)"
     if [[ -n "${hits}" ]]; then
       tail_name="${root##*/}"
       while IFS= read -r hit; do
