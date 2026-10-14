@@ -619,8 +619,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 # it -- the identical malformed call classified MALFORMED_TOOL_CALL on Ollama and
                 # MALFORMED_PROVIDER_RESPONSE (wrong: the wire format was fine, the MODEL's call
                 # was bad) on this lane.
-                if attempt_index + 1 >= max_attempts:
-                    raise
+                # Named output errors are recovered by the router with corrective
+                # schema feedback and one recorded attempt budget. An identical
+                # hidden adapter retry would multiply that budget on free lanes.
+                raise
             except ValueError as exc:
                 if attempt_index + 1 >= max_attempts:
                     raise RuntimeError(f"malformed provider response: {exc}") from exc
