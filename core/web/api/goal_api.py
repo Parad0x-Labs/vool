@@ -28,6 +28,7 @@ from core.goal_workflow import (
 )
 from core.goal_workflow import (
     TERMINAL_GOAL_STATES,
+    GoalWriteRefused,
     _GoalWorker,
     active_worker,
     claim_worker_epoch,
@@ -246,16 +247,19 @@ def serve_goal_ingress(
         if goal is None:
             reply = f"No active goal to {sub}. Start one with /goal <objective>."
             return 200, _short_stream([reply], model=model_name), {"reply": reply}
-        if sub == "pause":
-            outcome = request_pause(goal.get("goal_id") or "")
-        elif sub == "stop":
-            outcome = request_stop(goal.get("goal_id") or "")
-        else:
-            outcome = request_resume(goal.get("goal_id") or "")
-            if outcome.get("ok") and not outcome.get("already") and not outcome.get("settling"):
-                fresh = load_goal(goal.get("goal_id") or "")
-                if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
-                    spawn_goal_worker(runtime, fresh, base_context=source_context, model=model_name)
+        try:
+            if sub == "pause":
+                outcome = request_pause(goal.get("goal_id") or "")
+            elif sub == "stop":
+                outcome = request_stop(goal.get("goal_id") or "")
+            else:
+                outcome = request_resume(goal.get("goal_id") or "")
+                if outcome.get("ok") and not outcome.get("already") and not outcome.get("settling"):
+                    fresh = load_goal(goal.get("goal_id") or "")
+                    if fresh is not None and str(fresh.get("state")) not in TERMINAL_GOAL_STATES:
+                        spawn_goal_worker(runtime, fresh, base_context=source_context, model=model_name)
+        except GoalWriteRefused as exc:
+            outcome = {"ok": False, "error": str(exc)}
         view = goal_public_view(load_goal(goal.get("goal_id") or "") or goal)
         if outcome.get("ok"):
             reply = f"Goal {sub}d. State: {view['state']}."
@@ -321,7 +325,12 @@ def serve_goal_ingress(
         "last_reason": "",
     }
     _bind_exec_context(goal, source_context, model_name)
-    existing = create_goal_unless_active(goal)
+    try:
+        existing = create_goal_unless_active(goal)
+    except GoalWriteRefused as exc:
+        # Words this chat forgot are not recorded again as a goal (core.memory.run_history law).
+        reply = f"The goal was not started: {exc}."
+        return 200, _short_stream([reply], model=model_name), {"reply": reply}
     if existing is not None:
         # Another tab started a goal in this chat a moment ago: that one stands.
         view = goal_public_view(existing)
@@ -438,6 +447,15 @@ def goal_control(
             "error": "resume this goal from its chat; this door cannot run goal steps",
             "goal": goal_public_view(goal),
         }
+    try:
+        return _goal_control(action, goal, goal_id, runtime=runtime, owner_local=owner_local)
+    except GoalWriteRefused as exc:
+        return 409, {"ok": False, "error": str(exc), "goal": goal_public_view(load_goal(goal_id) or goal)}
+
+
+def _goal_control(
+    action: str, goal: dict[str, Any], goal_id: str, *, runtime, owner_local: bool
+) -> tuple[int, dict[str, Any]]:
     if action == "pause":
         outcome = request_pause(goal_id)
     elif action == "stop":

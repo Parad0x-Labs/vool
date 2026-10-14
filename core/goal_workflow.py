@@ -41,6 +41,7 @@ is declared.
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 import threading
@@ -108,6 +109,14 @@ class WorkerFencedError(RuntimeError):
     """A stale worker tried to write after a successor claimed the goal's epoch."""
 
     code = "VOOL_E_GOAL_WORKER_FENCED"
+
+
+class GoalWriteRefused(WorkerFencedError):
+    """A goal write was refused because of this chat's forgotten words (or the forget ledger is unreadable).
+
+    A worker that meets it exits without writing, like an overtaken worker."""
+
+    code = "VOOL_E_GOAL_FORGOTTEN_WORDS"
 
 
 # ---------------------------------------------------------------------------
@@ -261,32 +270,50 @@ def save_goal(goal: dict[str, Any], *, expected_epoch: int | None = None) -> Non
     ``expected_epoch`` fences a worker's writes: when the durable row has moved to a NEWER
     epoch (a successor claimed it via revise/resume), the stale write raises
     WorkerFencedError instead of clobbering the successor's state.
+
+    Words this chat forgot are not written back (the run-history law, ``carries_forgotten_words``):
+    they are blanked in what is written. When the goal's working text carried them
+    (a copy read before the forget), the goal is written stopped and GoalWriteRefused is raised so
+    the worker exits; an unreadable forget ledger refuses the write.
     """
     conn = _conn()
-    _ensure_table(conn)
-    conn.execute("BEGIN IMMEDIATE")
-    if expected_epoch is not None:
-        row = conn.execute(
-            "SELECT worker_epoch FROM chat_goals WHERE goal_id = ?", (str(goal.get("goal_id") or ""),)
-        ).fetchone()
-        if row is not None and int(row[0] or 0) != int(expected_epoch):
-            conn.rollback()
-            conn.close()
-            raise WorkerFencedError(
-                f"goal {goal.get('goal_id')} moved to epoch {row[0]}; worker holds epoch {expected_epoch}"
-            )
-    payload = {key: goal.get(key) for key in _GOAL_COLUMNS if key in goal}
-    payload["plan_json"] = json.dumps(goal.get("plan") or {}, ensure_ascii=False)
-    payload["exec_context_json"] = json.dumps(goal.get("exec_context") or {}, ensure_ascii=False)
-    columns = [key for key in _GOAL_COLUMNS]
-    values = [payload.get(key) for key in columns]
-    placeholders = ",".join("?" for _ in columns)
-    conn.execute(
-        f"INSERT OR REPLACE INTO chat_goals ({','.join(columns)}) VALUES ({placeholders})",
-        values,
-    )
-    conn.commit()
-    conn.close()
+    stopped = False
+    try:
+        _ensure_table(conn)
+        conn.execute("BEGIN IMMEDIATE")
+        if expected_epoch is not None:
+            row = conn.execute(
+                "SELECT worker_epoch FROM chat_goals WHERE goal_id = ?", (str(goal.get("goal_id") or ""),)
+            ).fetchone()
+            if row is not None and int(row[0] or 0) != int(expected_epoch):
+                raise WorkerFencedError(
+                    f"goal {goal.get('goal_id')} moved to epoch {row[0]}; worker holds epoch {expected_epoch}"
+                )
+        # Checked inside the write transaction: a forget that recorded its words before this point
+        # is seen here, and one that records them later sweeps this row after it commits. The
+        # caller's copy is left as it is (a worker holds references into its plan); what is
+        # written is a copy without the words.
+        goal = copy.deepcopy(goal)
+        stopped = _forget_guard(goal)
+        payload = {key: goal.get(key) for key in _GOAL_COLUMNS if key in goal}
+        payload["plan_json"] = json.dumps(goal.get("plan") or {}, ensure_ascii=False)
+        payload["exec_context_json"] = json.dumps(goal.get("exec_context") or {}, ensure_ascii=False)
+        columns = [key for key in _GOAL_COLUMNS]
+        values = [payload.get(key) for key in columns]
+        placeholders = ",".join("?" for _ in columns)
+        conn.execute(
+            f"INSERT OR REPLACE INTO chat_goals ({','.join(columns)}) VALUES ({placeholders})",
+            values,
+        )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    if stopped:
+        stop_goals_after_forget([(str(goal.get("goal_id") or ""), str(goal.get("session_id") or ""))])
+        raise GoalWriteRefused(FORGOTTEN_WORDS_REFUSAL)
 
 
 def create_goal_unless_active(goal: dict[str, Any]) -> dict[str, Any] | None:
@@ -308,6 +335,10 @@ def create_goal_unless_active(goal: dict[str, Any]) -> dict[str, Any] | None:
             if str(existing.get("state")) not in TERMINAL_GOAL_STATES:
                 conn.rollback()
                 return existing
+        # A new goal whose own text is words this chat forgot is not recorded (nothing is written).
+        goal = copy.deepcopy(goal)
+        if _forget_guard(goal):
+            raise GoalWriteRefused(FORGOTTEN_WORDS_REFUSAL)
         payload = {key: goal.get(key) for key in _GOAL_COLUMNS if goal.get(key) is not None}
         payload["plan_json"] = json.dumps(goal.get("plan") or {}, ensure_ascii=False)
         payload["exec_context_json"] = json.dumps(goal.get("exec_context") or {}, ensure_ascii=False)
@@ -817,6 +848,9 @@ def request_revise(goal_id: str, new_objective: str, *, source: str = "chat") ->
     clean_objective = str(new_objective or "").strip()[:4000]
     if not clean_objective:
         return {"ok": False, "error": "an objective is required"}
+    refusal = forgotten_words_refusal(str(goal.get("session_id") or ""), [clean_objective])
+    if refusal:
+        return {"ok": False, "error": refusal}
     worker = active_worker(goal_id)
     if worker is not None:
         # Fence the old worker: no new dispatch, and its settled outcome records only the
@@ -918,7 +952,12 @@ def reconcile_on_startup() -> int:
         goal["updated_at"] = now
         goal["last_reason"] = "interrupted by restart"
         _freeze_running_steps(goal, "interrupted", "interrupted by restart")
-        save_goal(goal)
+        try:
+            save_goal(goal)
+        except GoalWriteRefused:
+            # This goal's write is refused (forgotten words, or an unreadable forget ledger): it
+            # stays as recorded and the other goals are still reconciled.
+            continue
         reconciled += 1
     return reconciled
 
@@ -940,5 +979,149 @@ def reconcile_goal_if_orphaned(goal_id: str) -> bool:
     goal["updated_at"] = now
     goal["last_reason"] = "interrupted: no active worker"
     _freeze_running_steps(goal, "interrupted", "interrupted: no active worker")
-    save_goal(goal)
+    try:
+        save_goal(goal)
+    except GoalWriteRefused:
+        return False  # the read still answers; the refused write leaves the record as it is
     return True
+
+
+# ---------------------------------------------------------------------------
+# Forgotten words. The forget sweep (core.memory.run_history) owns the matching law and erases
+# chat_goals rows; this module owns which goal text a worker runs on.
+# ---------------------------------------------------------------------------
+
+FORGET_STOP_REASON = "stopped: this chat forgot words the goal was working on"
+FORGOTTEN_WORDS_REFUSAL = "the goal names words this chat asked to forget"
+FORGET_LEDGER_REFUSAL = "this chat's forget record cannot be read, so the goal is not written"
+
+#: A step's settled record: why it ended and an excerpt of its answer. No later step runs on them.
+_RECORD_ONLY_STEP_KEYS = frozenset({"reason", "answer_excerpt"})
+
+
+def _goal_work(goal: dict[str, Any]) -> dict[str, Any]:
+    """The text a goal worker runs on: objective, acceptance, the execution binding and the plan
+    (every step's title, details, verification and links); not the superseded revisions or the
+    record of a settled step."""
+    plan = goal.get("plan") if isinstance(goal.get("plan"), dict) else {}
+    work = {key: value for key, value in plan.items() if key not in ("history", "steps", "carried_steps")}
+    for key in ("steps", "carried_steps"):
+        items = plan.get(key)
+        if isinstance(items, list):
+            work[key] = [
+                {name: value for name, value in item.items() if name not in _RECORD_ONLY_STEP_KEYS}
+                if isinstance(item, dict) else item
+                for item in items
+            ]
+    return {
+        "objective": goal.get("objective"),
+        "acceptance": goal.get("acceptance"),
+        "exec_context": goal.get("exec_context"),
+        "plan": work,
+    }
+
+
+def _stop_for_forget(goal: dict[str, Any]) -> bool:
+    """A goal that is not finished stops and its worker epoch advances, so a worker holding the old
+    copy is fenced: it never runs on blanked text and never writes the words back. False for a
+    finished goal: nothing runs on it."""
+    if str(goal.get("state")) in TERMINAL_GOAL_STATES:
+        return False
+    now = time.time()
+    if goal.get("paused_at"):
+        paused_at = float(goal.get("paused_at") or 0.0)
+        goal["paused_seconds"] = float(goal.get("paused_seconds") or 0.0) + max(0.0, now - paused_at)
+        goal["paused_at"] = None
+    goal["state"] = "cancelled"
+    goal["ended_at"] = now
+    goal["updated_at"] = now
+    goal["current_step_id"] = ""
+    goal["last_reason"] = FORGET_STOP_REASON
+    _freeze_running_steps(goal, "cancelled", FORGET_STOP_REASON)
+    goal["worker_epoch"] = int(goal.get("worker_epoch") or 0) + 1
+    return True
+
+
+def forget_words_in_goal(goal: dict[str, Any], tokens: Any) -> bool:
+    """Blank every leaf of the goal that carries one of ``tokens``, in place. Returns whether the goal
+    was stopped: its working text carried them and it was not finished."""
+    from core.memory.run_history import goal_words_carry, goal_words_redacted
+
+    worked_on = False
+    for token in tokens:
+        worked_on = goal_words_carry(_goal_work(goal), token) or worked_on
+        for key in ("objective", "acceptance", "last_reason"):
+            goal[key] = goal_words_redacted(str(goal.get(key) or ""), token)
+        for key in ("plan", "exec_context"):
+            value = goal.get(key)
+            goal[key] = goal_words_redacted(value if isinstance(value, dict) else {}, token)
+    return worked_on and _stop_for_forget(goal)
+
+
+def _forget_guard(goal: dict[str, Any]) -> bool:
+    """Blank this chat's forgotten words in a goal about to be written; True when that stopped it (its
+    working text held them). An unreadable forget ledger is not "nothing forgotten": the write is refused."""
+    from core.memory.run_history import forgotten_tokens
+
+    tokens = forgotten_tokens(str(goal.get("session_id") or ""))
+    if tokens is None:
+        raise GoalWriteRefused(FORGET_LEDGER_REFUSAL)
+    return bool(tokens) and forget_words_in_goal(goal, tokens)
+
+
+def forgotten_words_refusal(session_id: str, texts: list[str]) -> str:
+    """Why goal text from the person cannot be recorded in this chat, or "" when it can."""
+    from core.memory.run_history import carries_forgotten_words, forgotten_tokens
+
+    if forgotten_tokens(session_id) is None:
+        return FORGET_LEDGER_REFUSAL
+    return FORGOTTEN_WORDS_REFUSAL if carries_forgotten_words(session_id, texts) else ""
+
+
+def forget_goal_row(conn, row, token: str) -> tuple[str, str] | None:
+    """The forget sweep's erasure of one ``chat_goals`` row (inside its transaction). Returns
+    (goal id, chat id) when the goal was stopped. A plan or binding that does not decode is not
+    guessed at: the error leaves the store incomplete."""
+    names = set(row.keys())
+    goal = {key: row[key] if key in names else None for key in _GOAL_COLUMNS}
+    for column, key in (("plan_json", "plan"), ("exec_context_json", "exec_context")):
+        raw = goal.pop(column)
+        value = json.loads(raw) if str(raw or "").strip() else {}
+        if not isinstance(value, dict):
+            raise ValueError(f"chat goal {key} is not an object")
+        goal[key] = value
+    stopped = forget_words_in_goal(goal, (token,))
+    conn.execute(
+        "UPDATE chat_goals SET objective = ?, acceptance = ?, plan_json = ?, last_reason = ?, exec_context_json = ?,"
+        " state = ?, ended_at = ?, updated_at = ?, paused_at = ?, paused_seconds = ?, current_step_id = ?,"
+        " worker_epoch = ? WHERE goal_id = ?",
+        (
+            goal["objective"], goal["acceptance"], json.dumps(goal["plan"], ensure_ascii=False), goal["last_reason"],
+            json.dumps(goal["exec_context"], ensure_ascii=False), goal["state"], goal["ended_at"],
+            goal["updated_at"], goal["paused_at"], goal["paused_seconds"] or 0.0, goal["current_step_id"] or "",
+            int(goal["worker_epoch"] or 0), str(goal["goal_id"]),
+        ),
+    )
+    return (str(goal["goal_id"]), str(goal["session_id"] or "")) if stopped else None
+
+
+def stop_goals_after_forget(stopped: list[tuple[str, str]]) -> None:
+    """Tell each stopped goal's live worker to stop and cancel its in-flight step turn (the same reach
+    request_stop has), then announce the stop. The durable stop is already committed."""
+    from core.live_turns import request_cancel
+
+    for goal_id, session_id in stopped:
+        worker = active_worker(goal_id)
+        if worker is not None:
+            worker.stop_requested.set()
+            turn_id = worker.current_step_turn()
+            if turn_id:
+                request_cancel(session_id, turn_id)
+        goal = load_goal(goal_id)
+        if goal is not None:
+            try:
+                emit_goal_event(_goal_event_context(goal), goal, "Goal stopped: this chat forgot words it was working on")
+            except Exception:
+                import logging
+
+                logging.getLogger("vool.goal").warning("goal stop after forget could not be announced (goal=%s)", goal_id)
