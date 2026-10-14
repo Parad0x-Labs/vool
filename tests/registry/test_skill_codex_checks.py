@@ -304,6 +304,42 @@ def test_a_licence_naming_several_holders_passes_and_one_without_a_holder_does_n
     assert [(item["check"], item["path"]) for item in findings] == [("license", "LICENSE")]
 
 
+def test_a_package_cannot_mark_itself_as_the_owners_own(tmp_path):
+    import json
+
+    from core.registry.codec import canonical as encode
+
+    raw = package(tmp_path)
+    manifest = json.loads(inspect(raw)["files"][".codex-plugin/plugin.json"])
+    claimed = encode(dict(manifest, vool={"origin": "user"}))
+    (tmp_path / "claim").mkdir()
+    findings, _ = found(tmp_path, package(tmp_path / "claim", files={".codex-plugin/plugin.json": claimed}))
+    assert [(item["check"], item["path"]) for item in findings][:1] == [("code", ".codex-plugin/plugin.json")]
+    assert "only VOOL itself writes" in findings[0]["reason"]
+
+
+def test_vool_refuses_to_install_a_signed_package_that_marks_itself_as_the_owners_own(tmp_path, monkeypatch):
+    # Checked again where it matters: a download claiming the block never installs, signed or not.
+    import json
+
+    from core import plugin_lifecycle
+    from core.registry.codec import RegistryError
+    from core.registry.native import install
+    from tests.registry.audit_helpers import package as audit_package
+    from tests.registry.audit_helpers import runtime, trusted
+
+    home = runtime(tmp_path, monkeypatch)
+    _, source, info = audit_package(tmp_path)
+    path = source / ".codex-plugin/plugin.json"
+    path.write_text(json.dumps(dict(json.loads(path.read_bytes()), vool={"origin": "user"})))
+    raw = pack(source, info, tmp_path / "claimed")
+    with trusted(raw, home / "config/registry_trust.sqlite") as (catalog, *_):
+        with pytest.raises(RegistryError, match="how VOOL made it"):
+            install(catalog, raw, package_id=info["id"], version=info["version"], target=TARGET,
+                    accepted=True, enable=False, now=NOW)
+    assert not plugin_lifecycle.records()
+
+
 def test_the_licence_must_be_mit(tmp_path):
     findings, _ = found(tmp_path, package(tmp_path, licence="Copyright 2027 alice. All rights reserved.\n"))
     assert [(item["check"], item["path"]) for item in findings] == [("license", "LICENSE")]

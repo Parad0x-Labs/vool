@@ -156,6 +156,8 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     entry = catalog.resolve(package_id, version, target=target, now=now)
     artifact = inspect(raw)
     authority = manifest_authority(artifact["manifest"])
+    # Only VOOL writes the "vool" block (it marks a pack as the owner's own); a downloaded package never may.
+    require("vool" not in artifact["manifest"], "a package cannot say how VOOL made it")
     from core.registry.rules import analyze
 
     require(not analyze(artifact["files"])["conflicts"], "instructions cannot override VOOL native controls")
