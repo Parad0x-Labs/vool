@@ -1001,8 +1001,9 @@ def test_finalize_attaches_the_accounting_and_footers_from_it(monkeypatch) -> No
     assert "local | model | tokens unreported" not in finalized["response"]
 
 
-def test_finalize_without_a_turn_context_still_behaves_as_before() -> None:
+def test_finalize_without_a_turn_context_still_behaves_as_before(monkeypatch) -> None:
     """Every existing caller passes no context. It must degrade to the round-1 behaviour, not crash."""
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     from core.web.api import runtime as rt
 
     finalized = rt._finalize_turn_usage({"response": "Hello.", **_fast_path("smalltalk_fast_path")})
@@ -1011,7 +1012,7 @@ def test_finalize_without_a_turn_context_still_behaves_as_before() -> None:
     assert "model_call_accounting" not in finalized
 
 
-def test_the_streamed_transcript_renders_the_same_line_as_the_buffered_one() -> None:
+def test_the_streamed_transcript_renders_the_same_line_as_the_buffered_one(monkeypatch) -> None:
     """The streamed path calls `format_provenance_footer(result_payload, usage_summary)` -- two args.
 
     It has no ledger context of its own, so the accounting has to RIDE ON the result for the two
@@ -1019,6 +1020,7 @@ def test_the_streamed_transcript_renders_the_same_line_as_the_buffered_one() -> 
     line while the buffered one printed the true one, and which the user saw would depend on their
     client. Reads the accounting off the result exactly as `core/web/api/runtime.py` does.
     """
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     from core.turn_model_call_ledger import begin_turn, record_provider_call, record_served_usage
     from core.web.api import runtime as rt
 

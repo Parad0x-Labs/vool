@@ -63,6 +63,10 @@ CREDENTIALS = "/api/settings/credentials"
 SETUP_STATE = "/api/setup/state"
 VERSION = "/api/runtime/version"
 PROFILE = "/api/profile"
+# The Web lookups row reads the live boundary truth through the pact GET projection
+# (view=boundary: the owning policy's values, no tour state) and writes through the existing
+# boundary command POST /api/onboarding/pact/boundary from its own widget.
+WEB_LOOKUPS_READ = "/api/onboarding/pact?view=boundary"
 # Email: the account authority's listing (credential NAMES and identities, never a secret) and the
 # draft store's recovery hold. Both are owner-local reads served by this runtime (core/web/api/service.py).
 EMAIL_ACCOUNTS = "/api/email/accounts"
@@ -284,6 +288,16 @@ def _settings_groups() -> list[dict]:
                     effect=EFFECT_NEXT_TURN,
                     keywords="thinking reasoning slow think first chain of thought",
                 ),
+                _row(
+                    id="show_answer_details",
+                    label="Show answer details",
+                    help="Adds a small line under each answer saying which model or tool made it.",
+                    kind="toggle",
+                    read={"url": PREFS, "field": "show_answer_details"},
+                    write={"url": PREFS, "field": "show_answer_details", "type": "bool"},
+                    scope=SCOPE_GLOBAL,
+                    keywords="answer details model tool provenance source footer which model made it",
+                ),
             ],
         },
         {
@@ -334,6 +348,19 @@ def _settings_groups() -> list[dict]:
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
                     keywords="boundaries content limits safe relaxed standard strict subject matter",
+                ),
+                _row(
+                    id="web_lookups",
+                    label="Web lookups",
+                    kind="custom",
+                    widget="web_lookups",
+                    help=(
+                        "When you ask something that needs a lookup, VOOL may search the web to "
+                        "answer. Off by default: nothing goes online for lookups until you switch "
+                        "this on."
+                    ),
+                    read={"url": WEB_LOOKUPS_READ},
+                    keywords="web search lookups online internet browse network access fallback allow",
                 ),
                 _row(
                     id="mode_note",
@@ -1546,6 +1573,7 @@ function renderWidget(row, host) {
   if (w === 'email_accounts') return widgetEmailAccounts(stack);
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
+  if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -4417,6 +4445,84 @@ function usepodModelRow(m, d, say, draw) {
    through POST /api/profile/remember and cleared through /api/profile/forget -- the same authority
    the Memory list uses, not a second store. The options come from the policy's OWN table, so the
    picker cannot offer something the policy would then fail to read. */
+const WEB_LOOKUPS_URL = '/api/onboarding/pact?view=boundary';
+
+function widgetWebLookups(stack) {
+  const err = state.sourceErr[WEB_LOOKUPS_URL];
+  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  const src = state.sources[WEB_LOOKUPS_URL];
+  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+
+  const localOnly = !!src.local_only_mode;
+  const on = !!src.allow_web_fallback && !localOnly;
+  const st = el('div', 'state idle');
+  const line = el('div', 'inline');
+  const sw = el('button', 'sw');
+  sw.type = 'button';
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-checked', on ? 'true' : 'false');
+  sw.setAttribute('aria-label', T('settings.row.web_lookups.label', 'Web lookups'));
+  if (localOnly) sw.disabled = true;
+  line.appendChild(sw);
+  stack.appendChild(line);
+  if (localOnly) {
+    stack.appendChild(el('div', 'subtle',
+      tfmt('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')));
+  }
+  stack.appendChild(st);
+
+  sw.addEventListener('click', async () => {
+    if (sw.disabled) return;
+    /* The target is decided from the authority's last read, not from the value at render time. */
+    const now = state.sources[WEB_LOOKUPS_URL] || {};
+    const want = !(!!now.allow_web_fallback && !now.local_only_mode);
+    sw.disabled = true;
+    st.className = 'state saving'; st.textContent = 'Saving…';
+    try {
+      const r = await fetch('/api/onboarding/pact/boundary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'web_lookups', value: want }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok === false) {
+        /* Refused or failed: say it in plain words (never a raw error code), then re-read the
+           authority so the switch shows what is really in effect -- a partial or failed write
+           must not leave the switch claiming a state VOOL is not in. */
+        const code = String((j && j.error) || '');
+        const why = code === 'invalid_transition'
+          ? T('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')
+          : T('settings.row.web_lookups.retry_note', 'VOOL could not change this right now. Try again in a moment.');
+        if (await readSource(WEB_LOOKUPS_URL)) {
+          const live = state.sources[WEB_LOOKUPS_URL] || {};
+          sw.setAttribute('aria-checked', (!!live.allow_web_fallback && !live.local_only_mode) ? 'true' : 'false');
+          sw.disabled = !!live.local_only_mode;
+        } else {
+          sw.disabled = false;
+        }
+        st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
+        return;
+      }
+      /* Read back from the authority rather than trusting the 200. */
+      const ok = await readSource(WEB_LOOKUPS_URL);
+      const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
+      if (!back || !!back.allow_web_fallback !== want) {
+        if (back) sw.setAttribute('aria-checked', (!!back.allow_web_fallback && !back.local_only_mode) ? 'true' : 'false');
+        sw.disabled = !!(back && back.local_only_mode);
+        st.className = 'state stale';
+        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
+        return;
+      }
+      sw.setAttribute('aria-checked', want ? 'true' : 'false');
+      sw.disabled = false;
+      st.className = 'state saved'; st.textContent = 'Saved';
+      setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
+    } catch (e) {
+      sw.disabled = false;
+      st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
+    }
+  });
+}
+
 function widgetAnswerLanguage(stack) {
   const src = state.sources['/api/profile'];
   const err = state.sourceErr['/api/profile'];

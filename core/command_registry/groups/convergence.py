@@ -216,6 +216,7 @@ def _handle_prefs_list(inp, ctx):
             "user_address": user_address(),
             "humor_percent": p.humor_percent,
             "deep_reasoning": p.deep_reasoning,
+            "show_answer_details": p.show_answer_details,
             "communication_style": p.communication_style,
             "autonomy_mode": p.autonomy_mode,
             "ram_reserve_pct": p.ram_reserve_pct,
