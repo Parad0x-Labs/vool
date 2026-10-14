@@ -6,16 +6,16 @@
       "file": "cryptography-50.0.2-cp311-abi3-macosx_14_0_x86_64.whl",
       "package": "cryptography",
       "version": "50.0.2",
-      "sha256": "65031bce8e063ccf4c65a19f5008cc21bfdc47cf2d0e9b5d2eeb727b6b3fd922",
+      "sha256": "5c533b5d19139e135fd8aa78af7215f4406e54a6c85adc76d0209b796ababb3f",
       "target": "x86_64-apple-darwin",
       "macos_min": "14.0",
       "source_sdist": "cryptography-50.0.2.tar.gz",
       "source_sdist_sha256": "7b46165bb56eb4704e2eaaf86f3c940d19154535d9b0ca7d6d590b04060e00d5",
       "openssl": "4.0.3 (static, no-module: the legacy provider is built in; prefix, openssldir and libdir /private/etc/ssl)",
       "openssl_tarball_sha256": "325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9",
-      "built_with": "CPython 3.11 x86_64 under Rosetta, maturin 1.15.0, rustc 1.93.1 target x86_64-apple-darwin; OpenSSL Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib -mmacosx-version-min=14.0; RUSTFLAGS --remap-path-prefix for the cargo registry, git checkouts, rustup, the build dir and the home dir",
-      "built_on": "2026-10-07 (v4: no builder paths, and OpenSSL's directories under /private/etc/ssl)",
-      "checks": "single wheel tagged cp311-abi3-macosx_14_0_x86_64, 4,065,645 bytes; _rust.abi3.so x86_64 only; no libssl/libcrypto dylib; 0 strings containing the builder home path or the build volume; imports as 50.0.2 with OpenSSL 4.0.3 on x86_64 (Rosetta); the legacy provider loads"
+      "built_with": "CPython 3.11 x86_64 native, maturin 1.15.0, rustc 1.93.1 target x86_64-apple-darwin; OpenSSL Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib -mmacosx-version-min=14.0; sources unpacked and built at fixed paths, TMPDIR inside the build dir; RUSTFLAGS --remap-path-prefix and CFLAGS -ffile-prefix-map for the home, the runner temp dir, cargo, rustup and the build dir; SOURCE_DATE_EPOCH=315532800, ZERO_AR_DATE=1, codegen-units=1, CARGO_INCREMENTAL=0, debug info stripped; wheel repacked deterministically with the cargo SBOM's paths, serial number and timestamp removed and RECORD rewritten",
+      "built_on": "2026-10-14 (native x86_64, GitHub Actions macos-15-intel runner image, macOS 15.7.9)",
+      "checks": "single wheel tagged cp311-abi3-macosx_14_0_x86_64, 3818869 bytes; _rust.abi3.so x86_64 only; no libssl/libcrypto dylib; imports with the legacy provider loaded and a Fernet round-trip on this native Intel host"
     },
     {
       "file": "proxy_tools-0.1.0-py3-none-any.whl",
@@ -28,7 +28,7 @@
       "source_sdist_sha256": "ccb3751f529c047e2d8a58440d86b205303cf0fe8146f784d1cbcd94f0a28010",
       "license": "MIT (package metadata); code extracted from Werkzeug, BSD-3-Clause. See third_party/NOTICES/proxy-tools.md",
       "built_with": "stdlib zipfile, deterministic, ZIP_DEFLATED level 9, zlib 1.3; setup.py not executed, package not imported",
-      "built_on": "linux, CPython 3.13",
+      "built_on": "macOS 15.7.9 native x86_64, GitHub Actions macos-15-intel runner, the recorded recipe",
       "checks": "sdist sha matches PyPI; safe extract; ast parse OK; install_requires empty; two builds byte-identical; RECORD verified; pip --target install files byte-identical to sdist"
     }
   ]
