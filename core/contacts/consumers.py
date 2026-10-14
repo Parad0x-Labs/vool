@@ -65,11 +65,65 @@ def wallet_family_for_asset(asset: str, *, environment: str = "") -> str:
     return families.pop() if len(families) == 1 else ""
 
 
+def networks_for_asset(asset: str, *, environment: str = "") -> set[str]:
+    """The declared rows (of one environment) where this wallet can send the asset. The wallet sends each row's native
+    coin only (core.wallet.transfers.resolve_request), so a token symbol names no row here."""
+    symbol = str(asset or "").strip().upper()
+    if not symbol:
+        return set()
+    from core.wallet import chains
+
+    out = set()
+    for spec in chains.all_networks():
+        if environment and spec.environment != environment:
+            continue
+        try:
+            native = chains.native_asset(spec.network)
+        except Exception:
+            continue
+        if symbol in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
+            out.add(spec.network)
+    return out
+
+
+def _narrow_to_asset(resolution: resolver.Resolution, destination: str, *, asset: str, supported: set[str], chain: str, family: str,
+                     environment: str) -> resolver.Resolution:
+    """Several saved wallets: only those on a chain that carries the asset are choices. One left is that wallet; none left
+    says so. A single saved wallet on a chain without the asset is not a destination for it either. Nothing is guessed."""
+    from dataclasses import replace
+
+    if resolution.status == resolver.STATUS_AMBIGUOUS_ENDPOINT:
+        fitting = [c for c in resolution.choices if c.get("chain_network") in supported]
+        if len(fitting) == len(resolution.choices):
+            return resolution
+        if len(fitting) == 1:
+            return resolver.resolve(destination, kind=KIND_WALLET, network=fitting[0]["chain_network"], chain=chain, family=family, environment=environment)
+        name = resolution.choices[0].get("display_name", "")
+        if fitting:
+            listed = "; ".join(f"{(c.get('label') + ' ') if c.get('label') else ''}{c['value']} on {c.get('network_display') or c['chain_network']}" for c in fitting)
+            return replace(resolution, choices=tuple(fitting),
+                           message=f"{name} has {len(fitting)} saved wallets that can take {asset.upper()}: {listed}. Which one?")
+        return replace(resolution, status=resolver.STATUS_NO_ENDPOINT,
+                       message=f"None of {name}'s saved wallets is on a chain where this wallet can send {asset.upper()}.")
+    if resolution.status == resolver.STATUS_RESOLVED and resolution.snapshot and resolution.snapshot.get("resolution") == "contact":
+        snapshot = resolution.snapshot
+        if snapshot.get("chain_network") and snapshot["chain_network"] not in supported:
+            where = snapshot.get("network_display") or snapshot["chain_network"]
+            return replace(resolution, status=resolver.STATUS_NO_ENDPOINT, snapshot=None,
+                           message=f"{snapshot.get('display_name', '')}'s saved wallet is on {where}, where this wallet cannot send {asset.upper()}.")
+    return resolution
+
+
 def resolve_wallet_recipient(destination: str, *, network: str = "", chain: str = "", asset: str = "", environment: str = "") -> RecipientOutcome:
-    """A payment destination: an address given directly, or exactly one saved wallet address on a fitting network."""
+    """A payment destination: an address given directly, or exactly one saved wallet address on a fitting network. When
+    the request names a chain's own coin but no network, only saved wallets on chains whose coin it is count; any other
+    asset is left to the wallet, which decides what it can send."""
+    family = wallet_family_for_asset(asset, environment=environment)
     try:
-        resolution = resolver.resolve(destination, kind=KIND_WALLET, network=network, chain=chain,
-                                      family=wallet_family_for_asset(asset, environment=environment), environment=environment)
+        resolution = resolver.resolve(destination, kind=KIND_WALLET, network=network, chain=chain, family=family, environment=environment)
+        supported = networks_for_asset(asset, environment=environment) if asset and not network else set()
+        if supported:
+            resolution = _narrow_to_asset(resolution, destination, asset=asset, supported=supported, chain=chain, family=family, environment=environment)
     except Exception as exc:
         return RecipientOutcome(False, "recipient_lookup_failed", f"Contacts could not be read to find '{destination}' ({type(exc).__name__}).")
     if not resolution.ok or not resolution.snapshot:
@@ -86,4 +140,4 @@ def verify_recipients(snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ..
     return RecipientOutcome(True, "current", "")
 
 
-__all__ = ["REFUSAL_STATUS", "RecipientOutcome", "resolve_email_recipients", "resolve_wallet_recipient", "verify_recipients", "wallet_family_for_asset"]
+__all__ = ["REFUSAL_STATUS", "RecipientOutcome", "networks_for_asset", "resolve_email_recipients", "resolve_wallet_recipient", "verify_recipients", "wallet_family_for_asset"]

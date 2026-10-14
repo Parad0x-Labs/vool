@@ -83,6 +83,29 @@ def active_environment() -> EnvironmentState:
         return _resolve(conn)
 
 
+def peek_environment() -> str:
+    """:func:`active_environment`'s answer read without the wallet's write connection: a plain SELECT, no schema work, no
+    pin. For readers that may already hold another write transaction on the same database (Contacts filling in a chain
+    while it saves). A database with no wallet table yet is a fresh install: Mainnet, as :func:`_resolve` derives."""
+    override = _override()
+    if override:
+        return override
+    import sqlite3
+
+    from core.wallet.store import _raw_conn
+
+    conn = _raw_conn()
+    try:
+        stored, _changed_at = _stored(conn)
+    except sqlite3.OperationalError as exc:
+        if "no such table" not in str(exc):
+            raise
+        stored = ""
+    finally:
+        conn.close()
+    return stored or ENVIRONMENT_MAINNET
+
+
 def _control_value(environment: str, set_by: str) -> str:
     return json.dumps({"environment": environment, "set_by": set_by}, sort_keys=True)
 

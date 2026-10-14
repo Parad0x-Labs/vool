@@ -261,18 +261,99 @@ class WalletIdentity:
     network_display: str
 
 
-def normalize_wallet(raw: object, *, network: object) -> WalletIdentity:
-    """One public address on one declared network, validated by the wallet owner's own rules."""
+def active_wallet_environment() -> str:
+    """The wallet's active environment (Mainnet unless the owner chose Test networks). Reading it never writes a choice.
+    '' when it cannot be read: then nothing is detected or named by chain alone and the owner chooses the network."""
+    try:
+        from core.wallet.environment import peek_environment
+
+        return peek_environment()
+    except Exception:
+        return ""
+
+
+def evm_network_names(environment: str) -> list[str]:
+    from core.wallet import chains
+
+    return [spec.display_name for spec in chains.rows_for_environment(environment) if spec.is_evm]
+
+
+def detected_wallet_network(raw: object) -> str:
+    """The one network an address with no network names by its shape alone, else ''.
+
+    A Solana address (base58, 32 bytes) can only be Solana: it takes the Solana row of the wallet's active environment.
+    A 0x address is valid on every EVM chain, so it never picks one: the owner says which chain the person uses.
+    """
     text = str(raw or "").strip()
-    wanted = clean_display(network)
-    if not wanted:
-        raise EndpointError("wallet_network_required", "A wallet address belongs to one network: choose the network.", field="network")
+    from core.wallet import chains
+
+    if not chains.SVM_ADDRESS_RE.match(text):
+        return ""
+    environment = active_wallet_environment()
+    spec = next((s for s in chains.rows_for_environment(environment) if s.is_svm), None)
+    if spec is None:
+        return ""
+    from core.wallet.usepod import canonical_recipient
+
+    return spec.network if canonical_recipient(spec, text) is not None else ""
+
+
+def network_by_name(wanted: str) -> Any:
+    """The declared row a chain name names, or None. The wallet's own identifiers win (CAIP-2 and its legacy names); then
+    a bare chain name ("base", "Ethereum") names that chain's row in the wallet's active environment, the same rule a
+    detected Solana address follows; then a row's exact display name ("Base Sepolia", "Arbitrum One")."""
     from core.wallet import chains
 
     try:
-        spec = chains.resolve_network(wanted)
+        return chains.resolve_network(wanted)
     except Exception:
-        raise EndpointError("wallet_network_unknown", f"'{wanted[:60]}' is not a network this wallet declares.", field="network") from None
+        pass
+    key = wanted.strip().casefold()
+    rows = chains.all_networks()
+    environment = active_wallet_environment()
+    if not environment:
+        return None
+    keyed = [spec for spec in rows if spec.chain_key == key and spec.environment == environment]
+    if len(keyed) == 1:
+        return keyed[0]
+    named = [spec for spec in rows if spec.display_name.casefold() == key]
+    return named[0] if len(named) == 1 else None
+
+
+def _decodes_to_32_bytes(text: str) -> bool:
+    try:
+        from core.vool_wallet import b58decode
+
+        return len(b58decode(text)) == 32
+    except Exception:
+        return False
+
+
+def normalize_wallet(raw: object, *, network: object) -> WalletIdentity:
+    """One public address on one declared network, validated by the wallet owner's own rules. With no network, a Solana
+    address takes Solana (``detected_wallet_network``); a 0x address is refused until the owner chooses the chain."""
+    text = str(raw or "").strip()
+    wanted = clean_display(network) or detected_wallet_network(text)
+    if not wanted:
+        from core.wallet import chains
+
+        if chains.EVM_ADDRESS_RE.match(text):
+            options = evm_network_names(active_wallet_environment())
+            listed = ", ".join(options[:-1]) + " or " + options[-1] if len(options) > 1 else "".join(options)
+            raise EndpointError(
+                "wallet_network_required",
+                f"A 0x address works on several chains. Choose the one this person uses ({listed})." if listed
+                else "A 0x address works on several chains. Choose the one this person uses.",
+                field="network",
+            )
+        if text and not (chains.SVM_ADDRESS_RE.match(text) and _decodes_to_32_bytes(text)):
+            raise EndpointError("wallet_address_invalid", "That is not a Solana address or a 0x address.")
+        raise EndpointError("wallet_network_required", "A wallet address belongs to one network: choose the network.", field="network")
+    from core.wallet import chains
+
+    spec = network_by_name(wanted)
+    if spec is None:
+        raise EndpointError("wallet_network_unknown", f"'{wanted[:60]}' is not a network this wallet declares.", field="network")
     if spec.is_evm:
         if not chains.EVM_ADDRESS_RE.match(text):
             raise EndpointError("wallet_address_invalid", f"That is not an address on {spec.display_name}.")
