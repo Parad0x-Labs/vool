@@ -1563,6 +1563,7 @@
     "keys.deleting": "मिटाया जा रहा है…",
     "keys.not_deleted": "मिटाया नहीं गया — {error}",
     "keys.saved_state": "सहेजा गया {date}",
+    "keys.outcome.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रो दी{http}। कुंजी का निर्णय नहीं हुआ। बाद में या किसी दूसरे नेटवर्क से कोशिश करें। कुछ सहेजा नहीं गया।",
     "keys.outcome.invalid": "{label} ने यह कुंजी अस्वीकार कर दी{http}। जाँचें कि आपने पूरी कुंजी कॉपी की है और वह {label} की ही है। कुछ सहेजा नहीं गया।",
     "keys.outcome.unauthorized": "{label} ने कुंजी पहचानी, पर यह अनुरोध अस्वीकार कर दिया{http}। कुंजी की अनुमतियाँ जाँचें। कुछ सहेजा नहीं गया।",
     "keys.outcome.exhausted": "{label} बताता है कि इस कुंजी का क्रेडिट या कोटा ख़त्म है{http}। क्रेडिट जोड़ें, फिर सहेजें। कुछ सहेजा नहीं गया।",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} का उत्तर अप्रत्याशित था{http}। कुंजी का निर्णय नहीं हुआ। कुछ सहेजा नहीं गया।",
     "keys.test.ok": "कनेक्शन सत्यापित — {label} ने आपकी कुंजी स्वीकार की।",
     "keys.test.unauthorized": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
+    "keys.test.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रो दी{http}। कुंजी का निर्णय नहीं हुआ।",
     "keys.test.no_key": "{label} के लिए कोई कुंजी सहेजी नहीं है।",
     "keys.test.rate_limited": "{label} इस समय अनुरोधों पर दर-सीमा लगा रहा है{http}। कुंजी का निर्णय नहीं हुआ; थोड़ी देर में दोबारा कोशिश करें।",
     "keys.test.exhausted": "{label} बताता है कि इस कुंजी का क्रेडिट या कोटा ख़त्म है{http}।",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "क्रिप्टो सेटिंग्स में भुगतान चैनल तभी चालू करें जब आप उसके ज़रिए भुगतान चाहते हों; सीमा और आपकी मंज़ूरी हर चैनल पर लागू होती है।",
     "fault.wallet_x402_sdk_unavailable.message": "यह बिल्ड x402 Foundation SDK के ज़रिए Base पर x402 ऑफ़र का भुगतान नहीं कर सकता: वैकल्पिक x402 ऐड-ऑन इस मशीन पर नहीं है। कुछ हस्ताक्षरित या भेजा नहीं गया। वॉलेट की बाकी हर सुविधा इसके बिना चलती है; इसे लगाने पर दोबारा कोशिश करें।"
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

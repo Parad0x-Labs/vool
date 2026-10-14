@@ -1563,6 +1563,7 @@
     "keys.deleting": "جارٍ الحذف…",
     "keys.not_deleted": "لم يُحذَف — {error}",
     "keys.saved_state": "حُفظ {date}",
+    "keys.outcome.gateway_blocked": "حجب {label} هذا الفحص قبل أن ينظر إلى المفتاح{http}. لم يُحكَم على المفتاح. حاول لاحقًا أو من شبكة أخرى. لم يُخزَّن شيء.",
     "keys.outcome.invalid": "رفض {label} هذا المفتاح{http}. تحقق من أنك نسخته كاملًا وأنه مفتاح {label}. لم يُخزَّن شيء.",
     "keys.outcome.unauthorized": "تعرّف {label} على المفتاح لكنه رفض هذا الطلب{http}. تحقق من أذونات المفتاح. لم يُخزَّن شيء.",
     "keys.outcome.exhausted": "يبلغ {label} أنه لم يتبقَّ رصيد أو حصة لهذا المفتاح{http}. أضف رصيدًا ثم احفظ مجددًا. لم يُخزَّن شيء.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "أعطى {label} إجابة غير متوقعة{http}. لم يُحكَم على المفتاح. لم يُخزَّن شيء.",
     "keys.test.ok": "تم التحقق من الاتصال — قبل {label} مفتاحك.",
     "keys.test.unauthorized": "رفض {label} المفتاح{http}. راجعه أو استبدله.",
+    "keys.test.gateway_blocked": "حجب {label} هذا الفحص قبل أن ينظر إلى المفتاح{http}. لم يُحكَم على المفتاح.",
     "keys.test.no_key": "لا يوجد مفتاح محفوظ لـ {label}.",
     "keys.test.rate_limited": "يحدّ {label} من الطلبات الآن{http}. لم يُحكَم على المفتاح؛ أعد المحاولة بعد قليل.",
     "keys.test.exhausted": "يبلغ {label} أنه لم يتبقَّ رصيد أو حصة لهذا المفتاح{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "شغّل قناة دفع في إعدادات العملات المشفرة فقط إن أردت أن تتم الدفعات عبرها؛ الحد الأقصى وموافقتك يسريان على كل قناة.",
     "fault.wallet_x402_sdk_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 على Base عبر x402 Foundation SDK: الإضافة الاختيارية x402 غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

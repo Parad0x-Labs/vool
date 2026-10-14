@@ -1563,6 +1563,7 @@
     "keys.deleting": "Suppression…",
     "keys.not_deleted": "Non supprimée — {error}",
     "keys.saved_state": "enregistrée le {date}",
+    "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
     "keys.outcome.invalid": "{label} a rejeté cette clé{http}. Vérifiez que vous l’avez copiée en entier et qu’il s’agit bien d’une clé {label}. Rien n’a été enregistré.",
     "keys.outcome.unauthorized": "{label} a reconnu la clé mais a refusé cette requête{http}. Vérifiez les permissions de la clé. Rien n’a été enregistré.",
     "keys.outcome.exhausted": "{label} signale qu’il ne reste ni crédit ni quota pour cette clé{http}. Ajoutez du crédit, puis enregistrez à nouveau. Rien n’a été enregistré.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} a donné une réponse inattendue{http}. La clé n’a pas été jugée. Rien n’a été enregistré.",
     "keys.test.ok": "Connexion vérifiée — {label} a accepté votre clé.",
     "keys.test.unauthorized": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
+    "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée.",
     "keys.test.no_key": "Aucune clé n’est enregistrée pour {label}.",
     "keys.test.rate_limited": "{label} limite les requêtes en ce moment{http}. La clé n’a pas été jugée ; réessayez sous peu.",
     "keys.test.exhausted": "{label} signale qu’il ne reste ni crédit ni quota pour cette clé{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
     "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

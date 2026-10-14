@@ -1563,6 +1563,7 @@
     "keys.deleting": "Eliminando…",
     "keys.not_deleted": "No se eliminó — {error}",
     "keys.saved_state": "guardada {date}",
+    "keys.outcome.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada. Prueba más tarde o desde otra red. No se guardó nada.",
     "keys.outcome.invalid": "{label} rechazó esta clave{http}. Comprueba que la copiaste entera y que es una clave de {label}. No se guardó nada.",
     "keys.outcome.unauthorized": "{label} reconoció la clave pero rechazó esta petición{http}. Comprueba los permisos de la clave. No se guardó nada.",
     "keys.outcome.exhausted": "{label} reporta que no le queda crédito ni cuota a esta clave{http}. Añade crédito y vuelve a guardar. No se guardó nada.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} dio una respuesta inesperada{http}. La clave no fue evaluada. No se guardó nada.",
     "keys.test.ok": "Conexión verificada — {label} aceptó tu clave.",
     "keys.test.unauthorized": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela.",
+    "keys.test.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada.",
     "keys.test.no_key": "No hay clave guardada para {label}.",
     "keys.test.rate_limited": "{label} está limitando las peticiones ahora mismo{http}. La clave no fue evaluada; prueba de nuevo en breve.",
     "keys.test.exhausted": "{label} reporta que no le queda crédito ni cuota a esta clave{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Activa un canal de pago en los ajustes de Cripto solo si quieres que los pagos pasen por él; el tope y tu aprobación se aplican en todos los canales.",
     "fault.wallet_x402_sdk_unavailable.message": "Esta compilación no puede pagar ofertas x402 en Base mediante el x402 Foundation SDK: el extra opcional x402 no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1563,6 +1563,7 @@
     "keys.deleting": "Siliniyor…",
     "keys.not_deleted": "Silinmedi — {error}",
     "keys.saved_state": "{date} tarihinde kaydedildi",
+    "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.outcome.invalid": "{label} bu anahtarı reddetti{http}. Tamamını kopyaladığınızdan ve bunun bir {label} anahtarı olduğundan emin olun. Hiçbir şey kaydedilmedi.",
     "keys.outcome.unauthorized": "{label} anahtarı tanıdı ancak bu isteği reddetti{http}. Anahtarın izinlerini kontrol edin. Hiçbir şey kaydedilmedi.",
     "keys.outcome.exhausted": "{label}, bu anahtarda kredi veya kota kalmadığını bildiriyor{http}. Kredi ekleyin, sonra yeniden kaydedin. Hiçbir şey kaydedilmedi.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} beklenmedik bir yanıt verdi{http}. Anahtar değerlendirilmedi. Hiçbir şey kaydedilmedi.",
     "keys.test.ok": "Bağlantı doğrulandı — {label} anahtarınızı kabul etti.",
     "keys.test.unauthorized": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin.",
+    "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi.",
     "keys.test.no_key": "{label} için saklı anahtar yok.",
     "keys.test.rate_limited": "{label} şu anda istekleri sınırlıyor{http}. Anahtar değerlendirilmedi; kısa süre sonra tekrar deneyin.",
     "keys.test.exhausted": "{label}, bu anahtarda kredi veya kota kalmadığını bildiriyor{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Bir ödeme kanalını Kripto ayarlarında yalnızca ödemelerin onun üzerinden yapılmasını istiyorsanız açın; tavan ve sizin onayınız her kanalda geçerlidir.",
     "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

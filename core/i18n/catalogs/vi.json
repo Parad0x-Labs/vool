@@ -1563,6 +1563,7 @@
     "keys.deleting": "Đang xóa…",
     "keys.not_deleted": "Chưa xóa — {error}",
     "keys.saved_state": "đã lưu {date}",
+    "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
     "keys.outcome.invalid": "{label} từ chối khóa này{http}. Hãy kiểm tra bạn đã chép đủ khóa và nó đúng là khóa của {label}. Không lưu gì cả.",
     "keys.outcome.unauthorized": "{label} nhận ra khóa nhưng từ chối yêu cầu này{http}. Hãy kiểm tra quyền của khóa. Không lưu gì cả.",
     "keys.outcome.exhausted": "{label} báo khóa này không còn tín dụng hay hạn mức{http}. Hãy nạp thêm rồi lưu lại. Không lưu gì cả.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} đưa ra câu trả lời ngoài dự đoán{http}. Khóa chưa được đánh giá. Không lưu gì cả.",
     "keys.test.ok": "Đã xác minh kết nối — {label} chấp nhận khóa của bạn.",
     "keys.test.unauthorized": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
+    "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá.",
     "keys.test.no_key": "Chưa lưu khóa nào cho {label}.",
     "keys.test.rate_limited": "{label} đang giới hạn yêu cầu lúc này{http}. Khóa chưa được đánh giá; hãy thử lại sau giây lát.",
     "keys.test.exhausted": "{label} báo khóa này không còn tín dụng hay hạn mức{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
     "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

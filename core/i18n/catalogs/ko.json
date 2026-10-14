@@ -1563,6 +1563,7 @@
     "keys.deleting": "삭제하는 중…",
     "keys.not_deleted": "삭제되지 않았습니다 — {error}",
     "keys.saved_state": "{date} 저장됨",
+    "keys.outcome.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다. 나중에 다시 시도하거나 다른 네트워크에서 시도하세요. 아무 것도 저장되지 않았습니다.",
     "keys.outcome.invalid": "{label}이(가) 이 키를 거부했습니다{http}. 전체를 복사했는지, {label}용 키가 맞는지 확인하세요. 아무 것도 저장되지 않았습니다.",
     "keys.outcome.unauthorized": "{label}은(는) 키를 인식했지만 이 요청을 거부했습니다{http}. 키 권한을 확인하세요. 아무 것도 저장되지 않았습니다.",
     "keys.outcome.exhausted": "{label}이(가) 이 키에 남은 크레딧이나 쿼터가 없다고 알려왔습니다{http}. 크레딧을 추가한 뒤 다시 저장하세요. 아무 것도 저장되지 않았습니다.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label}이(가) 예상 밖의 답을 했습니다{http}. 키는 판정되지 않았습니다. 아무 것도 저장되지 않았습니다.",
     "keys.test.ok": "연결 확인됨 — {label}이(가) 키를 받아들였습니다.",
     "keys.test.unauthorized": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요.",
+    "keys.test.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다.",
     "keys.test.no_key": "{label}에 대해 저장된 키가 없습니다.",
     "keys.test.rate_limited": "{label}이(가) 지금 요청을 제한하고 있습니다{http}. 키는 판정되지 않았습니다. 잠시 후에 다시 시도하세요.",
     "keys.test.exhausted": "{label}이(가) 이 키에 남은 크레딧이나 쿼터가 없다고 알려왔습니다{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 사용자 승인은 모든 채널에 적용됩니다.",
     "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

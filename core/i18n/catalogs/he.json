@@ -1563,6 +1563,7 @@
     "keys.deleting": "מוחק…",
     "keys.not_deleted": "לא נמחק — {error}",
     "keys.saved_state": "נשמר {date}",
+    "keys.outcome.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט. נסו שוב מאוחר יותר או מרשת אחרת. שום דבר לא אוחסן.",
     "keys.outcome.invalid": "{label} דחה את המפתח הזה{http}. בדקו שהעתקתם את המפתח כולו ושהוא מפתח של {label}. שום דבר לא אוחסן.",
     "keys.outcome.unauthorized": "{label} זיהה את המפתח אך סירב לבקשה הזו{http}. בדקו את הרשאות המפתח. שום דבר לא אוחסן.",
     "keys.outcome.exhausted": "{label} מדווח שלא נותר קרדיט או מכסה למפתח הזה{http}. הוסיפו קרדיט ושמרו שוב. שום דבר לא אוחסן.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} החזיר תשובה בלתי צפויה{http}. המפתח לא נשפט. שום דבר לא אוחסן.",
     "keys.test.ok": "החיבור אומת — {label} קיבל את המפתח שלכם.",
     "keys.test.unauthorized": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
+    "keys.test.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט.",
     "keys.test.no_key": "לא מאוחסן מפתח עבור {label}.",
     "keys.test.rate_limited": "{label} מגביל כרגע בקשות{http}. המפתח לא נשפט; נסו שוב בקרוב.",
     "keys.test.exhausted": "{label} מדווח שלא נותר קרדיט או מכסה למפתח הזה{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "הפעילו ערוץ תשלום בהגדרות הקריפטו רק אם אתם רוצים שתשלומים יעברו דרכו; התקרה והאישור שלכם חלים על כל ערוץ.",
     "fault.wallet_x402_sdk_unavailable.message": "גרסה זו אינה יכולה לשלם הצעות x402 ב-Base דרך x402 Foundation SDK: התוספת האופציונלית x402 אינה מותקנת במכונה זו. לא נחתם ולא נשלח דבר. כל שאר פונקציות הארנק עובדות בלעדיה; לאחר התקנתה נסו שוב."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

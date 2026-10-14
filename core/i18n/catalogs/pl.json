@@ -1563,6 +1563,7 @@
     "keys.deleting": "Usuwanie…",
     "keys.not_deleted": "Nie usunięto — {error}",
     "keys.saved_state": "zapisano {date}",
+    "keys.outcome.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony. Spróbuj później albo z innej sieci. Nic nie zapisano.",
     "keys.outcome.invalid": "{label} odrzucił ten klucz{http}. Sprawdź, czy klucz został skopiowany w całości i czy to klucz {label}. Nic nie zapisano.",
     "keys.outcome.unauthorized": "{label} rozpoznał klucz, ale odrzucił to żądanie{http}. Sprawdź uprawnienia klucza. Nic nie zapisano.",
     "keys.outcome.exhausted": "{label} zgłasza, że ten klucz nie ma już kredytu ani limitu{http}. Doładuj środki i zapisz ponownie. Nic nie zapisano.",
@@ -1582,6 +1583,7 @@
     "keys.outcome.unexpected": "{label} udzielił nieoczekiwanej odpowiedzi{http}. Klucz nie został oceniony. Nic nie zapisano.",
     "keys.test.ok": "Połączenie zweryfikowane — {label} zaakceptował Twój klucz.",
     "keys.test.unauthorized": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
+    "keys.test.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony.",
     "keys.test.no_key": "Dla {label} nie ma zapisanego klucza.",
     "keys.test.rate_limited": "{label} ogranicza teraz żądania{http}. Klucz nie został oceniony; spróbuj za chwilę.",
     "keys.test.exhausted": "{label} zgłasza, że ten klucz nie ma już kredytu ani limitu{http}.",
@@ -1877,7 +1879,7 @@
     "fault.wallet_payment_channel_off.action": "Włącz kanał płatności w ustawieniach Krypto tylko wtedy, gdy chcesz, by płatności przez niego szły; limit i twoja zgoda obowiązują na każdym kanale.",
     "fault.wallet_x402_sdk_unavailable.message": "Ta wersja nie potrafi opłacać ofert x402 w sieci Base przez x402 Foundation SDK: na tym komputerze nie ma opcjonalnego dodatku x402. Nic nie podpisano ani nie wysłano. Każda inna funkcja portfela działa bez niego; po zainstalowaniu spróbuj ponownie."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "36e915a7ac60de129d8c58d8edc0f02448edfb9c5c6d8364b76bb67cdb0e0cd6",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
