@@ -310,10 +310,11 @@ def _read_profile_key(key_home: str) -> str:
     env.update({"VOOL_HOME": str(home), "VOOL_KEYCHAIN_ALLOWED": "0", "PYTHONDONTWRITEBYTECODE": "1"})
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]);"
-        "from ops.prompt_cache_bench.bench import _child_read_key; sys.exit(_child_read_key(sys.argv[2], float(sys.argv[3])))"
+        "from ops.prompt_cache_bench.bench import _child_read_key;"
+        "sys.exit(_child_read_key(sys.argv[2], float(sys.argv[3]), sys.argv[4]))"
     )
     proc = subprocess.run(
-        [sys.executable, "-c", code, str(REPO), KEY_NAME, str(KEYCHAIN_CLICK_TIMEOUT_S)],
+        [sys.executable, "-c", code, str(REPO), KEY_NAME, str(KEYCHAIN_CLICK_TIMEOUT_S), store],
         env=env, cwd=str(home), capture_output=True, text=True, timeout=KEYCHAIN_CLICK_TIMEOUT_S + 60,
     )
     key = proc.stdout.strip()
@@ -325,10 +326,14 @@ def _read_profile_key(key_home: str) -> str:
     return key
 
 
-def _child_read_key(name: str, timeout_s: float) -> int:
+def _child_read_key(name: str, timeout_s: float, store: str = "vault") -> int:
     """Child side of :func:`_read_profile_key`: VOOL_HOME already names the profile."""
     from core import bounded_keyring, credential_store
 
+    if store == "keychain" and credential_store._load_keyring() is None:
+        # Without a Keychain backend VOOL would only look in the file vault and report "no key".
+        print("this python cannot open the macOS Keychain (the keyring package or its backend is missing)", file=sys.stderr)
+        return 5
     bounded_keyring.DEFAULT_TIMEOUT_S = timeout_s
     try:
         with credential_store.strict_reads():
@@ -1013,6 +1018,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     lines = [
         "# Prompt-cache bench report",
         "",
+        *(["**DRY RUN: stand-in provider and stand-in Claude Code. No number here is evidence.**", ""] if (root / DRYRUN_MARKER).exists() else []),
         f"Run root: `{root.name}`. Money counted against the cap: billed ${summary['ledger'].get('billed_usd', 0):.4f}, "
         f"notional (Claude login, list price) ${summary['ledger'].get('notional_usd', 0):.4f}, "
         f"cap ${summary['ledger'].get('cap_usd', 0):.2f}.",
@@ -1213,7 +1219,7 @@ def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tup
             info = _http_json(f"{OPENROUTER}/key", key=key, timeout=30.0).get("data") or {}
             remaining = info.get("limit_remaining")
             enough = not isinstance(remaining, (int, float)) or remaining >= 1.0
-            line(enough, "OpenRouter accepts VOOL's saved key" + (f" (${remaining:.2f} left on it)" if isinstance(remaining, (int, float)) else ""))
+            line(enough, ("the stand-in provider accepts the dry-run key" if args.dryrun else "OpenRouter accepts VOOL's saved key") + (f" (${remaining:.2f} left on it)" if isinstance(remaining, (int, float)) else ""))
         except HarnessError as exc:
             line(False, str(exc))
         except urllib.error.HTTPError as exc:
@@ -1222,13 +1228,67 @@ def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tup
             line(False, f"OpenRouter key check failed: {type(exc).__name__}")
     if "cli-claude" in specs_kinds:
         reason = _check_claude_login(args.claude_bin, args.claude_cli, root, ledger)
-        line(not reason, reason or f"Claude Code is signed in and answers on {args.claude_cli}")
+        line(not reason, reason or ("the Claude Code stand-in answers" if args.dryrun else f"Claude Code is signed in and answers on {args.claude_cli}"))
     if need_vool and key and clean:
         for sha in shas.values():
             reason = _check_boot(sha, key, args.claude_or, root, python_bin)
             line(not reason, reason or f"VOOL {sha[:9]} starts in a throwaway profile")
     shutil.rmtree(root / "check", ignore_errors=True)
     return problems, k3
+
+
+DRYRUN_DIR = HERE / "dryrun"
+DRYRUN_MARKER = "DRYRUN.txt"
+
+
+def describe_installed_profile(key_home: str = "") -> str:
+    """Where the real run will look for the key, from paths and file names only (no secret read)."""
+    try:
+        home = installed_profile_home(key_home)
+    except HarnessError as exc:
+        return str(exc)
+    try:
+        return f"installed VOOL profile found at {home}; saved keys kept in VOOL's {profile_key_store(home)}"
+    except HarnessError as exc:
+        return str(exc)
+
+
+def _start_dryrun(args: argparse.Namespace, root: Path) -> subprocess.Popen:
+    """Stand-in provider and stand-in Claude Code for a free end-to-end run. Nothing real is called."""
+    sys.path.insert(0, str(REPO))
+    from ops.served_reality.wire import free_port
+
+    (root / DRYRUN_MARKER).write_text("Stand-in provider and stand-in Claude Code. Nothing in this run root is evidence.\n", encoding="utf-8")
+    state = root / "dryrun-provider"
+    shutil.rmtree(state, ignore_errors=True)
+    port = free_port()
+    log = (root / "dryrun-provider.log").open("ab")
+    provider = subprocess.Popen([sys.executable, str(DRYRUN_DIR / "fake_provider.py"), str(state), str(port)], stdout=log, stderr=log)
+    deadline = time.monotonic() + 60
+    while not (state / "ca.pem").exists():
+        if provider.poll() is not None or time.monotonic() > deadline:
+            provider.kill()
+            raise HarnessError(f"the dry-run provider did not start (see {root / 'dryrun-provider.log'})")
+        time.sleep(0.2)
+    for name in ("HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+        os.environ.pop(name, None)
+    os.environ.update({
+        "HTTPS_PROXY": f"http://127.0.0.1:{port}", "https_proxy": f"http://127.0.0.1:{port}",
+        "NO_PROXY": "127.0.0.1,localhost", "no_proxy": "127.0.0.1,localhost",
+        "SSL_CERT_FILE": str(state / "ca.pem"), "REQUESTS_CA_BUNDLE": str(state / "ca.pem"),
+        "OPENROUTER_API_KEY": "sk-or-dryrun-not-a-real-key",
+    })
+    args.key_source = "env"
+    shim = root / "dryrun-bin" / "claude"
+    shim.parent.mkdir(parents=True, exist_ok=True)
+    shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{DRYRUN_DIR / "standin_claude.py"}" "$@"\n', encoding="utf-8")
+    shim.chmod(0o755)
+    real = shutil.which(args.claude_bin)
+    print(f"dry run: stand-in provider on 127.0.0.1:{port}, stand-in Claude Code; no key is read and no model is called", flush=True)
+    print(f"dry run: real Claude Code for the paid run: {real or 'NOT FOUND on PATH'}", flush=True)
+    print(f"dry run: {describe_installed_profile(args.key_home)}", flush=True)
+    args.claude_bin = str(shim)
+    return provider
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -1238,14 +1298,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     ledger.save()
     failures: list[str] = []
     exit_code = EXIT_OK
+    outcome = "crashed"
+    provider = None
     try:
+        if args.dryrun:
+            provider = _start_dryrun(args, root)
         problems, k3 = run_checks(args, root, ledger)
         ledger.save()
         if problems:
-            print(f"STOPPED before any arm: {len(problems)} check(s) failed. Nothing else was run.", flush=True)
+            outcome = f"STOPPED before any arm: {len(problems)} check(s) failed (FAIL lines above). Nothing else was run."
             return EXIT_USAGE
         if args.check_only:
-            print("all checks passed; --check-only, so no arm was run.", flush=True)
+            outcome = "CHECKS PASSED. No arm was run (check only)."
             return EXIT_OK
         print(f"all checks passed; running {args.phase}: " + ", ".join(label for label, _, _ in _arm_specs(args, k3)), flush=True)
         capped = False
@@ -1279,10 +1343,15 @@ def cmd_run(args: argparse.Namespace) -> int:
                 failures.append(f"{label}: exit {rc}")
         if failures:
             exit_code = 1
+        outcome = f"PHASE {args.phase} " + ("FINISHED WITH FAILURES: " + "; ".join(failures) if failures else "FINISHED")
         return exit_code
     finally:
+        if provider is not None:
+            provider.terminate()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                provider.wait(10)
         cmd_report(argparse.Namespace(run_root=str(root), cap_usd=args.cap_usd))
-        print("PHASE " + args.phase + (" FINISHED WITH FAILURES: " + "; ".join(failures) if failures else " FINISHED"), flush=True)
+        print(("DRY RUN " if args.dryrun else "") + outcome, flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1343,6 +1412,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--claude-bin", default="claude")
     run.add_argument("--python", default="")
     run.add_argument("--check-only", action="store_true", help="run the checks for the phase, then stop")
+    run.add_argument("--dryrun", action="store_true", help="stand-in provider and stand-in Claude Code: free, nothing real is called")
     run.set_defaults(func=cmd_run)
 
     report = sub.add_parser("report")

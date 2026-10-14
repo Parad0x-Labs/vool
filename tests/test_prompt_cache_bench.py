@@ -116,7 +116,7 @@ def test_a_keychain_key_is_read_and_nothing_is_written(tmp_path, monkeypatch, ca
     keychain = _Keychain({("nulla-credentials", bench.KEY_NAME): "sk-or-from-keychain"})
     profile = _keychain_profile(tmp_path, monkeypatch, keychain)
     before = _tree(profile)
-    assert bench._child_read_key(bench.KEY_NAME, 5.0) == 0
+    assert bench._child_read_key(bench.KEY_NAME, 5.0, "keychain") == 0
     assert capsys.readouterr().out == "sk-or-from-keychain"
     assert keychain.writes == [] and _tree(profile) == before
 
@@ -126,7 +126,7 @@ def test_an_unanswered_keychain_question_is_an_error_not_a_missing_key(tmp_path,
     keychain = _Keychain({("nulla-credentials", bench.KEY_NAME): "sk-or-late"}, block=release)
     _keychain_profile(tmp_path, monkeypatch, keychain)
     try:
-        assert bench._child_read_key(bench.KEY_NAME, 0.2) == 4
+        assert bench._child_read_key(bench.KEY_NAME, 0.2, "keychain") == 4
     finally:
         release.set()
     captured = capsys.readouterr()
@@ -138,3 +138,12 @@ def test_the_cli_login_route_ignores_api_keys_in_the_shell(monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://elsewhere.example")
     env = bench._cli_env("login")
     assert "ANTHROPIC_API_KEY" not in env and "ANTHROPIC_BASE_URL" not in env
+
+
+def test_a_keychain_profile_with_no_keychain_reader_is_named_not_read_as_no_key(tmp_path, monkeypatch, capsys) -> None:
+    from core import credential_store
+
+    _keychain_profile(tmp_path, monkeypatch, _Keychain({}))
+    monkeypatch.setattr(credential_store, "_load_keyring", lambda: None)
+    assert bench._child_read_key(bench.KEY_NAME, 5.0, "keychain") == 5
+    assert "cannot open the macOS Keychain" in capsys.readouterr().err
