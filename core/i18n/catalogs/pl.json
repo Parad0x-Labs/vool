@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Nie udało się zapisać tego ustawienia, więc nic się nie zmieniło.",
     "keys.outcome.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony. Spróbuj później albo z innej sieci. Nic nie zapisano.",
     "keys.test.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony.",
-    "addons.browse_intro": "Odkrywaj Hermes, OpenClaw i inne biblioteki. Sprawdź wymagania, przejrzyj skan i dodaj to, co pasuje.",
     "goal.state_queued": "W kolejce",
     "goal.state_planning": "Planowanie",
     "goal.state_running": "W toku",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Zablokowano",
     "goal.acceptance_label": "Kryteria akceptacji"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

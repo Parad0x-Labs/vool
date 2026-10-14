@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "मैं यह सेटिंग सहेज नहीं पाया, इसलिए कुछ नहीं बदला।",
     "keys.outcome.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ। बाद में या किसी दूसरे नेटवर्क से कोशिश करें। कुछ सहेजा नहीं गया।",
     "keys.test.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ।",
-    "addons.browse_intro": "Hermes, OpenClaw और अन्य लाइब्रेरी देखें। आवश्यकताएँ जाँचें, स्कैन की समीक्षा करें, फिर जो उचित हो जोड़ें।",
     "goal.state_queued": "कतार में",
     "goal.state_planning": "योजना बन रही है",
     "goal.state_running": "चल रहा है",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "अवरुद्ध",
     "goal.acceptance_label": "स्वीकृति मानदंड"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

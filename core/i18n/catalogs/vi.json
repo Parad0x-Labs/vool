@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Không lưu được cài đặt này, nên chưa có gì thay đổi.",
     "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
     "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá.",
-    "addons.browse_intro": "Khám phá Hermes, OpenClaw và các thư viện khác. Kiểm tra yêu cầu, xem lại bản quét, rồi thêm những gì phù hợp.",
     "goal.state_queued": "Đang chờ",
     "goal.state_planning": "Đang lập kế hoạch",
     "goal.state_running": "Đang chạy",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Bị chặn",
     "goal.acceptance_label": "Tiêu chí nghiệm thu"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

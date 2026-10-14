@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Bu ayarı kaydedemedim, bu yüzden hiçbir şey değişmedi.",
     "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi.",
-    "addons.browse_intro": "Hermes, OpenClaw ve diğer kitaplıkları keşfedin. Gereksinimleri kontrol edin, taramayı inceleyin ve uygun olanı ekleyin.",
     "goal.state_queued": "Kuyrukta",
     "goal.state_planning": "Planlanıyor",
     "goal.state_running": "Çalışıyor",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Engellendi",
     "goal.acceptance_label": "Kabul kriterleri"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

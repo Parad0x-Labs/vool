@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "无法保存该设置，因此没有任何更改。",
     "keys.outcome.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。请稍后重试，或换用其他网络。没有存储任何内容。",
     "keys.test.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。",
-    "addons.browse_intro": "探索 Hermes、OpenClaw 等库。检查要求、审阅扫描结果，然后添加合适的内容。",
     "goal.state_queued": "排队中",
     "goal.state_planning": "规划中",
     "goal.state_running": "运行中",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "已阻塞",
     "goal.acceptance_label": "验收标准"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

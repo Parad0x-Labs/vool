@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Nepavyko išsaugoti šio nustatymo, todėl niekas nepasikeitė.",
     "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
     "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas.",
-    "addons.browse_intro": "Tyrinėkite Hermes, OpenClaw ir kitas bibliotekas. Patikrinkite reikalavimus, peržiūrėkite nuskaitymą ir pridėkite, kas tinka.",
     "goal.state_queued": "Eilėje",
     "goal.state_planning": "Planuojama",
     "goal.state_running": "Vykdoma",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Užblokuota",
     "goal.acceptance_label": "Priėmimo kriterijai"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

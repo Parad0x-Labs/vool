@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Не удалось сохранить этот параметр, поэтому ничего не изменилось.",
     "keys.outcome.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен. Попробуйте позже или из другой сети. Ничего не сохранено.",
     "keys.test.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен.",
-    "addons.browse_intro": "Открывайте Hermes, OpenClaw и другие библиотеки. Проверьте требования, изучите сканирование и добавьте подходящее.",
     "goal.state_queued": "В очереди",
     "goal.state_planning": "Планирование",
     "goal.state_running": "Выполняется",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Заблокирована",
     "goal.acceptance_label": "Критерии приёмки"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "이 설정을 저장하지 못해 아무것도 바뀌지 않았습니다.",
     "keys.outcome.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다. 나중에 다시 시도하거나 다른 네트워크에서 시도하세요. 아무 것도 저장되지 않았습니다.",
     "keys.test.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다.",
-    "addons.browse_intro": "Hermes, OpenClaw 및 기타 라이브러리를 탐색하세요. 요구 사항을 확인하고 검사를 검토한 후 맞는 것을 추가하세요.",
     "goal.state_queued": "대기 중",
     "goal.state_planning": "계획 중",
     "goal.state_running": "실행 중",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "차단됨",
     "goal.acceptance_label": "승인 기준"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

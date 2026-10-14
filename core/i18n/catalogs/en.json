@@ -2388,7 +2388,6 @@
     "settings.row.appearance_theme.label": "Theme and text size",
     "run.refused_reason": "VOOL did not run this turn: {reason}",
     "run.refused_status": "VOOL did not run this turn (HTTP {status}).",
-    "addons.browse_intro": "Explore Hermes, OpenClaw and other libraries. Check requirements, review the scan, then add what fits.",
     "goal.state_queued": "Queued",
     "goal.state_planning": "Planning",
     "goal.state_running": "Running",

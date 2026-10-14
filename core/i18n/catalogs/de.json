@@ -2388,7 +2388,6 @@
     "own_tools.reply.failed": "Ich konnte diese Einstellung nicht speichern, daher wurde nichts geändert.",
     "keys.outcome.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt. Versuche es später oder aus einem anderen Netz erneut. Nichts wurde gespeichert.",
     "keys.test.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt.",
-    "addons.browse_intro": "Erkunde Hermes, OpenClaw und weitere Bibliotheken. Prüfe die Voraussetzungen, lies den Scan und füge hinzu, was passt.",
     "goal.state_queued": "In Warteschlange",
     "goal.state_planning": "Planung",
     "goal.state_running": "Läuft",
@@ -2408,7 +2407,7 @@
     "goal.state_blocked": "Blockiert",
     "goal.acceptance_label": "Akzeptanz"
   },
-  "source_catalog_sha256": "ccf30f3f030dc6408c81360817ec72b8387b3d242fb29da37420d9c90658f2bd",
+  "source_catalog_sha256": "be84f2179ed65723077f56f72ce84500707145537d7b5c654214542d11be590f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
