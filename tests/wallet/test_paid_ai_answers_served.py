@@ -311,18 +311,6 @@ def _files_holding(root, needle: bytes) -> list[str]:
     found = []
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
         name = str(path.relative_to(root))
-        if name in _RUNTIME_DBS:
-            # KNOWN, NOT THIS FEATURE'S: the chat runtime's own tool receipts (runtime_tool_receipts) keep every tool's
-            # arguments for a private chat too, for any tool; reported to the private-chat traces work. Every other
-            # table of that database is still read, row by row.
-            import sqlite3
-
-            with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as conn:
-                tables = [t for (t,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'") if t != "runtime_tool_receipts"]
-                for table in tables:
-                    if any(any(form.decode() in str(value) for form in forms for value in row) for row in conn.execute(f'SELECT * FROM "{table}"')):
-                        found.append(f"{name}:{table}")
-            continue
         try:
             blob = path.read_bytes()
         except OSError:
@@ -331,5 +319,3 @@ def _files_holding(root, needle: bytes) -> list[str]:
             found.append(name)
     return found
 
-
-_RUNTIME_DBS = {"data/vool_web0_v2.db"}
