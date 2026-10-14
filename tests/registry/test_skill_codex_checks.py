@@ -169,7 +169,11 @@ def test_text_too_long_to_read_is_refused_before_any_rule_runs(tmp_path):
 def test_many_comment_openers_under_the_limit_are_read_in_one_pass(tmp_path):
     raw = package(tmp_path, BODY + "\n" + "<!--" * 25_000 + "\n")
     hits = [item for item in found(tmp_path, raw)[0] if item["check"] == "instructions-primary"]
-    assert len(hits) == checks.MAX_FINDINGS
+    assert [item["line"] for item in hits] == [8] and "hidden comments" in hits[0]["reason"]
+    (tmp_path / "lines").mkdir()
+    raw = package(tmp_path / "lines", BODY + "\n" + "<!--\n" * 20_000)
+    hits = [item for item in found(tmp_path, raw)[0] if item["check"] == "instructions-primary"]
+    assert len(hits) == checks.MAX_FINDINGS and hits[-1]["line"] == 7 + checks.MAX_FINDINGS
 
 
 def test_advice_in_one_sentence_does_not_excuse_an_ask_in_the_next(tmp_path):
