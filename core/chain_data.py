@@ -2,8 +2,8 @@
 
 One model-facing tool, ``web.chain_lookup``: a wallet's native balance, its token balances, its recent
 transactions, a token's facts, a token's largest holders, or one transaction, on Solana, Ethereum,
-Base, BNB Smart Chain or Robinhood Chain, served by Helius, Alchemy, Solscan or Etherscan
-(``core/chain_providers.py``).
+Base, BNB Smart Chain, Arbitrum or Robinhood Chain, served by Helius, Alchemy, Solscan, Etherscan or
+Moralis (``core/chain_providers.py``).
 
 The tool is always offered, so a chain question is never answered from a model's memory:
 
@@ -84,10 +84,11 @@ def chain_contracts() -> list[Any]:
             intent=INTENT,
             description=(
                 "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, "
-                "Etherscan): a wallet's native balance, its token balances, its recent transactions, a token's info, a "
-                "token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain or Robinhood "
-                "Chain. Read-only: nothing is signed or sent. Use it for any question about an on-chain address, token "
-                "or transaction instead of answering from memory; without a key it says which key to add."
+                "Etherscan, Moralis): a wallet's native balance, its token balances, its recent transactions, a token's "
+                "info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain, "
+                "Arbitrum or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an "
+                "on-chain address, token or transaction instead of answering from memory; without a key it says which "
+                "key to add."
             ),
             tool_surface=SURFACE,
             capability_id="web.chain_lookup",
@@ -96,11 +97,11 @@ def chain_contracts() -> list[Any]:
             unsupported_reason="",
             input_schema={
                 "query": "str: balance | tokens | history | token_info | holders | transaction",
-                "chain": "str: solana | ethereum | base | bnb | robinhood (optional for a Solana address)",
+                "chain": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
                 "address": "str: wallet address (balance, tokens, history)",
                 "token": "str: token mint or contract address (token_info, holders)",
                 "tx": "str: transaction signature or hash (transaction)",
-                "provider": "str (optional): helius | alchemy | solscan | etherscan",
+                "provider": "str (optional): helius | alchemy | solscan | etherscan | moralis",
                 "limit": f"int (optional, 1-{MAX_LIMIT}): how many rows for lists",
             },
             output_schema={"provider": "str", "chain": "str", "rows": "list"},
@@ -155,12 +156,12 @@ def _chain_of(args: dict[str, Any], subject: str) -> str:
     if named:
         chain = cp.resolve_chain(named)
         if not chain:
-            raise ChainDataError("unknown_chain", f"VOOL's chain lookups cover Solana, Ethereum, Base, BNB Smart Chain and Robinhood Chain; {named[:40]!r} is not one of them. Nothing was looked up.")
+            raise ChainDataError("unknown_chain", f"VOOL's chain lookups cover Solana, Ethereum, Base, BNB Smart Chain, Arbitrum and Robinhood Chain; {named[:40]!r} is not one of them. Nothing was looked up.")
         return chain
     if subject and (_SVM_ADDRESS_RE.fullmatch(subject) or _SVM_TX_RE.fullmatch(subject)) and not subject.startswith("0x"):
         return cp.CHAIN_SOLANA
     if subject.startswith("0x") and (_EVM_ADDRESS_RE.fullmatch(subject) or _EVM_TX_RE.fullmatch(subject)):
-        raise ChainDataError("chain_needed", "That address or hash could be on Ethereum, Base, BNB Smart Chain or Robinhood Chain. Which chain is it on? Nothing was looked up.")
+        raise ChainDataError("chain_needed", "That address or hash could be on Ethereum, Base, BNB Smart Chain, Arbitrum or Robinhood Chain. Which chain is it on? Nothing was looked up.")
     raise ChainDataError("bad_subject", "That is not a Solana or EVM address, token or transaction id. Check it and ask again. Nothing was looked up.")
 
 
@@ -226,7 +227,7 @@ def _choose_provider(args: dict[str, Any], chain: str, op: str) -> tuple[cp.Chai
     if named:
         cfg = cp.config_for(named)
         if cfg is None:
-            raise ChainDataError("unknown_provider", f"VOOL's chain-data providers are Helius, Alchemy, Solscan and Etherscan; {named[:40]!r} is not one of them. Nothing was looked up.")
+            raise ChainDataError("unknown_provider", f"VOOL's chain-data providers are Helius, Alchemy, Solscan, Etherscan and Moralis; {named[:40]!r} is not one of them. Nothing was looked up.")
         if not cfg.serves(chain, op):
             raise ChainDataError("not_offered", f"{cfg.label} does not offer {_OP_PHRASES[op]} on {chain_label}. {_names(serving)} can. Nothing was looked up.")
         if not _stored(cfg):
@@ -267,9 +268,17 @@ def _safe_provider_text(text: object, key: str) -> str:
     return clean[:160]
 
 
-def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int) -> ChainDataError:
+_DECIMAL_RE = re.compile(r"\d{1,60}(?:\.\d{1,60})?")
+
+
+def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int, body: str = "") -> ChainDataError:
     label = cfg.label
     chain_label = cp.CHAIN_LABELS.get(chain, chain)
+    if status == 401 and cfg.provider_id == "moralis" and "consumed" in body.lower():
+        # Moralis answers a free plan whose daily allowance is used up with a 401 whose text says the usage
+        # "has been consumed": the key is good, so it must never read as a rejected key
+        return ChainDataError("quota_exhausted", f"{label}'s free daily allowance for this key is used up (HTTP 401). It resets on its own; "
+                              "the key is fine, keep it. Nothing was looked up.")
     if status == 401:
         return ChainDataError("key_rejected", f"{label} rejected the saved key (HTTP 401). Replace it in Settings → API Keys. Nothing was looked up.")
     if status == 403:
@@ -279,6 +288,9 @@ def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int) -> Chain
     if status == 402:
         return ChainDataError("quota_exhausted", f"{label} reports no credit or quota left for this key (HTTP 402).")
     if status == 429:
+        if cfg.provider_id == "moralis":
+            # Moralis answers a free key over its allowance with the same 429; the next step differs.
+            return ChainDataError("rate_limited", f"{label} is limiting requests right now (HTTP 429); with the free plan this is usually the daily allowance, which resets on its own. Nothing was looked up.")
         return ChainDataError("rate_limited", f"{label} is limiting requests right now (HTTP 429). Try again shortly. Nothing was looked up.")
     if status == 404:
         return ChainDataError("not_found", f"{label} found nothing for that on {chain_label} (HTTP 404).")
@@ -336,7 +348,11 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     except CredentialRedirectRefusedError:
         raise ChainDataError("redirected", f"{cfg.label} answered with a redirect to another site; VOOL did not send the key there. Nothing was looked up.") from None
     except urllib.error.HTTPError as exc:
-        raise _http_failure(cfg, chain, int(exc.code or 0)) from None
+        try:
+            body = exc.read(4096).decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        raise _http_failure(cfg, chain, int(exc.code or 0), _safe_provider_text(body, key)) from None
     except Exception as exc:
         if is_timeout_error(exc):
             raise ChainDataError("timeout", f"{cfg.label} did not answer in time. Try again. Nothing was looked up.") from None
@@ -353,7 +369,7 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ChainDataError("too_large", f"{cfg.label}'s answer was larger than VOOL accepts. Ask for fewer rows.")
     if not 200 <= status < 300:
-        raise _http_failure(cfg, chain, status)
+        raise _http_failure(cfg, chain, status, _safe_provider_text(raw[:4096].decode("utf-8", "replace"), key))
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
@@ -532,6 +548,8 @@ def lookup(args: dict[str, Any]) -> dict[str, Any]:
             text, rows = _solana(cfg, op, subject, limit)
         elif cfg.provider_id == "etherscan":
             text, rows = _etherscan_read(cfg, chain, op, subject, limit)
+        elif cfg.provider_id == "moralis":
+            text, rows = _moralis_holders(cfg, chain, op, subject, limit)
         else:
             text, rows = _alchemy_evm(cfg, chain, op, subject, limit)
     except ChainDataError as exc:
@@ -1009,6 +1027,39 @@ def _alchemy_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str
             return
         params["pageKey"] = page_key
     paging.stopped = f"stopped at page {TRANSFER_PAGE_BUDGET}: page budget (older transfers in the window were not read)"
+
+
+def _moralis_holders(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: str, limit: int) -> tuple[str, list[dict[str, Any]]]:
+    """The EVM token holders read: Moralis' documented top-holders list, one key for every chain it serves."""
+    if op != cp.OP_HOLDERS:
+        raise ChainDataError("not_offered", f"{cfg.label} serves token holders only. Nothing was looked up.")
+    payload = _send(cfg, chain, f"{cp.MORALIS_API_ORIGIN}/erc20/{subject}/owners",
+                    query={"chain": cp.MORALIS_CHAINS[chain], "limit": str(limit)})
+    if not isinstance(payload, dict) or not isinstance(payload.get("result"), list):
+        raise _shape_error(cfg)
+    link_a = _explorer(chain, address=subject)
+    rows: list[dict[str, Any]] = []
+    for rank, item in enumerate(payload["result"][:limit], start=1):
+        if not isinstance(item, dict):
+            raise _shape_error(cfg)
+        owner = str(item.get("owner_address") or "").lower()
+        # the documented owners answer carries ``balance`` in raw base units and ``balance_formatted`` already
+        # divided by the token's decimals; only the formatted figure is shown, and without it nothing is
+        amount = item.get("balance_formatted")
+        if not _EVM_ADDRESS_RE.fullmatch(owner) or not isinstance(amount, str) or not _DECIMAL_RE.fullmatch(amount.strip()):
+            raise _shape_error(cfg)
+        amount = amount.strip()
+        row: dict[str, Any] = {"rank": rank, "address": owner, "amount": str(amount)}
+        share = item.get("percentage_relative_to_total_supply")
+        if isinstance(share, (int, float)) and not isinstance(share, bool):
+            row["percent"] = f"{float(share):.2f}"
+        rows.append(row)
+    if not rows:
+        return f"No holders found for token {subject} on {cp.CHAIN_LABELS[chain]}.\n{link_a}", []
+    _public(*[r["address"] for r in rows])
+    lines = [f"- {r['rank']}. {r['amount']}" + (f" ({r['percent']}% of supply)" if "percent" in r else "")
+             + f" held by {r['address']}" for r in rows]
+    return (f"Top {len(rows)} holder(s) of {subject} on {cp.CHAIN_LABELS[chain]}:\n" + "\n".join(lines) + f"\n{link_a}"), rows
 
 
 # --------------------------------------------------------------------------- Settings "Test"

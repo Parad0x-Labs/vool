@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "Pridėkite raktą ir nukopijuokite jį. Vienas Etherscan raktas tinka visoms grandinėms, kurias aptarnauja Etherscan.",
     "keyguide.provider.etherscan.step3": "Sąraše pasirinkite Etherscan, įklijuokite raktą ir paspauskite Išsaugoti raktą.",
     "keyguide.provider.etherscan.note1": "Nemokamas Etherscan planas gali neapimti Base arba BNB Smart Chain. Jei neapima, pokalbis tai praneša ir nurodo grandinę.",
+    "keyguide.provider.moralis.description": "Tokenų savininkų sąrašai Ethereum, Base, BNB Smart Chain ir Arbitrum tinkluose.",
+    "keyguide.provider.moralis.step1": "Prisijunkite prie admin.moralis.io (tinka nemokamas planas) ir atidarykite savo paskyrą.",
+    "keyguide.provider.moralis.step2": "Moralis svetainėje atidarykite Settings, tada API Keys, ir nukopijuokite raktą.",
+    "keyguide.provider.moralis.step3": "Sąraše pasirinkite Moralis, įklijuokite raktą ir paspauskite Išsaugoti raktą.",
+    "keyguide.provider.moralis.note1": "Neprivaloma: VOOL jūsų Moralis raktą naudoja tik tokenų savininkų sąrašams Ethereum, Base, BNB Smart Chain ir Arbitrum tinkluose skaityti. Be jo visa kita veikia.",
+    "keyguide.provider.moralis.note2": "Nemokamame plane yra dienos skaičiavimo vienetų limitas. Kai jis pasibaigia, savininkų sąrašai pokalbyje atsako aiškiu atsisakymu, kol limitas atsinaujina.",
     "xsetup.dialog_title": "Prijungti X",
     "xsetup.choose": "Kaip norite prisijungti?",
     "xsetup.choose_public": "Tyrinėti viešus įrašus (Bearer Token)",
@@ -2425,7 +2431,7 @@
     "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
     "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas."
   },
-  "source_catalog_sha256": "836efde7104d2814a844260878f4d51de1f7195f96745a7a869a99837d1ca3d0",
+  "source_catalog_sha256": "7c8878b2ce9b85b275374a2c588af4a2e626ba2c10699cf34953b9c34b05043e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

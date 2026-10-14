@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "Füge einen Schlüssel hinzu und kopiere ihn. Ein Etherscan-Schlüssel funktioniert für jede Chain, die Etherscan bedient.",
     "keyguide.provider.etherscan.step3": "Wähle Etherscan in der Liste, füge den Schlüssel ein und klicke auf Schlüssel speichern.",
     "keyguide.provider.etherscan.note1": "Der kostenlose Etherscan-Plan deckt Base oder BNB Smart Chain eventuell nicht ab. Falls nicht, sagt der Chat das und nennt die Chain.",
+    "keyguide.provider.moralis.description": "Token-Halterlisten auf Ethereum, Base, BNB Smart Chain und Arbitrum.",
+    "keyguide.provider.moralis.step1": "Melde dich bei admin.moralis.io an (der kostenlose Plan reicht) und öffne dein Konto.",
+    "keyguide.provider.moralis.step2": "Öffne auf der Moralis-Website Settings, dann API Keys, und kopiere deinen Schlüssel.",
+    "keyguide.provider.moralis.step3": "Wähle Moralis in der Liste, füge den Schlüssel ein und klicke auf Schlüssel speichern.",
+    "keyguide.provider.moralis.note1": "Optional: VOOL nutzt deinen Moralis-Schlüssel nur zum Lesen von Token-Halterlisten auf Ethereum, Base, BNB Smart Chain und Arbitrum. Ohne ihn funktioniert alles andere.",
+    "keyguide.provider.moralis.note2": "Der kostenlose Plan hat ein tägliches Budget an Recheneinheiten. Ist es aufgebraucht, antworten Halterlisten im Chat mit einer klaren Absage, bis es sich zurücksetzt.",
     "xsetup.dialog_title": "X verbinden",
     "xsetup.choose": "Wie möchtest du verbinden?",
     "xsetup.choose_public": "Öffentliche Beiträge recherchieren (Bearer Token)",
@@ -2425,7 +2431,7 @@
     "keys.outcome.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt. Versuche es später oder aus einem anderen Netz erneut. Nichts wurde gespeichert.",
     "keys.test.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt."
   },
-  "source_catalog_sha256": "836efde7104d2814a844260878f4d51de1f7195f96745a7a869a99837d1ca3d0",
+  "source_catalog_sha256": "7c8878b2ce9b85b275374a2c588af4a2e626ba2c10699cf34953b9c34b05043e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
