@@ -376,7 +376,7 @@ install_dependencies() {
     liquefy_dir="${PROJECT_ROOT}/../liquefy-openclaw-integration"
   elif command -v git >/dev/null 2>&1; then
     liquefy_dir="${PROJECT_ROOT}/../liquefy-openclaw-integration"
-    say "Cloning Liquefy into OpenClaw folder..."
+    say "Cloning Liquefy next to the VOOL folder..."
     git clone --depth 1 https://github.com/Parad0x-Labs/liquefy-openclaw-integration.git "${liquefy_dir}" 2>/dev/null || true
   else
     say "WARNING: git is not available and no bundled Liquefy payload was found. Continuing without Liquefy."
@@ -385,7 +385,7 @@ install_dependencies() {
   if [[ -n "${liquefy_dir}" && -f "${liquefy_dir}/pyproject.toml" ]]; then
     sed -i.bak 's/setuptools\.backends\._legacy:_Backend/setuptools.build_meta/' "${liquefy_dir}/pyproject.toml" 2>/dev/null || true
     "${VENV_DIR}/bin/python" -m pip install "${liquefy_dir}" 2>/dev/null && \
-      say "Liquefy installed into VOOL venv from OpenClaw folder." || \
+      say "Liquefy installed into VOOL venv from the folder next to VOOL." || \
       say "WARNING: Liquefy installation failed. Continuing without it."
   else
     say "WARNING: Could not locate Liquefy payload. Continuing without it."
@@ -1111,7 +1111,7 @@ for _ in \$(seq 1 200); do
 done
 ensure_ollama_server
 ensure_llamacpp_server
-echo "Starting VOOL (API + mesh daemon)..."
+echo "Starting VOOL..."
 echo "VOOL API serves \${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:11435}"
 # The interactive start honors the exported port exactly as the supervised loop does: without
 # this, VOOL_OPENCLAW_API_PORT was read at the top of the script and then silently dropped
@@ -1173,7 +1173,7 @@ This launcher no longer starts, registers, or configures OpenClaw, and it never
 modifies an existing OpenClaw installation.
 
 Start VOOL natively instead:
-  Start_VOOL.sh    start the VOOL API + mesh daemon
+  Start_VOOL.sh    start the VOOL API
   Open_Chat.sh     open the VOOL chat page (primary surface)
   Talk_To_VOOL.sh  terminal chat
   Open_Web0.sh     open the local .null browser
@@ -1211,7 +1211,7 @@ export PATH="${SCRIPT_DIR}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/
 VENV_RESOLVER="${PROJECT_ROOT}/scripts/ensure_workspace_runtime.sh"
 VENV_PY="$(bash "${VENV_RESOLVER}")"
 cd "${PROJECT_ROOT}"
-echo "Stopping all VOOL processes (API, gateway, agent, auto-restart)..."
+echo "Stopping all VOOL processes (API, agent, auto-restart)..."
 exec "${VENV_PY}" -m installer.vool_stop --project-root "${PROJECT_ROOT}"
 LAUNCHER_HEAD
   chmod +x "${target_path}"

@@ -1,4 +1,4 @@
-# VOOL OpenClaw Tool Doctrine
+# VOOL Tool Doctrine
 
 This doctrine is loaded into bootstrap context so VOOL consistently uses tool-enabled behavior.
 
@@ -8,7 +8,7 @@ This doctrine is loaded into bootstrap context so VOOL consistently uses tool-en
 - If a task needs real-world action, use only the integrations that are actually wired in this runtime.
 - Never imply email, inbox, or any other workflow exists unless a concrete adapter or result proves it.
 
-## Tool coverage to assume in OpenClaw
+## Tool coverage to assume in VOOL
 
 - live web research and source validation flows when results are actually returned,
 - calendar outbox creation when the calendar adapter is wired,

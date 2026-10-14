@@ -6,12 +6,12 @@ Both the in-chat ``/stopall`` brake and the desktop "Stop VOOL" button run this.
      on its restart loop nor relaunch it at the next logon,
   2. signal any bundle supervisor to stop before its children are killed,
   3. kill the watchdog processes already running (wscript/cmd on vool_background),
-  4. kill the OpenClaw gateway (whatever listens on 18789),
-  5. kill the VOOL API server on 11435 with a tree-kill so its child workers/agents die too
+  4. kill the VOOL API server on 11435 with a tree-kill so its child workers/agents die too
      (with the pidfile as a fallback if the port lookup fails),
-  6. write a .vool_stopped marker.
+  5. write a .vool_stopped marker.
 
-Relaunching VOOL (desktop shortcut -> OpenClaw_VOOL.bat) re-enables the task and clears the marker.
+Only VOOL's own API port is freed. No other app's port is touched, including the retired
+integration's gateway port, which VOOL no longer starts.
 
 Every process action goes through an injected ``run`` callable, so the exact command sequence is
 unit-testable without touching real processes. Ollama (the shared model server on 11434) is left
@@ -19,7 +19,7 @@ running on purpose -- it is not VOOL-specific and idles harmlessly.
 
 On macOS/Linux the same entrypoint takes the POSIX path (``hard_stop_posix``): it boots the
 ``ai.vool.runtime`` launchd KeepAlive agent out of the GUI domain first (so launchd stops
-respawning the API), then frees ports 18789 and 11435 with ``lsof`` + ``kill`` (SIGTERM, then
+respawning the API), then frees port 11435 with ``lsof`` + ``kill`` (SIGTERM, then
 SIGKILL for any survivor), with the pidfile as a fallback. ``main`` dispatches by platform, so
 the Windows ``hard_stop`` sequence above is unchanged.
 """
@@ -38,7 +38,6 @@ from typing import Any
 
 WATCHDOG_TASK = "VOOL_Daemon"
 API_PORT = 11435
-GATEWAY_PORT = 18789
 STOPPED_MARKER = ".vool_stopped"
 
 Runner = Callable[..., Any]
@@ -141,8 +140,7 @@ def hard_stop(project_root: Path, vool_home: Path | None = None, *, run: Runner 
     bundle_supervisor_signaled = signal_bundle_supervisor(vool_home)
     kill_watchdog_processes(run)
 
-    # 2) gateway, then the API (tree-kill takes child agent workers with it).
-    gateway_pid = kill_listener(run, GATEWAY_PORT)
+    # 2) the API (tree-kill takes child agent workers with it).
     api_pid = kill_listener(run, API_PORT)
     if api_pid is None:
         api_pid = kill_api_by_pidfile(run, _pidfile(project_root, vool_home))
@@ -155,7 +153,6 @@ def hard_stop(project_root: Path, vool_home: Path | None = None, *, run: Runner 
     return {
         "watchdog_disabled": True,
         "bundle_supervisor_signaled": bundle_supervisor_signaled,
-        "gateway_pid": gateway_pid,
         "api_pid": api_pid,
         "marker": str(marker),
     }
@@ -181,8 +178,7 @@ def disable_systemd_service(run: Runner) -> bool:
     The installer registers vool-runtime.service with Restart=always (install_vool.sh
     install_linux_keepalive_service), so a bare port-kill is respawned within ~5s. Stopping the
     unit (and disabling it, so it stays down across logins) is the Linux analog of the macOS
-    launchctl bootout and the Windows schtasks disable -- OpenClaw_VOOL.sh re-enables it on the
-    next launch. No-op off Linux, without systemctl, or when the unit isn't installed (False).
+    launchctl bootout and the Windows schtasks disable. No-op off Linux, without systemctl, or when the unit isn't installed (False).
     """
     if not sys.platform.startswith("linux"):
         return False
@@ -273,8 +269,7 @@ def hard_stop_posix(
     #    launchd (macOS) or the systemd --user Restart=always unit (Linux).
     watchdog_disabled = disable_launch_agent(run) or disable_systemd_service(run)
 
-    # 2) gateway, then the API -- frees the ports whether launchd- or nohup-spawned.
-    gateway_pid = kill_listener_posix(run, GATEWAY_PORT, sleep=sleep)
+    # 2) the API -- frees its port whether launchd- or nohup-spawned.
     api_pid = kill_listener_posix(run, API_PORT, sleep=sleep)
     if api_pid is None:
         api_pid = kill_api_by_pidfile_posix(run, _pidfile(project_root, vool_home))
@@ -286,7 +281,6 @@ def hard_stop_posix(
 
     return {
         "watchdog_disabled": watchdog_disabled,
-        "gateway_pid": gateway_pid,
         "api_pid": api_pid,
         "marker": str(marker),
     }

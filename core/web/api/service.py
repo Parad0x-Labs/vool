@@ -594,42 +594,9 @@ def _looks_like_runtime_version_question(text: str) -> bool:
     return has_version_term and has_subject and looks_like_a_short_question
 
 
-def _openclaw_client_version() -> str:
-    """Best-effort read of the installed OpenClaw client version from its global npm
-    package.json, so a version report can name the OpenClaw UI the user is actually running."""
-    import json
-    import shutil
-    import subprocess
-    from pathlib import Path
-
-    roots: list[Path] = []
-    for cmd in (["npm", "root", "-g"], ["npm.cmd", "root", "-g"]):
-        try:
-            out = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
-            if out.returncode == 0 and out.stdout.strip():
-                roots.append(Path(out.stdout.strip()))
-                break
-        except Exception:
-            continue
-    which = shutil.which("openclaw") or shutil.which("openclaw.cmd")
-    if which:
-        roots.append(Path(which).resolve().parent / "node_modules")
-    for root in roots:
-        pkg = root / "openclaw" / "package.json"
-        try:
-            if pkg.is_file():
-                version = str(json.loads(pkg.read_text(encoding="utf-8")).get("version") or "").strip()
-                if version:
-                    return version
-        except Exception:
-            continue
-    return ""
-
-
 def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, Any] | None:
     """Deterministic answer to 'what version are you running' -- reports the exact VOOL build
-    the API headers report plus the OpenClaw client version, so version-correlated issues can be
-    debugged from what the user sees."""
+    the API headers report, so version-correlated issues can be debugged from what the user sees."""
     if not _looks_like_runtime_version_question(text):
         return None
     stamp = dict(runtime.runtime_version_stamp or {})
@@ -641,9 +608,6 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
     lines.append(f"- Build: `{build}`" + (" (uncommitted changes)" if bool(stamp.get("dirty")) else ""))
     if commit:
         lines.append(f"- Commit: `{commit}`")
-    openclaw_version = _openclaw_client_version()
-    if openclaw_version:
-        lines.append(f"- OpenClaw client: `{openclaw_version}`")
     model = str(runtime.runtime_model_tag or "").strip()
     if model:
         lines.append(f"- Local model: `{model}`")
@@ -654,7 +618,6 @@ def runtime_version_response(text: str, runtime: RuntimeServices) -> dict[str, A
         "deterministic": True,
         "runtime_release_version": release,
         "runtime_build_id": build,
-        "openclaw_client_version": openclaw_version,
     }
 
 
