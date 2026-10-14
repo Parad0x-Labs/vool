@@ -1042,6 +1042,16 @@ def withhold_admission(
     return {"admission_id": admission_id, "status": "withheld"}
 
 
+#: The chat-exchange pages a chat answers for in a forget (parameters: the chat id, twice). Shared by the eraser and
+#: the final verifier (core.memory.carriers), so both judge the same pages.
+CHAT_PAGE_ADMISSIONS = (
+    "SELECT mine.page_hash FROM turn_context_admissions mine WHERE mine.session_id = ? "
+    "AND mine.source_kind = 'chat_exchange' AND (mine.status != 'erased' OR NOT EXISTS ("
+    "SELECT 1 FROM turn_context_admissions other WHERE other.page_hash = mine.page_hash "
+    "AND other.session_id != ? AND other.status != 'erased'))"
+)
+
+
 def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, Any]) -> None:
     """Erase this chat's memory pages, or account for the retained shared bytes."""
     from core.memory.entries import _record_erasure_store
@@ -1067,11 +1077,11 @@ def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, A
             owned = "session_id = ?"
             params: tuple[str, ...] = (chat_id,)
             if has_admissions:
-                owned += (
-                    " OR page_hash IN (SELECT page_hash FROM turn_context_admissions "
-                    "WHERE session_id = ? AND source_kind = 'chat_exchange')"
-                )
-                params += (chat_id,)
+                # A closed (erased) admission still answers for its page while no other chat holds those words (an
+                # erasure that failed half way is retried), but not once another chat has admitted them again: that
+                # is the other chat's page, not a leftover of this one.
+                owned += " OR page_hash IN (" + CHAT_PAGE_ADMISSIONS + ")"
+                params += (chat_id, chat_id)
             pages = conn.execute(
                 "SELECT * FROM context_pages WHERE kind = 'turn_context' "
                 "AND source = 'turn-context:chat_exchange' AND (" + owned + ")", params,
@@ -1144,9 +1154,8 @@ def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, A
                         raise AdmissionClosedError("chat-context bytes remain after erasure")
                     removed += 1
                 except Exception as exc:
-                    # Which page and why, never its words: the reply alone cannot say what refused.
-                    _log.warning("forget: context page %s not erased: %s",
-                                 str(page["page_hash"])[:12], type(exc).__name__)
+                    # Why, never which page: a page hash is a hash of its words, and short words can be recovered.
+                    _log.warning("forget: a context page was not erased: %s", type(exc).__name__)
                     incomplete = True
     except Exception as exc:
         _log.warning("forget: context pages not read: %s", type(exc).__name__)

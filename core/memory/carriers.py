@@ -457,8 +457,10 @@ def _verify_pages(conn: Any, tables: set[str], chat_id: str, token: str, verify:
         owned = "session_id = ?"
         params = [chat_id]
         if "turn_context_admissions" in tables:
-            owned += " OR page_hash IN (SELECT page_hash FROM turn_context_admissions WHERE session_id = ? AND source_kind = 'chat_exchange')"
-            params.append(chat_id)
+            from core.turn_context import CHAT_PAGE_ADMISSIONS
+
+            owned += " OR page_hash IN (" + CHAT_PAGE_ADMISSIONS + ")"
+            params += [chat_id, chat_id]
         rows = conn.execute(
             "SELECT * FROM context_pages WHERE kind = 'turn_context' AND source = 'turn-context:chat_exchange' "
             "AND (" + owned + ")", params,
