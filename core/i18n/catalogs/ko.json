@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "그 결제는 꺼져 있는 결제 채널을 거치므로, 서명하거나 보낸 것이 없습니다. 설정, 암호화폐, 결제 채널에서 채널을 켠 뒤 다시 시도하세요.",
     "fault.wallet_x402_sdk_unavailable.action": "Crypto Pilot 지갑에서 Base의 x402 제안을 결제하려면 VOOL의 선택적 x402 추가 요소를 설치하세요; 어느 경우든 지갑은 자체 서명자, 지출 상한, 승인을 유지합니다.",
     "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 사용자 승인은 모든 채널에 적용됩니다.",
-    "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요."
+    "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요.",
+    "own_tools.banner": "모델 자체 도구",
+    "own_tools.banner_title": "모델 자체 도구가 켜져 있습니다. 직접 고른 클라우드 모델은 VOOL의 도구를 받지 않으며, 일부는 스스로 웹을 검색합니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다.",
+    "own_tools.end_title": "모델 자체 도구 끄기",
+    "own_tools.end_failed": "VOOL 도구로 돌아가지 못했습니다. 아무것도 바뀌지 않았습니다.",
+    "own_tools.ended": "다시 VOOL 도구를 사용합니다.",
+    "settings.row.model_own_tools.label": "모델 자체 도구 사용",
+    "settings.row.model_own_tools.help": "기본값은 꺼짐입니다. 켜면 직접 고른 클라우드 모델이 VOOL의 도구와 웹 검색 없이 답합니다. 일부 유료 모델은 스스로 웹을 검색할 수 있습니다. 질문에 최신 정보가 필요하면 그 검색은 모델 제공업체에서 이루어지므로 질문이 그쪽으로 전달되고, 요금은 지출 한도에 포함됩니다. 모델이 검색할 수 없을 때는 가격이나 날씨 같은 간단한 정보는 계속 VOOL이 답합니다. 결제에는 항상 승인이 필요합니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다. 채팅에서 \"use the model's own tools\" 또는 \"use VOOL's tools\"라고 말하세요.",
+    "settings.row.model_own_tools.effect": "다음 메시지부터 적용됩니다. 진행 중인 턴은 이전 값을 유지합니다."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

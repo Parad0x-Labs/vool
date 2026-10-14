@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Ese pago pasa por un canal de pago que está desactivado, así que no se firmó ni se envió nada. Activa el canal en Ajustes, Cripto, Canales de pago, y reintenta.",
     "fault.wallet_x402_sdk_unavailable.action": "Instala el extra opcional x402 de VOOL para pagar ofertas x402 en Base desde una cartera Crypto Pilot; la cartera conserva su propio firmante, sus techos de gasto y su aprobación en cualquier caso.",
     "fault.wallet_payment_channel_off.action": "Activa un canal de pago en los ajustes de Cripto solo si quieres que los pagos pasen por él; el tope y tu aprobación se aplican en todos los canales.",
-    "fault.wallet_x402_sdk_unavailable.message": "Esta compilación no puede pagar ofertas x402 en Base mediante el x402 Foundation SDK: el extra opcional x402 no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta."
+    "fault.wallet_x402_sdk_unavailable.message": "Esta compilación no puede pagar ofertas x402 en Base mediante el x402 Foundation SDK: el extra opcional x402 no está instalado en esta máquina. No se firmó ni envió nada. Todo lo demás de la cartera funciona sin él; instálalo y reintenta.",
+    "own_tools.banner": "Herramientas propias del modelo",
+    "own_tools.banner_title": "Las herramientas propias del modelo están activadas: los modelos en la nube que elijas no reciben las herramientas de VOOL y algunos buscan en la web por sí mismos. Auto y los modelos locales mantienen las herramientas de VOOL.",
+    "own_tools.end_title": "Desactivar las herramientas propias del modelo",
+    "own_tools.end_failed": "No se pudo volver a las herramientas de VOOL. No se cambió nada.",
+    "own_tools.ended": "De nuevo con las herramientas de VOOL.",
+    "settings.row.model_own_tools.label": "Usar las herramientas propias del modelo",
+    "settings.row.model_own_tools.help": "Desactivado por defecto. Al activarlo, un modelo en la nube que elijas responde sin las herramientas ni la búsqueda web de VOOL. Algunos modelos de pago pueden buscar en la web por sí mismos: cuando una pregunta necesita información actual, esa búsqueda se hace en el proveedor del modelo, así que tu pregunta le llega a él, y la tarifa cuenta para tu límite de gasto. Si el modelo no puede buscar, VOOL sigue respondiendo datos rápidos como precios y el tiempo. Los pagos siempre necesitan tu aprobación. Auto y los modelos locales mantienen las herramientas de VOOL. En el chat, di \"use the model's own tools\" o \"use VOOL's tools\".",
+    "settings.row.model_own_tools.effect": "Se aplica desde tu próximo mensaje. El turno en curso conserva el valor anterior."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

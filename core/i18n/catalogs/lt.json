@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Šis mokėjimas eina per išjungtą mokėjimo kanalą, todėl niekas nebuvo pasirašyta ar išsiųsta. Įjunkite kanalą Nustatymuose, Kripto, Mokėjimo kanalai, tada bandykite dar kartą.",
     "fault.wallet_x402_sdk_unavailable.action": "Įdiekite pasirenkamą VOOL papildinį x402, kad galėtumėte apmokėti x402 pasiūlymus Base tinkle iš Crypto Pilot piniginės; piniginė bet kuriuo atveju išlaiko savo pasirašytoją, išlaidų ribas ir patvirtinimą.",
     "fault.wallet_payment_channel_off.action": "Įjunkite mokėjimo kanalą Kripto nustatymuose tik jei norite, kad mokėjimai eitų per jį; riba ir jūsų patvirtinimas galioja kiekviename kanale.",
-    "fault.wallet_x402_sdk_unavailable.message": "Ši versija negali apmokėti x402 pasiūlymų Base tinkle per x402 Foundation SDK: šiame kompiuteryje neįdiegtas pasirenkamas papildinys x402. Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą."
+    "fault.wallet_x402_sdk_unavailable.message": "Ši versija negali apmokėti x402 pasiūlymų Base tinkle per x402 Foundation SDK: šiame kompiuteryje neįdiegtas pasirenkamas papildinys x402. Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą.",
+    "own_tools.banner": "Paties modelio įrankiai",
+    "own_tools.banner_title": "Modelio įrankiai įjungti: jūsų pasirinkti debesies modeliai negauna VOOL įrankių, o kai kurie patys ieško internete. Auto ir vietiniai modeliai pasilieka VOOL įrankius.",
+    "own_tools.end_title": "Išjungti modelio įrankius",
+    "own_tools.end_failed": "Nepavyko grįžti prie VOOL įrankių. Niekas nepasikeitė.",
+    "own_tools.ended": "Vėl naudojami VOOL įrankiai.",
+    "settings.row.model_own_tools.label": "Naudoti paties modelio įrankius",
+    "settings.row.model_own_tools.help": "Pagal numatytuosius nustatymus išjungta. Įjungus, jūsų pasirinktas debesies modelis atsako be VOOL įrankių ir paieškos internete. Kai kurie mokami modeliai patys gali ieškoti internete: kai klausimui reikia naujausios informacijos, ta paieška vyksta pas modelio teikėją, todėl jūsų klausimas nueina jam, o mokestis įskaičiuojamas į jūsų išlaidų ribą. Kai modelis ieškoti negali, VOOL ir toliau pats atsako į trumpus faktus, pavyzdžiui, kainas ar orus. Mokėjimams visada reikia jūsų patvirtinimo. Auto ir vietiniai modeliai pasilieka VOOL įrankius. Pokalbyje sakykite \"use the model's own tools\" arba \"use VOOL's tools\".",
+    "settings.row.model_own_tools.effect": "Taikoma nuo jūsų kitos žinutės. Vykstama eilutė laiko senąją reikšmę."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

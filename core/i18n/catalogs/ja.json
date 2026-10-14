@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "その支払いはオフになっている支払いチャネルを通るため、署名も送信もされていません。設定、暗号資産、支払いチャネルでチャネルをオンにしてから再試行してください。",
     "fault.wallet_x402_sdk_unavailable.action": "Crypto PilotウォレットからBase上のx402オファーを支払うには、VOOLのオプションx402拡張を導入してください。いずれの場合もウォレットは自身の署名者、支出天井、承認を保ちます。",
     "fault.wallet_payment_channel_off.action": "支払いチャネルは、そのチャネルで支払いたい場合にだけ暗号設定でオンにしてください。上限とあなたの承認はどのチャネルでも適用されます。",
-    "fault.wallet_x402_sdk_unavailable.message": "このビルドはx402 Foundation SDKを通じてBase上のx402オファーを支払えません：オプションのx402拡張がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。"
+    "fault.wallet_x402_sdk_unavailable.message": "このビルドはx402 Foundation SDKを通じてBase上のx402オファーを支払えません：オプションのx402拡張がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。",
+    "own_tools.banner": "モデル自身のツール",
+    "own_tools.banner_title": "モデル自身のツールがオンです。選んだクラウドモデルには VOOL のツールが渡されず、一部は自分でウェブを検索します。Auto とローカルモデルは VOOL のツールを使い続けます。",
+    "own_tools.end_title": "モデル自身のツールをオフにする",
+    "own_tools.end_failed": "VOOL のツールに戻せませんでした。何も変更されていません。",
+    "own_tools.ended": "VOOL のツールに戻しました。",
+    "settings.row.model_own_tools.label": "モデル自身のツールを使う",
+    "settings.row.model_own_tools.help": "既定ではオフです。オンにすると、あなたが選んだクラウドモデルは VOOL のツールやウェブ検索を使わずに答えます。一部の有料モデルは自分でウェブを検索できます。質問に最新の情報が必要なとき、その検索はモデルの提供元で行われるため、質問は提供元に送られ、料金は支出上限に含まれます。モデルが検索できないときは、価格や天気などの簡単な事実は引き続き VOOL が答えます。支払いには必ずあなたの承認が必要です。Auto とローカルモデルは VOOL のツールを使い続けます。チャットでは \"use the model's own tools\" または \"use VOOL's tools\" と言ってください。",
+    "settings.row.model_own_tools.effect": "次のメッセージから適用。進行中のターンは古い値を保持します。"
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

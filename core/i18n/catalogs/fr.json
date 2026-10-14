@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Ce paiement passe par un canal de paiement désactivé, donc rien n'a été signé ni envoyé. Activez le canal dans Réglages, Crypto, Canaux de paiement, puis réessayez.",
     "fault.wallet_x402_sdk_unavailable.action": "Installez l'extra optionnel x402 de VOOL pour payer les offres x402 sur Base depuis un portefeuille Crypto Pilot ; le portefeuille garde dans tous les cas son propre signataire, ses plafonds de dépense et son approbation.",
     "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
-    "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez."
+    "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez.",
+    "own_tools.banner": "Outils propres au modèle",
+    "own_tools.banner_title": "Les outils propres au modèle sont activés : les modèles cloud que vous choisissez n'ont pas les outils de VOOL, et certains cherchent sur le web eux-mêmes. Auto et les modèles locaux gardent les outils de VOOL.",
+    "own_tools.end_title": "Désactiver les outils propres au modèle",
+    "own_tools.end_failed": "Impossible de revenir aux outils de VOOL. Rien n'a changé.",
+    "own_tools.ended": "Les outils de VOOL sont de nouveau utilisés.",
+    "settings.row.model_own_tools.label": "Utiliser les outils propres au modèle",
+    "settings.row.model_own_tools.help": "Désactivé par défaut. Une fois activé, un modèle cloud que vous choisissez répond sans les outils ni la recherche web de VOOL. Quelques modèles payants savent chercher sur le web eux-mêmes : quand une question demande des informations récentes, cette recherche a lieu chez le fournisseur du modèle, votre question lui est donc transmise, et les frais comptent dans votre limite de dépenses. Quand le modèle ne peut pas chercher, VOOL répond toujours aux questions rapides comme les prix ou la météo. Les paiements demandent toujours votre accord. Auto et les modèles locaux gardent les outils de VOOL. Dans le chat, dites \"use the model's own tools\" ou \"use VOOL's tools\".",
+    "settings.row.model_own_tools.effect": "S'applique dès votre prochain message. Le tour en cours garde l'ancienne valeur."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

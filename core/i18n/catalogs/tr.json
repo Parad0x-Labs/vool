@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Bu ödeme kapalı bir ödeme kanalından geçiyor, bu yüzden hiçbir şey imzalanmadı veya gönderilmedi. Kanalı Ayarlar, Kripto, Ödeme kanalları'ndan açın, sonra tekrar deneyin.",
     "fault.wallet_x402_sdk_unavailable.action": "Bir Crypto Pilot cüzdanından Base'deki x402 tekliflerini ödemek için VOOL'un isteğe bağlı x402 ekini kurun; cüzdan her durumda kendi imzalayıcısını, harcama tavanlarını ve onayını korur.",
     "fault.wallet_payment_channel_off.action": "Bir ödeme kanalını Kripto ayarlarında yalnızca ödemelerin onun üzerinden yapılmasını istiyorsanız açın; tavan ve sizin onayınız her kanalda geçerlidir.",
-    "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin."
+    "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin.",
+    "own_tools.banner": "Modelin kendi araçları",
+    "own_tools.banner_title": "Modelin kendi araçları açık: seçtiğin bulut modelleri VOOL'un araçlarını almaz, bazıları web'de kendisi arar. Auto ve yerel modeller VOOL'un araçlarını korur.",
+    "own_tools.end_title": "Modelin kendi araçlarını kapat",
+    "own_tools.end_failed": "VOOL araçlarına geri dönülemedi. Hiçbir şey değişmedi.",
+    "own_tools.ended": "Yeniden VOOL araçları kullanılıyor.",
+    "settings.row.model_own_tools.label": "Modelin kendi araçlarını kullan",
+    "settings.row.model_own_tools.help": "Varsayılan olarak kapalı. Açıkken seçtiğin bir bulut modeli VOOL'un araçları ve web araması olmadan yanıt verir. Bazı ücretli modeller web'de kendileri arama yapabilir: bir soru güncel bilgi gerektirdiğinde bu arama modelin sağlayıcısında yapılır, yani sorun ona gider ve ücret harcama sınırına sayılır. Model arama yapamadığında VOOL fiyat ve hava durumu gibi kısa bilgileri yine kendisi yanıtlar. Ödemeler her zaman onayını gerektirir. Auto ve yerel modeller VOOL'un araçlarını korur. Sohbette \"use the model's own tools\" veya \"use VOOL's tools\" de.",
+    "settings.row.model_own_tools.effect": "Bir sonraki iletinizden itibaren geçerli. Süren tur eski değeri korur."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

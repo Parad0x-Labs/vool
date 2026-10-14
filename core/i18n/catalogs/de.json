@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Diese Zahlung läuft über einen Zahlungskanal, der ausgeschaltet ist, daher wurde nichts signiert oder gesendet. Schalte den Kanal unter Einstellungen, Crypto, Zahlungskanäle ein und versuche es dann erneut.",
     "fault.wallet_x402_sdk_unavailable.action": "Installiere die optionale Erweiterung x402 von VOOL, um x402-Angebote auf Base aus einer Crypto-Pilot-Wallet zu bezahlen; die Wallet behält in jedem Fall ihren eigenen Signierer, ihre Ausgabengrenzen und ihre Freigabe.",
     "fault.wallet_payment_channel_off.action": "Schalte einen Zahlungskanal in den Krypto-Einstellungen nur ein, wenn Zahlungen darüber laufen sollen; die Obergrenze und deine Freigabe gelten auf jedem Kanal.",
-    "fault.wallet_x402_sdk_unavailable.message": "Dieser Build kann keine x402-Angebote auf Base über das x402 Foundation SDK bezahlen: Die optionale Erweiterung x402 ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut."
+    "fault.wallet_x402_sdk_unavailable.message": "Dieser Build kann keine x402-Angebote auf Base über das x402 Foundation SDK bezahlen: Die optionale Erweiterung x402 ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut.",
+    "own_tools.banner": "Eigene Werkzeuge des Modells",
+    "own_tools.banner_title": "Die eigenen Werkzeuge des Modells sind an: Gewählte Cloud-Modelle bekommen keine VOOL-Werkzeuge, und manche suchen selbst im Web. Auto und lokale Modelle behalten die Werkzeuge von VOOL.",
+    "own_tools.end_title": "Eigene Werkzeuge des Modells ausschalten",
+    "own_tools.end_failed": "Konnte nicht zu den VOOL-Werkzeugen zurückwechseln. Nichts wurde geändert.",
+    "own_tools.ended": "VOOL-Werkzeuge sind wieder aktiv.",
+    "settings.row.model_own_tools.label": "Die eigenen Werkzeuge des Modells nutzen",
+    "settings.row.model_own_tools.help": "Standardmäßig aus. Wenn an, antwortet ein von dir gewähltes Cloud-Modell ohne die Werkzeuge und die Websuche von VOOL. Einige kostenpflichtige Modelle können selbst im Web suchen: Braucht eine Frage aktuelle Informationen, läuft diese Suche beim Anbieter des Modells, deine Frage geht also an ihn, und die Gebühr zählt gegen dein Ausgabenlimit. Kann das Modell nicht suchen, beantwortet VOOL kurze Fakten wie Preise und Wetter weiterhin selbst. Zahlungen brauchen immer deine Freigabe. Auto und lokale Modelle behalten die Werkzeuge von VOOL. Im Chat sag \"use the model's own tools\" oder \"use VOOL's tools\".",
+    "settings.row.model_own_tools.effect": "Wirkt ab deiner nächsten Nachricht. Der laufende Zug behält den alten Wert."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

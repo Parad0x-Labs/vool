@@ -1875,9 +1875,17 @@
     "fault.wallet_payment_channel_off.message": "Khoản thanh toán đó đi qua một kênh thanh toán đang tắt, nên chưa ký hay gửi gì. Bật kênh trong Cài đặt, Tiền điện tử, Kênh thanh toán, rồi thử lại.",
     "fault.wallet_x402_sdk_unavailable.action": "Cài phần bổ sung tùy chọn x402 của VOOL để trả các đề nghị x402 trên Base từ ví Crypto Pilot; dù thế nào ví vẫn giữ bộ ký riêng, trần chi tiêu và bước phê duyệt của mình.",
     "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
-    "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại."
+    "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại.",
+    "own_tools.banner": "Công cụ riêng của mô hình",
+    "own_tools.banner_title": "Công cụ riêng của mô hình đang bật: các mô hình đám mây bạn chọn không nhận công cụ của VOOL, và một số tự tìm trên web. Auto và mô hình cục bộ vẫn giữ công cụ của VOOL.",
+    "own_tools.end_title": "Tắt công cụ riêng của mô hình",
+    "own_tools.end_failed": "Không thể quay lại công cụ của VOOL. Không có gì thay đổi.",
+    "own_tools.ended": "Đã dùng lại công cụ của VOOL.",
+    "settings.row.model_own_tools.label": "Dùng công cụ riêng của mô hình",
+    "settings.row.model_own_tools.help": "Mặc định tắt. Khi bật, mô hình đám mây bạn chọn trả lời mà không dùng công cụ và tìm kiếm web của VOOL. Một vài mô hình trả phí có thể tự tìm trên web: khi câu hỏi cần thông tin mới, việc tìm kiếm diễn ra ở nhà cung cấp mô hình, nên câu hỏi của bạn được gửi tới họ, và phí được tính vào giới hạn chi tiêu của bạn. Khi mô hình không tìm được, VOOL vẫn tự trả lời các thông tin nhanh như giá cả và thời tiết. Thanh toán luôn cần bạn chấp thuận. Auto và mô hình cục bộ vẫn giữ công cụ của VOOL. Trong trò chuyện, hãy nói \"use the model's own tools\" hoặc \"use VOOL's tools\".",
+    "settings.row.model_own_tools.effect": "Áp dụng từ tin nhắn kế tiếp của bạn. Lượt đang chạy giữ giá trị cũ."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "a398bccde14a0a325a1bee2a1afc0cb689654d491ca577784f6a8bb9214626e2",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -134,7 +134,13 @@ def _int_attr(holder: Any, name: str) -> int:
 
 
 def _reservation_ceiling_usd(
-    *, provider_id: str, model_id: str, prompt_tokens: int, completion_tokens: int, limits: Any
+    *,
+    provider_id: str,
+    model_id: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    limits: Any,
+    provider_tool_allowance_usd: float = 0.0,
 ) -> float:
     """What this specific call could cost, for the reservation to hold against the caps.
 
@@ -171,7 +177,9 @@ def _reservation_ceiling_usd(
         )
     except Exception:
         return per_call_ceiling
-    projected = float(getattr(estimate, "usd", 0.0) or 0.0)
+    # A provider-side tool the call carries ("use the model's own tools": a web search run and
+    # billed at the provider) is part of what the call may cost, so it is held too.
+    projected = float(getattr(estimate, "usd", 0.0) or 0.0) + max(0.0, float(provider_tool_allowance_usd or 0.0))
     # Never reserve less than the configured ceiling: it is the floor of what a call may cost here,
     # and dropping below it would reintroduce the amplification this exists to remove.
     return max(per_call_ceiling, projected)
@@ -269,6 +277,11 @@ def reserve_owner_pick_paid_call(
     sized_context["paid_call_completion_tokens"] = lane_resolved_output_tokens(
         manifest, base_tokens=asked_completion_tokens
     )
+    from core.model_own_tools import provider_tool_reservation_allowance_usd
+
+    sized_context["paid_call_provider_tool_allowance_usd"] = provider_tool_reservation_allowance_usd(
+        manifest, source_context=context
+    )
 
     try:
         authorization = _authorize(
@@ -322,6 +335,7 @@ def _authorize(*, context: dict[str, Any], task_id: str, model_id: str, local_mo
         prompt_tokens=int(context.get("paid_call_prompt_tokens") or 0),
         completion_tokens=int(context.get("paid_call_completion_tokens") or 0),
         limits=limits,
+        provider_tool_allowance_usd=float(context.get("paid_call_provider_tool_allowance_usd") or 0.0),
     )
 
     orchestrator = ModelOrchestrator()

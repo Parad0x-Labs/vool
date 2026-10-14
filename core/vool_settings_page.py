@@ -476,6 +476,25 @@ def _settings_groups() -> list[dict]:
                     keywords="models providers overview usepod openrouter local setup guided budget price limits review",
                 ),
                 _row(
+                    id="model_own_tools",
+                    label="Use the model's own tools",
+                    help=(
+                        "Off by default. When on, a cloud model you choose answers without VOOL's tools or "
+                        "web research. A few paid models can search the web themselves: when a question needs "
+                        "current information, that search runs at the model's provider, so your question goes "
+                        "to them, and the fee counts against your spending limit. When the model can't "
+                        "search, VOOL still answers quick facts like prices and weather. Payments always need "
+                        "your approval. Auto and local models keep VOOL's tools. In chat, say \"use the "
+                        "model's own tools\" or \"use VOOL's tools\"."
+                    ),
+                    kind="toggle",
+                    read={"url": PREFS, "field": "model_own_tools"},
+                    write={"url": PREFS, "field": "model_own_tools", "type": "bool"},
+                    scope=SCOPE_GLOBAL,
+                    effect=EFFECT_NEXT_TURN,
+                    keywords="tools native provider own built-in web search cloud model disable vool tools",
+                ),
+                _row(
                     id="model_pin",
                     label="Model",
                     kind="custom",

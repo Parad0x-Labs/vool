@@ -421,6 +421,54 @@ def _within_turn_navigation(loop: Any) -> Any:
 
 
 class ResearchToolLoopFacadeMixin:
+    def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
+        """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
+
+        The provider searches inside the answering call, so its receipt is opened through the
+        canonical door here, before the synthesis freeze, exactly like VOOL's own schedulers;
+        `core.model_own_tools.record_provider_search` closes it with the sources the provider
+        returned. The search is sent only where VOOL itself would search: a turn whose canonical
+        record needs current information, that the owner did not close to tools ("without using
+        any tools") or to the network (a remote-fetch veto), and that the door admits. The switch
+        alone never widens a turn to current. Returns False otherwise; the caller then sends the
+        call without the provider's search, so every provider search has a receipt.
+        """
+        from core.agent_runtime.intent_claims import ActionPolicy, action_policy_from_context
+        from core.execution_requirements import current_requirement_record, requirements_for
+        from core.model_own_tools import PROVIDER_SEARCH_RECEIPT_KEY, turn_has_provider_search
+        from core.remote_fetch_policy import remote_fetch_allowed_by_context
+        from core.retrieval_authority_gate import authorize_retrieval
+        from core.retrieval_provenance import MODEL_PROVIDER_SEARCH
+
+        if not isinstance(source_context, dict) or not turn_has_provider_search(source_context):
+            return False
+        source_context.pop(PROVIDER_SEARCH_RECEIPT_KEY, None)
+        if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
+            return False
+        if explicit_remote_fetch_disabled(source_context) or not remote_fetch_allowed_by_context(source_context):
+            return False
+        # The turn's canonical decision (minted here if no stage has read it yet, exactly as the
+        # freeze below would mint it): the provider search is judged by the same record.
+        requirements_for(authority_text, source_context=source_context)
+        record = current_requirement_record(source_context)
+        if record is None or not bool(getattr(record.requirements, "current_information_required", False)):
+            return False
+        if not authorize_retrieval(
+            source_context,
+            authority_text,
+            lane=MODEL_PROVIDER_SEARCH,
+            proposal_reason="model_own_tools",
+        ):
+            return False
+        source_context[PROVIDER_SEARCH_RECEIPT_KEY] = begin_web_retrieval(
+            source_context,
+            kind="provider_search",
+            query=str(authority_text or ""),
+            task_id=str(source_context.get("task_id") or ""),
+            provider_id=MODEL_PROVIDER_SEARCH,
+        )
+        return True
+
     def _collect_live_web_notes(
         self,
         *,
@@ -450,6 +498,11 @@ class ResearchToolLoopFacadeMixin:
             return []
         source_context = source_context if isinstance(source_context, dict) else {}
         if explicit_remote_fetch_disabled(source_context):
+            return []
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
+            # The owner handed this cloud model its own tools: VOOL does not search for it.
             return []
         surface = str(source_context.get("surface", "") or "").lower()
         platform = str(source_context.get("platform", "") or "").lower()
@@ -575,6 +628,14 @@ class ResearchToolLoopFacadeMixin:
             return AdaptiveResearchResult(
                 enabled=False,
                 reason="remote_fetch_disabled",
+                strategy="not_allowed",
+            )
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
+            return AdaptiveResearchResult(
+                enabled=False,
+                reason="model_own_tools",
                 strategy="not_allowed",
             )
         # A workspace audit is a question about code ON THIS MACHINE. Its evidence has already been
@@ -1085,6 +1146,13 @@ class ResearchToolLoopFacadeMixin:
         # turn.  Do not ask a model to construct a tool payload only to reject it
         # later: that still produces a false action/approval status in the UI.
         if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
+            return None
+        # "Use the model's own tools" is on and the owner pinned a cloud model: VOOL offers it no
+        # tools at all, so the turn answers on the plain model path (where the router attaches the
+        # provider's own tools when the provider really has them).
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
             return None
         # A bound workspace audit has already executed the authoritative read-only tool sequence
         # and attached its results as model evidence.  Running the generic tool-intent planner here

@@ -130,6 +130,11 @@ def closed_semantic_contract_covers_turn(
     ):
         return True
 
+    from core.model_own_tools import turn_has_provider_search
+
+    if turn_has_provider_search(source_context):
+        # The pinned cloud model looks live rates up with its provider's own search.
+        return False
     coverage = coverage_for(raw, FAMILY_CURRENCY)
     if not coverage.covers_whole_turn or any(
         slice_binding_is_unsafe(raw, slice_id) for slice_id in coverage.consumed
@@ -381,6 +386,13 @@ def _attach_currency_grounding(
         chat_codes=chat_currency_codes(session_id=session_id, source_context=source_context),
         conversation_history=list((source_context or {}).get("conversation_history") or []),
     )
+
+
+def _no_claim_coverage(family: str) -> Any:
+    """A coverage that claims nothing: the family's lane neither ends the turn nor takes a slice."""
+    from core.agent_runtime.answer_coverage import CLAIM_SCOPE_SLICE, ClaimCoverage
+
+    return ClaimCoverage(family=family, scope=CLAIM_SCOPE_SLICE, consumed=(), uncovered=(), conflicting=())
 
 
 def explicit_model_owns_semantic_turn(source_context: dict[str, object] | None) -> bool:
@@ -697,7 +709,17 @@ def handle_turn_frontdoor(
             or raw_user_input
         )
 
-    handled, response = maybe_handle_preference_command_fn(effective_input)
+    # "Use the model's own tools" changes where the owner's questions go and what they spend: only
+    # the owner, writing from their own machine, may switch it (status stays open to everyone).
+    from core.model_own_tools import REPLY_NOT_OWNER, parse_tools_command
+    from core.request_trust import request_is_owner_local, turn_is_owner_authored
+
+    if parse_tools_command(effective_input) in {"on", "off"} and not (
+        request_is_owner_local(source_context) and turn_is_owner_authored(source_context)
+    ):
+        handled, response = True, REPLY_NOT_OWNER
+    else:
+        handled, response = maybe_handle_preference_command_fn(effective_input)
     if handled:
         agent._sync_public_presence(
             status=agent._idle_public_presence_status(),
@@ -1309,7 +1331,15 @@ def handle_turn_frontdoor(
     # may need this chat's earlier user turns. The coverage contract says this family may END the
     # turn only when it covers the whole turn; otherwise it records slice answers/grounding and lets
     # the conductor carry the rest.
-    currency_coverage = coverage_for(effective_input, FAMILY_CURRENCY)
+    from core.model_own_tools import turn_has_provider_search as _model_searches_itself
+
+    # With the model's own web search handed to the pinned cloud model, live rates are its to look
+    # up: VOOL's currency lane claims nothing (no slice either) and the turn goes to the model.
+    currency_coverage = (
+        _no_claim_coverage(FAMILY_CURRENCY)
+        if _model_searches_itself(source_context)
+        else coverage_for(effective_input, FAMILY_CURRENCY)
+    )
     currency_binding_poisoned = any(
         slice_binding_is_unsafe(effective_input, slice_id)
         for slice_id in currency_coverage.consumed
@@ -2144,8 +2174,14 @@ def handle_turn_frontdoor(
         # clause first splits the turn, and the composite never runs its typed plan through
         # the transport door. Siblings without an owner send the whole turn to the composite.
         live_info_wanted = False
+    from core.model_own_tools import turn_has_provider_search as _model_searches_itself
+
     live_info_status = None if (
-        action_forbidden or not live_info_wanted
+        action_forbidden
+        or not live_info_wanted
+        # The owner handed the pinned cloud model its provider's own web search: the live lookup
+        # is the model's to make, so VOOL's price/weather lane steps aside.
+        or _model_searches_itself(source_context)
     ) else agent._maybe_handle_live_info_fast_path(
         effective_input if _live_info_whole_claim
         else slice_text(effective_input, live_info_coverage.consumed),
