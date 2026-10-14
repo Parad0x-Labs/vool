@@ -21,7 +21,16 @@ from urllib.request import Request, urlopen
 import pytest
 
 from core.i18n.catalog import catalog_for
-from core.model_own_tools import REPLY_ALREADY_ON
+from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale, turn_locale, turn_text
+from core.model_own_tools import (
+    REPLY_ALL_CHATS,
+    REPLY_ALREADY_ON,
+    REPLY_NOT_OWNER,
+    REPLY_OFF,
+    REPLY_ON,
+    REPLY_STATUS_ON,
+    reply_text,
+)
 from tests.test_conversation_intent_served import (
     OR_LANE_ID,
     OR_MODEL,
@@ -105,6 +114,20 @@ def test_the_switch_replies_follow_the_cookie_language(served) -> None:
     german_off = catalog_for("de").text("own_tools.reply.off")
     japanese_already = catalog_for("ja").text("own_tools.reply.already_on")
     japanese_not_owner = catalog_for("ja").text("own_tools.reply.not_owner")
+    japanese_status_on = catalog_for("ja").text("own_tools.reply.status_on")
+    german_all_chats = catalog_for("de").text("own_tools.reply.all_chats")
+    # Each expectation is a real translation, never the English fallback: otherwise an equality
+    # below would pass with no catalog entry at all.
+    for localized, english in (
+        (german_on, REPLY_ON),
+        (german_already, REPLY_ALREADY_ON),
+        (german_off, REPLY_OFF),
+        (german_all_chats, REPLY_ALL_CHATS),
+        (japanese_already, REPLY_ALREADY_ON),
+        (japanese_not_owner, REPLY_NOT_OWNER),
+        (japanese_status_on, REPLY_STATUS_ON),
+    ):
+        assert localized and localized != english, localized
 
     # German: the switch turns on and says so in German; asking again says "already on" in German.
     session_de = _session(f"own-tools-i18n-de-{uuid.uuid4()}")
@@ -134,6 +157,11 @@ def test_the_switch_replies_follow_the_cookie_language(served) -> None:
         cookie_locale="ja",
     )
     assert ja_again == japanese_already, ja_again
+    # Japanese status: the status reply follows the same language.
+    ja_status = _turn(
+        daemon, "/tools status", session_id=_session(f"own-tools-i18n-ja3-{uuid.uuid4()}"), cookie_locale="ja"
+    )
+    assert ja_status == japanese_status_on, ja_status
 
     # No cookie: English, byte-exact the source constant.
     plain = _turn(daemon, "use the model's own tools", session_id=_session(f"own-tools-i18n-plain-{uuid.uuid4()}"))
@@ -148,6 +176,39 @@ def test_the_switch_replies_follow_the_cookie_language(served) -> None:
     )
     assert unknown == REPLY_ALREADY_ON, unknown
 
-    # Switching back also follows the cookie, and leaves the daemon in its default state.
-    off = _turn(daemon, "use VOOL's tools", session_id=session_de, cookie_locale="de")
-    assert off == german_off, off
+    # A malformed cookie, or one that is not a language tag at all: English, and the turn still runs.
+    for broken in ('"de', "../../de", ""):
+        reply = _turn(
+            daemon,
+            "use the model's own tools",
+            session_id=_session(f"own-tools-i18n-bad-{uuid.uuid4()}"),
+            cookie_locale=broken,
+        )
+        assert reply == REPLY_ALREADY_ON, (broken, reply)
+
+    # Switching back also follows the cookie, including the "covers every chat" tail, and leaves
+    # the daemon in its default state.
+    off = _turn(daemon, "use VOOL's tools for this chat", session_id=session_de, cookie_locale="de")
+    assert off == german_off + german_all_chats, off
+
+
+def test_a_turn_language_binding_ends_with_its_request_and_never_shows_a_catalog_key() -> None:
+    """The carrier other chat commands reuse: bound for one request, English outside it."""
+    assert turn_locale() == "en"
+    token = bind_turn_locale("de")
+    try:
+        assert reply_text("already_on") == catalog_for("de").text("own_tools.reply.already_on")
+        # An explicit language wins over the bound one.
+        assert reply_text("already_on", "ja") == catalog_for("ja").text("own_tools.reply.already_on")
+        # A key no catalog ships: the caller's English, never the bare key.
+        assert turn_text("own_tools.reply.not_a_reply", "Plain English.") == "Plain English."
+    finally:
+        reset_turn_locale(token)
+    assert turn_locale() == "en"
+    assert reply_text("already_on") == REPLY_ALREADY_ON
+    for unsupported in ("zz", "../../de", "", None):
+        token = bind_turn_locale(unsupported)
+        try:
+            assert turn_locale() == "en" and reply_text("not_owner") == REPLY_NOT_OWNER
+        finally:
+            reset_turn_locale(token)

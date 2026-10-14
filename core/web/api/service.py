@@ -903,22 +903,10 @@ def dispatch_get(
         separate from the model answer language (its own Settings widget) and from dictation
         recognition (its own composer control).
         """
-        from http.cookies import SimpleCookie
-
         from core.i18n.catalog import resolve_render_locale
 
-        cookie_locale = ""
-        raw = _header_value(page_headers, "cookie")
-        if raw:
-            jar = SimpleCookie()
-            try:
-                jar.load(raw)
-            except Exception:
-                jar = {}
-            morsel = jar.get("vool_ui_locale")
-            cookie_locale = morsel.value if morsel else ""
         query_locale = (page_query.get("ui_locale") or [""])[0]
-        return resolve_render_locale(query_locale, cookie_locale, "en")
+        return resolve_render_locale(query_locale, _ui_locale_cookie(page_headers), "en")
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -3128,6 +3116,12 @@ def dispatch_post(
     _req_token = None
     _transcript_request_id = ""
     _transcript_flush_deferred = False
+    # The app language the page chose (its vool_ui_locale cookie) for this one request: chat
+    # commands VOOL answers itself (core.i18n.turn_locale) speak it. Bound before the turn's
+    # ingress context is captured, so the streaming worker sees it too.
+    from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
+
+    _turn_locale_token = bind_turn_locale(_ui_locale_cookie(headers))
     try:
         import hashlib as _hashlib
 
@@ -3271,6 +3265,7 @@ def dispatch_post(
             _transcript_flush_deferred = True
         return _response
     finally:
+        reset_turn_locale(_turn_locale_token)
         if _req_token is not None:
             if _transcript_request_id and not _transcript_flush_deferred:
                 _flush_staged_transcript_rows(_transcript_request_id)
@@ -3350,30 +3345,20 @@ def _header_value(headers: dict[str, Any] | None, name: str) -> str:
     return ""
 
 
-def _chat_turn_ui_locale(headers: dict[str, Any] | None) -> str:
-    """The app language one chat turn's own replies follow: the vool_ui_locale cookie > en.
-
-    The same cookie a page render resolves with (``resolve_page_locale`` in ``dispatch_get``):
-    it is what the page's own locale picker persists, so a turn's deterministic chat replies
-    (the model's-own-tools switch) speak the app language the user already chose -- deliberately
-    separate from the model answer language. The chat POST lane carries no query parameters,
-    so the cookie is the carrier here.
-    """
+def _ui_locale_cookie(headers: dict[str, Any] | None) -> str:
+    """The raw ``vool_ui_locale`` cookie value (the page's own locale picker), or ``""``."""
     from http.cookies import SimpleCookie
 
-    from core.i18n.catalog import resolve_render_locale
-
-    cookie_locale = ""
     raw = _header_value(headers, "cookie")
-    if raw:
-        jar = SimpleCookie()
-        try:
-            jar.load(raw)
-        except Exception:
-            jar = {}
-        morsel = jar.get("vool_ui_locale")
-        cookie_locale = morsel.value if morsel else ""
-    return resolve_render_locale(None, cookie_locale, "en")
+    if not raw:
+        return ""
+    jar = SimpleCookie()
+    try:
+        jar.load(raw)
+    except Exception:
+        return ""
+    morsel = jar.get("vool_ui_locale")
+    return morsel.value if morsel else ""
 
 
 # ---- Chat attachments: the ONE raw-body door, and the receipts every step leaves --------------
@@ -7661,18 +7646,7 @@ def _dispatch_post_inner(
             # at ingress. No downstream identity fabrication.
             import contextvars as _ctxvars
 
-            # The turn's own-tools chat replies follow the app language the page chose
-            # (the vool_ui_locale cookie). Bound BEFORE the ingress context is captured so
-            # the streaming worker -- which runs under that snapshot -- sees it; reset
-            # right after, the snapshot is the carrier.
-            from core.model_own_tools import bind_reply_locale as _bind_own_tools_reply_locale
-            from core.model_own_tools import reset_reply_locale as _reset_own_tools_reply_locale
-
-            _reply_locale_token = _bind_own_tools_reply_locale(_chat_turn_ui_locale(headers))
-            try:
-                _ingress_context = _ctxvars.copy_context()
-            finally:
-                _reset_own_tools_reply_locale(_reply_locale_token)
+            _ingress_context = _ctxvars.copy_context()
             stream_iter = stream_agent_with_events_provider(
                 runtime,
                 user_text,
@@ -7724,13 +7698,6 @@ def _dispatch_post_inner(
         _buf_cancel_turn = str(source_context.get("cancel_turn_id") or "").strip()
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
-        # The buffered lane runs the turn on this request thread, so the same app-language
-        # binding the streaming lane captures into its ingress context is bound directly
-        # around the turn here (the model's-own-tools chat replies follow the page's cookie).
-        from core.model_own_tools import bind_reply_locale as _bind_own_tools_reply_locale
-        from core.model_own_tools import reset_reply_locale as _reset_own_tools_reply_locale
-
-        _reply_locale_token = _bind_own_tools_reply_locale(_chat_turn_ui_locale(headers))
         try:
             with _update_turn_guard(source_context, session_id):
                 result = run_agent_provider(
@@ -7748,7 +7715,6 @@ def _dispatch_post_inner(
             logging.getLogger("vool.api").exception("served chat turn failed (session=%s)", session_id)
             return apply_runtime_headers(json_response(500, {"error": safe_error_text(exc)}), runtime)
         finally:
-            _reset_own_tools_reply_locale(_reply_locale_token)
             if _buf_cancel_turn:
                 _buf_unregister_turn(session_id, _buf_cancel_turn)
             # The buffered lane's turn is over here, answered or failed: release its attachments.
