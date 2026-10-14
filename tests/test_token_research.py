@@ -158,6 +158,26 @@ def test_solana_token_research_end_to_end(chain):
     assert HELIUS_KEY not in json.dumps(out.details, default=str) and HELIUS_KEY not in redact_secrets(out.response_text)
 
 
+@pytest.mark.parametrize("uri,web,why", [
+    ("https://meta.example/fdog.json", False, "web access is off"),
+    ("https://127.0.0.1/fdog.json", True, "private address"),
+])
+def test_the_creators_metadata_host_is_only_contacted_with_web_on_and_never_privately(chain, monkeypatch, request, uri, web, why):
+    """The metadata file sits wherever the token's creator chose: reading it with web access off
+    would leak the user's address to that host, and a private address would reach their network."""
+    from core import token_research
+
+    if web:
+        request.getfixturevalue("enable_web")
+    _store("chain.data.helius", HELIUS_KEY)
+    chain.rpc["getAsset"]["content"]["json_uri"] = uri
+    fetched = []
+    monkeypatch.setattr(token_research, "_metadata_json", lambda u: fetched.append(u) or {})
+    out = _research(token=MINT, parts=["links"])
+    assert fetched == [] and why in out.response_text
+    assert out.details["parts"]["links"]["links"] == {"website": "https://fixture-dog.example"}
+
+
 def test_a_token_too_busy_to_find_its_first_transaction_says_so(chain):
     _store("chain.data.helius", HELIUS_KEY)
     chain.rpc["getSignaturesForAddress"] = [{"signature": "6" * 88, "blockTime": 1760300000}] * 1000

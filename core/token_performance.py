@@ -166,13 +166,14 @@ def evaluate(calls: list[Any], *, source_context: dict[str, Any] | None = None, 
             break
     priced = [r for r in results if r.get("status") == "ok"]
     lines = [_line(r) for r in results]
-    text = (f"Price check for {len(results)} call(s), {len(priced)} priced (public DEX data from GeckoTerminal; "
+    text = (f"Price check for {len(results)} post(s), {len(priced)} priced (public trading data; "
             "prices in USD):\n" + "\n".join(f"- {line}" for line in lines))
     return {"ok": bool(priced), "status": "ok" if priced else "nothing_priced", "text": text, "calls": results}
 
 
 def _line(r: dict[str, Any]) -> str:
-    who = r.get("symbol") or r.get("token") or "?"
+    token = str(r.get("token") or "")
+    who = r.get("symbol") or (f"{token[:4]}…{token[-4:]}" if len(token) > 12 else token) or "?"
     if r.get("status") != "ok":
         return f"{who}: {r.get('message')}."
     bits = [f"{who} at {r['at']}: ${r['price_at']:.6g}", f"now ${r['price_now']:.6g} ({r['change_now_pct']:+.1f}%)"]
@@ -181,7 +182,8 @@ def _line(r: dict[str, Any]) -> str:
     if r.get("low_after") is not None:
         bits.append(f"low after ${r['low_after']:.6g} ({r['low_pct']:+.1f}%)")
     if r.get("candle"):
-        bits.append(f"from {r['candle']} candles")
+        every, unit = r["candle"].split("-", 1)
+        bits.append(f"(prices every {unit})" if every == "1" else f"(prices every {every} {unit}s)")
     if r.get("note"):
         bits.append(r["note"])
     return ", ".join(bits)
@@ -283,7 +285,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
             raise PriceError("not_found", "no trading pool was found for it") from None
         if code == 429:
             raise PriceError("rate_limited", "the public price source is limiting requests right now; try again in a minute") from None
-        raise PriceError("provider_error", f"the public price source could not answer (HTTP {code})") from None
+        raise PriceError("provider_error", "the public price source could not answer right now") from None
     except Exception as exc:
         from core.credential_intelligence.verification import is_timeout_error
 

@@ -2590,7 +2590,7 @@ function openXSetupDialog(onSaved) {
     const own = el('button', 'btn', T('xsetup.choose_keys', 'I have my keys (my X account)')); own.type = 'button';
     own.addEventListener('click', keysStep);
     const row = el('div', 'inline'); row.appendChild(pub); row.appendChild(own); body.appendChild(row);
-    body.appendChild(el('p', 'subtle', T('xsetup.approval_note', 'VOOL reads with these keys. With your own account keys it can also post, like or follow for you, but only after you approve each one here in Settings.')));
+    body.appendChild(el('p', 'subtle', T('xsetup.approval_note', 'VOOL reads with these keys. With your own account keys it can also post, like, follow or send messages for you, but only after you approve each one here in Settings.')));
   };
   const bearerStep = () => {
     body.replaceChildren(); note.textContent = '';
@@ -2624,7 +2624,7 @@ function openXSetupDialog(onSaved) {
     const ck = secretField(T('xsetup.consumer_key', 'Consumer Key (API Key)')); const cs = secretField(T('xsetup.consumer_secret', 'Consumer Key Secret (API Key Secret)'));
     body.appendChild(ck.wrap); body.appendChild(cs.wrap);
     body.appendChild(el('div', 'row-label', T('xsetup.step2', 'Step 2 · Access tokens')));
-    body.appendChild(el('p', 'subtle', T('xsetup.step2_help_write', 'Under Access Token and Secret, choose Generate. They belong to the X account you are signed in with. To let VOOL post for you (only after you approve), first set your app\'s User authentication settings to Read and write, then generate the tokens.')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step2_help_write', 'Under Access Token and Secret, choose Generate. They belong to the X account you are signed in with. To let VOOL post for you (only after you approve), first set your app\'s User authentication settings to Read and write and Direct message, then generate the tokens.')));
     const at = secretField(T('xsetup.access_token', 'Access Token')); const as = secretField(T('xsetup.access_secret', 'Access Token Secret'));
     body.appendChild(at.wrap); body.appendChild(as.wrap);
     const confirmRow = el('div', 'inline'); confirmRow.hidden = true;
@@ -2707,7 +2707,7 @@ function widgetXActivity(host) {
     const pending = data.pending || [];
     host.appendChild(el('h4', 'row-label', data.store === 'unreadable' ? T('xact.section_title', 'X activity') : pending.length ? tfmt('xact.waiting_title', 'Waiting for your approval ({count})', { count: pending.length }) : T('xact.waiting_none_title', 'Nothing waiting for your approval')));
     if (data.store === 'unreadable') host.appendChild(el('p', 'subtle', data.store_message || T('xact.store_unreadable', 'VOOL could not read its list of X actions, so anything waiting can\'t be shown or sent.')));
-    else if (!pending.length) host.appendChild(el('p', 'subtle', T('xact.waiting_none', 'When you ask VOOL to post, reply, like, repost or follow on X, it shows here first. Nothing is sent until you approve it.')));
+    else if (!pending.length) host.appendChild(el('p', 'subtle', T('xact.waiting_none', 'When you ask VOOL to do something on X, like posting, replying, liking, following or sending a message, it shows here first. Nothing is sent until you approve it.')));
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
@@ -2715,7 +2715,10 @@ function widgetXActivity(host) {
       card.appendChild(el('strong', null, summary));
       if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       const t = a.target || {};
-      if (t.text) card.appendChild(Object.assign(el('p', 'subtle x-action-target', tfmt('xact.target_post', 'Post by @{author}: {text}', { author: t.author || '?', text: t.text })), { dir: 'auto' }));
+      const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
+      if (t.text) card.appendChild(Object.assign(el('p', 'subtle x-action-target', reply
+        ? tfmt('xact.target_reply', 'Reply by @{author}: {text}', { author: t.author || '?', text: t.text })
+        : tfmt('xact.target_post', 'Post by @{author}: {text}', { author: t.author || '?', text: t.text })), { dir: 'auto' }));
       if (t.url) card.appendChild(xOpenLink(t.url, summary));
       const row = el('div', 'inline');
       const yes = el('button', 'btn primary x-action-approve', T('xact.approve', 'Approve and send')); yes.type = 'button';
@@ -2755,8 +2758,8 @@ function widgetXActivity(host) {
         ? tfmt('xact.usage_reads_nolimit', 'Read: {used} posts and accounts (no limit set)', { used: reads })
         : tfmt('xact.usage_reads', 'Read: {used} of {limit} posts and accounts', { used: reads, limit: Number(usage.monthly_reads).toLocaleString() })));
       host.appendChild(el('p', null, usage.monthly_actions == null
-        ? tfmt('xact.usage_actions_nolimit', 'Sent: {actions} posts, replies, likes and follows (no limit set)', { actions: sent })
-        : tfmt('xact.usage_actions', 'Sent: {actions} of {action_limit} posts, replies, likes and follows', { actions: sent, action_limit: Number(usage.monthly_actions).toLocaleString() })));
+        ? tfmt('xact.usage_actions_nolimit', 'Sent: {actions} actions on X (no limit set)', { actions: sent })
+        : tfmt('xact.usage_actions', 'Sent: {actions} of {action_limit} actions on X', { actions: sent, action_limit: Number(usage.monthly_actions).toLocaleString() })));
       host.appendChild(el('p', 'subtle', T('xact.usage_note', 'X charges your X developer account for each post or account VOOL reads and each thing it sends for you. VOOL counts them here and stops at your limits. Leave a box empty for no limit.')));
       const limits = el('div', 'x-limits');
       const mk = (labelKey, labelText, value) => {

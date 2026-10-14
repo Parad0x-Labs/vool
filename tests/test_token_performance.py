@@ -111,7 +111,7 @@ def test_price_then_now_peak_and_low(prices, enable_web):
     assert call["peak_after"] == pytest.approx(3.3) and call["peak_pct"] == pytest.approx(230.0)
     assert call["low_after"] == pytest.approx(1.8)  # only candles after the post count, not the 1.0 before it
     assert call["peak_at"] == "2026-10-13 10:00 UTC" and call["symbol"] == "FDOG" and call["chain"] == "solana"
-    assert "from 5-minute candles" in out.response_text and "last trade" not in out.response_text
+    assert "(prices every 5 minutes)" in out.response_text and "last trade" not in out.response_text
     ohlcv = next(r for r in prices.requests if "/ohlcv/" in r["path"])
     assert ohlcv["path"].endswith(f"/networks/solana/pools/{POOL}/ohlcv/minute")
     assert ohlcv["query"]["token"] == SOL and ohlcv["query"]["currency"] == "usd"

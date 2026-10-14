@@ -125,8 +125,8 @@ def _http_failure(status: int, body: dict[str, Any] | None) -> XReadError:
     if status == 400:
         return XReadError("invalid_request", "X did not accept this request." + tail, http_status=status)
     if status >= 500 or status == 408:
-        return XReadError("provider_unavailable", f"X is having trouble right now (HTTP {status}). Try again later.", http_status=status)
-    return XReadError("unexpected_response", f"X gave an unexpected answer (HTTP {status}).{tail}", http_status=status)
+        return XReadError("provider_unavailable", "X is having trouble right now. Try again later.", http_status=status)
+    return XReadError("unexpected_response", f"X gave an answer VOOL didn't expect.{tail}", http_status=status)
 
 
 def _request(path: str, params: dict[str, Any] | None = None, *, user_context: bool = False,
@@ -394,6 +394,9 @@ def shape_post(post: dict[str, Any], users: dict[str, dict[str, Any]] | None = N
         "kind": refs[0] if refs else "post",
         "lang": str(post.get("lang") or ""),
     }
+    for key in ("conversation_id", "in_reply_to_user_id"):
+        if post.get(key):
+            shaped[key] = str(post[key])
     mentions = token_mentions(post)
     if mentions["cashtags"] or mentions["addresses"]:
         shaped["tokens"] = mentions

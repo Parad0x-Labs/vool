@@ -59,8 +59,7 @@ _VERBS = {
     "like": "Like a post by", "unlike": "Remove your like from a post by", "repost": "Repost a post by",
     "unrepost": "Undo your repost of a post by", "follow": "Follow", "unfollow": "Unfollow",
     "hide_reply": "Hide a reply by", "unhide_reply": "Unhide a reply by", "mute": "Mute", "unmute": "Unmute",
-    "dm": "Send a direct message to", "list_create": "Create the list", "list_add": "Add to your list:",
-    "list_remove": "Remove from your list:",
+    "dm": "Send a direct message to", "list_create": "Create the", "list_add": "Add", "list_remove": "Remove",
 }
 
 
@@ -128,14 +127,34 @@ def summary(action: dict[str, Any]) -> str:
     kind = str(action.get("kind"))
     verb = _VERBS.get(kind, kind)
     if kind in _LIST_KINDS:
-        return f"{verb} {target.get('list_name') or target.get('list_id')} @{target.get('username')}"
+        where = f"your list \"{target['list_name']}\"" if target.get("list_name") else "your list"
+        return f"{verb} {_who(target)} {'to' if kind == 'list_add' else 'from'} {where}"
     if kind in _USER_KINDS:
-        return f"{verb} @{target.get('username')}"
+        return f"{verb} {_who(target)}"
     if kind == "list_create":
-        return f"{verb} \"{target.get('name')}\"" + (" (private)" if target.get("private") else " (public)")
+        line = f"{verb} {'private' if target.get('private') else 'public'} list \"{target.get('name')}\""
+        return line + (f", described as \"{target['description']}\"" if target.get("description") else "")
     if kind in {"post", "delete"}:
         return verb
     return f"{verb} @{target.get('author')}" if target.get("author") else verb
+
+
+def _replies_to_you(post: dict[str, Any], me: str) -> bool:
+    """X lets an account hide replies only in conversations it started."""
+    from core import x_api
+
+    root = str(post.get("conversation_id") or "")
+    if not root or root == str(post.get("id") or "") or post.get("author_id") == me:
+        return False
+    read = x_api.post_details(root)
+    return bool(read.ok and read.data.get("posts") and read.data["posts"][0].get("author_id") == me)
+
+
+def _who(target: dict[str, Any]) -> str:
+    """The account as a person reads it: display name and handle, so a look-alike handle stands out."""
+    handle = f"@{target.get('username')}"
+    name = "".join(ch for ch in str(target.get("name") or "") if not _hidden(ch)).strip()[:50]
+    return f"{name} ({handle})" if name and name.lower() != str(target.get("username") or "").lower() else handle
 
 
 def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None = None):
@@ -198,6 +217,9 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             post = read.data["posts"][0]
             if kind == "delete" and post.get("author_id") != str(account["id"]):
                 return _result(False, "not_yours", "That post is not from your connected X account, so it can't be deleted. Nothing was proposed.")
+            if kind in {"hide_reply", "unhide_reply"} and not _replies_to_you(post, str(account["id"])):
+                return _result(False, "not_yours", "You can only hide replies under your own posts. That one isn't a "
+                               "reply in a conversation you started, so nothing was proposed.")
             target = {"post_id": pid, "author": post.get("author"), "text": str(post.get("text") or "")[:500],
                       "url": post.get("url")}
             payload["post_id"] = pid
@@ -224,11 +246,10 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
     now = time.time()
     action = {
         "id": "xa_" + secrets.token_hex(8), "kind": kind, "payload": payload,
-        # The card shows ``text``: what will be sent, or a new list's description.
-        "text": payload.get("text", "") or payload.get("description", ""),
+        "text": payload.get("text", ""),
         "nonce": (nonce := secrets.token_hex(16)), "hash": _digest(payload, nonce), "target": target, "state": "pending", "created_at": now, "updated_at": now,
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
-        "session": str((source_context or {}).get("session_id") or ""),
+        "session": _session(source_context),
     }
     action["summary"] = summary(action)
     with _lock:
@@ -274,13 +295,21 @@ def recent(limit: int = 10) -> list[dict[str, Any]]:
     return [public(a) for a in done[:limit]]
 
 
+def _session(source_context: dict[str, Any] | None) -> str:
+    """The chat an action belongs to, resolved the same way as other chat-scoped drafts."""
+    ctx = source_context if isinstance(source_context, dict) else {}
+    return str(ctx.get("runtime_session_id") or ctx.get("chat_id") or ctx.get("session_id") or "")
+
+
 def status_for_model(action_id: str = "", *, source_context: dict[str, Any] | None = None):
     """The state of an action this chat proposed (the newest one when no id is given)."""
     try:
         state = _current()
     except RuntimeError:
         return _result(False, "store_unreadable", "VOOL could not read its list of X actions.")
-    session = str((source_context or {}).get("session_id") or "")
+    session = _session(source_context)
+    if not session:  # no chat to match on: never show another chat's actions (DM text included)
+        return _result(False, "not_found", "No such X action in this chat.")
     actions = [a for a in state["actions"].values() if str(a.get("session") or "") == session]
     if action_id:
         action = next((a for a in actions if a.get("id") == action_id), None)
@@ -397,6 +426,12 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         publishes = action["kind"] in _TEXT_KINDS
         if publishes:
             # Posts, replies and quotes also keep the daily posting cap (core/usage_quota "x.post").
+            # A count that can't be read would restart at zero, so the cap fails closed instead.
+            if not usage_quota.store_readable():
+                x_usage.unreserve_action()
+                return {"ok": False, "state": "daily_limit_unreadable",
+                        "message": "VOOL could not read today's post count, so it can't check its daily limit. "
+                                   "Nothing was sent."}
             day = usage_quota.consume_quota(POST_QUOTA, tier=usage_quota.active_tier())
             if not day.allowed:
                 x_usage.unreserve_action()
@@ -436,7 +471,7 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         return {"ok": False, "state": "refused", "message": action["message"], "action": public(action)}
     except CredentialRedirectRefusedError:
         # X received the request before it answered with a redirect, so it may have acted on it.
-        action = _finish(action, state="unknown", message="X answered with a redirect that VOOL did not follow. "
+        action = _finish(action, state="unknown", message="X's answer was unusual, so VOOL stopped there. "
                          "It may or may not have gone out: check X before trying again.")
         return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
     except urllib.error.HTTPError as exc:
@@ -445,11 +480,17 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         except Exception:
             err_body = None
         err = x_api._http_failure(int(exc.code or 0), err_body)
-        message = err.message
+        # The owner reads this in Settings: no raw "X said" detail there (the model still gets it on reads).
+        message = err.message.split(" X said:", 1)[0]
         if err.status == "plan_refused":
-            needed = "Read and write and Direct message" if action["kind"] == "dm" else "Read and write"
-            message += (f" To do this, your X app needs \"{needed}\" permission (developer.x.com > your app > "
-                        "User authentication settings); then generate new Access Tokens and reconnect X in Settings.")
+            if action["kind"] == "dm":
+                message = (f"X refused it. @{action['target'].get('username')} may not accept messages from you, or your "
+                           "X app may need \"Read and write and Direct message\" permission (developer.x.com > your app > "
+                           "User authentication settings; then generate new Access Tokens and reconnect X in Settings).")
+            else:
+                message = ("X refused it. Your X app may need \"Read and write\" permission (developer.x.com > your app > "
+                           "User authentication settings; then generate new Access Tokens and reconnect X in Settings), "
+                           "or X may not allow this one.")
         if int(exc.code or 0) >= 500 or 300 <= int(exc.code or 0) < 400:
             # X may have done it before failing to answer, or before redirecting.
             action = _finish(action, state="unknown", message=message + " It may or may not have gone out: check X before trying again.")
@@ -478,8 +519,9 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
                   "url": x_api.post_url(handle if x_api._HANDLE_RE.fullmatch(handle) else "i", str(data_part["id"]))}
     elif isinstance(data_part, dict):
         result = {k: v for k, v in data_part.items() if isinstance(v, (bool, int)) and k != "url"}
-    action = _finish(action, state="sent", result=result, message="Sent to X.")
-    return {"ok": True, "action": public(action), "message": f"{action['summary']}: sent." + (f" {result['url']}" if result.get("url") else "")}
+    done = "sent" if action["kind"] in _TEXT_KINDS or action["kind"] == "dm" else "done"
+    action = _finish(action, state="sent", result=result, message="Sent to X." if done == "sent" else "Done on X.")
+    return {"ok": True, "action": public(action), "message": f"{action['summary']}: {done}." + (f" {result['url']}" if result.get("url") else "")}
 
 
 

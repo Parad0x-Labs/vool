@@ -136,7 +136,7 @@ def action_refusal() -> str:
     if not snap.get("ok"):
         return snap["message"]
     if snap["actions_left"] is not None and snap["actions_left"] <= 0:
-        return (f"Your X action limit for {snap['month']} is used up ({snap['actions']} of "
+        return (f"Your X send limit for {snap['month']} is used up ({snap['actions']} of "
                 f"{snap['monthly_actions']}). Nothing was sent to X. You can raise it in Settings > API Keys > X.")
     return ""
 

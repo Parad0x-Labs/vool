@@ -20,7 +20,11 @@ from tests.test_x_api_reads import _connect
 ME = "1234567890"
 BOB = {"id": "33", "username": "bob_trades", "name": "Bob", "public_metrics": {"followers_count": 5000}}
 MY_POST = {"id": "556", "author_id": ME, "text": "my take", "created_at": "2026-10-12T07:00:00.000Z"}
-REPLY = {"id": "557", "author_id": "33", "text": "spam reply", "created_at": "2026-10-12T08:00:00.000Z"}
+REPLY = {"id": "557", "author_id": "33", "text": "spam reply", "created_at": "2026-10-12T08:00:00.000Z",
+         "conversation_id": "556", "in_reply_to_user_id": ME}
+ELSEWHERE = {"id": "558", "author_id": "33", "text": "reply under someone else", "created_at": "2026-10-12T08:00:00.000Z",
+             "conversation_id": "600"}
+THEIR_ROOT = {"id": "600", "author_id": "33", "text": "their post", "created_at": "2026-10-12T06:00:00.000Z"}
 
 
 class FakeX:
@@ -72,7 +76,7 @@ class FakeX:
                     "/2/lists/9002": {"data": {"id": "9002", "name": "theirs", "owner_id": "33"}},
                 }
                 if p == "/2/tweets":
-                    post = REPLY if "557" in query.get("ids", "") else MY_POST
+                    post = {"557": REPLY, "558": ELSEWHERE, "600": THEIR_ROOT}.get(query.get("ids", ""), MY_POST)
                     return self._answer(200, {"data": [post], "includes": {"users": [BOB]}})
                 if p in routes:
                     return self._answer(200, routes[p])
@@ -178,16 +182,16 @@ def _approve(action_id):
 
 @pytest.mark.parametrize("args,method,path,body,summary", [
     ({"kind": "hide_reply", "post": "557"}, "PUT", "/2/tweets/557/hidden", {"hidden": True}, "Hide a reply by @bob_trades"),
-    ({"kind": "mute", "username": "bob_trades"}, "POST", f"/2/users/{ME}/muting", {"target_user_id": "33"}, "Mute @bob_trades"),
-    ({"kind": "unmute", "username": "@bob_trades"}, "DELETE", f"/2/users/{ME}/muting/33", None, "Unmute @bob_trades"),
+    ({"kind": "mute", "username": "bob_trades"}, "POST", f"/2/users/{ME}/muting", {"target_user_id": "33"}, "Mute Bob (@bob_trades)"),
+    ({"kind": "unmute", "username": "@bob_trades"}, "DELETE", f"/2/users/{ME}/muting/33", None, "Unmute Bob (@bob_trades)"),
     ({"kind": "dm", "username": "bob_trades", "text": "gm, saw your call"}, "POST",
-     "/2/dm_conversations/with/33/messages", {"text": "gm, saw your call"}, "Send a direct message to @bob_trades"),
+     "/2/dm_conversations/with/33/messages", {"text": "gm, saw your call"}, "Send a direct message to Bob (@bob_trades)"),
     ({"kind": "list_create", "name": "alpha callers", "private": True}, "POST", "/2/lists",
-     {"name": "alpha callers", "description": "", "private": True}, '"alpha callers" (private)'),
+     {"name": "alpha callers", "description": "", "private": True}, 'Create the private list "alpha callers"'),
     ({"kind": "list_create", "name": "open book", "description": "who I read"}, "POST", "/2/lists",
-     {"name": "open book", "description": "who I read", "private": False}, '"open book" (public)'),
+     {"name": "open book", "description": "who I read", "private": False}, 'Create the public list "open book", described as "who I read"'),
     ({"kind": "list_add", "list_id": "9001", "username": "bob_trades"}, "POST", "/2/lists/9001/members",
-     {"user_id": "33"}, "Add to your list: alpha @bob_trades"),
+     {"user_id": "33"}, "Add Bob (@bob_trades) to your list \"alpha\""),
 ])
 def test_new_actions_wait_for_approval_then_send_exactly_once(x, args, method, path, body, summary):
     proposed = _run("x.action.propose", args)
@@ -196,6 +200,7 @@ def test_new_actions_wait_for_approval_then_send_exactly_once(x, args, method, p
     shown, (status, sent) = _approve(proposed.details["action"]["id"])
     assert summary in shown["summary"]
     assert status == 200, sent
+    assert sent["message"].endswith(": sent." if args["kind"] == "dm" else ": done.")
     [write] = x.writes()
     assert (write["method"], write["path"], write["body"]) == (method, path, body)
 
@@ -231,10 +236,21 @@ def test_a_refused_send_gives_back_the_action_and_the_days_post(x):
     assert usage_quota.usage_today("x.post") == 0
 
 
-def test_a_new_lists_card_shows_its_description(x):
-    proposed = _run("x.action.propose", {"kind": "list_create", "name": "open book", "description": "who I read"})
-    shown, _ = _approve(proposed.details["action"]["id"])
-    assert shown["text"] == "who I read" and "(public)" in shown["summary"]
+def test_only_replies_under_your_own_posts_can_be_hidden(x):
+    """X allows hiding replies only in conversations the account started; anything else would fail
+    after the owner approved it, so it is refused before."""
+    for post in ("558", "556"):  # a reply under someone else's post; your own post
+        out = _run("x.action.propose", {"kind": "hide_reply", "post": post})
+        assert not out.ok and out.status == "not_yours" and "your own posts" in out.response_text
+    assert x.writes() == []
+
+
+def test_a_refused_dm_says_why_it_may_have_failed_without_x_jargon(x):
+    x.refuse["/2/dm_conversations"] = 403
+    proposed = _run("x.action.propose", {"kind": "dm", "username": "bob_trades", "text": "gm"})
+    _, (_, out) = _approve(proposed.details["action"]["id"])
+    assert "@bob_trades may not accept messages from you" in out["message"]
+    assert "read" not in out["message"].split(".")[0] and "X said" not in out["message"]
 
 
 def test_reads_with_no_stated_size_hold_room_for_a_full_answer(x):
@@ -259,3 +275,25 @@ def test_new_calls_are_seated_from_normal_chat(text, intent):
     from core.tool_demand_signals import resolve_demand_signals
 
     assert intent in resolve_demand_signals(text).explicit_intents
+
+
+def test_an_unreadable_daily_post_count_refuses_instead_of_starting_over(x):
+    """A broken count file would otherwise read as "nothing posted today" and lift the daily cap."""
+    from core import usage_quota
+
+    proposed = _run("x.action.propose", {"kind": "post", "text": "gm"})
+    usage_quota._usage_path().parent.mkdir(parents=True, exist_ok=True)
+    usage_quota._usage_path().write_text("{not json", encoding="utf-8")
+    _, (status, out) = _approve(proposed.details["action"]["id"])
+    assert status == 400 and out["state"] == "daily_limit_unreadable" and "Nothing was sent" in out["message"]
+    assert x.writes() == []
+
+
+def test_a_chat_without_an_id_never_sees_another_chats_actions(x):
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    proposed = execute_runtime_tool("x.action.propose", {"kind": "dm", "username": "bob_trades", "text": "private words"},
+                                    source_context={})
+    assert proposed.ok
+    out = execute_runtime_tool("x.action.status", {}, source_context={})  # another turn that also has no chat id
+    assert not out.ok and "private words" not in json.dumps(out.details, default=str)

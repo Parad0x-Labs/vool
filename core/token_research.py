@@ -125,7 +125,7 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
     from core.execution.models import _tool_observation
     from core.runtime_execution_tools import RuntimeExecutionResult
 
-    out = launches(arguments or {}) if intent == LAUNCHES_INTENT else research(arguments or {})
+    out = launches(arguments or {}) if intent == LAUNCHES_INTENT else research(arguments or {}, source_context=source_context)
     payload = {k: out.get(k) for k in ("token", "chain", "parts", "tokens") if out.get(k) is not None}
     observation = _tool_observation(intent=intent, tool_surface=SURFACE, ok=out["ok"], status=out["status"],
                                     message=out["text"], **payload)
@@ -155,7 +155,7 @@ def _x_connected() -> bool:
         return False
 
 
-def research(args: dict[str, Any]) -> dict[str, Any]:
+def research(args: dict[str, Any], *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     token = str(args.get("token") or args.get("address") or args.get("mint") or "").strip()
     creator = str(args.get("creator") or args.get("deployer") or "").strip()
     try:
@@ -181,7 +181,7 @@ def research(args: dict[str, Any]) -> dict[str, Any]:
         "facts": lambda: _facts(chain, address),
         "holders": lambda: _holders(chain, address),
         "creator": lambda: _creator(chain, address),
-        "links": lambda: _links(chain, address),
+        "links": lambda: _links(chain, address, web_on=_web_on(source_context)),
         "x": lambda: _x_part(address),
     }
     for part in parts:
@@ -302,13 +302,13 @@ def _creator(chain: str, address: str) -> tuple[str, dict[str, Any]]:
         raise _PartUnavailable("not_offered", f"VOOL can't read who created a contract on {cp.CHAIN_LABELS[chain]} yet.")
     result = cd._etherscan(cfg, chain, {"module": "contract", "action": "getcontractcreation", "contractaddresses": address})
     if not isinstance(result, list) or not result or not isinstance(result[0], dict):
-        raise _PartUnavailable("not_found", "Etherscan has no creation record for this contract.")
+        raise _PartUnavailable("not_found", "The block explorer has no creation record for this contract.")
     first = result[0]
     who = str(first.get("contractCreator") or "").lower()
     tx = str(first.get("txHash") or "")
     if not cd._EVM_ADDRESS_RE.fullmatch(who):
         raise InvalidAnswer()
-    data = {"address": who, "creation_tx": tx, "source": "contract creation (Etherscan)",
+    data = {"address": who, "creation_tx": tx, "source": "contract creation record",
             "explorer": cd._explorer(chain, address=who)}
     if first.get("timestamp"):
         data["created_at"] = cd._when(first.get("timestamp"))
@@ -428,7 +428,16 @@ def _creator_only(args: dict[str, Any], creator: str) -> dict[str, Any]:
 
 # --------------------------------------------------------------------------- links (the token's own metadata)
 
-def _links(chain: str, address: str) -> tuple[str, dict[str, Any]]:
+def _web_on(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.remote_fetch_policy import effective_web_available
+
+        return bool(effective_web_available(source_context))
+    except Exception:
+        return False
+
+
+def _links(chain: str, address: str, *, web_on: bool = False) -> tuple[str, dict[str, Any]]:
     if chain != cp.CHAIN_SOLANA:
         raise _PartUnavailable("not_offered", f"tokens on {cp.CHAIN_LABELS[chain]} keep no website or social links on-chain.")
     cfg = _need(chain, ("helius",), "a token's listed links")
@@ -441,7 +450,14 @@ def _links(chain: str, address: str) -> tuple[str, dict[str, Any]]:
         _keep_link(links, "website" if key == "external_url" else str(key), value)
     uri = str(content.get("json_uri") or "")
     fetched = False
-    if uri.startswith("https://"):
+    skipped = ""
+    # The metadata file lives wherever the token's creator chose, so it is read only with web
+    # access on, and never from a private or local address.
+    if uri.startswith("https://") and not web_on:
+        skipped = "its metadata file was not read because web access is off"
+    elif uri.startswith("https://") and not _public_url(uri):
+        skipped = "its metadata file points at a private address, so it was not read"
+    elif uri.startswith("https://"):
         meta = _metadata_json(uri)
         if meta is not None:
             fetched = True
@@ -451,10 +467,22 @@ def _links(chain: str, address: str) -> tuple[str, dict[str, Any]]:
                         _keep_link(links, "website" if key == "external_url" else key, source.get(key))
     data = {"links": links, "metadata_uri": uri, "metadata_read": fetched,
             "note": "listed by whoever made the token; not verified"}
+    tail = f" ({skipped})" if skipped else ""
+    if skipped:
+        data["metadata_skipped"] = skipped
     if not links:
-        return "Links: the token's metadata lists no website or social links.", data
+        return f"Links: the token's metadata lists no website or social links{tail}.", data
     shown = ", ".join(f"{k} {v}" for k, v in links.items())
-    return f"Links listed in the token's own metadata (anyone can write these; not verified): {shown}.", data
+    return f"Links listed in the token's own metadata (anyone can write these; not verified): {shown}{tail}.", data
+
+
+def _public_url(uri: str) -> bool:
+    try:
+        from core.null_dial import is_ssrf_safe_url
+
+        return bool(is_ssrf_safe_url(uri))
+    except Exception:
+        return False
 
 
 def _keep_link(links: dict[str, str], key: str, value: Any) -> None:
@@ -516,7 +544,7 @@ def launches(args: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "status": status, "text": "New launches: " + message[0].lower() + message[1:]
                 if status in {"key_missing", "not_offered"} else message}
     except InvalidAnswer:
-        return {"ok": False, "status": "bad_answer", "text": "Helius answered in a shape VOOL does not recognise, so no tokens are shown."}
+        return {"ok": False, "status": "bad_answer", "text": "The Solana data service answered in a shape VOOL does not recognise, so no tokens are shown."}
     rows = []
     for item in result["items"]:
         if not isinstance(item, dict):
@@ -530,10 +558,10 @@ def launches(args: dict[str, Any]) -> dict[str, Any]:
                      "authority": next((a for a in authorities if cd._SVM_ADDRESS_RE.fullmatch(a)), "")})
     cd._public(*[r["address"] for r in rows], *[r["authority"] for r in rows if r["authority"]])
     if not rows:
-        return {"ok": True, "status": "ok", "text": "New launches: Helius returned no tokens for that.", "tokens": []}
+        return {"ok": True, "status": "ok", "text": "New launches: no tokens came back for that.", "tokens": []}
     lines = [f"- {(r['name'] + ' (' + r['symbol'] + ') ') if r['name'] else ''}{r['address']}" for r in rows]
-    text = (f"The {len(rows)} newest Solana tokens Helius knows of, newest first (names are whatever the creator typed; "
-            "anyone can launch a token):\n" + "\n".join(lines) + "\nSource: Helius, Solana.")
+    text = (f"The {len(rows)} newest Solana tokens, newest first (names are whatever the creator typed; "
+            "anyone can launch a token):\n" + "\n".join(lines) + "\nSource: your Solana data key.")
     return {"ok": True, "status": "ok", "text": text, "tokens": rows, "chain": chain}
 
 

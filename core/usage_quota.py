@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -92,6 +93,10 @@ def capability_limit(capability: str, tier: str) -> int | None:
     return None if value is None else max(0, int(value))
 
 
+# One process-wide lock so two callers can't read the same count and both write it back.
+_usage_lock = threading.RLock()
+
+
 def _usage_path():
     return data_path(_USAGE_FILE)
 
@@ -118,7 +123,22 @@ def _prune(usage: dict[str, dict[str, int]], current_day: str) -> dict[str, dict
 def _save_usage(usage: dict[str, dict[str, int]]) -> None:
     path = _usage_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(usage, sort_keys=True), encoding="utf-8")
+    # Write a whole new file and swap it in, so a crash mid-write never leaves a half file that
+    # would read back as "nothing used today".
+    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(usage, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def store_readable() -> bool:
+    """False when the usage file exists but can't be read, so a cap that must hold can refuse."""
+    path = _usage_path()
+    if not path.exists():
+        return True
+    try:
+        return isinstance(json.loads(path.read_text(encoding="utf-8")), dict)
+    except Exception:
+        return False
 
 
 def usage_today(capability: str, *, today: str | None = None) -> int:
@@ -138,16 +158,17 @@ def check_quota(capability: str, *, tier: str, today: str | None = None) -> Quot
 def consume_quota(capability: str, *, tier: str, units: int = 1, today: str | None = None) -> QuotaCheck:
     """Try to consume `units`. Under the cap -> increment + allowed=True. At/over -> no change, allowed=False."""
     day = _today(today)
-    used = usage_today(capability, today=day)
-    limit = capability_limit(capability, tier)
-    if limit is None:
-        return QuotaCheck(capability, tier, used, None, None, True, day)
-    if used >= limit:
-        return QuotaCheck(capability, tier, used, limit, 0, False, day)
-    new_used = min(limit, used + max(1, int(units)))
-    usage = _load_usage()
-    usage.setdefault(day, {})[str(capability)] = new_used
-    _save_usage(_prune(usage, day))
+    with _usage_lock:
+        used = usage_today(capability, today=day)
+        limit = capability_limit(capability, tier)
+        if limit is None:
+            return QuotaCheck(capability, tier, used, None, None, True, day)
+        if used >= limit:
+            return QuotaCheck(capability, tier, used, limit, 0, False, day)
+        new_used = min(limit, used + max(1, int(units)))
+        usage = _load_usage()
+        usage.setdefault(day, {})[str(capability)] = new_used
+        _save_usage(_prune(usage, day))
     return QuotaCheck(capability, tier, new_used, limit, max(0, limit - new_used), True, day)
 
 
@@ -155,12 +176,13 @@ def release_quota(capability: str, *, units: int = 1, today: str | None = None) 
     """Give back units consumed for something that provably never happened (refused before it left
     the machine, or refused outright by the provider). Never goes below zero."""
     day = _today(today)
-    usage = _load_usage()
-    used = int(usage.get(day, {}).get(str(capability), 0))
-    if used <= 0:
-        return
-    usage.setdefault(day, {})[str(capability)] = max(0, used - max(1, int(units)))
-    _save_usage(_prune(usage, day))
+    with _usage_lock:
+        usage = _load_usage()
+        used = int(usage.get(day, {}).get(str(capability), 0))
+        if used <= 0:
+            return
+        usage.setdefault(day, {})[str(capability)] = max(0, used - max(1, int(units)))
+        _save_usage(_prune(usage, day))
 
 
 def reset_usage() -> None:
@@ -179,5 +201,6 @@ __all__ = [
     "quota_limits",
     "release_quota",
     "reset_usage",
+    "store_readable",
     "usage_today",
 ]
