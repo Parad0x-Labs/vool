@@ -7503,7 +7503,7 @@ def _sweep_derived_dialogue_surfaces(
         return
 
     def carries(*values: object) -> bool:
-        return any(forget_needle_in(_normalize_forget_token(str(value or "")), needle) for value in values)
+        return any(forget_needle_in(str(value or ""), needle) for value in values)
 
     from core.memory.carriers import ROW_IDENTITIES, forget_needle_in, payload_columns
     from core.memory.carriers import carries as structured_match
@@ -7677,9 +7677,6 @@ def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
     return revoked_tokens(chat_id)
 
 
-_FORGET_SEPARATOR_RE = re.compile(r"[\s\-_]+")
-
-
 def _normalize_forget_token(token: str) -> str:
     """Canonical form for forget-law token matching.
 
@@ -7688,9 +7685,12 @@ def _normalize_forget_token(token: str) -> str:
     Measured on the integrated head (F14-07, full208-nomic-492d7412): plain
     substring matching let a hyphenated assistant copy of a forgotten token
     survive every layer — invalidation, scrubs, serving gates — and the
-    neural evidence leg then re-served the deleted value.
+    neural evidence leg then re-served the deleted value. Compatibility forms are
+    not meaning either (``core.memory.carriers.normalized_forget_text``).
     """
-    return " ".join(_FORGET_SEPARATOR_RE.split(str(token or "").casefold())).strip()
+    from core.memory.carriers import normalized_forget_text
+
+    return normalized_forget_text(token)
 
 
 #: The days the runtime itself writes into a delivery: a record's stamp ("(recorded: 2026-10-14)", "(stated
@@ -7712,7 +7712,7 @@ def text_carries_revoked_token(text: str, revocations: tuple[str, ...]) -> bool:
         return False
     from core.memory.carriers import forget_needle_in
 
-    hay = _normalize_forget_token(_without_runtime_day_stamps(text))
+    hay = _without_runtime_day_stamps(text)
     return any(
         token and forget_needle_in(hay, _normalize_forget_token(token)) for token in revocations
     )
@@ -7811,8 +7811,8 @@ def forget_session_memory(
                         continue
                     user_text = str(row.get("user") or "")
                     assistant_text = str(row.get("assistant") or "")
-                    user_carries = forget_needle_in(_normalize_forget_token(user_text), needle)
-                    asst_carries = forget_needle_in(_normalize_forget_token(assistant_text), needle)
+                    user_carries = forget_needle_in(user_text, needle)
+                    asst_carries = forget_needle_in(assistant_text, needle)
                     payload = row_payload(row, structural_fields=ROW_IDENTITIES)
                     if not carries(payload, token):
                         kept.append(row)

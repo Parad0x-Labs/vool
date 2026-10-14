@@ -18,8 +18,19 @@ Each table gets one of three actions:
 * ``delete`` -- the row is history only; nothing refers to it by identity.
 * ``redact`` -- the row is a state record other rows or a running turn address by identity, so it
   stays and every field (or JSON leaf) that carries the token is blanked.
-* ``a7`` -- the finalization's own governed ERASE transition (the chat-delete law): the row stays,
-  its content is cleared and its content hash salted.
+* ``a7`` -- the finalization's own governed erasure (``erase_finalization_payload``, the chat-delete
+  law): the row stays, its content is cleared, its content hash salted, and the A8 derivative sweep
+  (useful outputs, pins, vault bundles, mirror snapshots, ...) runs to completion or the forget is
+  not complete.
+* ``artifact`` -- an archived artifact: the packed file and its manifest row are both removed.
+* ``queue`` -- a queued message: one that already ran is redacted, one still waiting is kept.
+
+A row that carried the words also loses every nested digest (``request_sha256``,
+``original_request_hash``, any ``*_hash``/``*_sha256``/``*_digest`` leaf): an unsalted digest of a short
+request ("my locker code is 4417") gives the words back by trial.
+
+The person's pinned messages (``message_pins.json`` and its ``.bak``) of this chat that carry the words
+are removed with the run history.
 
 Ownership follows the derivative-store law (``carriers._derivative_scope``): a row of this chat, or a
 row whose owner cannot be resolved, answers to the forget; a row that resolves to another chat does
@@ -42,6 +53,7 @@ from core.memory.carriers import (
     ROW_IDENTITIES,
     _without_nested_identities,
     carries,
+    text_carries,
 )
 
 _LOG = logging.getLogger(__name__)
@@ -53,6 +65,8 @@ _TASK = "task"
 _NOTIFICATION = "notification"
 _TOPIC = "topic"
 _OBLIGATION = "obligation"
+#: A row of this chat; a row with no chat is this chat's only when its topic is.
+_SESSION_TOPIC = "session_topic"
 
 #: The prefix of every store this module records in an erasure result.
 STORE_PREFIX = "run_history_"
@@ -158,6 +172,23 @@ _INVENTORY: tuple[_Table, ...] = (
         "identifier", "kind", "notification_id", "schedule_id", "fire_generation", "deliver_at_utc", "state",
         "hand_count", "handed_at", "submitted_at", "listed_at", "acknowledged_at", "last_action", "created_at",
         "updated_at"), links=("notification_id",)),
+    # Research the runtime packed for a chat (core/autonomous_topic_research.py): the manifest names the
+    # topic in its title and summary, and the packed file holds the whole packet.
+    _Table("artifact_manifests", "artifact", _SESSION_TOPIC, _cols(
+        "artifact_id", "source_kind", "topic_id", "claim_id", "candidate_id", "session_id", "file_path",
+        "storage_backend", "content_sha256", "raw_bytes", "compressed_bytes", "compression_ratio", "created_at",
+        "updated_at"), links=("topic_id",)),
+    # The chat's hive watch state: id lists and counters, plus the last interaction's payload.
+    _Table("session_hive_watch_state", "redact", _SESSION, _cols(
+        "session_id", "watched_topic_ids_json", "seen_post_ids_json", "pending_topic_ids_json",
+        "seen_curiosity_topic_ids_json", "seen_curiosity_run_ids_json", "seen_agent_ids_json",
+        "last_active_agents", "snooze_until", "last_prompted_at", "interaction_mode", "smalltalk_repeat_count",
+        "updated_at")),
+    # An agent-team member started from a chat: its record is re-adopted by id after a restart, so it stays.
+    _Table("agents", "redact", _SESSION, _cols(
+        "agent_id", "team_id", "key", "importance", "effective_importance", "depth", "parent_id", "state",
+        "run_token", "pid", "create_time", "launched_at", "ended_at", "exit_code", "progress_done",
+        "progress_planned", "running_seconds", "session_id")),
 )
 
 #: Session-scoped tables whose words are not run history and are not this operation's to erase:
@@ -169,6 +200,20 @@ _NOT_RUN_HISTORY = frozenset({
 })
 
 _SCOPE_COLUMNS = ("session_id", "chat_id", "origin_session_id", "chat_scope")
+
+#: A store a retry of the forget cannot clear: a chat-scoped table no erasure step knows. The reply
+#: does not ask for a retry over it.
+UNCLASSIFIED_PREFIX = "unclassified_"
+
+#: A nested digest of a row's words (``request_sha256``, ``original_request_hash``, ``text_digest``).
+_DIGEST_KEY_RE = re.compile(r"(?:^|_)(?:sha1|sha256|sha512|md5|hash|digest|checksum)$")
+
+#: A number the runtime counted or timed (``{"elapsed_ms": 12}``, ``step_count``, ``tokens_used``): a bare
+#: JSON number under such a key is bookkeeping, not the person's words, so "forget 12" leaves it.
+_BOOKKEEPING_KEY_RE = re.compile(
+    r"(?:^|_)(?:ms|us|ns|sec|secs|seconds|elapsed|duration|latency|count|total|seq|sequence|step|steps|index|idx"
+    r"|attempt|attempts|retries|bytes|size|tokens|used|version|generation|depth|pid|exit_code|port|offset|limit"
+    r"|budget|priority|timestamp|epoch|confidence|score|ratio|rate)$")
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -194,8 +239,21 @@ def _json_columns(schema: Iterable[Any]) -> frozenset[str]:
                      if "JSON" in str(column[2]).upper() or str(column[1]).endswith("_json"))
 
 
+def _bookkeeping_number(key: Any, value: Any) -> bool:
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and bool(_BOOKKEEPING_KEY_RE.search(str(key).casefold())))
+
+
+def _without_bookkeeping(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _without_bookkeeping(item) for key, item in value.items() if not _bookkeeping_number(key, item)}
+    if isinstance(value, list):
+        return [_without_bookkeeping(item) for item in value]
+    return value
+
+
 def _payload(row: Mapping[str, Any], structural: frozenset[str], json_columns: frozenset[str]) -> dict[str, Any]:
-    """The row's words: structural columns, and nested runtime-made identities, left out."""
+    """The row's words: structural columns, nested runtime-made identities and counters left out."""
     identities = ROW_IDENTITIES | structural
     values = {}
     for key, value in dict(row).items():
@@ -205,7 +263,7 @@ def _payload(row: Mapping[str, Any], structural: frozenset[str], json_columns: f
             value = _decoded(value)
         elif isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("run history field has an opaque representation")
-        values[key] = _without_nested_identities(value, identities)
+        values[key] = _without_bookkeeping(_without_nested_identities(value, identities))
     return values
 
 
@@ -219,7 +277,7 @@ def _redacted(value: Any, token: str, structural: frozenset[str]) -> Any:
     if isinstance(value, Mapping):
         kept = {}
         for key, item in value.items():
-            if key in structural and _runtime_made(item):
+            if (key in structural and _runtime_made(item)) or _bookkeeping_number(key, item):
                 kept[key] = item
             elif not carries(key, token):
                 kept[key] = _redacted(item, token, structural)
@@ -233,16 +291,28 @@ def _redacted(value: Any, token: str, structural: frozenset[str]) -> Any:
     return value
 
 
+def _without_digests(value: Any) -> Any:
+    """``value`` with every nested digest leaf blanked."""
+    if isinstance(value, Mapping):
+        return {key: "" if (isinstance(item, str) and item and _DIGEST_KEY_RE.search(str(key).casefold()))
+                else _without_digests(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_without_digests(item) for item in value]
+    return value
+
+
 # ── ownership ────────────────────────────────────────────────────────────────
 
 
 class _Owners:
     """Which attempts, requests, tasks, notifications and topics belong to this chat or another."""
 
-    def __init__(self, conn: Any, tables: set[str], chat_id: str) -> None:
+    def __init__(self, conn: Any, tables: set[str], chat_id: str, *, resolve_links: bool = True) -> None:
         self.chat_id = chat_id
         self.own: dict[str, set[str]] = {kind: set() for kind in (_ATTEMPT, _REQUEST, _TASK, _NOTIFICATION, _TOPIC)}
         self.foreign: dict[str, set[str]] = {kind: set() for kind in self.own}
+        if not resolve_links:
+            return  # only session-owned tables will be asked about
 
         def bind(kind: str, session: Any, value: Any) -> None:
             text = str(value or "").strip()
@@ -308,6 +378,12 @@ class _Owners:
     def owns(self, spec: _Table, row: Mapping[str, Any]) -> bool:
         if spec.owner == _SESSION:
             return self.session_owned(row["session_id"])
+        if spec.owner == _SESSION_TOPIC:
+            session = str(row["session_id"] or "").strip()
+            if session:
+                return session == self.chat_id
+            topic = str(row["topic_id"] or "").strip()
+            return bool(topic) and topic in self.own[_TOPIC]
         if spec.owner == _OBLIGATION:
             owner = self.obligation_owner(row["snapshot_json"])
             if owner is not None:
@@ -358,14 +434,36 @@ def _request_ids(value: Any) -> set[str]:
 
 def _owned_rows(conn: Any, spec: _Table, owners: _Owners) -> tuple[list[Any], frozenset[str]]:
     schema = conn.execute(f"PRAGMA table_info({_quoted(spec.name)})").fetchall()
-    rows = conn.execute(f"SELECT rowid AS _erasure_rowid, * FROM {_quoted(spec.name)}").fetchall()
+    query = f"SELECT rowid AS _erasure_rowid, * FROM {_quoted(spec.name)}"
+    params: tuple[Any, ...] = ()
+    if spec.owner == _SESSION:
+        # Narrowed in SQL, decided by ``owns`` below: this chat's rows and rows with no chat.
+        query += " WHERE session_id IS NULL OR session_id = ? OR TRIM(session_id, ' \t\r\n') IN ('', ?)"
+        params = (owners.chat_id, owners.chat_id)
+    rows = conn.execute(query, params).fetchall()
     return [row for row in rows if owners.owns(spec, row)], _json_columns(schema)
+
+
+def _archived_payload(row: Mapping[str, Any]) -> Any:
+    """An artifact's packed file, decoded; an archive that is present but unreadable fails closed."""
+    path = Path(str(row["file_path"] or "")).expanduser()
+    if not str(row["file_path"] or "").strip() or not path.is_file():
+        return None
+    from core.liquefy_bridge import load_packed_bytes
+
+    raw = load_packed_bytes(payload=path.read_bytes(), storage_backend=str(row["storage_backend"] or "local_archive"))
+    return json.loads(raw.decode("utf-8"))
 
 
 def _carrying(conn: Any, spec: _Table, owners: _Owners, token: str) -> tuple[list[Any], frozenset[str]]:
     rows, json_columns = _owned_rows(conn, spec, owners)
     # Decode every owned row before writing: a malformed or opaque row is an unverified carrier.
-    payloads = [(row, _payload(row, spec.structural, json_columns)) for row in rows]
+    payloads = []
+    for row in rows:
+        payload = _payload(row, spec.structural, json_columns)
+        if spec.action == "artifact":
+            payload["_archive"] = _without_bookkeeping(_archived_payload(row))
+        payloads.append((row, payload))
     return [row for row, payload in payloads if carries(payload, token)], json_columns
 
 
@@ -392,18 +490,52 @@ def _redact_row(conn: Any, spec: _Table, row: Any, json_columns: frozenset[str],
         if column in updates and digest in names:
             updates[digest] = ""
     if updates:
+        # The row carried the words: a nested digest of them goes too (finding: the checkpoint kept
+        # ``_request_provenance.request_sha256`` and ``original_request_hash`` of an erased request).
+        for column in names:
+            if column not in json_columns or column in structural:
+                continue
+            current = updates.get(column, row[column])
+            decoded = _decoded(current)
+            if isinstance(decoded, (Mapping, list)):
+                cleared = _without_digests(decoded)
+                if cleared != decoded:
+                    updates[column] = json.dumps(cleared)
         assignments = ", ".join(f"{_quoted(column)} = ?" for column in updates)
         conn.execute(f"UPDATE {_quoted(spec.name)} SET {assignments} WHERE rowid = ?",
                      (*updates.values(), row["_erasure_rowid"]))
 
 
-def _erase_finalizations(rows: list[Any]) -> None:
-    from core.finalization import AVAILABILITY_ERASED, set_availability
+_FORGET_ACTOR = "memory_forget"
+
+
+def _erase_finalizations(rows: Iterable[Any]) -> None:
+    """The A8 erasure of each finalization: transition and derivative sweep, both complete."""
+    from core.finalization import erase_finalization_payload
 
     for row in rows:
-        if not set_availability(str(row["finalization_id"]), AVAILABILITY_ERASED,
-                                reason="chat forget", governance_actor="memory_forget"):
-            raise RuntimeError("finalization erase transition was refused")
+        result = erase_finalization_payload(str(row["finalization_id"]), reason="chat forget",
+                                            governance_actor=_FORGET_ACTOR)
+        if not result.get("transitioned") or not result.get("sweep_complete"):
+            raise RuntimeError("finalization erasure did not complete its derivative sweep")
+
+
+def _unswept_finalizations(conn: Any, spec: _Table, owners: _Owners) -> list[Any]:
+    """This chat's finalizations a forget erased whose derivative sweep has not completed (a retry
+    finds no words left in the row itself, so it resumes the sweep from here)."""
+    from core.finalization import AVAILABILITY_ERASED, erasure_sweep_status
+
+    tables = _tables(conn)
+    if "a7_governance_events" not in tables:
+        return []
+    erased_by_forget = {str(row[0]) for row in conn.execute(
+        "SELECT DISTINCT finalization_id FROM a7_governance_events WHERE actor = ?", (_FORGET_ACTOR,))}
+    if not erased_by_forget:
+        return []
+    rows, _ = _owned_rows(conn, spec, owners)
+    return [row for row in rows if str(row["availability"] or "") == AVAILABILITY_ERASED
+            and str(row["finalization_id"]) in erased_by_forget
+            and not erasure_sweep_status(str(row["finalization_id"])).get("sweep_complete")]
 
 
 def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str) -> tuple[int, bool]:
@@ -411,8 +543,18 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str) -> tuple[
     matched, json_columns = _carrying(conn, spec, owners, token)
     held: set[Any] = set()
     if spec.action == "a7":
+        unswept = _unswept_finalizations(conn, spec, owners)
         conn.commit()
-        _erase_finalizations(matched)
+        _erase_finalizations([*matched, *unswept])
+        if _unswept_finalizations(conn, spec, owners):
+            raise RuntimeError("finalization derivative sweep is incomplete")
+    elif spec.action == "artifact":
+        for row in matched:
+            path = Path(str(row["file_path"] or "")).expanduser()
+            if str(row["file_path"] or "").strip() and path.is_file():
+                path.unlink()
+            conn.execute(f"DELETE FROM {_quoted(spec.name)} WHERE rowid = ?", (row["_erasure_rowid"],))
+        conn.commit()
     else:
         for row in matched:
             if spec.action == "delete":
@@ -451,7 +593,6 @@ def _tables(conn: Any) -> set[str]:
 def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
     """Erase ``token`` from this chat's run history in the runtime database and verify each table."""
     from core.memory.entries import _record_erasure_store
-    from storage.db import get_connection
 
     try:
         databases = _runtime_databases()
@@ -459,13 +600,26 @@ def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) ->
         _LOG.warning("forget: run history databases could not be resolved: %s", type(exc).__name__)
         _record_erasure_store(erasures, "run_history", "incomplete")
         return
+    _erase_databases(databases, _INVENTORY, token, chat_id=chat_id, erasures=erasures)
+    _forget_pins(token, chat_id=chat_id, erasures=erasures)
+    failed = any(name.startswith(STORE_PREFIX) and result["status"] == "incomplete"
+                 for name, result in erasures.get("stores", {}).items())
+    _record_erasure_store(erasures, "run_history", "incomplete" if failed else "verified")
+
+
+def _erase_databases(databases: list[str], inventory: list[_Table] | tuple[_Table, ...], token: str, *, chat_id: str,
+                     erasures: dict[str, Any]) -> None:
+    from core.memory.entries import _record_erasure_store
+    from storage.db import get_connection
+
     for database in databases:
         conn = None
         try:
             conn = get_connection(database)
             tables = _tables(conn)
-            owners = _Owners(conn, tables, chat_id)
-            for spec in _INVENTORY:
+            owners = _Owners(conn, tables, chat_id,
+                             resolve_links=any(spec.owner != _SESSION for spec in inventory))
+            for spec in inventory:
                 if spec.name not in tables:
                     continue
                 store = STORE_PREFIX + spec.name
@@ -485,9 +639,171 @@ def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) ->
                     conn.close()
                 except Exception:
                     _record_erasure_store(erasures, "run_history_connection", "incomplete")
-    failed = any(name.startswith(STORE_PREFIX) and result["status"] == "incomplete"
-                 for name, result in erasures.get("stores", {}).items())
-    _record_erasure_store(erasures, "run_history", "incomplete" if failed else "verified")
+
+
+# ── pinned messages ──────────────────────────────────────────────────────────
+
+_PIN_BOOKKEEPING = frozenset({"id", "role", "ts", "pinned_at", "finalization_id"})
+
+
+def _pin_files() -> list[Path]:
+    """The pin store, its last-good backup and an interrupted save's temporary file."""
+    from core.message_pins import pins_path
+
+    path = pins_path()
+    return [path, path.with_name(path.name + ".bak"), path.with_name(path.name + ".tmp")]
+
+
+def _pins_owned(key: Any, chat_id: str) -> bool:
+    from core.chat_session_identity import canonical_chat_session_id
+
+    text = str(key or "").strip()
+    return bool(text) and (text == chat_id or canonical_chat_session_id(text) == chat_id)
+
+
+def _pin_carries(pin: Any, token: str) -> bool:
+    if not isinstance(pin, Mapping):
+        return carries(pin, token)
+    return carries({key: value for key, value in pin.items() if key not in _PIN_BOOKKEEPING}, token)
+
+
+def _read_pin_store(path: Path) -> dict[str, Any] | None:
+    """A pin file's contents; None when the file is absent. Unreadable is an unverified carrier."""
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8") or "{}")
+    if not isinstance(data, dict):
+        raise ValueError("pin store is not a mapping")
+    return data
+
+
+def _pins_carrying(token: str, chat_id: str) -> int:
+    count = 0
+    for path in _pin_files():
+        store = _read_pin_store(path)
+        for key, pins in (store or {}).items():
+            if _pins_owned(key, chat_id):
+                count += sum(1 for pin in (pins if isinstance(pins, list) else [pins]) if _pin_carries(pin, token))
+    return count
+
+
+def _forget_pins(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
+    """Remove this chat's pinned messages that carry the words, from the store and its copies.
+
+    A pin is the person's own snapshot of one message; the chat-delete law drops every pin of the chat
+    and the A8 sweep drops an erased answer's pin. A pinned user message carrying forgotten words was
+    still served after the forget (review of 9b78dac).
+    """
+    import os
+
+    from core.memory.entries import _record_erasure_store
+    from core.message_pins import _PINS_LOCK
+
+    store_name = STORE_PREFIX + "message_pins"
+    removed = 0
+    try:
+        with _PINS_LOCK:
+            for index, path in enumerate(_pin_files()):
+                store = _read_pin_store(path)
+                if store is None:
+                    continue
+                changed = False
+                for key in list(store):
+                    pins = store[key]
+                    if not _pins_owned(key, chat_id):
+                        continue
+                    items = pins if isinstance(pins, list) else [pins]
+                    kept = [pin for pin in items if not _pin_carries(pin, token)]
+                    if len(kept) != len(items):
+                        if index == 0:
+                            removed += len(items) - len(kept)
+                        store[key] = kept
+                        changed = True
+                if changed:
+                    payload = json.dumps({key: value for key, value in store.items() if value}, ensure_ascii=False)
+                    staging = path.with_name(path.name + ".forget")
+                    with staging.open("w", encoding="utf-8") as handle:
+                        handle.write(payload)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os.replace(staging, path)
+            if _pins_carrying(token, chat_id):
+                raise RuntimeError("pinned messages could not be erased and verified")
+        _record_erasure_store(erasures, store_name, "verified", removed)
+    except Exception as exc:
+        _LOG.warning("forget: %s could not be erased: %s", store_name, type(exc).__name__)
+        _record_erasure_store(erasures, store_name, "incomplete")
+
+
+# ── words written back after a forget ────────────────────────────────────────
+
+
+def forgotten_tokens(chat_id: str) -> tuple[str, ...] | None:
+    """The words this chat (or every chat) forgot, from the forget authority's ledger.
+
+    Read without the authority's lock: the ledger is replaced whole, so a read sees one version.
+    ``()`` when this home never forgot anything; None when the ledger exists and cannot be read, which a
+    caller treats as "may carry forgotten words".
+    """
+    from core.memory import revocation
+
+    scope = str(chat_id or "").strip()
+    try:
+        directory = revocation._directory()
+        if not (directory / "ledger.json").exists():
+            return ()
+        data = revocation._read(directory)
+    except Exception as exc:
+        _LOG.warning("forgotten words could not be read: %s", type(exc).__name__)
+        return None
+    return tuple(sorted({row["token"] for row in data["operations"].values()
+                         if row.get("kind", "forget") == "forget" and row["chat"] in ("", scope)}))
+
+
+def carries_forgotten_words(chat_id: str, texts: Iterable[Any]) -> bool:
+    """Whether a run-history write for this chat would put forgotten words back (unknown is yes)."""
+    tokens = forgotten_tokens(chat_id)
+    if tokens is None:
+        return True
+    if not tokens:
+        return False
+    # Ids, stamps and digests the runtime made are not words (a request id's hex never "is" a forgotten 12).
+    values = [text for text in texts if text and not _runtime_made(text)]
+    return any(text_carries(text, token) for text in values for token in tokens)
+
+
+def resweep_forgotten_run_history(chat_id: str) -> int:
+    """Erase this chat's forgotten words from the run history a turn wrote after the forget.
+
+    A turn that was running when the forget came finalizes later: its checkpoint update merges the state
+    and the final answer it still held, and they would put the words back (review of 9b78dac:
+    ``finalize_runtime_checkpoint`` after "Forget applied" restored the word to ``final_response``). Run
+    when a turn finalizes; covers this chat's rows only and never raises into the turn.
+    """
+    scope = str(chat_id or "").strip()
+    if not scope:
+        return 0
+    tokens = forgotten_tokens(scope)
+    if not tokens:
+        if tokens is None:
+            _LOG.warning("forgotten words could not be re-swept: the forget ledger is unreadable")
+        return 0
+    inventory = [spec for spec in _INVENTORY if spec.owner == _SESSION and spec.action in {"delete", "redact"}]
+    removed = 0
+    try:
+        databases = _runtime_databases()
+    except Exception as exc:
+        _LOG.warning("forgotten words could not be re-swept: %s", type(exc).__name__)
+        return 0
+    for token in tokens:
+        erasures: dict[str, Any] = {}
+        _erase_databases(databases, inventory, token, chat_id=scope, erasures=erasures)
+        stores = erasures.get("stores", {})
+        removed += sum(int(result.get("removed") or 0) for result in stores.values())
+        failed = sorted(name for name, result in stores.items() if result["status"] == "incomplete")
+        if failed:
+            _LOG.warning("forgotten words could not be re-swept from %s", ", ".join(failed))
+    return removed
 
 
 # ── verification ─────────────────────────────────────────────────────────────
@@ -503,7 +819,7 @@ def _unclassified_payload(row: Mapping[str, Any]) -> list[Any]:
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
-        words.append(_without_nested_identities(value, ROW_IDENTITIES))
+        words.append(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES)))
     return words
 
 
@@ -517,6 +833,7 @@ def verify_run_history(conn: Any, tables: set[str], chat_id: str, token: str, ve
     from storage.db import active_default_db_path, get_connection
 
     _verify_database(conn, tables, chat_id, token, verify)
+    verify(STORE_PREFIX + "message_pins", lambda: bool(_pins_carrying(token, chat_id)))
     default = str(active_default_db_path())
     for database in _runtime_databases():
         if database == default:
@@ -538,7 +855,7 @@ def _verify_database(conn: Any, tables: set[str], chat_id: str, token: str, veri
 
         def table_rows(spec: _Table = spec) -> bool:
             matched, _ = _carrying(conn, spec, owners, token)
-            return bool(matched)
+            return bool(matched) or (spec.action == "a7" and bool(_unswept_finalizations(conn, spec, owners)))
 
         verify(STORE_PREFIX + spec.name, table_rows)
 
@@ -558,7 +875,7 @@ def _verify_database(conn: Any, tables: set[str], chat_id: str, token: str, veri
             ).fetchall()
             return any(carries(_unclassified_payload(row), token) for row in rows)
 
-        verify("unclassified_" + table, unclassified)
+        verify(UNCLASSIFIED_PREFIX + table, unclassified)
 
 
 def checkpoint_write_ahead_logs(erasures: dict[str, Any], *, memories: Iterable[Any] = ()) -> None:

@@ -305,7 +305,11 @@ def append_runtime_event(
                     return True
 
             governed_strings: list[str] = [clean_message, *list(_iter_tree_strings(clean_details))]
-            if any(
+            # A chat's forgotten words stay forgotten: a turn still running when the forget came may not
+            # append them back (review of 9b78dac). Unreadable forget authority counts as carrying them.
+            from core.memory.run_history import carries_forgotten_words
+
+            if carries_forgotten_words(clean_session_id, governed_strings) or any(
                 text and _durable_veto(text) for text in governed_strings
             ):
                 clean_message = ""
@@ -1203,7 +1207,7 @@ def finalize_runtime_checkpoint(
     if normalized_outcome.is_unfulfilled and not normalized_failure_text:
         codes = ", ".join(normalized_outcome.failure_codes) or "task_unfulfilled"
         normalized_failure_text = f"{normalized_outcome.failure_stage or 'fulfillment'}: {codes}"
-    return update_runtime_checkpoint(
+    finalized = update_runtime_checkpoint(
         checkpoint_id,
         status=clean_status,
         pending_intent={},
@@ -1212,6 +1216,12 @@ def finalize_runtime_checkpoint(
         failure_text=redact_secrets(normalized_failure_text),
         outcome=normalized_outcome.to_dict(),
     )
+    # A turn that was running when this chat forgot something wrote its state and answer back with the
+    # words in them: erase them again now that the turn is done (review of 9b78dac).
+    from core.memory.run_history import resweep_forgotten_run_history
+
+    resweep_forgotten_run_history(str((finalized or current).get("session_id") or ""))
+    return finalized
 
 
 # ============================================================================
