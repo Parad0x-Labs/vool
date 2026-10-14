@@ -26,6 +26,7 @@ import contextlib
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -712,13 +713,25 @@ def _scrub_key_from_logs(directory: Path, key: str) -> None:
 # Claude Code CLI arm
 
 
-def _cli_env(route: str) -> dict[str, str]:
-    """The CLI's environment. On a login route no API key or endpoint from the shell may redirect
-    the turns to a different account or bill."""
-    env = dict(os.environ)
-    if route == "login":
-        for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"):
-            env.pop(name, None)
+OPENROUTER_ANTHROPIC_BASE = "https://openrouter.ai/api"  # OpenRouter's Anthropic-compatible endpoint
+CLI_SMALL_MODEL = "anthropic/claude-haiku-4.5"  # Claude Code's own background calls, kept on OpenRouter
+
+
+def _cli_env(route: str, key: str = "", model: str = "") -> dict[str, str]:
+    """The CLI's environment. No API key, endpoint or model from the shell may redirect a turn.
+
+    On the OpenRouter route (OpenRouter's Claude Code guide): base URL ``https://openrouter.ai/api``,
+    the OpenRouter key as ``ANTHROPIC_AUTH_TOKEN`` and ``ANTHROPIC_API_KEY`` set to an EMPTY string
+    (unset would let Claude Code fall back to Anthropic). Every model slot is pinned, so neither
+    the default (Opus) nor a background call can leave the pinned model or the route.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("ANTHROPIC_") and not k.startswith("CLAUDE_CODE_USE_")}
+    if route == "openrouter":
+        env.update({
+            "ANTHROPIC_BASE_URL": OPENROUTER_ANTHROPIC_BASE, "ANTHROPIC_AUTH_TOKEN": key, "ANTHROPIC_API_KEY": "",
+            "ANTHROPIC_MODEL": model, "ANTHROPIC_DEFAULT_SONNET_MODEL": model, "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": CLI_SMALL_MODEL, "ANTHROPIC_SMALL_FAST_MODEL": CLI_SMALL_MODEL,
+        })
     return env
 
 
@@ -735,10 +748,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
         raise HarnessError(f"Claude Code CLI not found: {args.claude_bin}")
     version = subprocess.run([claude, "--version"], capture_output=True, text=True, timeout=60).stdout.strip()
     attempt = f"attempt-{int(_now())}"
-    env = _cli_env(args.route)
-    if args.route == "openrouter":
-        key = resolve_key(args.key_source, args.key_home)
-        env.update({"ANTHROPIC_BASE_URL": "https://openrouter.ai/api", "ANTHROPIC_AUTH_TOKEN": key, "ANTHROPIC_API_KEY": ""})
+    key = resolve_key(args.key_source, args.key_home) if args.route == "openrouter" else ""
+    env = _cli_env(args.route, key, args.cli_model)
+    usage_mark = key_usage_usd(key) if key else None
     _write_json(
         arm_dir / f"{attempt}-manifest.json",
         {"label": args.label, "arm": "cli", "model": args.cli_model, "route": args.route, "claude_version": version, "started_at": _now()},
@@ -774,9 +786,16 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
                     cost = data.get("total_cost_usd")
                     cost = float(cost) if isinstance(cost, (int, float)) else None
-                    # Claude Code's own figure. On API usage billing it is a real charge; on a
-                    # subscription it is list price. Either way it is held against the cap as billed.
-                    ledger.record(billed=cost, notional=None, unknown=cost is None)
+                    # On OpenRouter the key's own usage counter is the charge; Claude Code's figure is
+                    # its price-table estimate. The cap holds the larger of the two, so it never lags.
+                    key_delta = None
+                    if key:
+                        now = key_usage_usd(key)
+                        if now is not None and usage_mark is not None:
+                            key_delta = max(0.0, now - usage_mark)
+                        usage_mark = now if now is not None else usage_mark
+                    held = max([v for v in (cost, key_delta) if v is not None], default=None)
+                    ledger.record(billed=held, notional=None, unknown=held is None)
                     input_tokens = int(usage.get("input_tokens") or 0)
                     cached = usage.get("cache_read_input_tokens")
                     written = usage.get("cache_creation_input_tokens")
@@ -803,7 +822,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
                         "cached_tokens": int(cached) if isinstance(cached, int) else None,
                         "cache_write_tokens": int(written) if isinstance(written, int) else None,
                         "output_tokens": int(usage.get("output_tokens") or 0),
-                        "usd": round(cost, 8) if cost is not None else None,
+                        "usd": round(key_delta if key_delta else cost, 8) if (key_delta or cost is not None) else None,
+                        "claude_code_reported_usd": cost,
+                        "key_usage_delta_usd": key_delta,
                         "usd_kind": "billed_openrouter" if args.route == "openrouter" else "claude_code_reported",
                         "model_usage": data.get("modelUsage"),
                         "stderr_tail": proc.stderr[-600:] if proc.returncode else "",
@@ -1076,7 +1097,7 @@ def _arm_specs(args: argparse.Namespace, k3: str) -> list[tuple[str, str, dict[s
     """(label, kind, options) for the phase, in order, after the ARMS filter."""
     head = "HEAD"
     table = {
-        "cli-claude": ("cli", {"cli_model": args.claude_cli, "route": "login"}),
+        "cli-claude": ("cli", {"cli_model": args.claude_or, "route": "openrouter"}),
         "vool-base-claude": ("vool", {"sha": args.base_sha, "model": args.claude_or, "cache": "off"}),
         "vool-base-gpt": ("vool", {"sha": args.base_sha, "model": args.gpt_or, "cache": "off"}),
         "vool-base-k3": ("vool", {"sha": args.base_sha, "model": k3, "cache": "off"}),
@@ -1099,7 +1120,7 @@ def _find_k3(catalog: list[dict[str, Any]], wanted: str) -> str:
     return matches[0] if matches else ""
 
 
-def _check_claude_login(claude_bin: str, model: str, root: Path, ledger: SpendLedger) -> str:
+def _check_claude_cli(claude_bin: str, model: str, key: str, root: Path, ledger: SpendLedger) -> str:
     """One real print-mode turn, the way the arm will run it. Returns '' or the plain reason."""
     claude = shutil.which(claude_bin)
     if not claude:
@@ -1110,7 +1131,7 @@ def _check_claude_login(claude_bin: str, model: str, root: Path, ledger: SpendLe
         proc = subprocess.run(
             [claude, "-p", "Reply with the single word OK.", "--output-format", "json", "--model", model,
              "--allowedTools", "Read", "--strict-mcp-config", "--mcp-config", '{"mcpServers": {}}'],
-            cwd=probe_dir, env=_cli_env("login"), capture_output=True, text=True, timeout=180,
+            cwd=probe_dir, env=_cli_env("openrouter", key, model), capture_output=True, text=True, timeout=180,
         )
     except subprocess.TimeoutExpired:
         return "Claude Code did not answer within 3 minutes"
@@ -1124,7 +1145,7 @@ def _check_claude_login(claude_bin: str, model: str, root: Path, ledger: SpendLe
     ledger.record(billed=float(cost) if isinstance(cost, (int, float)) else None, notional=None, unknown=False)
     if proc.returncode or data.get("is_error") or not str(data.get("result") or "").strip():
         said = str(data.get("result") or proc.stderr or proc.stdout or "").strip().splitlines()
-        return f"Claude Code is not ready: {(said[0] if said else f'exit {proc.returncode}')[:200]} (run claude, then /login)"
+        return f"Claude Code could not answer through OpenRouter: {(said[0] if said else f'exit {proc.returncode}')[:200]}"
     return _wrong_cli_model(data, model)
 
 
@@ -1133,8 +1154,13 @@ def _wrong_cli_model(data: dict[str, Any], model: str) -> str:
     used = [str(name) for name in (data.get("modelUsage") or {})]
     if not used:
         return ""
-    family = model.lower().replace("claude-", "")
-    if not any(family in name.lower() for name in used):
+
+    def tokens(text: str) -> set[str]:
+        return set(re.split(r"[^a-z0-9]+", text.lower().rsplit("/", 1)[-1])) - {""}
+
+    # Token match, so "claude-sonnet-4-5", "anthropic/claude-sonnet-4.5" and a dated slug such as
+    # "claude-4.5-sonnet-20250929" all count as the pinned model, and nothing else does.
+    if not any(tokens(model) <= tokens(name) for name in used):
         return f"Claude Code did not answer on {model}: it used {', '.join(used)}"
     big = [name for name in used if "opus" in name.lower()]
     if big:
@@ -1191,7 +1217,7 @@ def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tup
 
     specs_kinds = {label: kind for label, kind, _ in _arm_specs(args, "auto")}
     need_vool = any(kind == "vool" for kind in specs_kinds.values())
-    need_key = need_vool or "grade" in specs_kinds
+    need_key = need_vool or "grade" in specs_kinds or "cli-claude" in specs_kinds
     line(sys.version_info[:2] == (3, 12), f"python {sys.version.split()[0]} at {sys.executable}")
     try:
         from ops.served_reality.appstage import check_clean_tree, resolve_sha
@@ -1242,8 +1268,8 @@ def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tup
         except Exception as exc:
             line(False, f"OpenRouter key check failed: {type(exc).__name__}")
     if "cli-claude" in specs_kinds:
-        reason = _check_claude_login(args.claude_bin, args.claude_cli, root, ledger)
-        line(not reason, reason or ("the Claude Code stand-in answers" if args.dryrun else f"Claude Code is signed in and answers on {args.claude_cli} only"))
+        reason = _check_claude_cli(args.claude_bin, args.claude_or, key, root, ledger) if key else "Claude Code not checked: no key"
+        line(not reason, reason or ("the Claude Code stand-in answers" if args.dryrun else f"Claude Code answers through OpenRouter on {args.claude_or} only"))
     if need_vool and key and clean:
         for sha in shas.values():
             reason = _check_boot(sha, key, args.claude_or, root, python_bin)

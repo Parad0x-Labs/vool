@@ -133,11 +133,17 @@ def test_an_unanswered_keychain_question_is_an_error_not_a_missing_key(tmp_path,
     assert captured.out == "" and "Keychain" in captured.err
 
 
-def test_the_cli_login_route_ignores_api_keys_in_the_shell(monkeypatch) -> None:
+def test_claude_code_goes_through_openrouter_with_every_model_slot_pinned(monkeypatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-shell")
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://elsewhere.example")
-    env = bench._cli_env("login")
-    assert "ANTHROPIC_API_KEY" not in env and "ANTHROPIC_BASE_URL" not in env
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-opus-5-5")
+    env = bench._cli_env("openrouter", "sk-or-test", "anthropic/claude-sonnet-4.5")
+    assert env["ANTHROPIC_BASE_URL"] == "https://openrouter.ai/api"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "sk-or-test"
+    assert env["ANTHROPIC_API_KEY"] == ""  # empty, not unset: unset falls back to Anthropic
+    for slot in ("ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL"):
+        assert env[slot] == "anthropic/claude-sonnet-4.5"
+    assert "opus" not in env["ANTHROPIC_SMALL_FAST_MODEL"] and "opus" not in env["ANTHROPIC_DEFAULT_HAIKU_MODEL"]
 
 
 def test_a_keychain_profile_with_no_keychain_reader_is_named_not_read_as_no_key(tmp_path, monkeypatch, capsys) -> None:
@@ -150,7 +156,9 @@ def test_a_keychain_profile_with_no_keychain_reader_is_named_not_read_as_no_key(
 
 
 def test_the_claude_code_arm_must_answer_on_the_pinned_model() -> None:
-    pinned = "claude-sonnet-4-5"
-    assert bench._wrong_cli_model({"modelUsage": {"claude-sonnet-4-5-20250929": {}, "claude-haiku-4-5": {}}}, pinned) == ""
+    pinned = "anthropic/claude-sonnet-4.5"
+    assert bench._wrong_cli_model({"modelUsage": {"anthropic/claude-sonnet-4.5": {}, "anthropic/claude-haiku-4.5": {}}}, pinned) == ""
+    assert bench._wrong_cli_model({"modelUsage": {"anthropic/claude-4.5-sonnet-20250929": {}}}, pinned) == ""
+    assert "did not answer on" in bench._wrong_cli_model({"modelUsage": {"anthropic/claude-sonnet-4": {}}}, pinned)
     assert "did not answer on" in bench._wrong_cli_model({"modelUsage": {"claude-opus-5-5": {}}}, pinned)
     assert "opus" in bench._wrong_cli_model({"modelUsage": {"claude-sonnet-4-5": {}, "claude-opus-5-5": {}}}, pinned)
