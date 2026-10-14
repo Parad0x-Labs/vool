@@ -199,6 +199,23 @@ def serve_goal_ingress(
     arg = str(parsed.get("arg") or "").strip()
     model_name = str(model or "vool")
 
+    # Private chat (core.private_chat) keeps nothing a later turn, reload or recall can
+    # read, and a goal IS a durable record: the objective, the plan and the step receipts
+    # all live in chat_goals. A goal cannot run there, so starting or revising one is
+    # refused out loud before anything is written. Fail-closed like the door itself: a
+    # private state that cannot be read counts as private. Reading the status of, or
+    # pausing/stopping, a goal that already existed before the chat went private stays
+    # possible — those controls write no conversation words.
+    if arg and sub in ("", "start", "revise"):
+        from core.private_chat import turn_is_private
+
+        if turn_is_private(source_context, session_id):
+            reply = (
+                "Private chat keeps nothing, so a goal cannot be recorded here. "
+                "End private chat first, then send the goal again."
+            )
+            return 200, _short_stream([reply], model=model_name), {"reply": reply}
+
     if sub in ("", "start") and not arg:
         reply = (
             "Set an explicit goal with: /goal <what should be achieved>.\n"
