@@ -1063,10 +1063,17 @@ _REMINDER_NOTE_RE = re.compile(
     r"\bremind\s+me\s+(?:(?:here|in\s+this\s+chat)\s+(?=(?:to|about|that)\s+))?"
     r"(?:to\s+|about\s+|that\s+|on\s+|at\s+)?(?P<note>.+)$", re.IGNORECASE | re.DOTALL
 )
+# Month words, so a date written in words ("5 November", "Nov 5th") is part of the when-clause.
+_MONTH_WORDS = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b\.?"
+)
 _WHEN_TAIL_RE = re.compile(
     r"\s+(?:at|on|in|by)\s+("
     r"(?:20\d{2}-\d{2}-\d{2})(?:[ T]\d{1,2}:\d{2})?"
     r"|(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b.*"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b.*"
+    r"|" + _MONTH_WORDS + r"\s+(?:the\s+)?\d{1,2}(?:st|nd|rd|th)?\b.*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b.*"
     r"|(?:at\s+)?\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b.*"
     r")$",
@@ -1080,6 +1087,9 @@ _LEADING_WHEN_RE = re.compile(
     r"|(?:yesterday|today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
     r"|morning|afternoon|evening|daily|weekly|day|week)\b[\s,]*"
     r"|20\d{2}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2})?[\s,]*"
+    r"|" + _MONTH_WORDS + r"[\s,]*"
+    r"|(?:the\s+)?\d{1,2}(?:st|nd|rd|th)\b(?:\s+of\b)?[\s,]*"
+    r"|20\d{2}\b[\s,]*"
     r"|\d+(?:\.\d+)?\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|h|days?|d|weeks?|w)\b[\s,]*"
     r"|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b[\s,]*"
     r"|[A-Za-z_]+/[A-Za-z_\-]+[\s,]*"

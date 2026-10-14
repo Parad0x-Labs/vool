@@ -200,7 +200,7 @@ def _asks_to_recall_not_to_be_reminded(words: str) -> bool:
     from core.execution.constants import conversation_recall_remainder
     from core.operator.when import time_expression_spans
 
-    return conversation_recall_remainder(words) is not None and not time_expression_spans(words)
+    return conversation_recall_remainder(words) is not None and not time_expression_spans(words, word_dates=False)
 
 
 def parse_operator_action_intent(user_text: str) -> OperatorActionIntent | None:
