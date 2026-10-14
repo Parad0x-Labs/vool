@@ -46,6 +46,25 @@ class DemandSignals:
     write_demand: bool = False
 
 
+# Market-watch evidence (used by the watch.* rules below). An address is an EVM address or a
+# base58 Solana address; a ticker is upper case as typed (or $-prefixed); a condition is a price
+# after above/below or a percent. The watch noun is "watch(es)" after a determiner or a subject,
+# never the verb "watching" on its own.
+_WATCH_ADDRESS = r"(?:\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+_WATCH_TICKER = r"(?:\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b(?-i:[A-Z][A-Z0-9]{1,9})\b)"
+_WATCH_CONDITION = (
+    r"(?:\b(?:above|below|over|under|past)\s+\$?\d"
+    r"|\b(?:goes?|gets?|is|trades?|moves?|rises?|drops?|falls?|dips?|pumps?|dumps?|crosses?|hits?|reaches?)"
+    r"\s+(?:to\s+|by\s+)?\$?\d"
+    r"|\d+(?:\.\d+)?\s*%)"
+)
+_WATCH_NOUN = (
+    r"\b(?:the|this|that|my|all|these|those|its|price|wallet|token|coin)\s+watch(?:es)?\b"
+    r"|\b(?-i:[A-Z][A-Z0-9]{1,9})\s+watch(?:es)?\b"
+)
+_WATCHING_SUBJECT = r"\bwatching\s+(?:this|that|the|my)\s+(?:wallet|token|coin|price)\b"
+
+
 # Each rule: (intent, family, pattern). Patterns are noun+verb anchored phrases, matched
 # case-insensitively against the whole message. Order is irrelevant to the result; the
 # tuples exist so a single compiled pass covers everything.
@@ -172,6 +191,30 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("token.launches", "web", re.compile(
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
         r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
+    # -- market watches (core/market_watch; watch a wallet or a price and get an alert) --
+    # Seated only on crypto evidence: a wallet/token noun WITH an address or ticker, or an
+    # alert shape whose subject is a token and whose condition is a price or a percent.
+    # "track my package to this address", "notify me if the deploy goes red", "stop watching
+    # TV" and "pause the alert sound" seat nothing.
+    ("watch.add", "web", re.compile(
+        rf"\b(?:watch|track|monitor|keep\s+(?:an?\s+)?eye\s+on)\b[^.?!]{{0,60}}?"
+        rf"(?:\b(?:wallet|address)\b[^.?!]{{0,40}}?{_WATCH_ADDRESS}"
+        rf"|\b(?:token|coin|mint|price)\b[^.?!]{{0,40}}?(?:{_WATCH_ADDRESS}|{_WATCH_TICKER})"
+        rf"|(?:{_WATCH_ADDRESS}|{_WATCH_TICKER})[^.?!]{{0,30}}?\b(?:wallet|token|coin|price)\b)"
+        rf"|\b(?:(?:alert|notify|warn|ping)\s+me|(?:tell|let)\s+me(?:\s+know)?)\b[^.?!]{{0,20}}?\b(?:when|if|once)\b"
+        rf"[^.?!]{{0,40}}?(?:{_WATCH_ADDRESS}|{_WATCH_TICKER}|\b(?:token|coin)\b)[^.?!]{{0,40}}?{_WATCH_CONDITION}",
+        re.I)),
+    ("watch.list", "web", re.compile(
+        r"\bwhat\s+am\s+i\s+watching\b"
+        r"|\b(?:list|show|see|check)\b[^.?!]{0,40}?\b(?:my|the)\s+(?:watches|watch\s+list)\b"
+        r"|\b(?:my|the)\s+(?:watches|watch\s+list)\b[^.?!]{0,40}?\b(?:list|show|what|open)\b", re.I)),
+    ("watch.remove", "web", re.compile(
+        rf"\b(?:stop|remove|delete|drop|cancel)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})"
+        rf"|\bunwatch\b", re.I)),
+    ("watch.pause", "web", re.compile(
+        rf"\b(?:pause|suspend|mute)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})", re.I)),
+    ("watch.resume", "web", re.compile(
+        rf"\b(?:resume|unpause|unmute|restart)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",
