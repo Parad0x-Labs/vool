@@ -13,16 +13,39 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from core.registry.categories import public_taxonomy
+from core.registry.artifact import native_identity
+from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
+from core.registry.media import KINDS
+from core.registry.requirements import public_requirements
+from registry_service import community, reports
 from registry_service.auth import Auth
+from registry_service.curation import labels, load_curation, picture_approvals
 from registry_service.store import Store
 
 PREFIX = "/registry/api"
 UPLOAD_BODY_TIMEOUT = 30
+SORTS = {"stars", "updated", "downloads", "newest"}
 
 
-def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None) -> Starlette:
+def _stem(word: str) -> str:
+    for ending in ("ing", "es", "s"):
+        if word.endswith(ending) and len(word) - len(ending) >= 3:
+            return word[:-len(ending)]
+    return word
+
+
+def _search_text(row: dict) -> str:
+    category = TAXONOMY.get(row["category"], ("", {}))
+    return " ".join([row["id"].replace("/", " ").replace("-", " "), row["summary"], category[0],
+                     category[1].get(row["subcategory"], ""), row["category"], row["subcategory"]]).casefold()
+
+
+def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None,
+               curation: dict | None = None, github=None) -> Starlette:
+    curation = load_curation() if curation is None else curation
+    approvals = picture_approvals(curation)
+
     def now():
         return int(clock())
 
@@ -32,6 +55,22 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             require(bool(request.headers.get("x-vool-csrf")), "CSRF token required")
         return store.authenticate(request.cookies.get("vool_registry", ""), now=now(),
             csrf=request.headers.get("x-vool-csrf") if mutation else None)
+
+    def optional_account(request: Request):
+        """Signed-in account for read routes, or None. Never an error for signed-out viewers."""
+        if not request.cookies.get("vool_registry"):
+            return None
+        try:
+            return store.authenticate(request.cookies["vool_registry"], now=now())
+        except RegistryError:
+            return None
+
+    async def with_starred(viewer, rows):
+        if viewer:
+            starred = await run_in_threadpool(store.starred, viewer)
+            for row in rows:
+                row["starred"] = row["id"] in starred
+        return rows
 
     def entry(package_id, version):
         return catalog.resolve(package_id, version, target=target, now=now())
@@ -62,10 +101,39 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
             return JSONResponse({"channel": "discovery", "entries": CATALOG if discovery is None else discovery,
                                  "notice": "Import compatibility is not public registry admission."})
+        viewer = optional_account(request)
+        rows = await with_starred(viewer, await approved_rows(viewer))
+        query = request.query_params
+        require(len(query.multi_items()) == len(query) and set(query) <= {"q", "category", "subcategory", "origin", "sort"},
+                "unknown catalog query")
+        text = query.get("q", "")
+        require(len(text) <= 100, "search text exceeds limit")
+        words = [_stem(word) for word in text.casefold().split()][:8]
+        if words:
+            rows = [row for row in rows if all(word in _search_text(row) for word in words)]
+        for field in ("category", "subcategory", "origin"):
+            if field in query:
+                rows = [row for row in rows if row[field] == query[field]]
+        sort = query.get("sort", "stars")
+        require(sort in SORTS, "unknown sort order")
+        key = {"stars": lambda row: (-row["stars"], row["id"]),
+               "updated": lambda row: (-row["updated_at"], row["id"]),
+               "downloads": lambda row: (-row["download_requests"], row["id"]),
+               "newest": lambda row: (-row["published_at"], row["id"])}[sort]
+        rows.sort(key=key)
+        return JSONResponse({"channel": "approved", "entries": rows, "target": target, "sort": sort,
+                             "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
+
+    async def approved_rows(viewer=None):
         rows = []
         if catalog.current is None:
             require(False, "approved catalog is not configured")
         require(now() < catalog.current["expires"], "catalog freshness expired")
+        # Dependencies are native plugin ids; name the ones that are registry packages by package id.
+        packages = {native_identity(envelope["signed"]["metadata"]["id"]): envelope["signed"]["metadata"]["id"]
+                    for envelope in catalog.current["entries"]}
+        # Only a skill's own creator learns that its pictures wait for a person's look.
+        owned = await run_in_threadpool(store.owned, viewer, set(packages.values())) if viewer else set()
         for envelope in catalog.current["entries"]:
             value = envelope["signed"]
             info = value["metadata"]
@@ -76,30 +144,144 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
                 continue
             stats = await run_in_threadpool(store.stats, info["id"])
             creator = await run_in_threadpool(store.public_profile, info["id"].split("/")[0])
-            rows.append({**info, **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
+            requirements = boundaries["requirements"]
+            rows.append({**{key: val for key, val in info.items() if key not in KINDS},
+                         **shown_pictures(info["id"], boundaries["pictures"], owner=info["id"] in owned), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
                          "creator": creator, "publication": approved["publication"],
+                         "requirements": {**requirements, "dependencies": sorted(
+                             packages.get(item, item) for item in requirements["dependencies"])},
+                         "targets": approved["targets"],
                          "authority_notice": boundaries["authority_notice"],
                          "native_control_overlaps": boundaries["native_control_overlaps"],
                          "discovery_only": False, "import_ready": True,
                          "policy_sha256": approved["policy_sha256"], "updated_at": approved["issued_at"]})
         # Popularity cannot confer approval; only resolved admissions enter this list.
-        latest = {}
+        latest, first = {}, {}
         for row in rows:
             prior = latest.get(row["id"])
+            first[row["id"]] = min(first.get(row["id"], row["updated_at"]), row["updated_at"])
             if prior is None or version_key(row["version"]) > version_key(prior["version"]):
                 latest[row["id"]] = row
         rows = list(latest.values())
+        held = await run_in_threadpool(reports.paused, store)
+        for row in rows:
+            if row["id"] in held:
+                row["downloads_paused"] = True
         rows.sort(key=lambda row: (-row["stars"], row["id"]))
         category_counts = {}
         for rank, row in enumerate(rows, 1):
             row["global_rank"] = rank
             category_counts[row["category"]] = category_counts.get(row["category"], 0) + 1
             row["category_rank"] = category_counts[row["category"]]
-        return JSONResponse({"channel": "approved", "entries": rows, "target": target,
-                             "ranking": "Authenticated stars descending; stable id breaks ties. Download requests do not rank packages."})
+            row["published_at"] = first[row["id"]]
+            row.update(labels(curation, row["id"], row["version"]))
+        return rows
+
+    def shown_pictures(package_id: str, pictures: dict, *, owner: bool) -> dict:
+        """Pictures approved for this skill as a page shows them; its owner also learns which wait for a person's look."""
+        shown = {kind: {"sha256": item["sha256"], "type": item["type"], "width": item["width"], "height": item["height"],
+                        "url": PREFIX + "/pictures/" + package_id + "/" + item["sha256"]}
+                 for kind, item in pictures.items() if (package_id, item["sha256"]) in approvals}
+        pending = [kind for kind in KINDS if kind in pictures and kind not in shown] if owner else []
+        return shown | ({"pictures_pending": pending} if pending else {})
+
+    async def picture(request):
+        package_id = request.path_params["publisher"] + "/" + request.path_params["name"]
+        sha256 = request.path_params["sha256"]
+        require((package_id, sha256) in approvals, "picture not found")
+        # Only a picture this skill's currently listed versions carry, never any other stored file.
+        require(catalog.current is not None and now() < catalog.current["expires"], "picture not found")
+        listed = False
+        for envelope in catalog.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if info["id"] != package_id or not any(info.get(kind, {}).get("sha256") == sha256 for kind in KINDS):
+                continue
+            try:
+                approved = entry(info["id"], info["version"])
+                # Also stores pictures of versions published before pictures were recorded.
+                await run_in_threadpool(store.public_inspection, approved["artifact_sha256"])
+            except RegistryError:
+                continue
+            listed = True
+            break
+        require(listed, "picture not found")
+        media, data = await run_in_threadpool(store.picture, sha256)
+        # Short public caching, so taking an approval away reaches browsers within minutes.
+        return Response(data, media_type=media, headers={"Cache-Control": "public, max-age=300",
+                        "Cross-Origin-Resource-Policy": "same-origin", "Content-Disposition": "inline"})
+
+    async def profile_page(request):
+        namespace = request.path_params["namespace"]
+        require(isinstance(namespace, str) and len(namespace) <= 64, "invalid namespace")
+        viewer = optional_account(request)
+        rows = await with_starred(viewer, [row for row in await approved_rows(viewer)
+                                           if row["id"].split("/")[0] == namespace])
+        profile = await run_in_threadpool(store.public_profile, namespace)
+        return JSONResponse({"profile": profile, "origin": "official" if namespace in curation["official_namespaces"]
+                             else "community", "packages": rows})
+
+    async def comment_list(request):
+        if request.method == "GET":
+            return JSONResponse(await run_in_threadpool(community.comments, store, request.query_params.get("id"),
+                                                        optional_account(request)))
+        value = await json_body(request)
+        require(set(value) == {"id", "body"}, "invalid comment fields")
+        who = account(request, mutation=True)
+        result = await run_in_threadpool(community.post_comment, store, who, value["id"], value["body"], now=now())
+        return JSONResponse(result, status_code=201 if result["state"] != "refused" else 400)
+
+    async def comment_report(request):
+        who = account(request, mutation=True)
+        return JSONResponse(await run_in_threadpool(community.report_comment, store, who,
+                                                    request.path_params["identifier"], now=now()))
+
+    def listed(package_id) -> bool:
+        """Whether the catalog lists this skill now: reports are about skills people can find there."""
+        require(catalog.current is not None, "approved catalog is not configured")
+        require(now() < catalog.current["expires"], "catalog freshness expired")
+        for envelope in catalog.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if info["id"] == package_id:
+                try:
+                    entry(info["id"], info["version"])
+                    return True
+                except RegistryError:
+                    continue
+        return False
+
+    async def skill_reports(request):
+        if request.method == "GET":
+            require(listed(request.query_params.get("id")), "this skill is not listed")
+            return JSONResponse(await run_in_threadpool(reports.status, store, request.query_params.get("id"),
+                                                        optional_account(request), now=now()))
+        who = account(request, mutation=True)
+        value = await json_body(request)
+        require(listed(value.get("id")), "this skill is not listed")
+        return JSONResponse(await run_in_threadpool(reports.file_report, store, who, value, now=now()), status_code=201)
+
+    async def downloads_allowed(package_id):
+        require(package_id not in await run_in_threadpool(reports.paused, store), reports.PAUSED)
+
+    async def github_import(request):
+        require(github is not None, "GitHub import is not configured")
+        who = account(request, mutation=True)
+        with store.upload_slot(who, now=now()) as slot:
+            value = await upload_body(json_body(request))
+            return JSONResponse(await run_in_threadpool(store.github_import, who, value, github, now=now(), _slot=slot),
+                                status_code=201)
+
+    async def publisher_link(request):
+        require(github is not None, "GitHub linking is not configured")
+        who = account(request, mutation=True)
+        value = await json_body(request)
+        require(set(value) == {"namespace"}, "invalid publisher link fields")
+        return JSONResponse(await run_in_threadpool(store.link_github_publisher, who, value["namespace"], github))
 
     async def categories(request):
         return JSONResponse({"categories": public_taxonomy()})
+
+    async def requirements(request):
+        return JSONResponse({"requirements": public_requirements()})
 
     async def signed_catalog(request):
         from core.registry.codec import decode
@@ -109,9 +291,18 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         require(catalog.current and now() < catalog.current["expires"], "catalog freshness expired")
         return JSONResponse(decode(row[0]))
 
+    async def own_profile(who, value=None):
+        profile = await run_in_threadpool(store.profile, who, value)
+        return profile | {"providers": await run_in_threadpool(store.providers, who)}
+
     async def me(request):
-        who = account(request)
-        profile = await run_in_threadpool(store.profile, who)
+        who = optional_account(request)
+        if who is None:
+            response = JSONResponse({"profile": None, "csrf": None})
+            if request.cookies.get("vool_registry"):
+                response.delete_cookie("vool_registry", path=PREFIX)
+            return response
+        profile = await own_profile(who)
         # CSRF is intentionally visible to the authenticated same-origin frontend.
         with store.connection() as db:
             row = db.execute("SELECT csrf FROM sessions WHERE hash=?", (
@@ -121,7 +312,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     async def profile(request):
         who = account(request, mutation=True)
         value = await json_body(request)
-        return JSONResponse(await run_in_threadpool(store.profile, who, value))
+        return JSONResponse(await own_profile(who, value))
 
     async def submissions(request):
         who = account(request, mutation=request.method == "POST")
@@ -156,6 +347,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     async def ticket(request):
         approved = entry(request.query_params.get("id"), request.query_params.get("version"))
+        await downloads_allowed(approved["metadata"]["id"])
         token = await run_in_threadpool(store.ticket, approved["artifact_sha256"], now=now())
         return JSONResponse({"sha256": approved["artifact_sha256"], "length": approved["artifact_length"],
             "url": PREFIX + "/artifacts/" + approved["artifact_sha256"] + "?ticket=" + token,
@@ -165,7 +357,12 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         sha256 = request.path_params["sha256"]
         _, admission = await run_in_threadpool(store.public_artifact, sha256)
         entry(admission["metadata"]["id"], admission["metadata"]["version"])
+        await downloads_allowed(admission["metadata"]["id"])  # also tickets handed out before the pause
         raw = await run_in_threadpool(store.download, sha256, request.query_params.get("ticket", ""), now=now())
+        # A signed-in website download makes the account eligible to comment.
+        who = optional_account(request)
+        if who:
+            await run_in_threadpool(community.record_download, store, who, admission["metadata"]["id"], now=now())
         return Response(raw, media_type="application/vnd.vool.registry+json", headers={"X-Content-SHA256": sha256,
                         "Content-Disposition": 'attachment; filename="package.vool.json"'})
 
@@ -175,7 +372,9 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             link = account(request, mutation=True)
         url, browser = await run_in_threadpool(auth.begin, request.path_params["provider"], now=now(), link_account=link,
                                              browser=request.cookies.get("vool_registry_oauth", ""))
-        response = RedirectResponse(url, status_code=303)
+        # Linking is a same-origin fetch carrying the CSRF header, so it gets the
+        # provider URL to open; a plain sign-in link is followed as a redirect.
+        response = JSONResponse({"url": url}) if link else RedirectResponse(url, status_code=303)
         # Apple posts its callback cross-site; this short-lived flow cookie has no
         # session authority and is bound to random state in the server's table.
         response.set_cookie("vool_registry_oauth", browser, max_age=600, secure=True, httponly=True,
@@ -213,7 +412,13 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
-        Route(PREFIX + "/categories", categories),
+        Route(PREFIX + "/categories", categories), Route(PREFIX + "/requirements", requirements),
+        Route(PREFIX + "/profiles/{namespace}", profile_page),
+        Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),
+        Route(PREFIX + "/comments/{identifier}/report", comment_report, methods=["POST"]),
+        Route(PREFIX + "/reports", skill_reports, methods=["GET", "POST"]),
+        Route(PREFIX + "/imports", github_import, methods=["POST"]),
+        Route(PREFIX + "/publisher-link", publisher_link, methods=["POST"]),
         Route(PREFIX + "/me", me), Route(PREFIX + "/profile", profile, methods=["PUT"]),
         Route(PREFIX + "/submissions", submissions, methods=["GET", "POST"]),
         Route(PREFIX + "/drafts", draft, methods=["POST"]),
@@ -221,6 +426,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/submissions/{identifier}/consent", consent, methods=["POST"]),
         Route(PREFIX + "/stars", star, methods=["PUT"]), Route(PREFIX + "/download", ticket),
         Route(PREFIX + "/artifacts/{sha256}", download),
+        Route(PREFIX + "/pictures/{publisher}/{name}/{sha256}", picture),
         Route(PREFIX + "/auth/{provider}/start", auth_begin, methods=["GET", "POST"]),
         Route(PREFIX + "/auth/{provider}/callback", auth_callback, methods=["GET", "POST"]),
         Route(PREFIX + "/session", logout, methods=["POST", "DELETE"]),
@@ -230,7 +436,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         if request.headers.get("host") != urllib.parse.urlsplit(auth.origin).netloc:
             return JSONResponse({"error": "unexpected host"}, status_code=400)
         response = await call_next(request)
-        response.headers.update({"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        response.headers.setdefault("Cache-Control", "no-store")  # approved pictures may be cached briefly
+        response.headers.update({"X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"})
         return response
 

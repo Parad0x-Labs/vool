@@ -1,14 +1,16 @@
-"""Fixed registry taxonomy: ten main categories, each with its own subcategories.
+"""Fixed registry taxonomy: eleven main categories, each with its own subcategories.
 
-Metadata stores the slugs; labels are display text for the website and Add-ons page.
+Metadata stores the slugs; labels are display text for the website and Add-ons page. Signed
+packages carry these slugs, so a slug is never renamed or removed: new ones are added, and
+only labels change.
 """
 from __future__ import annotations
 
 TAXONOMY: dict[str, tuple[str, dict[str, str]]] = {
     "writing": ("Writing", {
         "emails-letters": "Emails & letters", "articles-blogs": "Articles & blogs",
-        "social-posts": "Social posts", "editing-proofreading": "Editing & proofreading",
-        "translation": "Translation"}),
+        "social-posts": "Social posts (single posts)", "editing-proofreading": "Editing & proofreading",
+        "translation": "Translation", "cv-job-applications": "CV & job applications"}),
     "productivity": ("Productivity", {
         "meetings": "Meetings", "notes-summaries": "Notes & summaries",
         "planning-tasks": "Planning & tasks", "scheduling": "Scheduling"}),
@@ -19,24 +21,29 @@ TAXONOMY: dict[str, tuple[str, dict[str, str]]] = {
         "code-review": "Code review", "debugging": "Debugging", "docs": "Docs",
         "scripts-devops": "Scripts & DevOps", "data-sql": "Data & SQL"}),
     "business": ("Business", {
-        "marketing": "Marketing", "sales-outreach": "Sales & outreach",
+        "marketing": "Marketing & campaigns", "sales-outreach": "Sales & outreach",
         "customer-support": "Customer support", "hiring": "Hiring",
         "contracts-documents": "Contracts & documents"}),
     "money-crypto": ("Money & crypto", {
         "budgeting": "Budgeting", "wallet-explained": "Wallet & transactions explained",
-        "market-data": "Market data (read-only)", "tax-notes": "Tax notes"}),
+        "market-data": "Market data (read-only)", "tax-notes": "Tax notes",
+        "invoices-receipts": "Invoices & receipts"}),
     "data-analysis": ("Data & analysis", {
         "spreadsheets": "Spreadsheets", "charts": "Charts", "reports": "Reports",
         "data-cleanup": "Data cleanup"}),
     "creative": ("Creative", {
-        "image-prompts": "Image prompts", "video-scripts": "Video & scripts",
+        "image-prompts": "Image prompts", "video-scripts": "Video, scripts & editing",
         "music-audio": "Music & audio", "design-ideas": "Design ideas"}),
     "personal-home": ("Personal & home", {
         "health-fitness": "Health & fitness", "food-recipes": "Food & recipes",
-        "travel": "Travel", "family-home": "Family & home"}),
+        "travel": "Travel", "family-home": "Family & home", "paperwork-admin": "Paperwork & admin",
+        "shopping": "Shopping"}),
     "automation": ("Automation", {
         "files-folders": "Files & folders", "browser-tasks": "Browser tasks",
-        "system-helpers": "System helpers", "integrations": "Integrations"}),
+        "system-helpers": "System helpers", "integrations": "Connected apps (email, calendar, notes)"}),
+    "privacy-security": ("Privacy & security", {
+        "privacy-checkup": "Privacy checkup", "scams-phishing": "Scams & phishing",
+        "safe-sharing": "Safe sharing", "account-safety": "Account safety"}),
 }
 
 

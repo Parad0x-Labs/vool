@@ -175,6 +175,7 @@ vool-registry = "registry_service.cli:main"
 # secret redaction cannot see a recovery phrase.
 "core.wallet" = ["bip39_english.txt"]
 "core.registry" = ["trusted-root.json"]
+"registry_service" = ["curation.json"]
 
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*", "registry_service*"]

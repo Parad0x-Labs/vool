@@ -13,7 +13,8 @@ def package(tmp_path, *, publisher="alice", tools=False, permissions=(), effect=
     source = tmp_path / "source"
     info = {"id": publisher + "/echo", "kind": "plugin" if tools else "skill", "version": "1.0.0",
             "summary": "Summarize user supplied notes", "category": "productivity", "subcategory": "notes-summaries",
-            "license": "MIT", "source": {"repository": publisher + "/notes", "commit": "b" * 40, "path": "echo"}}
+            "license": "MIT", "languages": ["en"],
+            "source": {"repository": publisher + "/notes", "commit": "b" * 40, "path": "echo"}}
     initialize(source, info, b"Local fixture licence.\n")
     manifest_path = source / ".codex-plugin/plugin.json"
     manifest = json.loads(manifest_path.read_bytes())

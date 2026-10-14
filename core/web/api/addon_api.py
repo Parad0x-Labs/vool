@@ -29,6 +29,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "github_repository": {"action", "repository"},
         "github_inspect": {"action", "repository", "ref", "path"},
         "registry_refresh": {"action", "approved"},
+        "registry_picture": {"action", "id", "sha256", "approved"},
         "registry_prepare": {"action", "id", "version", "approved"},
         "registry_install": {"action", "id", "version", "review_id", "accepted", "enable"},
     }
@@ -68,10 +69,12 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
     except AddonError as exc:
         return exc.status, {"ok": False, "error": exc.code, "message": exc.message}
     except ValueError as exc:
-        from core.registry.codec import RegistryError
+        from core.registry.codec import DOWNLOADS_PAUSED, RegistryError
 
         if isinstance(exc, RegistryError):
-            return 400, {"ok": False, "error": "registry_refused", "message": str(exc)}
+            # A paused skill gets its own code, so the page can say so calmly in the person's language.
+            return 400, {"ok": False, "error": "registry_paused" if str(exc) == DOWNLOADS_PAUSED else "registry_refused",
+                         "message": str(exc)}
         return 400, {"ok": False, "error": "addon_refused", "message": "The add-on input was refused."}
     except Exception:
         # Never echo transport errors, credential values or personal storage paths.

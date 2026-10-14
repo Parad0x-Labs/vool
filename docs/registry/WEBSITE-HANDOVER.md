@@ -24,8 +24,8 @@ API prefix: `/registry/api`. Use same-origin fetch with browser-managed credenti
 |---|---|
 | `GET /auth/github/start` | Redirects through configured GitHub state/PKCE flow. |
 | `GET /auth/google/start`, `GET /auth/apple/start` | Redirects through configured OIDC flow. Apple callback may POST. Provider registration is activation work. |
-| `POST /auth/{provider}/start` | Begins linking a provider to the authenticated account; same-origin mutation checks apply. No email-based linking. |
-| `GET /me` | Authenticated `{profile, csrf}`. Profile includes account ID/namespace and chosen public profile fields. |
+| `POST /auth/{provider}/start` | Begins linking a provider to the authenticated account; same-origin mutation checks apply. Returns HTTP 200 `{url}`: open that provider sign-in URL (only on the provider's own host). No email-based linking. |
+| `GET /me` | Signed in: `{profile, csrf}`. Profile includes account ID/namespace, chosen public profile fields and `providers`, the linked sign-in provider names (for example `["github", "google"]`; never provider account IDs). Signed out or expired: HTTP 200 `{profile: null, csrf: null}`. |
 | `PUT /profile` | Exactly `{namespace, bio, handles}`; no optional field omission. |
 | `POST /session` | Signs out current session and clears cookie. Mutation checks apply. |
 | `DELETE /session` | Deletes private account and clears cookie. Mutation checks apply. Public Git history/licensed publications survive. |
@@ -43,7 +43,7 @@ const draftBody = {
   metadata: {
     id: 'your-namespace/meeting-brief', kind: 'skill', version: '1.0.0',
     summary: 'Summarize supplied meeting notes with decisions and action owners.',
-    category: 'productivity', subcategory: 'meetings', license: 'MIT'
+    category: 'productivity', subcategory: 'meetings', license: 'MIT', languages: ['en']
   },
   skill_markdown: skillEditor.value,
   license_text: await selectedLicenseFile.text()
@@ -58,9 +58,9 @@ const draftBody = {
 | `GET /submissions/{id}` | Only the account owning the submission receives private state/findings. |
 | `POST /submissions/{id}/consent` | JSON `{sha256:<exact returned checksum>, public:true}`. Allowed only from `preflighted`/`reviewed` with unchanged checksum and authenticated ownership. |
 
-Submission response fields: `id`, `created` (Unix seconds), `package_id`, `version`, `sha256`, `state`, `consent`, `github_url`, `findings`. `github_url` may be null; the current source defines the field but no publisher callback populates it. Present “awaiting publisher” instead of a fabricated PR link. Authenticated upload can return HTTP 201 and a rejected/held state. Inspect the response state before selecting success copy.
+Submission response fields: `id`, `created` (Unix seconds), `package_id`, `version`, `sha256`, `state`, `consent`, `github_url`, `findings`, `needs_notices`. `needs_notices` lists `{need, label, reason}` for each need that SKILL.md appears to use but `needs` leaves out; it is advice and never blocks the submission. Older submissions have an empty list. Show `label`, in your own words, beside the matching "What it needs" choice. `reason` is the command-line wording (it names SKILL.md and the id), so show it only for uploaded packages. `github_url` may be null; the current source defines the field but no publisher callback populates it. Present “awaiting publisher” instead of a fabricated PR link. Authenticated upload can return HTTP 201 and a rejected/held state. Inspect the response state before selecting success copy.
 
-The form should prefill stable namespace, name-derived skill path, `kind: skill`, version `1.0.0` and a small complete example. Offer a licence choice with full text and author-rights confirmation; an SPDX label alone is insufficient. Explain source/rights when importing upstream content. Category/subcategory must be slugs from the fixed list served by `GET /categories` (`{categories:[{id,label,subcategories:[{id,label}]}]}`); offer them as two linked choices and display the labels. The server refuses any other value.
+The form should prefill stable namespace, name-derived skill path, `kind: skill`, version `1.0.0` and a small complete example. Offer a licence choice with full text and author-rights confirmation; an SPDX label alone is insufficient. Explain source/rights when importing upstream content. Category/subcategory must be slugs from the fixed list served by `GET /categories` (`{categories:[{id,label,subcategories:[{id,label}]}]}`); offer them as two linked choices and display the labels. The server refuses any other value. Ask for the languages the skill works in (`languages`, required, or `["any"]`) and offer `needs` as choices from `GET /requirements`. Offer picture fields (`icon`, `banner`) only for GitHub import, as paths inside the imported folder, and for uploaded packages; the written-skill form has none.
 
 Count the full serialized draft in UTF-8 with `TextEncoder`. Do not promise two independent 32 KiB text uploads: the entire request shares 32 KiB. Count skill body separately for the 8,000-character native limit. Keep the local draft editable when a payload fails. Do not persist text suspected to contain credentials into public analytics, crash reporting or default browser storage.
 
@@ -96,9 +96,9 @@ Consent modal text should state that public GitHub history is durable, the submi
 | `GET /artifacts/{sha256}?ticket={ticket}` | Exact canonical artifact bytes; `X-Content-SHA256` and attachment header. Retry same ticket for the same request. |
 | `PUT /stars` | Authenticated same-origin `{id,version,starred:true/false}`; one account star per stable package ID. |
 
-Catalog rows include stable ID/version/kind/summary/category/subcategory/licence/source, checksum, `creator`, `publication`, `reviewed`, `discovery_only`, `import_ready`, `policy_sha256`, `updated_at`, `authority_notice`, `native_control_overlaps`, stats and ranks. Use the source's actual result fields; do not invent ratings, review text, install telemetry or a verified-user count.
+Catalog rows include stable ID/version/kind/summary/category/subcategory/licence/source, checksum, `creator`, `publication`, `reviewed`, `discovery_only`, `import_ready`, `policy_sha256`, `updated_at`, `authority_notice`, `native_control_overlaps`, stats and ranks, plus `languages` and `needs` when the signed metadata has them, `requirements` and `targets`, approved `icon`/`banner` pictures, `pictures_pending` on the signed-in creator's own rows only, and `downloads_paused` while downloads are paused (see [SKILL-CODEX.md](SKILL-CODEX.md)). The report form uses `GET /reports` and `POST /reports` ([SKILL-CODEX.md](SKILL-CODEX.md#skill-reports)). Use the source's actual result fields; do not invent ratings, review text, install telemetry or a verified-user count.
 
-Stars rank descending with stable ID tie-break; requests do not determine rank. Display “Download requests,” not “Installed users.” Filters/search may operate locally on returned rows: current API has no documented paginated search, category query or profile-detail endpoint. Admission is tied to exact release/platform `target`; show that target and refuse to imply universal compatibility. A stale/absent approved catalog produces a refusal; present recovery while preserving the distinct discovery route.
+Stars rank descending with stable ID tie-break; requests do not determine rank. Display “Download requests,” not “Installed users.” Search, filters, sort and profile pages use the Skill Codex routes in [SKILL-CODEX.md](SKILL-CODEX.md); results are not paginated. Admission is tied to exact release/platform `target`; show that target and refuse to imply universal compatibility. A stale/absent approved catalog produces a refusal; present recovery while preserving the distinct discovery route.
 
 Render content/handles as untrusted text and vetted HTTPS links. Display publication repository/commit/path separately from metadata's original source. Do not collapse those into one ambiguous “source SHA.” The transport checksum binds the whole package; local preflight and generic import-ready discovery flags never substitute for signed reviewed admission.
 

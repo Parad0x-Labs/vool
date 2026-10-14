@@ -14,7 +14,8 @@ Use the existing VPS for the static website, API and private account/quarantine 
 6. Configure the service origin and immutable catalog/artifact inputs. Run `vool-registry check-config --config CONFIG` before starting it. The command fails if root, catalog, artifacts or requested provider registrations are missing/stale. Never use test fixtures as a production root or report.
 7. Reverse proxy only `/registry/api/` to the localhost service. Preserve the existing relay/routes. Disable access, error, proxy, journal and backup request logging that could retain addresses or callback codes. Audit hosting/provider retention separately; do not claim no party ever processes an IP.
 8. Use private directory mode 0700 and database mode 0600. Encrypt off-host backups, restrict operators, expire private quarantine after seven days and verify an actual restore. The restored catalog must meet signature/freshness/rollback rules; old account backups must respect the deletion retention policy.
-9. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
+9. Before the site opens, sign in with the team's own GitHub account and choose the team's publisher name (`vool-team`) on its profile so nobody else can hold it. Then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
+10. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
 
 ## Service configuration
 
@@ -57,17 +58,65 @@ location /registry/api/ {
 }
 ```
 
+The website's Skill Codex pages are static files, so nginx sends their framing rule. Add `add_header Content-Security-Policy "frame-ancestors 'none'" always;` to the location that serves `/codex/skills/`, so no other site can frame the report, account, publishing or consent pages and trick someone into pressing a button. An `add_header` inside a location replaces the ones it would inherit, so repeat there any security headers the server block sets.
+
 Review and run `nginx -t` on the complete server configuration before applying it. Mirror the rejecting defaults for any IPv6 listeners. The TLS rejection directive requires nginx 1.19.4 or later. Passing `$host` preserves the app's Host check; replacing every incoming Host with `vool.dev` would make that check ineffective. Origin and CSRF checks remain required. The per-client zone processes addresses in shared memory; do not persist them or claim they are never processed. See the nginx [request limiter](https://nginx.org/en/docs/http/ngx_http_limit_req_module.html), [TLS rejection](https://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_reject_handshake) and [default-server routing](https://nginx.org/en/docs/http/request_processing.html) documentation. Request limiting, TLS and log retention grant no package permissions. Keep diagnostics as aggregate health/error counters without identities or request payloads.
 
 ## v0.7.1 service limits
 
-- External GitHub publisher-to-account linking is not implemented. A login or a self-declared GitHub handle is not publisher proof. Direct GitHub imports suppress unlinked website creator profiles and uploads, even if the account claimed the name earlier. Only an exact, consented service-created draft can establish its account's publication association. Legacy imported publications have no inferred account owner. Operators must call `Store.reserve_publication(package_id)` when a pending external publication becomes known, before account claims. Unobserved public PRs cannot be reserved automatically; connect the protected admission service's pending-publication feed before promising universal preclaim protection. Namespace transfer requires maintainer review and has no automatic route.
+- GitHub publisher-to-account linking (`POST /publisher-link`, see [SKILL-CODEX.md](SKILL-CODEX.md)) proves ownership only by the GitHub owner ID of every source repository; organisation-owned repositories and mixed or unknown sources go to a maintainer. A self-declared GitHub handle is not publisher proof. Direct GitHub imports suppress unlinked website creator profiles and uploads, even if the account claimed the name earlier. Only an exact, consented service-created draft can establish its account's publication association. Legacy imported publications have no inferred account owner. Operators must call `Store.reserve_publication(package_id)` when a pending external publication becomes known, before account claims. Unobserved public PRs cannot be reserved automatically; connect the protected admission service's pending-publication feed before promising universal preclaim protection. Namespace transfer requires maintainer review and has no automatic route.
 - Download tickets expire after 15 minutes and are authenticated by a private HMAC key in the account database. Issuance stores no ticket rows and has no global capacity cap. Only served-artifact attempts increment `download_requests`; the same ticket's retries count once. This is not a unique-person or completed-byte metric. Tickets issued before this format upgrade must be refreshed; losing/rotating the HMAC key also requires fresh tickets.
 - Login flows expire after ten minutes. A browser/provider pair may have eight pending flows; another browser or provider remains available. Cookie churn can still create many flows, so the per-client proxy limiter is required. Existing state, PKCE, nonce, flow-cookie binding and one-use checks remain active.
 - Upload admission checks namespace ownership and the ten-submissions-per-24-hours quota before reading either artifact or draft bodies, and before inspecting/scanning/packing direct Store calls. SQLite leases allow four active uploads across workers and one per account; refused requests consume no body. API body reads time out after 30 seconds. Lease cleanup runs on success, refusal and cancellation; a crashed worker's lease expires after five minutes. Expired or revoked leases cannot commit an upload. Size limits and the proxy limiter are still required.
 - The secure, host-only session cookie is `vool_registry`, scoped to `/registry/api`; it does not use the `__Host-` prefix. Deploy with **no untrusted subdomains** beneath the service's parent domain. Do not treat path scoping as protection against a hostile sibling subdomain.
 - Stars are one per authenticated account/package, not one per person. Throwaway accounts can inflate stars; ranking is not a trust or admission signal.
 - The website account-link POST returns a 303 redirect to the provider. A `fetch()` call may not navigate the page. Before website handover, test complete browser navigation through linking, callback, cancellation and return to the account screen with real provider registrations.
+
+## Picture review
+
+A skill picture shows only after an operator approves that exact file for that skill: add `{"id": "<publisher>/<name>", "sha256": "<checksum>"}` to `approved_pictures` in `registry_service/curation.json` through a reviewed pull request. `check-config` validates the curation file, and the service reads it at start, so restart the service after the change.
+
+To see what is waiting, run `vool-registry pictures-pending --config CONFIG --target NEWDIR`. It prints every picture of every published version that has no approval for its skill (id, version, kind, checksum, size) and writes each file into the new folder as `<sha256>.png`. It refuses a folder that already exists; without `--target` it only prints the list. Look at each file at full size and at about 52 pixels. Approve it only when:
+
+- it claims no VOOL approval, verification, safety or official status, and has no badge, tick or shield that reads that way;
+- it has no QR code, wallet address, URL, handle or phone number, and does not ask for a wallet recovery phrase or key;
+- it uses no other brand's logo or trademark and impersonates no person, project or the VOOL team;
+- it has no adult, violent, hateful or shocking content, and nothing styled as VOOL's own interface (buttons, warnings, prices);
+- any text in it is short and fits the skill.
+
+An approval covers one skill. The same file in another skill needs its own look, because a picture that is fine for one skill can mislead in another. Taking an entry out of `approved_pictures` hides that picture after the next start; browsers may keep a copy for up to five minutes, and a running VOOL drops it at its next Browse. Approving a picture admits nothing: packages still come only from the signed catalog.
+
+A results page asks for many pictures at once, so give `/registry/api/pictures/` its own limiter zone instead of the general one:
+
+```nginx
+# http context
+limit_req_zone $binary_remote_addr zone=registry_pictures:10m rate=20r/s;
+
+# Inside the TLS server, next to location /registry/api/:
+location /registry/api/pictures/ {
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 1k;
+    limit_req zone=registry_pictures burst=60 nodelay;
+    limit_req_status 429;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For "";
+    proxy_pass http://127.0.0.1:8791;
+}
+```
+
+A VOOL build that predates the `icon`, `banner`, `languages` or `needs` metadata fields refuses a whole catalog in which any entry carries one, including builds whose owner installed a trust anchor through `VOOL_REGISTRY_ROOT_FILE`. Ship the first registry trust anchor only in a build that knows every field the catalog will carry. Upgrade the registry service before signing any entry with pictures, because an older service refuses that catalog too. Builds without a trust anchor never read the catalog, so they are unaffected.
+
+## Skill reports
+
+Read open reports with `vool-registry reports-open --config CONFIG` (see [SKILL-CODEX.md](SKILL-CODEX.md#skill-reports)). It lists every skill with open reports or a pause, including a pause whose reports are gone. Each report shows its id, reason, note, time, whether it counted toward a pause and `reporter`, an opaque handle that is the same for every report from one account. Read the reported version from `<artifact_dir>/<sha256>.json` (downloads of a paused skill are refused) and check the claim against its files: instructions that ask for money, passwords, keys or a recovery phrase, behaviour the description does not mention, a copy of someone else's work, a misleading picture, or a skill that does not work.
+
+- Nothing wrong: `reports-close` closes the reports, wipes their notes and ends a pause the reports caused.
+- Harmful or stolen: `skill-pause` keeps downloads paused, then revoke the version in the next signed catalog so VOOL stops listing it. A pause alone does not change what VOOL lists. `skill-resume` ends an operator's pause.
+- A bad picture: remove its entry from `approved_pictures` and restart the service, then `reports-close`.
+- Reports in bad faith: `reporter-mute --target REPORT_ID` for each report. That account's open and later reports stop counting and its comments are held. A closed report never counts again either: the same account cannot pause that skill a second time.
+
+A paused skill stays paused until an operator acts. Check the list every day while the registry is open.
 
 ## Native activation and release limits
 

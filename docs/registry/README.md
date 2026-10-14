@@ -12,7 +12,7 @@ Use the complete [author guide](AUTHOR-GUIDE.md), [website integration contract]
 
 Developers use `vool-community` or `python -m tools.community_skills`:
 
-1. Prepare metadata naming a stable `publisher/name`, semantic version, kind, summary, category, subcategory, licence and exact upstream GitHub commit/path. Website drafts receive immutable upload provenance instead.
+1. Prepare metadata naming a stable `publisher/name`, semantic version, kind, summary, category, subcategory, licence, supported languages and exact upstream GitHub commit/path. Website drafts receive immutable upload provenance instead.
 2. Run `init DIRECTORY --metadata metadata.json --license-file LICENSE`. It creates a native package with a `registry-` identity. Edit `skills/NAME/SKILL.md`; plugin authors extend the existing native manifest contract described in the plugin documentation.
 3. Run `lint DIRECTORY --scratch SCRATCH`, then `pack DIRECTORY --scratch SCRATCH --output package.vool.json`. The output includes every file, empty directory and executable bit. Links, credential filenames and ambiguous paths are refused rather than omitted.
 4. Submit the file through the website, or put it at `packages/SHA256.json` in a fork of the matching community repository and open a PR. `submission-link FILE --github-user USER --branch BRANCH` prints the prefilled comparison link and performs no remote write.

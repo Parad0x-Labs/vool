@@ -256,7 +256,7 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
     return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
-            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"],
+            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
             "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
             "reviewed": True, "installed": False, "enabled": False}

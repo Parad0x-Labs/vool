@@ -20,6 +20,10 @@ def version_key(value: str) -> tuple:
         (0, int(part)) if part.isdigit() else (1, part) for part in prerelease.split(".") if part))
 
 
+# The registry refusal VOOL shows as it is, because a person can understand and act on it.
+DOWNLOADS_PAUSED = "downloads of this skill are paused while a person looks into it"
+
+
 class RegistryError(ValueError):
     """Untrusted registry input or incomplete evidence was refused."""
 

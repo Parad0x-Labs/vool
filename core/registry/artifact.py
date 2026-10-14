@@ -21,6 +21,7 @@ from core.registry.codec import (
     require,
     unbase64,
 )
+from core.registry.requirements import check_languages, check_needs
 
 SCHEMA = "vool.registry.artifact.v1"
 _PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
@@ -50,9 +51,21 @@ def path_name(value: str) -> str:
 
 
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) - {"title"} == {
+    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs", "icon", "banner"} == {
         "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
         "invalid package metadata fields")
+    # Optional in signed entries so earlier packages stay valid; new uploads must
+    # declare languages (registry intake and the author tool enforce that).
+    if "languages" in value:
+        check_languages(value["languages"])
+    if "needs" in value:
+        check_needs(value["needs"])
+    from core.registry.media import KINDS, reference
+
+    for kind in KINDS:
+        if kind in value:
+            # Optional pictures inside this package; inspect() checks the bytes.
+            reference(kind, value[kind])
     if "title" in value:
         # Optional display name; plain text only.
         title = value["title"]
@@ -160,6 +173,16 @@ def inspect(raw: bytes) -> dict:
     require("LICENSE" in content and bool(content["LICENSE"].strip()), "package licence is missing")
     skills = [name for name in content if name.startswith("skills/") and name.endswith("/SKILL.md")]
     require(bool(skills) if value["metadata"]["kind"] == "skill" else True, "skill package has no SKILL.md")
+    from core.registry.media import KINDS, describe
+
+    pictures = {}
+    for kind in KINDS:
+        if kind in value["metadata"]:
+            ref = value["metadata"][kind]
+            require(ref["path"] in content, f"{kind} file is missing from the package")
+            require(hashlib.sha256(content[ref["path"]]).hexdigest() == ref["sha256"], f"{kind} checksum does not match its file")
+            pictures[kind] = describe(kind, ref["path"], content[ref["path"]])
+    value["pictures"] = pictures
     value["manifest"] = manifest
     value["files"] = content
     value["sha256"] = hashlib.sha256(raw).hexdigest()

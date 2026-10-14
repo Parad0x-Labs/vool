@@ -14,8 +14,9 @@ from registry_service.store import Store
 
 
 def load_service(config: dict, *, now: int):
-    require(isinstance(config, dict) and set(config) == {"schema", "origin", "private_dir", "trusted_root",
-        "catalog_file", "artifact_dir", "target", "providers"} and config["schema"] == "vool.registry.service.v1",
+    require(isinstance(config, dict) and set(config) - {"github_import"} == {"schema", "origin", "private_dir",
+        "trusted_root", "catalog_file", "artifact_dir", "target", "providers"} and
+        config["schema"] == "vool.registry.service.v1" and type(config.get("github_import", False)) is bool,
         "unknown service configuration")
     private = Path(config["private_dir"]).resolve()
     private.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -47,18 +48,83 @@ def load_service(config: dict, *, now: int):
     return store, trust, auth
 
 
+MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending",
+              "reports-open", "reports-close", "skill-pause", "skill-resume", "reporter-mute")
+
+
+def moderate(args) -> int:
+    """Operator-only moderation against the private store. There is no HTTP route for this."""
+    import json
+
+    from registry_service import community, reports
+
+    try:
+        config = decode(args.config.read_bytes(), 65536)
+        require(isinstance(config, dict) and config.get("schema") == "vool.registry.service.v1", "unknown service configuration")
+        path = Path(config["private_dir"]).resolve() / "accounts.sqlite"
+        require(path.is_file(), "private store not found")
+        store = Store(path)
+        if args.command == "pictures-pending":
+            from registry_service.curation import load_curation, picture_approvals
+
+            approvals = picture_approvals(load_curation())
+            pending = [item for item in store.published_pictures() if (item["id"], item["sha256"]) not in approvals]
+            if args.target:
+                # Write each waiting picture into a new folder so a person can look at the exact file.
+                folder = Path(args.target)
+                require(not folder.exists(), "choose a new folder for the waiting pictures")
+                folder.mkdir(mode=0o700)
+                for sha256 in dict.fromkeys(item["sha256"] for item in pending):
+                    with (folder / (sha256 + ".png")).open("xb") as handle:
+                        handle.write(store.picture(sha256)[1])
+            print(json.dumps(pending, indent=2))
+        elif args.command == "reports-open":
+            print(json.dumps(reports.open_reports(store), indent=2))
+        elif args.command == "reports-close":
+            reports.close(store, args.target)
+            print("Done.")
+        elif args.command == "skill-pause":
+            reports.pause(store, args.target, now=int(time.time()))
+            print("Done.")
+        elif args.command == "skill-resume":
+            reports.resume(store, args.target)
+            print("Done.")
+        elif args.command == "reporter-mute":
+            reports.mute_reporter(store, args.target, now=int(time.time()))
+            print("Done.")
+        elif args.command == "comments-held":
+            print(json.dumps(community.held(store), indent=2))
+        elif args.command in {"comment-publish", "comment-remove"}:
+            community.moderate(store, args.target, args.command.split("-")[1])
+            print("Done.")
+        else:
+            community.mute(store, args.target, args.command == "mute", now=int(time.time()))
+            print("Done.")
+        return 0
+    except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
+        print("Moderation refused: " + (str(exc) if isinstance(exc, RegistryError) else "invalid configuration"))
+        return 1
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check-config", "serve"])
+    parser.add_argument("command", choices=["check-config", "serve", *MODERATION])
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--port", type=int, default=8791)
+    parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
+                        "for moderation commands; for pictures-pending, a new folder to write the waiting pictures into")
     args = parser.parse_args(argv)
     trust = None
+    if args.command in MODERATION:
+        return moderate(args)
     try:
         config = decode(args.config.read_bytes(), 65536)
         store, trust, auth = load_service(config, now=int(time.time()))
+        from registry_service.curation import load_curation
+
+        curation = load_curation()  # a bad curation file stops the service here, not at serve time
         if args.command == "check-config":
-            print("Configuration, signed catalog and artifact cache verified.")
+            print("Configuration, signed catalog, artifact cache and curation verified.")
             return 0
         import uvicorn
 
@@ -69,7 +135,14 @@ def main(argv=None) -> int:
             "loggers": {name: {"handlers": ["discard"], "propagate": False}
                         for name in ("uvicorn", "uvicorn.error", "uvicorn.access")}}
         discovery = decode(Path(config["catalog_file"]).read_bytes())["entries"]
-        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery), host="127.0.0.1", port=args.port,
+        # GitHub import is off unless the operator turns it on; it reads public GitHub only.
+        github = None
+        if config.get("github_import") is True:
+            from registry_service.github_source import GitHubSource
+
+            github = GitHubSource()
+        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery, github=github, curation=curation),
+                    host="127.0.0.1", port=args.port,
                     access_log=False, log_config=log_config, proxy_headers=False)
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError):
