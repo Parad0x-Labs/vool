@@ -27,10 +27,12 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import pytest
 
 from tests._blackbox_served_rig import REPO_ROOT, ScriptedProvider, ServedDaemon, run_in_home
+from tests._reader_served_rig import _probe_reply
 
 pytestmark = [pytest.mark.served]
 
@@ -118,6 +120,45 @@ def _routing_events(home: Path) -> list[dict[str, Any]]:
     return events
 
 
+def _reply(body: dict[str, Any]) -> Any:
+    """Answer the production certification probe; None falls through to the model table.
+
+    Once the runtime hands back the tool's observation (its own fixed delivery message, "Real
+    tool observations from this same turn follow"), the model answers from that observation in
+    plain words, the way the tool-retention suite's carry cases do — a JSON intent there is
+    foreign tool syntax, and the synthesis integrity gate would rightly reject it.
+    """
+    probe = _probe_reply(body)
+    if probe is not None:
+        return list(probe["tool_calls"]) if probe.get("tool_calls") else str(probe.get("content") or "")
+    messages = [m for m in (body.get("messages") or []) if isinstance(m, dict)]
+    joined = "\n".join(str(m.get("content") or "") for m in messages)
+    if "Real tool observations from this same turn follow" in joined:
+        return "The command printed served-selection-proof."
+    return None
+
+
+def _certify(daemon: Any, model: str) -> None:
+    """Certify a stub as a final-answer author through the real certification door.
+
+    On the 0.7.2 train an uncertified loopback model is refused BEFORE its adapter is built
+    (`core.final_answer_authorship`), so without this the tool turn's synthesis lane is
+    blocked for every stub and the turn degrades instead of proving selection. The sibling
+    served suite (test_auto_selection_hard_capability_20261002_served) certifies the same way.
+    """
+    request = Request(
+        f"{daemon.base_url}/api/model-tool-certification/run",
+        data=json.dumps(
+            {"provider_name": "ollama-local", "model_name": model, "timeout_seconds": 120}
+        ).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urlopen(request, timeout=240) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    assert str(result.get("state") or "").lower() == "verified", result
+
+
 @pytest.fixture
 def served(tmp_path: Path):
     home = tmp_path / "home"
@@ -131,6 +172,7 @@ def served(tmp_path: Path):
             COMPLETE: _tool_intent_reply(),
         },
         default="Served selection proof reply.",
+        reply_fn=_reply,
     )
     cloud_provider = ScriptedProvider({CLOUD_MODEL: "cloud reply"}, default="cloud reply")
     daemon = ServedDaemon(
@@ -162,6 +204,8 @@ def served(tmp_path: Path):
                 complete=COMPLETE,
             ),
         )
+        for model in (PARTIAL, COMPLETE):
+            _certify(daemon, model)
         local_provider.reset()
         cloud_provider.reset()
         yield {
