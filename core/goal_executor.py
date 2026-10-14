@@ -241,7 +241,7 @@ def _classify_turn_outcome(result: dict[str, Any], cancel_fired: bool) -> tuple[
     if outcome == "pending_approval" or (status == "blocked" and set(codes) & _APPROVAL_FAILURE_CODES):
         return "waiting_approval", "; ".join(reason_bits) or "waiting for your approval"
     if status == "blocked":
-        # A budget/capability/provider hold: honest non-terminal block, never an approval.
+        # A budget/capability/provider hold: truthful non-terminal block, never an approval.
         return "blocked", "; ".join(reason_bits) or "blocked: required budget or capability unavailable"
     if outcome and outcome != "success":
         return "failed", "; ".join(reason_bits) or f"turn outcome: {outcome}"
@@ -304,7 +304,7 @@ def run_planner_turn(runtime, goal: dict[str, Any], base_context: dict[str, Any]
     The plan is model-authored PROPOSAL only: validation (size, unique ids, acyclic
     dependencies) happens here, and dispatch/status/completion stay controller-owned. The
     turn is a REAL registered turn (cancellable through the live-turn owner) and honors the
-    pause/stop flags. On any planner failure the caller derives the honest single-step plan.
+    pause/stop flags. On any planner failure the caller derives the truthful single-step plan.
     """
     from core.live_turns import register_turn, unregister_turn
     from core.web.api.runtime import run_agent
@@ -438,7 +438,7 @@ def execute_goal(
                 session_id=session_id,
             )
             if _paused_or_stopped(worker):
-                # The planner turn is accounted like any dispatch: settle it honestly.
+                # The planner turn is accounted like any dispatch: settle it truthfully.
                 return
             if planner_steps is None:
                 planner_steps = [{"id": "step-1", "title": str(goal.get("objective") or "")[:300]}]
@@ -687,7 +687,7 @@ def execute_goal(
                 save_goal(goal, expected_epoch=epoch)
                 _emit("Goal blocked: " + str(goal.get("last_reason")))
                 return
-            # failed: bounded repair, then honest failure
+            # failed: bounded repair, then truthful failure
             if attempt < MAX_STEP_ATTEMPTS:
                 step["state"] = "pending"
                 step["reason"] = reason
@@ -748,7 +748,7 @@ def retry_waiting_step(goal_id: str, *, approval_token: str = "") -> dict[str, A
     The token is resolved by the served layer from the goal's recorded pending approval (the
     same approval the step's turn minted, bound to the exact action and arguments by the
     existing consult); it is armed on the worker and applied ONCE to the waiting step's next
-    dispatch. Refuses honestly when the goal is not in a holding state or the recorded
+    dispatch. Refuses truthfully when the goal is not in a holding state or the recorded
     approval has not been explicitly approved.
     """
     goal = load_goal(goal_id)

@@ -219,7 +219,7 @@ class _ScriptedAgent:
 
     Every answer it produces is labeled synthetic in the transcript, and its step answers
     record the same ``tool_executed`` events the real tool loop records, so verification
-    reads the honest ledger shape.
+    reads the truthful ledger shape.
     """
 
     def __init__(self) -> None:
@@ -398,10 +398,10 @@ def test_duplicate_start_asks_one_clarification_and_never_restarts() -> None:
         assert goal["objective"] == "the sharpened objective"
 
 
-# ---------------------------------------------------------------- journey 2: failing verification repaired, then honest failure
+# ---------------------------------------------------------------- journey 2: failing verification repaired, then truthful failure
 
 
-def test_failed_verification_repairs_then_fails_honestly_without_completed_badge() -> None:
+def test_failed_verification_repairs_then_fails_truthfully_without_completed_badge() -> None:
     agent = _ScriptedAgent()
     agent.fail_step_writes = {"index.html"}
     with mock.patch("core.web.api.runtime.run_agent", agent):
@@ -533,7 +533,7 @@ def test_state_door_hydrates_and_refuses_foreign_chat_controls() -> None:
         assert payload["goal"] is None
         status, payload = _post(_APP, "/api/goal/stop", {"session_id": OTHER, "goal_id": goal_id})
         assert status == 403
-        # controls without any goal row refuse honestly
+        # controls without any goal row refuse truthfully
         status, payload = _post(_APP, "/api/goal/stop", {"session_id": OTHER, "goal_id": "goal-nope"})
         assert status == 404
         agent.step_gate.set()
@@ -572,7 +572,7 @@ def test_restart_reconciliation_reads_running_goals_as_interrupted() -> None:
     }
     plan["steps"][0]["state"] = "running"
     save_goal(goal)
-    # The daemon died: no worker is registered. Startup reconciliation runs the honest sweep.
+    # The daemon died: no worker is registered. Startup reconciliation runs the truthful sweep.
     assert reconcile_on_startup() >= 1
     status, payload = _get(_APP, f"/api/goal/state?session={SESSION}")
     view = payload["goal"]

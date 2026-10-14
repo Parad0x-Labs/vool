@@ -1,6 +1,6 @@
 """Served /goal surface: the chat-ingress adapter and the owner-local control routes.
 
-The chat ingress adapter turns a ``/goal`` composer message into a short, honest NDJSON turn
+The chat ingress adapter turns a ``/goal`` composer message into a short, truthful NDJSON turn
 (usage text, status, control receipt, or goal creation) — the same wire shape every chat turn
 uses, so the existing page renders it with no new transport. Goal execution then runs in a
 detached worker thread (registered BEFORE the thread starts, so a control racing the first
@@ -110,7 +110,7 @@ def _run_worker(runtime, worker: _GoalWorker, goal_id: str, base_context: dict[s
     try:
         execute_goal(runtime, goal_id, base_context=base_context, model=model)
     except Exception:
-        # A worker crash must not leave the goal lying "running" forever: record the honest
+        # A worker crash must not leave the goal lying "running" forever: record the truthful
         # failure. The exception detail stays in the server log, not in the goal record.
         import logging
 
@@ -372,7 +372,7 @@ def _rebuild_exec_context(goal: dict[str, Any]) -> dict[str, Any]:
 
 def goal_state_payload(session_id: str) -> dict[str, Any]:
     """The canonical hydration snapshot for the card. An orphaned running goal (its worker
-    died with a previous process and startup reconciliation has not run) reads honestly as
+    died with a previous process and startup reconciliation has not run) reads truthfully as
     interrupted — hydration never resurrects running."""
     from core.goal_workflow import reconcile_goal_if_orphaned
 

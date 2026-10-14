@@ -87,7 +87,7 @@ MAX_STEP_ATTEMPTS = 2
 MAX_PLAN_STEPS = 8
 
 #: Total bounded dispatch budget per goal (planner + steps + repairs). Crossing it fails the
-#: goal honestly instead of looping.
+#: goal truthfully instead of looping.
 MAX_GOAL_TURNS = 20
 
 _LOCK = threading.RLock()
@@ -418,7 +418,7 @@ def parse_planner_answer(answer: str) -> list[dict[str, Any]] | None:
     """Extract the planner's strict JSON plan from an answer, or None.
 
     The planner is asked to reply with ONLY a JSON object; fenced or bare are both accepted.
-    Anything unparsable yields None — the caller then derives an honest single-step plan
+    Anything unparsable yields None — the caller then derives an truthful single-step plan
     instead of inventing structure the model did not state.
     """
     text = str(answer or "").strip()
@@ -441,7 +441,7 @@ def parse_planner_answer(answer: str) -> list[dict[str, Any]] | None:
 
 
 def derived_single_step_plan(objective: str) -> dict[str, Any]:
-    """The honest fallback when no planner produced structure: ONE explicit step."""
+    """The truthful fallback when no planner produced structure: ONE explicit step."""
     return build_plan(
         [{"id": "step-1", "title": objective[:300], "details": ""}],
         provenance="derived",
@@ -705,7 +705,7 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
     re-dispatch: a step whose declared verification already holds in its own turn's ledger
     events is COMPLETED (the effect committed before the interruption) and is never replayed;
     a step whose expected tool ran but could not be verified is a RECONCILIATION NEED
-    (blocked, honest reason) — never blindly replayed; only a step with no recorded effect
+    (blocked, truthful reason) — never blindly replayed; only a step with no recorded effect
     evidence returns to pending for a fresh dispatch.
     """
     goal = load_goal(goal_id)
@@ -737,7 +737,7 @@ def request_resume(goal_id: str, *, source_context: dict[str, Any] | None = None
             reconcile_interrupted_step(goal, step)
         elif step.get("state") == "blocked" and "reconcile" not in str(step.get("reason") or ""):
             # A budget/capability hold resumes optimistically; the next dispatch re-consults
-            # the live authority and re-blocks honestly if the need persists.
+            # the live authority and re-blocks truthfully if the need persists.
             step["state"] = "pending"
             step["reason"] = ""
     save_goal(goal)
@@ -847,7 +847,7 @@ def _freeze_running_steps(goal: dict[str, Any], state: str, reason: str) -> None
 
 # ---------------------------------------------------------------------------
 # Startup reconciliation: a goal recorded running whose worker died with the process is
-# honestly interrupted — never silently resurrected as running, never left "running" forever.
+# truthfully interrupted — never silently resurrected as running, never left "running" forever.
 # ---------------------------------------------------------------------------
 
 def reconcile_on_startup() -> int:
@@ -872,7 +872,7 @@ def reconcile_on_startup() -> int:
 
 
 def reconcile_goal_if_orphaned(goal_id: str) -> bool:
-    """One-goal honest hydration: a goal recorded mid-dispatch (running/planning/queued)
+    """One-goal truthful hydration: a goal recorded mid-dispatch (running/planning/queued)
     whose worker is NOT registered reads as interrupted. Holding states (paused,
     waiting_approval) legitimately have no worker; interrupted and terminal goals are never
     resurrected here — only an explicit resume/stop moves them."""

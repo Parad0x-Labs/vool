@@ -486,7 +486,7 @@ def test_daemon_restart_mid_goal_fails_closed():
 
     goal = _goal("chat-a")
     # A fresh daemon process has no in-memory worker registry; this test process never
-    # registered one for the goal either, which is the same honest starting point.
+    # registered one for the goal either, which is the same truthful starting point.
     assert active_worker(goal["goal_id"]) is None
     payload = goal_state_payload("chat-a")
     state = str((payload.get("goal") or {}).get("state") or "")

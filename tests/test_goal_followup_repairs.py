@@ -467,7 +467,7 @@ def test_conversational_goal_instruction_revises_with_provenance() -> None:
         first_revision = load_goal(goal_id)["revision"]
         # Park the goal on a holding state first: the correction turn is an ordinary chat
         # turn and serializes behind the in-flight step (the existing MF-15 session gate) —
-        # the honest product flow is pause, correct, resume.
+        # the truthful product flow is pause, correct, resume.
         status, payload = _post(_APP, "/api/goal/pause", {"session_id": _canonical(goal_id), "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True
         agent2.gate.set()

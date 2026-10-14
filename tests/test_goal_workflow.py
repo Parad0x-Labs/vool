@@ -119,7 +119,7 @@ class PlanModelTests(GoalWorkflowTestBase):
         with self.assertRaises(ValueError):
             build_plan([{"id": "a", "title": "self-dep", "depends_on": ["a"]}], provenance="model")
 
-    def test_derived_single_step_plan_is_honest_fallback(self) -> None:
+    def test_derived_single_step_plan_is_truthful_fallback(self) -> None:
         plan = derived_single_step_plan("do the thing")
         self.assertEqual(plan["provenance"], "derived")
         self.assertEqual(len(plan["steps"]), 1)
@@ -306,7 +306,7 @@ class ControlSemanticsTests(GoalWorkflowTestBase):
         goal["plan"]["steps"][0]["turn_id"] = "turn-y"
         save_goal(goal)
         # The expected tool RAN in the interrupted turn but never verifiably completed:
-        # replaying it could duplicate a real effect — a reconciliation need, honestly.
+        # replaying it could duplicate a real effect — a reconciliation need, truthfully.
         with mock.patch(
             "core.goal_executor._step_events",
             return_value=[{"event_type": "tool_failed", "tool_name": "workspace.write_file", "path": "ws/a.txt"}],
@@ -356,7 +356,7 @@ class ControlSemanticsTests(GoalWorkflowTestBase):
         goal["current_step_id"] = "s1"
         goal["plan"]["steps"][0]["state"] = "waiting_approval"
         save_goal(goal)
-        # Without a recorded pending approval, the retry refuses honestly instead of
+        # Without a recorded pending approval, the retry refuses truthfully instead of
         # claiming a token was used.
         outcome = retry_waiting_step(goal["goal_id"])
         self.assertEqual(outcome["ok"], False)
@@ -418,7 +418,7 @@ class EventMappingTests(GoalWorkflowTestBase):
             reset_runtime_continuity_state,
         )
 
-        events_db = self._db_path  # shared store keeps the test simple and honest
+        events_db = self._db_path  # shared store keeps the test simple and truthful
         configure_runtime_continuity_db_path(events_db)
         try:
             goal = self._goal()

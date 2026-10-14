@@ -4,7 +4,7 @@ The planning turn's no-tools rule is enforced through the EXISTING per-call deny
 (``project_permissions``, the deny-only map every tool consult reads) — stamped by the goal
 controller after ingress, never forgeable by a client, and unable to grant anything. The
 Plan-mode goal journey proves the mode matrix holds: steps cannot mutate, nothing falsely
-completes, and the goal ends honestly without the work having been applied.
+completes, and the goal ends truthfully without the work having been applied.
 """
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ def test_planning_turn_carries_the_authority_deny_and_plan_mode_holds() -> None:
         ), "planning must deny every tool action through the authority"
 
         # The step turn claims prose success but its verification evidence never exists:
-        # bounded repair runs, then the goal FAILS honestly. Nothing is applied, nothing
+        # bounded repair runs, then the goal FAILS truthfully. Nothing is applied, nothing
         # completes.
         deadline = time.time() + 30
         goal = {}
@@ -145,7 +145,7 @@ def test_planning_turn_carries_the_authority_deny_and_plan_mode_holds() -> None:
         step = goal["plan"]["steps"][0]
         assert step["state"] == "failed"
         assert "verification not met" in (step.get("reason") or "")
-        assert step["attempts"] == 2, "the bounded repair ran before the honest failure"
+        assert step["attempts"] == 2, "the bounded repair ran before the truthful failure"
         assert not (Path(_workspace()) / "plan.html").exists(), "Plan mode applied nothing"
         from core.goal_workflow import goal_public_view
 

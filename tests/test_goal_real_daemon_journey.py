@@ -361,7 +361,7 @@ def test_real_daemon_goal_executes_real_tools_and_completes(journey) -> None:
 
     # The REAL executor runs the goal: real provider transports, the real planner turn (the
     # model-authored proposal is interpreted by the product's own lanes; when it does not
-    # survive interpretation the controller derives the honest single-step plan), and the
+    # survive interpretation the controller derives the truthful single-step plan), and the
     # real builder lane planning and writing REAL files in the disposable workspace.
     goal = _wait_goal(daemon.base_url, session, {"completed"}, timeout=240.0)
     assert goal.get("state") == "completed", json.dumps(goal)[:400]
