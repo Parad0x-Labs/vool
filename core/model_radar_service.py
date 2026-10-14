@@ -411,6 +411,16 @@ def observe_openrouter_catalog(models: Iterable[Any], *, now: str | None = None)
 # hourly through the SAME outbound door as every other catalog read and observes
 # the result. Failures are swallowed per-cycle — an outage costs one cycle, never
 # the thread. VOOL_MODEL_RADAR_POLLER=0 disables it (tests, embedded runs).
+#
+# The hourly fetch is AUTOMATIC outbound work: nobody asked for it this time. So it
+# obeys network.outbound_enabled (off on a fresh install) through
+# policy_engine.automatic_outbound_enabled(), like presence and cloud transport do.
+# The gate lives here, not in the outbound door, because the same door also serves
+# background scopes a person started (key checks, bug report send, calendar sync,
+# a Refresh click through force_catalog_refresh); those must keep working with
+# automatic outbound off. While it is off the observer does not start, so a later
+# feed poll starts it once the operator allows outbound; each cycle re-checks, so
+# turning it off again stops the fetches without a restart.
 
 _POLL_INTERVAL_SECONDS = 3600
 _observer_lock = threading.Lock()
@@ -429,16 +439,35 @@ def _poll_openrouter_once() -> bool:
         return False
 
 
+def _automatic_outbound_allowed() -> bool:
+    """The operator's standing consent for unattended network work. Unknown fails closed."""
+    try:
+        from core import policy_engine
+
+        return policy_engine.automatic_outbound_enabled() is True
+    except Exception:
+        return False
+
+
+def _observer_cycle() -> bool:
+    """One scheduled cycle: fetch only while automatic outbound is allowed."""
+    if not _automatic_outbound_allowed():
+        return False
+    return _poll_openrouter_once()
+
+
 def _observer_loop() -> None:
     while True:
         threading.Event().wait(_POLL_INTERVAL_SECONDS)
-        _poll_openrouter_once()
+        _observer_cycle()
 
 
 def ensure_background_observer() -> bool:
-    """Start the hourly observer exactly once per process. No-op when disabled/started."""
+    """Start the hourly observer once per process, only with automatic outbound allowed."""
     global _observer_started
     if str(os.environ.get("VOOL_MODEL_RADAR_POLLER") or "").strip().lower() in {"0", "off", "false"}:
+        return False
+    if not _automatic_outbound_allowed():
         return False
     with _observer_lock:
         if _observer_started:
