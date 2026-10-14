@@ -1230,15 +1230,32 @@ WEB0_URL="http://127.0.0.1:11435/web0"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
 open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+# After a Stop, auto-restart is disarmed and a stop marker remains (installer/vool_stop.py).
+# Opening VOOL on purpose arms it again and clears the marker; with no earlier Stop the
+# marker is absent and nothing runs here.
+REARM_SUPERVISOR=0
+if [[ -f "${PROJECT_ROOT}/.vool_stopped" ]]; then
+  STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+  [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+  REARM_OUT="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+  case "${REARM_OUT}" in *supervisor_started=yes*) REARM_SUPERVISOR=1 ;; esac
+fi
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    if [[ "${REARM_SUPERVISOR}" == "1" ]]; then
+      # The re-armed keep-alive supervisor starts the API itself; let it take the port
+      # before this launcher starts a second one.
+      for _ in $(seq 1 30); do is_healthy && break; sleep 1; done
+    fi
+    if ! is_healthy; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1
@@ -1267,15 +1284,32 @@ CHAT_URL="http://127.0.0.1:11435/chat"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
 open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+# After a Stop, auto-restart is disarmed and a stop marker remains (installer/vool_stop.py).
+# Opening VOOL on purpose arms it again and clears the marker; with no earlier Stop the
+# marker is absent and nothing runs here.
+REARM_SUPERVISOR=0
+if [[ -f "${PROJECT_ROOT}/.vool_stopped" ]]; then
+  STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+  [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+  REARM_OUT="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+  case "${REARM_OUT}" in *supervisor_started=yes*) REARM_SUPERVISOR=1 ;; esac
+fi
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    if [[ "${REARM_SUPERVISOR}" == "1" ]]; then
+      # The re-armed keep-alive supervisor starts the API itself; let it take the port
+      # before this launcher starts a second one.
+      for _ in $(seq 1 30); do is_healthy && break; sleep 1; done
+    fi
+    if ! is_healthy; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1
