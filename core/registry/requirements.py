@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 
+from core.chain_providers import CHAIN_PROVIDERS
 from core.cloud_providers import PROVIDERS as CLOUD_PROVIDERS
 from core.registry.codec import require
 from core.search_providers import SEARCH_PROVIDERS
@@ -17,8 +18,7 @@ from core.search_providers import SEARCH_PROVIDERS
 NEEDS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "search_web": ("Web search", "provider", tuple(cfg.label for cfg in SEARCH_PROVIDERS.values())),
     "llm_cloud": ("Cloud AI model", "provider", tuple(cfg.label for cfg in CLOUD_PROVIDERS.values())),
-    # The chain-data services VOOL's provider-key setup accepts.
-    "chain_data": ("Chain data", "provider", ("Helius", "Alchemy", "Solscan", "Etherscan")),
+    "chain_data": ("Chain data", "provider", tuple(cfg.label for cfg in CHAIN_PROVIDERS.values())),
     "solana_rpc": ("Solana connection", "vool", ()),
     "wallet": ("VOOL wallet", "vool", ()),
     "browser": ("Browser", "vool", ()),
