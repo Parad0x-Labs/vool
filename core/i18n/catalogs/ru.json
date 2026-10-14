@@ -226,7 +226,6 @@
     "addons.before_scan": "Одна проверка перед установкой",
     "addons.blocked": "Эта проверка выявила риски, либо условия установки не выполнены.",
     "addons.browse": "Обзор",
-    "addons.browse_intro": "Открывайте Hermes, OpenClaw и другие библиотеки. Проверьте требования, изучите сканирование и добавьте подходящее.",
     "addons.browse_ready_intro": "Эти навыки работают в VOOL как инструкции. Перед включением просмотрите сканирование Eyebrow. Для встроенных навыков аккаунт GitHub не нужен; некоторым требуются другие приложения или аккаунты.",
     "addons.browse_title": "Навыки от сообщества открытого кода.",
     "addons.cancel": "Отмена",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен. Попробуйте позже или из другой сети. Ничего не сохранено.",
     "keys.test.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

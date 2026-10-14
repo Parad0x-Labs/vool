@@ -226,7 +226,6 @@
     "addons.before_scan": "Một bước kiểm tra trước khi cài đặt",
     "addons.blocked": "Quét này phát hiện rủi ro hoặc điều kiện cài đặt chưa được đáp ứng.",
     "addons.browse": "Duyệt",
-    "addons.browse_intro": "Khám phá Hermes, OpenClaw và các thư viện khác. Kiểm tra yêu cầu, xem lại bản quét, rồi thêm những gì phù hợp.",
     "addons.browse_ready_intro": "Các kỹ năng này hoạt động như hướng dẫn trong VOOL. Hãy xem lại bản quét Eyebrow trước khi bật. Kỹ năng đi kèm không cần tài khoản GitHub; một số cần ứng dụng hoặc tài khoản khác.",
     "addons.browse_title": "Kỹ năng từ cộng đồng mã nguồn mở.",
     "addons.cancel": "Hủy",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
     "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

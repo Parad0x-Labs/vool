@@ -226,7 +226,6 @@
     "addons.before_scan": "בדיקה אחת לפני ההתקנה",
     "addons.blocked": "הסריקה מצאה סיכונים, או שתנאי ההתקנה לא התקיימו.",
     "addons.browse": "עיון",
-    "addons.browse_intro": "חקרו את Hermes, OpenClaw וספריות נוספות. בדקו דרישות, סקרו את הבדיקה והוסיפו מה שמתאים.",
     "addons.browse_ready_intro": "מיומנויות אלה פועלות כהוראות ב-VOOL. סקרו את בדיקת Eyebrow לפני הפעלה. מיומנויות מובנות אינן דורשות חשבון GitHub; חלקן דורשות אפליקציות או חשבונות אחרים.",
     "addons.browse_title": "מיומנויות מקהילת הקוד הפתוח.",
     "addons.cancel": "ביטול",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט. נסו שוב מאוחר יותר או מרשת אחרת. שום דבר לא אוחסן.",
     "keys.test.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

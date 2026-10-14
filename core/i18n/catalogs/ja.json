@@ -226,7 +226,6 @@
     "addons.before_scan": "インストール前の1回のチェック",
     "addons.blocked": "このスキャンでリスクが見つかったか、インストール条件を満たしませんでした。",
     "addons.browse": "見る",
-    "addons.browse_intro": "Hermes、OpenClawほかのライブラリを探索します。要件を確認し、スキャンを確認して、合うものを追加しましょう。",
     "addons.browse_ready_intro": "これらのスキルはVOOLへの指示として機能します。有効化する前にEyebrowのスキャンを確認してください。同梱スキルにGitHubアカウントは不要です。一部には他のアプリやアカウントが必要です。",
     "addons.browse_title": "オープンソースコミュニティのスキル。",
     "addons.cancel": "キャンセル",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。後でもう一度試すか、別のネットワークからお試しください。何も保存されていません。",
     "keys.test.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。"
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

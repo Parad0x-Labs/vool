@@ -226,7 +226,6 @@
     "addons.before_scan": "Una comprobación antes de instalar",
     "addons.blocked": "Este análisis encontró riesgos o no se cumplieron las condiciones de instalación.",
     "addons.browse": "Explorar",
-    "addons.browse_intro": "Explora Hermes, OpenClaw y otras bibliotecas. Comprueba los requisitos, revisa el análisis y añade lo que te sirva.",
     "addons.browse_ready_intro": "Estas habilidades funcionan como instrucciones en VOOL. Revisa el análisis de Eyebrow antes de activar una. Las incluidas no necesitan cuenta de GitHub; algunas requieren otras apps o cuentas.",
     "addons.browse_title": "Habilidades de la comunidad de código abierto.",
     "addons.cancel": "Cancelar",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada. Prueba más tarde o desde otra red. No se guardó nada.",
     "keys.test.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

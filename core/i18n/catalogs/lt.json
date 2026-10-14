@@ -226,7 +226,6 @@
     "addons.before_scan": "Vienas patikrinimas prieš diegimą",
     "addons.blocked": "Šis patikrinimas rado rizikų arba diegimo sąlygos nebuvo įvykdytos.",
     "addons.browse": "Naršyti",
-    "addons.browse_intro": "Tyrinėkite Hermes, OpenClaw ir kitas bibliotekas. Patikrinkite reikalavimus, peržiūrėkite nuskaitymą ir pridėkite, kas tinka.",
     "addons.browse_ready_intro": "Šie įgūdžiai VOOL veikia kaip nurodymai. Prieš įjungdami peržiūrėkite Eyebrow nuskaitymą. Įdiegti įgūdžių GitHub paskyros nereikalauja; kai kuriems reikia kitų programų ar paskyrų.",
     "addons.browse_title": "Įgūdžiai iš atvirojo kodo bendruomenės.",
     "addons.cancel": "Atšaukti",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
     "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

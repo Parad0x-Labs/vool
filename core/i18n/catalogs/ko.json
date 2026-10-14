@@ -226,7 +226,6 @@
     "addons.before_scan": "설치 전 한 번 확인",
     "addons.blocked": "이 검사에서 위험이 발견되었거나 설치 조건이 충족되지 않았습니다.",
     "addons.browse": "탐색",
-    "addons.browse_intro": "Hermes, OpenClaw 및 기타 라이브러리를 탐색하세요. 요구 사항을 확인하고 검사를 검토한 후 맞는 것을 추가하세요.",
     "addons.browse_ready_intro": "이 스킬은 VOOL에서 지침으로 작동합니다. 활성화하기 전에 Eyebrow 검사를 검토하세요. 포함된 스킬에는 GitHub 계정이 필요 없고, 일부는 다른 앱이나 계정이 필요합니다.",
     "addons.browse_title": "오픈 소스 커뮤니티의 스킬.",
     "addons.cancel": "취소",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다. 나중에 다시 시도하거나 다른 네트워크에서 시도하세요. 아무 것도 저장되지 않았습니다.",
     "keys.test.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

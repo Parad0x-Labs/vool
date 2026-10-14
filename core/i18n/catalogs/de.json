@@ -226,7 +226,6 @@
     "addons.before_scan": "Eine Prüfung vor der Installation",
     "addons.blocked": "Diese Prüfung fand Risiken oder die Installationsbedingungen waren nicht erfüllt.",
     "addons.browse": "Durchsuchen",
-    "addons.browse_intro": "Erkunde Hermes, OpenClaw und weitere Bibliotheken. Prüfe die Voraussetzungen, lies den Scan und füge hinzu, was passt.",
     "addons.browse_ready_intro": "Diese Skills wirken in VOOL als Anleitungen. Prüfe den Eyebrow-Scan, bevor du einen aktivierst. Enthaltene Skills brauchen kein GitHub-Konto; manche brauchen andere Apps oder Konten.",
     "addons.browse_title": "Skills aus der Open-Source-Community.",
     "addons.cancel": "Abbrechen",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt. Versuche es später oder aus einem anderen Netz erneut. Nichts wurde gespeichert.",
     "keys.test.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt."
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

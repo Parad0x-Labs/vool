@@ -1233,12 +1233,26 @@ open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    # After "Stop VOOL", auto-restart is disarmed and the .vool_stopped marker remains
+    # (installer/vool_stop.py). This open is on purpose, so arm it again and clear the
+    # marker. Only here, while VOOL is not running: a supervisor armed next to a running
+    # API would keep starting a second one. With no earlier Stop nothing runs.
+    SUPERVISOR_STARTED=0
+    REARM_PY="${PROJECT_ROOT}/.venv/bin/python"
+    if [[ -f "${PROJECT_ROOT}/.vool_stopped" && -x "${REARM_PY}" ]]; then
+      REARM_OUT="$(cd "${PROJECT_ROOT}" && "${REARM_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+      case "${REARM_OUT}" in *supervisor_started=yes*) SUPERVISOR_STARTED=1 ;; esac
+    fi
+    # A re-armed supervisor starts the API itself; starting a second one would fight it
+    # for the port. Otherwise start VOOL here as before.
+    if [[ "${SUPERVISOR_STARTED}" != "1" ]]; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1
@@ -1270,12 +1284,26 @@ open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    # After "Stop VOOL", auto-restart is disarmed and the .vool_stopped marker remains
+    # (installer/vool_stop.py). This open is on purpose, so arm it again and clear the
+    # marker. Only here, while VOOL is not running: a supervisor armed next to a running
+    # API would keep starting a second one. With no earlier Stop nothing runs.
+    SUPERVISOR_STARTED=0
+    REARM_PY="${PROJECT_ROOT}/.venv/bin/python"
+    if [[ -f "${PROJECT_ROOT}/.vool_stopped" && -x "${REARM_PY}" ]]; then
+      REARM_OUT="$(cd "${PROJECT_ROOT}" && "${REARM_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+      case "${REARM_OUT}" in *supervisor_started=yes*) SUPERVISOR_STARTED=1 ;; esac
+    fi
+    # A re-armed supervisor starts the API itself; starting a second one would fight it
+    # for the port. Otherwise start VOOL here as before.
+    if [[ "${SUPERVISOR_STARTED}" != "1" ]]; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1

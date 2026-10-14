@@ -226,7 +226,6 @@
     "addons.before_scan": "安装前的一次检查",
     "addons.blocked": "此扫描发现风险，或未满足安装条件。",
     "addons.browse": "浏览",
-    "addons.browse_intro": "探索 Hermes、OpenClaw 等库。检查要求、审阅扫描结果，然后添加合适的内容。",
     "addons.browse_ready_intro": "这些技能在 VOOL 中以指令形式工作。启用前请审阅 Eyebrow 扫描。内置技能无需 GitHub 账户；部分需要其他应用或账户。",
     "addons.browse_title": "来自开源社区的技能。",
     "addons.cancel": "取消",
@@ -2390,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。请稍后重试，或换用其他网络。没有存储任何内容。",
     "keys.test.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。"
   },
-  "source_catalog_sha256": "be72ebae6073937ca9286d5443e2171ebaf41d14fb1ae3f50db76d21fe1477da",
+  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
