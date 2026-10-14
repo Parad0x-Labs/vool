@@ -8,18 +8,77 @@ Use the existing VPS for the static website, API and private account/quarantine 
 
 1. Create the two community repositories from the reviewed blueprints, protect main and require independent review plus an authenticated admission check from its expected external GitHub App (or an independently protected workflow with verified workload identity). Candidate-run blueprint checks are advisory. Follow [ADMISSION-SERVICE.md](ADMISSION-SERVICE.md) and inspect the applied required-check source. Protect workflows, policies, roots and CODEOWNERS. A PR's own modified workflow is not trustworthy admission evidence. Published content must retain its original author and licence.
 2. Configure a pinned scanner policy for the actual latest released VOOL build and supported platforms. Supply all eleven required reports from trusted workers. Unsupported coverage remains held. Bind workload identity to protected workflow/code revisions; never expose review/signing credentials to candidate execution.
-3. Establish root, admission, review and online-catalog key custody. With automatic checks, the signing Mac holds the root, admission and review keys and the server holds only the online catalog key (see [Automatic checks with the signing Mac](#automatic-checks-with-the-signing-mac)). A deployment can require two or more signers per role instead. Publish only public keys in a reviewed trust anchor. The web process holds no admission or review private key.
+3. Establish root, admission, review and online-catalog key custody. With automatic checks, the signer holds the admission and review keys, the root key stays offline or on the signing Mac, and the server holds only the online catalog key (see [Automatic checks on GitHub](#automatic-checks-on-github) and [Automatic checks with the signing Mac](#automatic-checks-with-the-signing-mac)). A deployment can require two or more signers per role instead. Publish only public keys in a reviewed trust anchor. The web process holds no admission or review private key.
 4. Private upload → signed archive/secret prepublication reports → author consent to the exact checksum → isolated publisher export → GitHub PR → final exact-commit reports → protected merge → offline admission signatures → offline catalog authorization → short-lived online catalog signature → canonical catalog PR/merge. Rejects remain visible only to the author. Direct GitHub PRs were public before scanning.
 5. Register GitHub login with minimal public identity scope, Google with OpenID only, and Apple with a Services ID associated with a configured Sign in with Apple app. Configure exact callback URLs. The provider login token has no publication authority. Use a separate GitHub App with narrowly scoped, short-lived publisher credentials in the isolated publisher process.
 6. Configure the service origin and immutable catalog/artifact inputs. Run `vool-registry check-config --config CONFIG` before starting it. The command fails if root, catalog, artifacts or requested provider registrations are missing/stale. Never use test fixtures as a production root or report.
 7. Reverse proxy only `/registry/api/` to the localhost service. Preserve the existing relay/routes. Disable access, error, proxy, journal and backup request logging that could retain addresses or callback codes. Audit hosting/provider retention separately; do not claim no party ever processes an IP.
 8. Use private directory mode 0700 and database mode 0600. Encrypt off-host backups, restrict operators, expire private quarantine after seven days and verify an actual restore. The restored catalog must meet signature/freshness/rollback rules; old account backups must respect the deletion retention policy.
-9. The team's publisher name `vool-team` is reserved. With automatic checks, the signing Mac's `team` command names its members by GitHub account number; members publish under it and its profile shows as official. Without them, sign in with the team's own GitHub account, choose the name on its profile, then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
+9. The team's publisher name `vool-team` is reserved. With automatic checks, a `team` line in the signer's `team-steps.txt` (or the signing Mac's `team` command) names its members by GitHub account number; members publish under it and its profile shows as official. Without them, sign in with the team's own GitHub account, choose the name on its profile, then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
 10. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
+
+## Automatic checks on GitHub
+
+The signer can run as a GitHub Actions job instead of on a Mac, so no computer has to stay on. It is the same signer, with the same checks, review model, limits and hand steps; only where it keeps its keys and state differs. It runs in its own public repository that only the team can change. GitHub's standard runners cost nothing for a public repository.
+
+Set it up once:
+
+1. On the server, create the online catalog key: `vool-registry catalog-key --config CONFIG`. It prints the public key.
+2. Create an empty public repository for the signer, for example `skill-codex-signer`. Give only the team write access, turn on two-factor sign-in for every team account, and clone it.
+3. From a VOOL checkout at the commit whose checks the signer should use, on a computer where `gh` is signed in as an owner of that repository, run `python -m registry_service.github_authority setup --repo CLONE --github OWNER/NAME --catalog-key PUBLIC_KEY --model MODEL --cap 20 --offline FOLDER`. `FOLDER` must be a new folder outside the clone. Choose a passphrase of at least 12 characters for the main (root) key.
+   - The admission key, the review key and the key to the sealed state go straight into the repository's Actions secrets. They are never shown or written to disk.
+   - `FOLDER` gets `root.pem` (the main key, encrypted with the passphrase) and `trusted-root.json`.
+   - The clone gets `authority/` (the trust root, the review settings, the pinned VOOL commit and the state), `team-steps.txt`, the workflow and a README.
+   - Without `--targets FILE` it signs for the macOS Apple Silicon and Intel builds of VOOL's newest three releases.
+4. Add the last two secrets yourself; each command asks for its value: `gh secret set SKILL_CODEX_SERVER --repo OWNER/NAME` (the service's https address) and `gh secret set OPENROUTER_API_KEY --repo OWNER/NAME` (the review model's key).
+5. Commit and push the clone. Keep `FOLDER` and its passphrase offline, for example on a USB stick. The main key is needed only to change the other keys.
+6. Copy `authority/trusted-root.json` to the server's `trusted_root` path and into the app release as `core/registry/trusted-root.json`. Add `"authority": true` to the service configuration and restart it.
+
+Don't require pull requests on the signer's `main` branch, because the job commits its state there with the workflow's own token. Block force-pushes and deletion of `main` instead.
+
+The job runs every five minutes (GitHub sometimes starts scheduled jobs late), right after a change to `team-steps.txt`, and from the Actions tab with Run workflow. Each run:
+
+- applies `team-steps.txt`;
+- once a day, signs for VOOL's newest three releases and runs every listed skill through today's checks again; a skill that fails them leaves the list;
+- takes waiting uploads, checks the exact bytes, asks the review model, and signs or refuses them as the Mac does;
+- renews entries and the 7-day list as the Mac does.
+
+Before anything is sent to the service, the run commits and pushes its state, so a run that stops halfway never signs the same list number twice, and what it spent before each send stays counted. Each time it saves, it looks at GitHub first: a run that finds another run's change stops before it sends anything, and the next run carries on. `authority/state.json` holds the signed list, the marks and the builds, which are public anyway. `authority/private.bin` is sealed with AES-GCM; it holds what is not public: signed uploads not listed yet, the review model's verdicts, the counts per creator and the spending. The run log is public, so it shows only counts and any `team-steps.txt` lines that couldn't apply, never which uploads were refused or are waiting.
+
+Only the "Sign" step holds the keys or can push. Before it, the job checks that `authority/vool-commit` is on VOOL's own main branch, and installs VOOL's dependencies only at the versions and hashes in VOOL's lock file (`registry_service/github/requirements.txt`; after a change to `uv.lock`, a test fails until that file is made again with the command at its top).
+
+The team's hand steps are lines in `team-steps.txt`. Edit it on GitHub (the pencil button works on a phone) and commit; the signer applies it within a few minutes. GitHub's two-factor sign-in protects it. Delete a line to undo its step, except a removal: deleting a `removed` line lets new uploads of the skill in again, but the versions it took out stay revoked, so the skill comes back only with a higher version number.
+
+```text
+tested PUBLISHER/NAME 1.2.0      "Tested by Parad0x Labs" on exactly that version
+highlighted PUBLISHER/NAME       the Highlighted spot
+suspended PUBLISHER              refuses their uploads and waiting submissions
+removed PUBLISHER/NAME           takes every version out of the list and revokes it; new uploads of it are refused
+team vool-team ID ID             a team name and its members' GitHub account numbers
+```
+
+If a line can't be read, nothing in the file is applied until it is fixed, and the removals already in force keep holding. A `tested` line for a version that isn't listed, or a `highlighted` line for a skill that isn't listed, waits, and the run log names it.
+
+`authority/vool-commit` pins the VOOL commit whose checks the job runs. To use newer checks, commit there the full id of a newer commit on VOOL's main branch.
+
+What happens when something stops:
+
+- GitHub Actions is down: as when the Mac is off, the signed list runs out six to seven days after the last run, and nothing unsigned is served.
+- The service doesn't answer: the run says so and stays green while more than two days of the signed list are left, then fails, so GitHub sends its failure email to whoever last changed the workflow's schedule.
+- The `OPENROUTER_API_KEY` secret is missing: every run fails at its start and nothing is reviewed or refused, so no creator is told a reason that is the team's.
+- The service no longer has a listed skill's bytes (after a restore from an older backup, say): that skill leaves the list at the next daily check, and the rest stay listed.
+- GitHub's release list can't be read: the run keeps the builds it has and asks again next time.
+- GitHub turns off scheduled jobs in a public repository after 60 days without activity. The signer commits every day, but if the schedule is ever turned off, turn it back on from the Actions tab.
+- A package makes the checks fail in a way nobody planned for: that upload is refused with "Our checks couldn't read this skill", as on the Mac.
+
+Limits, so say nothing stronger:
+
+- Whoever can change the signer's repository can change its workflow and reach the online keys. Keep write access to the team, with two-factor sign-in, and look at every change to the workflow.
+- The other limits of the signing Mac apply as written below: one signature per role, a 7-day list, the check suite named by its major version, and one review model.
 
 ## Automatic checks with the signing Mac
 
-The owner's Mac is the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members and removals, each behind a code from an authenticator app.
+Instead of the GitHub job, the owner's Mac can be the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members and removals, each behind a code from an authenticator app.
 
 1. On the server, create the online catalog key once: `vool-registry catalog-key --config CONFIG`. It writes `catalog.key` (mode 0600) in the private directory and prints the public key. An existing key is kept.
 2. On the Mac, write the released VOOL builds to a file such as `targets.json` (`[{"version", "commit", "platform"}, ...]`), then run `python -m registry_service.mac_authority setup --dir FOLDER --server https://SITE --catalog-key PUBLIC_KEY --targets targets.json --provider openrouter --model MODEL --cap 20`. `FOLDER` must not exist yet; it is created with mode 0700. Choose a passphrase of at least 12 characters for the main (root) key. Add the printed `otpauth://` line to the authenticator app (as a QR code or by typing the key), then type the code it shows to confirm. `--provider ollama` uses a local model at `127.0.0.1:11434` instead, with no spend.

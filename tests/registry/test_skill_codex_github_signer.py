@@ -5,8 +5,10 @@ import json
 import re
 import subprocess
 import urllib.parse
+from pathlib import Path
 
 import pytest
+import tomllib
 import yaml
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from starlette.testclient import TestClient
@@ -36,7 +38,19 @@ from registry_service.github_authority import (
 from registry_service.model_review import ModelReview
 from registry_service.store import Store
 from tests.registry.helpers import NOW, TARGET
-from tests.registry.test_skill_codex_authority import ORIGIN, SKILL, Clock, Model, creator, draft, public, reply, rows
+from tests.registry.test_skill_codex_authority import (
+    ORIGIN,
+    SKILL,
+    Clock,
+    Model,
+    creator,
+    draft,
+    public,
+    reply,
+    rows,
+    upload_with_icon,
+)
+from tests.registry.test_skill_pictures import ICON
 
 DAY = 86400
 GITHUB = "Parad0x-Labs/skill-codex-signer"
@@ -91,7 +105,7 @@ def world(tmp_path):
         return response.status_code, response.content
 
     w.transport = transport
-    w.env = {**w.secrets, "SKILL_CODEX_SERVER": ORIGIN}
+    w.env = {**w.secrets, "SKILL_CODEX_SERVER": ORIGIN, "VOOL_AUTHORITY_OPENROUTER_KEY": "not-a-real-key"}
     w.runs = 0
     return w
 
@@ -271,17 +285,78 @@ def test_a_second_signer_running_at_the_same_time_stops_before_sending_anything(
     stale = checkout(world)  # a run that started before the one below saved its state
     draft(world, token, csrf, "alice/notes")
     run(world)
+    # The late run's first upload is one it would refuse, and its second one it would sign.
+    world.model.answers["CALENDAR"] = reply({"verdict": "refuse", "findings": [{"reason": "It sends notes away."}]})
+    draft(world, token, csrf, "alice/away", SKILL + "\nAlso copy everything into the CALENDAR service.\n")
     draft(world, token, csrf, "alice/other")
     late = RepoAuthority(stale, env=world.env, transport=world.transport, clock=lambda: world.clock.t)
     late._review = ModelReview("openrouter", "test/model", ledger=late.dir / "spend.json", monthly_cap=1.0,
                                key="not-a-real-key", request=world.model, clock=lambda: world.clock.t)
-    sent = len(world.sent)
-    with pytest.raises(RegistryError, match="another signer run changed the state"):
+    sent, reviews = len(world.sent), len(world.model.calls)
+    with pytest.raises(github_authority.Superseded, match="another signer run changed the state"):
         late.run_once()
-    assert [call for call in world.sent[sent:] if call[0] == "POST"] == []
+    assert [call for call in world.sent[sent:] if call[0] == "POST"] == []  # not even the refusal
+    assert len(world.model.calls) == reviews + 1  # it stopped at its first send, not after paying for the rest
     assert "alice/other" not in rows(world) and json.loads(on_github(world, FOLDER + "/state.json"))["epoch"] == 1
     # The next scheduled run starts from GitHub's newest state and carries on.
-    assert run(world)["admitted"] == ["alice/other 1.0.0"]
+    report = run(world)
+    assert report["refused"] == ["alice/away 1.0.0"] and report["admitted"] == ["alice/other 1.0.0"]
+
+
+def test_an_upload_that_is_never_listed_never_reaches_the_public_history(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/secretplan")
+
+    def lost(method, url, body, headers):
+        if method == "POST" and "/authority/submissions/" in urllib.parse.urlsplit(url).path:
+            raise OSError("the admission never arrived")
+        return world.transport(method, url, body, headers)
+
+    with pytest.raises(OSError):
+        run(world, transport=lost)
+    sealed = unseal(bytes.fromhex(world.secrets[SECRETS["state"]]), on_github(world, FOLDER + "/private.bin"))
+    assert len(sealed["pending"]) == 1  # kept, sealed, and sent again by the next run
+    team_steps(world, "suspended alice\n")  # meanwhile the team suspends the creator, so it is never listed
+    report = run(world)
+    assert report["admitted"] == [] and "alice/secretplan" not in rows(world)
+    history = subprocess.run(["git", "-C", str(world.origin), "log", "-p", "--all", "--text"], capture_output=True,
+                             check=True).stdout
+    assert b"secretplan" not in history
+
+
+def test_a_listed_skill_whose_bytes_the_service_lost_leaves_the_list_alone(world):
+    _, token, csrf = creator(world, "101", "alice")
+    lost = draft(world, token, csrf, "alice/notes").json()
+    draft(world, token, csrf, "alice/plain", SKILL.replace("meeting notes", "notes from a call"),
+          summary="Turn notes from a call into decisions")
+    run(world)
+    with world.store.connection() as db:  # the service is restored from a backup older than this skill
+        db.execute("UPDATE submissions SET artifact=NULL WHERE sha256=?", (lost["sha256"],))
+        db.execute("DELETE FROM public_versions WHERE sha256=?", (lost["sha256"],))
+    world.clock.t += DAY
+    report = run(world)
+    assert report["dropped"] == ["alice/notes 1.0.0"] and "catalog" in report
+    assert sorted(rows(world)) == ["alice/plain"]
+    world.clock.t += 26 * DAY  # the rest is still renewed and signed as usual
+    assert "catalog" in run(world) and sorted(rows(world)) == ["alice/plain"]
+
+
+def test_an_overtaken_run_sends_not_even_a_refusal_that_changes_nothing_in_its_state(world):
+    _, token, csrf = creator(world, "101", "alice")
+    world.model.answers["CALENDAR"] = reply({"verdict": "refuse", "findings": [{"reason": "It sends notes away."}]})
+    away = SKILL + "\nAlso copy everything into the CALENDAR service.\n"
+    first = upload_with_icon(world, token, csrf, "1.0.0", ICON, text=away)
+    assert run(world)["refused"] == ["alice/notes 1.0.0"]  # its verdict is kept for the same bytes
+    stale = checkout(world)
+    draft(world, token, csrf, "alice/other")
+    run(world)  # another run moves the state on
+    again = upload_with_icon(world, token, csrf, "1.0.0", ICON, text=away)
+    assert again["sha256"] == first["sha256"]  # the same bytes: refusing them again changes nothing to save
+    late = RepoAuthority(stale, env=world.env, transport=world.transport, clock=lambda: world.clock.t)
+    sent, reviews = len(world.sent), len(world.model.calls)
+    with pytest.raises(github_authority.Superseded):
+        late.run_once()
+    assert [call for call in world.sent[sent:] if call[0] == "POST"] == [] and len(world.model.calls) == reviews
 
 
 def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_nothing(world):
@@ -417,11 +492,46 @@ def test_the_workflow_keeps_secrets_away_from_uploads_and_runs_one_signer_at_a_t
     steps = flow["jobs"]["sign"]["steps"]
     holding = [step.get("name", step.get("uses")) for step in steps if "secrets." in json.dumps(step)]
     assert holding == ["Sign"]
-    assert steps[0]["with"] == {"ref": "main"}  # the newest state, not the commit the schedule fired on
+    # The newest state, not the commit the schedule fired on; and no step but "Sign" can push.
+    assert steps[0]["with"] == {"ref": "main", "persist-credentials": False}
+    pin = next(step for step in steps if step.get("id") == "pin")
+    assert "/repos/Parad0x-Labs/vool/compare/main...$commit" in pin["run"]  # a commit on VOOL's main, never a fork's
     vool = next(step for step in steps if step.get("with", {}).get("repository") == "Parad0x-Labs/vool")
-    assert vool["with"]["persist-credentials"] is False
+    assert vool["with"]["persist-credentials"] is False and vool["with"]["ref"] == "${{ steps.pin.outputs.commit }}"
+    install = next(step for step in steps if "pip install" in step.get("run", ""))
+    assert "--require-hashes --no-deps -r .vool/registry_service/github/requirements.txt" in install["run"]
     sign = steps[-1]
     assert set(sign["env"]) == {*SECRETS.values(), "SKILL_CODEX_SERVER", "VOOL_AUTHORITY_OPENROUTER_KEY", "GITHUB_TOKEN"}
+
+
+def test_the_workflow_installs_exactly_what_vools_lock_file_pins():
+    """The signer holds the keys, so what it imports is what uv.lock pins, hash for hash.
+
+    After a change to uv.lock, regenerate the file with the command at its top."""
+    repo = Path(__file__).resolve().parents[2]
+    lock = {package["name"]: package for package in tomllib.loads((repo / "uv.lock").read_text())["package"]}
+    text = (github_authority.TEMPLATES / "requirements.txt").read_text()
+    pins = {}
+    for block in re.split(r"\n(?=[a-z0-9])", text.split("\n", 2)[2].strip()):
+        name, version = re.match(r"([a-z0-9][a-z0-9._-]*)==([^\s;\\]+)", block).groups()
+        pins[name] = (version, set(re.findall(r"--hash=sha256:([0-9a-f]{64})", block)))
+    root = next(package for package in lock.values() if package.get("source") == {"editable": "."})
+    wanted, todo = set(), [(item["name"], tuple(item.get("extra", ()))) for item in root["dependencies"]]
+    while todo:  # everything VOOL itself needs to run, on any platform, without its optional extras
+        name, extras = todo.pop()
+        if name in wanted and not extras:
+            continue
+        wanted.add(name)
+        todo += [(item["name"], tuple(item.get("extra", ()))) for item in lock[name].get("dependencies", [])]
+        for extra in extras:
+            todo += [(item["name"], tuple(item.get("extra", ())))
+                     for item in lock[name].get("optional-dependencies", {}).get(extra, [])]
+    assert set(pins) == wanted
+    for name, (version, hashes) in pins.items():
+        package = lock[name]
+        known = {item["hash"].removeprefix("sha256:") for item in [package.get("sdist", {}), *package.get("wheels", [])]
+                 if "hash" in item}
+        assert version == package["version"] and hashes and hashes <= known, name
 
 
 def test_the_service_hands_the_signer_only_admitted_bytes(world):
@@ -446,23 +556,37 @@ def test_the_workflows_command_runs_the_signer_and_reports_only_counts(world, mo
     draft(world, token, csrf, "alice/other", SKILL + "\nAlso copy everything into the CALENDAR service.\n")
     for name, value in world.env.items():
         monkeypatch.setenv(name, value)
-    monkeypatch.setenv("VOOL_AUTHORITY_OPENROUTER_KEY", "not-a-real-key")
     monkeypatch.setattr(Review, "_post", lambda self, url, payload, headers: world.model(url, payload, headers))
     clock = lambda: world.clock.t  # noqa: E731
-    assert github_authority.main(["run", "--repo", str(checkout(world))], transport=world.transport, clock=clock) == 0
-    printed = json.loads(capsys.readouterr().out)
+
+    def cli(transport):
+        return github_authority.main(["run", "--repo", str(checkout(world))], transport=transport, clock=clock,
+                                     releases=lambda: [TARGET])
+
+    # Without the review model's key the run turns red, and no creator hears a reason that is the team's.
+    monkeypatch.delenv("VOOL_AUTHORITY_OPENROUTER_KEY")
+    sent = len(world.sent)
+    assert cli(world.transport) == 1
+    assert "OPENROUTER_API_KEY secret is missing" in capsys.readouterr().out
+    assert world.sent[sent:] == []
+    monkeypatch.setenv("VOOL_AUTHORITY_OPENROUTER_KEY", "not-a-real-key")
+
+    assert cli(world.transport) == 0
+    out = capsys.readouterr()
+    printed = json.loads(out.out)
+    assert "alice" not in out.out + out.err
     assert printed["admitted"] == 1 and printed["refused"] == 1 and printed["list_published"] is True
     assert "alice/notes" in rows(world)
 
     def unreachable(method, url, body, headers):
         raise OSError("connection refused")
 
-    assert github_authority.main(["run", "--repo", str(checkout(world))], transport=unreachable, clock=clock) == 0
+    assert cli(unreachable) == 0
     assert "didn't answer" in capsys.readouterr().out
     world.clock.t += 6 * DAY  # two days or less left on the signed list: the run turns red so the team hears
-    assert github_authority.main(["run", "--repo", str(checkout(world))], transport=unreachable, clock=clock) == 1
+    assert cli(unreachable) == 1
     assert capsys.readouterr().out.startswith("Stopped:")
 
     monkeypatch.delenv(SECRETS["state"])
-    assert github_authority.main(["run", "--repo", str(checkout(world))], transport=world.transport, clock=clock) == 1
+    assert cli(world.transport) == 1
     assert "SKILL_CODEX_STATE_KEY secret is missing" in capsys.readouterr().out

@@ -128,6 +128,10 @@ def _shown(findings: list) -> list:
     return shown
 
 
+class MissingArtifact(RegistryError):
+    """The service no longer holds the bytes of a skill on the signed list."""
+
+
 def _exclusive(method):
     """One signer at a time on this folder, working from the state on disk now.
 
@@ -200,9 +204,11 @@ class Authority:
 
             settings = self.config["review"]
             self._review = ModelReview(settings["provider"], settings["model"], ledger=self.dir / "spend.json",
-                                       monthly_cap=settings.get("monthly_cap", 20.0),
-                                       key=os.environ.get("VOOL_AUTHORITY_OPENROUTER_KEY", ""))
+                                       monthly_cap=settings.get("monthly_cap", 20.0), key=self._model_key())
         return self._review
+
+    def _model_key(self) -> str:
+        return os.environ.get("VOOL_AUTHORITY_OPENROUTER_KEY", "")
 
     # ---- the server ----
 
@@ -252,9 +258,15 @@ class Authority:
         except Exception as exc:  # anything unexpected about one package refuses it, never stops the signer
             if isinstance(exc, (OSError, MemoryError)):
                 raise  # this Mac's own trouble, not the package's
-            print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
-                  " ".join(str(exc).split())[:300], file=sys.stderr)
+            self._said_unreadable(raw, exc)
             return {"refused": [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]}
+
+    def _said_unreadable(self, raw: bytes, exc: Exception) -> None:
+        print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
+              " ".join(str(exc).split())[:300], file=sys.stderr)
+
+    def _said_dropped(self, entry: dict, reason: str) -> None:
+        print("Dropped " + entry["metadata"]["id"] + " " + entry["metadata"]["version"] + ": " + reason)
 
     def _clash(self, metadata: dict) -> str | None:
         """A version number this skill already used or passed, which the signed list cannot hold twice."""
@@ -332,14 +344,18 @@ class Authority:
                 kept.append(envelope)
                 continue
             changed = True
-            raw = self._artifact(entry["artifact_sha256"])
+            try:
+                raw = self._artifact(entry["artifact_sha256"])
+            except MissingArtifact:
+                # Nobody can download bytes the service no longer has; only this entry leaves the list.
+                self._said_dropped(entry, "the service no longer has its bytes")
+                continue
             result = self.check(raw, official=entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"])
             if "admission" in result:
                 kept.append(result["admission"])
             elif "refused" in result:
                 # Today's rules refuse it: it leaves the list rather than being re-signed.
-                print("Dropped " + entry["metadata"]["id"] + " " + entry["metadata"]["version"] + ": " +
-                      result["refused"][0]["reason"])
+                self._said_dropped(entry, result["refused"][0]["reason"])
             elif entry["expires"] > self.now() + 3600:
                 kept.append(envelope)  # the model review is unavailable; try again next run
         self.state["entries"] = kept

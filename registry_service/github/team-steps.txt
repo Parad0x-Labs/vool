@@ -1,6 +1,7 @@
 # The Skill Codex team's hand steps. Edit this file on GitHub (the pencil button works on a phone too)
 # and commit it; the signer applies it within a few minutes. Each line is one step; a line starting
-# with # is a note. Delete a line to undo its step.
+# with # is a note. Delete a line to undo its step. A removed skill's versions stay revoked even then:
+# it comes back only with a higher version number.
 #
 #   tested publisher/name 1.2.0      the "Tested by Parad0x Labs" mark, on exactly that version
 #   highlighted publisher/name       in the Highlighted spot on the Skill Codex home page

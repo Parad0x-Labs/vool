@@ -14,7 +14,8 @@ where things are kept:
   and the release targets, all of which are published anyway. authority/private.bin is sealed with
   AES-GCM: the model's verdicts (whose reasons can quote a refused skill), counts per creator and spending.
 - Every change is committed and pushed before anything is sent to the service. A run that finds another
-  run's change to the state stops, so no list number or marks number is ever signed twice.
+  run's change to the state stops before it sends anything, so no list number or marks number is ever
+  signed twice.
 - The team's hand steps are lines in team-steps.txt, edited on GitHub behind its sign-in.
 - Once a day every listed skill goes through today's checks again, and the release targets follow
   VOOL's published releases.
@@ -24,6 +25,7 @@ The main (root) key stays offline; it is only needed to change these keys.
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import getpass
 import hashlib
@@ -31,6 +33,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -50,7 +53,15 @@ from core.registry.codec import COMMIT, HEX, IDENTITY, VERSION, RegistryError, c
 from core.registry.publisher import add_signature
 from core.registry.trust import root_document
 from registry_service.authority import MARKS_SCHEMA, keyid, marks_document
-from registry_service.mac_authority import ROOT_SECONDS, Authority, _exclusive, _public, _raw_key, _write
+from registry_service.mac_authority import (
+    ROOT_SECONDS,
+    Authority,
+    MissingArtifact,
+    _exclusive,
+    _public,
+    _raw_key,
+    _write,
+)
 
 FOLDER = "authority"
 STEPS = "team-steps.txt"
@@ -59,7 +70,8 @@ TEMPLATES = Path(__file__).parent / "github"
 SECRETS = {"admission": "SKILL_CODEX_ADMISSION_KEY", "review": "SKILL_CODEX_REVIEW_KEY", "state": "SKILL_CODEX_STATE_KEY"}
 SERVER = "SKILL_CODEX_SERVER"
 # Kept sealed: a refusal's reasons can quote the refused skill, and counts per creator say who uploaded.
-PRIVATE = ("verdicts", "attempts", "reviews")
+# Uploads that are not listed (yet) are nobody else's business: a waiting admission can still be refused.
+PRIVATE = ("verdicts", "attempts", "reviews", "pending")
 _SEALED = b"SCP1"
 _AAD = b"skill-codex private state v1"
 BOT = ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com")
@@ -121,15 +133,30 @@ def _public_json(value) -> bytes:
 
 # ---- the repository ----
 
+class Superseded(Exception):
+    """Another signer run changed the state first. This run stops before it sends anything.
+
+    Not a RegistryError, so no handler for one upload's trouble catches it and lets the run go on.
+    """
+
+
 class Repository:
     """The checkout the workflow made. The signer's state goes back to GitHub before anything is sent."""
 
-    def __init__(self, path: Path, *, branch: str = "main"):
+    def __init__(self, path: Path, *, branch: str = "main", token: str = ""):
         self.path, self.branch = Path(path), branch
+        # The checkout keeps no credentials, so the install step can't push; only this process holds the token,
+        # passed to git in its environment and never written to the checkout.
+        self._env = None
+        if token:
+            header = "AUTHORIZATION: basic " + base64.b64encode(b"x-access-token:" + token.encode()).decode()
+            self._env = {**os.environ, "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+                         "GIT_CONFIG_VALUE_0": header}
 
     def _git(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
         result = subprocess.run(["git", "-C", str(self.path), "-c", "user.name=" + BOT[0], "-c", "user.email=" + BOT[1],
-                                 "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=120)
+                                 "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=120,
+                                env=self._env)
         if check and result.returncode:
             raise RegistryError("git " + args[0] + " failed: " + " ".join(result.stderr.split())[:300])
         return result
@@ -139,8 +166,15 @@ class Repository:
         self._git("fetch", "-q", "origin", self.branch)
         self._git("merge", "-q", "--ff-only", "FETCH_HEAD")
 
+    def fresh(self) -> None:
+        """Stop when another run changed the state on GitHub since this run began: two signers ran at once."""
+        self._git("fetch", "-q", "origin", self.branch)
+        if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER).stdout.strip():
+            raise Superseded("another signer run changed the state meanwhile; this run stopped before sending anything")
+
     def save(self, message: str) -> bool:
-        """Commit and push the state folder; False when nothing changed."""
+        """Commit and push the state folder; False when nothing changed. Always looks at GitHub first."""
+        self.fresh()
         self._git("add", "--", FOLDER)
         if self._git("diff", "--cached", "--quiet", "--", FOLDER, check=False).returncode == 0:
             return False
@@ -148,10 +182,7 @@ class Repository:
         for _ in range(3):
             if self._git("push", "-q", "origin", "HEAD:refs/heads/" + self.branch, check=False).returncode == 0:
                 return True
-            self._git("fetch", "-q", "origin", self.branch)
-            # A state change from elsewhere means two signers ran at once: stop before anything is sent.
-            if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER).stdout.strip():
-                raise RegistryError("another signer run changed the state meanwhile; this run stops before sending anything")
+            self.fresh()
             self._git("rebase", "-q", "FETCH_HEAD")  # only the team's own files moved, team-steps.txt say
         raise RegistryError("the signer's state could not be pushed to GitHub")
 
@@ -249,6 +280,10 @@ class RepoAuthority(Authority):
         self._releases = releases
         self._sealed = ""
         self._removed: set[str] = set()
+        # Without its key every clean upload would be refused for a reason that is the team's, not the creator's.
+        self._openrouter = env.get("VOOL_AUTHORITY_OPENROUTER_KEY", "")
+        require(review is not None or bool(self._openrouter.strip()),
+                "the OPENROUTER_API_KEY secret is missing, so no upload can be reviewed")
         config = json.loads((self.repo / FOLDER / "config.json").read_text())
         require(isinstance(config, dict) and set(config) == {"review"}, FOLDER + "/config.json holds only the review settings")
         config["server"] = _server(env.get(SERVER, ""))
@@ -291,17 +326,32 @@ class RepoAuthority(Authority):
         self.repository.save(message)
 
     def call(self, method: str, path: str, value=None, *, raw: bool = False):
-        # What is about to be signed and sent is on GitHub first, so a lost run never sends it differently. A refusal
-        # needs no such care: the service drops the upload, and the next run repeats nothing.
-        if method != "GET" and not (isinstance(value, dict) and "refused" in value):
+        # What is about to be signed and sent is on GitHub first, so a lost run never sends it differently and the
+        # spending behind it is kept; a run another run overtook stops here, before it sends anything.
+        if method != "GET":
             self.checkpoint()
         return super().call(method, path, value, raw=raw)
+
+    def _model_key(self) -> str:
+        return self._openrouter
+
+    # The run log of a public repository is public: it never names an upload or a skill.
+    def _said_unreadable(self, raw: bytes, exc: Exception) -> None:
+        print("Refused an upload after an unexpected " + type(exc).__name__, file=sys.stderr)
+
+    def _said_dropped(self, entry: dict, reason: str) -> None:
+        print("Dropped a listed skill", file=sys.stderr)
 
     def _store(self, raw: bytes) -> None:
         pass  # the service keeps the exact bytes; _artifact fetches and checks them
 
     def _artifact(self, sha256: str) -> bytes:
-        raw = self.call("GET", "/authority/artifacts/" + sha256, raw=True)
+        try:
+            raw = self.call("GET", "/authority/artifacts/" + sha256, raw=True)
+        except RegistryError as exc:
+            if str(exc) == "the server refused: that skill is not stored here":
+                raise MissingArtifact(str(exc)) from None  # a backup restore, say: that one skill leaves the list
+            raise
         require(hashlib.sha256(raw).hexdigest() == sha256, "the server sent different bytes")
         return raw
 
@@ -404,7 +454,11 @@ class RepoAuthority(Authority):
         kept, dropped = [], []
         for envelope in self.state["entries"]:
             entry = envelope["signed"]
-            raw = self._artifact(entry["artifact_sha256"])
+            try:
+                raw = self._artifact(entry["artifact_sha256"])
+            except MissingArtifact:
+                dropped.append(envelope)  # nobody can download it any more
+                continue
             official = entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"]
             try:
                 outcome = checks.run(raw, self.dir / "scratch", targets=self.state["targets"], official=official)
@@ -522,7 +576,7 @@ def gh_secret(github: str):
     return put
 
 
-def main(argv=None, *, transport=None, clock=time.time) -> int:
+def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
     parser = argparse.ArgumentParser(description="Skill Codex signer for GitHub Actions")
     parser.add_argument("command", choices=["setup", "run"])
     parser.add_argument("--repo", required=True, type=Path)
@@ -553,13 +607,15 @@ def main(argv=None, *, transport=None, clock=time.time) -> int:
                   f"3. Copy {FOLDER}/trusted-root.json to the service and into the app release.\n"
                   f"4. Keep {args.offline} (the main key) and its passphrase offline, for example on a USB stick.")
             return 0
-        repository = Repository(args.repo)
-        repository.start()
         token = os.environ.get("GITHUB_TOKEN", "")
-        authority = RepoAuthority(args.repo, repository=repository, releases=lambda: released_targets(token=token),
-                                  transport=transport, clock=clock)
+        repository = Repository(args.repo, token=token)
+        repository.start()
+        authority = RepoAuthority(args.repo, repository=repository, transport=transport, clock=clock,
+                                  releases=releases or (lambda: released_targets(token=token)))
         try:
             print(json.dumps(quiet(authority.run_once()), sort_keys=True))
+        except Superseded:
+            print("Another signer run saved first; this run stopped before sending anything.")
         except (RegistryError, OSError) as exc:
             if not service_down(authority, exc):
                 raise
