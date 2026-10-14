@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "ساعدني في تنظيم يومي",
     "first_run.start_what_can_you_do": "ماذا يمكنك أن تفعل؟",
     "msg.code_copy_title": "انسخ كتلة الشيفرة هذه كما هي تمامًا",
-    "companion.untitled_chat": "محادثة جديدة"
+    "companion.untitled_chat": "محادثة جديدة",
+    "msg.edit": "تعديل",
+    "msg.edit_title": "أعد هذه الرسالة إلى المربع لتعديلها وإرسالها مرة أخرى",
+    "msg.retry": "حاول مرة أخرى",
+    "msg.retry_box_busy": "مربع الرسائل يحتوي على شيء بالفعل. أرسله أو امسحه أولًا.",
+    "msg.retry_files_again": "عادت كلماتك إلى المربع. أرفق الملفات مرة أخرى، ثم أرسل.",
+    "msg.retry_nothing": "تلك الرسالة كانت مرفقات فقط. أرفقها مرة أخرى لتسأل من جديد.",
+    "msg.retry_title": "اطرح السؤال نفسه مرة أخرى كرسالة جديدة"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

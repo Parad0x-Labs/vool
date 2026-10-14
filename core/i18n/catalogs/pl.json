@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "Pomóż mi zaplanować dzień",
     "first_run.start_what_can_you_do": "Co potrafisz?",
     "msg.code_copy_title": "Skopiuj ten blok kodu dokładnie",
-    "companion.untitled_chat": "Nowy czat"
+    "companion.untitled_chat": "Nowy czat",
+    "msg.edit": "Edytuj",
+    "msg.edit_title": "Wstaw tę wiadomość z powrotem do pola, aby ją zmienić i wysłać ponownie",
+    "msg.retry": "Spróbuj ponownie",
+    "msg.retry_box_busy": "W polu wiadomości coś już jest. Najpierw to wyślij albo wyczyść.",
+    "msg.retry_files_again": "Twoje słowa wróciły do pola. Dołącz pliki ponownie, a potem wyślij.",
+    "msg.retry_nothing": "Ta wiadomość zawierała tylko załączniki. Dołącz je ponownie, aby zapytać jeszcze raz.",
+    "msg.retry_title": "Zadaj to samo pytanie jeszcze raz jako nową wiadomość"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

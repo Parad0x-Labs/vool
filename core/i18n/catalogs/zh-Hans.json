@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "帮我规划今天",
     "first_run.start_what_can_you_do": "你能做什么？",
     "msg.code_copy_title": "原样复制此代码块",
-    "companion.untitled_chat": "新聊天"
+    "companion.untitled_chat": "新聊天",
+    "msg.edit": "编辑",
+    "msg.edit_title": "把这条消息放回输入框，修改后重新发送",
+    "msg.retry": "再试一次",
+    "msg.retry_box_busy": "输入框里已经有内容了。请先发送或清空。",
+    "msg.retry_files_again": "你的文字已放回输入框。请重新附加文件，然后发送。",
+    "msg.retry_nothing": "那条消息只有附件。请重新添加附件后再问。",
+    "msg.retry_title": "以新消息再问一次同样的问题"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

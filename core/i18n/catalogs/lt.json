@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "Padėk man susiplanuoti dieną",
     "first_run.start_what_can_you_do": "Ką moki daryti?",
     "msg.code_copy_title": "Nukopijuoti šį kodo bloką tiksliai",
-    "companion.untitled_chat": "Naujas pokalbis"
+    "companion.untitled_chat": "Naujas pokalbis",
+    "msg.edit": "Redaguoti",
+    "msg.edit_title": "Grąžinti šią žinutę į laukelį, kad galėtum ją pakeisti ir išsiųsti dar kartą",
+    "msg.retry": "Bandyti dar kartą",
+    "msg.retry_box_busy": "Žinutės laukelyje jau kažkas yra. Pirmiausia išsiųsk arba išvalyk.",
+    "msg.retry_files_again": "Jūsų žodžiai grąžinti į laukelį. Vėl pridėkite failus ir tada siųskite.",
+    "msg.retry_nothing": "Toje žinutėje buvo tik priedai. Pridėk juos dar kartą, kad paklaustum iš naujo.",
+    "msg.retry_title": "Užduoti tą patį klausimą dar kartą nauja žinute"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

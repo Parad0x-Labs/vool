@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "今日の予定を立てるのを手伝って",
     "first_run.start_what_can_you_do": "何ができるの？",
     "msg.code_copy_title": "このコードブロックをそのままコピー",
-    "companion.untitled_chat": "新しいチャット"
+    "companion.untitled_chat": "新しいチャット",
+    "msg.edit": "編集",
+    "msg.edit_title": "このメッセージを入力欄に戻して、直してから送り直す",
+    "msg.retry": "もう一度",
+    "msg.retry_box_busy": "入力欄にすでに内容があります。先に送信するか消してください。",
+    "msg.retry_files_again": "入力欄に文章を戻しました。ファイルをもう一度添付してから送信してください。",
+    "msg.retry_nothing": "そのメッセージは添付ファイルだけでした。もう一度聞くには添付し直してください。",
+    "msg.retry_title": "同じ質問を新しいメッセージとしてもう一度送る"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

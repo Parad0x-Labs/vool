@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "Допоможи спланувати день",
     "first_run.start_what_can_you_do": "Що ти вмієш?",
     "msg.code_copy_title": "Скопіювати цей блок коду точно",
-    "companion.untitled_chat": "Новий чат"
+    "companion.untitled_chat": "Новий чат",
+    "msg.edit": "Змінити",
+    "msg.edit_title": "Повернути це повідомлення в поле, щоб змінити й надіслати знову",
+    "msg.retry": "Ще раз",
+    "msg.retry_box_busy": "У полі повідомлення вже щось є. Спершу надішліть або очистьте його.",
+    "msg.retry_files_again": "Ваш текст знову в полі введення. Прикріпіть файли ще раз і надішліть.",
+    "msg.retry_nothing": "У тому повідомленні були лише вкладення. Додайте їх знову, щоб запитати ще раз.",
+    "msg.retry_title": "Поставити те саме запитання ще раз новим повідомленням"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

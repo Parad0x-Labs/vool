@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "Aide-moi à organiser ma journée",
     "first_run.start_what_can_you_do": "Que sais-tu faire ?",
     "msg.code_copy_title": "Copier ce bloc de code à l’identique",
-    "companion.untitled_chat": "Nouvelle discussion"
+    "companion.untitled_chat": "Nouvelle discussion",
+    "msg.edit": "Modifier",
+    "msg.edit_title": "Remettre ce message dans la zone de saisie pour le modifier et le renvoyer",
+    "msg.retry": "Réessayer",
+    "msg.retry_box_busy": "Ta zone de saisie contient déjà quelque chose. Envoie-le ou efface-le d’abord.",
+    "msg.retry_files_again": "Vos mots sont de retour dans la zone de saisie. Joignez à nouveau les fichiers, puis envoyez.",
+    "msg.retry_nothing": "Ce message ne contenait que des pièces jointes. Joins-les à nouveau pour reposer la question.",
+    "msg.retry_title": "Reposer la même question dans un nouveau message"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

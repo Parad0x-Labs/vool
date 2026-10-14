@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "मेरा दिन प्लान करने में मदद करो",
     "first_run.start_what_can_you_do": "तुम क्या-क्या कर सकते हो?",
     "msg.code_copy_title": "यह कोड ब्लॉक हूबहू कॉपी करें",
-    "companion.untitled_chat": "नई चैट"
+    "companion.untitled_chat": "नई चैट",
+    "msg.edit": "बदलें",
+    "msg.edit_title": "इस संदेश को बदलने और फिर से भेजने के लिए वापस बॉक्स में डालें",
+    "msg.retry": "फिर से पूछें",
+    "msg.retry_box_busy": "आपके संदेश बॉक्स में पहले से कुछ है। पहले उसे भेजें या मिटाएँ।",
+    "msg.retry_files_again": "आपके शब्द बॉक्स में वापस आ गए हैं। फ़ाइलें फिर से जोड़ें, फिर भेजें।",
+    "msg.retry_nothing": "उस संदेश में सिर्फ़ अटैचमेंट थे। दोबारा पूछने के लिए उन्हें फिर से जोड़ें।",
+    "msg.retry_title": "यही सवाल नए संदेश के रूप में दोबारा पूछें"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

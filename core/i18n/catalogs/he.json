@@ -2343,9 +2343,16 @@
     "first_run.start_plan_my_day": "עזור לי לתכנן את היום",
     "first_run.start_what_can_you_do": "מה אתה יודע לעשות?",
     "msg.code_copy_title": "העתקת קטע הקוד הזה בדיוק כפי שהוא",
-    "companion.untitled_chat": "צ׳אט חדש"
+    "companion.untitled_chat": "צ׳אט חדש",
+    "msg.edit": "עריכה",
+    "msg.edit_title": "להחזיר את ההודעה לתיבה כדי לשנות ולשלוח אותה שוב",
+    "msg.retry": "נסה שוב",
+    "msg.retry_box_busy": "בתיבת ההודעה כבר יש משהו. שלח או נקה אותה קודם.",
+    "msg.retry_files_again": "המילים שלך חזרו לתיבה. צרף שוב את הקבצים ואז שלח.",
+    "msg.retry_nothing": "ההודעה הזו כללה רק קבצים מצורפים. צרף אותם שוב כדי לשאול שוב.",
+    "msg.retry_title": "לשאול את אותה שאלה שוב כהודעה חדשה"
   },
-  "source_catalog_sha256": "f91f11e30f86ee4050ff4bdd2cb35c79c560c39fdde3d92a6632e57045e490f9",
+  "source_catalog_sha256": "aa165c33b1c8f0952ea7e0cd1841443c2df15d4bcce7a5e9c84fc8d52f70853b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
