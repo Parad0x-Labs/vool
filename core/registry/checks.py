@@ -231,7 +231,7 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
 def _license(artifact: dict) -> list[dict]:
     text = " ".join(artifact["files"].get("LICENSE", b"").decode("utf-8", "replace").casefold().split())
     if artifact["metadata"]["license"] != "MIT" or not all(pattern.search(text) for pattern in _MIT):
-        return [_finding("license", "LICENSE", "Every Skill Codex skill uses the MIT licence. Use the MIT text.")]
+        return [_finding("license", "LICENSE", "Every Skill Codex skill uses the MIT licence. Put the MIT licence text in LICENSE.")]
     return []
 
 
@@ -284,7 +284,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     findings["quality"] += _quality(artifact, texts, official=official)
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
-                                                 "Skill Codex skills can't depend on other packages yet. Take out requires."))
+                                                 "Skill Codex skills can't depend on other packages yet. Empty the requires list."))
     boundaries = analyze(artifact["files"])
     findings["native-boundaries"] += [dict(item, reason="This tries to override VOOL's own rules on spending, "
                                            "approvals or permissions. Take it out.") for item in boundaries["conflicts"]]

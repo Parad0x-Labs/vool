@@ -2,6 +2,33 @@
 
 The website's Skill Codex pages use these routes in addition to [WEBSITE-HANDOVER.md](WEBSITE-HANDOVER.md). The same rules apply: same-origin requests, `X-Vool-CSRF` on every change, plain-text rendering of every user-written field, and `{error}` with HTTP 400 on refusal.
 
+## Publishing with automatic checks
+
+When the service runs with the signing Mac (see [OPERATIONS.md](OPERATIONS.md#automatic-checks-with-the-signing-mac)), a creator publishes without waiting for a person. Before the first upload the page shows this agreement with an unticked box, and sends nothing until the creator ticks it:
+
+> I made this skill, or have the right to share it, and I release it under the MIT licence. Anyone may use, copy, change and share it.
+
+The ticked box becomes `"agreement": "mit-own-work-v1"`:
+
+- The written-skill form sends `POST /drafts` with exactly `{metadata, skill_markdown, agreement}`. `metadata.license` must be `MIT`; the service writes the MIT licence text in the publisher's name, so the form has no licence field.
+- An uploaded package (`POST /submissions`) carries the header `X-Vool-Agreement: mit-own-work-v1`. The package must hold the MIT licence text and an upload source `{upload_id, namespace}`. A package that names a GitHub repository is refused with "this package names a GitHub source; publish it with GitHub import instead".
+
+Without the agreement both routes keep the older reviewed flow, and nothing is published automatically.
+
+The server checks every upload at once. A clean one has state `checking` while the signing Mac checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. A line that looks like a key, password or recovery phrase is never quoted back. Skill Codex skills:
+
+- hold Markdown or plain-text files under `skills/`, the licence, `registry.json`, the manifest and optional pictures, and nothing that runs: no scripts, programs, executable files, manifest commands, permissions or credential bindings;
+- never ask anyone to install, download or run software, paste commands into a terminal, or open a short link, raw address or paste site;
+- never ask for a recovery phrase, key, password or code, contain a wallet address, or carry hidden comments, invisible characters or encoded blobs;
+- never try to change VOOL's own rules, spending limits or approvals, or hide what they do from the user;
+- use the MIT licence, have instructions long enough to be useful, and never call themselves verified, official, tested or endorsed (only the team's own skills may).
+
+The review model also refuses a skill that does something its summary does not say, sends anything somewhere the user did not choose, moves money, or is harmful. If the model cannot give a clear answer after three tries, the skill is refused with "Our checks couldn't finish reading this skill. Make it shorter and plainer, then upload it again." While the monthly review budget is used up, uploads wait in `checking`; they are never published unchecked.
+
+Other refusals the page shows as they come: "accept the Skill Codex agreement to publish", "Skill Codex skills use the MIT licence", "new accounts can publish 14 days after they start; yours can from YYYY-MM-DD" (counted from the older of the GitHub account and the Skill Codex account) and "this creator can't publish right now" (a suspended creator).
+
+Catalog rows carry two marks the team sets by hand. `tested: true` means the team tested this exact version; show it as "Tested by Parad0x Labs". An update drops the mark until the team tests the new version. `highlighted: true` puts the skill in the Highlighted spot. Neither is set by stars, downloads or the creator. Pictures of an automatically admitted skill show once that version is marked Tested; until then its creator sees them in `pictures_pending` and everyone else sees the placeholder tile. Team members publish under the team's name (`vool-team`), whose profile has `origin: "official"`; nobody else can choose that name.
+
 ## Catalog search, filters, sort and labels
 
 `GET /registry/api/catalog` accepts `q` (up to 100 characters), `category`, `subcategory`, `origin` (`official` or `community`) and `sort` (`stars`, default; `updated`; `downloads`; `newest`). Unknown or repeated parameters are refused. Search matches every word against the package name, summary, and category and subcategory labels, so a job description such as "summarize meetings" finds a meeting skill whose name differs. Results are not paginated.

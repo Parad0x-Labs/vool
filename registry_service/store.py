@@ -468,9 +468,11 @@ class Store:
         validate_entry(value, root, now)
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT artifact FROM submissions WHERE id=? AND sha256=? AND state='checking' AND artifact IS NOT NULL",
-                             (identifier, sha256)).fetchone()
+            row = db.execute("SELECT artifact, state FROM submissions WHERE id=? AND sha256=? AND artifact IS NOT NULL AND "
+                             "state IN ('checking','admitted','published')", (identifier, sha256)).fetchone()
             require(row, "this upload is not waiting for checks")
+            if row[1] != "checking":
+                return value  # the Mac sent it again after a lost answer; the first admission stands
             artifact = inspect(row[0])
             require(value["artifact_sha256"] == sha256 and value["artifact_length"] == len(row[0]) and
                     value["native_digest"] == artifact["native_digest"] and value["metadata"] == artifact["metadata"] and

@@ -328,6 +328,73 @@ def test_an_upload_cannot_claim_a_github_source_it_has_not_proven(world):
     assert world.store.queue() == []
 
 
+def lose_answers(world, path_part, times=1):
+    """The service does the work, but the Mac never hears back, as on a dropped connection."""
+    original, lost = world.mac.transport, []
+
+    def transport(method, url, body, headers):
+        status, data = original(method, url, body, headers)
+        if method == "POST" and path_part in url and len(lost) < times:
+            lost.append(url)
+            return 502, b""
+        return status, data
+
+    world.mac.transport = transport
+    return lost
+
+
+def test_a_lost_answer_to_an_admission_is_sent_again_and_never_reviewed_twice(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    lost = lose_answers(world, "/authority/submissions/")
+    report = world.mac.run_once()
+    assert lost and report["admitted"] == [] and report["errors"] == ["alice/notes 1.0.0: the server refused: HTTP 502"]
+    assert "alice/notes" not in rows(world) and world.store.queue() == []  # admitted on the service, not yet listed
+    report = world.mac.run_once()
+    assert report["admitted"] == ["alice/notes 1.0.0"] and report["errors"] == []
+    assert "alice/notes" in rows(world) and len(world.model.calls) == 1
+    assert [envelope["signed"]["metadata"]["id"] for envelope in world.mac.state["entries"]] == ["alice/notes"]
+
+
+def test_a_lost_answer_to_a_new_list_never_blocks_the_next_one(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    lose_answers(world, "/authority/catalog")
+    with pytest.raises(RegistryError, match="HTTP 502"):
+        world.mac.run_once()
+    draft(world, token, csrf, "alice/other")
+    report = world.mac.run_once()  # a fresh epoch, so the service never sees two lists under one number
+    assert report["admitted"] == ["alice/other 1.0.0"] and report["catalog"]["sequence"] >= 2
+    assert {"alice/notes", "alice/other"} <= set(rows(world))
+
+
+def test_one_upload_the_service_no_longer_holds_does_not_stop_the_others(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    lose_answers(world, "/authority/submissions/")
+    world.mac.run_once()
+    world.mac.state["pending"][next(iter(world.mac.state["pending"]))]["id"] = "0" * 32  # the service lost track of it
+    world.mac.save()
+    draft(world, token, csrf, "alice/other")
+    report = world.mac.run_once()
+    assert report["errors"] == ["alice/notes 1.0.0: no longer waiting on the service; not listed"]
+    assert report["admitted"] == ["alice/other 1.0.0"] and world.mac.state["pending"] == {}
+    assert "alice/other" in rows(world) and "alice/notes" not in rows(world)
+
+
+def test_a_runner_started_earlier_never_undoes_a_removal(world, tmp_path):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    world.mac.run_once()
+    runner = Authority(tmp_path / "mac", transport=world.mac.transport, review=world.mac.review, clock=lambda: world.clock.t)
+    world.mac.gate(code(world))
+    world.mac.act("remove", "alice/notes")  # a hand action in another process while the runner keeps going
+    world.clock.t += 5 * DAY
+    runner.run_once()
+    assert "alice/notes" not in rows(world) and runner.state["entries"] == []
+    assert rows(world) == {} and world.trust.current["revoked"] == runner.state["revoked"] != []
+
+
 def test_codes_follow_the_authenticator_standard():
     secret = b"12345678901234567890"  # RFC 6238 test secret
     assert totp(secret, 59 // 30) == "287082" and totp(secret, 1111111109 // 30) == "081804"

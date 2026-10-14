@@ -153,7 +153,7 @@ def restamp(online, *, every: int = 600) -> None:
             time.sleep(every)
             try:
                 online.refresh(now=int(time.time()))
-            except (RegistryError, OSError, ValueError):
+            except Exception:  # one bad pass must not end the re-stamping for good
                 continue  # stale: installs stop until the Mac signs again; never serve an unsigned list
 
     threading.Thread(target=loop, name="catalog-restamp", daemon=True).start()

@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import fcntl
+import functools
 import getpass
 import hashlib
 import hmac
@@ -105,6 +107,28 @@ def _public(key: Ed25519PrivateKey) -> str:
     return key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex()
 
 
+def _exclusive(method):
+    """One signer at a time on this folder, working from the state on disk now.
+
+    The runner and a hand action are separate processes; without this, one could save an older state over
+    the other's, and a removed skill could come back.
+    """
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        if self._held:
+            return method(self, *args, **kwargs)
+        descriptor = os.open(self.dir / "lock", os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            self._held = True
+            self.state = json.loads(_private(self.dir / "state.json"))
+            return method(self, *args, **kwargs)
+        finally:
+            self._held = False
+            os.close(descriptor)  # closing releases the lock
+    return wrapper
+
+
 class Authority:
     """Everything the signing Mac keeps, in one private folder."""
 
@@ -121,6 +145,7 @@ class Authority:
         require(keyid(self.admission_key) in self.root["roles"]["admission"]["keyids"] and
                 keyid(self.review_key) in self.root["roles"]["review"]["keyids"], "keys do not match the trust root")
         self.state = json.loads(_private(self.dir / "state.json"))
+        self._held = False
         self.transport = transport or self._http
         self._review = review
 
@@ -243,45 +268,76 @@ class Authority:
         return changed
 
     def publish(self) -> dict:
-        authorization = authorize_catalog(self.root, self.state["entries"], epoch=self.state["epoch"] + 1,
+        # The epoch is spent before sending: a lost answer must never lead to a second, different list
+        # under the same epoch, which the service would refuse as equivocation from then on.
+        self.state["epoch"] += 1
+        self.save()
+        authorization = authorize_catalog(self.root, self.state["entries"], epoch=self.state["epoch"],
                                           revoked=self.state["revoked"], now=self.now(), lifetime=AUTHORIZATION_SECONDS)
         authorization = add_signature(authorization, self.admission_key)
         result = self.call("POST", "/authority/catalog", {"authorization": authorization,
                                                           "entries": self.state["entries"], "revoked": self.state["revoked"]})
-        self.state["epoch"] += 1
         self.state["authorized_until"] = authorization["signed"]["expires"]
+        self.state["unpublished"] = False
         self.save()
         return result
 
-    def run_once(self) -> dict:
-        report = {"admitted": [], "refused": [], "waiting": []}
-        changed = False
-        for item in self.call("GET", "/authority/queue")["submissions"]:
-            raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
-            require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
-            result = self.check(raw, official=item["official"])
-            label = item["package_id"] + " " + item["version"]
-            if "refused" in result:
-                self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"], "refused": result["refused"]})
-                report["refused"].append(label)
-            elif "admission" in result:
-                self._store(raw)
-                self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
-                                                                         "admission": result["admission"]})
-                self.state["entries"].append(result["admission"])
-                report["admitted"].append(label)
-                changed = True
+    def _deliver(self, report: dict) -> None:
+        """Send admissions the service has not confirmed yet. Only confirmed ones join the signed list."""
+        pending = self.state.setdefault("pending", {})
+        for sha, item in sorted(pending.items()):
+            try:
+                self.call("POST", "/authority/submissions/" + item["id"], {"sha256": sha, "admission": item["admission"]})
+            except RegistryError as exc:
+                if "not waiting for checks" not in str(exc):
+                    report["errors"].append(item["label"] + ": " + str(exc))
+                    continue  # try again next run
+                # Refused or gone on the service meanwhile (a suspension, say): it is not listed.
+                report["errors"].append(item["label"] + ": no longer waiting on the service; not listed")
             else:
-                report["waiting"].append(label)
+                self.state["entries"] = [envelope for envelope in self.state["entries"]
+                                         if envelope["signed"]["artifact_sha256"] != sha] + [item["admission"]]
+                self.state["unpublished"] = True
+                report["admitted"].append(item["label"])
+            del pending[sha]
             self.save()
-        changed = self._renew() or changed
-        if changed or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
+
+    @_exclusive
+    def run_once(self) -> dict:
+        report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        self._deliver(report)
+        for item in self.call("GET", "/authority/queue")["submissions"]:
+            label = item["package_id"] + " " + item["version"]
+            try:
+                raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
+                require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
+                result = self.check(raw, official=item["official"])
+                if "refused" in result:
+                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
+                                                                             "refused": result["refused"]})
+                    report["refused"].append(label)
+                elif "admission" in result:
+                    self._store(raw)
+                    # Saved before it is sent, so a crash or a lost answer is sent again, never forgotten.
+                    self.state.setdefault("pending", {})[item["sha256"]] = {"id": item["id"], "label": label,
+                                                                            "admission": result["admission"]}
+                    self.save()
+                    self._deliver(report)
+                else:
+                    report["waiting"].append(label)
+            except RegistryError as exc:
+                report["errors"].append(label + ": " + str(exc))  # this upload waits; the others go on
+            self.save()
+        if self._renew():
+            self.state["unpublished"] = True
+        if self.state.get("unpublished") or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
             report["catalog"] = self.publish()
         self.save()
         return report
 
     # ---- hand actions ----
 
+    @_exclusive
     def gate(self, code: str) -> None:
         secret = _private(self.dir / "totp.key")
         counter = check_code(secret, code, now=self.now(), last=self.state.get("totp_last", 0))
@@ -307,6 +363,7 @@ class Authority:
         require(versions, "that skill is not in the Skill Codex")
         return max(versions, key=lambda entry: version_key(entry["metadata"]["version"]))["artifact_sha256"]
 
+    @_exclusive
     def act(self, action: str, target: str, *, members: list[str] | None = None) -> str:
         marks = self.state["marks"]
         if action in {"mark", "unmark", "highlight", "unhighlight", "remove"}:
@@ -348,6 +405,7 @@ class Authority:
         self._marks()
         return "Done."
 
+    @_exclusive
     def set_targets(self, targets: list[dict]) -> str:
         require(isinstance(targets, list) and targets and canonical(targets), "list the released VOOL builds")
         require(validate_policy(checks.policy(targets)) in self.root["policies"], "invalid release list")
@@ -433,7 +491,13 @@ def main(argv=None) -> int:
         authority = Authority(args.dir)
         if args.command == "run":
             while True:
-                print(json.dumps(authority.run_once(), sort_keys=True))
+                try:
+                    print(json.dumps(authority.run_once(), sort_keys=True), flush=True)
+                except (RegistryError, OSError) as exc:
+                    if args.once:
+                        raise
+                    # The service or the network is down: keep running and try again.
+                    print("Will try again: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__), flush=True)
                 if args.once:
                     return 0
                 time.sleep(max(60, args.every))
