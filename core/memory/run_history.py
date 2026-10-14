@@ -376,6 +376,22 @@ class _Owners:
             return False
         return None
 
+    def resolves_to_this_chat(self, spec: _Table, row: Mapping[str, Any]) -> bool:
+        """Owned because it names this chat, not only because it names no chat at all."""
+        if spec.owner == _SESSION:
+            return str(row["session_id"] or "").strip() == self.chat_id
+        if spec.owner == _SESSION_TOPIC:
+            return self.owns(spec, row)
+        if spec.owner == _OBLIGATION:
+            owner = self.obligation_owner(row["snapshot_json"])
+            if owner is not None:
+                return owner
+            return bool({str(_safe_json(row["snapshot_json"]).get("request_id") or "").strip()} & self.own[_REQUEST])
+        names = set(row.keys())
+        links = {str(row[column] or "").strip() for column in spec.links if column in names} - {""}
+        kinds = (_REQUEST, _TASK) if spec.owner == _REQUEST else (spec.owner,)
+        return any(links & self.own[kind] for kind in kinds)
+
     def owns(self, spec: _Table, row: Mapping[str, Any]) -> bool:
         if spec.owner == _SESSION:
             return self.session_owned(row["session_id"])
@@ -560,9 +576,12 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str, command: 
     """
     matched, json_columns = _carrying(conn, spec, owners, token)
     folded_command = fold_forget_text(command).strip()
+    # Counted: rows that name this chat (a row with no chat is erased under the derivative law, but it is
+    # not something this chat was told) and that hold the words outside the forget command itself.
     counted = {row["_erasure_rowid"] for row in matched
-               if not folded_command or carries(_without_command(
-                   _payload(row, spec.structural, json_columns), folded_command), token)}
+               if owners.resolves_to_this_chat(spec, row)
+               and (not folded_command or carries(_without_command(
+                   _payload(row, spec.structural, json_columns), folded_command), token))}
     held: set[Any] = set()
     if spec.action == "a7":
         unswept = _unswept_finalizations(conn, spec, owners)
