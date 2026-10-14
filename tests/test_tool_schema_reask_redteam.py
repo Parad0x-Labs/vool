@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from tests.test_tool_schema_reask import _body, _invoke, wire
+from tests.test_tool_schema_reask import _body, _invoke, paid_home, wire
 
 
 def test_unknown_tool_with_passing_arguments_for_another_tool_gets_no_reask(wire):
@@ -102,3 +102,56 @@ def test_reask_answer_with_one_bad_call_in_a_batch_rejects_the_whole_batch_once(
     assert len(wire.bodies) == 2
     executed = {call.intent for call in response.tool_calls}
     assert executed == {"archive.inspect"}
+
+
+def _paid_terminal_evidence(wire, paid_home, outcomes):
+    from unittest import mock
+
+    from core.model_orchestration_state import ModelOrchestrationStore
+    from core.model_pricing import ModelPrice
+    from core.model_spend_ledger import get_spend_reservation
+    from tests.test_tool_schema_reask import _reserve_paid
+
+    wire.outcomes = outcomes
+    authorization, context = _reserve_paid(wire, paid_home)
+    receipts = []
+
+    def _record(_context, *, event_type, **event):
+        if str(event_type).startswith("paid_call."):
+            receipts.append((event_type, event["details"]))
+
+    with (
+        mock.patch("core.model_pricing._openrouter_price", return_value=ModelPrice(
+            prompt_usd_per_token=0.0000004, completion_usd_per_token=0.0000016,
+            request_usd=0.0, known=True, source="synthetic catalog tariff",
+        )),
+        mock.patch("core.runtime_task_events.emit_runtime_event", side_effect=_record),
+    ):
+        response, error, _ = _invoke(wire, paid=True, authorization=authorization, source_context=context)
+    run = ModelOrchestrationStore().current(authorization.escalation.run_id)
+    return response, error, receipts, get_spend_reservation(authorization.model_call_id), run
+
+
+def test_paid_correction_that_is_refused_again_still_closes_with_one_spend_receipt(wire, paid_home):
+    # Both paid attempts were sent and may be billed. The hold stays, and the owner still gets
+    # exactly one terminal spend receipt and a closed paid run, as for any other refused call.
+    response, error, receipts, held, run = _paid_terminal_evidence(
+        wire, paid_home, [_body({"tape_id": "sample"})]
+    )
+    assert response is None and error.startswith("malformed_tool_arguments:")
+    assert len(wire.bodies) == 2
+    assert held.status == "billing_ambiguous" and held.reserved_usd > 0
+    assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
+    assert receipts[0][1]["spend_status"] == "billing_ambiguous"
+    assert str(run["state"]) != "paid_running", run
+
+
+def test_paid_correction_that_succeeds_closes_with_one_spend_receipt(wire, paid_home):
+    response, error, receipts, held, run = _paid_terminal_evidence(
+        wire, paid_home, [_body({"tape_id": "sample"}), _body({"archive_id": "sample"})]
+    )
+    assert response is not None and error is None, error
+    assert len(wire.bodies) == 2
+    assert held.status == "billing_ambiguous" and held.reserved_usd > 0
+    assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
+    assert str(run["state"]) != "paid_running", run

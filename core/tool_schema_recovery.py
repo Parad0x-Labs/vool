@@ -47,8 +47,9 @@ def admit_paid_tool_correction(
     """
     from core.cloud_tool_call_contract import openai_tool_payload
     from core.model_pricing import estimate_call_usd, provider_slot_for_manifest
-    from core.model_spend_ledger import get_spend_reservation, settle_spend
+    from core.model_spend_ledger import get_spend_reservation
     from core.output_budget_policy import lane_resolved_output_tokens
+    from core.paid_call_reservation import hold_paid_call_for_correction
 
     model_call_id = str(getattr(authorization, "model_call_id", "") or "")
     if not model_call_id:
@@ -87,7 +88,7 @@ def admit_paid_tool_correction(
         # price that first attempt. Retain its uncertainty DURABLY before the second
         # dispatch; successful settlement will record the replacement's known charge
         # while keeping this hold for reconciliation, even after restart.
-        terminal = settle_spend(model_call_id, actual_usd=None)
-        return str(terminal.status) == "billing_ambiguous"
+        # The settle or release that ends the call still emits its one spend receipt.
+        return hold_paid_call_for_correction(authorization)
     except Exception:  # Any admission/ledger failure must prevent the extra paid dispatch.
         return False

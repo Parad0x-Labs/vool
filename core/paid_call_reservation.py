@@ -436,6 +436,43 @@ def forget_paid_attempts(model_call_id: str) -> None:
         _ATTEMPTS.pop(str(model_call_id or ""), None)
 
 
+# Reservations this process moved to billing_ambiguous ahead of a same-call correction dispatch.
+# That move is not the call's terminal: the receipt and the paid run's close are still owed, and
+# whichever of settle/release ends the call next owns them exactly once.
+_CORRECTION_HOLDS: set[str] = set()
+
+
+def hold_paid_call_for_correction(authorization: Any) -> bool:
+    """Keep the first attempt's possible charge held before a correction dispatch.
+
+    The provider already replied, so that attempt may be billed; it is held as billing-ambiguous
+    durably, before anything else is sent. Returns False (send nothing more) unless the held
+    reservation moved from ``reserved`` to ``billing_ambiguous`` here.
+    """
+    model_call_id = str(getattr(authorization, "model_call_id", "") or "")
+    if not model_call_id:
+        return False
+    from core.model_spend_ledger import get_spend_reservation, settle_spend
+
+    before = get_spend_reservation(model_call_id)
+    if before is None or str(before.status) != "reserved":
+        return False
+    terminal = settle_spend(model_call_id, actual_usd=None)
+    if str(terminal.status) != "billing_ambiguous":
+        return False
+    with _ATTEMPTS_LOCK:
+        _CORRECTION_HOLDS.add(model_call_id)
+    return True
+
+
+def _take_correction_hold(model_call_id: str) -> bool:
+    with _ATTEMPTS_LOCK:
+        if model_call_id in _CORRECTION_HOLDS:
+            _CORRECTION_HOLDS.discard(model_call_id)
+            return True
+        return False
+
+
 def settle_owner_pick_paid_call(
     authorization: Any,
     *,
@@ -455,6 +492,7 @@ def settle_owner_pick_paid_call(
         from core.model_spend_ledger import get_spend_reservation, settle_spend
 
         before = get_spend_reservation(model_call_id)
+        _take_correction_hold(model_call_id)
         ambiguous = before is not None and before.status == "billing_ambiguous"
         total = None if actual_usd is None else float(actual_usd) + (before.actual_usd if ambiguous else 0.0)
         settled = settle_spend(model_call_id, actual_usd=total, billing_ambiguous=ambiguous)
@@ -705,6 +743,8 @@ def release_owner_pick_paid_call(
         from core.model_spend_ledger import get_spend_reservation, release_spend, settle_spend
 
         before = get_spend_reservation(model_call_id)
+        # A correction hold moved the row before this terminal; the receipt is still owed once.
+        owes_terminal = _take_correction_hold(model_call_id)
         if reason == "call_failed" and before is not None and before.status in {"reserved", "billing_ambiguous"}:
             settle_spend(model_call_id, actual_usd=None)
         else:
@@ -714,7 +754,7 @@ def release_owner_pick_paid_call(
         # cleanup calls are intentionally idempotent and cannot append contradictory terminals.
         if (
             before is not None
-            and str(before.status or "") == "reserved"
+            and (str(before.status or "") == "reserved" or owes_terminal)
             and terminal is not None
             and str(terminal.status or "") != "reserved"
         ):
