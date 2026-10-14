@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Įgūdžio pavadinimas",
     "addons.publish_show_text": "Rodyti tekstą",
     "addons.publish_hide_text": "Slėpti tekstą",
-    "addons.publish_note": "VOOL patikrino šį įgūdį čia, jūsų įrenginyje. „Atidaryti įgūdžių kodeksą“ naršyklėje atidaro įgūdžių kodekso svetainę su jau įrašytu šiuo įgūdžiu. Ten prisijunkite, pasirinkite jo kategoriją ir išsiųskite. VOOL pats nieko nesiunčia, o kartu perduodamas tik šio įgūdžio tekstas: jokių pokalbių, atminties ar raktų.",
+    "addons.publish_note": "VOOL patikrino šį įgūdį čia, jūsų įrenginyje. „Atidaryti įgūdžių kodeksą“ naršyklėje atidaro įgūdžių kodekso svetainę su jau įrašytu šiuo įgūdžiu. Ten prisijunkite, pasirinkite jo kategoriją, sutikite juo dalytis pagal MIT licenciją ir išsiųskite. VOOL pats nieko nesiunčia, o kartu perduodamas tik šio įgūdžio tekstas: jokių pokalbių, atminties ar raktų.",
     "addons.publish_open": "Atidaryti įgūdžių kodeksą",
     "addons.publish_refused": "Dar neparuošta įgūdžių kodeksui",
     "addons.publish_close": "Uždaryti",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "Įgūdyje minimi įrankiai, kurių VOOL neturi: {tools}.",
     "addons.publish_reason_format": "Įgūdžių kodekso patikra nepriėmė šio įgūdžio tokio, koks jis yra.",
     "addons.publish_reason_check_failed": "VOOL nepavyko baigti tikrinti šio įgūdžio. Niekas nebuvo išsiųsta.",
+    "addons.publish_line": "SKILL.md, {line} eilutė",
+    "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
     "addons.registry_category_writing": "Rašymas",
     "addons.registry_category_productivity": "Produktyvumas",
     "addons.registry_category_research_learning": "Tyrimai ir mokymasis",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Naršyklė",
     "addons.registry_need_files": "Jūsų failai"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

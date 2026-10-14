@@ -1871,7 +1871,7 @@
     "addons.publish_name": "스킬 이름",
     "addons.publish_show_text": "텍스트 보기",
     "addons.publish_hide_text": "텍스트 숨기기",
-    "addons.publish_note": "VOOL이 이 기기에서 이 스킬을 확인했습니다. '스킬 코덱스 열기'를 누르면 이 스킬이 채워진 상태로 브라우저에서 스킬 코덱스 웹사이트가 열립니다. 그곳에서 로그인하고 카테고리를 골라 보내세요. VOOL은 직접 아무것도 보내지 않으며, 이 스킬의 텍스트만 함께 전달됩니다. 채팅, 메모리, 키는 전달되지 않습니다.",
+    "addons.publish_note": "VOOL이 이 기기에서 이 스킬을 확인했습니다. '스킬 코덱스 열기'를 누르면 이 스킬이 채워진 상태로 브라우저에서 스킬 코덱스 웹사이트가 열립니다. 그곳에서 로그인하고 카테고리를 고른 뒤, MIT 라이선스로 공유하는 데 동의하고 보내세요. VOOL은 직접 아무것도 보내지 않으며, 이 스킬의 텍스트만 함께 전달됩니다. 채팅, 메모리, 키는 전달되지 않습니다.",
     "addons.publish_open": "스킬 코덱스 열기",
     "addons.publish_refused": "아직 스킬 코덱스에 게시할 수 없습니다",
     "addons.publish_close": "닫기",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "이 스킬은 VOOL에 없는 도구를 언급합니다: {tools}.",
     "addons.publish_reason_format": "스킬 코덱스 검사에서 이 스킬을 지금 상태로는 받아들이지 않았습니다.",
     "addons.publish_reason_check_failed": "VOOL이 이 스킬 검사를 끝내지 못했습니다. 아무것도 보내지 않았습니다.",
+    "addons.publish_line": "SKILL.md {line}번째 줄",
+    "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
     "addons.registry_category_writing": "글쓰기",
     "addons.registry_category_productivity": "생산성",
     "addons.registry_category_research_learning": "리서치 및 학습",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "브라우저",
     "addons.registry_need_files": "내 파일"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

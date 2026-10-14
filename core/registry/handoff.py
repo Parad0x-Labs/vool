@@ -1,9 +1,11 @@
 """Publish a skill you made to the Skill Codex: a check on this device, then a link to the website.
 
-VOOL sends nothing. ``publish_handoff`` runs the Skill Codex server's own instant check for its
-written-skill form (``registry_service.store.Store.draft``: ``initialize``, ``pack``, then
-``preflight``) in a private temporary directory, with placeholder package details, and turns its
-findings into plain sentences. When the check passes it returns a link to the website's publish page
+VOOL sends nothing. ``publish_handoff`` runs the Skill Codex server's own instant checks for its
+written-skill form (``registry_service.store.Store.draft``: ``initialize``, ``pack``, ``preflight``,
+then the automatic checks of ``core.registry.checks`` the service runs on a draft sent with the
+creator's MIT agreement) in a private temporary directory, with placeholder package details, and
+turns their findings into plain sentences. The automatic checks' own reasons are shown as written,
+with the line and words that tripped them, exactly as the website shows them. When the check passes it returns a link to the website's publish page
 whose fragment carries the skill::
 
     ORIGIN + "/codex/skills/publish#skill=" + base64url(UTF-8 JSON, no padding)
@@ -90,6 +92,8 @@ REASONS = {
     "no_instructions": "The skill has no instructions yet.",
     "unknown_tools": "The skill names tools VOOL doesn't have: {tools}.",
     "format": "The Skill Codex's check didn't accept this skill as it is.",
+    # The automatic checks' own sentence goes in "text"; this is only the fallback.
+    "codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "check_failed": "VOOL couldn't finish checking this skill. Nothing was sent.",
 }
 
@@ -172,10 +176,14 @@ def _metadata(package_name: str, title: str, summary: str) -> tuple[dict[str, An
     return {}, reasons
 
 
-def _server_check(info: dict[str, Any], skill_markdown: str) -> dict[str, Any]:
-    """``Store.draft``'s instant check, step for step, inside a private temporary directory."""
+def _server_check(info: dict[str, Any], skill_markdown: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """``Store.draft``'s instant checks, step for step, inside a private temporary directory.
+
+    Returns the preflight report and the automatic checks' findings. As on the service, text that
+    looks like it holds a secret stops there, so it is never read any further."""
     from core.plugin_package import execution_directory
     from core.registry.artifact import pack
+    from core.registry.checks import run
     from tools.community_skills import initialize, preflight
 
     with tempfile.TemporaryDirectory(prefix="vool-codex-check-") as outer:
@@ -187,7 +195,33 @@ def _server_check(info: dict[str, Any], skill_markdown: str) -> dict[str, Any]:
             # newline="" writes the text byte for byte, as the server's write_text does on its host.
             (source / "skills" / name / "SKILL.md").write_text(skill_markdown, encoding="utf-8", newline="")
             raw = pack(source, info, scratch)
-            return preflight(raw, scratch)
+            report = preflight(raw, scratch)
+        if any(item.get("check") == "secrets-preflight" for item in report["findings"]):
+            return report, []
+        # A Skill Codex skill is the person's own, so the team's exception for its own wording never applies.
+        outcome = run(raw, scratch, targets=[], official=False)
+        return report, [item for items in outcome["findings"].values() for item in items]
+
+
+def _automatic_reason(finding: dict[str, Any], slug: str) -> dict[str, Any]:
+    """One automatic check finding, in the words the website shows for it."""
+    check = str(finding.get("check") or "")
+    if check == "secrets":
+        return _reason("secret")  # never quoted back
+    if check == "native-boundaries":
+        return _reason("override")
+    if check == "compatibility":
+        # The same native-format check the preflight runs, so its reasons map the same way.
+        return _finding_reason(dict(finding, check="native-format"))
+    if check not in {"instructions-primary", "quality"}:
+        return _reason("format")  # the parts VOOL fills in itself: licence, manifest, package
+    path = str(finding.get("path") or "")
+    reason: dict[str, Any] = {"code": "codex_check", "text": _plain(finding.get("reason", "")) or REASONS["codex_check"]}
+    if path == f"skills/{slug}/SKILL.md" and type(finding.get("line")) is int:
+        reason["line"] = finding["line"]  # the line in the person's own SKILL.md, written byte for byte
+    if isinstance(finding.get("quote"), str) and finding["quote"].strip():
+        reason["quote"] = finding["quote"]
+    return reason
 
 
 def _finding_reason(finding: dict[str, Any]) -> dict[str, Any]:
@@ -274,7 +308,7 @@ def publish_handoff(name: str, *, keys: dict[str, str] | None = None, scope: str
         reasons.append(_reason("too_long_text"))
     elif info:
         try:
-            report = _server_check(info, text)
+            report, automatic = _server_check(info, text)
         except RegistryError as exc:
             reasons.append(_reason("reserved_name" if str(exc) == "path is ambiguous on supported platforms" else "format"))
         except (PackageError, OSError, ValueError):
@@ -283,6 +317,7 @@ def publish_handoff(name: str, *, keys: dict[str, str] | None = None, scope: str
             reasons.extend(_finding_reason(finding) for finding in report["findings"])
             if report["status"] != "preflight_passed" and not report["findings"]:
                 reasons.append(_reason("format"))
+            reasons.extend(_automatic_reason(finding, info["id"].split("/")[1]) for finding in automatic)
     if reasons:
         return _refused(reasons)
     return {

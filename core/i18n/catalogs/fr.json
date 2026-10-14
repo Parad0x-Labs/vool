@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Nom de la compétence",
     "addons.publish_show_text": "Afficher le texte",
     "addons.publish_hide_text": "Masquer le texte",
-    "addons.publish_note": "VOOL a vérifié cette compétence ici, sur votre appareil. « Ouvrir le codex des compétences » ouvre le site du codex des compétences dans votre navigateur, avec cette compétence déjà remplie. Connectez-vous, choisissez sa catégorie et envoyez-la. VOOL n'envoie rien lui-même, et seul le texte de cette compétence est transmis : ni discussions, ni mémoire, ni clés.",
+    "addons.publish_note": "VOOL a vérifié cette compétence ici, sur votre appareil. « Ouvrir le codex des compétences » ouvre le site du codex des compétences dans votre navigateur, avec cette compétence déjà remplie. Connectez-vous, choisissez sa catégorie, acceptez de la partager sous licence MIT et envoyez-la. VOOL n'envoie rien lui-même, et seul le texte de cette compétence est transmis : ni discussions, ni mémoire, ni clés.",
     "addons.publish_open": "Ouvrir le codex des compétences",
     "addons.publish_refused": "Pas encore prête pour le codex des compétences",
     "addons.publish_close": "Fermer",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "La compétence cite des outils que VOOL n'a pas : {tools}.",
     "addons.publish_reason_format": "La vérification du codex des compétences n'a pas accepté cette compétence en l'état.",
     "addons.publish_reason_check_failed": "VOOL n'a pas pu terminer la vérification de cette compétence. Rien n'a été envoyé.",
+    "addons.publish_line": "SKILL.md, ligne {line}",
+    "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
     "addons.registry_category_writing": "Écriture",
     "addons.registry_category_productivity": "Productivité",
     "addons.registry_category_research_learning": "Recherche et apprentissage",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Navigateur",
     "addons.registry_need_files": "Vos fichiers"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

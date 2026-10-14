@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Beceri adı",
     "addons.publish_show_text": "Metni göster",
     "addons.publish_hide_text": "Metni gizle",
-    "addons.publish_note": "VOOL bu beceriyi burada, cihazınızda kontrol etti. \"Beceri Kodeksini aç\", Beceri Kodeksi web sitesini bu beceri doldurulmuş olarak tarayıcınızda açar. Orada oturum açın, kategorisini seçin ve gönderin. VOOL kendiliğinden hiçbir şey göndermez ve yalnızca bu becerinin metni gider: sohbetler, bellek veya anahtarlar gitmez.",
+    "addons.publish_note": "VOOL bu beceriyi burada, cihazınızda kontrol etti. \"Beceri Kodeksini aç\", Beceri Kodeksi web sitesini bu beceri doldurulmuş olarak tarayıcınızda açar. Orada oturum açın, kategorisini seçin, MIT lisansıyla paylaşmayı kabul edin ve gönderin. VOOL kendiliğinden hiçbir şey göndermez ve yalnızca bu becerinin metni gider: sohbetler, bellek veya anahtarlar gitmez.",
     "addons.publish_open": "Beceri Kodeksini aç",
     "addons.publish_refused": "Beceri Kodeksi için henüz hazır değil",
     "addons.publish_close": "Kapat",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "Beceri, VOOL'da olmayan araçları adlandırıyor: {tools}.",
     "addons.publish_reason_format": "Beceri Kodeksinin kontrolü bu beceriyi bu haliyle kabul etmedi.",
     "addons.publish_reason_check_failed": "VOOL bu beceriyi kontrol etmeyi bitiremedi. Hiçbir şey gönderilmedi.",
+    "addons.publish_line": "SKILL.md, {line}. satır",
+    "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
     "addons.registry_category_writing": "Yazma",
     "addons.registry_category_productivity": "Verimlilik",
     "addons.registry_category_research_learning": "Araştırma ve öğrenme",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Tarayıcı",
     "addons.registry_need_files": "Dosyalarınız"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

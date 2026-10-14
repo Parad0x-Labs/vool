@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Name der Fertigkeit",
     "addons.publish_show_text": "Text anzeigen",
     "addons.publish_hide_text": "Text ausblenden",
-    "addons.publish_note": "VOOL hat diese Fertigkeit hier auf Ihrem Gerät geprüft. „Fertigkeiten-Codex öffnen“ öffnet die Website des Fertigkeiten-Codex in Ihrem Browser, mit dieser Fertigkeit bereits ausgefüllt. Melden Sie sich dort an, wählen Sie ihre Kategorie und senden Sie sie ab. VOOL selbst sendet nichts, und nur der Text dieser Fertigkeit wird mitgegeben: keine Chats, keine Erinnerungen, keine Schlüssel.",
+    "addons.publish_note": "VOOL hat diese Fertigkeit hier auf Ihrem Gerät geprüft. „Fertigkeiten-Codex öffnen“ öffnet die Website des Fertigkeiten-Codex in Ihrem Browser, mit dieser Fertigkeit bereits ausgefüllt. Melden Sie sich dort an, wählen Sie ihre Kategorie, stimmen Sie zu, sie unter der MIT-Lizenz zu teilen, und senden Sie sie ab. VOOL selbst sendet nichts, und nur der Text dieser Fertigkeit wird mitgegeben: keine Chats, keine Erinnerungen, keine Schlüssel.",
     "addons.publish_open": "Fertigkeiten-Codex öffnen",
     "addons.publish_refused": "Noch nicht bereit für den Fertigkeiten-Codex",
     "addons.publish_close": "Schließen",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "Die Fertigkeit nennt Werkzeuge, die VOOL nicht hat: {tools}.",
     "addons.publish_reason_format": "Die Prüfung des Fertigkeiten-Codex hat diese Fertigkeit so nicht angenommen.",
     "addons.publish_reason_check_failed": "VOOL konnte die Prüfung dieser Fertigkeit nicht abschließen. Es wurde nichts gesendet.",
+    "addons.publish_line": "SKILL.md, Zeile {line}",
+    "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_category_writing": "Schreiben",
     "addons.registry_category_productivity": "Produktivität",
     "addons.registry_category_research_learning": "Recherche & Lernen",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Webbrowser",
     "addons.registry_need_files": "Ihre Dateien"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

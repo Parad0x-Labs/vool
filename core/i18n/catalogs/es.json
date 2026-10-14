@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Nombre de la habilidad",
     "addons.publish_show_text": "Mostrar texto",
     "addons.publish_hide_text": "Ocultar texto",
-    "addons.publish_note": "VOOL revisó esta habilidad aquí, en tu dispositivo. «Abrir el códice de habilidades» abre el sitio web del códice de habilidades en tu navegador con esta habilidad ya completada. Inicia sesión allí, elige su categoría y envíala. VOOL no envía nada por sí mismo, y solo se incluye el texto de esta habilidad: ni chats, ni memoria, ni claves.",
+    "addons.publish_note": "VOOL revisó esta habilidad aquí, en tu dispositivo. «Abrir el códice de habilidades» abre el sitio web del códice de habilidades en tu navegador con esta habilidad ya completada. Inicia sesión allí, elige su categoría, acepta compartirla con la licencia MIT y envíala. VOOL no envía nada por sí mismo, y solo se incluye el texto de esta habilidad: ni chats, ni memoria, ni claves.",
     "addons.publish_open": "Abrir el códice de habilidades",
     "addons.publish_refused": "Aún no está lista para el códice de habilidades",
     "addons.publish_close": "Cerrar",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "La habilidad nombra herramientas que VOOL no tiene: {tools}.",
     "addons.publish_reason_format": "La revisión del códice de habilidades no aceptó esta habilidad tal como está.",
     "addons.publish_reason_check_failed": "VOOL no pudo terminar de revisar esta habilidad. No se envió nada.",
+    "addons.publish_line": "SKILL.md, línea {line}",
+    "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está.",
     "addons.registry_category_writing": "Escritura",
     "addons.registry_category_productivity": "Productividad",
     "addons.registry_category_research_learning": "Investigación y aprendizaje",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Navegador",
     "addons.registry_need_files": "Tus archivos"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

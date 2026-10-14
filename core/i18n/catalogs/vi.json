@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Tên kỹ năng",
     "addons.publish_show_text": "Hiện văn bản",
     "addons.publish_hide_text": "Ẩn văn bản",
-    "addons.publish_note": "VOOL đã kiểm tra kỹ năng này ngay trên thiết bị của bạn. \"Mở bộ sưu tập kỹ năng\" sẽ mở trang web bộ sưu tập kỹ năng trong trình duyệt với kỹ năng này đã được điền sẵn. Đăng nhập ở đó, chọn danh mục rồi gửi đi. VOOL không tự gửi gì cả, và chỉ văn bản của kỹ năng này đi kèm: không có cuộc trò chuyện, bộ nhớ hay khóa nào.",
+    "addons.publish_note": "VOOL đã kiểm tra kỹ năng này ngay trên thiết bị của bạn. \"Mở bộ sưu tập kỹ năng\" sẽ mở trang web bộ sưu tập kỹ năng trong trình duyệt với kỹ năng này đã được điền sẵn. Đăng nhập ở đó, chọn danh mục, đồng ý chia sẻ theo giấy phép MIT rồi gửi đi. VOOL không tự gửi gì cả, và chỉ văn bản của kỹ năng này đi kèm: không có cuộc trò chuyện, bộ nhớ hay khóa nào.",
     "addons.publish_open": "Mở bộ sưu tập kỹ năng",
     "addons.publish_refused": "Chưa sẵn sàng cho bộ sưu tập kỹ năng",
     "addons.publish_close": "Đóng",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "Kỹ năng này nhắc đến công cụ mà VOOL không có: {tools}.",
     "addons.publish_reason_format": "Bước kiểm tra của bộ sưu tập kỹ năng không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.publish_reason_check_failed": "VOOL không thể hoàn tất việc kiểm tra kỹ năng này. Chưa có gì được gửi đi.",
+    "addons.publish_line": "SKILL.md, dòng {line}",
+    "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_category_writing": "Viết",
     "addons.registry_category_productivity": "Năng suất",
     "addons.registry_category_research_learning": "Nghiên cứu & học tập",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Trình duyệt",
     "addons.registry_need_files": "Tệp của bạn"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

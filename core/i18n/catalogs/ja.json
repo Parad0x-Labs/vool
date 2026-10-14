@@ -1871,7 +1871,7 @@
     "addons.publish_name": "スキル名",
     "addons.publish_show_text": "テキストを表示",
     "addons.publish_hide_text": "テキストを隠す",
-    "addons.publish_note": "VOOL はこのスキルをこのデバイス上で確認しました。「スキルコーデックスを開く」を押すと、このスキルが入力された状態でスキルコーデックスのウェブサイトがブラウザで開きます。そこでサインインし、カテゴリを選んで送信してください。VOOL からは何も送信されず、渡されるのはこのスキルのテキストだけです。チャット、メモリー、キーは含まれません。",
+    "addons.publish_note": "VOOL はこのスキルをこのデバイス上で確認しました。「スキルコーデックスを開く」を押すと、このスキルが入力された状態でスキルコーデックスのウェブサイトがブラウザで開きます。そこでサインインし、カテゴリを選び、MIT ライセンスで公開することに同意して送信してください。VOOL からは何も送信されず、渡されるのはこのスキルのテキストだけです。チャット、メモリー、キーは含まれません。",
     "addons.publish_open": "スキルコーデックスを開く",
     "addons.publish_refused": "まだスキルコーデックスに公開できません",
     "addons.publish_close": "閉じる",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "このスキルは VOOL にないツールを指定しています: {tools}。",
     "addons.publish_reason_format": "スキルコーデックスのチェックで、このスキルはこのままでは受け付けられませんでした。",
     "addons.publish_reason_check_failed": "VOOL はこのスキルのチェックを完了できませんでした。何も送信されていません。",
+    "addons.publish_line": "SKILL.md の {line} 行目",
+    "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
     "addons.registry_category_writing": "文章作成",
     "addons.registry_category_productivity": "生産性",
     "addons.registry_category_research_learning": "リサーチと学習",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "ブラウザー",
     "addons.registry_need_files": "あなたのファイル"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

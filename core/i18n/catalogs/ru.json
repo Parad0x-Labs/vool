@@ -1871,7 +1871,7 @@
     "addons.publish_name": "Название навыка",
     "addons.publish_show_text": "Показать текст",
     "addons.publish_hide_text": "Скрыть текст",
-    "addons.publish_note": "VOOL проверил этот навык здесь, на вашем устройстве. «Открыть кодекс навыков» открывает сайт кодекса навыков в браузере, где этот навык уже заполнен. Войдите там, выберите его категорию и отправьте. VOOL сам ничего не отправляет, и передаётся только текст этого навыка: никаких чатов, памяти или ключей.",
+    "addons.publish_note": "VOOL проверил этот навык здесь, на вашем устройстве. «Открыть кодекс навыков» открывает сайт кодекса навыков в браузере, где этот навык уже заполнен. Войдите там, выберите его категорию, согласитесь распространять его по лицензии MIT и отправьте. VOOL сам ничего не отправляет, и передаётся только текст этого навыка: никаких чатов, памяти или ключей.",
     "addons.publish_open": "Открыть кодекс навыков",
     "addons.publish_refused": "Пока не готово для кодекса навыков",
     "addons.publish_close": "Закрыть",
@@ -1894,6 +1894,8 @@
     "addons.publish_reason_unknown_tools": "Навык упоминает инструменты, которых нет в VOOL: {tools}.",
     "addons.publish_reason_format": "Проверка кодекса навыков не приняла этот навык в нынешнем виде.",
     "addons.publish_reason_check_failed": "VOOL не удалось завершить проверку этого навыка. Ничего не отправлено.",
+    "addons.publish_line": "SKILL.md, строка {line}",
+    "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде.",
     "addons.registry_category_writing": "Тексты",
     "addons.registry_category_productivity": "Продуктивность",
     "addons.registry_category_research_learning": "Исследования и обучение",
@@ -1973,7 +1975,7 @@
     "addons.registry_need_browser": "Браузер",
     "addons.registry_need_files": "Ваши файлы"
   },
-  "source_catalog_sha256": "a6a5d393ea6827d6a603e2d601d621341f03cc392a37688d3e3143b9edf6ebc5",
+  "source_catalog_sha256": "1fdeedd86502bf5587f0106fabe881c1ef783f9000e365329741a967c99cecfc",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
