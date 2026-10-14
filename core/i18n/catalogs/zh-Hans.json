@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "添加一个密钥并复制。一个 Etherscan 密钥适用于 Etherscan 支持的所有链。",
     "keyguide.provider.etherscan.step3": "在列表中选择 Etherscan，粘贴密钥，然后点击“保存密钥”。",
     "keyguide.provider.etherscan.note1": "Etherscan 免费套餐可能不支持 Base 或 BNB Smart Chain。如不支持，聊天会说明并指出是哪条链。",
+    "keyguide.provider.moralis.description": "Ethereum、Base、BNB Smart Chain 和 Arbitrum 上的代币持有人列表。",
+    "keyguide.provider.moralis.step1": "登录 admin.moralis.io（免费套餐即可）并打开你的账户。",
+    "keyguide.provider.moralis.step2": "打开设置，再打开 API Keys，复制你的密钥。",
+    "keyguide.provider.moralis.step3": "在列表中选择 Moralis，粘贴密钥，然后点击“保存密钥”。",
+    "keyguide.provider.moralis.note1": "VOOL 仅使用你的 Moralis 密钥读取 Ethereum、Base、BNB Smart Chain 和 Arbitrum 上的代币持有人列表。",
+    "keyguide.provider.moralis.note2": "免费套餐有每日计算单位额度。额度用完时，持有人列表会在聊天中给出明确的拒绝，直到额度重置。",
     "xsetup.dialog_title": "连接 X",
     "xsetup.choose": "你想如何连接?",
     "xsetup.choose_public": "研究公开帖子(Bearer Token)",
@@ -2389,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。请稍后重试，或换用其他网络。没有存储任何内容。",
     "keys.test.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。"
   },
-  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
+  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

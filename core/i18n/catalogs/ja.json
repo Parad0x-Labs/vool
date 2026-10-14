@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "キーを追加してコピーします。1つのEtherscanキーで、Etherscanが対応するすべてのチェーンを利用できます。",
     "keyguide.provider.etherscan.step3": "一覧でEtherscanを選び、キーを貼り付けて「キーを保存」を押します。",
     "keyguide.provider.etherscan.note1": "Etherscanの無料プランではBaseやBNB Smart Chainを利用できない場合があります。その場合はチャットがその旨とチェーン名を伝えます。",
+    "keyguide.provider.moralis.description": "Ethereum、Base、BNB Smart Chain、Arbitrumのトークン保有者リスト。",
+    "keyguide.provider.moralis.step1": "admin.moralis.ioにサインインし（無料プランで使えます）、アカウントを開きます。",
+    "keyguide.provider.moralis.step2": "設定を開き、次にAPI Keysを開いてキーをコピーします。",
+    "keyguide.provider.moralis.step3": "一覧でMoralisを選び、キーを貼り付けて「キーを保存」を押します。",
+    "keyguide.provider.moralis.note1": "VOOLはMoralisのキーを、Ethereum、Base、BNB Smart Chain、Arbitrumのトークン保有者リストの読み取りにのみ使います。",
+    "keyguide.provider.moralis.note2": "無料プランには1日あたりのコンピュートユニット量があります。使い切ると、リセットされるまで保有者リストはチャットで明確な拒否を返します。",
     "xsetup.dialog_title": "X を接続",
     "xsetup.choose": "どの方法で接続しますか?",
     "xsetup.choose_public": "公開ポストを調べる(Bearer Token)",
@@ -2389,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。後でもう一度試すか、別のネットワークからお試しください。何も保存されていません。",
     "keys.test.gateway_blocked": "{label}がキーを確認する前にこのチェックをブロックしました{http}。キーは判定されていません。"
   },
-  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
+  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "Додайте ключ і скопіюйте його. Один ключ Etherscan працює для всіх мереж, які обслуговує Etherscan.",
     "keyguide.provider.etherscan.step3": "Виберіть Etherscan у списку, вставте ключ і натисніть «Зберегти ключ».",
     "keyguide.provider.etherscan.note1": "Безкоштовний план Etherscan може не охоплювати Base або BNB Smart Chain. У такому разі чат повідомить про це й назве мережу.",
+    "keyguide.provider.moralis.description": "Списки власників токенів у мережах Ethereum, Base, BNB Smart Chain і Arbitrum.",
+    "keyguide.provider.moralis.step1": "Увійдіть на admin.moralis.io (підійде безкоштовний план) і відкрийте свій акаунт.",
+    "keyguide.provider.moralis.step2": "Відкрийте Налаштування, потім API Keys, і скопіюйте ключ.",
+    "keyguide.provider.moralis.step3": "Виберіть Moralis у списку, вставте ключ і натисніть «Зберегти ключ».",
+    "keyguide.provider.moralis.note1": "VOOL використовує ваш ключ Moralis лише для читання списків власників токенів у мережах Ethereum, Base, BNB Smart Chain і Arbitrum.",
+    "keyguide.provider.moralis.note2": "У безкоштовному плані є денний ліміт обчислювальних одиниць. Коли він вичерпаний, списки власників відповідають у чаті чіткою відмовою, поки ліміт не поновиться.",
     "xsetup.dialog_title": "Підключити X",
     "xsetup.choose": "Як ви хочете підключитися?",
     "xsetup.choose_public": "Досліджувати публічні дописи (Bearer Token)",
@@ -2389,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено. Спробуйте пізніше або з іншої мережі. Нічого не збережено.",
     "keys.test.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено."
   },
-  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
+  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

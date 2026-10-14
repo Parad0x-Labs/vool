@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "एक कुंजी जोड़ें और उसे कॉपी करें। एक Etherscan कुंजी उन सभी चेन पर काम करती है जिन्हें Etherscan सेवा देता है।",
     "keyguide.provider.etherscan.step3": "सूची में Etherscan चुनें, कुंजी पेस्ट करें और कुंजी सहेजें दबाएँ।",
     "keyguide.provider.etherscan.note1": "Etherscan का मुफ़्त प्लान शायद Base या BNB Smart Chain को कवर न करे। अगर न करे, तो चैट यह बताता है और चेन का नाम लेता है।",
+    "keyguide.provider.moralis.description": "Ethereum, Base, BNB Smart Chain और Arbitrum पर टोकन धारक सूचियाँ।",
+    "keyguide.provider.moralis.step1": "admin.moralis.io पर साइन इन करें (मुफ़्त प्लान काफ़ी है) और अपना खाता खोलें।",
+    "keyguide.provider.moralis.step2": "सेटिंग्स खोलें, फिर API Keys, और अपनी कुंजी कॉपी करें।",
+    "keyguide.provider.moralis.step3": "सूची में Moralis चुनें, कुंजी पेस्ट करें और कुंजी सहेजें दबाएँ।",
+    "keyguide.provider.moralis.note1": "VOOL आपकी Moralis कुंजी का उपयोग केवल Ethereum, Base, BNB Smart Chain और Arbitrum पर टोकन धारक सूचियाँ पढ़ने के लिए करता है।",
+    "keyguide.provider.moralis.note2": "मुफ़्त प्लान में कंप्यूट यूनिट की दैनिक सीमा होती है। सीमा खत्म होने पर धारक सूचियाँ चैट में स्पष्ट इनकार के साथ जवाब देती हैं जब तक वह रीसेट न हो जाए।",
     "xsetup.dialog_title": "X कनेक्ट करें",
     "xsetup.choose": "आप कैसे कनेक्ट करना चाहेंगे?",
     "xsetup.choose_public": "सार्वजनिक पोस्ट खोजें (Bearer Token)",
@@ -2389,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ। बाद में या किसी दूसरे नेटवर्क से कोशिश करें। कुछ सहेजा नहीं गया।",
     "keys.test.gateway_blocked": "{label} ने कुंजी देखने से पहले ही यह जाँच रोक दी{http}। कुंजी का निर्णय नहीं हुआ।"
   },
-  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
+  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

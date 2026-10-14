@@ -1817,6 +1817,12 @@
     "keyguide.provider.etherscan.step2": "Добавьте ключ и скопируйте его. Один ключ Etherscan работает для всех сетей, которые обслуживает Etherscan.",
     "keyguide.provider.etherscan.step3": "Выберите Etherscan в списке, вставьте ключ и нажмите «Сохранить ключ».",
     "keyguide.provider.etherscan.note1": "Бесплатный план Etherscan может не охватывать Base или BNB Smart Chain. В таком случае чат сообщит об этом и назовёт сеть.",
+    "keyguide.provider.moralis.description": "Списки держателей токенов в сетях Ethereum, Base, BNB Smart Chain и Arbitrum.",
+    "keyguide.provider.moralis.step1": "Войдите на admin.moralis.io (подойдёт бесплатный план) и откройте свой аккаунт.",
+    "keyguide.provider.moralis.step2": "Откройте Настройки, затем API Keys, и скопируйте ключ.",
+    "keyguide.provider.moralis.step3": "Выберите Moralis в списке, вставьте ключ и нажмите «Сохранить ключ».",
+    "keyguide.provider.moralis.note1": "VOOL использует ваш ключ Moralis только для чтения списков держателей токенов в сетях Ethereum, Base, BNB Smart Chain и Arbitrum.",
+    "keyguide.provider.moralis.note2": "У бесплатного плана есть дневной лимит вычислительных единиц. Когда он исчерпан, списки держателей отвечают в чате ясным отказом, пока лимит не обновится.",
     "xsetup.dialog_title": "Подключить X",
     "xsetup.choose": "Как вы хотите подключиться?",
     "xsetup.choose_public": "Изучать публичные посты (Bearer Token)",
@@ -2389,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен. Попробуйте позже или из другой сети. Ничего не сохранено.",
     "keys.test.gateway_blocked": "{label} заблокировал эту проверку, не взглянув на ключ{http}. Вердикт по ключу не вынесен."
   },
-  "source_catalog_sha256": "c6d09b73823fb126988a7ee0712de702c43c6e97c1d1a731847c39d9e6fbb528",
+  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
