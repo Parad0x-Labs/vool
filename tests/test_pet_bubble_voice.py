@@ -49,8 +49,10 @@ try {
   VC.consume("c1", { type: "task.started", seq: 1 });
   VC.consume("c1", { type: "tool.started", seq: 2, tool: "web_search" });
   res.search = look(t0 + 1000);
+  VC.consume("c1", { type: "tool.started", seq: 3, tool: "read_file" });
+  res.burst = look(t0 + 1500);
   res.searchLater = look(t0 + 60000);
-  VC.consume("c1", { type: "permission.required", seq: 3 });
+  VC.consume("c1", { type: "permission.required", seq: 4 });
   res.ask = look(t0 + 61000);
   res.askLater = look(t0 + 600000);
   displayedChat = "c2";
@@ -82,6 +84,7 @@ def test_the_bubble_is_quiet_when_idle_playful_at_work_and_clear_when_it_needs_y
     out = _run(BUBBLE_DRIVER)
     assert out["idle"]["shown"] == "none", "a pet doing nothing says nothing"
     assert out["search"]["shown"] == "flex" and out["search"]["line"] in QUIPS["search"], out["search"]
+    assert out["burst"]["line"] == out["search"]["line"], "a burst of quick steps does not flicker the line"
     assert out["searchLater"]["line"] == out["search"]["line"], "lines change with the work, not on a timer"
     assert out["ask"]["line"] in QUIPS["ask"], out["ask"]
     assert out["askLater"]["shown"] == "flex", "a waiting decision stays visible until it is answered"

@@ -726,15 +726,16 @@ function vnBubbleLine(chatId, pres, nextState, now) {
     const playful = !!pool && vnPlayful();
     // A fresh joke at most every few seconds within the same kind of work, so a burst of
     // events does not flicker the bubble; a change of kind (working -> asking) shows at once.
-    const hold = q && playful && q.pool === pool && now - q.lineAt < VN_QUIP_HOLD_MS;
+    const working = function (k) { return !!k && k !== "ask" && k !== "done"; };
+    const hold = q && playful && working(q.pool) && working(pool) && now - q.lineAt < VN_QUIP_HOLD_MS;
     const line = hold ? q.line : (playful ? vnNextQuip(pool) : plain);
     q = { key: key, pool: pool, since: q && q.pool === pool ? q.since : now,
           line: line, lineAt: hold ? q.lineAt : now };
     vnQuipByChat.set(id, q);
   }
-  // Only a finished job goes quiet on its own. Asking, failures and flagged results stay up
+  // Only a finished or cancelled job goes quiet on its own. Asking, failures and flagged stay up
   // until something changes, because they are what the user needs to see on coming back.
-  if (pool === "done" && now - q.since > VN_DONE_LINGER_MS) return "";
+  if ((pool === "done" || pres.state === "CANCELLED") && now - q.since > VN_DONE_LINGER_MS) return "";
   return q.line;
 }
 /* Two grounded lines. `activity` is a line chosen from the typed state (see vnBubbleLine). */

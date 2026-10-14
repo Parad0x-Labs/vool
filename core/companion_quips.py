@@ -60,7 +60,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Asking around the web…",
         "Fetching more unicorns…",
         "Rounding up sources…",
-        "Unicorns spotted…",
+        "Unicorn hunt underway…",
     ),
     "read": (
         "Reading the scrolls…",
@@ -175,7 +175,7 @@ QUIPS: dict[str, tuple[str, ...]] = {
         "Waiting on your approval",
         "Approve or deny? Your call",
         "Paused: need your decision",
-        "Royal decree needed",
+        "Royal decree needed: approve?",
         "Can't go on without your OK",
         "Decision time, over to you",
         "Your answer needed to go on",
