@@ -10,7 +10,9 @@ had budget -- the reported "local recall can time out; use a cloud model".
 These pin the one rule that was missing: on a CPU-only machine a LOCAL provider's per-call timeout
 and the queue wait are scaled by ``CPU_ONLY_FACTOR``; a cloud provider's timeout never is; an
 explicit ``VOOL_LOCAL_MODEL_QUEUE_WAIT`` wins over scaling; a bound turn deadline still covers the
-call; and on a GPU machine every value stays exactly what it was. CPU-only is faked the way
+call; the router's fallback budget on an ordinary turn scales with the local call it bounds and
+its written cap is never scaled a second time; and on a GPU machine every value stays exactly what
+it was. CPU-only is faked the way
 ``tests/test_local_compute_budget.py`` fakes it: a patched ``probe_machine`` and a cleared cache.
 No model runs anywhere in this file.
 """
@@ -180,3 +182,166 @@ def test_a_gpu_machine_keeps_every_value_exactly_as_before(monkeypatch, accelera
     assert _post_read_timeout(_cloud_adapter(), _request()) == 180.0
     monkeypatch.delenv("VOOL_LOCAL_MODEL_QUEUE_WAIT", raising=False)
     assert local_model_admission.configured_queue_wait_seconds() == 240.0
+
+
+# --- The ordinary chat path: the router's fallback budget and the call it caps ---------------
+#
+# A plain question and a memory recall turn are not conductor turns: no turn deadline is bound on
+# them, and the only wall clock over the local call is the router's sequential fallback budget,
+# which writes the remaining window into the manifest copy the adapter receives. These drive the
+# real ``MemoryFirstRouter._execute_provider_task`` with the real adapter and record the read
+# timeout of the real HTTP call (``requests.post`` is the only thing replaced), the same fake
+# clock as tests/test_fallback_budget_characterization.py advancing by each hang.
+
+
+class _RouterClock:
+    def __init__(self) -> None:
+        self.now = 1_000_000.0
+        self.start = self.now
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+def _router_manifest(name: str, *, local: bool):
+    from storage.model_provider_manifest import ModelProviderManifest
+
+    # Local fixtures are classified local by ``deployment_class`` and sit off loopback on purpose,
+    # like the fallback-budget characterization fixtures: the tool-certification probe reaches only
+    # loopback endpoints, and these are budget scenarios, not certified local models.
+    return ModelProviderManifest(
+        provider_name=f"fixture-{name}", model_name=f"candidate-{name}", source_type="http",
+        adapter_type="openai_compatible", license_name="Apache-2.0",
+        license_reference="https://example.invalid", weight_location="external",
+        runtime_dependency="ollama" if local else "remote", capabilities=["summarize", "format", "structured_json"],
+        runtime_config={
+            "base_url": "http://fixture.invalid:9" if local else "https://cloud.fixture.invalid/v1",
+            "api_path": "/v1/chat/completions",
+            "timeout_seconds": 180,
+        },
+        metadata={"deployment_class": "local" if local else "remote", "orchestration_role": "queen"},
+    )
+
+
+def _drive_router(monkeypatch, manifests, *, output_mode: str = "plain_text"):
+    """Every candidate hangs until its own read timeout. Returns (read timeouts, elapsed, decision)."""
+    import requests
+
+    from core import memory_first_router
+    from core.memory_first_router import MemoryFirstRouter
+    from core.model_health import reset_provider_health
+    from storage.db import get_connection
+    from storage.migrations import run_migrations
+
+    run_migrations()
+    reset_provider_health()
+    conn = get_connection()
+    try:
+        for table in ("model_provider_manifests", "candidate_knowledge_lane", "local_tasks"):
+            conn.execute(f"DELETE FROM {table}")
+        conn.commit()
+    finally:
+        conn.close()
+    monkeypatch.setattr(memory_first_router, "_NO_USABLE_GPU_CACHE", None)
+    clock = _RouterClock()
+    reads: list[float] = []
+
+    def post(*args, **kwargs):
+        read = kwargs["timeout"][1]
+        reads.append(read)
+        clock.now += read
+        raise requests.exceptions.ReadTimeout(f"Read timed out. (read timeout={read})")
+
+    router = MemoryFirstRouter()
+    for manifest in manifests:
+        router.registry.register_manifest(manifest)
+
+    def build_adapter(manifest):
+        adapter = OpenAICompatibleAdapter(manifest)
+        adapter.health_check = lambda: {"ok": True}
+        return adapter
+
+    plan = SimpleNamespace(
+        lane="daily",
+        selected_provider_id=manifests[0].provider_id,
+        to_dict=lambda: {
+            "schema": "vool.local_inference_autopilot.v1", "lane": "daily",
+            "selected_provider_id": manifests[0].provider_id, "selected_model": manifests[0].model_name,
+            "verifier_required": False, "verifier_provider_id": None, "verifier_model": None,
+            "explicit_heavy": False, "prefix_cache": {"backend": "none", "supported": False}, "warnings": [],
+        },
+    )
+    with mock.patch(
+        "core.memory_first_router.rank_provider_candidates", return_value=list(manifests)
+    ), mock.patch.object(router.registry, "build_adapter", side_effect=build_adapter), mock.patch(
+        "core.memory_first_router.build_local_inference_autopilot_plan", return_value=plan
+    ), mock.patch("core.memory_first_router.time.monotonic", side_effect=clock.monotonic), mock.patch(
+        "adapters.openai_compatible_adapter.requests.post", side_effect=post
+    ):
+        decision = router._execute_provider_task(
+            task=SimpleNamespace(task_id="cpu-budget-task", task_summary="what did I say about my sister?"),
+            classification={"task_class": "daily"},
+            interpretation=SimpleNamespace(reconstructed_text="what did I say about my sister?"),
+            context_result=SimpleNamespace(
+                retrieval_confidence_score=0.2,
+                report=SimpleNamespace(
+                    retrieval_confidence=0.2,
+                    to_dict=lambda: {"retrieval_confidence": 0.2, "external_evidence_attachments": []},
+                ),
+            ),
+            persona=SimpleNamespace(),
+            task_hash="cpu-budget-hash",
+            task_kind="chat",
+            output_mode=output_mode,
+            allow_paid_fallback=False,
+            provider_role="queen",
+            surface="openclaw",
+            source_context={
+                "surface": "openclaw",
+                "_canonical_user_turn_id": "cpu-budget-turn",
+                "session_id": "cpu-budget-session",
+                "runtime_session_id": "cpu-budget-session",
+            },
+        )
+    return reads, clock.now - clock.start, decision
+
+
+def test_cpu_only_ordinary_turn_gives_a_local_call_the_scaled_window(monkeypatch):
+    """The reported failure: the local answer was cut at 180 s on CPU-only. It now runs to the
+    scaled ceiling, and that is still the whole budget, not more."""
+    _machine(monkeypatch, "cpu")
+    reads, elapsed, decision = _drive_router(monkeypatch, [_router_manifest("a", local=True)])
+    assert reads == [pytest.approx(180.0 * local_compute_budget.CPU_ONLY_FACTOR)]
+    assert elapsed == pytest.approx(180.0 * local_compute_budget.CPU_ONLY_FACTOR)
+    assert decision.used_model is not True
+
+
+def test_cpu_only_router_cap_is_not_scaled_twice(monkeypatch):
+    """The cap the router writes is real seconds left in its budget. Scaling it again in the
+    adapter let the first of two hanging local candidates run 4 x its cap and outlive the whole
+    budget, so the successor's reserved window never came."""
+    _machine(monkeypatch, "cpu")
+    budget = 180.0 * local_compute_budget.CPU_ONLY_FACTOR
+    reads, elapsed, _decision = _drive_router(
+        monkeypatch, [_router_manifest("a", local=True), _router_manifest("b", local=True)]
+    )
+    assert reads[0] == pytest.approx(budget - 5.0)
+    assert len(reads) == 2 and reads[1] == pytest.approx(5.0)
+    assert elapsed <= budget + 5.0
+
+
+def test_cpu_only_cloud_only_chain_keeps_todays_budget_and_call_timeout(monkeypatch):
+    _machine(monkeypatch, "cpu")
+    reads, elapsed, _decision = _drive_router(monkeypatch, [_router_manifest("c", local=False)])
+    assert reads == [pytest.approx(180.0)]
+    assert elapsed == pytest.approx(180.0)
+
+
+@pytest.mark.parametrize("accelerator", ["mps", "cuda"])
+def test_gpu_ordinary_turn_keeps_todays_budget_and_caps(monkeypatch, accelerator):
+    _machine(monkeypatch, accelerator)
+    reads, elapsed, _decision = _drive_router(
+        monkeypatch, [_router_manifest("a", local=True), _router_manifest("b", local=True)]
+    )
+    assert reads == [pytest.approx(55.0), pytest.approx(5.0)]
+    assert elapsed == pytest.approx(60.0)

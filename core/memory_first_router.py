@@ -96,6 +96,7 @@ from core.presentation_selection import (
 )
 from core.prompt_budget import PromptBudgetExceededError
 from core.prompt_normalizer import TURN_DIRECTIVES_METADATA_KEY, normalize_prompt
+from core.provider_call_deadline import BOUND_CALL_TIMEOUT_KEY, local_manifest_call_timeout_seconds
 from core.provider_execution_boundary import invoke_provider_execution_boundary
 from core.provider_invocation_gateway import ProviderInvocationValidationError
 from core.provider_routing import ProviderRole, provider_capability_truth_for_manifest, rank_provider_candidates
@@ -284,7 +285,12 @@ _FALLBACK_ATTEMPT_FLOOR_SECONDS = 5.0
 
 
 def resolve_fallback_budget_seconds(
-    lane: str, *, forced_cpu: bool, no_usable_gpu: bool, output_mode: str = ""
+    lane: str,
+    *,
+    forced_cpu: bool,
+    no_usable_gpu: bool,
+    output_mode: str = "",
+    local_candidates: bool = False,
 ) -> float | None:
     """Wall-clock budget for the sequential provider-fallback loop.
 
@@ -304,14 +310,28 @@ def resolve_fallback_budget_seconds(
     THIS call, not on lane or task name, for the same reason `_reasoning_disabled` is keyed on a typed
     request field rather than a task name (core/model_request_policy.py): the property that matters
     is "this call carries a large tool catalog," not "which lane dispatched it."
+
+    ``local_candidates`` says a model running on this machine is among the turn's candidates. On
+    a machine with no GPU at all (``core.local_compute_budget``) such a model's per-call ceiling
+    is scaled (``core.provider_call_deadline.local_manifest_call_timeout_seconds``), so the
+    budget that bounds that call scales by the same one rule: it keeps matching the ceiling it
+    caps instead of cutting a slow local answer at a GPU-sized window. A GPU host, a DirectML or
+    Vulkan host, ``VOOL_OLLAMA_NUM_GPU=0`` on a GPU host, and a cloud-only chain keep exactly
+    the values below.
     """
     if lane in {"deep", "cloud", "human"}:
         return None
     if forced_cpu or no_usable_gpu:
-        return float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_cpu", 180.0))
-    if output_mode == "tool_intent":
-        return float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_tool_intent", 180.0))
-    return float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds", 60.0))
+        budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_cpu", 180.0))
+    elif output_mode == "tool_intent":
+        budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds_tool_intent", 180.0))
+    else:
+        budget = float(policy_engine.get("model_orchestration.provider_fallback_budget_seconds", 60.0))
+    if local_candidates:
+        from core.local_compute_budget import local_compute_seconds
+
+        return local_compute_seconds(budget)
+    return budget
 
 
 def _gate_paid_by_cloud_escalation(
@@ -5556,6 +5576,7 @@ class MemoryFirstRouter:
             forced_cpu=_forced_cpu,
             no_usable_gpu=(not _forced_cpu and _machine_has_no_usable_gpu()),
             output_mode=output_mode,
+            local_candidates=any(_manifest_is_local(candidate) for candidate in ranked_manifests),
         )
         _fallback_deadline: float | None = None
 
@@ -6151,7 +6172,14 @@ class MemoryFirstRouter:
                 # into the floor itself instead of coming only out of genuine slack.
                 raw_remaining_seconds = _fallback_deadline - time.monotonic()
                 floored_remaining_seconds = max(_FALLBACK_ATTEMPT_FLOOR_SECONDS, raw_remaining_seconds)
-                existing_timeout = float((manifest.runtime_config or {}).get("timeout_seconds") or floored_remaining_seconds)
+                # The ceiling the adapter would really run this manifest under: a local manifest's
+                # declared value is scaled on a CPU-only machine, so the cap compares against that.
+                _declared_timeout = (manifest.runtime_config or {}).get("timeout_seconds")
+                existing_timeout = (
+                    local_manifest_call_timeout_seconds(manifest, float(_declared_timeout))
+                    if _declared_timeout
+                    else floored_remaining_seconds
+                )
                 reserve_seconds = _fallback_reserve_seconds(
                     ranked_manifests=ranked_manifests,
                     skipped_provider_ids=skipped_provider_ids,
@@ -6168,9 +6196,17 @@ class MemoryFirstRouter:
                 # without `timeout_seconds` kept none, the adapter fell back to its own default (the
                 # 180s the comment above describes), and one hanging candidate could outlive the whole
                 # budget -- the exact hang the cap exists to bound.
+                # The written cap is real seconds left in this budget, marked so the adapter does not
+                # scale it a second time on a CPU-only machine and outlive the budget it came from.
                 if capped_timeout < existing_timeout or "timeout_seconds" not in (manifest.runtime_config or {}):
                     invoke_manifest = manifest.model_copy(
-                        update={"runtime_config": {**(manifest.runtime_config or {}), "timeout_seconds": capped_timeout}}
+                        update={
+                            "runtime_config": {
+                                **(manifest.runtime_config or {}),
+                                "timeout_seconds": capped_timeout,
+                                BOUND_CALL_TIMEOUT_KEY: True,
+                            }
+                        }
                     )
             _attempt_started = time.monotonic()
             if isinstance(source_context, dict):
@@ -6193,9 +6229,10 @@ class MemoryFirstRouter:
                 seconds=time.monotonic() - _attempt_started,
                 outcome="failed" if (error or adapter is None or response is None) else "answered",
                 error=str(error or "") if (error or adapter is None or response is None) else "",
-                timeout_seconds=float(
-                    (invoke_manifest.runtime_config or {}).get("timeout_seconds") or 0.0
-                ),
+                timeout_seconds=local_manifest_call_timeout_seconds(
+                    invoke_manifest,
+                    float((invoke_manifest.runtime_config or {}).get("timeout_seconds") or 0.0),
+                ) if (invoke_manifest.runtime_config or {}).get("timeout_seconds") else 0.0,
             )
             if isinstance(source_context, dict) and attempt_timings:
                 attempt_timings[-1].update(source_context.get("_last_provider_failure") or {})
