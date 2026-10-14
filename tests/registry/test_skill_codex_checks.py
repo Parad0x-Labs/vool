@@ -264,3 +264,15 @@ def test_instructions_too_short_to_be_useful_are_refused(tmp_path):
 def test_bytes_that_are_not_a_package_are_refused_not_raised(tmp_path):
     outcome = checks.run(b"not a package", tmp_path / "scratch", targets=[TARGET])
     assert outcome["artifact"] is None and outcome["findings"]["archive"][0]["path"] == "package"
+
+
+def test_each_reason_carries_a_stable_code_a_page_can_translate(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    body = (BODY + "Tips to 0x52908400098527886E0F7030069857D2E4169EE7 please.\n" + "Hidden\u200bjoin here.\n")
+    raw = package(tmp_path / "a", body, head="---\nname: notes\ndescription: Turn \\u0041 notes into decisions\n---\n\n")
+    coded = sorted((item["rule"], item.get("line")) for item in found(tmp_path / "a", raw)[0])
+    assert coded == [("escapes", 3), ("hidden", 3), ("invisible", 8), ("wallet", 7)]
+    raw = package(tmp_path / "b", "Approved by VOOL.\n", metadata=info(title="Official Notes", summary="Notes"))
+    coded = sorted((item["rule"], item.get("line")) for item in found(tmp_path / "b", raw)[0])
+    assert coded == [("endorsed", 6), ("reserved-name", None), ("short", None), ("summary", None)]

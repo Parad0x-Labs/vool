@@ -448,11 +448,12 @@ class Store:
     def refuse(self, identifier: str, sha256: str, findings: list) -> None:
         """The signing Mac's reasons, shown to the creator. The uploaded bytes are discarded."""
         require(isinstance(findings, list) and 0 < len(findings) <= 200 and all(
-            isinstance(item, dict) and set(item) <= {"check", "path", "reason", "line", "quote"} and
+            isinstance(item, dict) and set(item) <= {"check", "path", "reason", "line", "quote", "rule"} and
             {"check", "path", "reason"} <= set(item) and
             all(isinstance(item[key], str) and 0 < len(item[key]) <= 600 for key in ("check", "path", "reason")) and
             (type(item.get("line", 1)) is int and 0 < item.get("line", 1) <= 10 ** 7) and
-            isinstance(item.get("quote", ""), str) and len(item.get("quote", "")) <= 200 for item in findings),
+            isinstance(item.get("quote", ""), str) and len(item.get("quote", "")) <= 200 and
+            isinstance(item.get("rule", ""), str) and len(item.get("rule", "")) <= 64 for item in findings),
             "invalid refusal reasons")
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")

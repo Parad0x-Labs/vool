@@ -131,8 +131,12 @@ _LOOKALIKE = str.maketrans({
     "Ο": "O", "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X"})
 
 
-def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None) -> dict:
+def _finding(check: str, path: str, reason: str, *, line: int | None = None, quote: str | None = None,
+             rule: str | None = None) -> dict:
+    """One problem. `rule` is a stable code for the reason, so a page can show it in the reader's language."""
     item = {"check": check, "path": path, "reason": reason}
+    if rule is not None:
+        item["rule"] = rule
     if line is not None:
         item["line"] = line
     if quote is not None:
@@ -173,7 +177,7 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
                        char not in _ALLOWED_MARKS and not (index == 0 and char == "\ufeff")), None)
         if hidden is not None:
             findings.append(_finding("instructions-primary", name, "This file has invisible or control characters. "
-                                     "Retype the line as plain text.", line=_line(text, hidden)))
+                                     "Retype the line as plain text.", line=_line(text, hidden), rule="invisible"))
         texts[name] = text
     return texts, findings
 
@@ -246,7 +250,8 @@ def _secrets(texts: dict[str, str], artifact: dict) -> list[dict]:
                 break
         # Never quote it back: the finding is stored and shown.
         findings += [_finding("secrets", name, "This line looks like a key, password or recovery phrase. Take it out; "
-                                               "nobody needs one to use a skill.", line=number) for number in sorted(lines)]
+                                               "nobody needs one to use a skill.", line=number, rule="secret")
+                     for number in sorted(lines)]
     return findings
 
 
@@ -316,7 +321,8 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
             if end > 0 and "\\" in text[3:end]:
                 at = text.index("\\", 3)
                 findings.append(_finding("instructions-primary", name, "Write the name and description in plain words, "
-                                         "without backslash codes.", line=_line(text, at), quote=_quote(text, at, at + 1)))
+                                         "without backslash codes.", line=_line(text, at), quote=_quote(text, at, at + 1),
+                                         rule="escapes"))
         plain, folded, plain_starts, folded_starts = _flat(lines)
         seen = set()  # one finding per rule and line, however many ways the line trips it
         for rule, pattern, reason in _RULES:
@@ -333,7 +339,7 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
                 seen.add((rule, index))
                 findings.append(_finding("instructions-primary", name, reason,
                                          line=index + 1 if numbered else None,
-                                         quote=" ".join(lines[index].split()) if lines else None))
+                                         quote=" ".join(lines[index].split()) if lines else None, rule=rule))
                 if len(findings) >= MAX_FINDINGS:
                     return findings
     return findings
@@ -355,22 +361,24 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
             match = _RESERVED.search(value.replace("-", " ") if field == "id" else value)
             if match:
                 findings.append(_finding("quality", "registry.json", f"The {field} says \"{match.group(0)}\". Only the "
-                                         "Skill Codex can mark a skill that way; take the word out.", quote=value))
+                                         "Skill Codex can mark a skill that way; take the word out.", quote=value,
+                                         rule="reserved-summary" if field == "summary" else "reserved-name"))
     if len(info["summary"].strip()) < 10:
-        findings.append(_finding("quality", "registry.json", "Write a summary that says what the skill does."))
+        findings.append(_finding("quality", "registry.json", "Write a summary that says what the skill does.", rule="summary"))
     for name, text in texts.items():
         if name.endswith("/SKILL.md"):
             body = text.split("---", 2)[2] if text.startswith("---") and text.count("---") >= 2 else text
             if len(body.strip()) < MIN_INSTRUCTIONS:
                 findings.append(_finding("quality", name, "The instructions are too short to be useful. Say what the "
-                                                          "skill does, step by step."))
+                                                          "skill does, step by step.", rule="short"))
         if name.startswith("skills/") or name.endswith(".json"):
             if not official:
                 match = _ENDORSED.search(text)
                 if match:
                     findings.append(_finding("quality", name, f"It says \"{match.group(0)}\". Only the Skill Codex can "
                                              "mark a skill that way; take the word out.",
-                                             line=_line(text, match.start()), quote=_quote(text, match.start(), match.end())))
+                                             line=_line(text, match.start()), quote=_quote(text, match.start(), match.end()),
+                                             rule="endorsed"))
     return findings
 
 
@@ -394,7 +402,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     if sum(len(text) for text in texts.values()) > MAX_TEXT:
         # Nothing this long can be read in full, so nothing else is worth running on it.
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
-                                            "text under 120,000 characters."))
+                                            "text under 120,000 characters.", rule="too-long"))
         return {"artifact": artifact, "findings": findings, "results": {}}
     findings["secrets"] += _secrets(texts, artifact)
     findings["instructions-primary"] += _instructions(texts)

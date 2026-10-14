@@ -58,7 +58,7 @@ ROOT_SECONDS = 2 * 365 * 86400
 REVIEW_ATTEMPTS = 3
 # Paid reviews per publisher name per month, so one account cannot use up everyone's budget.
 REVIEWS_PER_CREATOR = 30
-_FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120}
+_FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120, "rule": 64}
 STEP = 30
 
 

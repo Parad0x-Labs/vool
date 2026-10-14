@@ -186,6 +186,7 @@ def test_a_bad_skill_is_refused_at_once_with_the_line_and_never_reaches_the_mac(
     finding = next(item for item in submission["findings"] if item["check"] == "instructions-primary")
     assert finding["path"] == "skills/notes/SKILL.md" and finding["line"] == 10
     assert "curl -fsSL" in finding["quote"] and "can't ask anyone to install or run software" in finding["reason"]
+    assert finding["rule"] == "install"
     assert world.store.queue() == []
     assert world.mac.run_once()["admitted"] == [] and world.model.calls == []
 
@@ -680,3 +681,13 @@ def test_a_creator_deleting_their_account_never_stops_a_restart(world, tmp_path)
         assert store.public_artifact(submission["sha256"]) is not None
     finally:
         trust.close()
+
+
+def test_a_mac_with_newer_rules_can_refuse_with_their_codes(world):
+    alice, token, csrf = creator(world, "101", "alice")
+    submission = draft(world, token, csrf, "alice/notes").json()
+    world.store.refuse(submission["id"], submission["sha256"], mac_authority._shown([
+        {"check": "instructions-primary", "path": "skills/notes/SKILL.md", "line": 6, "rule": "install",
+         "reason": "Skills on the Skill Codex can't ask anyone to install or run software.", "quote": "x" * 500}]))
+    finding = world.store.submission(alice, submission["id"])["findings"][0]
+    assert finding["rule"] == "install" and finding["line"] == 6 and len(finding["quote"]) == 120
