@@ -12,6 +12,8 @@ from typing import Any
 MODEL = "qwen3-stub:8b"
 _PAY_RE = re.compile(r"pay\s+(?P<amount>\d+)\s+lamports?\s+to\s+(?P<dest>[1-9A-HJ-NP-Za-km-z]{32,44})(?:\s+for\s+(?P<memo>[^\n.?!]+))?", re.I)
 _SEND_RE = re.compile(r"send\s+(?P<amount>\d+(?:\.\d+)?)\s+(?P<asset>SOL|ETH|BNB)\s+(?:on\s+(?P<chain>solana|base|ethereum|bnb|robinhood|arbitrum)\s+)?to\s+(?P<dest>0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})(?:\s+on\s+(?P<chain2>solana|base|ethereum|bnb|robinhood|arbitrum))?(?:\s+for\s+(?P<memo>[^\n.?!]+))?", re.I)
+#: the recipient first, with no "to" ("pay 0x... 1 USDC on base")
+_PAY_ADDRESS_FIRST_RE = re.compile(r"(?:pay|send|transfer)\s+(?P<dest>0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})\s+(?P<amount>\d+(?:\.\d+)?)\s+(?P<asset>SOL|ETH|BNB|USDC)(?:\s+on\s+(?P<chain>solana|base|ethereum|bnb|robinhood))?(?:\s+for\s+(?P<memo>[^\n.?!]+))?", re.I)
 _PROPOSAL_RE = re.compile(r"\b(pay-[0-9a-f]{20})\b")
 
 
@@ -26,10 +28,10 @@ def route_tool_call(last_user: str) -> dict[str, Any] | None:
     match = _PAY_RE.search(text)
     if match:
         return {"id": "call-propose", "type": "function", "function": {"name": "wallet__propose", "arguments": {"destination": match.group("dest"), "amount_minor": int(match.group("amount")), "asset": "SOL", "memo": (match.group("memo") or "").strip()}}}
-    sent = _SEND_RE.search(text)
+    sent = _SEND_RE.search(text) or _PAY_ADDRESS_FIRST_RE.search(text)
     if sent:
         arguments = {"destination": sent.group("dest"), "amount": sent.group("amount"), "asset": sent.group("asset").upper(), "memo": (sent.group("memo") or "").strip()}
-        chain = sent.group("chain") or sent.group("chain2")
+        chain = sent.group("chain") or sent.groupdict().get("chain2")
         if chain:
             arguments["chain"] = chain.lower()
         return {"id": "call-propose", "type": "function", "function": {"name": "wallet__propose", "arguments": arguments}}

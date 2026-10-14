@@ -113,7 +113,7 @@ _PAYLOAD_SEGMENTS_KEY = "prompt_payload_segments"
 # (VOOL 13.2% cached prompt tokens vs 74-87% for agents with a stable prefix). These segments
 # therefore travel in a second system message placed AFTER the history, and the leading system
 # message carries only text that is the same from turn to turn. (Ported from 00ba5bd.)
-_PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog"})
+_PER_TURN_SYSTEM_SEGMENTS = frozenset({"skill_guidance", "x_editorial_voice", "tool_catalog", "private_chat"})
 TURN_DIRECTIVES_METADATA_KEY = "turn_directives"
 
 
@@ -787,6 +787,18 @@ def _build_conversational_request(
         _user_rules_block = rules_prompt_block(chat_id=_rules_keys["chat"], project_id=_rules_keys["project"])
     if _user_rules_block:
         system_segments.append(("user_rules", _PAYLOAD_SYSTEM_BOOTSTRAP, _user_rules_block))
+    # Private chat (core.private_chat): nothing from this chat is saved, so the model must never
+    # promise to remember. Per turn, because the switch can change between turns.
+    _private_block = ""
+    with contextlib.suppress(Exception):
+        from core.private_chat import NOT_ON_KEY, not_on_prompt_block, private_prompt_block, turn_is_private
+
+        if turn_is_private(source_context):
+            _private_block = private_prompt_block()
+        elif isinstance(source_context, dict) and source_context.get(NOT_ON_KEY):
+            _private_block = not_on_prompt_block()
+    if _private_block:
+        system_segments.append(("private_chat", _PAYLOAD_SYSTEM_BOOTSTRAP, _private_block))
 
     system_content = _join_system_segments(
         [segment for segment in system_segments if segment[0] not in _PER_TURN_SYSTEM_SEGMENTS]
@@ -1013,6 +1025,7 @@ def _build_conversational_request(
             "conflicting owner, product expansion, or project description."
         )
     tool_observation_message = _runtime_tool_observation_message(source_context)
+    followup_message = _followup_context_message(source_context)
     user = InternalMessage(
         role="user",
         content=user_text,
@@ -1026,6 +1039,8 @@ def _build_conversational_request(
         _label_payload_messages(
             [tool_observation_message], _PAYLOAD_ACTIVITY_RECEIPTS, "tool_observations"
         )
+    if followup_message is not None:
+        _label_payload_messages([followup_message], _PAYLOAD_ACTIVITY_RECEIPTS, "followup_notes")
     historical_context_messages = [
         *correction_messages,
         *history_messages,
@@ -1132,6 +1147,8 @@ def _build_conversational_request(
     messages.extend(capsule_messages)
     if tool_observation_message is not None:
         messages.append(tool_observation_message)
+    if followup_message is not None:
+        messages.append(followup_message)
     messages.append(user)
 
     # Canonical transcript assembly precedes final budget and memory policy.
@@ -1334,6 +1351,27 @@ def _runtime_turn_truth(source_context: dict[str, Any] | None, *, reference_now:
             "workspace-relative paths with workspace tools; do not search the whole machine for "
             "the words `this`, `current`, or a misspelling of them."
         )
+    if context.get("delivery_without_workspace_target") is True:
+        # This turn's tool loop derives ownership and formats from the fresh request, before
+        # the first provider call. State the contract there too, rather than spending the
+        # argument-correction budget teaching the model which writer owns a download.
+        from core.deliverables import FORMATS
+
+        format_values = context.get("delivery_formats_requested")
+        named = [name for name in format_values if isinstance(name, str) and name in FORMATS] if isinstance(
+            format_values, (list, tuple)
+        ) else []
+        facts.append(
+            "This turn requests downloadable artifacts without a workspace destination. "
+            "Author their content directly in file.deliver; do not use workspace.write_file or "
+            "machine.write_file to stage them. Delivery does not require executing their content. "
+            + ("The requested output format is " + ", ".join(named) + ". " if named else "")
+            + ("For an archive, make ONE file.deliver call with the archive filename, format, and "
+               "files containing every requested member's filename, content and format. Do not "
+               "deliver the members separately or first write them into the workspace. "
+               if any(name in {"zip", "tar.gz"} for name in named) else "")
+            + "Permission and format checks still apply; never claim a file exists before delivery succeeds."
+        )
     if bool(context.get("workspace_audit_evidence_collected")):
         facts.append(
             "A read-only local audit tool already gathered same-turn workspace evidence. That tool "
@@ -1351,6 +1389,21 @@ _MIN_OBSERVATION_SHARE_CHARS = 400
 
 # Said in the observation itself, so a model reading a slice cannot mistake it for a whole file.
 _CLIP_NOTICE_TEMPLATE = " …[clipped here; {dropped} more characters not shown]"
+
+
+def _followup_context_message(source_context: dict[str, Any] | None) -> InternalMessage | None:
+    """What the user added while a task worked, as this model call must see it.
+
+    The running task sees the notes attached to it (core/followup_continuity.py); a side answer to a
+    question asked mid-task sees what the running task is and how far it got, and that it must not
+    start or redo it. Nothing for every other turn, so their payloads are unchanged.
+    """
+    from core.followup_continuity import render_prompt_context
+
+    content = render_prompt_context(source_context)
+    if not content:
+        return None
+    return InternalMessage(role="context", content=content, metadata={"followup_continuity": True})
 
 
 def _runtime_tool_observation_message(

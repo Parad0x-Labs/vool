@@ -834,6 +834,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/chat/deliverable": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/chat/deliverable",
+      "note": "chat read feed (download a file the assistant built)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/chat/dictation": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/chat/dictation",
@@ -1933,11 +1940,25 @@
       "registry_command_id": "chat.dictation",
       "surface": "http"
     },
+    "http:POST:/api/chat/followup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/followup",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chat.followup",
+      "surface": "http"
+    },
     "http:POST:/api/chat/pin": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/chat/pin",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "chat.pin",
+      "surface": "http"
+    },
+    "http:POST:/api/chat/pin-chat": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chat/pin-chat",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "chats.pin",
       "surface": "http"
     },
     "http:POST:/api/chat/queue": {
@@ -3035,8 +3056,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 296,
-    "GENERATED_ADAPTER": 128,
+    "EXTERNAL_TRANSPORT_ONLY": 297,
+    "GENERATED_ADAPTER": 130,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

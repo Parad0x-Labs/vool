@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -22,9 +23,12 @@ _SCHEMA_LOCK = threading.Lock()
 _schema_ready_for_path: str | None = None
 
 
-def _create_audit_log_schema() -> None:
-    conn = get_connection()
+def _create_audit_log_schema(conn: sqlite3.Connection | None = None) -> None:
+    owned = conn is None
+    conn = get_connection() if owned else conn
     try:
+        if not owned and not conn.in_transaction:
+            conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS audit_log (
@@ -41,9 +45,11 @@ def _create_audit_log_schema() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_audit_log_event_type ON audit_log(event_type)"
         )
-        conn.commit()
+        if owned:
+            conn.commit()
     finally:
-        conn.close()
+        if owned:
+            conn.close()
 
 
 def _ensure_audit_log_table() -> None:
@@ -192,27 +198,39 @@ def log(
     actor: str = "system",
     target_type: str = "generic",
     trace_id: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
+    """Record an audit event, optionally inside the caller's pinned transaction.
+
+    A supplied connection is never committed or closed. The caller must commit
+    the complete write or roll back on failure. Its schema changes are also
+    transactional and never populate the default-path schema cache.
+    """
     event_id = str(uuid.uuid4())
     safe_target_id = _redact_target_id(target_id)
     payload = _redact_details(details)
-    _ensure_audit_log_table()
-    execute_query(
-        """
+    if conn is None:
+        _ensure_audit_log_table()
+    else:
+        _create_audit_log_schema(conn)
+    query = """
         INSERT INTO audit_log (
             event_id, event_type, actor, target_type, target_id, details_json, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            event_id,
-            event_type,
-            actor,
-            target_type,
-            safe_target_id,
-            json.dumps(payload, sort_keys=True),
-            datetime.now(timezone.utc).isoformat(),
-        ),
+        """
+    params = (
+        event_id,
+        event_type,
+        actor,
+        target_type,
+        safe_target_id,
+        json.dumps(payload, sort_keys=True),
+        datetime.now(timezone.utc).isoformat(),
     )
+    if conn is None:
+        execute_query(query, params)
+    else:
+        conn.execute(query, params)
     append_event(
         category=event_type,
         actor=actor,
@@ -221,4 +239,5 @@ def log(
         payload=payload,
         trace_id=trace_id,
         event_id=event_id,
+        **({"conn": conn} if conn is not None else {}),
     )

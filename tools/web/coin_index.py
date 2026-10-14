@@ -55,6 +55,7 @@ import os
 import re
 import threading
 import time
+import urllib.error
 import urllib.request
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -64,7 +65,7 @@ from typing import Any
 from core.remote_fetch_policy import (
     RemoteFetchRefusedError,
     effective_web_available,
-    open_remote,
+    open_remote_url,
     remote_fetch_forbidden,
 )
 from core.runtime_paths import active_vool_home
@@ -72,10 +73,12 @@ from core.runtime_paths import active_vool_home
 # Rank ceiling. See the module docstring for the measurements behind this number -- it is the
 # collision boundary of the real index, not a round number picked for looks.
 _MAX_RANK = 250
-_INDEX_URL = (
-    "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd"
+_INDEX_PATH = (
+    "/coins/markets?vs_currency=usd"
     f"&order=market_cap_desc&per_page={_MAX_RANK}&page=1&sparkline=false"
 )
+# The keyless markets page (no stored key): the same root ``core.coingecko_auth`` names keyless.
+_INDEX_URL = "https://api.coingecko.com/api/v3" + _INDEX_PATH
 # The index moves slowly (a coin's rank, not its price), so a long TTL is correct: this cache must
 # never sit on the latency path of an actual quote.
 _CACHE_TTL_S = 6 * 3600.0
@@ -161,6 +164,41 @@ def _write_disk_cache(symbols: dict[str, str]) -> None:
         return
 
 
+def _read_index_rows() -> Any:
+    """The markets page, with the operator's CoinGecko key when one is stored (``core.coingecko_auth``:
+    its plan's host, the key unredirected in its plan's header). A refused key is remembered and the
+    page is asked again with the next stored key, then without one. The outbound door's refusal is
+    raised; None on any other failure."""
+    from core import coingecko_auth
+
+    for _attempt in range(len(coingecko_auth.PLANS) + 1):
+        url, auth, plan = coingecko_auth.request_for(_INDEX_PATH)
+        if plan == "keyless":
+            url = _INDEX_URL
+        try:
+            # The one outbound door: consent and the effect ledger as for the keyless page; a key
+            # rides only in its unredirected plan header, never through a proxy.
+            with open_remote_url(
+                url,
+                headers={"User-Agent": "VOOL-PRICE/1.0", **auth},
+                timeout=_FETCH_TIMEOUT_S,
+                provider_id="coingecko",
+                keyed_or_keyless="keyed" if auth else "keyless",
+                no_proxy=bool(auth),
+                credential_headers=tuple(auth) if auth else None,
+            ) as response:
+                return json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
+        except RemoteFetchRefusedError:
+            raise
+        except urllib.error.HTTPError as exc:
+            if plan == "keyless" or exc.code not in coingecko_auth.REFUSED_KEY_STATUSES:
+                return None
+            coingecko_auth.note_refused(plan, next(iter(auth.values()), ""))
+        except Exception:
+            return None
+    return None
+
+
 def _fetch_index() -> dict[str, str]:
     """Resolve the remote index under existing consent and the owning effect ledger.
 
@@ -170,18 +208,8 @@ def _fetch_index() -> dict[str, str]:
     """
     if remote_fetch_forbidden() or not effective_web_available():
         return {}
-    request = urllib.request.Request(_INDEX_URL, headers={"User-Agent": "VOOL-PRICE/1.0"})
-    try:
-        with open_remote(
-            request,
-            timeout=_FETCH_TIMEOUT_S,
-            provider_id="coingecko",
-            keyed_or_keyless="keyless",
-        ) as response:
-            rows = json.loads(response.read(4_000_000).decode("utf-8", errors="ignore"))
-    except RemoteFetchRefusedError:
-        raise
-    except Exception:
+    rows = _read_index_rows()
+    if rows is None:
         return {}
     if not isinstance(rows, list):
         return {}

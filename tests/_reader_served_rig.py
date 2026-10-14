@@ -636,21 +636,39 @@ class ServedDaemon:
             with urlopen(request, timeout=timeout + 60) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            return {
+            return self._report_failure({
                 "state": "error",
                 "http_status": exc.code,
                 "body": exc.read().decode("utf-8", "replace")[:600],
                 "server_log_tail": self.await_failure_log_tail(),
-            }
+            })
         except (URLError, OSError) as exc:
             # The daemon never answered at all (it died, or the socket went away): the
             # daemon.log tail is the only witness, and it rides the same redaction.
-            return {
+            return self._report_failure({
                 "state": "error",
                 "http_status": 0,
                 "body": f"{type(exc).__name__}: {exc}"[:600],
                 "server_log_tail": self.await_failure_log_tail(),
-            }
+            })
+
+    @staticmethod
+    def _report_failure(failure: dict[str, Any]) -> dict[str, Any]:
+        """Print a failed certification's evidence whole, then return it unchanged.
+
+        CI runs ``-q --tb=short``, and pytest cuts the assertion's dict repr mid-string, so the
+        raising frame inside ``server_log_tail`` never reached the job log (#168 run 38316343005,
+        shard 4: a 500 whose cause was cut off). pytest shows a failing test's captured stderr in
+        full, so the same redacted text is written there. Diagnostics only: the verdict is untouched.
+        """
+        print(
+            f"served certification failed: http_status={failure['http_status']}\n"
+            f"body: {failure['body']}\n"
+            f"server_log_tail:\n{failure['server_log_tail']}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return failure
 
     def await_failure_log_tail(self, *, settle_seconds: float = 2.5) -> str:
         """``failure_log_tail`` after letting the server finish writing its evidence.

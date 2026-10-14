@@ -49,6 +49,10 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'contacts.search': ('read_only', 'none'),
     'contacts.update': ('creative_state', 'runtime_policy'),
     'demo.plan': ('read_only', 'none'),
+    # file.deliver (file-format lane, 2026-10-05): builds a document/sheet/deck/archive from
+    # text into the runtime's OWN data directory and hands it over as a download -- in-app
+    # state behind runtime_policy with a create_files action, the same tier as contacts.save.
+    'file.deliver': ('creative_state', 'runtime_policy'),
     'email.read': ('read_only', 'none'),
     # Email P0 workflow (mission 01-email, reviewed 2026-09-13): open/search/reconcile
     # read an account (same tier as email.read); draft save/get/approve are the durable
@@ -344,7 +348,8 @@ def test_contract_map_and_list_agree():
     # 170 -> 174: skill sharing (2026-10-05) -- skill.export, skill.import, skill.pack (staging
     # writes) and skill.remove (activation-class, explicit opt-in).
     # 174 -> 175: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
-    assert len(contract_map) == len(GOLDEN_TIERS) == 175
+    # 175 -> 176: file.deliver (downloadable files built from text), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 176
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

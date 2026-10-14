@@ -87,12 +87,14 @@ does not expose any raise path outside the operator token.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import json
 import os
 import secrets
 import socket
 import sqlite3
 import threading
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -336,9 +338,38 @@ def budget_store_status() -> dict[str, Any]:
         return dict(_STORE_FAILURES)
 
 
+#: The store this context's budget work is bound to, as a connection factory
+#: its owning lane supplies (`pinned_budget_store`). None: the active default.
+_PINNED_STORE: contextvars.ContextVar[Callable[[], sqlite3.Connection] | None] = (
+    contextvars.ContextVar("effect_budget_pinned_store", default=None)
+)
+
+
+@contextlib.contextmanager
+def pinned_budget_store(connect: Callable[[], sqlite3.Connection]) -> Iterator[None]:
+    """Bind every budget read and write in this context to the owner's own store.
+
+    A background lane that outlives its runtime session (the presence sync)
+    must reserve, consume and release against the store of the session that
+    authorized its effects, not whichever database is active when its scope
+    closes. The owner supplies the factory and with it the store's lifecycle:
+    a factory that refuses to open fails each budget operation closed, exactly
+    as an unavailable store does (a held unit stays held; it never widens a
+    budget). Outside such a context the active default store is used.
+    """
+    token = _PINNED_STORE.set(connect)
+    try:
+        yield
+    finally:
+        _PINNED_STORE.reset(token)
+
+
 def _budget_connection() -> sqlite3.Connection:
     """The one connection seam — tests inject an unavailable store from here
     (the same law as the background journal's `_journal_connection`)."""
+    pinned = _PINNED_STORE.get()
+    if pinned is not None:
+        return pinned()
     from storage.db import get_connection
 
     return get_connection()

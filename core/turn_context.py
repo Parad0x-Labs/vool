@@ -333,6 +333,13 @@ def note_governance_event(
 # ── Admission ────────────────────────────────────────────────────────────────
 
 
+def _secrets_withheld(text: str) -> str:
+    """``text`` with every secret the persistence authority knows masked; unchanged otherwise."""
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    return redact_secrets(text) if text and contains_secret(text) else text
+
+
 def resolve_principal(source_context: dict[str, Any] | None) -> str:
     """Principal for a request: the trusted owner, else the channel identity.
 
@@ -375,7 +382,9 @@ def admit_turn_context(
         raise ValueError(f"unknown origin: {origin!r}")
     if not str(scope.principal or "").strip() or not str(scope.session_id or "").strip():
         raise ValueError("admission requires a principal and a session scope")
-    text = str(content or "")
+    # A typed PIN, card number or password never enters a page a later turn serves to a model.
+    text = _secrets_withheld(str(content or ""))
+    title = _secrets_withheld(str(title or ""))
     if not text.strip():
         raise ValueError("refusing to admit empty context")
 
@@ -766,13 +775,16 @@ def compile_turn_context(
                 _exclusion(record, f"a8_availability_{str(verdict).lower()}")
             )
             continue
+        # A page admitted before secrets were masked at write keeps its bytes; it is served masked.
+        content = _secrets_withheld(content)
+        title = _secrets_withheld(str(record["title"] or ""))
         pinned = (
             _active_pin_count(str(record["page_hash"])) > 0
             and str(record["session_id"]) == str(session_id)
         )
         score = relevance_score(
             query_text,
-            title=str(record["title"] or ""),
+            title=title,
             content=content,
             source_kind=str(record["source_kind"] or ""),
         )
@@ -787,7 +799,7 @@ def compile_turn_context(
                 ContextSelection(
                     admission_id=str(record["admission_id"]),
                     page_hash=str(record["page_hash"]),
-                    title=str(record["title"] or ""),
+                    title=title,
                     origin=str(record["origin"] or "inferred"),
                     source_kind=str(record["source_kind"] or ""),
                     pinned=pinned,
@@ -887,7 +899,7 @@ def _exclusion(record: dict[str, Any], reason: str) -> dict[str, Any]:
     return {
         "admission_id": str(record["admission_id"]),
         "page_hash": str(record["page_hash"]),
-        "title": str(record["title"] or ""),
+        "title": _secrets_withheld(str(record["title"] or "")),
         "reason": reason,
     }
 
@@ -991,10 +1003,10 @@ def recall_page(principal: str, admission_id: str) -> dict[str, Any]:
     return {
         "admission_id": admission_id,
         "page_hash": str(record["page_hash"]),
-        "content": content,
+        "content": _secrets_withheld(content),
         "origin": str(record["origin"]),
         "source_kind": str(record["source_kind"]),
-        "title": str(record["title"] or ""),
+        "title": _secrets_withheld(str(record["title"] or "")),
         "status": status,
         "bytes": int(record["bytes"] or 0),
         "created_at": str(record["created_at"]),
@@ -1030,6 +1042,16 @@ def withhold_admission(
     return {"admission_id": admission_id, "status": "withheld"}
 
 
+#: The chat-exchange pages a chat answers for in a forget (parameters: the chat id, twice). Shared by the eraser and
+#: the final verifier (core.memory.carriers), so both judge the same pages.
+CHAT_PAGE_ADMISSIONS = (
+    "SELECT mine.page_hash FROM turn_context_admissions mine WHERE mine.session_id = ? "
+    "AND mine.source_kind = 'chat_exchange' AND (mine.status != 'erased' OR NOT EXISTS ("
+    "SELECT 1 FROM turn_context_admissions other WHERE other.page_hash = mine.page_hash "
+    "AND other.session_id != ? AND other.status != 'erased'))"
+)
+
+
 def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, Any]) -> None:
     """Erase this chat's memory pages, or account for the retained shared bytes."""
     from core.memory.entries import _record_erasure_store
@@ -1055,11 +1077,11 @@ def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, A
             owned = "session_id = ?"
             params: tuple[str, ...] = (chat_id,)
             if has_admissions:
-                owned += (
-                    " OR page_hash IN (SELECT page_hash FROM turn_context_admissions "
-                    "WHERE session_id = ? AND source_kind = 'chat_exchange')"
-                )
-                params += (chat_id,)
+                # A closed (erased) admission still answers for its page while no other chat holds those words (an
+                # erasure that failed half way is retried), but not once another chat has admitted them again: that
+                # is the other chat's page, not a leftover of this one.
+                owned += " OR page_hash IN (" + CHAT_PAGE_ADMISSIONS + ")"
+                params += (chat_id, chat_id)
             pages = conn.execute(
                 "SELECT * FROM context_pages WHERE kind = 'turn_context' "
                 "AND source = 'turn-context:chat_exchange' AND (" + owned + ")", params,
@@ -1131,9 +1153,12 @@ def forget_chat_context_pages(*, chat_id: str, token: str, erasures: dict[str, A
                     if content_ref and get_bytes(content_ref) is not None:
                         raise AdmissionClosedError("chat-context bytes remain after erasure")
                     removed += 1
-                except Exception:
+                except Exception as exc:
+                    # Why, never which page: a page hash is a hash of its words, and short words can be recovered.
+                    _log.warning("forget: a context page was not erased: %s", type(exc).__name__)
                     incomplete = True
-    except Exception:
+    except Exception as exc:
+        _log.warning("forget: context pages not read: %s", type(exc).__name__)
         incomplete = True
     finally:
         if conn is not None:
@@ -1301,7 +1326,7 @@ def inspect_admissions(
             "generation": int(record["generation"] or 0),
             "origin": str(record["origin"]),
             "source_kind": str(record["source_kind"]),
-            "title": str(record["title"] or ""),
+            "title": _secrets_withheld(str(record["title"] or "")),
             "status": str(record["status"]),
             "bytes": int(record["bytes"] or 0),
             "created_at": str(record["created_at"]),
@@ -1309,7 +1334,9 @@ def inspect_admissions(
         }
         if include_content:
             try:
-                entry["content"] = page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
+                entry["content"] = _secrets_withheld(
+                    page_in(str(record["page_hash"]), chat_id=str(record["session_id"]))
+                )
             except PageNotFoundError:
                 entry["content"] = None
                 entry["content_state"] = "erased_or_volatile"

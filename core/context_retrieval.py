@@ -7693,10 +7693,24 @@ def _normalize_forget_token(token: str) -> str:
     return " ".join(_FORGET_SEPARATOR_RE.split(str(token or "").casefold())).strip()
 
 
+#: The days the runtime itself writes into a delivery: a record's stamp ("(recorded: 2026-10-14)", "(stated
+#: 2026-10-14)") and the memory header's "Today is 2026-10-14: a question's how-long-ago ...". They are not the
+#: user's words, so a forgotten "4" must not withhold every record on a day with a 4 in it (measured 2026-10-14:
+#: after forgetting "4", "my lead wall grade is 6." was undeliverable all day).
+_RUNTIME_DAY_STAMP_RE = re.compile(
+    r"\((?:recorded|stated)[: ]\s*\d{4}-\d{2}-\d{2}\)"
+    r"|\bToday is \d{4}-\d{2}-\d{2}(?=: a question's how-long-ago counts back from this date;)"
+)
+
+
+def _without_runtime_day_stamps(text: str) -> str:
+    return _RUNTIME_DAY_STAMP_RE.sub(" ", str(text or ""))
+
+
 def text_carries_revoked_token(text: str, revocations: tuple[str, ...]) -> bool:
     if not revocations:
         return False
-    hay = _normalize_forget_token(text)
+    hay = _normalize_forget_token(_without_runtime_day_stamps(text))
     return any(
         token and _normalize_forget_token(token) in hay for token in revocations
     )
@@ -8264,7 +8278,9 @@ def _verify_memory_delivery(
         )
         from core.memory.revocation import authorize_payload
 
-        if not carries_revoked and authorize_payload(added, session_id, runtime_home, owner_memory=authority):
+        # The authority reads the delivery without the days the runtime stamped on it, the same as the check above.
+        checked = [{**item, "content": _without_runtime_day_stamps(str(item.get("content") or ""))} for item in added]
+        if not carries_revoked and authorize_payload(checked, session_id, runtime_home, owner_memory=authority):
             allowed = (authority.revocation_generation(session_id), barrier_generation(session_id, runtime_home)) == generation
     except Exception:
         revoked = None

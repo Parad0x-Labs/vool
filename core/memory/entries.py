@@ -43,7 +43,7 @@ from core.memory.files import (
     write_text_atomic,
 )
 from core.memory.policies import ensure_session_policy_table, session_memory_policy
-from core.memory.revocation import fenced_writer
+from core.memory.revocation import RevokedContentWrite, fenced_writer
 from core.privacy_guard import keyword_tokens, normalize_share_scope
 from core.secret_redaction import contains_secret
 
@@ -755,6 +755,9 @@ def load_memory_excerpt(*, max_chars: int = 2200) -> str:
     return text[:head_chars].rstrip() + "\n...\n" + text[-tail_chars:].lstrip()
 
 
+_REDACTION_MARK_RE = re.compile(r"\[redacted(?:-[a-z0-9-]+)?\]", re.IGNORECASE)
+
+
 def add_memory_fact(
     fact: str,
     *,
@@ -775,6 +778,10 @@ def add_memory_fact(
     _ensure_memory_files()
     clean = sanitize_fact(fact)
     if not clean or contains_secret(clean):
+        return False
+    if _REDACTION_MARK_RE.search(clean):
+        # The shell of a secret ("My card PIN is [redacted]") is nothing to remember, whichever writer found it
+        # (measured on the v0.7.1 Mac smoke: the background dialogue writer kept it on the real-model path).
         return False
     clean_session = str(
         session_id
@@ -1789,7 +1796,7 @@ def is_user_correction(text: str) -> bool:
     return False
 
 
-@fenced_writer
+@fenced_writer(refusal_error=RevokedContentWrite)
 def record_memory_entry(
     text: str,
     *,

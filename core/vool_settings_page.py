@@ -943,7 +943,8 @@ _SETTINGS_HTML = r"""<!doctype html>
 <title>VOOL Settings</title>
 <style>
 .key-guide-category{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0}
-.key-guide-category summary{cursor:pointer}.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
+.key-guide-category summary{cursor:pointer}.key-guide-ico{flex:0 0 28px;width:28px;height:28px;margin-right:2px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);border:1px solid var(--border);border-radius:8px;color:var(--accent);opacity:.85}.key-guide-ico svg{width:17px;height:17px;display:block}.key-guide-category[open] .key-guide-ico,.key-guide-category summary:hover .key-guide-ico{opacity:1}
+.key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
 .key-guide-provider p{margin:5px 0 0}.key-guide-provider .inline{flex-shrink:0}.key-guide-link{color:var(--accent);font-size:12px}
 @media(max-width:700px){.key-guide-provider{align-items:flex-start;flex-direction:column}.key-guide-provider .inline{flex-wrap:wrap}}
 .key-setup-dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--ink);padding:20px}.key-setup-dialog::backdrop{background:rgba(0,0,0,.45)}.key-setup-steps-list{margin:8px 0 12px;padding-left:20px;line-height:1.5}
@@ -1921,10 +1922,12 @@ function widgetCompanionPet(stack) {
     stack.appendChild(el('div', 'empty', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.'));
     return;
   }
+  stack.appendChild(el('div', 'subtle', 'Drag the pet out of the chat window to put it on your desktop. These buttons bring it back, hide it or find it again.'));
   const bar = el('div', 'inline');
   const said = el('span', 'subtle', '');
+  // No "Move to desktop" here: the pet goes to the desktop by being dragged out of the window.
+  // These stay as rescue controls for a pet that is already out there.
   const actions = [
-    ['Move to desktop', 'detach_companion', 'The pet is on the desktop.'],
     ['Return to app', 'attach_companion', 'The pet is back in VOOL.'],
     ['Hide pet', 'hide_companion', 'The pet is hidden. Chat and the runtime keep running.'],
     ['Reset position', 'reset_companion_position', 'The pet is back on the main display.'],
@@ -2075,6 +2078,7 @@ const KEY_FAMILIES = [
   { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
   { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
   { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
+  { id: 'market.data.', title: 'Market data', blurb: 'Raises crypto price limits. Verified when saved; if the provider later refuses it, VOOL answers prices without it.' },
 ];
 
 /* The same store also holds keys the RUNTIME minted for itself. blackbox.cas.keys is the
@@ -2170,7 +2174,10 @@ function widgetKeys(stack) {
             renderPane();
           } catch (e) { rm.disabled = false; st.textContent = tfmt('keys.not_removed', 'Not removed — {error}', { error: e.message }); }
         });
-        rowEl.appendChild(testBtn); rowEl.appendChild(rm); rowEl.appendChild(st);
+        /* A market-data key was verified when it was saved; its use is the check after that (a refusal
+           drops back to keyless prices), so the row offers Remove only. */
+        if (fam !== 'market.data.') rowEl.appendChild(testBtn);
+        rowEl.appendChild(rm); rowEl.appendChild(st);
         list.appendChild(rowEl);
       });
     });
@@ -2204,6 +2211,7 @@ function widgetKeys(stack) {
   };
   addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
   addGroup('chain', 'keys.group_chain', 'Blockchain data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers);
+  addGroup('market', 'keys.group_market', 'Market data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'market') || { providers: [] }).providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
@@ -2231,7 +2239,30 @@ function widgetKeys(stack) {
     T('keys.base_url_hint', 'Custom endpoint: the OpenAI-compatible base URL, ending in /v1 — https://host/v1, or http://127.0.0.1:port/v1 for a server on this machine. Plain http to any other host is refused so the key never travels in clear.'));
   baseUrlHint.hidden = true;
   const needsBaseUrl = () => { const v = prov.value.trim(); const meta = PROVIDER_META[v]; return meta ? !!meta.user_base_url : v === 'custom'; };
-  const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; };
+  /* Where a custom endpoint's key goes. An endpoint the operator typed in documents nothing about its
+     auth, so they say: a Bearer token (the OpenAI convention), the bare key in a header they name
+     (Azure's api-key, a proxy's x-api-key), or no key at all for an open server on their own machine.
+     The server validates the header name and commits the choice with the endpoint and key. */
+  const keyAuth = document.createElement('select');
+  keyAuth.className = 'inp key-auth'; keyAuth.hidden = true; keyAuth.setAttribute('aria-label', T('keys.auth_aria', 'Where the key goes'));
+  [['bearer', T('keys.auth_bearer', 'Key as Bearer token (most APIs)')],
+   ['header', T('keys.auth_header', 'Key in a named header')],
+   ['none', T('keys.auth_none', 'No key (open server)')]].forEach(([v, label]) => { const o = el('option', null, label); o.value = v; keyAuth.appendChild(o); });
+  const keyHeader = document.createElement('input');
+  keyHeader.type = 'text'; keyHeader.className = 'inp key-auth-header'; keyHeader.hidden = true; keyHeader.autocomplete = 'off'; keyHeader.spellcheck = false;
+  keyHeader.placeholder = T('keys.auth_header_placeholder', 'header name, e.g. api-key'); keyHeader.setAttribute('aria-label', T('keys.auth_header_aria', 'Header that carries the key'));
+  const authValue = () => keyAuth.value === 'none' ? 'none' : keyAuth.value === 'header' ? 'header:' + keyHeader.value.trim() : 'bearer';
+  const syncAuth = () => {
+    const show = needsBaseUrl();
+    keyAuth.hidden = !show;
+    keyHeader.hidden = !show || keyAuth.value !== 'header';
+    const open = show && keyAuth.value === 'none';
+    key.disabled = open;
+    if (open) key.value = '';
+    key.placeholder = open ? T('keys.no_key_placeholder', 'no key needed') : '';
+  };
+  keyAuth.addEventListener('change', syncAuth);
+  const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; syncAuth(); };
   prov.addEventListener('change', syncBaseUrl);
 
   /* A path-token provider (UsePod: the credential rides the URL path, not a header) accepts a
@@ -2293,9 +2324,33 @@ function widgetKeys(stack) {
   const selectedGroup = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; const g = o && o.parentElement; return (g && g.tagName === 'OPTGROUP' && g.dataset.family) || ''; };
   const selectedLabel = () => { const o = prov.selectedOptions && prov.selectedOptions[0]; return o && prov.value ? o.textContent : ''; };
   const failText = (res) => res.j.detail || res.j.error || ('HTTP ' + res.status);
+  const openEndpoint = () => needsBaseUrl() && keyAuth.value === 'none';
+  /* The explicit "use anyway" for a custom endpoint that answered but cannot confirm a key. Offered
+     only when the server says this session's outcome allows it; it stores the pair as unconfirmed and
+     the first message is what judges the key. */
+  const useAnyway = el('button', 'btn key-use-anyway', T('keys.use_anyway', 'Use this endpoint anyway')); useAnyway.type = 'button'; useAnyway.hidden = true;
+  let assertableSession = '';
+  useAnyway.addEventListener('click', async () => {
+    if (!assertableSession) return;
+    useAnyway.disabled = true;
+    try {
+      const done = await intakePost('/api/intake/complete', { session_id: assertableSession, persist: 'asserted' });
+      assertableSession = ''; useAnyway.hidden = true;
+      if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
+      key.value = '';
+      const note = T('keys.stored_unconfirmed', 'Stored sealed on this machine as an UNCONFIRMED custom endpoint. It is now the active model provider; your first message will show whether the key works.');
+      setSt('saved', note);
+      widgetCache.keySaveNote = note;
+      await readSource('/api/settings/credentials');
+      renderPane();
+    } catch (e) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: (e && e.message ? e.message : e) })); }
+    finally { useAnyway.disabled = false; }
+  });
   const saveVerified = async () => {
-    const v = key.value;
+    assertableSession = ''; useAnyway.hidden = true;
+    const v = openEndpoint() ? 'no-key' : key.value;
     if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
+    if (needsBaseUrl() && keyAuth.value === 'header' && !keyHeader.value.trim()) { setSt('failed', T('keys.auth_header_first', 'Name the header that carries the key (for example api-key). Nothing was sent anywhere.')); keyHeader.focus(); return; }
     save.disabled = true;
     try {
       setSt('saving', T('keys.recognising', 'Recognising the key on this machine…'));
@@ -2306,7 +2361,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : selectedGroup() === 'market' ? 'market.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         const choices = names.length ? ' ' + tfmt('keys.could_be', 'It could be {names}.', { names: names.join(', ') }) : '';
@@ -2314,12 +2369,13 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^(search|chain)\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); syncOrigin(); }
       const label = selectedLabel() || (candidates[0] && candidates[0].label) || providerId;
       const verifyBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first', 'Not stored — enter the base URL of the endpoint first (for example https://host/v1). Nothing was sent anywhere.')); baseUrl.focus(); return; }
         verifyBody.base_url = baseUrl.value.trim();
+        verifyBody.auth = authValue();
       }
       /* A path-token provider (UsePod): the origin field names an endpoint the operator chose. Left
          empty, the provider's documented origin applies. The paste (a token or a whole proxy URL) is
@@ -2328,13 +2384,20 @@ function widgetKeys(stack) {
       setSt('saving', tfmt('keys.asking', 'Asking {label} once whether it accepts this key…', { label: label }));
       const verified = await intakePost('/api/intake/verify', verifyBody);
       if (!verified.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(verified) })); return; }
-      if (verified.j.outcome !== 'verified') { setSt('failed', verifyOutcomeMessage(label, verified.j)); return; }
+      if (verified.j.outcome !== 'verified') {
+        setSt('failed', verifyOutcomeMessage(label, verified.j));
+        if (verified.j.can_use_unconfirmed) {
+          assertableSession = sid; useAnyway.hidden = false;
+          setSt('failed', verifyOutcomeMessage(label, verified.j) + ' ' + T('keys.use_anyway_hint', 'If this is your own server and you trust it, you can use it anyway; the first message will show whether the key works.'));
+        }
+        return;
+      }
       setSt('saving', tfmt('keys.storing', '{label} accepted the key. Storing it sealed on this machine…', { label: label }));
       const done = await intakePost('/api/intake/complete', { session_id: sid });
       if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
       origin.value = '';
-      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : T('keys.use_model', ' It is now the active model provider.');
+      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : done.j.kind === 'market_data' ? T('keys.use_market', ' VOOL uses it for crypto prices from now on.') : T('keys.use_model', ' It is now the active model provider.');
       const credit = verified.j.account_state === 'exhausted' ? T('keys.credit_exhausted', ' Its credit limit is used up, so requests will fail until credit is added.') : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
@@ -2351,7 +2414,7 @@ function widgetKeys(stack) {
   /* Save-for-later runs the same local recognition and the same ONE provider selection, then
      stores WITHOUT asking anyone: nothing is sent anywhere. The key lands in quarantine. */
   later.addEventListener('click', async () => {
-    const v = key.value;
+    const v = openEndpoint() ? 'no-key' : key.value;
     if (!v.trim()) { setSt('failed', T('keys.paste_first', 'Paste a key first.')); return; }
     later.disabled = true;
     try {
@@ -2363,7 +2426,7 @@ function widgetKeys(stack) {
       if (!classified.ok) throw new Error(failText(classified));
       const candidates = classified.j.candidates || [];
       const picked = prov.value.trim();
-      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : picked) : String(classified.j.suggestion || '');
+      const providerId = picked ? (selectedGroup() === 'search' ? 'search.' + picked : selectedGroup() === 'chain' ? 'chain.' + picked : selectedGroup() === 'market' ? 'market.' + picked : picked) : String(classified.j.suggestion || '');
       if (!providerId) {
         const names = candidates.map(c => c.label).filter(Boolean);
         setSt('failed', (classified.j.reason || T('keys.cannot_tell', 'VOOL cannot tell which service this key is for.'))
@@ -2372,11 +2435,12 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^(search|chain)\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); syncOrigin(); }
       const laterBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }
         laterBody.base_url = baseUrl.value.trim();
+        laterBody.auth = authValue();
       }
       if (isPathTokenProvider() && origin.value.trim()) laterBody.base_url = origin.value.trim();
       /* preview pins the provider on the session without any request; complete stores quarantined */
@@ -2425,7 +2489,9 @@ function widgetKeys(stack) {
   /* The Test button's answer for a stored key, in the same terms. */
   function keyTestMessage(label, j) {
     const state = String(j.state || '');
+    if (state === 'ok' && /open endpoint/.test(String(j.detail || ''))) return tfmt('keys.test.ok_open', 'Connection verified — {label} answers without a key, as you chose.', { label: label });
     if (state === 'ok') return tfmt('keys.test.ok', 'Connection verified — {label} accepted your key.', { label: label });
+    if (state === 'untested' && j.checked_at) return tfmt('keys.test.unconfirmable', '{label} is reachable, but it lists its models without a key, so it cannot confirm yours. Your first message will.', { label: label });
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
     const p = { label: label, http: http };
@@ -2453,7 +2519,7 @@ function widgetKeys(stack) {
     const row = ((KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers || []).find(r => r.provider === prov.value.trim());
     if (row) openKeySetupDialog(row);
   });
-  form.appendChild(prov); form.appendChild(steps); form.appendChild(baseUrl); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later);
+  form.appendChild(prov); form.appendChild(steps); form.appendChild(baseUrl); form.appendChild(keyAuth); form.appendChild(keyHeader); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later); form.appendChild(useAnyway);
   stack.appendChild(form);
   stack.appendChild(baseUrlHint);
   stack.appendChild(originHint);
@@ -2663,6 +2729,27 @@ function openXSetupDialog(onSaved) {
   choose();
   if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
 }
+/* Decorative line icons for the provider categories: generic shapes only (no provider marks),
+   drawn in the muted accent so the list reads livelier without adding colour. Unknown ids get a
+   plain dot so a new category still lines up. */
+const KEY_GUIDE_ICONS = {
+  models: ['M12 3l1.9 5.6L19.5 10l-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.4z', 'M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'],
+  search: ['M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13z', 'M15.3 15.3L20 20'],
+  security: ['M12 3l7 3v5.5c0 4.3-2.9 7.9-7 9.5-4.1-1.6-7-5.2-7-9.5V6z', 'M9 12l2.2 2.2L15.2 10'],
+  chain: ['M4 4h7v7H4z', 'M13 13h7v7h-7z', 'M11 7.5h3.5a2 2 0 0 1 2 2V13'],
+};
+function keyGuideIcon(id) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const wrap = el('span', 'key-guide-ico'); wrap.setAttribute('aria-hidden', 'true');
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.6'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('focusable', 'false');
+  (KEY_GUIDE_ICONS[id] || ['M12 10.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3z']).forEach(d => {
+    const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); svg.appendChild(path);
+  });
+  wrap.appendChild(svg); return wrap;
+}
 function widgetProviderGuide(host) {
   const input = el('input', 'inp'); input.type = 'search';
   input.placeholder = T('keyguide.search_placeholder', 'Find a provider…'); input.setAttribute('aria-label', T('keyguide.search_aria', 'Find a provider'));
@@ -2679,7 +2766,8 @@ function widgetProviderGuide(host) {
       if (!rows.length) return;
       count += rows.length;
       const section = el('details', 'key-guide-category'); section.dataset.category = group.id; section.open = !!q;
-      section.appendChild(el('summary', 'row-label', group.title + ' · ' + rows.length));
+      const head = el('summary', 'row-label'); head.appendChild(keyGuideIcon(group.id));
+      head.appendChild(document.createTextNode(group.title + ' · ' + rows.length)); section.appendChild(head);
       section.appendChild(el('p', 'subtle', group.description));
       rows.forEach(r => {
         const card = el('div', 'key-guide-provider');
@@ -3195,6 +3283,7 @@ function widgetLocalModels(stack) {
       body.appendChild(el('div', 'empty', 'Local models are disabled by policy on this runtime.'));
       return;
     }
+    if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
       body.appendChild(el('div', 'empty', 'No text models found in your local Ollama. Install one (e.g. `ollama pull qwen3:8b`) and it will appear here.'));

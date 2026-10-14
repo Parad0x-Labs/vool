@@ -1386,10 +1386,17 @@ def run_agent(
     is the single gate layer; the history refresh runs INSIDE the gate so a
     queued turn sees the exchange the turn ahead of it just persisted.
     """
+    from core.followup_continuity import SIDE_ANSWER_CONTEXT_KEY
     from core.session_turn_gate import hold_session_turn_gate
 
     caller_context = source_context
-    with hold_session_turn_gate(session_id):
+    # A side answer to a question asked while a task runs must not wait for that task: it holds its
+    # own FIFO lane beside the session's, so side answers still run one at a time and in order. It
+    # cannot act (the agent forces its action policy to FORBIDDEN), and its exchange is persisted as
+    # one user/assistant pair, so the transcript pairing MF-15 protects stays intact.
+    side_answer = isinstance(source_context, dict) and bool(source_context.get(SIDE_ANSWER_CONTEXT_KEY))
+    gate_key = f"{session_id}::followup-side-answer" if (side_answer and session_id) else session_id
+    with hold_session_turn_gate(gate_key):
         if session_id and isinstance(source_context, dict):
             client_history = source_context.get("client_conversation_history")
             if isinstance(client_history, list):
@@ -2207,6 +2214,10 @@ def schedule_memory_extraction(
 
 def _memory_capture_allowed(source_context: dict[str, Any] | None) -> bool:
     context = dict(source_context or {})
+    # Private chat (core.private_chat): nothing from a private turn is extracted or admitted as
+    # context for later turns.
+    if _turn_was_private(context):
+        return False
     platform = str(context.get("platform") or "").strip().lower()
     surface = str(context.get("surface") or "").strip().lower()
     group_like = (
@@ -3004,6 +3015,15 @@ def _hashlast_gate(commit: dict[str, Any]) -> str | None:
     return None
 
 
+def _turn_was_private(source_context: dict[str, Any] | None) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(source_context)
+    except Exception:
+        return False
+
+
 def _response_commit(
     result_payload: dict[str, Any],
     *,
@@ -3395,13 +3415,27 @@ def _stream_agent_with_events_inner(
     # ordinary (the user navigated to another chat) and says nothing about whether the turn is still
     # running. Releasing there made "can I stop this?" depend on where this generator happened to be
     # suspended at disconnect. See core/live_turns.py.
+    from core import followup_continuity
     from core.live_turns import register_turn, unregister_turn
 
     cancel_turn_id = str(stream_context.get("cancel_turn_id") or "").strip()
+    # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
+    is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
     if cancel_turn_id:
         stream_context["cancel_event"] = register_turn(session_id, cancel_turn_id)
+    if is_task_turn:
+        followup_continuity.begin_task(session_id, cancel_turn_id, user_text)
+
+    def _release_followups() -> None:
+        # Notes the task never reached are carried into the chat's queue and run next.
+        if is_task_turn:
+            followup_continuity.end_task(session_id, cancel_turn_id)
 
     def sink(event: dict[str, Any]) -> None:
+        if is_task_turn and str((event or {}).get("event_type") or "") != "model_output_chunk":
+            followup_continuity.note_progress(
+                session_id, cancel_turn_id, str((event or {}).get("message") or "")
+            )
         event_queue.put(("event", dict(event)))
 
     def worker() -> None:
@@ -3419,6 +3453,7 @@ def _stream_agent_with_events_inner(
                 # the live-turn entry is released, so it can neither leak nor disappear early.
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                _release_followups()
 
         # F-01 (independent-proof repair): execute the turn under the ingress
         # context captured at the accept door, so A0 request binding and the
@@ -3437,6 +3472,7 @@ def _stream_agent_with_events_inner(
                 # from context machinery itself (before _body ever ran).
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                _release_followups()
                 raise
         else:
             _body()
@@ -3451,6 +3487,7 @@ def _stream_agent_with_events_inner(
         # the turn stays falsely cancellable forever.
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
+        _release_followups()
         if stream_id:
             unregister_runtime_event_sink(stream_id)
         raise

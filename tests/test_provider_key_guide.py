@@ -17,17 +17,20 @@ def test_guide_projects_supported_catalogues_and_pins_official_links():
     from core.provider_key_guide import provider_key_guide
     from core.search_providers import SEARCH_PROVIDERS
     groups = provider_key_guide()
-    assert [g['id'] for g in groups] == ['models', 'search', 'security', 'chain']
+    assert [g['id'] for g in groups] == ['models', 'search', 'security', 'chain', 'market']
     assert {r['provider'] for r in groups[0]['providers']} == set(PROVIDERS)
     assert {r['provider'] for r in groups[1]['providers']} == set(SEARCH_PROVIDERS)
     registry = default_registry()
     for group in groups:
         for row in group['providers']:
-            pid = {'search': 'search.', 'chain': 'chain.'}.get(group['id'], '') + row['provider']
+            prefix = {'search': 'search.', 'chain': 'chain.', 'market': 'market.'}.get(group['id'], '')
+            pid = prefix + row['provider']
             assert registry.get(pid).credential_slot == row['slot']
             assert len(row['description']) < 100
             assert not row['url'] or row['url'].startswith('https://')
     assert groups[2]['providers'][0]['url'] == 'https://eyebrow.cc/dashboard'
+    from core.coingecko_auth import PLANS
+    assert {r['provider'] for r in groups[4]['providers']} == set(PLANS)
     assert registry.get('eyebrow').verify_endpoint == 'https://api.eyebrow.cc/v1/version'
     from core.vool_settings_page import render_vool_settings_html
     html = render_vool_settings_html()
@@ -76,7 +79,8 @@ def test_served_guide_choose_save_restart_test_and_remove(vault_home, monkeypatc
             page.goto(f'http://127.0.0.1:{server.server_port}/settings#keys')
             page.get_by_role('searchbox',name='Find a provider',exact=True).wait_for()
             assert provider.request_count == 0
-            assert page.locator('.key-guide-category').count() == 4
+            assert page.locator('.key-guide-category').count() == 5
+            assert page.locator('.key-guide-category').filter(has_text='Market data').count() == 1
             assert page.locator('.key-guide-category[open]').count() == 0
             search=page.get_by_role('searchbox',name='Find a provider',exact=True)
             search.fill('Eyebrow')

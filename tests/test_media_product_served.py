@@ -249,9 +249,9 @@ def test_served_dictation_post_answers_with_the_typed_truth(rig, speech_tools):
 
 
 def test_served_a_corrupt_pdf_is_refused_typed_not_answered_empty(rig):
-    """Bytes that carry a PDF header but no valid document fail the decoder TYPED: the door
-    maps the reader's failure to ``decoder_failed`` with the decoders' own words, never to a
-    201 that pretends the bytes were read."""
+    """Bytes that carry a PDF header but no valid document are refused TYPED: a damaged file is a
+    fact about the file (422 ``pdf_unreadable`` with a remediation), not a server failure (500)
+    carrying the native framework's log line, and never a 201 that pretends the bytes were read."""
     daemon, _provider = rig
     session = canonical_session("m4-corrupt-pdf")
     uploaded = daemon.upload(
@@ -260,9 +260,10 @@ def test_served_a_corrupt_pdf_is_refused_typed_not_answered_empty(rig):
         data=b"%PDF-1.4\nthis is not a document body, it is truncation wearing a header\n",
         declared_type="application/pdf",
     )
-    assert uploaded["status"] == 500, uploaded
-    assert uploaded["error"] == "decoder_failed"
-    assert "unreadable-pdf" in uploaded["message"] or "pdf" in uploaded["message"].lower()
+    assert uploaded["status"] == 422, uploaded
+    assert uploaded["error"] == "pdf_unreadable"
+    assert "damaged or truncated" in uploaded["message"]
+    assert "CoreGraphics" not in uploaded["message"] and "CG_PDF_VERBOSE" not in uploaded["message"]
     assert uploaded.get("attachment") is None
 
 

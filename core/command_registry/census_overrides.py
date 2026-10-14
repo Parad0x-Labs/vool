@@ -288,6 +288,7 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/chat/attachments/limits": "chat read feed (attachment limits)",
     "http:GET:/api/chat/attachments/preview": "chat read feed (attachment preview)",
     "http:GET:/api/chat/dictation": "chat read feed (dictation availability probe)",
+    "http:GET:/api/chat/deliverable": "chat read feed (download a file the assistant built)",
     "http:GET:/api/chat/export": "chat read feed (transcript export)",
     "http:GET:/api/chat/history": "chat read feed (transcript)",
     "http:GET:/api/chat/pins": "chat read feed (pinned messages)",
@@ -439,6 +440,9 @@ def _delegated_route_adapters() -> dict[str, str]:
         merged = route_command_map()
         merged.update(inline_route_command_map())
         merged.update(chat_action_command_map())
+        from core.command_registry.groups.housekeeping_group import housekeeping_route_command_map
+
+        merged.update(housekeeping_route_command_map())
         return merged
     except Exception:  # pragma: no cover - import cycle safety
         return {}

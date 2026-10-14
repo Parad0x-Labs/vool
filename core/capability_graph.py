@@ -122,6 +122,7 @@ _CANONICAL_FAMILIES = frozenset(
         "operator",      # inspect and mutate the local machine
         "skill",         # author, validate, install skills
         "pdf",           # read and OCR PDF documents
+        "file",          # build a document/spreadsheet/deck/archive and hand it over as a download
         "marketplace",   # browse and purchase listings
         "runtime",       # respond, orchestrate, system internals
         "web0",          # Web0 site building and publishing
@@ -1261,6 +1262,7 @@ _FAMILY_REPRESENTATIVE: dict[str, str] = {
     "operator": "operator.inspect_disk_usage",
     "skill": "skill.list",
     "pdf": "pdf.extract_text",
+    "file": "file.deliver",
     "orchestration": "orchestration.execute_envelope",
     "web0": "web0.open_builder_draft",
     "payment": "sell.quote",

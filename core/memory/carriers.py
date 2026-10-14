@@ -6,6 +6,7 @@ including nested keys; only explicitly named storage identities are excluded.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 _SEPARATORS = re.compile(r"[\s\-_]+")
+_LOG = logging.getLogger(__name__)
 
 # These identify an owner/row, rather than a remembered value. Do not replace
 # this list with suffix rules: a future field named answer_id can carry prose.
@@ -26,6 +28,10 @@ ROW_IDENTITIES = frozenset({
     "turn_id", "parent_turn_id", "archive_id", "topic_id", "previous_version_id",
     "version_id", "payload_hash", "record_hash", "transcript_head_hash", "page_hash",
     "content_ref", "admission_id", "principal", "pin_id", "_erasure_rowid",
+    # Bookkeeping: a page's byte size and task id, an admission's generation, a page's erased flag, a writer's
+    # confidence. Measured on the 0.7.1 Mac smoke: a turn page of 114 bytes failed "Forget 14." as if it
+    # still held the forgotten words.
+    "bytes", "generation", "erased", "confidence", "task_id",
 })
 NODE_IDENTITIES = ROW_IDENTITIES | frozenset({
     "timestamp", "embedding", "linked_node_ids", "base_importance", "access_count",
@@ -63,6 +69,38 @@ def carries(value: Any, token: str) -> bool:
     return bool(needle) and any(needle in " ".join(_SEPARATORS.split(part.casefold())) for part in parts)
 
 
+#: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id ("req:http:<hex>"), a
+#: uuid, a number.
+_RUNTIME_MADE_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?"
+    r"|(?:[a-z0-9]+[-_:])*(?:[0-9a-f]{16,}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"
+    r"|-?\d+(?:\.\d+)?"
+)
+
+
+#: The memory mirror's own marks on a line: "- [2026-10-14] " in front, "<!--mem:memory-...-->" behind.
+_MIRROR_STAMPS_RE = re.compile(r"^\s*-\s*\[\d{4}-\d{2}-\d{2}\]\s*|<!--\s*mem:[A-Za-z0-9_.:-]+\s*-->\s*$")
+
+
+def _without_nested_identities(value: Any, structural: frozenset[str]) -> Any:
+    """Nested copies of a row identity (``provenance.recorded_at``, ``provenance.content_hash``) are the
+    runtime's own bookkeeping, like the top-level ones. Dropped only when the value has the runtime's shape,
+    so a nested field that happens to share an identity's name but holds words still answers to a forget
+    (measured 2026-10-14: "forget 14" matched every row recorded on the 14th and then refused its own rewrite)."""
+    if isinstance(value, Mapping):
+        return {key: _without_nested_identities(item, structural) for key, item in value.items()
+                if not (key in structural and (item is None or isinstance(item, (int, float))
+                                               or (isinstance(item, str) and _RUNTIME_MADE_RE.fullmatch(item))))}
+    if isinstance(value, list):
+        return [_without_nested_identities(item, structural) for item in value]
+    return value
+
+
+def memory_words(value: Any) -> Any:
+    """A payload as it is checked against a forget: its row ids and stamps, at any depth, left out."""
+    return _without_nested_identities(value, ROW_IDENTITIES)
+
+
 def row_payload(
     row: Mapping[str, Any] | Any, *, structural_fields: Sequence[str] = (),
     json_fields: Sequence[str] = (),
@@ -76,7 +114,7 @@ def row_payload(
         if key in structured or key.endswith("_json"):
             if value is not None and isinstance(value, (str, bytes, bytearray)):
                 value = json.loads(value)
-        payload[key] = value
+        payload[key] = _without_nested_identities(value, structural) if structural else value
     return payload
 
 
@@ -203,8 +241,11 @@ def verify_forget_stores(
     def verify(name: str, reader: Any) -> None:
         try:
             retained = bool(reader())
+            if retained:
+                _LOG.warning("forget: %s still holds the forgotten words", name)
             _record_erasure_store(erasures, name, "incomplete" if retained else "verified")
-        except Exception:
+        except Exception as exc:
+            _LOG.warning("forget: %s could not be verified: %s", name, type(exc).__name__)
             _record_erasure_store(erasures, name, "incomplete")
 
     def file_rows(path: Path) -> bool:
@@ -239,7 +280,8 @@ def verify_forget_stores(
         except FileNotFoundError:
             return False
         for line in lines:
-            if not carries(line, token):
+            # The line's words: its day stamp and its record marker are the writer's own.
+            if not carries(_MIRROR_STAMPS_RE.sub(" ", line), token):
                 continue
             match = re.search(r"<!--\s*mem:([A-Za-z0-9_.:-]+)\s*-->\s*$", line)
             if match and owners.get(match.group(1), "") not in {"", chat_id}:
@@ -416,8 +458,10 @@ def _verify_pages(conn: Any, tables: set[str], chat_id: str, token: str, verify:
         owned = "session_id = ?"
         params = [chat_id]
         if "turn_context_admissions" in tables:
-            owned += " OR page_hash IN (SELECT page_hash FROM turn_context_admissions WHERE session_id = ? AND source_kind = 'chat_exchange')"
-            params.append(chat_id)
+            from core.turn_context import CHAT_PAGE_ADMISSIONS
+
+            owned += " OR page_hash IN (" + CHAT_PAGE_ADMISSIONS + ")"
+            params += [chat_id, chat_id]
         rows = conn.execute(
             "SELECT * FROM context_pages WHERE kind = 'turn_context' AND source = 'turn-context:chat_exchange' "
             "AND (" + owned + ")", params,

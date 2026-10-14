@@ -1865,7 +1865,17 @@
     "addons.registry_refresh": "Browse Skill Codex",
     "addons.registry_network": "This button requests the public registry. No account, chats, local files or provider keys are sent.",
     "addons.registry_empty": "No listed versions match this exact VOOL build and search.",
-    "addons.registry_inspect": "Download for inspection"
+    "addons.registry_inspect": "Download for inspection",
+    "private.banner": "Private chat: nothing is saved",
+    "private.end": "Turn recording back on",
+    "private.end_title": "Save this chat again from the next message",
+    "private.msg_title": "Private: this message was not saved",
+    "private.wait": "Wait for the current answer to finish, then try again.",
+    "settings.local_models.apple_silicon_notice": "This Mac has an Apple chip, but the Intel version of VOOL is installed. Local models run very slowly this way and may not pass their check. Download and install the Apple Silicon version of VOOL instead.",
+    "private.saving_again": "Saving again from here",
+    "private.banner_short": "Private",
+    "private.end_short": "Save again",
+    "private.reload_note": "This chat is private. Private messages are not saved, so they don't show here after a reload."
   },
   "html_keys": [
     "bypass.modal_limits",

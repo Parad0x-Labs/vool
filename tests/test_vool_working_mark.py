@@ -58,12 +58,14 @@ def _mark_svg() -> str:
 
 
 def test_the_old_canvas_spinner_and_its_runtime_are_completely_removed() -> None:
-    for gone in ("tc-snake", "<canvas", "VoolCore", "CORE_SRC", "coreRender", "coreParams",
+    for gone in ("tc-snake", "VoolCore", "CORE_SRC", "coreRender", "coreParams",
                  "corePhaseAt", "CORE_BASE", "guardCost", "run.snake"):
         assert gone not in HTML, f"the removed canvas animation left '{gone}' behind"
-    # The whole page has no canvas element left at all -- the working indicator is the only
-    # raster-free replacement and nothing else re-introduced one.
-    assert "<canvas" not in HTML
+    # The only canvas left on the page is the desktop pet's 48x48 Pet-tab preview; any other
+    # canvas -- a returning spinner included -- is not allowed back.
+    canvases = re.findall(r"<canvas\b[^>]*>", HTML)
+    others = [tag for tag in canvases if not tag.startswith('<canvas id="vcdPreview" ')]
+    assert others == [], f"the removed canvas animation left a canvas behind: {others}"
 
 
 # ------------------------------------------------- 2. the mark: inline SVG, four traced parts

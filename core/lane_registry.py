@@ -203,6 +203,11 @@ def _production_catalog() -> tuple[LaneSpec, ...]:
         LaneSpec("workspace_read_fast_path", 42, True, "workspace_read"),
         LaneSpec("machine_fact_fast_path", 43, True, "machine_fact"),
         LaneSpec("direct_math_fast_path", 44, True, "arithmetic"),
+        # Housekeeping over the operator's own chats and projects ("which chat did we talk about X
+        # in? pin it", "rename this chat to Y and pin it"). Its admission is its parser, so a
+        # message of several housekeeping clauses is one owned turn, and a housekeeping clause
+        # beside an unrelated request is a covered unit of a mixed turn, not a whole-turn claim.
+        LaneSpec("chat_housekeeping", 45, True, "housekeeping"),
         # P0 SIMPLE-FILE-WRITE — the write family gets the same declaration the read
         # and arithmetic families got above: EXECUTION existed (the builder's typed
         # workflow lane) but no DECLARATION, so a mixed turn of "create notes.txt
@@ -356,6 +361,7 @@ ROUTE_FAMILIES: dict[str, str] = {
     "cloud_key_command": "secret_intake_turn",
     "image_key_command": "secret_intake_turn",
     "bare_secret_intercept": "secret_intake_turn",
+    "personal_secret_intake": "secret_intake_turn",
     "secret_intake_turn": "secret_intake_turn",
     "secret_intake_turn_degraded": "secret_intake_turn",
     "secret_intake_failed": "secret_intake_turn",

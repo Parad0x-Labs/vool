@@ -17,7 +17,7 @@ anywhere during setup.
    currently selected.
 4. **Certify a local model once.** Before a local model can answer, open
    **Settings → Models & Providers → Local models** and press **Certify** for it. This runs a short check on
-   your machine. In 0.7.0 VOOL does not prompt you for this; a clearer prompt comes in 0.7.1.
+   your machine.
 
 ## What VOOL does not do at first run
 

@@ -1,5 +1,5 @@
 {
-  "intent_count": 136,
+  "intent_count": 137,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -18,6 +18,7 @@
     "contacts.search",
     "contacts.update",
     "demo.plan",
+    "file.deliver",
     "hive.list_available",
     "machine.disk_usage",
     "machine.display_inspect",
@@ -138,7 +139,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 136,
+  "native_definition_count": 137,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -2143,6 +2144,138 @@
         }
       },
       "read_only": true
+    },
+    "file.deliver": {
+      "arguments": [
+        "content",
+        "filename",
+        "files",
+        "format",
+        "title"
+      ],
+      "description": "Hand the user a downloadable FILE built from text you write: a Word document (.docx), Excel workbook (.xlsx), PowerPoint deck (.pptx), PDF, CSV/TSV, JSON, YAML, XML, HTML, Markdown, plain text, a source file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a file, to export or download it, or names a file format for the answer. Write `content` as markdown for docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and `files`, never one call per file. The file is checked and the reply gives the user a download link. Not for editing project files: that is workspace.write_file.",
+      "native_name": "file__deliver",
+      "native_parameters": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename",
+                "content"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "format": {
+            "enum": [
+              "docx",
+              "xlsx",
+              "pptx",
+              "pdf",
+              "csv",
+              "tsv",
+              "json",
+              "yaml",
+              "xml",
+              "html",
+              "md",
+              "txt",
+              "code",
+              "zip",
+              "tar.gz"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
     },
     "hive.list_available": {
       "arguments": [

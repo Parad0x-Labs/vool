@@ -101,7 +101,7 @@ Many implementers may run at the same time. To keep them from colliding:
 
 ## Fast local checks
 
-Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.16.9).
+Use Python 3.12.13 and the exact tool pins in `pyproject.toml` (pytest, ruff 0.17.0).
 
     python -m pip install -e ".[dev,browser,companion,evm]"   # same extras CI installs
     python -m ruff check .                                    # pinned ruff, whole repo

@@ -191,7 +191,10 @@ def extract_text(path: str, *, max_pages: int = 0, timeout: float = _DEFAULT_TIM
     bounded = max(0, min(int(max_pages or 0), _MAX_PAGES))
     result = _run_helper(_EXTRACT_HELPER, [str(resolved), str(bounded)], timeout=timeout)
     assembled = _assemble(result, path=resolved, source="pdfkit")
-    if assembled.get("status") == "ok" and not assembled["text"].replace("[page 1]", "").strip():
+    # Judge the pages themselves, not the assembled text: that text carries a "[page N]" marker
+    # for every page, so a scanned PDF of two or more pages would otherwise never look empty.
+    page_bodies = [str(part or "") for part in list(result.get("page_text") or [])]
+    if assembled.get("status") == "ok" and not any(body.strip() for body in page_bodies):
         # Saying "ok, 0 characters" reads as "this PDF is blank", which is the one thing it is not.
         assembled["status"] = "no_text_layer"
         assembled["reason"] = (

@@ -840,6 +840,64 @@ class _WindowApi:
         except Exception as exc:
             return {"ok": False, "error": type(exc).__name__}
 
+    def save_deliverable(self, session_id: str, deliverable_id: str) -> dict:
+        """Save a file the assistant built in this chat (``/api/chat/deliverable``) to a place the
+        user picks. The page names only the chat and the file id; the server supplies the bytes,
+        the filename and the type, and nothing existing on disk is overwritten."""
+        import re
+        from email.message import Message
+        from urllib.parse import urlencode
+
+        if self._window is None or self._webview is None:
+            return {"ok": False, "error": "no_window"}
+        if not isinstance(session_id, str) or not 0 < len(session_id) <= 512:
+            return {"ok": False, "error": "invalid_deliverable_identity"}
+        if not isinstance(deliverable_id, str) or not re.fullmatch(r"dlv_[0-9a-f]{32}", deliverable_id):
+            return {"ok": False, "error": "invalid_deliverable_identity"}
+        limit = 20 * 1024 * 1024
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *args, **kwargs):
+                return None
+        try:
+            url = _API_ORIGIN + "/api/chat/deliverable?" + urlencode({"id": deliverable_id, "session": session_id})
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+            with opener.open(url, timeout=30) as response:
+                body = response.read(limit + 1)
+                disposition = Message()
+                disposition["content-disposition"] = response.headers.get("Content-Disposition", "")
+                filename = disposition.get_filename() or "vool-file"
+            if len(body) > limit:
+                return {"ok": False, "error": "deliverable_too_large", "message": "The file exceeds the native save size limit; nothing was saved."}
+            filename = Path(str(filename).replace("\\", "/")).name.lstrip(".") or "vool-file"
+            extension = filename.rsplit(".", 1)[-1] if "." in filename else ""
+            file_types = (f"{extension.upper()} files (*.{extension})",) if extension.isalnum() else ()
+            result = self._window.create_file_dialog(self._webview.SAVE_DIALOG, save_filename=filename, file_types=file_types)
+            if not result:
+                return {"ok": False, "cancelled": True}
+            destination = Path(result[0] if isinstance(result, (list, tuple)) else result)
+            with tempfile.NamedTemporaryFile(dir=destination.parent, prefix=".vool-file-", delete=False) as handle:
+                temporary = Path(handle.name)
+                try:
+                    handle.write(body)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                    os.link(temporary, destination)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            return {"ok": True}
+        except urllib.error.HTTPError as exc:
+            try:
+                refusal = json.loads(exc.read(4096))
+                message = str(refusal.get("message") or "The file is not available")
+            except (ValueError, AttributeError):
+                message = "The file is not available"
+            return {"ok": False, "error": "deliverable_unavailable", "message": message}
+        except FileExistsError:
+            return {"ok": False, "error": "destination_exists", "message": "Choose a new filename; the existing file was not changed."}
+        except Exception as exc:
+            return {"ok": False, "error": type(exc).__name__}
+
     @staticmethod
     def _companion_payload(payload: object) -> dict[str, str]:
         """Allowlist the presentation-only values that may cross into the desktop window."""
@@ -871,16 +929,28 @@ class _WindowApi:
                 # one drag must hold through blur/focus and restart. The controller marshals this
                 # off the main thread; see PetWindowController._report_settled.
                 self._pet.on_position_settled = lambda _origin: self._remember_pet_position()
-                adopted = self._pet.adopt(clean.get("desktop_position"))
+                position = clean.get("desktop_position")
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    position = pet_native.cursor_position()
+                adopted = self._pet.adopt(position)
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    self._remember_pet_position()  # the drop spot survives a restart
                 _log(f"desktop companion window created (frameless, transparent, {adopted})")
             elif self._pet is not None and self._pet.available:
-                self._pet.show()
+                if isinstance(payload, dict) and payload.get("at_pointer") is True:
+                    self._pet.adopt(pet_native.cursor_position())
+                    self._remember_pet_position()
+                else:
+                    self._pet.show()
             else:
                 self._companion_window.show()
             self.sync_companion(clean)
             return {"ok": True, "mode": "desktop"}
         except Exception as exc:
             _log(f"desktop companion unavailable ({exc!r})")
+            # A window created before the failure must not stay up beside the in-app pet.
+            with contextlib.suppress(Exception):
+                self._hide_pet_window()
             return {"ok": False, "error": type(exc).__name__}
 
     def sync_companion(self, payload: object = None) -> dict:
@@ -957,6 +1027,8 @@ class _WindowApi:
             if self._pet is None:
                 return {"ok": False, "error": "not_detached"}
             position = self._pet.reset_position()
+            if position is None:
+                return {"ok": False, "error": "not_on_desktop"}
             self._remember_pet_position()
             return {"ok": True, "position": position}
         except Exception as exc:
@@ -1303,6 +1375,10 @@ def _install_native_frame_authority() -> None:
         from installer.bundle.native_frame_authority import install_macos_frame_authority
 
         install_macos_frame_authority()
+        try:
+            pet_native.install_nonactivating_pet_host()
+        except Exception as exc:  # the pet keeps an ordinary window; the app window must still open
+            _log(f"nonactivating pet host unavailable ({exc!r})")
 
 
 class NativeWebKitProfileError(RuntimeError):

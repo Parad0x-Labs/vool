@@ -24,6 +24,7 @@ _MODEL_HELP = {
 
 def provider_key_guide(locale: str = "en") -> list[dict]:
     from core.cloud_providers import PROVIDERS
+    from core.coingecko_auth import PLANS as COINGECKO_PLANS
     from core.eyebrow_client import KEY_NAME
     from core.i18n.catalog import catalog_for
     from core.search_providers import SEARCH_PROVIDERS
@@ -73,4 +74,14 @@ def provider_key_guide(locale: str = "en") -> list[dict]:
                               "Add a chain-data provider for read-only wallet, token and transaction lookups in any chat. "
                               "These keys never sign or pay."),
              providers=chain),
+        dict(id="market", title=text("keyguide.market.title", "Market data"),
+             description=text("keyguide.market.description",
+                              "Raise the limits on live crypto prices. Prices keep working without a key."),
+             providers=[dict(provider=plan.provider_id, label=plan.label, slot=plan.credential_slot,
+                             description=text(f"keyguide.provider.{plan.provider_id}.description",
+                                              "Free Demo key from your CoinGecko developer dashboard."
+                                              if plan.provider_id == "coingecko"
+                                              else "Paid CoinGecko API plan key."),
+                             url=plan.signup_url)
+                        for plan in COINGECKO_PLANS.values()]),
     ]

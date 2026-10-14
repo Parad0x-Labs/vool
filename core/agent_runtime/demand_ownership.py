@@ -291,6 +291,13 @@ def _operator_action_covers(unit_text: str) -> bool:
     return parse_operator_action_intent(str(unit_text or "")) is not None
 
 
+def _housekeeping_covers(unit_text: str) -> bool:
+    """The housekeeping lane's OWN parser read per unit ("rename this chat to X", "pin 2")."""
+    from core.agent_runtime.housekeeping_lane import covers_unit
+
+    return covers_unit(str(unit_text or ""))
+
+
 _COVERAGE_CAPABILITIES: dict[str, Any] = {
     "live_data": _live_data_covers,
     "currency": _currency_covers,
@@ -301,6 +308,7 @@ _COVERAGE_CAPABILITIES: dict[str, Any] = {
     "arithmetic": _arithmetic_covers,
     "clock": _clock_covers,
     "operator_action": _operator_action_covers,
+    "housekeeping": _housekeeping_covers,
 }
 
 #: The pure-injection seam for NOVEL capabilities (tests, embedders). Empty means
@@ -722,6 +730,15 @@ def _sequence_arithmetic_binds(text: str, units: Any) -> dict[str, str]:
     }
 
 
+def _housekeeping_binds(text: str, units: Any) -> frozenset[str]:
+    """A message the housekeeping parser reads WHOLE owns every request fragment ("... I don't
+    remember which chat. can you find it and pin it?" mints "can you find it" as a unit that
+    means nothing on its own)."""
+    from core.agent_runtime.housekeeping_lane import binds_message
+
+    return binds_message(text, units)
+
+
 _COVERAGE_BINDERS: dict[str, Any] = {
     "arithmetic": _sequence_arithmetic_binds,
     "live_data": _live_data_binds,
@@ -729,6 +746,7 @@ _COVERAGE_BINDERS: dict[str, Any] = {
     "workspace_write": _workspace_write_binds,
     "currency": _currency_binds,
     "operator_action": _operator_action_binds,
+    "housekeeping": _housekeeping_binds,
 }
 
 

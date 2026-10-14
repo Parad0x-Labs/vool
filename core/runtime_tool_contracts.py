@@ -76,6 +76,12 @@ class RuntimeToolContract:
     # owner-local surface that owns them -- but never a model-facing one, and the offer
     # census counts them under that owner path instead of demanding a model seat.
     model_visible: bool = True
+    # A successful call of this tool IS the whole answer to the turn (a file handed over with its
+    # download link). The tool loop stops asking the model for further rounds after it, and the
+    # published answer is the tool's own text. Without this a model under tool_choice="required"
+    # must call SOMETHING every round: measured live 2026-10-06 it rebuilt the same file up to five
+    # times, then closed with respond.direct prose that dropped the download link.
+    completes_turn: bool = False
 
     @property
     def read_only(self) -> bool:
@@ -1876,6 +1882,63 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             artifact_emission="file_diff",
             error_contract="returns_structured_error_result",
             claim=ToolClaim(target_argument="path", resolved_target_key="path", asserts_action=True),
+        ),
+        RuntimeToolContract(
+            intent="file.deliver",
+            description=(
+                "Hand the user a downloadable FILE built from text you write: a Word document (.docx), Excel workbook "
+                "(.xlsx), PowerPoint deck (.pptx), PDF, CSV/TSV, JSON, YAML, XML, HTML, Markdown, plain text, a source "
+                "file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a "
+                "file, to export or download it, or names a file format for the answer. Write `content` as markdown for "
+                "docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one "
+                "sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a "
+                "PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and "
+                "`files`, never one call per file. The "
+                "file is checked and the reply gives the user a download link. Not for editing project files: that is "
+                "workspace.write_file."
+            ),
+            tool_surface="file",
+            capability_id="file.deliver",
+            capability_claim="build a document, spreadsheet, slide deck, PDF, data, code or archive file from text and hand it to the user as a download",
+            supported=True,
+            unsupported_reason="File delivery is unavailable on this runtime.",
+            input_schema={
+                "filename": "string (e.g. report.docx; the extension picks the format)",
+                "content": "string optional (markdown, CSV, or the exact file text; required unless files is given)",
+                "format": "string optional (docx|xlsx|pptx|pdf|csv|tsv|json|yaml|xml|html|md|txt|zip|tar.gz)",
+                "title": "string optional (document title)",
+                "files": "list[object] optional (for zip/tar.gz: {filename, content, format})",
+            },
+            output_schema={"filename": "string", "format": "string", "size_bytes": "integer", "url": "string", "sha256": "string"},
+            # Writes only into this runtime's own data directory, never the workspace or the user's
+            # folders; the user takes the file with an explicit download. Same class as a saved note.
+            side_effect_class="creative_state",
+            approval_requirement="runtime_policy",
+            timeout_policy="local_only_default",
+            retry_policy="none",
+            artifact_emission="file",
+            error_contract="returns_structured_error_result",
+            permission_actions=("create_files",),
+            renders_final_answer=True,
+            completes_turn=True,
+            json_schema={
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string"},
+                    "content": {"type": "string"},
+                    "format": {"type": "string", "enum": ["docx", "xlsx", "pptx", "pdf", "csv", "tsv", "json", "yaml", "xml", "html", "md", "txt", "code", "zip", "tar.gz"]},
+                    "title": {"type": "string"},
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"filename": {"type": "string"}, "content": {"type": "string"}, "format": {"type": "string"}},
+                            "required": ["filename", "content"],
+                        },
+                    },
+                },
+                "required": ["filename"],
+            },
         ),
         RuntimeToolContract(
             intent="workspace.replace_in_file",

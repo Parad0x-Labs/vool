@@ -41,9 +41,10 @@ That is by design: the wallet is disabled by default, and the two network enviro
 (Mainnet / Test networks) never mix — a request for a network in the other environment is
 refused with nothing created or signed. Switch deliberately in Settings → Crypto → Developer
 options. The earlier claim that "mainnet is impossible by construction" predates the Crypto
-Pilot and is no longer true: mainnet rows exist for native-coin transfers, and the sole mainnet token, USDC on Solana,
-exists for the x402 payment lane only. x402 for websites is test networks only; the model
-marketplace's pay-per-call option in Settings pays on Solana Mainnet, one approval per call. See the
+Pilot and is no longer true: mainnet rows exist for native-coin transfers, and the mainnet tokens, USDC on Solana and
+USDC on Base, exist for x402 payments only. Websites that ask for x402 payment in USDC on Base
+can be paid from your Crypto Pilot wallet, one PIN approval within your limits; no live
+mainnet payment has been made with this yet. See the
 [Wallet & Web0 guide](WALLET_WEB0_GUIDE.md) for what is enabled and how.
 
 ## Reporting bugs safely

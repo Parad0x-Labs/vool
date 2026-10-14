@@ -118,6 +118,9 @@ class QuarantineSnapshot:
     #: The operation's unique identity (revision-5 review R1). Empty only for a row written before
     #: operation ids existed; such a legacy handle matches its own legacy row and nothing newer.
     operation_id: str = ""
+    #: Where a user endpoint's key rides (``core.cloud_providers`` placement), saved WITH the key;
+    #: empty for a fixed provider and for a row written before placements existed (Bearer then).
+    auth: str = ""
 
 
 _EPOCH_FILE = "quarantine_epochs.json"
@@ -216,10 +219,15 @@ def _next_quarantine_epoch_locked(provider_id: str) -> int:
     return epoch
 
 
-def quarantine_generation_for(secret: str, endpoint: str) -> str:
+def quarantine_generation_for(secret: str, endpoint: str, auth: str = "") -> str:
     """The durable binding between a quarantined secret and the destination it was saved
-    with: one way, no key material recoverable, survives restart in the row."""
-    return hashlib.sha256(f"quarantine:v1:{secret}\0{str(endpoint or '').strip().rstrip('/')}".encode()).hexdigest()
+    with -- and, for a user endpoint, WHERE its key rides (``auth``): one way, no key material
+    recoverable, survives restart in the row. A row written before placements existed has no
+    ``auth`` and keeps its original (v1) identity."""
+    destination = str(endpoint or "").strip().rstrip("/")
+    if auth:
+        return hashlib.sha256(f"quarantine:v2:{secret}\0{destination}\0{auth}".encode()).hexdigest()
+    return hashlib.sha256(f"quarantine:v1:{secret}\0{destination}".encode()).hexdigest()
 
 
 try:  # the typed failure the one bounded secure-storage door raises
@@ -474,6 +482,10 @@ class CredentialStore:
             "checked_at": str(getattr(outcome, "checked_at", "") or "") if outcome is not None else "",
             "label": descriptor.label,
         }
+        if descriptor.user_endpoint:
+            # Where this endpoint's key travels is part of the pair the operator chose; the row the
+            # transaction commits carries it, so it can never be applied to another endpoint's key.
+            intent["auth"] = descriptor.custom_auth
         if paired:
             prior_base = self._strict_get(endpoint_slot)
             prior_key = self._strict_get(slot)
@@ -662,6 +674,8 @@ class CredentialStore:
         }
         if endpoint:
             row["endpoint"] = endpoint
+        if intent.get("auth"):
+            row["auth"] = str(intent.get("auth"))
         rows[descriptor.provider_id] = row
         self._commit_index_locked(rows)  # committed AND verified before the intent closes (R3)
         self._journal_close(slot, PHASE_DONE)
@@ -710,7 +724,10 @@ class CredentialStore:
             )
         slot = quarantine_slot_for(descriptor)
         destination = str(endpoint or "").strip().rstrip("/")
-        generation = quarantine_generation_for(str(secret), destination)
+        # A user endpoint's key placement is part of what was saved: retry verifies and promotes it
+        # exactly as chosen, never with the live pair's placement.
+        auth = descriptor.custom_auth if descriptor.user_endpoint else ""
+        generation = quarantine_generation_for(str(secret), destination, auth)
         epoch = _next_quarantine_epoch_locked(descriptor.provider_id)
         # The operation's identity: minted once, journaled with the intent AND recorded on the row,
         # so a snapshot, a promotion and a pending delete all name THIS operation — never a later
@@ -720,7 +737,7 @@ class CredentialStore:
             "slot": slot, "provider_id": descriptor.provider_id, "digest": self._digest(str(secret)),
             "phase": PHASE_WRITE_PENDING, "kind": "quarantine", "ts": _utcnow(),
             "endpoint": destination, "generation": generation, "epoch": epoch,
-            "operation_id": operation_id,
+            "operation_id": operation_id, "auth": auth,
         })
         try:
             self._cm.store_credential(slot, str(secret), label=f"{descriptor.label} (unverified)")
@@ -754,6 +771,8 @@ class CredentialStore:
             "quarantine_epoch": epoch,
             "quarantine_operation_id": operation_id,
         }
+        if auth:
+            rows[descriptor.provider_id]["quarantine_auth"] = auth
         self._commit_index_locked(rows)
         self._journal_close(slot, PHASE_DONE)
         return binding_from_row(rows[descriptor.provider_id])  # type: ignore[return-value]
@@ -780,10 +799,11 @@ class CredentialStore:
             if value is None:
                 return None
             endpoint = str(row.get("quarantine_endpoint") or "")
+            auth = str(row.get("quarantine_auth") or "")
             digest = self._digest(str(value))
             generation = str(row.get("quarantine_generation") or "")
             if digest != str(row.get("key_digest") or "") or (
-                generation and generation != quarantine_generation_for(str(value), endpoint)
+                generation and generation != quarantine_generation_for(str(value), endpoint, auth)
             ):
                 raise StorageConflictError(
                     f"the quarantined state for {provider_id} is incoherent: the sealed key does not "
@@ -798,6 +818,7 @@ class CredentialStore:
                 epoch=int(row.get("quarantine_epoch") or 0),
                 key_digest=digest,
                 operation_id=str(row.get("quarantine_operation_id") or ""),
+                auth=auth,
             )
 
     def quarantined_secret(self, provider_id: str) -> tuple[str, str]:
@@ -815,8 +836,9 @@ class CredentialStore:
             return "", ""
         endpoint = str(row.get("quarantine_endpoint") or "")
         generation = str(row.get("quarantine_generation") or "")
+        auth = str(row.get("quarantine_auth") or "")
         if self._digest(str(value)) != str(row.get("key_digest") or "") or (
-            generation and generation != quarantine_generation_for(str(value), endpoint)
+            generation and generation != quarantine_generation_for(str(value), endpoint, auth)
         ):
             return "", ""
         return str(value), generation
@@ -843,6 +865,7 @@ class CredentialStore:
             and int(row.get("quarantine_epoch") or 0) == snapshot.epoch
             and str(row.get("quarantine_endpoint") or "").rstrip("/") == snapshot.endpoint.rstrip("/")
             and str(row.get("key_digest") or "") == snapshot.key_digest
+            and str(row.get("quarantine_auth") or "") == snapshot.auth
         )
 
     def promote_quarantined(self, descriptor: ProviderDescriptor, secret: str, outcome, *,
@@ -906,7 +929,7 @@ class CredentialStore:
         active = rows.get(descriptor.provider_id)
         if isinstance(active, dict):
             for field in ("quarantine_endpoint", "quarantine_generation", "quarantine_epoch",
-                          "quarantine_operation_id", "last_outcome"):
+                          "quarantine_operation_id", "quarantine_auth", "last_outcome"):
                 active.pop(field, None)
             save_index(rows)
         return binding
@@ -1182,6 +1205,8 @@ class CredentialStore:
                             "storage_backend": str(getattr(self._cm, "active_backend", lambda: "vault")()),
                             "endpoint": endpoint,
                         }
+                        if intent.get("auth"):
+                            rows[pid]["auth"] = str(intent.get("auth"))
                         with contextlib.suppress(Exception):
                             self._cm.delete_credential(quarantine_slot_for(descriptor))
                         report.adopted.append(pid)
@@ -1249,10 +1274,13 @@ class CredentialStore:
                             "storage_backend": str(getattr(self._cm, "active_backend", lambda: "vault")()),
                             "last_outcome": "",
                             "quarantine_endpoint": str(intent.get("endpoint") or ""),
-                            "quarantine_generation": str(intent.get("generation") or quarantine_generation_for(value, str(intent.get("endpoint") or ""))),
+                            "quarantine_generation": str(intent.get("generation") or quarantine_generation_for(
+                                value, str(intent.get("endpoint") or ""), str(intent.get("auth") or ""))),
                             "quarantine_epoch": int(intent.get("epoch") or 0),
                             "quarantine_operation_id": str(intent.get("operation_id") or ""),
                         }
+                        if intent.get("auth"):
+                            rows[pid]["quarantine_auth"] = str(intent.get("auth"))
                         report.adopted.append(pid)
                     else:
                         # a verified save won while this quarantined write was pending: the

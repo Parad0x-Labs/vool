@@ -11,10 +11,14 @@ import re
 from typing import Any
 
 CLOUD_CREDENTIAL_NAME = "llm.cloud.openrouter"
-# A model id is a bare id ("gpt-4.1-mini"), a vendor/name slug ("deepseek/deepseek-chat-v3"), or
-# either with a ":tag". A leading "<provider>:" prefix is parsed off separately (not by this regex)
-# so a direct provider's bare id is accepted where the old vendor/name-only pattern rejected it.
-CLOUD_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)?(?::[A-Za-z0-9._-]+)?$")
+# A model id is a bare id ("gpt-4.1-mini"), a vendor/name slug ("deepseek/deepseek-chat-v3"), a
+# deeper path a provider documents ("accounts/<acct>/models/<name>", "@cf/<vendor>/<name>"), an id
+# pinned to a revision ("org/name@rev"), any of them with a ":tag". At most five segments; a "." or
+# ".." segment is never an id. A leading "<provider>:" prefix is parsed off separately (not by this
+# regex) so a direct provider's bare id is accepted where the old vendor/name-only pattern rejected it.
+CLOUD_MODEL_ID_RE = re.compile(
+    r"^(?!(?:[^/]*/)*\.{1,2}(?:[/:]|$))[A-Za-z0-9._@-]+(?:/[A-Za-z0-9._@-]+){0,4}(?::[A-Za-z0-9._-]+)?$"
+)
 
 # --- A11 cost-classification truth -----------------------------------------------------------
 # Stable machine-readable reasons carried by every surface that refuses an unconfirmed pin.
@@ -306,6 +310,17 @@ def set_cloud_model(
     prov, resolution_error = _resolve_switch_provider(provider, prefix_provider)
     if resolution_error:
         return False, resolution_error, ""
+    from core.model_pricing import unpriced_builtin_tools
+
+    if unpriced_builtin_tools(prov, arg):
+        # The model runs paid tools of its own (web search, code execution) whose fees this
+        # endpoint never reports, so no spending limit could count them. Refused at the pin, and
+        # again by the adapter for a pin saved before this check existed.
+        return False, (
+            f"`{arg}` runs its own paid web search or code tools at the provider, and VOOL can't count "
+            "what those cost against your spending limits, so I left the cloud model unchanged. "
+            "Pick another model."
+        ), ""
 
     def _save(model_value: str) -> bool:
         cep.save_policy(replace(cep.load_policy(), model=model_value, provider=prov))

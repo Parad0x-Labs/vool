@@ -23,6 +23,7 @@ import re
 import unicodedata
 
 from core.bug_report.schema import RedactionSummary
+from core.secret_redaction import redact_personal_secrets as _backstop_redact_personal
 from core.secret_redaction import redact_secrets as _backstop_redact
 
 # --- header families (whole-value masking; label kept so the report stays readable).
@@ -227,9 +228,11 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
 
     # Layer 0 -- the repo-wide high-confidence vendor secret masker, FIRST, so precise
     # token shapes (ghp_/sk-/AKIA/JWT/PEM/Bearer) are attributed to secret_vendor and
-    # never fall through to the coarser entropy rule.
+    # never fall through to the coarser entropy rule. Plain-word card numbers, PINs and
+    # passwords are left to this module's own rules below, so each is counted under its own
+    # name; the repo-wide personal masker runs again as the last pass.
     pre_markers = value.count("[redacted")
-    backstopped = _backstop_redact(value)
+    backstopped = _backstop_redact(value, personal=False)
     if backstopped != value:
         bump("secret_vendor", backstopped.count("[redacted") - pre_markers)
         value = backstopped
@@ -303,6 +306,14 @@ def redact_text(text: str) -> tuple[str, RedactionSummary]:
     apply("labeled_secret", _BR_LABELED_RE, _labeled_sub)
     apply("labeled_secret", _BR_LABELED_IS_RE, _labeled_is_sub)
     apply("secret_vendor", _AKIA_LONG_RE, "[redacted-api-key]")
+
+    # Backstop: anything the repo-wide personal-secret masker still sees (a card, PIN or
+    # password worded in a way the rules above do not read) is masked here, never shipped.
+    pre_markers = value.count("[redacted")
+    backstopped = _backstop_redact_personal(value)
+    if backstopped != value:
+        bump("personal_secret", max(1, backstopped.count("[redacted") - pre_markers))
+        value = backstopped
 
     def _entropy_sub(m: re.Match) -> str:
         run = m.group(0)

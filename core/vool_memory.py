@@ -676,7 +676,7 @@ class VoolMemory:
                 """,
                 (normalized, self._agent_id),
             ).fetchone()
-        return _row_to_node(row) if row and self._row_is_current(row) else None
+        return _redacted_node(_row_to_node(row)) if row and self._row_is_current(row) else None
 
     @fenced_writer
     def node_update_links(self, node_id: str, linked_ids: list[str]) -> None:
@@ -707,13 +707,13 @@ class VoolMemory:
         term in effective importance makes the latest value of a fact outrank
         the stale one. Returned nodes get an access bump (reinforcement).
         Backward-compatible signature; min_score still filters on cosine."""
-        return self._ranked_search(
+        return _redacted_ranked(self._ranked_search(
             query_embedding,
             None,
             top_k=top_k,
             min_score=min_score,
             session_id=session_id,
-        )
+        ))
 
     def node_search_hybrid(
         self,
@@ -740,7 +740,7 @@ class VoolMemory:
         degrades to strong lexical retrieval instead of noise or emptiness.
         Legacy callers that omit the stamp ('') keep their previous
         compare-with-legacy-rows behavior."""
-        return self._ranked_search(
+        return _redacted_ranked(self._ranked_search(
             query_embedding,
             query_text,
             top_k=top_k,
@@ -748,7 +748,7 @@ class VoolMemory:
             session_id=session_id,
             query_embedding_backend=query_embedding_backend,
             diversify=diversify,
-        )
+        ))
 
     def session_nodes(
         self,
@@ -792,7 +792,7 @@ class VoolMemory:
                     """,
                     (self._agent_id, max(1, int(limit))),
                 ).fetchall()
-        return [_row_to_node(row) for row in rows if self._row_is_current(row)]
+        return [_redacted_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
 
     def _ranked_search(
         self,
@@ -1701,7 +1701,7 @@ class VoolMemory:
                 """,
                 (self._agent_id, max(1, int(limit))),
             ).fetchall()
-        return [_row_to_node(row) for row in rows if self._row_is_current(row)]
+        return [_redacted_node(_row_to_node(row)) for row in rows if self._row_is_current(row)]
 
     def node_count(self) -> int:
         with self._lock:
@@ -1836,7 +1836,7 @@ class VoolMemory:
                     "reason": "body_sha256_mismatch",
                 })
             return replace(occurrence, body="") if diagnostic else None
-        return occurrence
+        return _redacted_occurrence(occurrence)
 
     def occurrence_search(
         self,
@@ -3097,6 +3097,34 @@ def _row_to_node(row: sqlite3.Row) -> MemoryNode:
         embedding_backend=str(row["embedding_backend"] if "embedding_backend" in keys else ""),
         source_occurrence_id=str(row["source_occurrence_id"] if "source_occurrence_id" in keys else ""),
     )
+
+
+def _redacted_ranked(ranked: list[tuple[MemoryNode, float]]) -> list[tuple[MemoryNode, float]]:
+    return [(_redacted_node(node), score) for node, score in ranked]
+
+
+def _redacted_node(node: MemoryNode) -> MemoryNode:
+    """The node door's twin of ``_redacted_occurrence``: content served masked, row untouched."""
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    if not node.content or not contains_secret(node.content):
+        return node
+    return replace(node, content=redact_secrets(node.content))
+
+
+def _redacted_occurrence(occurrence: SourceOccurrence) -> SourceOccurrence:
+    """Serve a stored body with any card number, PIN, password or key masked.
+
+    Bodies are redacted at write time, but a profile written before the v0.7.1 secret rules
+    still holds plain card numbers, PINs and passwords. Those bytes stay on disk untouched
+    (the forget law and the integrity digest both work on them), and no serving path ever
+    receives them: the value is withheld here, at the one door every lane reads through."""
+    from core.secret_redaction import contains_secret, redact_secrets
+
+    body = occurrence.body
+    if not body or not contains_secret(body):
+        return occurrence
+    return replace(occurrence, body=redact_secrets(body))
 
 
 def _row_to_occurrence(row: sqlite3.Row) -> SourceOccurrence:

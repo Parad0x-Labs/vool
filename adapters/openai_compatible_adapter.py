@@ -990,8 +990,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
         """Feed real tok/s from this Ollama call into the local inference benchmark
         table, so core.local_inference_autopilot's live routing scores providers on
         actual measured speed instead of static/zero manifest metadata. Never lets
-        a benchmark-recording failure affect the real chat response."""
+        a benchmark-recording failure affect the real chat response. A private turn's call
+        records nothing; the recorder keeps counts and durations, never the prompt or answer."""
         try:
+            from core.private_chat import request_is_private
+
+            if request_is_private():
+                return
             from core.local_inference_evidence import record_ollama_generate_benchmark
 
             record_ollama_generate_benchmark(
@@ -1004,6 +1009,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
             logger.debug("Failed to record local inference benchmark", exc_info=True)
 
     def _build_openai_payload(self, request: ModelRequest, *, force_json: bool, stream: bool) -> dict[str, Any]:
+        # A model that runs paid tools of its own on every call (web search, code execution) on an
+        # endpoint that reports no price for them would spend outside the caps: refused before
+        # anything is sent, whichever lane reached here.
+        from core.model_pricing import (
+            UNPRICED_BUILTIN_TOOLS_REFUSAL,
+            provider_slot_for_manifest,
+            unpriced_builtin_tools,
+        )
+
+        if unpriced_builtin_tools(
+            provider_slot_for_manifest(self.manifest), str(getattr(self.manifest, "model_name", "") or "")
+        ):
+            raise RuntimeError(UNPRICED_BUILTIN_TOOLS_REFUSAL)
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         context_window = self._ollama_context_window(request) if self._runtime_family() == "ollama" else 0
         max_output_tokens = (
@@ -1547,7 +1565,18 @@ class OpenAICompatibleAdapter(ModelAdapter):
             self.manifest.runtime_config.get("base_url") or ""
         ).strip()
         if api_key and self._key_transport_is_safe(transport_base):
-            headers["Authorization"] = f"Bearer {api_key}"
+            placement = "bearer"
+            if self._is_custom_managed_lane():
+                # The custom endpoint's key rides where its operator chose WITH this pair: Bearer,
+                # a named header, or nowhere for an open server. Read for the base this request
+                # travels to, so a placement committed with another endpoint never applies.
+                from core.cloud_providers import committed_custom_auth, custom_auth_parts
+
+                placement, header_name = custom_auth_parts(committed_custom_auth(transport_base))
+            if placement == "header":
+                headers[header_name] = api_key
+            elif placement == "bearer":
+                headers["Authorization"] = f"Bearer {api_key}"
         if self._is_openrouter_lane():
             # The manifest can contain legacy or caller-supplied headers. The canonical factory
             # must run last so no request path can clobber VOOL attribution on the wire.

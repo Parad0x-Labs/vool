@@ -37,7 +37,7 @@ from ._types import (
 
 #: Bumped when the shape of a derivative changes, so a stored derivative is never read under the
 #: wrong assumptions after an upgrade.
-REGISTRY_VERSION = "1.2.0"
+REGISTRY_VERSION = "1.3.0"
 
 
 @dataclass(frozen=True)
@@ -101,6 +101,10 @@ def _doc_available() -> bool:
 
 def _rar_available() -> bool:
     return bool(archive.decoders_available()["rar"])
+
+
+def _seven_zip_available() -> bool:
+    return bool(archive.decoders_available()["7z"])
 
 
 def _video_available() -> bool:
@@ -236,6 +240,29 @@ REGISTRY: tuple[ReaderSpec, ...] = (
         availability=_rar_available,
         unit_kind=UNIT_MEMBER,
         notes="Every member listed; selected members read to memory, never written to disk.",
+    ),
+    ReaderSpec(
+        fmt="7z",
+        external_decoder=True,
+        label="7z archive",
+        media_type="application/x-7z-compressed",
+        extensions=(".7z",),
+        sniff=lambda data: archive.sniff(data) == "7z",
+        read=archive.read,
+        requires=("a 7z-capable libarchive (bsdtar)",),
+        availability=_seven_zip_available,
+        unit_kind=UNIT_MEMBER,
+        notes="Every member listed; selected members read to memory, never written to disk.",
+    ),
+    ReaderSpec(
+        fmt="tar",
+        label="TAR or compressed archive (.tar, .tar.gz, .tgz, .gz, .bz2, .xz)",
+        media_type="application/x-tar",
+        extensions=(".tar", ".tgz", ".gz", ".tbz", ".tbz2", ".bz2", ".txz", ".xz"),
+        sniff=lambda data: archive.sniff(data) in {"tar", "compressed"},
+        read=archive.read,
+        unit_kind=UNIT_MEMBER,
+        notes="Read in process and streamed: listed, selected members read to memory. Links, devices, traversal and bombs refused.",
     ),
     ReaderSpec(
         fmt="audio",
@@ -383,6 +410,17 @@ def capability_report() -> dict[str, Any]:
     }
 
 
+_COMPRESSED_MEDIA_TYPES = {
+    ".tgz": "application/gzip",
+    ".gz": "application/gzip",
+    ".tbz": "application/x-bzip2",
+    ".tbz2": "application/x-bzip2",
+    ".bz2": "application/x-bzip2",
+    ".txz": "application/x-xz",
+    ".xz": "application/x-xz",
+}
+
+
 def available_extensions() -> list[str]:
     return sorted(extension for spec in REGISTRY if spec.available() for extension in spec.extensions)
 
@@ -393,6 +431,8 @@ def media_type_for_extension(extension: str) -> str:
         return ""
     if spec.fmt == "video":
         return video.media_type_for_extension(extension) or spec.media_type
+    if spec.fmt == "tar":
+        return _COMPRESSED_MEDIA_TYPES.get(str(extension or "").lower(), spec.media_type)
     return spec.media_type
 
 

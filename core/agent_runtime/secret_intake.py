@@ -75,6 +75,11 @@ ROUTE_CLOUD_KEY = "cloud_key_command"
 ROUTE_IMAGE_KEY = "image_key_command"
 ROUTE_BARE_SECRET = "bare_secret_intercept"
 ROUTE_SECRET_BEARING = "secret_bearing"
+#: A card number, PIN or password typed in plain words: masked before any lane,
+#: model or memory writer sees it, and the user is told it was not saved.
+ROUTE_PERSONAL_REDACTION = "personal_secret_intake"
+
+_PERSONAL_REDACTION_NAMES = {"pin": "PIN", "card_number": "card number", "password": "password"}
 
 _TOKEN_RE = re.compile(r"\S+")
 
@@ -208,6 +213,83 @@ def _has_demand(remainder: str) -> bool:
         return True  # a mint failure must not finalize the turn as credential-only
 
 
+def personal_redaction_notice(kinds: tuple[str, ...]) -> str:
+    """The one line that tells the user what was not saved. Names the kind, never the value."""
+    names = [_PERSONAL_REDACTION_NAMES[kind] for kind in kinds if kind in _PERSONAL_REDACTION_NAMES]
+    if not names:
+        return ""
+    named = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+    return (
+        f"I didn't save your {named}. VOOL never keeps PINs, card numbers or passwords "
+        "in memory, so I won't be able to tell you later."
+    )
+
+
+#: A clause boundary inside one message: a comma or semicolon, an "and (that)", or a sentence end.
+_CLAUSE_BREAK_RE = re.compile(
+    r"(\s*[,;]\s*(?:and\s+(?:that\s+)?|also\s+)?|\s+and\s+(?:that\s+|also\s+)?|(?<=[.!?])\s+)",
+    re.IGNORECASE,
+)
+#: The ask in front of a statement ("Remember that ..."). It belongs to the statement, not to the secret.
+_STATEMENT_LEAD_RE = re.compile(
+    r"^(?:please\s+)?(?:remember|note|save|store|keep\s+in\s+mind|don'?t\s+forget|memori[sz]e)(?:\s+that)?\s+",
+    re.IGNORECASE,
+)
+# "..., please remember it." once the secret's clause is gone: the ask only points back at the secret.
+_BACK_REFERENCE_RE = re.compile(
+    r"^(?:please\s+)?(?:(?:remember|note|save|store|memori[sz]e|don'?t\s+forget)\s+(?:it|that|this|them|those)"
+    r"|keep\s+(?:it|that|this|them|those)\s+in\s+mind)(?:\s+for\s+me)?(?:,?\s+please)?\s*[.!?]*$",
+    re.IGNORECASE,
+)
+_PERSONAL_MARKERS = ("[redacted]", "[redacted-card-number]")
+
+
+def _without_personal_secret_clauses(remainder: str) -> str:
+    """The masked remainder without the clauses that only carried a PIN, card number or password.
+
+    Measured on a v0.7.1 film build: "Remember that my bank card PIN is 4821." answered "I didn't save
+    your PIN ..." AND "Locked in. I'll remember that.", because the masked sentence still read as a
+    statement to remember. The clause that held the secret has nothing left to keep; every other clause
+    stays, and an ask in front of a dropped clause moves to the next kept one."""
+    pieces = _CLAUSE_BREAK_RE.split(remainder)
+    clauses, breaks = pieces[0::2], pieces[1::2]
+    if not any(marker in clause for clause in clauses for marker in _PERSONAL_MARKERS):
+        return remainder
+    kept: list[str] = []
+    carried_lead = ""
+    for index, clause in enumerate(clauses):
+        if any(marker in clause for marker in _PERSONAL_MARKERS):
+            lead = _STATEMENT_LEAD_RE.match(clause)
+            if lead and not kept:
+                carried_lead = lead.group(0)
+            continue
+        if _BACK_REFERENCE_RE.match(clause.strip()):
+            continue
+        if kept:
+            kept.append(breaks[index - 1])
+        elif carried_lead and not _STATEMENT_LEAD_RE.match(clause):
+            clause = carried_lead + clause
+        kept.append(clause)
+    return "".join(kept).strip()
+
+
+def _personal_redaction_intake(value: str, *, owner_local: bool) -> SecretIntake | None:
+    from core.secret_redaction import redactable_personal_kinds
+
+    reply = personal_redaction_notice(redactable_personal_kinds(value))
+    if not reply:
+        return None
+    remainder = _without_personal_secret_clauses(_sanitize(value, ()))
+    return SecretIntake(
+        disposition=DISPOSITION_HANDLED if owner_local else DISPOSITION_REFUSED,
+        route=ROUTE_PERSONAL_REDACTION,
+        reply=reply,
+        consumed_spans=(),
+        remainder=remainder,
+        remainder_has_demand=bool(remainder) and _has_demand(remainder),
+    )
+
+
 def consume_secret_intake(text: str, *, owner_local: bool) -> SecretIntake | None:
     """The one typed intake over a turn's raw text, or None when no secret route
     applies and the text carries no secret-shaped material at all."""
@@ -230,6 +312,10 @@ def consume_secret_intake(text: str, *, owner_local: bool) -> SecretIntake | Non
     span = bare_key_span(value)
     if span is not None:
         return _bare_key_intake(value, span, owner_local=owner_local)
+
+    personal = _personal_redaction_intake(value, owner_local=owner_local)
+    if personal is not None:
+        return personal
 
     try:
         from core.secret_redaction import contains_secret
@@ -326,8 +412,10 @@ __all__ = [
     "ROUTE_BARE_SECRET",
     "ROUTE_CLOUD_KEY",
     "ROUTE_IMAGE_KEY",
+    "ROUTE_PERSONAL_REDACTION",
     "ROUTE_SECRET_BEARING",
     "SAFE_FAILURE_REPLY",
     "SecretIntake",
     "consume_secret_intake",
+    "personal_redaction_notice",
 ]

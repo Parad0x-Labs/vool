@@ -10,16 +10,16 @@ with the file, test or command behind it in the [evidence registry](docs/review/
 
 ## Before you start: what this build is
 
-VOOL is **beta** software (version 0.7.0-beta). The authoritative list of what is
+VOOL is **beta** software (version 0.7.1-beta). The authoritative list of what is
 and is not shipped (installers, checksums, signing, updates) is the
 [release status](docs/trust/release-status.md) page. In short:
 
 * App downloads exist for Apple Silicon Macs, Intel Macs and Linux x86_64 on the
-  [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta);
+  [v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta);
   installing from source is also supported. The macOS apps are ad-hoc signed and not
   notarized, so macOS asks you to confirm the first open.
-* 0.7.0 is installed by download. The signed update feed starts with 0.7.1, and update
-  checks stay off until you allow them.
+* 0.7.1 is installed by download. Updating from 0.7.0: download 0.7.1 and install it over
+  0.7.0. Your chats and settings live in your profile, outside the app.
 * Answer quality depends on the model you connect. A small local model will make more mistakes
   than a large cloud one. Receipts prove what ran, not that an answer is right.
 * Windows is an experimental path. Shell commands are blocked there because Windows has no

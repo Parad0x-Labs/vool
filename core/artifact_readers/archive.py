@@ -1,4 +1,4 @@
-"""ZIP and RAR: a listing, and the content of members actually asked for.
+"""ZIP, RAR, 7z, TAR and compressed streams: a listing, and the content of members actually asked for.
 
 An archive is a container, not a document. Handing its raw bytes to a model as though they were
 text produces confident nonsense about mojibake; extracting all of it produces a decompression
@@ -19,17 +19,29 @@ Every hostile shape a container can take is refused *before* the bytes it wants 
 * Member floods -- bounded count, checked against the central directory before any read.
 * Nested archives -- listed, never automatically expanded.
 
-RAR is not a format with a standard-library decoder. Where ``libarchive`` (``/usr/bin/bsdtar``) is
-present it is used, sandboxed; where it is not, RAR is BLOCKED and says so.
+RAR and 7z are not formats with a standard-library decoder. Where ``libarchive``
+(``/usr/bin/bsdtar``) is present it is used, sandboxed; where it is not, they are BLOCKED and say so.
+
+TAR (plain, gzip, bzip2 or xz compressed) and a single compressed file (``notes.log.gz``) are read in
+process by the standard library, streamed and never written to disk. A compressed stream has no
+per-member ratio to check, so the WHOLE stream is bounded instead: decompressed bytes are counted as
+they arrive and the read is abandoned past the expansion ratio or the total budget, whichever comes
+first -- a lying header cannot change what is counted.
 """
 
 from __future__ import annotations
 
+import bz2
+import gzip
 import hashlib
+import io
 import json
+import lzma
 import os
 import posixpath
+import tarfile
 import zipfile
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,12 +55,24 @@ from ._limits import (
     MAX_UNIT_CHARS,
 )
 from ._sandbox import Scratch, extraction_budget, require_confinement, run_confined
-from ._types import UNIT_MEMBER, ReaderRefused, ReaderResult, ReaderUnavailable, ReaderUnit
+from ._types import UNIT_MEMBER, ReaderError, ReaderRefused, ReaderResult, ReaderUnavailable, ReaderUnit
 
 BSDTAR = "/usr/bin/bsdtar"
 ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 RAR4_MAGIC = b"Rar!\x1a\x07\x00"
 RAR5_MAGIC = b"Rar!\x1a\x07\x01\x00"
+SEVEN_ZIP_MAGIC = b"7z\xbc\xaf\x27\x1c"
+GZIP_MAGIC = b"\x1f\x8b"
+BZIP2_MAGIC = b"BZh"
+XZ_MAGIC = b"\xfd7zXZ\x00"
+#: Below this many decompressed bytes a compressed stream is never called a bomb, whatever its
+#: ratio. A tar of three small files is mostly zero padding and compresses far past any sane ratio;
+#: refusing it would refuse ordinary archives to protect against nothing.
+COMPRESSED_RATIO_FLOOR_BYTES = 4 * 1024 * 1024
+#: Formats read through the confined libarchive decoder, and what each is called to a person.
+_LIBARCHIVE_FORMATS = {"rar": "RAR", "7z": "7z"}
+#: Formats read in process from a (possibly compressed) stream.
+STREAM_FORMATS = frozenset({"tar", "gz", "bz2", "xz"})
 #: Extensions whose content is worth reading into text without being asked. Everything else is
 #: listed only: a 30 MB binary is named, not decoded into replacement characters.
 _TEXTUAL_SUFFIXES = frozenset(
@@ -83,7 +107,36 @@ def sniff(data: bytes) -> str:
         return "rar"
     if any(head.startswith(magic) for magic in ZIP_MAGIC):
         return "zip"
+    if head.startswith(SEVEN_ZIP_MAGIC):
+        return "7z"
+    if _compression(data):
+        return "compressed"
+    if _is_tar_header(bytes(data[:512])):
+        return "tar"
     return ""
+
+
+def _compression(data: bytes) -> str:
+    """'gz', 'bz2' or 'xz' when the bytes open a compressed stream; '' otherwise."""
+    head = bytes(data[:6])
+    if head.startswith(GZIP_MAGIC) and len(data) > 10 and data[2] == 8:  # 8 = deflate, the only gzip method
+        return "gz"
+    if head.startswith(BZIP2_MAGIC) and len(head) > 3 and 0x31 <= head[3] <= 0x39:
+        return "bz2"
+    if head.startswith(XZ_MAGIC):
+        return "xz"
+    return ""
+
+
+def _is_tar_header(block: bytes) -> bool:
+    """A real tar header: the checksum the format defines must hold, not merely a magic string."""
+    if len(block) < 512 or not block.strip(b"\x00"):
+        return False
+    try:
+        tarfile.TarInfo.frombuf(block, "utf-8", "surrogateescape")
+    except tarfile.HeaderError:
+        return False
+    return True
 
 
 def _unsafe_name(name: str) -> str:
@@ -140,23 +193,24 @@ def _bsdtar_available() -> bool:
     return os.access(BSDTAR, os.X_OK) and _sandbox.confinement_available()
 
 
-def _rar_members(path: Path, *, scratch: Path) -> list[Member]:
-    result = run_confined([BSDTAR, "-tvf", str(path)], scratch=scratch, fmt="rar")
+def _libarchive_members(path: Path, *, scratch: Path, fmt: str = "rar") -> list[Member]:
+    label = _LIBARCHIVE_FORMATS.get(fmt, fmt.upper())
+    result = run_confined([BSDTAR, "-tvf", str(path)], scratch=scratch, fmt=fmt)
     if result.returncode != 0:
         detail = result.stderr.decode("utf-8", "replace").strip()
         lowered = detail.lower()
         if "passphrase" in lowered or "password" in lowered or "encrypted" in lowered:
             raise ReaderRefused(
-                "The RAR archive is password-protected; its contents were not read.",
+                f"The {label} archive is password-protected; its contents were not read.",
                 code="password_protected",
                 remediation="Remove the password, or attach an unprotected archive.",
-                fmt="rar",
+                fmt=fmt,
             )
         raise ReaderRefused(
-            "The RAR archive could not be listed; it may be corrupt or use an unsupported RAR feature.",
-            code="rar_unreadable",
+            f"The {label} archive could not be listed; it may be corrupt or use an unsupported {label} feature.",
+            code=f"{fmt}_unreadable",
             remediation="Re-create the archive, or attach a ZIP instead.",
-            fmt="rar",
+            fmt=fmt,
         )
     members: list[Member] = []
     for line in result.stdout.decode("utf-8", "replace").splitlines():
@@ -227,15 +281,18 @@ def read(
 ) -> ReaderResult:
     kind = sniff(data)
     if not kind:
-        raise ReaderRefused(f"{name} is not a ZIP or RAR archive.", code="not_an_archive", fmt="archive")
+        raise ReaderRefused(f"{name} is not a ZIP, RAR, 7z or TAR archive.", code="not_an_archive", fmt="archive")
     digest = hashlib.sha256(data).hexdigest()
     warnings: list[str] = []
     omitted: list[str] = []
+    extractor = ""
 
-    if kind == "rar":
-        require_confinement("rar")
+    if kind in {"tar", "compressed"}:
+        return _read_stream_archive(data, name=name, question=question, max_read_members=max_read_members, digest=digest)
+    if kind in _LIBARCHIVE_FORMATS:
+        require_confinement(kind)
     with Scratch("vool-archive-") as scratch, extraction_budget(scratch=scratch.path):
-        source = scratch.path / ("input.rar" if kind == "rar" else "input.zip")
+        source = scratch.path / f"input.{kind}"
         source.write_bytes(data)
         if kind == "zip":
             try:
@@ -267,22 +324,49 @@ def read(
                 chosen = [m for m in _wanted(members, question, max_read_members) if m.name not in encrypted_names]
                 contents = _read_zip_contents(handle, chosen, warnings)
         else:
+            label = _LIBARCHIVE_FORMATS[kind]
             if not _bsdtar_available():
                 raise ReaderUnavailable(
-                    f"{name} is a RAR archive and this machine has no RAR decoder, so it was not read.",
-                    code="rar_decoder_unavailable",
-                    remediation="Attach a ZIP archive instead, or install a RAR-capable libarchive build.",
-                    fmt="rar",
+                    f"{name} is a {label} archive and this machine has no {label} decoder, so it was not read.",
+                    code=f"{kind}_decoder_unavailable",
+                    remediation=f"Attach a ZIP archive instead, or install a {label}-capable libarchive build.",
+                    fmt=kind,
                 )
-            members = _rar_members(source, scratch=scratch.path)
+            members = _libarchive_members(source, scratch=scratch.path, fmt=kind)
             if len(members) > MAX_ARCHIVE_MEMBERS:
                 omitted.append(f"{len(members) - MAX_ARCHIVE_MEMBERS} members beyond the first {MAX_ARCHIVE_MEMBERS:,}")
                 members = members[:MAX_ARCHIVE_MEMBERS]
             chosen = _wanted(members, question, max_read_members)
-            contents = _read_rar_contents(source, chosen, scratch=scratch.path, warnings=warnings)
+            contents = _read_libarchive_contents(source, chosen, scratch=scratch.path, warnings=warnings, fmt=kind)
+            extractor = f"libarchive via bsdtar, vool.{kind} 1.0.0"
 
+    return _archive_result(
+        kind=kind,
+        name=name,
+        members=members,
+        contents=contents,
+        warnings=warnings,
+        omitted=omitted,
+        digest=digest,
+        extractor=extractor or "vool.zip 1.0.0 (stdlib zipfile)",
+    )
+
+
+def _archive_result(
+    *,
+    kind: str,
+    name: str,
+    members: list[Member],
+    contents: list[tuple[Member, str]],
+    warnings: list[str],
+    omitted: list[str],
+    digest: str,
+    extractor: str,
+    listed_note: str = "",
+) -> ReaderResult:
+    """The listing unit, one unit per member read, and the result -- the same shape for every container."""
     units: list[ReaderUnit] = []
-    listing_lines = [f"{len(members)} member(s) in {name}:"]
+    listing_lines = [f"{len(members)} member(s) in {name}{listed_note}:"]
     total_size = 0
     nested: list[str] = []
     for member in members:
@@ -328,7 +412,7 @@ def read(
         warnings.append(f"{len(refused)} member(s) were refused and never extracted; each is named in the listing with its reason.")
     return ReaderResult(
         fmt=kind,
-        extractor=("vool.zip 1.0.0 (stdlib zipfile)" if kind == "zip" else "libarchive via bsdtar, vool.rar 1.0.0"),
+        extractor=extractor,
         units=tuple(units),
         warnings=tuple(warnings),
         omitted=tuple(omitted),
@@ -338,6 +422,9 @@ def read(
             "members_read": len(contents),
             "members_refused": len(refused),
             "nested_archives": nested,
+            # Every listed file member by its in-archive path. Routing reads this to recognise a
+            # path the user typed as a member of the attachment rather than a file on this disk.
+            "member_names": [m.name for m in members if not m.is_dir],
             "total_uncompressed_bytes": total_size,
             "selection": [m.name for m, _ in contents],
         },
@@ -382,17 +469,22 @@ def _read_zip_contents(handle: zipfile.ZipFile, chosen: list[Member], warnings: 
     return out
 
 
-def _read_rar_contents(source: Path, chosen: list[Member], *, scratch: Path, warnings: list[str]) -> list[tuple[Member, str]]:
+def _read_libarchive_contents(
+    source: Path, chosen: list[Member], *, scratch: Path, warnings: list[str], fmt: str = "rar"
+) -> list[tuple[Member, str]]:
     """One member at a time to stdout, so a member is never written into the filesystem at all."""
+    label = _LIBARCHIVE_FORMATS.get(fmt, fmt.upper())
     out: list[tuple[Member, str]] = []
     produced = 0
     for member in chosen:
         if produced >= MAX_ARCHIVE_TOTAL_BYTES:
             warnings.append(f"The extraction budget was reached; {member.name} was not read.")
             break
-        result = run_confined([BSDTAR, "-xOf", str(source), "--", member.name], scratch=scratch, fmt="rar")
+        result = run_confined([BSDTAR, "-xOf", str(source), "--", member.name], scratch=scratch, fmt=fmt)
         if result.returncode != 0:
-            warnings.append(f"{member.name} could not be extracted from the RAR archive.")
+            lowered = result.stderr.decode("utf-8", "replace").lower()
+            reason = "it is password-protected" if ("passphrase" in lowered or "encrypted" in lowered) else f"it could not be extracted from the {label} archive"
+            warnings.append(f"{member.name} was not read: {reason}.")
             continue
         payload = result.stdout[: MAX_ARCHIVE_MEMBER_BYTES + 1]
         if len(payload) > MAX_ARCHIVE_MEMBER_BYTES:
@@ -409,8 +501,257 @@ def _read_rar_contents(source: Path, chosen: list[Member], *, scratch: Path, war
     return out
 
 
+# --- TAR and single compressed streams, in process ---------------------------------------------
+
+
+class _Expanded(Exception):
+    """A compressed stream produced more than it is allowed to. Carries the refusal to raise."""
+
+    def __init__(self, refusal: ReaderError) -> None:
+        super().__init__(refusal.message)
+        self.refusal = refusal
+
+
+class _BoundedStream(io.RawIOBase):
+    """Decompressed bytes, counted as they arrive and abandoned past the ceiling.
+
+    The ceiling is the smaller of the absolute budget and ``ratio x compressed size`` (above a small
+    floor), so a 80 KB gzip of zeros is refused after a few MB instead of after 256 MB. The extraction
+    deadline is checked every chunk, so a slow, pathological stream cannot outlive the attachment's
+    time budget either.
+    """
+
+    def __init__(self, raw: io.BufferedIOBase, *, compressed_size: int, limit: int, fmt: str, name: str) -> None:
+        super().__init__()
+        self._raw = raw
+        self._fmt = fmt
+        self._name = name
+        self.produced = 0
+        ratio_ceiling = max(COMPRESSED_RATIO_FLOOR_BYTES, MAX_ARCHIVE_EXPANSION_RATIO * max(1, compressed_size))
+        self._ratio_ceiling = ratio_ceiling
+        self._limit = limit
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer) -> int:  # type: ignore[override]
+        budget = _sandbox.current_budget()
+        if budget is not None:
+            budget.check(self._fmt)
+        chunk = self._raw.read(len(buffer))
+        size = len(chunk)
+        self.produced += size
+        if self.produced > self._ratio_ceiling and self._ratio_ceiling < self._limit:
+            raise _Expanded(
+                ReaderRefused(
+                    f"{self._name} expands more than {MAX_ARCHIVE_EXPANSION_RATIO}x its compressed size "
+                    "(a decompression bomb); it was not read.",
+                    code="decompression_bomb",
+                    remediation="Attach the files uncompressed, or as a ZIP.",
+                    fmt=self._fmt,
+                )
+            )
+        if self.produced > self._limit:
+            raise _Expanded(
+                ReaderRefused(
+                    f"{self._name} decompresses to more than {self._limit // (1024 * 1024)} MB; it was not read.",
+                    code="archive_too_large",
+                    remediation="Attach a smaller archive, or only the files you need.",
+                    fmt=self._fmt,
+                )
+            )
+        buffer[:size] = chunk
+        return size
+
+
+def _decompressor(data: bytes, compression: str) -> io.BufferedIOBase:
+    source = io.BytesIO(data)
+    if compression == "gz":
+        return gzip.GzipFile(fileobj=source, mode="rb")
+    if compression == "bz2":
+        return bz2.BZ2File(source, mode="rb")
+    if compression == "xz":
+        return lzma.LZMAFile(source, mode="rb")
+    return source
+
+
+def _open_stream(data: bytes, *, compression: str, limit: int, fmt: str, name: str) -> io.BufferedReader:
+    bounded = _BoundedStream(_decompressor(data, compression), compressed_size=len(data), limit=limit, fmt=fmt, name=name)
+    return io.BufferedReader(bounded, buffer_size=64 * 1024)
+
+
+#: What a damaged or truncated stream raises from the stdlib decompressors and tarfile.
+_STREAM_ERRORS = (OSError, EOFError, lzma.LZMAError, zlib.error, tarfile.TarError, ValueError)
+
+
+def _damaged(name: str, fmt: str, label: str) -> ReaderRefused:
+    return ReaderRefused(
+        f"{name} could not be read as {label}; the file is damaged or truncated.",
+        code="archive_corrupt",
+        remediation="Re-create the archive and attach it again.",
+        fmt=fmt,
+    )
+
+
+def _gzip_original_name(data: bytes) -> str:
+    """The FNAME field of a gzip header, when the writer recorded one. Only ever used as a label."""
+    if len(data) < 10 or not data.startswith(GZIP_MAGIC) or not data[3] & 0x08:
+        return ""
+    offset = 10
+    if data[3] & 0x04:  # FEXTRA
+        if len(data) < 12:
+            return ""
+        offset += 2 + int.from_bytes(data[10:12], "little")
+    end = data.find(b"\x00", offset, offset + 1024)
+    if end <= offset:
+        return ""
+    return data[offset:end].decode("latin-1")
+
+
+def _tar_member(info: tarfile.TarInfo) -> Member:
+    name = info.name
+    refusal = _unsafe_name(name)
+    if not refusal and (info.issym() or info.islnk()):
+        refusal = "the member is a link" + (f" to {info.linkname}" if info.linkname else "")
+    if not refusal and (info.ischr() or info.isblk() or info.isfifo()):
+        refusal = "the member is a device or special file"
+    if not refusal and info.isfile() and info.size > MAX_ARCHIVE_MEMBER_BYTES:
+        refusal = f"the member is {info.size / (1024 * 1024):.0f} MB, over the {MAX_ARCHIVE_MEMBER_BYTES // (1024 * 1024)} MB per-member limit"
+    return Member(name.rstrip("/"), int(info.size), int(info.size), info.isdir(), refusal)
+
+
+def _read_stream_archive(data: bytes, *, name: str, question: str, max_read_members: int, digest: str) -> ReaderResult:
+    """TAR (any of the stdlib compressions) or one compressed file. Nothing is written to disk."""
+    compression = _compression(data)
+    with extraction_budget():
+        # Is there a tar inside? One header block decides, read through the same bound.
+        try:
+            head = _open_stream(data, compression=compression, limit=MAX_ARCHIVE_TOTAL_BYTES, fmt="tar", name=name).read(512)
+        except _Expanded as exc:
+            raise exc.refusal from None
+        except _STREAM_ERRORS as exc:
+            raise _damaged(name, compression or "tar", f"a {compression or 'tar'} stream") from exc
+        if _is_tar_header(head):
+            return _read_tar(data, compression=compression, name=name, question=question, max_read_members=max_read_members, digest=digest)
+        if not compression:
+            raise _damaged(name, "tar", "a TAR archive")
+        return _read_single_compressed(data, compression=compression, name=name, digest=digest)
+
+
+def _read_tar(data: bytes, *, compression: str, name: str, question: str, max_read_members: int, digest: str) -> ReaderResult:
+    warnings: list[str] = []
+    omitted: list[str] = []
+    members: list[Member] = []
+    total_members = 0
+    # Pass 1: list. Streaming mode ("r|") never seeks, so the bound sees every decompressed byte.
+    try:
+        with tarfile.open(fileobj=_open_stream(data, compression=compression, limit=MAX_ARCHIVE_TOTAL_BYTES, fmt="tar", name=name), mode="r|") as handle:
+            for info in handle:
+                total_members += 1
+                if len(members) < MAX_ARCHIVE_MEMBERS:
+                    members.append(_tar_member(info))
+    except _Expanded as exc:
+        raise exc.refusal from None
+    except _STREAM_ERRORS as exc:
+        if not members:
+            raise _damaged(name, "tar", "a TAR archive") from exc
+        warnings.append(f"The archive ends early or is damaged after {len(members)} member(s); the rest could not be listed.")
+    if total_members > MAX_ARCHIVE_MEMBERS:
+        omitted.append(f"{total_members - MAX_ARCHIVE_MEMBERS} members beyond the first {MAX_ARCHIVE_MEMBERS:,}")
+        warnings.append(f"This archive holds {total_members:,} members; the first {MAX_ARCHIVE_MEMBERS:,} were listed.")
+    chosen = _wanted(members, question, max_read_members)
+    wanted = {member.name: member for member in chosen}
+    found: dict[str, str] = {}
+    # Pass 2: read only the chosen regular files, into memory, each under its own ceiling.
+    produced = 0
+    if wanted:
+        try:
+            with tarfile.open(fileobj=_open_stream(data, compression=compression, limit=MAX_ARCHIVE_TOTAL_BYTES, fmt="tar", name=name), mode="r|") as handle:
+                for info in handle:
+                    key = info.name.rstrip("/")
+                    if key not in wanted or key in found or not info.isfile():
+                        continue
+                    ceiling = min(MAX_ARCHIVE_MEMBER_BYTES, MAX_ARCHIVE_TOTAL_BYTES - produced)
+                    if ceiling <= 0:
+                        warnings.append(f"The extraction budget was reached; {key} was not read.")
+                        break
+                    stream = handle.extractfile(info)
+                    payload = stream.read(ceiling + 1) if stream is not None else b""
+                    if len(payload) > ceiling:
+                        warnings.append(f"{key} exceeded the per-member limit and was abandoned.")
+                        continue
+                    produced += len(payload)
+                    text, note = _decode(payload, key)
+                    if note and not text:
+                        warnings.append(f"{key} was not shown: {note}.")
+                        found[key] = ""
+                        continue
+                    if note:
+                        warnings.append(f"{key}: {note}.")
+                    found[key] = text
+                    if len(found) >= len(wanted):
+                        break
+        except _Expanded as exc:
+            raise exc.refusal from None
+        except _STREAM_ERRORS:
+            warnings.append("The archive is damaged partway through; members after the damage were not read.")
+    contents = [(wanted[key], text) for key, text in found.items() if text]
+    label = {"gz": "gzip", "bz2": "bzip2", "xz": "xz"}.get(compression, "")
+    return _archive_result(
+        kind="tar",
+        name=name,
+        members=members,
+        contents=contents,
+        warnings=warnings,
+        omitted=omitted,
+        digest=digest,
+        extractor="vool.tar 1.0.0 (stdlib tarfile" + (f", {label}" if label else "") + ", streamed, never written to disk)",
+    )
+
+
+def _read_single_compressed(data: bytes, *, compression: str, name: str, digest: str) -> ReaderResult:
+    """One file compressed on its own (``server.log.gz``): decompressed in memory, bounded, decoded if text."""
+    stem = posixpath.basename(_gzip_original_name(data).replace("\\", "/")) if compression == "gz" else ""
+    if not stem:
+        base = posixpath.basename(name.replace("\\", "/"))
+        stem = base.rsplit(".", 1)[0] if "." in base else base
+    stem = stem or "content"
+    warnings: list[str] = []
+    try:
+        payload = _open_stream(data, compression=compression, limit=MAX_ARCHIVE_MEMBER_BYTES, fmt=compression, name=name).read()
+    except _Expanded as exc:
+        raise exc.refusal from None
+    except _STREAM_ERRORS as exc:
+        raise _damaged(name, compression, f"a {compression} stream") from exc
+    member = Member(stem, len(payload), len(data), False, "")
+    contents: list[tuple[Member, str]] = []
+    nested = sniff(payload)
+    if nested:
+        warnings.append(f"{stem} is itself an archive ({nested}); it was listed, not expanded.")
+    else:
+        text, note = _decode(payload, stem)
+        if note and not text:
+            warnings.append(f"{stem} was not shown: {note}.")
+        else:
+            if note:
+                warnings.append(f"{stem}: {note}.")
+            contents.append((member, text))
+    label = {"gz": "gzip", "bz2": "bzip2", "xz": "xz"}[compression]
+    return _archive_result(
+        kind=compression,
+        name=name,
+        members=[member],
+        contents=contents,
+        warnings=warnings,
+        omitted=[] if contents else [f"member {stem}"],
+        digest=digest,
+        extractor=f"vool.{compression} 1.0.0 (stdlib {label}, in memory)",
+    )
+
+
 def decoders_available() -> dict[str, bool]:
-    return {"zip": True, "rar": _bsdtar_available()}
+    available = _bsdtar_available()
+    return {"zip": True, "tar": True, "rar": available, "7z": available}
 
 
 __all__ = ["Member", "decoders_available", "json", "read", "sniff"]

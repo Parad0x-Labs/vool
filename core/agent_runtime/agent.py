@@ -169,6 +169,22 @@ _UNFULFILLED_FAST_PATH_REASONS = frozenset(
 _log = logging.getLogger(__name__)
 
 
+def _forbid_side_answer_actions(runtime_source_context: dict[str, Any]) -> None:
+    """A side answer to a question asked while a task runs may only answer.
+
+    It runs beside the task, outside the session's turn gate, so it must not be able to act: a
+    second actor in the same chat could start, repeat or contradict the work the task is doing.
+    The marker is server-owned (`core.followup_continuity`); a caller-sent copy never survives
+    ingress. Restriction only: this can turn actions off, never on.
+    """
+    from core.agent_runtime.intent_claims import NO_COMMANDS_CONTEXT_KEY, ActionPolicy
+    from core.followup_continuity import SIDE_ANSWER_CONTEXT_KEY
+
+    if runtime_source_context.get(SIDE_ANSWER_CONTEXT_KEY):
+        runtime_source_context["action_policy"] = ActionPolicy.FORBIDDEN.value
+        runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+
+
 def _augment_history_from_session_log(
     history: list[dict[str, str]] | None,
     *,
@@ -1360,6 +1376,14 @@ class VoolAgent(
         self._public_presence_sync_thread: threading.Thread | None = None
         self._public_presence_sync_inflight = False
         self._public_presence_sync_pending = False
+        # Runtime stop ends the sync lane (stopped + a new epoch); start reopens it.
+        self._public_presence_sync_stopped = False
+        self._public_presence_sync_epoch = 0
+        self._public_presence_sync_write_lock = threading.Lock()
+        self._public_presence_sync_wake = threading.Event()
+        # This runtime session's store, pinned at start: the sync lane's audit writes go through
+        # caller-owned transactions on that path and never re-resolve the active database later.
+        self._public_presence_sync_store_path: str | None = None
         self._idle_commons_running = False
         self._idle_commons_thread: threading.Thread | None = None
         self._last_user_activity_ts = time.time()
@@ -1405,6 +1429,7 @@ class VoolAgent(
         # every start (a test runtime included) so an agent's first boot still registers before
         # any turn. Only the RECURRING research threads (heartbeat, idle-commons) sit behind the
         # production/research boundary gate.
+        agent_presence_runtime.reopen_public_presence_sync(self)
         self._sync_public_presence(status=self._idle_public_presence_status())
         if self._background_runtime_threads_enabled():
             self._start_public_presence_heartbeat()
@@ -1927,6 +1952,7 @@ class VoolAgent(
         runtime_source_context["action_policy"] = constraints.policy.value
         if constraints.forbid_commands:
             runtime_source_context[NO_COMMANDS_CONTEXT_KEY] = True
+        _forbid_side_answer_actions(runtime_source_context)
         # Forget admission precedes every memory-bearing effect of the turn,
         # including normalization's dialogue state and profile sibling clauses.
         from core.persistent_memory import _preadmit_forget_turn
@@ -1980,6 +2006,26 @@ class VoolAgent(
         runtime_source_context["chat_id"] = access_policy.chat_id
         if access_policy.project_id:
             runtime_source_context["_trusted_project_id"] = access_policy.project_id
+        # Private chat (core.private_chat): "don't record this" / "private chat" switches the chat
+        # here, before the dialogue row, the checkpoint and every memory writer below, so the turn
+        # that asks not to be recorded is itself never recorded. A bare command is answered now
+        # from the switch's store; a private turn carries PRIVATE_TURN_KEY from here on.
+        from core.private_chat import observe_private_turn, turn_is_private
+
+        private_outcome = observe_private_turn(
+            self, user_input, session_id=session_id, source_context=runtime_source_context,
+        )
+        if private_outcome is not None:
+            return _seal_semantic_result(
+                private_outcome["result"],
+                session_id=session_id,
+                user_input=user_input,
+                effective_input=user_input,
+                source_context=runtime_source_context,
+                semantic_source=SemanticSource.FAST_PATH,
+                route_id="private_chat_command",
+            )
+        private_turn = turn_is_private(runtime_source_context, session_id)
         # A turn with no request in it is stopped HERE, ahead of everything that would record it.
         # It used to run the whole front door and die at `TaskEnvelopeV1.__post_init__` --
         # `ValueError: goal is required`, because the envelope goal is the request text stripped and
@@ -2056,7 +2102,7 @@ class VoolAgent(
         interpreted = adapt_user_input(
             intake_text,
             session_id=session_id,
-            persist=not forget_turn,
+            persist=not (forget_turn or private_turn),
             turn_id=(
                 ""
                 if bool((source_context or {}).get("planned_subturn"))
@@ -2135,7 +2181,9 @@ class VoolAgent(
         # never change the route or reach a provider as user prose.
         effective_input = interpreted.normalized_text or interpreted.raw_text or user_input
         normalized_input = str(interpreted.normalized_text or "").strip()
-        if forget_turn:
+        if forget_turn or private_turn:
+            # Neither a forget nor a private turn leaves a resumable checkpoint: both would store
+            # the turn's own words.
             checkpoint_bundle = {
                 "source_context": runtime_source_context, "state": "created", "effective_input": effective_input,
             }
@@ -2365,6 +2413,7 @@ class VoolAgent(
             from core.agent_runtime.intent_claims import ActionPolicy
 
             runtime_source_context["action_policy"] = ActionPolicy.FORBIDDEN.value
+        _forbid_side_answer_actions(runtime_source_context)
 
         def _guard_final_result(
             result: dict,
@@ -6727,7 +6776,7 @@ class VoolAgent(
         )
 
     def stop_background_runtime_threads(self) -> dict[str, bool]:
-        """Stop the idle-commons and presence loops (runtime shutdown)."""
+        """Stop the idle-commons and presence loops and the one-shot presence sync (runtime shutdown)."""
         return agent_presence_runtime.stop_background_runtime_threads(self)
 
     def _maybe_run_autonomous_hive_research_once(self) -> None:

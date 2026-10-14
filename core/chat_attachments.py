@@ -95,7 +95,8 @@ MAX_ARTIFACT_CHARS_PER_FILE = 160_000
 #: the chat until the chat or the document is erased (``chat``).
 RETENTION_TURN = "turn"
 RETENTION_CHAT = "chat"
-#: Kind of a staged file read by `core.artifact_readers`: a PDF, DOCX, DOC, ZIP, RAR or video.
+#: Kind of a staged file read by `core.artifact_readers`: a PDF, an office document, an archive
+#: (ZIP, RAR, 7z, TAR or a compressed file) or video.
 #: Distinct from ``text`` (bytes ARE the content) and ``image`` (bytes go to the model as pixels):
 #: an artifact's bytes are never the payload -- its extraction is.
 #:
@@ -1521,7 +1522,7 @@ def _targeted_question_pass(record: dict[str, Any], question: str) -> dict[str, 
     what a targeted re-read means in practice.
     """
     fmt = str(record.get("reader_format") or "")
-    if fmt not in {"zip", "rar", "video"} or not str(question or "").strip():
+    if fmt not in {"zip", "rar", "7z", "tar", "video"} or not str(question or "").strip():
         return None
     path = _bytes_path(record["id"])
     if not path.exists() or path.is_symlink():
@@ -1846,6 +1847,11 @@ _CITATION_HINT: dict[str, str] = {
     "doc": "Cite evidence by heading or section.",
     "zip": "Cite evidence by member name, e.g. “member data/values.csv”.",
     "rar": "Cite evidence by member name, e.g. “member data/values.csv”.",
+    "7z": "Cite evidence by member name, e.g. “member data/values.csv”.",
+    "tar": "Cite evidence by member name, e.g. “member data/values.csv”.",
+    "gz": "Cite evidence by the decompressed file's name, e.g. “member server.log”.",
+    "bz2": "Cite evidence by the decompressed file's name, e.g. “member server.log”.",
+    "xz": "Cite evidence by the decompressed file's name, e.g. “member server.log”.",
     "video": "Cite evidence by frame timestamp, e.g. “t=0:05.333”.",
 }
 
@@ -2129,9 +2135,19 @@ def release_turn(*, session_id: str, turn_id: str, outcomes: dict[str, str] | No
     """
     resolved = {str(k): str(v) for k, v in dict(outcomes or {}).items()}
     released = 0
+    # Private chat (core.private_chat): what a private turn attached leaves nothing behind -- not
+    # the bytes (a document included), not the manifest naming it.
+    from core.private_chat import is_private
+
+    private = is_private(session_id)
     with _LOCK:
         for record in _bound_records(session_id, turn_id):
             if record.get("state") != "bound":
+                continue
+            if private:
+                _forget_bytes(record["id"])
+                _unlink_no_follow(_manifest_path(record["id"]))
+                released += 1
                 continue
             # A document's bytes stay with the chat; only its state moves on.
             if _retained(record):

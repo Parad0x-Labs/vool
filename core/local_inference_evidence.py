@@ -68,7 +68,10 @@ def record_local_inference_benchmark(
 ) -> LocalInferenceBenchmarkFact:
     _init_local_inference_benchmark_table()
     created_at = _utcnow()
-    prompt_hash = _prompt_hash(prompt)
+    # Speed facts only. The prompt is never stored, not even as a digest: a short digest of a
+    # short private message (a PIN, a name) can be guessed back.
+    del prompt
+    prompt_hash = ""
     benchmark_id = hashlib.sha256(
         f"{provider_id}:{model_id}:{backend}:{benchmark_kind}:{prompt_hash}:{created_at}".encode()
     ).hexdigest()[:24]
@@ -115,7 +118,7 @@ def record_local_inference_benchmark(
                 fact.eval_count,
                 fact.processor,
                 fact.quantization,
-                json.dumps(raw_result or {}, sort_keys=True),
+                json.dumps(_timing_fields(raw_result), sort_keys=True),
                 fact.created_at,
             ),
         )
@@ -311,8 +314,27 @@ def _row_to_fact(row: dict[str, Any]) -> LocalInferenceBenchmarkFact:
     )
 
 
-def _prompt_hash(prompt: str) -> str:
-    return hashlib.sha256(str(prompt or "").encode("utf-8")).hexdigest()[:16]
+#: Keys of a provider response that carry counts and durations, never words.
+_TIMING_KEYS = frozenset(
+    {
+        "eval_count", "eval_duration", "load_duration", "prompt_eval_count", "prompt_eval_duration",
+        "total_duration", "first_token_duration", "ttft_ms", "prompt_tokens", "completion_tokens",
+        "total_tokens",
+    }
+)
+
+
+def _timing_fields(raw_result: dict[str, Any] | None) -> dict[str, Any]:
+    """The numeric timing and count fields of a provider response; message text, the model's
+    thinking, tool calls and context never reach the disk."""
+    kept: dict[str, Any] = {}
+    for source in (raw_result or {}, (raw_result or {}).get("usage") or {}):
+        if not isinstance(source, dict):
+            continue
+        for key, value in source.items():
+            if key in _TIMING_KEYS and isinstance(value, (int, float)) and not isinstance(value, bool):
+                kept[key] = value
+    return kept
 
 
 def _utcnow() -> str:

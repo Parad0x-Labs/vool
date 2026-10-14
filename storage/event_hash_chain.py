@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import threading
 from datetime import datetime, timezone
 from typing import Any
@@ -16,9 +17,12 @@ def _utcnow() -> str:
 _CHAIN_LOCK = threading.Lock()
 
 
-def _init_table() -> None:
-    conn = get_connection()
+def _init_table(conn: sqlite3.Connection | None = None) -> None:
+    owned = conn is None
+    conn = get_connection() if owned else conn
     try:
+        if not owned and not conn.in_transaction:
+            conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS event_hash_chain (
@@ -31,9 +35,11 @@ def _init_table() -> None:
             )
             """
         )
-        conn.commit()
+        if owned:
+            conn.commit()
     finally:
-        conn.close()
+        if owned:
+            conn.close()
 
 
 def _compute_hash(prev_hash: str, payload: dict[str, Any]) -> str:
@@ -67,47 +73,63 @@ class EventConflictError(RuntimeError):
     """
 
 
-def append_hashed_event(event_id: str, payload: dict[str, Any]) -> str:
+def append_hashed_event(
+    event_id: str, payload: dict[str, Any], *, conn: sqlite3.Connection | None = None
+) -> str:
+    """Append a hash without taking ownership of a supplied connection.
+
+    Caller transactions serialize through SQLite's writer lock, which lasts
+    until their commit or rollback. Taking _CHAIN_LOCK here would invert the
+    lock order when a legacy writer holds it while waiting on that transaction.
+    """
+    if conn is not None:
+        _init_table(conn)
+        # A deferred transaction must own the DB writer lock before reading
+        # the predecessor. This writes no rows, including on a duplicate.
+        conn.execute("UPDATE event_hash_chain SET seq = seq WHERE 0")
+        return _append_in_transaction(conn, event_id, payload)[0]
     _init_table()
     with _CHAIN_LOCK:
         conn = get_connection()
         try:
             conn.execute("BEGIN IMMEDIATE")
-            existing = conn.execute(
-                "SELECT event_hash, payload_json FROM event_hash_chain WHERE event_id = ? LIMIT 1",
-                (event_id,),
-            ).fetchone()
-            if existing:
-                stored = json.loads(str(existing["payload_json"]))
-                if stored != payload:
-                    raise EventConflictError(
-                        f"event_id {event_id!r} already recorded with different payload"
-                    )
-                return str(existing["event_hash"])
-
-            latest = conn.execute(
-                "SELECT event_hash FROM event_hash_chain ORDER BY seq DESC LIMIT 1"
-            ).fetchone()
-            prev_hash = str(latest["event_hash"]) if latest else "genesis"
-            event_hash = _compute_hash(prev_hash, payload)
-            conn.execute(
-                """
-                INSERT INTO event_hash_chain (
-                    event_id, prev_hash, event_hash, payload_json, created_at
-                ) VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    event_id,
-                    prev_hash,
-                    event_hash,
-                    json.dumps(payload, sort_keys=True),
-                    _utcnow(),
-                ),
-            )
-            conn.commit()
+            event_hash, inserted = _append_in_transaction(conn, event_id, payload)
+            if inserted:
+                conn.commit()
             return event_hash
         finally:
             conn.close()
+
+
+def _append_in_transaction(
+    conn: sqlite3.Connection, event_id: str, payload: dict[str, Any]
+) -> tuple[str, bool]:
+    existing = conn.execute(
+        "SELECT event_hash, payload_json FROM event_hash_chain WHERE event_id = ? LIMIT 1",
+        (event_id,),
+    ).fetchone()
+    if existing:
+        stored = json.loads(str(existing[1]))
+        if stored != payload:
+            raise EventConflictError(
+                f"event_id {event_id!r} already recorded with different payload"
+            )
+        return str(existing[0]), False
+
+    latest = conn.execute(
+        "SELECT event_hash FROM event_hash_chain ORDER BY seq DESC LIMIT 1"
+    ).fetchone()
+    prev_hash = str(latest[0]) if latest else "genesis"
+    event_hash = _compute_hash(prev_hash, payload)
+    conn.execute(
+        """
+        INSERT INTO event_hash_chain (
+            event_id, prev_hash, event_hash, payload_json, created_at
+        ) VALUES (?, ?, ?, ?, ?)
+        """,
+        (event_id, prev_hash, event_hash, json.dumps(payload, sort_keys=True), _utcnow()),
+    )
+    return event_hash, True
 
 
 def verify_chain() -> bool:

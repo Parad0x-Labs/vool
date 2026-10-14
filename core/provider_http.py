@@ -234,6 +234,20 @@ def get(url, **options):
     return _request("GET", url, **options)
 
 
+#: The only caller headers that may follow a redirect to ANOTHER origin. ``requests`` strips
+#: ``Authorization`` there by itself, but a key placed in any other header (a custom endpoint's
+#: ``api-key`` / ``x-api-key``) would be re-sent to whatever host the redirect names.
+_CROSS_ORIGIN_SAFE_HEADERS = frozenset({"accept", "accept-encoding", "content-type", "user-agent"})
+
+
+class _KeySafeSession(_requests.Session):
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        if self.should_strip_auth(response.request.url, prepared_request.url):
+            for name in [n for n in prepared_request.headers if n.lower() not in _CROSS_ORIGIN_SAFE_HEADERS]:
+                del prepared_request.headers[name]
+
+
 def _worker():
     def emit(frame):
         print(json.dumps(frame, separators=(",", ":")), flush=True)
@@ -252,7 +266,7 @@ def _worker():
         return_redirect = options.get("allow_redirects") is False
         # Each transfer owns its session. A local invocation never changes the
         # proxy/redirect behavior of a later explicitly authorized cloud call.
-        with _requests.Session() as session:
+        with _KeySafeSession() as session:
             if loopback:
                 session.trust_env = False
                 options.pop("proxies", None)

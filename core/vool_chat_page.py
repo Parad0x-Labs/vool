@@ -277,6 +277,8 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
+#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
+#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
 #sessions .session:hover .s-actions { display:flex; }
@@ -410,6 +412,32 @@ header a:hover { text-decoration:underline; }
 /* Always visible (not hover-gated like .msg-actions) but visually secondary: small, muted, no
    seconds. A user bubble gets it at send time; an assistant bubble gets it once the turn truly
    ends (finishRun -> setMsgTime), never while still streaming. */
+/* Private chat (core.private_chat): a small, quiet ghost on every message that was not saved. */
+.msg.is-private { border-style:dashed; }
+.msg-ghost { position:absolute; top:-9px; left:-9px; width:22px; height:22px; padding:0; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--ink); opacity:.75; pointer-events:auto; cursor:help; font:inherit; }
+.msg-ghost:hover, .msg-ghost:focus-visible { opacity:1; border-color:var(--accent); }
+.msg-ghost svg { display:block; }
+/* VOOL's replies have no bubble: the ghost sits in the text's first line instead of floating loose. */
+.msg.assistant .msg-ghost { position:static; display:inline-flex; vertical-align:middle; margin:0 6px 4px 0; }
+.private-divider { display:flex; align-items:center; gap:10px; margin:6px 0 2px; color:var(--muted); font-size:11px; user-select:none; }
+.private-divider::before, .private-divider::after { content:""; flex:1 1 auto; border-top:1px solid var(--border); }
+.private-note { margin:10px auto; max-width:420px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
+.msg.is-private .msg-pin, .msg.is-private .msg-report, .msg.is-private .msg-thumbs-down,
+.msg.is-private .msg-export-pdf, .msg.is-private .msg-export-status, .msg.is-private .proof-chip { display:none; }
+.private-banner { display:inline-flex; flex:0 0 auto; min-width:24px; align-items:center; gap:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.private-banner[hidden] { display:none; }
+.private-banner .pb-ghost { display:inline-flex; color:var(--ink); opacity:.75; }
+.private-banner .pb-short, .private-banner .pb-end-short { display:none; }
+.private-banner .pb-text { overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+.private-banner button { flex:0 0 auto; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0 8px; font-size:11px; cursor:pointer; }
+.private-banner button:hover { color:var(--ink); border-color:var(--accent); }
+@container composer (max-width:470px) {
+  .private-banner .pb-text, .private-banner .pb-end-long { display:none; }
+  .private-banner .pb-short, .private-banner .pb-end-short { display:inline; }
+}
+/* Narrowest phones: the ghost and its button say it; the word goes so the row never scrolls. */
+@container composer (max-width:400px) { .private-banner .pb-short { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
@@ -1176,6 +1204,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
+    <div id="privateBanner" class="private-banner" hidden><span class="pb-ghost" id="privateBannerGhost" title="Private: this message was not saved" data-i18n-title="private.msg_title" aria-hidden="true"></span><span class="pb-text" data-i18n="private.banner">Private chat: nothing is saved</span><span class="pb-short" data-i18n="private.banner_short">Private</span><button type="button" id="privateEnd" title="Save this chat again from the next message" data-i18n-title="private.end_title"><span class="pb-end-long" data-i18n="private.end">Turn recording back on</span><span class="pb-end-short" data-i18n="private.end_short">Save again</span></button></div><span id="privateAnnounce" class="sr-only" aria-live="polite"></span>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
       <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
@@ -1870,7 +1899,7 @@ function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
 // bare ids, so any check that must EXCLUDE the local tiers pairs it with !MODEL_LABELS[modelValue].
-const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?(?::[A-Za-z0-9._-]+)?$/;
+const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?(?!(?:[^\/]*\/)*\.{1,2}(?:[\/:]|$))[A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@-]+){0,4}(?::[A-Za-z0-9._-]+)?$/;
 const CLOUD_MODEL_LABELS = {};
 // Id -> catalog row for every row served by /api/cloud/models this session. The
 // send-time paid-pin guard reads the SAME server catalog verdicts, never its own guess.
@@ -2215,6 +2244,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // The ids of the attachments THIS turn staged, and only when there are any: a text-only turn
     // carries no attachment field at all, so its body is byte-identical to a build without them.
     ...(run.attachments && run.attachments.length ? { attachments: run.attachments.map((a) => String(a.id)) } : {}),
+    // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
+    // still keeps this message unsaved, because the person sent it believing it would be.
+    ...(owner.privateChat ? { private_chat: true } : {}),
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -2479,12 +2511,112 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   actions.appendChild(pin);
   el.appendChild(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
+  if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
   logEl.scrollTop = logEl.scrollHeight;
   return el;
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// ---- Private chat (core.private_chat) ----
+// "private chat" / "don't record this" turns it on; "turn recording back on" ends it. The server owns
+// the switch: the page learns it from the turn's commit (display_metadata.private_chat and
+// private_chat_on) and from the transcript read (private_chat). Every message of a private turn --
+// the user's and VOOL's -- wears the ghost, and loses the actions that would save a copy (pin,
+// report, export). Nothing from those turns is in the server's transcript, so a reload shows the
+// chat without them: that is the record being what the ghost said it would be.
+const GHOST_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">'
+  + '<path fill="currentColor" fill-rule="evenodd" d="M8 1.5C5.2 1.5 3 3.7 3 6.5V14l1.7-1.2L6.3 14 8 12.8 9.7 14l1.6-1.2L13 14V6.5c0-2.8-2.2-5-5-5zM5.6 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0zM8.5 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0z"/></svg>';
+function markPrivateMsg(el) {
+  if (!el || el.classList.contains('is-private')) return;
+  el.classList.add('is-private');
+  // A button, so its meaning is one tap (or Enter) away on a phone or keyboard, not hover only.
+  const g = document.createElement('button');
+  g.type = 'button';
+  g.className = 'msg-ghost';
+  g.innerHTML = GHOST_SVG;
+  const label = pageT('private.msg_title', 'Private: this message was not saved');
+  g.title = label; g.setAttribute('aria-label', label);
+  g.addEventListener('click', (e) => { e.stopPropagation(); toast(label); });
+  el.insertBefore(g, el.firstChild);
+}
+function unmarkPrivateMsg(el) {
+  if (!el || !el.classList.contains('is-private')) return;
+  el.classList.remove('is-private');
+  const g = el.querySelector(':scope > .msg-ghost'); if (g) g.remove();
+}
+function isPrivateEntry(m) { return !!(m && (m.private || (m.display_metadata && m.display_metadata.private_chat))); }
+// The quiet line under the reply that ends private chat: what follows it is saved again.
+function privateDivider() {
+  const d = document.createElement('div');
+  d.className = 'private-divider'; d.setAttribute('role', 'separator');
+  d.textContent = pageT('private.saving_again', 'Saving again from here');
+  return d;
+}
+// Applies one committed private turn to its chat: both bubbles and both transcript entries get the
+// mark, and the chat's switch follows what the server says it is now.
+// The server is the only source: a message is marked from its own turn's commit, never from what
+// this tab last believed (another tab may have ended private chat since). A commit that is not
+// private says the chat is being saved, so this tab's banner follows it too.
+function applyPrivateCommit(run, meta) {
+  if (!run) return;
+  const owner = ownerOf(run);
+  const userEntry = run.userHistoryIndex >= 0 ? owner.history[run.userHistoryIndex] : null;
+  if (!meta || !meta.private_chat) {
+    if (userEntry) delete userEntry.private;
+    withRunDom(run, () => unmarkPrivateMsg(run.userMsgEl));
+    if (owner.privateChat) { owner.privateChat = false; if (isDisplayed(run.chatId)) reflectPrivate(); }
+    return;
+  }
+  run.private = true;
+  if (userEntry) userEntry.private = true;
+  owner.privateChat = !!meta.private_chat_on;
+  withRunDom(run, () => {
+    markPrivateMsg(run.userMsgEl); markPrivateMsg(run.assistantMsgEl);
+    if (!owner.privateChat && run.assistantMsgEl && !(run.assistantMsgEl.nextElementSibling || {}).classList?.contains('private-divider')) {
+      run.assistantMsgEl.after(privateDivider());
+    }
+  });
+  if (isDisplayed(run.chatId)) reflectPrivate();
+}
+// Another tab (or window) may have switched private chat since this one last heard: re-read the
+// server's answer when this tab comes back into view, so the banner never promises what isn't so.
+async function refreshPrivateState() {
+  const chatId = displayedChat;
+  if (!chatId || document.hidden) return;
+  try {
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
+    const data = await r.json();
+    const on = !!(data && data.private_chat);
+    if (chatState(chatId).privateChat !== on) { chatState(chatId).privateChat = on; if (isDisplayed(chatId)) reflectPrivate(); }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', refreshPrivateState);
+window.addEventListener('focus', refreshPrivateState);
+function reflectPrivate() {
+  const banner = document.getElementById('privateBanner');
+  if (!banner) return;
+  const ghost = document.getElementById('privateBannerGhost');
+  if (ghost && !ghost.innerHTML) ghost.innerHTML = GHOST_SVG;
+  const on = !!view.privateChat;
+  if (!on) document.querySelectorAll('#log .private-note').forEach((n) => n.remove());
+  if (banner.hidden === on) {
+    banner.hidden = !on;
+    // Said once when it changes within the same chat, so a screen reader hears it; showing a
+    // hidden node is not enough. Moving to another chat is not "saving again".
+    const say = document.getElementById('privateAnnounce');
+    if (say && reflectPrivate.chat === displayedChat) say.textContent = on ? pageT('private.banner', 'Private chat: nothing is saved') : pageT('private.saving_again', 'Saving again from here');
+  }
+  reflectPrivate.chat = displayedChat;
+}
+function endPrivateChat() {
+  const chatId = displayedChat;
+  if (!chatState(chatId).privateChat) return;
+  if (isChatBusy(chatId) || councilOwnsComposer()) { toast(pageT('private.wait', 'Wait for the current answer to finish, then try again.')); return; }
+  // The command stays in English on purpose: it is the words the server's switch reads.
+  runTurn('turn recording back on', null, { chatId: chatId });
+}
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
@@ -2831,6 +2963,13 @@ function makeSessionItem(s, archived, nested) {
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
+  if (!archived) {
+    const pinB = document.createElement('button');
+    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
+    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
+    actions.appendChild(pinB);
+  }
   const ren = document.createElement('button');
   ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
@@ -2844,9 +2983,16 @@ function makeSessionItem(s, archived, nested) {
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
+  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
+}
+async function setChatPinned(sid, pinned) {
+  try {
+    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+  } catch (e) {}
+  await loadSessions();
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
@@ -3283,6 +3429,22 @@ function renderSessions(sessions) {
     if (pid && projects[pid]) { (byProject[pid] = byProject[pid] || []).push(s); }
     else general.push(s);
   }
+  // Pinned chats first: a shortcut list above every group. A pinned chat also stays in its own
+  // group, so the group counts (computed server-side over every chat) remain true.
+  const PIN_KEY = '__pinned__';
+  const pinnedRows = active.filter((s) => s.pinned)
+    .sort((a, b) => String(b.pinned_at || '').localeCompare(String(a.pinned_at || '')));
+  if (pinnedRows.length) {
+    const pinCollapsed = !!collapsed[PIN_KEY];
+    const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
+    const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
+    ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
+    ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    sessionsEl.appendChild(ph);
+    if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
+  }
   // General (unassigned) pinned to the TOP and collapsible, like a project group.
   const GEN_KEY = '__general__';
   if (general.length) {
@@ -3387,15 +3549,27 @@ function repaintCouncilCards(chatId, rows) {
   if (!window.VoolCouncilCard) return;
   try { window.VoolCouncilCard.repaint(chatId, logEl, rows); } catch (e) {}
 }
+// A private chat read back from the server has none of its private messages: say so, so the gap
+// reads as kept-private rather than lost. Only when this page holds no private message itself.
+function privateReloadNote(st) {
+  if (!st.privateChat || st.history.some(isPrivateEntry)) return;
+  const n = document.createElement('div');
+  n.className = 'private-note';
+  n.textContent = pageT('private.reload_note', 'This chat is private. Private messages are not saved, so they don\'t show here after a reload.');
+  logEl.appendChild(n);
+}
 function renderChat(chatId) {
   const st = chatState(chatId);
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); repaintCouncilCards(chatId, []); return; }
+  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
+    if (isPrivateEntry(m)) markPrivateMsg(el);
+    // Private turns followed by a saved one (or a chat no longer private): the line where saving resumed.
+    if (m.role === 'assistant' && isPrivateEntry(m) && !(st.history[i + 1] ? isPrivateEntry(st.history[i + 1]) : st.privateChat)) logEl.appendChild(privateDivider());
     if (m.role === 'assistant') councilRows.push({ el: el, textEl: msgTextEl(el), text: m.content });
     // Re-hang a finished run's card on the exact bubble it produced, matched by the index recorded
     // when its answer was appended -- never by comparing text, so two identical answers in one chat
@@ -3404,6 +3578,7 @@ function renderChat(chatId) {
   });
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
+  privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
   logEl.scrollTop = logEl.scrollHeight;
   // The transcript was just rebuilt, so any marks from an open search went with it.
@@ -3457,6 +3632,7 @@ async function openSession(id) {
     try {
       const r = await fetch('/api/chat/history?session=' + encodeURIComponent(id));
       const data = await r.json();
+      chatState(id).privateChat = !!(data && data.private_chat);
       if (isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
         if (m.role === 'assistant') {
           const normalized = splitAssistantDisplayContent(m.content, m.display_metadata);
@@ -3594,6 +3770,8 @@ async function restoreCurrent() {
   try {
     const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
     const data = await r.json();
+    target.privateChat = !!(data && data.private_chat);
+    if (isDisplayed(chatId)) reflectPrivate();
     // The operator may have sent a turn while this snapshot was in flight.
     // Appending OLD user messages after it changes the model's last question.
     // The live bucket wins; persisted history remains intact on the server.
@@ -3605,6 +3783,7 @@ async function restoreCurrent() {
       if (isDisplayed(chatId)) renderChat(chatId);
     } else if (isDisplayed(chatId)) {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      privateReloadNote(target);
     }
   } catch (e) { if (isDisplayed(chatId) && !target.run && !target.history.length) showEmpty(); }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat
@@ -3725,6 +3904,18 @@ function agentEvidenceText(rows, nowMs) {
   return out.join('\n').trim();
 }
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
+// A chat file download link, or null: same origin, path exactly /api/chat/deliverable, an id of
+// the server's own shape and a chat named. Never widens to other relative or javascript: links.
+function deliverableLink(target) {
+  try {
+    const url = new URL(String(target), location.origin);
+    if (url.origin !== location.origin || url.pathname !== '/api/chat/deliverable') return null;
+    const id = url.searchParams.get('id') || '', session = url.searchParams.get('session') || '';
+    // Both values land in attributes: only the shapes the server mints, never a quote or a bracket.
+    if (!/^dlv_[0-9a-f]{32}$/.test(id) || !/^openclaw:[0-9a-f]{20}$/.test(session)) return null;
+    return { href: url.href, id: id, session: session };
+  } catch (e) { return null; }
+}
 function safeUrl(u) {
   try { const url = new URL(String(u), location.origin); return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : ''; }
   catch (e) { return ''; }
@@ -3748,6 +3939,15 @@ function renderInline(html) {
     else if (t.charAt(0) === '/') { local = t; src = '/api/files/raw?path=' + encodeURIComponent(local); }
     if (!src) return m;
     return '<img class="chat-img" src="' + esc(src) + '" alt="' + esc(alt || 'image') + '" loading="lazy" data-local="' + esc(local) + '" title="Click to open in Preview - right-click for more">';
+  });
+  // A file the assistant built in this chat: [label](/api/chat/deliverable?id=dlv_...&session=...).
+  // The ONLY relative link that ever becomes an anchor: same origin, that exact path, a well-formed
+  // file id and a chat. Anything else stays plain text. A click saves it (see the log's click handler).
+  html = html.replace(/\[([^\]\n]+)\]\((\/api\/chat\/deliverable\?[^\s)]+)\)/g, (m, label, target) => {
+    const file = deliverableLink(target.replace(/&amp;/g, '&'));
+    if (!file) return m;
+    return '<a class="chat-deliverable" href="' + esc(file.href) + '" data-deliverable-id="' + esc(file.id)
+      + '" data-deliverable-session="' + esc(file.session) + '">' + label + '</a>';
   });
   html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, label, url) => {
     const safe = safeUrl(url.replace(/&amp;/g, '&'));
@@ -4271,6 +4471,20 @@ if (logEl) {
   logEl.addEventListener('click', (e) => {
     const img = e.target.closest && e.target.closest('img.chat-img');
     if (img && img.dataset.local) { e.preventDefault(); openImageNative(img.dataset.local); }
+    // A built file: the desktop app saves it through its native save sheet (its web view does not
+    // download); a browser follows the same-origin link and downloads it.
+    const fileLink = e.target.closest && e.target.closest('a.chat-deliverable');
+    if (fileLink) {
+      const nativeApi = window.pywebview && window.pywebview.api;
+      if (nativeApi && typeof nativeApi.save_deliverable === 'function') {
+        e.preventDefault();
+        Promise.resolve(nativeApi.save_deliverable(fileLink.dataset.deliverableSession, fileLink.dataset.deliverableId))
+          .then((result) => {
+            if (result && !result.ok && !result.cancelled) fileLink.title = result.message || 'The file could not be saved.';
+          })
+          .catch(() => { fileLink.title = 'The file could not be saved.'; });
+      }
+    }
     // Code-block Copy is delegated here once, so message re-renders can never drop it. The
     // clipboard payload is the ORIGINAL source span the renderer carried on the wrapper —
     // never the DOM's textContent, which innerHTML parsing normalizes (CRLF becomes LF).
@@ -4408,6 +4622,8 @@ function reflectComposer() {
   // The attachment strip belongs to the chat on screen exactly like the Send button does. The
   // typeof guard keeps function-slicing harnesses (which lift this function alone) running.
   if (typeof renderAttachStrip === 'function') renderAttachStrip();
+  // The private-chat banner belongs to the chat on screen too (core.private_chat).
+  if (typeof reflectPrivate === 'function') reflectPrivate();
   // "Queue" is wider than "Send", so the reserve is re-read whenever the label changes.
   syncComposerTail();
 }
@@ -7186,16 +7402,20 @@ async function runTurn(text, queueItemId, opts) {
   // spent the draft, the queue item that owned them, or the resend of a failed turn -- and then
   // ride the run. Nothing after this line re-reads the composer's strip.
   const turnAttachments = Array.isArray(opts.attachments) ? opts.attachments.map((a) => Object.assign({}, a)) : [];
+  let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
-    if (isDisplayed(chatId)) addMsg('user', text, sentAt, null, turnAttachments);
+    if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
+    userHistoryIndex = owner.history.length - 1;
+    // Marked private only when the server's commit for this turn says so (applyPrivateCommit).
     ensureSessionInSidebar(chatId, text);
     // The draft is spent: its chips now live on the bubble, and the strip is clear for the next
     // message of THIS chat.
     if (turnAttachments.length) { owner.attachments = []; if (isDisplayed(chatId)) renderAttachStrip(); }
   }
   const run = adoptRun(chatId, newRun(chatId));
+  run.userMsgEl = userMsgEl; run.userHistoryIndex = userHistoryIndex;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -7308,6 +7528,21 @@ async function runTurn(text, queueItemId, opts) {
         return;
       }
     }
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
+    // reason, never an empty stream read as "(no response)" and marked Completed.
+    if (!res.ok) {
+      let refusal = null;
+      try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      run.text = reason
+        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
+        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+      finishRun(run, 'failed', run.text);
+      releaseComposer(run);
+      return;
+    }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
@@ -7335,6 +7570,7 @@ async function runTurn(text, queueItemId, opts) {
           continue;
         }
         if (obj && obj.vool_response_commit && applyResponseCommit(run, obj.vool_response_commit)) {
+          applyPrivateCommit(run, run.displayMetadata);
           // Deltas are intentionally speculative. The terminal server commit is the only content
           // allowed into the transcript, persistence-parity view, and next-turn model history.
           hasResponseCommit = true;
@@ -8703,6 +8939,7 @@ function initComposerControls() {
   if (bypassClose) bypassClose.addEventListener('click', closeBypassModal); if (bypassCancel) bypassCancel.addEventListener('click', closeBypassModal);
   const bypassLink = document.getElementById('bypassLink'); if (bypassLink) bypassLink.addEventListener('click', linkBypassWorkspace);
   if (bypassConfirm) bypassConfirm.addEventListener('click', confirmBypass); if (bypassRevoke) bypassRevoke.addEventListener('click', revokeBypass);
+  const privateEnd = document.getElementById('privateEnd'); if (privateEnd) privateEnd.addEventListener('click', endPrivateChat);
   const bypassDurationSel = document.getElementById('bypassDuration'), bypassScopeSel = document.getElementById('bypassScope');
   if (bypassDurationSel) bypassDurationSel.addEventListener('change', () => {
     const custom = document.getElementById('bypassCustomField'); if (custom) custom.hidden = bypassDurationSel.value !== 'custom';
@@ -9443,6 +9680,36 @@ function buildAutoFallbackControl(freeModels) {
   return bar;
 }
 
+// A model id typed by hand, for a provider whose own endpoint may serve models it does not list (the
+// custom OpenAI-compatible endpoint says so with `accepts_typed_model`). The id goes through the same
+// server-owned pin as a catalogue row, cost confirmation included; only the shape is checked here.
+function buildTypedModelRow(provider) {
+  const row = document.createElement('div'); row.className = 'pop-order cloud-toolbar cloud-dyn cloud-typed';
+  const lab = document.createElement('label'); lab.textContent = 'Model id';
+  const input = document.createElement('input'); input.type = 'text'; input.placeholder = 'exact id the endpoint serves';
+  input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('aria-label', 'Type a model id for this endpoint');
+  const use = document.createElement('button'); use.type = 'button'; use.className = 'pop-item cloud-dyn'; use.textContent = 'Use';
+  const hint = document.createElement('span'); hint.className = 'pi-hint';
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); use.click(); } });
+  use.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = input.value.trim();
+    if (!id || !CLOUD_MODEL_ID_RE.test(id)) { hint.textContent = 'Not a model id (letters, digits, . _ - @, up to five / parts, optional :tag).'; return; }
+    hint.textContent = 'Checking model and price…'; use.disabled = true;
+    try {
+      if (await switchCloudModel(id, id, use, provider)) {
+        hint.textContent = '';
+        const pop = document.getElementById('modelPop'), btn = document.getElementById('modelBtn');
+        if (pop) pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+      } else if (!use.dataset.selectionError) hint.textContent = 'Not pinned.';
+      else hint.textContent = use.dataset.selectionError;
+    } finally { use.disabled = false; }
+  });
+  lab.appendChild(input); row.appendChild(lab); row.appendChild(use); row.appendChild(hint);
+  return row;
+}
+
 async function renderCloudModels() {
   const revision = ++cloudCatalogRevision;
   const pop = document.getElementById('modelPop');
@@ -9505,6 +9772,7 @@ async function renderCloudModels() {
     });
     pop.insertBefore(row, anchor);
     pop.insertBefore(retry, anchor);
+    if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
     positionPopover(pop, document.getElementById('modelBtn'));
     return;
   }
@@ -9531,6 +9799,7 @@ async function renderCloudModels() {
   pop.insertBefore(picker, anchor);
   autoFreeModel = String((data && data.auto_free_model) || 'auto');
   if ((data && data.provider) === 'openrouter') pop.insertBefore(buildAutoFallbackControl(free), anchor);
+  if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
   pop.insertBefore(buildCloudToolbar(renderMatches), anchor);
   function group(text) { const g = document.createElement('div'); g.className = 'pop-group cloud-dyn'; g.textContent = text; return g; }
   const list = document.createElement('div'); list.className = 'cloud-list cloud-dyn';
@@ -9571,7 +9840,9 @@ async function refreshCredentials() {
     if (!rp.ok) throw new Error('Provider list unavailable');
     const jp = await rp.json();
     const slots = new Set((j.credentials || []).map((c) => c.name));
-    const configured = (jp.providers || []).filter((p) => p && p.id && slots.has('llm.cloud.' + p.id));
+    // A key in a Settings slot or in the environment (the server reports the latter by presence
+    // only): either way the lane routes on it, so the picker must offer it.
+    const configured = (jp.providers || []).filter((p) => p && p.id && (slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
     let accountless = false;
     // Include the wallet route even when another provider also has a saved key.
     try {
