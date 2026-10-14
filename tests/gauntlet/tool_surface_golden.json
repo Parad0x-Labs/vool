@@ -1,5 +1,5 @@
 {
-  "intent_count": 137,
+  "intent_count": 139,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -18,7 +18,6 @@
     "contacts.search",
     "contacts.update",
     "demo.plan",
-    "file.deliver",
     "hive.list_available",
     "machine.disk_usage",
     "machine.display_inspect",
@@ -109,6 +108,9 @@
     "skill.remove",
     "skill.rollback",
     "skill.validate",
+    "token.launches",
+    "token.performance",
+    "token.research",
     "web.chain_lookup",
     "web.fetch",
     "web.research",
@@ -139,7 +141,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 137,
+  "native_definition_count": 139,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -1347,7 +1349,7 @@
             ]
           },
           "chain": {
-            "description": "string optional (solana|base|ethereum|bnb|robinhood|arbitrum)",
+            "description": "string optional (solana|base|ethereum|bnb|robinhood)",
             "type": [
               "string",
               "null"
@@ -2144,138 +2146,6 @@
         }
       },
       "read_only": true
-    },
-    "file.deliver": {
-      "arguments": [
-        "content",
-        "filename",
-        "files",
-        "format",
-        "title"
-      ],
-      "description": "Hand the user a downloadable FILE built from text you write: a Word document (.docx), Excel workbook (.xlsx), PowerPoint deck (.pptx), PDF, CSV/TSV, JSON, YAML, XML, HTML, Markdown, plain text, a source file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a file, to export or download it, or names a file format for the answer. Write `content` as markdown for docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and `files`, never one call per file. The file is checked and the reply gives the user a download link. Not for editing project files: that is workspace.write_file.",
-      "native_name": "file__deliver",
-      "native_parameters": {
-        "properties": {
-          "content": {
-            "type": "string"
-          },
-          "filename": {
-            "type": "string"
-          },
-          "files": {
-            "items": {
-              "properties": {
-                "content": {
-                  "type": "string"
-                },
-                "filename": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "filename",
-                "content"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "format": {
-            "enum": [
-              "docx",
-              "xlsx",
-              "pptx",
-              "pdf",
-              "csv",
-              "tsv",
-              "json",
-              "yaml",
-              "xml",
-              "html",
-              "md",
-              "txt",
-              "code",
-              "zip",
-              "tar.gz"
-            ],
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "filename"
-        ],
-        "type": "object"
-      },
-      "permissions": {
-        "existing_path": {
-          "actions": [
-            "create_files"
-          ],
-          "effects": {
-            "auto": "allow",
-            "bypass_permissions": "allow",
-            "manual": "require_approval",
-            "plan": "deny",
-            "review_edits": "require_approval"
-          }
-        },
-        "missing_path": {
-          "actions": [
-            "create_files"
-          ],
-          "effects": {
-            "auto": "allow",
-            "bypass_permissions": "allow",
-            "manual": "require_approval",
-            "plan": "deny",
-            "review_edits": "require_approval"
-          }
-        },
-        "no_arguments": {
-          "actions": [
-            "create_files"
-          ],
-          "effects": {
-            "auto": "allow",
-            "bypass_permissions": "allow",
-            "manual": "require_approval",
-            "plan": "deny",
-            "review_edits": "require_approval"
-          }
-        },
-        "safe_command": {
-          "actions": [
-            "create_files"
-          ],
-          "effects": {
-            "auto": "allow",
-            "bypass_permissions": "allow",
-            "manual": "require_approval",
-            "plan": "deny",
-            "review_edits": "require_approval"
-          }
-        },
-        "side_effecting_command": {
-          "actions": [
-            "create_files"
-          ],
-          "effects": {
-            "auto": "allow",
-            "bypass_permissions": "allow",
-            "manual": "require_approval",
-            "plan": "deny",
-            "review_edits": "require_approval"
-          }
-        }
-      },
-      "read_only": false
     },
     "hive.list_available": {
       "arguments": [
@@ -10577,6 +10447,342 @@
             "manual": "allow",
             "plan": "allow",
             "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.launches": {
+      "arguments": [
+        "authority",
+        "creator",
+        "limit"
+      ],
+      "description": "List the newest tokens created on Solana, newest first, with the user's own Helius key: address, name, symbol and authority. Optionally only tokens with a given creator or authority address (for example one launch program's). Read-only, nothing is bought or traded. Follow up with token.research on any of them.",
+      "native_name": "token__launches",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "description": "str (optional): only tokens with this authority address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): only tokens listing this creator address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "int (optional, 1-50): how many, default 20",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "authority",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.performance": {
+      "arguments": [
+        "at",
+        "calls",
+        "chain",
+        "token"
+      ],
+      "description": "How a token did after a moment: its price then, now, and the highest and lowest after (with when the peak came), from public DEX trading data. Give up to 15 calls, each a token contract address and a time (ISO, e.g. the time of an X post). Use it to judge past calls, e.g. after x.token_callers. Read-only. Needs web access on. Facts only: it never rates a call.",
+      "native_name": "token__performance",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "str (optional): the time for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calls": {
+            "description": "list (1-15) of {token: contract address, at: ISO time, chain?: solana|ethereum|base|bnb|arbitrum}",
+            "items": {},
+            "type": "array"
+          },
+          "chain": {
+            "description": "str (optional): the chain for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str (optional): one token address instead of calls",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "calls",
+          "token",
+          "at",
+          "chain"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.research": {
+      "arguments": [
+        "chain",
+        "creator",
+        "parts",
+        "token"
+      ],
+      "description": "Research a token from public data with the user's own keys, in one call: its facts (name, symbol, supply), its largest holders and how concentrated they are, who created it and whether anyone can still mint or freeze it, what else that creator launched, the website and social links its metadata lists, and (when X is connected) who posted about it first. Solana, Ethereum, Base and BNB Smart Chain. Read-only. Use it for 'research this token', 'who deployed this', 'what else did the dev launch'. Give a contract address; a $TICKER or name alone only searches X for the addresses people post for it. Each part says plainly when it could not be read.",
+      "native_name": "token__research",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str (optional): solana | ethereum | base | bnb (needed for a 0x address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): a creator address, to list only what it launched",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "description": "list[str] (optional): any of facts, holders, creator, creator_tokens, links, x; default all",
+            "items": {},
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str: token mint or contract address, or a $TICKER / name (X search only)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "chain",
+          "parts",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
           }
         }
       },

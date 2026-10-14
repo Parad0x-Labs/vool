@@ -200,6 +200,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'web.research': ('read_only', 'none'),
     'web.chain_lookup': ('read_only', 'none'),  # read-only chain data with the user's own provider key
     'web.search': ('read_only', 'none'),
+    'token.launches': ('read_only', 'none'),
+    'token.performance': ('read_only', 'none'),
+    'token.research': ('read_only', 'none'),
     'web0.add_block': ('builder_state', 'none'),
     'web0.add_gated_section': ('builder_state', 'none'),
     'web0.compile_preview': ('builder_state', 'none'),
@@ -225,7 +228,20 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'workspace.search_text': ('read_only', 'none'),
     'workspace.symbol_search': ('read_only', 'none'),
     'workspace.write_file': ('workspace_write', 'runtime_policy'),
+    'x.action.propose': ('creative_state', 'none'),  # drafts only; the user's approval in Settings sends
+    'x.account': ('read_only', 'none'),
+    'x.action.status': ('read_only', 'none'),
+    'x.dms': ('read_only', 'none'),
+    'x.follows': ('read_only', 'none'),
+    'x.lists': ('read_only', 'none'),
+    'x.post': ('read_only', 'none'),
+    'x.search': ('read_only', 'none'),
+    'x.spaces': ('read_only', 'none'),
+    'x.token_callers': ('read_only', 'none'),
     'x.trending': ('read_only', 'none'),
+    'x.usage': ('read_only', 'none'),
+    'x.user': ('read_only', 'none'),
+    'x.user_posts': ('read_only', 'none'),
     'x402.propose': ('creative_state', 'none'),
 }
 
@@ -349,7 +365,11 @@ def test_contract_map_and_list_agree():
     # writes) and skill.remove (activation-class, explicit opt-in).
     # 174 -> 175: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
     # 175 -> 176: file.deliver (downloadable files built from text), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 176
+    # 176 -> 188: the X lane with the user's own keys (nine reads, x.action.propose which only drafts)
+    # plus token.research and token.launches, read-only through the user's chain-data keys.
+    # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
+    # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 192
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

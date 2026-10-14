@@ -3362,6 +3362,14 @@ def _dispatch_runtime_tool(
             from core.chain_data import run_tool as _chain_tool
 
             return _chain_tool(intent, arguments, source_context)
+        if intent == "token.performance":
+            from core.token_performance import run_tool as _performance_tool
+
+            return _performance_tool(intent, arguments, source_context)
+        if intent in {"token.research", "token.launches"}:
+            from core.token_research import run_tool as _research_tool
+
+            return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":
@@ -3405,6 +3413,11 @@ def _dispatch_runtime_tool(
             return _file_deliver(arguments, source_context=source_context)
         if intent == "x.trending":
             return _x_trending(arguments)
+        if intent.startswith("x."):
+            from core.x_chat_tools import X_INTENTS, run_x_tool
+
+            if intent in X_INTENTS:
+                return run_x_tool(intent, arguments, source_context)
         if intent == "demo.plan":
             return _demo_plan(arguments, source_context=source_context)
         if intent == "set.save":

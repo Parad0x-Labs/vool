@@ -966,6 +966,10 @@ _SETTINGS_HTML = r"""<!doctype html>
 .key-guide-provider{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border)}
 .key-guide-provider p{margin:5px 0 0}.key-guide-provider .inline{flex-shrink:0}.key-guide-link{color:var(--accent);font-size:12px}
 @media(max-width:700px){.key-guide-provider{align-items:flex-start;flex-direction:column}.key-guide-provider .inline{flex-wrap:wrap}}
+.x-activity{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:8px 0;display:flex;flex-direction:column;gap:8px}
+.x-activity h4{margin:4px 0 0;font-size:13px}.x-action-card{border-top:1px solid var(--border);padding:10px 0 4px;display:flex;flex-direction:column;gap:6px}
+.x-action-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:8px 10px;border-left:3px solid var(--border);background:var(--panel,transparent);border-radius:6px}
+.x-activity p{margin:0}.x-activity .inline{align-self:flex-start}.x-action-target{overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.x-limits{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.x-limits .inp{min-width:0;width:120px}
 .key-setup-dialog{max-width:560px;width:calc(100% - 32px);border:1px solid var(--border);border-radius:12px;background:var(--bg);color:var(--ink);padding:20px}.key-setup-dialog::backdrop{background:rgba(0,0,0,.45)}.key-setup-steps-list{margin:8px 0 12px;padding-left:20px;line-height:1.5}
 /* Models & Providers redesign (overview / cards / guided / review sheet) */
 .mp-root { gap: 10px; }
@@ -2553,6 +2557,9 @@ function widgetKeys(stack) {
   xBtn.addEventListener('click', () => openXSetupDialog(async () => { await readSource('/api/settings/credentials'); renderPane(); }));
   xRow.appendChild(xBtn);
   stack.appendChild(xRow);
+  if ((state.sources['/api/settings/credentials']?.credentials || []).some(c => c.name === 'x.api.default')) {
+    const xActivity = el('div', 'x-activity'); stack.appendChild(xActivity); widgetXActivity(xActivity);
+  }
   /* Keys saved for later: unverified, sealed, and unreachable by anything that runs. This is
      where a person SEES that status, retries one (a verified answer promotes it into use) or
      deletes it. Nothing here can touch a verified binding. */
@@ -2668,7 +2675,7 @@ function openXSetupDialog(onSaved) {
     const own = el('button', 'btn', T('xsetup.choose_keys', 'I have my keys (my X account)')); own.type = 'button';
     own.addEventListener('click', keysStep);
     const row = el('div', 'inline'); row.appendChild(pub); row.appendChild(own); body.appendChild(row);
-    body.appendChild(el('p', 'subtle', T('xsetup.no_posting', 'VOOL only reads with these keys. Posting to X is not part of this version.')));
+    body.appendChild(el('p', 'subtle', T('xsetup.approval_note', 'VOOL reads with these keys. With your own account keys it can also post, like, follow or send messages for you, but only after you approve each one here in Settings.')));
   };
   const bearerStep = () => {
     body.replaceChildren(); note.textContent = '';
@@ -2702,7 +2709,7 @@ function openXSetupDialog(onSaved) {
     const ck = secretField(T('xsetup.consumer_key', 'Consumer Key (API Key)')); const cs = secretField(T('xsetup.consumer_secret', 'Consumer Key Secret (API Key Secret)'));
     body.appendChild(ck.wrap); body.appendChild(cs.wrap);
     body.appendChild(el('div', 'row-label', T('xsetup.step2', 'Step 2 · Access tokens')));
-    body.appendChild(el('p', 'subtle', T('xsetup.step2_help', 'Under Access Token and Secret, choose Generate. They are made for the X account you are signed in with. Read permission is enough.')));
+    body.appendChild(el('p', 'subtle', T('xsetup.step2_help_write', 'Under Access Token and Secret, choose Generate. They belong to the X account you are signed in with. To let VOOL post for you (only after you approve), first set your app\'s User authentication settings to Read and write and Direct message, then generate the tokens.')));
     const at = secretField(T('xsetup.access_token', 'Access Token')); const as = secretField(T('xsetup.access_secret', 'Access Token Secret'));
     body.appendChild(at.wrap); body.appendChild(as.wrap);
     const confirmRow = el('div', 'inline'); confirmRow.hidden = true;
@@ -2768,6 +2775,135 @@ function keyGuideIcon(id) {
     const path = document.createElementNS(NS, 'path'); path.setAttribute('d', d); svg.appendChild(path);
   });
   wrap.appendChild(svg); return wrap;
+}
+/* X usage, limits and approvals (core/x_actions.py, core/x_usage.py). Anything VOOL would post,
+   reply, like, repost or follow as the user waits here; "Approve and send" is the user's approval
+   and the only thing that sends it. Usage is counted on this machine; X charges it to the user's
+   own X developer account. */
+async function xActivityCall(payload) {
+  const r = await fetch('/api/x/activity', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, j: j || {} };
+}
+const X_STATE_WORDS = { sent: ['xact.state_sent', 'Sent'], declined: ['xact.state_declined', 'Declined'], failed: ['xact.state_failed', 'Not sent'],
+  expired: ['xact.state_expired', 'Expired'], unknown: ['xact.state_unknown', 'Unclear if it was sent'], sending: ['xact.state_sending', 'Sending'] };
+function xOpenLink(url, summary) {
+  // Only links on X itself open from here.
+  if (!/^https:\/\/x\.com\/[A-Za-z0-9_\/]+$/.test(String(url || ''))) return document.createTextNode('');
+  const link = el('a', 'key-guide-link', T('xact.open_on_x', 'Open on X ↗')); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+  link.setAttribute('aria-label', tfmt('xact.open_aria', 'Open on X: {summary}', { summary: summary }));
+  return link;
+}
+function widgetXActivity(host) {
+  host.replaceChildren();
+  const draw = async (message) => {
+    const note = el('p', 'subtle x-activity-note'); note.setAttribute('role', 'status'); note.setAttribute('aria-live', 'polite'); note.tabIndex = -1;
+    const showNote = () => { note.textContent = message || ''; if (message) note.focus(); };
+    let res;
+    try { res = await xActivityCall({ action: 'overview' }); } catch (e) { res = { ok: false, j: {} }; }
+    host.replaceChildren();
+    if (!res.ok) {
+      host.appendChild(el('h4', 'row-label', T('xact.section_title', 'X activity')));
+      host.appendChild(el('p', 'subtle', T('xact.unavailable', 'Could not load your X activity right now.')));
+      const row = el('div', 'inline'); const again = el('button', 'btn', T('xact.try_again', 'Try again')); again.type = 'button';
+      again.addEventListener('click', () => draw('')); row.appendChild(again); host.appendChild(row);
+      host.appendChild(note); showNote(); return;
+    }
+    const data = res.j, usage = data.usage || {};
+    const pending = data.pending || [];
+    host.appendChild(el('h4', 'row-label', data.store === 'unreadable' ? T('xact.section_title', 'X activity') : pending.length ? tfmt('xact.waiting_title', 'Waiting for your approval ({count})', { count: pending.length }) : T('xact.waiting_none_title', 'Nothing waiting for your approval')));
+    if (data.store === 'unreadable') host.appendChild(el('p', 'subtle', data.store_message || T('xact.store_unreadable', 'VOOL could not read its list of X actions, so anything waiting can\'t be shown or sent.')));
+    else if (!pending.length) host.appendChild(el('p', 'subtle', T('xact.waiting_none', 'When you ask VOOL to do something on X, like posting, replying, liking, following or sending a message, it shows here first. Nothing is sent until you approve it.')));
+    host.appendChild(note);
+    pending.forEach(a => {
+      const card = el('div', 'x-action-card');
+      const summary = a.summary || a.kind;
+      card.appendChild(el('strong', null, summary));
+      if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
+      const t = a.target || {};
+      const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
+      if (t.text) card.appendChild(Object.assign(el('p', 'subtle x-action-target', reply
+        ? tfmt('xact.target_reply', 'Reply by @{author}: {text}', { author: t.author || '?', text: t.text })
+        : tfmt('xact.target_post', 'Post by @{author}: {text}', { author: t.author || '?', text: t.text })), { dir: 'auto' }));
+      if (t.url) card.appendChild(xOpenLink(t.url, summary));
+      const row = el('div', 'inline');
+      const yes = el('button', 'btn primary x-action-approve', T('xact.approve', 'Approve and send')); yes.type = 'button';
+      const no = el('button', 'btn x-action-decline', T('xact.decline', 'Decline')); no.type = 'button';
+      yes.setAttribute('aria-label', tfmt('xact.approve_aria', 'Approve and send: {summary}', { summary: summary }));
+      no.setAttribute('aria-label', tfmt('xact.decline_aria', 'Decline: {summary}', { summary: summary }));
+      const act = async (payload) => {
+        yes.disabled = true; no.disabled = true;
+        note.textContent = payload.action === 'approve' ? T('xact.sending', 'Sending to X…') : '';
+        let out;
+        // If the answer is lost after approving, VOOL may already have sent it: say so, never "nothing was sent".
+        const lost = payload.action === 'approve'
+          ? T('xact.lost_answer', 'VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.')
+          : T('xact.failed', 'That did not work. Nothing was sent.');
+        try { out = await xActivityCall(payload); } catch (e) { out = { ok: false, j: { message: lost } }; }
+        await draw(out.j.message || (out.ok ? '' : lost));
+      };
+      yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
+      no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));
+      row.appendChild(yes); row.appendChild(no); card.appendChild(row);
+      host.appendChild(card);
+    });
+    host.appendChild(el('h4', 'row-label', T('xact.usage_title', 'X usage this month')));
+    if (usage.ok === false) {
+      host.appendChild(el('p', 'subtle', usage.message || T('xact.unavailable', 'Could not load your X activity right now.')));
+      host.appendChild(el('p', 'subtle', T('xact.reset_note', 'X still counts on its side. Check your X developer account if you are close to your limit.')));
+      const row = el('div', 'inline'); const reset = el('button', 'btn', T('xact.reset', 'Start counting from zero')); reset.type = 'button';
+      reset.addEventListener('click', async () => {
+        reset.disabled = true;
+        const out = await xActivityCall({ action: 'reset_usage' }).catch(() => ({ ok: false, j: {} }));
+        await draw(out.ok ? '' : (out.j.message || T('xact.reset_failed', 'The count was not reset. Try again.')));
+      });
+      row.appendChild(reset); host.appendChild(row);
+    } else {
+      const reads = Number(usage.reads || 0).toLocaleString(), sent = Number(usage.actions || 0).toLocaleString();
+      host.appendChild(el('p', null, usage.monthly_reads == null
+        ? tfmt('xact.usage_reads_nolimit', 'Read: {used} posts and accounts (no limit set)', { used: reads })
+        : tfmt('xact.usage_reads', 'Read: {used} of {limit} posts and accounts', { used: reads, limit: Number(usage.monthly_reads).toLocaleString() })));
+      host.appendChild(el('p', null, usage.monthly_actions == null
+        ? tfmt('xact.usage_actions_nolimit', 'Sent: {actions} actions on X (no limit set)', { actions: sent })
+        : tfmt('xact.usage_actions', 'Sent: {actions} of {action_limit} actions on X', { actions: sent, action_limit: Number(usage.monthly_actions).toLocaleString() })));
+      host.appendChild(el('p', 'subtle', T('xact.usage_note', 'X charges your X developer account for each post or account VOOL reads and each thing it sends for you. VOOL counts them here and stops at your limits. Leave a box empty for no limit.')));
+      const limits = el('div', 'x-limits');
+      const mk = (labelKey, labelText, value) => {
+        const wrap = el('label', 'x-limit'); wrap.appendChild(el('span', 'subtle', T(labelKey, labelText) + ' '));
+        const inp = el('input', 'inp'); inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'numeric';
+        inp.value = value == null ? '' : String(value); inp.placeholder = T('xact.no_limit', 'no limit');
+        wrap.appendChild(inp); limits.appendChild(wrap); return inp;
+      };
+      const readsInp = mk('xact.limit_reads', 'Most reads a month', usage.monthly_reads);
+      const actsInp = mk('xact.limit_actions', 'Most sends a month', usage.monthly_actions);
+      const save = el('button', 'btn', T('xact.save_limits', 'Save limits')); save.type = 'button';
+      save.addEventListener('click', async () => {
+        // A half-typed number (for example "1e") reads as empty in the box: never save it as "no limit".
+        const bad = [readsInp, actsInp].find(inp => inp.validity.badInput || (inp.value.trim() !== '' && !/^[0-9]+$/.test(inp.value.trim())));
+        if (bad) { note.textContent = T('xact.limits_whole', 'Use a whole number, or leave the box empty for no limit.'); bad.focus(); return; }
+        save.disabled = true;
+        const val = (inp) => inp.value.trim() === '' ? '' : Number(inp.value);
+        const out = await xActivityCall({ action: 'set_limits', monthly_reads: val(readsInp), monthly_actions: val(actsInp) }).catch(() => ({ ok: false, j: {} }));
+        await draw(out.ok ? T('xact.limits_saved', 'Limits saved.') : (out.j.message || T('xact.limits_failed', 'Your limits were not saved. Try again.')));
+      });
+      limits.appendChild(save);
+      host.appendChild(limits);
+    }
+    const recent = (data.recent || []).slice(0, 5);
+    if (recent.length) {
+      host.appendChild(el('h4', 'row-label', T('xact.recent_title', 'Recent')));
+      recent.forEach(a => {
+        const line = el('p', 'subtle');
+        const word = X_STATE_WORDS[a.state];
+        line.textContent = (a.summary || a.kind) + ' · ' + (a.message || (word ? T(word[0], word[1]) : a.state));
+        const url = (a.result || {}).url;
+        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, a.summary || a.kind)); }
+        host.appendChild(line);
+      });
+    }
+    showNote();
+  };
+  draw('');
 }
 function widgetProviderGuide(host) {
   const input = el('input', 'inp'); input.type = 'search';
