@@ -5048,9 +5048,10 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!host || !chatId || !requestId || host.querySelector('.msg-export-pdf')) return;
   const actions = host.querySelector('.msg-actions');
   if (!actions) return;
+  const label = (key, fallback) => (typeof pageT === 'function') ? pageT(key, fallback) : fallback;
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = pageT('msg.pdf_title', 'Download this answer as PDF');
+  button.textContent = '\u2193'; button.title = label('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -5061,13 +5062,13 @@ function mountAnswerExport(host, chatId, requestId) {
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
         if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
-        status.textContent = result.cancelled ? pageT('msg.pdf_cancelled', 'Cancelled') : pageT('msg.pdf_saved', 'Saved');
+        status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || pageT('msg.pdf_failed', 'PDF export failed'));
+          throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
@@ -5075,9 +5076,9 @@ function mountAnswerExport(host, chatId, requestId) {
         link.href = url; link.download = 'vool-answer.pdf';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
-        status.textContent = pageT('msg.pdf_downloaded', 'Downloaded');
+        status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || pageT('msg.pdf_failed', 'PDF export failed'); }
+    } catch (error) { status.textContent = error.message || label('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
