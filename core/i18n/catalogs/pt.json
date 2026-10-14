@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "O plano gratuito da Etherscan pode não cobrir Base ou BNB Smart Chain. Se não cobrir, o chat avisa e informa a rede.",
     "keyguide.provider.moralis.description": "Listas de detentores de tokens em Ethereum, Base, BNB Smart Chain e Arbitrum.",
     "keyguide.provider.moralis.step1": "Entre em admin.moralis.io (o plano gratuito funciona) e abra sua conta.",
-    "keyguide.provider.moralis.step2": "Abra Configurações, depois API Keys, e copie sua chave.",
+    "keyguide.provider.moralis.step2": "No site da Moralis, abra Settings, depois API Keys, e copie sua chave.",
     "keyguide.provider.moralis.step3": "Escolha Moralis na lista, cole a chave e clique em Salvar chave.",
-    "keyguide.provider.moralis.note1": "O VOOL usa sua chave da Moralis somente para ler listas de detentores de tokens em Ethereum, Base, BNB Smart Chain e Arbitrum.",
+    "keyguide.provider.moralis.note1": "Opcional: o VOOL usa sua chave da Moralis somente para ler listas de detentores de tokens em Ethereum, Base, BNB Smart Chain e Arbitrum. Sem ela, todo o resto funciona.",
     "keyguide.provider.moralis.note2": "O plano gratuito tem uma cota diária de unidades de computação. Quando ela acaba, as listas de detentores respondem no chat com uma recusa clara até a cota ser renovada.",
     "xsetup.dialog_title": "Conectar X",
     "xsetup.choose": "Como você quer se conectar?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada. Tente mais tarde ou de outra rede. Nada foi armazenado.",
     "keys.test.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

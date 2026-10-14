@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "Gói miễn phí của Etherscan có thể không bao gồm Base hoặc BNB Smart Chain. Nếu không, trò chuyện sẽ báo và nêu tên chuỗi.",
     "keyguide.provider.moralis.description": "Danh sách người nắm giữ token trên Ethereum, Base, BNB Smart Chain và Arbitrum.",
     "keyguide.provider.moralis.step1": "Đăng nhập tại admin.moralis.io (gói miễn phí là đủ) và mở tài khoản của bạn.",
-    "keyguide.provider.moralis.step2": "Mở Cài đặt, rồi API Keys, và sao chép khóa của bạn.",
+    "keyguide.provider.moralis.step2": "Trên trang Moralis, mở Settings, rồi API Keys, và sao chép khóa của bạn.",
     "keyguide.provider.moralis.step3": "Chọn Moralis trong danh sách, dán khóa và nhấn Lưu khóa.",
-    "keyguide.provider.moralis.note1": "VOOL chỉ dùng khóa Moralis của bạn để đọc danh sách người nắm giữ token trên Ethereum, Base, BNB Smart Chain và Arbitrum.",
+    "keyguide.provider.moralis.note1": "Không bắt buộc: VOOL chỉ dùng khóa Moralis của bạn để đọc danh sách người nắm giữ token trên Ethereum, Base, BNB Smart Chain và Arbitrum. Không có khóa, mọi thứ khác vẫn hoạt động.",
     "keyguide.provider.moralis.note2": "Gói miễn phí có mức cấp đơn vị tính toán hằng ngày. Khi hết hạn mức, danh sách người nắm giữ sẽ trả lời trong đoạn chat bằng một lời từ chối rõ ràng cho đến khi hạn mức được đặt lại.",
     "xsetup.dialog_title": "Kết nối X",
     "xsetup.choose": "Bạn muốn kết nối theo cách nào?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
     "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

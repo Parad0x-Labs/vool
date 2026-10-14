@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "قد لا تغطي خطة Etherscan المجانية Base أو BNB Smart Chain. إن لم تغطّها، تخبرك المحادثة بذلك وتذكر اسم السلسلة.",
     "keyguide.provider.moralis.description": "قوائم حاملي الرموز على Ethereum وBase وBNB Smart Chain وArbitrum.",
     "keyguide.provider.moralis.step1": "سجّل الدخول في admin.moralis.io (الخطة المجانية تكفي) وافتح حسابك.",
-    "keyguide.provider.moralis.step2": "افتح الإعدادات ثم API Keys وانسخ مفتاحك.",
+    "keyguide.provider.moralis.step2": "في موقع Moralis، افتح Settings ثم API Keys وانسخ مفتاحك.",
     "keyguide.provider.moralis.step3": "اختر Moralis من القائمة، والصق المفتاح، ثم اضغط احفظ المفتاح.",
-    "keyguide.provider.moralis.note1": "يستخدم VOOL مفتاح Moralis الخاص بك فقط لقراءة قوائم حاملي الرموز على Ethereum وBase وBNB Smart Chain وArbitrum.",
+    "keyguide.provider.moralis.note1": "اختياري: يستخدم VOOL مفتاح Moralis الخاص بك فقط لقراءة قوائم حاملي الرموز على Ethereum وBase وBNB Smart Chain وArbitrum. بدونه يعمل كل شيء آخر.",
     "keyguide.provider.moralis.note2": "للخطة المجانية مخصص يومي من وحدات المعالجة. عند نفاده، تجيب قوائم الحاملي في المحادثة برفض واضح حتى يتجدد المخصص.",
     "xsetup.dialog_title": "ربط X",
     "xsetup.choose": "كيف تريد الربط؟",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "حجب {label} هذا الفحص قبل أن ينظر إلى المفتاح{http}. لم يُحكَم على المفتاح. حاول لاحقًا أو من شبكة أخرى. لم يُخزَّن شيء.",
     "keys.test.gateway_blocked": "حجب {label} هذا الفحص قبل أن ينظر إلى المفتاح{http}. لم يُحكَم على المفتاح."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

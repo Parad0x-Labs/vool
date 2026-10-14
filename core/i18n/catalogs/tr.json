@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "Etherscan'in ücretsiz planı Base veya BNB Smart Chain'i kapsamayabilir. Kapsamıyorsa sohbet bunu belirtir ve zinciri adlandırır.",
     "keyguide.provider.moralis.description": "Ethereum, Base, BNB Smart Chain ve Arbitrum üzerindeki token sahibi listeleri.",
     "keyguide.provider.moralis.step1": "admin.moralis.io adresinde oturum açın (ücretsiz plan yeterlidir) ve hesabınızı açın.",
-    "keyguide.provider.moralis.step2": "Ayarlar'ı, ardından API Keys'i açın ve anahtarınızı kopyalayın.",
+    "keyguide.provider.moralis.step2": "Moralis sitesinde Settings'i, ardından API Keys'i açın ve anahtarınızı kopyalayın.",
     "keyguide.provider.moralis.step3": "Listeden Moralis'i seçin, anahtarı yapıştırın ve Anahtarı kaydet'e basın.",
-    "keyguide.provider.moralis.note1": "VOOL, Moralis anahtarınızı yalnızca Ethereum, Base, BNB Smart Chain ve Arbitrum üzerindeki token sahibi listelerini okumak için kullanır.",
+    "keyguide.provider.moralis.note1": "İsteğe bağlı: VOOL, Moralis anahtarınızı yalnızca Ethereum, Base, BNB Smart Chain ve Arbitrum üzerindeki token sahibi listelerini okumak için kullanır. Anahtar olmadan diğer her şey çalışır.",
     "keyguide.provider.moralis.note2": "Ücretsiz planda günlük işlem birimi payı vardır. Tükendiğinde, pay yenilenene kadar sahibi listeleri sohbette net bir red ile yanıt verir.",
     "xsetup.dialog_title": "X’i bağla",
     "xsetup.choose": "Nasıl bağlanmak istersiniz?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

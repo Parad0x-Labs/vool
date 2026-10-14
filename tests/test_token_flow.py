@@ -20,18 +20,28 @@ POOL_A = "PooL1111111111111111111111111111111111111111"
 POOL_B = "PooL2222222222222222222222222222222222222222"
 
 
-def _pool(address: str, name: str, dex: str, reserve: str, split: bool, volume: dict | None = None) -> dict:
+WSOL = "So11111111111111111111111111111111111111112"
+USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+
+
+def _pool(address: str, name: str, dex: str, reserve: str, split: bool, volume: dict | None = None, *,
+          base: str = SOL, quote: str = WSOL, network: str = "solana") -> dict:
     attributes: dict = {"address": address, "name": name, "reserve_in_usd": reserve,
                         "pool_created_at": "2026-10-13T07:00:00Z",
                         "volume_usd": volume or {"m5": "4000.5", "h1": "40000", "h6": "250000", "h24": "900000.42"},
                         "price_change_percentage": {"m5": "0.5", "h1": "1.25", "h6": "-2.0", "h24": "3.2"}}
     if split:
-        attributes["transactions"] = {"m5": {"buys": 12, "sells": 3}, "h1": {"buys": 120, "sells": 80},
-                                      "h6": {"buys": 600, "sells": 400}, "h24": {"buys": 1000, "sells": 900}}
-    return {"id": f"{dex}_{address}", "type": "pool",
+        attributes["transactions"] = {"m5": {"buys": 12, "sells": 3, "buyers": 10, "sellers": 3},
+                                      "h1": {"buys": 120, "sells": 80, "buyers": 90, "sellers": 70},
+                                      "h6": {"buys": 600, "sells": 400, "buyers": 400, "sellers": 300},
+                                      "h24": {"buys": 1000, "sells": 900, "buyers": 700, "sellers": 650}}
+    # GeckoTerminal's documented pool shape: the counts are for the BASE token; base and quote are named by id
+    return {"id": f"{network}_{address}", "type": "pool",
             "attributes": attributes,
-            "relationships": {"network": {"data": {"id": "solana", "type": "network"}},
-                              "dex": {"data": {"id": dex, "type": "dex"}}}}
+            "relationships": {"network": {"data": {"id": network, "type": "network"}},
+                              "dex": {"data": {"id": dex, "type": "dex"}},
+                              "base_token": {"data": {"id": f"{network}_{base}", "type": "token"}},
+                              "quote_token": {"data": {"id": f"{network}_{quote}", "type": "token"}}}}
 
 
 ORCA_VOLUME = {"m5": "500", "h1": "5000", "h6": "30000", "h24": "100000"}
@@ -43,7 +53,7 @@ class FakeFlow:
     def __init__(self):
         self.requests: list[dict] = []
         self.pools = {SOL: [_pool(POOL_A, "FDOG / SOL", "raydium", "50000", True),
-                            _pool(POOL_B, "FDOG / USDC", "orca", "8000", False, ORCA_VOLUME)]}
+                            _pool(POOL_B, "FDOG / USDC", "orca", "8000", False, ORCA_VOLUME, quote=USDC_MINT)]}
         self.status = 200
         outer = self
 
@@ -125,7 +135,8 @@ def test_counts_volumes_and_named_pools(flows, enable_web):
     assert "1 of 2 pool(s) reporting a split" in text
     assert "60.0% of trades were buys" in text  # a share of trades, said as that, with its window
     assert "does not split traded USD between buys and sells" in text
-    assert "does not count unique buyers or sellers" in text
+    # unique traders are shown where the source reports them
+    assert "1,000 buys / 900 sells by 700 buyers and 650 sellers" in text
     # each pool is named with its DEX and pair, and the pool without a split says so
     assert "raydium FDOG / SOL" in text and "orca FDOG / USDC" in text
     assert "buy/sell split not reported" in text
@@ -137,12 +148,79 @@ def test_counts_volumes_and_named_pools(flows, enable_web):
 
 
 def test_an_evm_token_without_a_chain_is_found_by_search(flows, enable_web):
-    flows.pools[EVM] = flows.pools[SOL]
-    for pool in flows.pools[EVM]:
-        pool["relationships"]["network"]["data"]["id"] = "eth"
+    flows.pools[EVM] = [_pool(POOL_A, "TKN / WETH", "uniswap_v3", "50000", True, base=EVM, quote="0x" + "c" * 40, network="eth")]
     out = _run({"token": EVM})
     assert out.ok, out.response_text
     assert any(r["path"].endswith("/search/pools") for r in flows.requests)
+    assert out.details["chain"] == "ethereum" and out.details["totals"]["24h"]["buys"] == 1000
+
+
+def test_pools_on_different_chains_are_never_added_together(flows, enable_web):
+    weth = "0x" + "c" * 40
+    flows.pools[EVM] = [_pool(POOL_A, "TKN / WETH", "uniswap_v3", "50000", True, base=EVM, quote=weth, network="eth"),
+                        _pool(POOL_B, "TKN / WETH", "aerodrome", "9000", True, base=EVM, quote=weth, network="base")]
+    out = _run({"token": EVM})
+    assert out.ok, out.response_text
+    # only the network of the most liquid pool is counted, and the answer is labelled with it
+    assert out.details["chain"] == "ethereum" and [p["dex"] for p in out.details["pools"]] == ["uniswap_v3"]
+    assert out.details["totals"]["24h"]["buys"] == 1000 and out.details["totals"]["24h"]["pools_total"] == 1
+
+
+def test_a_pool_where_the_token_is_the_second_of_the_pair_has_its_buys_and_sells_swapped(flows, enable_web):
+    # "SOL / FDOG": the source counts trades of SOL (the base); buying SOL there is SELLING FDOG
+    flows.pools[SOL] = [_pool(POOL_A, "SOL / FDOG", "raydium", "50000", True, base=WSOL, quote=SOL)]
+    out = _run({"token": SOL, "chain": "solana"})
+    assert out.ok, out.response_text
+    row = out.details["totals"]["24h"]
+    assert row["buys"] == 900 and row["sells"] == 1000
+    assert out.details["symbol"] == "FDOG"
+    text = out.response_text
+    assert "900 buys / 1,000 sells by 650 buyers and 700 sellers" in text
+    assert "second token of the pair" in text
+    # the pool's price change is the base token's, not this token's: not shown
+    assert "+3.2%" not in text and "change not reported" in text
+
+
+def test_a_pool_that_does_not_say_which_side_the_token_is_on_reports_no_split(flows, enable_web):
+    pool = _pool(POOL_A, "FDOG / SOL", "raydium", "50000", True)
+    del pool["relationships"]["base_token"], pool["relationships"]["quote_token"]
+    flows.pools[SOL] = [pool]
+    out = _run({"token": SOL, "chain": "solana"})
+    assert out.ok and out.details["totals"]["24h"]["buys"] is None and out.details["totals"]["24h"]["pools_with_split"] == 0
+    assert "no pool reports a buy/sell split" in out.response_text
+
+
+@pytest.mark.parametrize("junk", [
+    [1, 2, 3],                      # a list where an object belongs
+    {"data": None},                 # no list of pools
+    {"data": "pools"},
+])
+def test_an_answer_in_an_unknown_shape_is_refused_with_no_numbers(flows, enable_web, junk, monkeypatch):
+    from core import token_flow
+
+    monkeypatch.setattr(token_flow, "_get", lambda path, params=None: junk)
+    out = _run({"token": SOL, "chain": "solana"})
+    assert not out.ok and out.status == "bad_answer" and "$" not in out.response_text
+
+
+def test_junk_numbers_inside_a_pool_are_not_reported_never_shown(flows, enable_web):
+    pool = _pool(POOL_A, "FDOG / SOL", "raydium", "50000", True, volume={"h24": "nan", "h1": "inf", "m5": "-5", "h6": None})
+    pool["attributes"]["transactions"]["h24"] = ["not", "a", "window"]
+    pool["attributes"]["transactions"]["h1"] = {"buys": -3, "sells": True}
+    flows.pools[SOL] = [pool]
+    out = _run({"token": SOL, "chain": "solana"})
+    assert out.ok, out.response_text
+    for window in ("5m", "1h", "6h", "24h"):
+        assert out.details["totals"][window]["volume_usd"] is None
+    assert out.details["totals"]["24h"]["buys"] is None and out.details["totals"]["1h"]["buys"] is None
+    assert "nan" not in out.response_text.lower() and "inf" not in out.response_text.lower()
+
+
+def test_common_chain_names_are_understood(flows, enable_web):
+    flows.pools[EVM] = [_pool(POOL_A, "TKN / WETH", "uniswap_v3", "50000", True, base=EVM, quote="0x" + "c" * 40, network="eth")]
+    for name in ("eth", "Ethereum", "mainnet"):
+        out = _run({"token": EVM, "chain": name})
+        assert out.ok and out.details["chain"] == "ethereum", (name, out.response_text)
 
 
 def test_windows_are_respected_and_unknown_windows_refused(flows, enable_web):
@@ -174,6 +252,15 @@ def test_a_rate_limit_refuses_with_no_numbers(flows, enable_web):
     ("is 0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae being bought or sold?", True),
     ("how did the meeting go", False),
     ("should I sell my car", False),
+    # ordinary sentences that only share a word with a market question never seat it
+    ("sell activity today was boring at the office", False),
+    ("The buy volume for the new office coffee machine today", False),
+    ("pressure for $PSI in the tire", False),
+    ("Help me buy or sell my car, it is a token of love", False),
+    ("tell me the selling activity in my store today", False),
+    ("I bought or sold the coin last year, write a poem", False),
+    ("buy and sell pressure on $WIF right now", True),
+    ("is $BONK being bought or sold?", True),
 ])
 def test_flow_requests_seat_the_tool(text, seated):
     from core.tool_demand_signals import resolve_demand_signals

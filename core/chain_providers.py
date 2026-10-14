@@ -261,17 +261,19 @@ CHAIN_PROVIDERS: dict[str, ChainProviderConfig] = {
         auth_style="header",
         auth_name="X-API-Key",
         coverage={chain: (OP_HOLDERS,) for chain in MORALIS_CHAINS},
-        verify_url=f"{MORALIS_API_ORIGIN}/erc20/metadata",
-        verify_query={"chain": "eth", "address": WETH_MAINNET},
+        # the verification read is the same documented owners read the tool makes, one row of WETH
+        verify_url=f"{MORALIS_API_ORIGIN}/erc20/{WETH_MAINNET}/owners",
+        verify_query={"chain": "eth", "limit": "1"},
         signup_url="https://admin.moralis.io/",
         description="Token holder lists on Ethereum, Base, BNB Smart Chain and Arbitrum.",
         setup_steps=(
             "Sign in at admin.moralis.io (the free plan works) and open your account.",
-            "Open Settings, then API Keys, and copy your key.",
+            "On the Moralis site, open Settings, then API Keys, and copy your key.",
             "Choose Moralis in the list, paste the key, and press Save key.",
         ),
         setup_notes=(
-            "VOOL uses your Moralis key only to read token holder lists on Ethereum, Base, BNB Smart Chain and Arbitrum.",
+            "Optional: VOOL uses your Moralis key only to read token holder lists on Ethereum, Base, BNB Smart Chain and Arbitrum. "
+            "Without it, everything else works.",
             "The free plan has a daily compute-unit allowance. When it runs out, holder lists answer with a clear refusal in chat until it resets.",
         ),
     ),

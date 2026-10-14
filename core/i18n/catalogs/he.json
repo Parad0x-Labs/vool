@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "ייתכן שהתוכנית החינמית של Etherscan לא מכסה את Base או את BNB Smart Chain. אם לא, הצ'אט יגיד זאת ויציין את שם השרשרת.",
     "keyguide.provider.moralis.description": "רשימות מחזיקי אסימונים ב-Ethereum, Base, BNB Smart Chain ו-Arbitrum.",
     "keyguide.provider.moralis.step1": "התחברו ב-admin.moralis.io (התוכנית החינמית מספיקה) ופתחו את החשבון שלכם.",
-    "keyguide.provider.moralis.step2": "פתחו את ההגדרות, ואז API Keys, והעתיקו את המפתח.",
+    "keyguide.provider.moralis.step2": "באתר של Moralis, פתחו את Settings, ואז API Keys, והעתיקו את המפתח.",
     "keyguide.provider.moralis.step3": "בחרו Moralis ברשימה, הדביקו את המפתח ולחצו על שמור מפתח.",
-    "keyguide.provider.moralis.note1": "VOOL משתמש במפתח ה-Moralis שלכם רק לקריאת רשימות מחזיקי אסימונים ב-Ethereum, Base, BNB Smart Chain ו-Arbitrum.",
+    "keyguide.provider.moralis.note1": "אופציונלי: VOOL משתמש במפתח ה-Moralis שלכם רק לקריאת רשימות מחזיקי אסימונים ב-Ethereum, Base, BNB Smart Chain ו-Arbitrum. בלעדיו כל השאר עובד.",
     "keyguide.provider.moralis.note2": "לתוכנית החינמית יש קצבה יומית של יחידות עיבוד. כשהיא נגמרת, רשימות המחזיקים עונות בצ'אט בסירוב ברור עד שהיא מתאפסת.",
     "xsetup.dialog_title": "חיבור X",
     "xsetup.choose": "איך תרצו להתחבר?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט. נסו שוב מאוחר יותר או מרשת אחרת. שום דבר לא אוחסן.",
     "keys.test.gateway_blocked": "{label} חסם את הבדיקה הזו לפני שהסתכל על המפתח{http}. המפתח לא נשפט."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

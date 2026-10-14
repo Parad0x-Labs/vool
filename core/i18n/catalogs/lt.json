@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "Nemokamas Etherscan planas gali neapimti Base arba BNB Smart Chain. Jei neapima, pokalbis tai praneša ir nurodo grandinę.",
     "keyguide.provider.moralis.description": "Tokenų savininkų sąrašai Ethereum, Base, BNB Smart Chain ir Arbitrum tinkluose.",
     "keyguide.provider.moralis.step1": "Prisijunkite prie admin.moralis.io (tinka nemokamas planas) ir atidarykite savo paskyrą.",
-    "keyguide.provider.moralis.step2": "Atidarykite Nustatymus, tada API Keys, ir nukopijuokite raktą.",
+    "keyguide.provider.moralis.step2": "Moralis svetainėje atidarykite Settings, tada API Keys, ir nukopijuokite raktą.",
     "keyguide.provider.moralis.step3": "Sąraše pasirinkite Moralis, įklijuokite raktą ir paspauskite Išsaugoti raktą.",
-    "keyguide.provider.moralis.note1": "VOOL jūsų Moralis raktą naudoja tik tokenų savininkų sąrašams Ethereum, Base, BNB Smart Chain ir Arbitrum tinkluose skaityti.",
+    "keyguide.provider.moralis.note1": "Neprivaloma: VOOL jūsų Moralis raktą naudoja tik tokenų savininkų sąrašams Ethereum, Base, BNB Smart Chain ir Arbitrum tinkluose skaityti. Be jo visa kita veikia.",
     "keyguide.provider.moralis.note2": "Nemokamame plane yra dienos skaičiavimo vienetų limitas. Kai jis pasibaigia, savininkų sąrašai pokalbyje atsako aiškiu atsisakymu, kol limitas atsinaujina.",
     "xsetup.dialog_title": "Prijungti X",
     "xsetup.choose": "Kaip norite prisijungti?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
     "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

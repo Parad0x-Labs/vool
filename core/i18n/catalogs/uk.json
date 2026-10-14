@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "Безкоштовний план Etherscan може не охоплювати Base або BNB Smart Chain. У такому разі чат повідомить про це й назве мережу.",
     "keyguide.provider.moralis.description": "Списки власників токенів у мережах Ethereum, Base, BNB Smart Chain і Arbitrum.",
     "keyguide.provider.moralis.step1": "Увійдіть на admin.moralis.io (підійде безкоштовний план) і відкрийте свій акаунт.",
-    "keyguide.provider.moralis.step2": "Відкрийте Налаштування, потім API Keys, і скопіюйте ключ.",
+    "keyguide.provider.moralis.step2": "На сайті Moralis відкрийте Settings, потім API Keys, і скопіюйте ключ.",
     "keyguide.provider.moralis.step3": "Виберіть Moralis у списку, вставте ключ і натисніть «Зберегти ключ».",
-    "keyguide.provider.moralis.note1": "VOOL використовує ваш ключ Moralis лише для читання списків власників токенів у мережах Ethereum, Base, BNB Smart Chain і Arbitrum.",
+    "keyguide.provider.moralis.note1": "Необов'язково: VOOL використовує ваш ключ Moralis лише для читання списків власників токенів у мережах Ethereum, Base, BNB Smart Chain і Arbitrum. Без нього все інше працює.",
     "keyguide.provider.moralis.note2": "У безкоштовному плані є денний ліміт обчислювальних одиниць. Коли він вичерпаний, списки власників відповідають у чаті чіткою відмовою, поки ліміт не поновиться.",
     "xsetup.dialog_title": "Підключити X",
     "xsetup.choose": "Як ви хочете підключитися?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено. Спробуйте пізніше або з іншої мережі. Нічого не збережено.",
     "keys.test.gateway_blocked": "{label} заблокував цю перевірку, не глянувши на ключ{http}. Рішення щодо ключа не ухвалено."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

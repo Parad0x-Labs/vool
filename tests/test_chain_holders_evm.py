@@ -27,19 +27,17 @@ def _owners_page(items: list[dict]) -> dict:
     return {"cursor": None, "pageCount": 1, "total": len(items), "result": items}
 
 
+# Moralis' documented owners item: ``balance`` in raw base units, ``balance_formatted`` divided by decimals
 OWNERS = _owners_page([
-    {"owner_address": H1, "balance": "487337.153594364705095712", "balance_raw": "487337153594364705095712",
-     "percentage_relative_to_total_supply": 4.8733, "block_number": "123",
-     "block_timestamp": "2026-10-01T00:00:00.000Z", "transaction_hash": "0x" + "ab" * 32,
-     "verified_contract": True, "is_wallet": True},
-    {"owner_address": H2, "balance": "120.5", "balance_raw": "120500000000000000000",
-     "percentage_relative_to_total_supply": 0.0012, "block_number": "123",
-     "block_timestamp": "2026-10-01T00:00:00.000Z", "transaction_hash": "0x" + "cd" * 32,
-     "verified_contract": False, "is_wallet": True},
-    {"owner_address": H3, "balance": "0.75", "balance_raw": "750000000000000000",
-     "percentage_relative_to_total_supply": 0.0000075, "block_number": "123",
-     "block_timestamp": "2026-10-01T00:00:00.000Z", "transaction_hash": "0x" + "ef" * 32,
-     "verified_contract": True, "is_wallet": False},
+    {"balance": "487337153594364705095712", "balance_formatted": "487337.153594364705095712", "is_contract": False,
+     "owner_address": H1, "owner_address_label": None, "entity": None, "entity_logo": None,
+     "usd_value": "1468345622.53", "percentage_relative_to_total_supply": 4.8733},
+    {"balance": "120500000000000000000", "balance_formatted": "120.5", "is_contract": False,
+     "owner_address": H2, "owner_address_label": None, "entity": None, "entity_logo": None,
+     "usd_value": "363064.5", "percentage_relative_to_total_supply": 0.0012},
+    {"balance": "750000000000000000", "balance_formatted": "0.75", "is_contract": True,
+     "owner_address": H3, "owner_address_label": None, "entity": None, "entity_logo": None,
+     "usd_value": "2259.75", "percentage_relative_to_total_supply": 0.0000075},
 ])
 
 
@@ -52,7 +50,7 @@ def moralis(monkeypatch):
         base = server.url.rstrip("/")
         monkeypatch.setattr(cp, "MORALIS_API_ORIGIN", f"{base}/moralis/api/v2.2")
         patched = dict(cp.CHAIN_PROVIDERS)
-        patched["moralis"] = dataclasses.replace(patched["moralis"], verify_url=f"{base}/moralis/api/v2.2/erc20/metadata")
+        patched["moralis"] = dataclasses.replace(patched["moralis"], verify_url=f"{base}/moralis/api/v2.2/erc20/{WETH}/owners")
         monkeypatch.setattr(cp, "CHAIN_PROVIDERS", patched)
 
     return install
@@ -143,6 +141,29 @@ def test_a_rejected_key_is_never_confused_with_a_plan_problem(vault_home, morali
         out = _lookup(query="holders", chain="ethereum", token=WETH)
         assert not out.ok and out.status == "key_rejected"
         assert "rejected the saved key" in out.response_text and "Settings" in out.response_text
+
+
+def test_a_free_plan_whose_daily_allowance_is_used_up_never_reads_as_a_rejected_key(vault_home, moralis):
+    # Moralis answers a used-up free allowance with a 401, not a 429: the key is good and must be kept
+    _store("chain.data.moralis", MORALIS_KEY)
+    body = {"message": "Validation service blocked: Your plan: free-plan-daily total included usage has been consumed, please upgrade your plan"}
+    with FakeProviderServer([(401, body)]) as server:
+        moralis(server)
+        out = _lookup(query="holders", chain="ethereum", token=WETH)
+        assert not out.ok and out.status == "quota_exhausted", out.response_text
+        assert "keep it" in out.response_text and "rejected" not in out.response_text
+        assert "0x" not in out.response_text and "%" not in out.response_text
+
+
+def test_holder_amounts_are_the_formatted_figure_never_raw_base_units(vault_home, moralis):
+    _store("chain.data.moralis", MORALIS_KEY)
+    raw_only = _owners_page([{k: v for k, v in OWNERS["result"][0].items() if k != "balance_formatted"}])
+    with FakeProviderServer([(200, raw_only)]) as server:
+        moralis(server)
+        out = _lookup(query="holders", chain="ethereum", token=WETH)
+        # without the formatted figure nothing is shown: a raw integer would read as 10^18 times the holding
+        assert not out.ok and out.status == "bad_answer"
+        assert "487337153594364705095712" not in out.response_text
 
 
 def test_an_answer_in_an_unknown_shape_shows_no_figures(vault_home, moralis):

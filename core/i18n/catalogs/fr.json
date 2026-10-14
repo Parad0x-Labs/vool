@@ -1819,9 +1819,9 @@
     "keyguide.provider.etherscan.note1": "L’offre gratuite d’Etherscan peut ne pas couvrir Base ou BNB Smart Chain. Dans ce cas, le chat le signale et nomme la chaîne.",
     "keyguide.provider.moralis.description": "Listes des détenteurs de jetons sur Ethereum, Base, BNB Smart Chain et Arbitrum.",
     "keyguide.provider.moralis.step1": "Connectez-vous sur admin.moralis.io (l’offre gratuite suffit) et ouvrez votre compte.",
-    "keyguide.provider.moralis.step2": "Ouvrez Paramètres, puis API Keys, et copiez votre clé.",
+    "keyguide.provider.moralis.step2": "Sur le site de Moralis, ouvrez Settings, puis API Keys, et copiez votre clé.",
     "keyguide.provider.moralis.step3": "Choisissez Moralis dans la liste, collez la clé et appuyez sur Enregistrer la clé.",
-    "keyguide.provider.moralis.note1": "VOOL utilise votre clé Moralis uniquement pour lire les listes des détenteurs de jetons sur Ethereum, Base, BNB Smart Chain et Arbitrum.",
+    "keyguide.provider.moralis.note1": "Facultatif : VOOL utilise votre clé Moralis uniquement pour lire les listes des détenteurs de jetons sur Ethereum, Base, BNB Smart Chain et Arbitrum. Sans elle, tout le reste fonctionne.",
     "keyguide.provider.moralis.note2": "L’offre gratuite dispose d’un quota quotidien d’unités de calcul. Une fois épuisé, les listes de détenteurs répondent dans le chat par un refus clair jusqu’à sa réinitialisation.",
     "xsetup.dialog_title": "Connecter X",
     "xsetup.choose": "Comment voulez-vous vous connecter ?",
@@ -2395,7 +2395,7 @@
     "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
     "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée."
   },
-  "source_catalog_sha256": "0b2c0b52492500c273d1b4f801caac6c947412d317da430c7528ccba917d6ce4",
+  "source_catalog_sha256": "6d29783140be8f58a8f14ad1f75bb7cc78414df7c50530f1f075bb8925583ca8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

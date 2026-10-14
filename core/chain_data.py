@@ -81,28 +81,28 @@ def chain_contracts() -> list[Any]:
     return [
         RuntimeToolContract(
             intent=INTENT,
-        description=(
-            "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, "
-            "Etherscan, Moralis): a wallet's native balance, its token balances, its recent transactions, a token's "
-            "info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain, "
-            "Arbitrum or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an "
-            "on-chain address, token or transaction instead of answering from memory; without a key it says which "
-            "key to add."
-        ),
-        tool_surface=SURFACE,
-        capability_id="web.chain_lookup",
-        capability_claim="read public blockchain data through the operator's chain-data keys",
-        supported=True,
-        unsupported_reason="",
-        input_schema={
-            "query": "str: balance | tokens | history | token_info | holders | transaction",
-            "chain": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
-            "address": "str: wallet address (balance, tokens, history)",
-            "token": "str: token mint or contract address (token_info, holders)",
-            "tx": "str: transaction signature or hash (transaction)",
-            "provider": "str (optional): helius | alchemy | solscan | etherscan | moralis",
-            "limit": f"int (optional, 1-{MAX_LIMIT}): how many rows for lists",
-        },
+            description=(
+                "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, "
+                "Etherscan, Moralis): a wallet's native balance, its token balances, its recent transactions, a token's "
+                "info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain, "
+                "Arbitrum or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an "
+                "on-chain address, token or transaction instead of answering from memory; without a key it says which "
+                "key to add."
+            ),
+            tool_surface=SURFACE,
+            capability_id="web.chain_lookup",
+            capability_claim="read public blockchain data through the operator's chain-data keys",
+            supported=True,
+            unsupported_reason="",
+            input_schema={
+                "query": "str: balance | tokens | history | token_info | holders | transaction",
+                "chain": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
+                "address": "str: wallet address (balance, tokens, history)",
+                "token": "str: token mint or contract address (token_info, holders)",
+                "tx": "str: transaction signature or hash (transaction)",
+                "provider": "str (optional): helius | alchemy | solscan | etherscan | moralis",
+                "limit": f"int (optional, 1-{MAX_LIMIT}): how many rows for lists",
+            },
             output_schema={"provider": "str", "chain": "str", "rows": "list"},
             side_effect_class="read_only",
             approval_requirement="none",
@@ -267,9 +267,17 @@ def _safe_provider_text(text: object, key: str) -> str:
     return clean[:160]
 
 
-def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int) -> ChainDataError:
+_DECIMAL_RE = re.compile(r"\d{1,60}(?:\.\d{1,60})?")
+
+
+def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int, body: str = "") -> ChainDataError:
     label = cfg.label
     chain_label = cp.CHAIN_LABELS.get(chain, chain)
+    if status == 401 and cfg.provider_id == "moralis" and "consumed" in body.lower():
+        # Moralis answers a free plan whose daily allowance is used up with a 401 whose text says the usage
+        # "has been consumed": the key is good, so it must never read as a rejected key
+        return ChainDataError("quota_exhausted", f"{label}'s free daily allowance for this key is used up (HTTP 401). It resets on its own; "
+                              "the key is fine, keep it. Nothing was looked up.")
     if status == 401:
         return ChainDataError("key_rejected", f"{label} rejected the saved key (HTTP 401). Replace it in Settings → API Keys. Nothing was looked up.")
     if status == 403:
@@ -339,7 +347,11 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     except CredentialRedirectRefusedError:
         raise ChainDataError("redirected", f"{cfg.label} answered with a redirect to another site; VOOL did not send the key there. Nothing was looked up.") from None
     except urllib.error.HTTPError as exc:
-        raise _http_failure(cfg, chain, int(exc.code or 0)) from None
+        try:
+            body = exc.read(4096).decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        raise _http_failure(cfg, chain, int(exc.code or 0), _safe_provider_text(body, key)) from None
     except Exception as exc:
         if is_timeout_error(exc):
             raise ChainDataError("timeout", f"{cfg.label} did not answer in time. Try again. Nothing was looked up.") from None
@@ -356,7 +368,7 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ChainDataError("too_large", f"{cfg.label}'s answer was larger than VOOL accepts. Ask for fewer rows.")
     if not 200 <= status < 300:
-        raise _http_failure(cfg, chain, status)
+        raise _http_failure(cfg, chain, status, _safe_provider_text(raw[:4096].decode("utf-8", "replace"), key))
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
@@ -820,9 +832,12 @@ def _moralis_holders(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: 
         if not isinstance(item, dict):
             raise _shape_error(cfg)
         owner = str(item.get("owner_address") or "").lower()
-        amount = item.get("balance")  # already decimal-adjusted by the provider
-        if not _EVM_ADDRESS_RE.fullmatch(owner) or amount is None:
+        # the documented owners answer carries ``balance`` in raw base units and ``balance_formatted`` already
+        # divided by the token's decimals; only the formatted figure is shown, and without it nothing is
+        amount = item.get("balance_formatted")
+        if not _EVM_ADDRESS_RE.fullmatch(owner) or not isinstance(amount, str) or not _DECIMAL_RE.fullmatch(amount.strip()):
             raise _shape_error(cfg)
+        amount = amount.strip()
         row: dict[str, Any] = {"rank": rank, "address": owner, "amount": str(amount)}
         share = item.get("percentage_relative_to_total_supply")
         if isinstance(share, (int, float)) and not isinstance(share, bool):
