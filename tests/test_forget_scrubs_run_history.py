@@ -459,25 +459,6 @@ def test_numbers_inside_a_longer_number_date_or_time_are_not_the_forgotten_numbe
     assert handled and reply.startswith("Nothing was removed"), reply
 
 
-def test_a_decomposed_spelling_of_the_word_is_the_same_word(isolated_pages):
-    """An NFD copy of "Brötchenhaus" survived a forget that reported "applied" (review of 9b78dac)."""
-    import unicodedata
-
-    from core.memory.files import memory_entries_path
-
-    chat = "run-history-unicode"
-    decomposed = unicodedata.normalize("NFD", "Brötchenhaus")
-    _remember(isolated_pages, chat, f"my favourite bakery is {decomposed}")
-    _turn_history(chat, f"Tell me about {decomposed}.", "It bakes at dawn.")
-
-    handled, reply = command(isolated_pages, chat, "Forget Brötchenhaus.")
-
-    assert handled and reply.startswith("Forget applied"), reply
-    for text in (memory_entries_path().read_text(encoding="utf-8"), _session_words(chat)):
-        normalized = unicodedata.normalize("NFC", json.loads(json.dumps(text)))
-        assert "brötchenhaus" not in normalized.casefold()
-
-
 # ── the served workflow ──────────────────────────────────────────────────────
 
 

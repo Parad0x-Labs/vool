@@ -7685,8 +7685,8 @@ def _normalize_forget_token(token: str) -> str:
     Measured on the integrated head (F14-07, full208-nomic-492d7412): plain
     substring matching let a hyphenated assistant copy of a forgotten token
     survive every layer — invalidation, scrubs, serving gates — and the
-    neural evidence leg then re-served the deleted value. Compatibility forms are
-    not meaning either (``core.memory.carriers.normalized_forget_text``).
+    neural evidence leg then re-served the deleted value. Neither is the script
+    of a digit (``core.memory.carriers.normalized_forget_text``).
     """
     from core.memory.carriers import normalized_forget_text
 

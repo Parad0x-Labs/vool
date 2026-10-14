@@ -2977,8 +2977,8 @@ def _normalize_forget_token(token: str) -> str:
     Separators (whitespace, hyphen, underscore) and case are not meaning:
     a hyphenated copy of a forgotten token is the same token (measured:
     F14-07's "thermal-pool" survived every plain-substring layer and the
-    neural evidence leg re-served the deleted value). Compatibility forms are
-    not meaning either (``core.memory.carriers.normalized_forget_text``).
+    neural evidence leg re-served the deleted value). Neither is the script
+    of a digit (``core.memory.carriers.normalized_forget_text``).
     """
     from core.memory.carriers import normalized_forget_text
 

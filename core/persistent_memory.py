@@ -2170,7 +2170,7 @@ def maybe_handle_memory_command(
 
         # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
         # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
-        forget_run_history(token, chat_id=resolved_session, erasures=erasures)
+        forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
         for owner, operation_store in owner_stores.items():
             block_status: dict[str, Any] = {}
             try:

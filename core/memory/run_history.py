@@ -53,6 +53,7 @@ from core.memory.carriers import (
     ROW_IDENTITIES,
     _without_nested_identities,
     carries,
+    fold_forget_text,
     text_carries,
 )
 
@@ -538,9 +539,30 @@ def _unswept_finalizations(conn: Any, spec: _Table, owners: _Owners) -> list[Any
             and not erasure_sweep_status(str(row["finalization_id"])).get("sweep_complete")]
 
 
-def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str) -> tuple[int, bool]:
-    """Returns (rows erased, whether a carrying row had to be left in place)."""
+def _without_command(value: Any, command: str) -> Any:
+    """``value`` with every copy of the forget command's own text taken out of its strings."""
+    if isinstance(value, Mapping):
+        return {key: _without_command(item, command) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_without_command(item, command) for item in value]
+    if isinstance(value, str):
+        return fold_forget_text(value).replace(command, " ")
+    return value
+
+
+def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str, command: str = "") -> tuple[int, bool]:
+    """Returns (rows erased that held the words outside the forget command itself, whether a carrying
+    row had to be left in place).
+
+    The forget turn's own records (its request, its checkpoint) quote the command and are erased with
+    the rest, but they are not something the chat had told before: counting them would answer "Forget
+    applied" to a forget that found nothing.
+    """
     matched, json_columns = _carrying(conn, spec, owners, token)
+    folded_command = fold_forget_text(command).strip()
+    counted = {row["_erasure_rowid"] for row in matched
+               if not folded_command or carries(_without_command(
+                   _payload(row, spec.structural, json_columns), folded_command), token)}
     held: set[Any] = set()
     if spec.action == "a7":
         unswept = _unswept_finalizations(conn, spec, owners)
@@ -569,7 +591,7 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str) -> tuple[
     retained, _ = _carrying(conn, spec, owners, token)
     if any(row["_erasure_rowid"] not in held for row in retained):
         raise RuntimeError("run history could not be erased and verified")
-    return len(matched) - len(retained), bool(held)
+    return len(counted - held), bool(held)
 
 
 def _runtime_databases() -> list[str]:
@@ -590,8 +612,11 @@ def _tables(conn: Any) -> set[str]:
     return {str(row[0]) for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
 
 
-def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) -> None:
-    """Erase ``token`` from this chat's run history in the runtime database and verify each table."""
+def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any], command: str = "") -> None:
+    """Erase ``token`` from this chat's run history in the runtime database and verify each table.
+
+    ``command`` is the forget request's own text; rows that carry the words only inside it are erased
+    but not counted as removed."""
     from core.memory.entries import _record_erasure_store
 
     try:
@@ -600,7 +625,7 @@ def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) ->
         _LOG.warning("forget: run history databases could not be resolved: %s", type(exc).__name__)
         _record_erasure_store(erasures, "run_history", "incomplete")
         return
-    _erase_databases(databases, _INVENTORY, token, chat_id=chat_id, erasures=erasures)
+    _erase_databases(databases, _INVENTORY, token, chat_id=chat_id, erasures=erasures, command=command)
     _forget_pins(token, chat_id=chat_id, erasures=erasures)
     failed = any(name.startswith(STORE_PREFIX) and result["status"] == "incomplete"
                  for name, result in erasures.get("stores", {}).items())
@@ -608,7 +633,7 @@ def forget_run_history(token: str, *, chat_id: str, erasures: dict[str, Any]) ->
 
 
 def _erase_databases(databases: list[str], inventory: list[_Table] | tuple[_Table, ...], token: str, *, chat_id: str,
-                     erasures: dict[str, Any]) -> None:
+                     erasures: dict[str, Any], command: str = "") -> None:
     from core.memory.entries import _record_erasure_store
     from storage.db import get_connection
 
@@ -624,7 +649,7 @@ def _erase_databases(databases: list[str], inventory: list[_Table] | tuple[_Tabl
                     continue
                 store = STORE_PREFIX + spec.name
                 try:
-                    removed, held = _erase_table(conn, spec, owners, token)
+                    removed, held = _erase_table(conn, spec, owners, token, command)
                     _record_erasure_store(erasures, store, "incomplete" if held else "verified", removed)
                 except Exception as exc:
                     conn.rollback()

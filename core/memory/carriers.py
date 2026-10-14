@@ -64,20 +64,20 @@ def payload_strings(value: Any) -> tuple[str, ...]:
 
 
 def fold_forget_text(text: Any) -> str:
-    """Compatibility form, case folded, every decimal digit written as an ASCII digit.
+    """Case folded, every decimal digit written as an ASCII digit.
 
-    NFKC makes a decomposed "Bro\u0308tchenhaus" the same word as "Brötchenhaus" and a fullwidth "１２" the same
-    number as "12" (measured 2026-10-14: a decomposed copy survived a forget that reported "applied"); a digit of
-    another script ("١٢") is the number it names.
+    A fullwidth "１２" or a "١٢" in another script is the number 12. Letters are not normalized
+    beyond case: a decomposed and a composed spelling stay distinct entries (the exactness law in
+    tests/test_memory_forget_resurrection_p0.py, test_collision_classes_prefix_suffix_unicode_casefold).
     """
-    folded = unicodedata.normalize("NFKC", unicodedata.normalize("NFKC", str(text or "")).casefold())
+    folded = str(text or "").casefold()
     if folded.isascii():
         return folded
     return "".join(str(unicodedata.decimal(char)) if char.isdecimal() else char for char in folded)
 
 
 def normalized_forget_text(text: Any) -> str:
-    """Case, compatibility forms and separators (whitespace, hyphen, underscore) are not meaning:
+    """Case, the script of a digit and separators (whitespace, hyphen, underscore) are not meaning:
     "thermal-pool" is "thermal pool"."""
     return " ".join(_SEPARATORS.split(fold_forget_text(text))).strip()
 

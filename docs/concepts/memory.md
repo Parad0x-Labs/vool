@@ -38,8 +38,8 @@ in the `-wal` file. Another chat's records are not touched. A queued message tha
 been sent yet is kept, and the forget then says it could not be fully applied. A table no
 erasure step knows is named in the reply, which says a retry will not clear it.
 
-Words are compared case-insensitively, with compatibility forms folded (a decomposed
-"Brötchenhaus" and a fullwidth "１２" match). A forgotten number matches only where it stands
+Words are compared case-insensitively, and a digit written in another script is that
+digit (a fullwidth "１２" is 12). A forgotten number matches only where it stands
 as its own number: the letters and digits written together with it may hold no other
 digit, and it may not continue across `.`, `,`, `:`, `/`, `-` or `_` into another digit. Forgetting "12" erases "code 12", "12kg" and "B12",
 but not "room 312", "3.12", "12.5", "12:30" or "2026-10-12", and forgetting "200" does not
