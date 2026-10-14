@@ -1,8 +1,9 @@
-"""Chat history export readers: foreign export zips -> neutral in-memory chats.
+"""Chat history export readers: data-export zips -> neutral in-memory chats.
 
-The fixtures are synthetic zips built inside the test from the documented export shapes: real
-export files are private user data, and the reader contract is pinned to those shapes, not to
-samples. No binary fixtures are committed.
+The fixtures are synthetic zips built inside the test from the shapes recorded in the format
+research (community-verified readers of both official exports): real export files are private
+user data. No binary fixtures are committed. Each test pins what a person would see after an
+import -- which words arrive, in which order, with which role -- or a refusal they would get.
 """
 from __future__ import annotations
 
@@ -14,13 +15,15 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from core.chat_import.model import ReadResult
-from core.chat_import.readers import Limits, detect, read
+from core.chat_import.common import Limits
+from core.chat_import.model import ReadResult, describe_problem
+from core.chat_import.readers import detect, read
 
 #: Limits small enough that every cap can be crossed by an in-test fixture.
 TINY = Limits(
     max_zip_bytes=10_000_000,
     max_member_bytes=10_000_000,
+    max_conversation_bytes=10_000_000,
     max_total_uncompressed_bytes=10_000_000,
     max_members=64,
     max_conversations=64,
@@ -158,12 +161,13 @@ def _write_anthropic(tmp_path: Path, conversations: list, name: str = "export.zi
     return _write_zip(tmp_path, {"conversations.json": json.dumps(conversations).encode("utf-8")}, name)
 
 
-def _assert_refusal(result: ReadResult, needle: str) -> None:
+def _assert_refusal(result: ReadResult, code: str) -> None:
     assert isinstance(result, ReadResult)
     assert result.chats == ()
+    assert result.source_format == ""
     assert result.truncated is False
-    assert result.problems
-    assert any(needle in problem for problem in result.problems), result.problems
+    assert result.problems == (code,), result.problems
+    assert describe_problem(code) != code  # every refusal has a plain line
 
 
 # --- openai_export reading -------------------------------------------------------------------
@@ -324,7 +328,7 @@ def test_openai_broken_conversations_are_skipped_not_fatal(tmp_path):
     conversations = [42, {"title": "no tree here"}, _branchy_openai_conversation()]
     result = read(_write_openai(tmp_path, conversations))
     assert len(result.chats) == 1
-    assert len(result.problems) == 2
+    assert result.problems == ("chat_skipped_malformed",)
 
 
 def test_openai_unknown_current_node_skips_the_conversation(tmp_path):
@@ -334,7 +338,7 @@ def test_openai_unknown_current_node_skips_the_conversation(tmp_path):
     )
     result = read(_write_openai(tmp_path, [conversation]))
     assert result.chats == ()
-    assert result.problems
+    assert result.problems == ("chat_skipped_malformed",)
 
 
 def test_openai_parent_cycle_terminates(tmp_path):
@@ -382,12 +386,13 @@ def test_anthropic_prefers_content_blocks_over_the_text_field(tmp_path):
             _anthropic_message(
                 "human",
                 text="stale field text",
-                content=[{"type": "text", "text": "from content"}, {"type": "text", "text": " blocks"}],
+                content=[{"type": "text", "text": "first paragraph"}, {"type": "text", "text": "second paragraph"}],
             )
         ]
     )
     result = read(_write_anthropic(tmp_path, [conversation]))
-    assert [message.text for message in result.chats[0].messages] == ["from content blocks"]
+    # Separate text blocks stay separate paragraphs; the flat field is not used when blocks exist.
+    assert [message.text for message in result.chats[0].messages] == ["first paragraph\n\nsecond paragraph"]
 
 
 def test_anthropic_falls_back_to_the_text_field(tmp_path):
@@ -501,22 +506,22 @@ def test_read_refuses_a_zip_bomb_quickly(tmp_path):
     started = time.monotonic()
     result = read(path, limits=limits)
     assert time.monotonic() - started < 5.0
-    _assert_refusal(result, "larger than the import limit")
+    _assert_refusal(result, "conversations_too_large")
 
 
 def test_read_refuses_too_many_members(tmp_path):
     path = _write_zip(tmp_path, {"a.txt": b"x", "b.txt": b"x", "conversations.json": b"[]"})
-    _assert_refusal(read(path, limits=replace(TINY, max_members=2)), "more members")
+    _assert_refusal(read(path, limits=replace(TINY, max_members=2)), "zip_too_many_members")
 
 
 def test_read_refuses_escaping_member_names(tmp_path):
     path = _write_zip(tmp_path, {"../outside.txt": b"x", "conversations.json": b"[]"})
-    _assert_refusal(read(path, limits=TINY), "escapes the archive")
+    _assert_refusal(read(path, limits=TINY), "zip_unsafe_path")
 
 
 def test_read_refuses_absolute_member_names(tmp_path):
     path = _write_zip(tmp_path, {"/etc/passwd": b"x", "conversations.json": b"[]"})
-    _assert_refusal(read(path, limits=TINY), "absolute path")
+    _assert_refusal(read(path, limits=TINY), "zip_unsafe_path")
 
 
 def test_read_refuses_symlink_members(tmp_path):
@@ -529,7 +534,7 @@ def test_read_refuses_symlink_members(tmp_path):
         archive.writestr("conversations.json", b"[]")
     path = tmp_path / "symlink.zip"
     path.write_bytes(buffer.getvalue())
-    _assert_refusal(read(path, limits=TINY), "symbolic link")
+    _assert_refusal(read(path, limits=TINY), "zip_symlink")
 
 
 def test_read_refuses_encrypted_members(tmp_path):
@@ -542,44 +547,44 @@ def test_read_refuses_encrypted_members(tmp_path):
         archive.filelist[0].flag_bits |= 0x1
     path = tmp_path / "encrypted.zip"
     path.write_bytes(buffer.getvalue())
-    _assert_refusal(read(path, limits=TINY), "encrypted")
+    _assert_refusal(read(path, limits=TINY), "zip_encrypted")
 
 
 def test_read_refuses_deeply_nested_json(tmp_path):
     payload = b"[" + b'{"a":' * 200 + b"1" + b"}" * 200 + b"]"
     path = _write_zip(tmp_path, {"conversations.json": payload})
-    _assert_refusal(read(path, limits=TINY), "nests")
+    _assert_refusal(read(path, limits=TINY), "conversations_too_deep")
 
 
 def test_read_refuses_invalid_utf8(tmp_path):
     path = _write_zip(tmp_path, {"conversations.json": b'["\xff\xfe broken"]'})
-    _assert_refusal(read(path, limits=TINY), "UTF-8")
+    _assert_refusal(read(path, limits=TINY), "conversations_not_utf8")
 
 
 def test_read_refuses_invalid_json(tmp_path):
     path = _write_zip(tmp_path, {"conversations.json": b"this is not json"})
-    _assert_refusal(read(path, limits=TINY), "not valid JSON")
+    _assert_refusal(read(path, limits=TINY), "conversations_not_json")
 
 
 def test_read_refuses_json_that_is_not_a_list(tmp_path):
     path = _write_zip(tmp_path, {"conversations.json": b'{"a": 1}'})
-    _assert_refusal(read(path, limits=TINY), "does not hold a list")
+    _assert_refusal(read(path, limits=TINY), "conversations_not_list")
 
 
 def test_read_refuses_an_oversized_zip_on_disk(tmp_path):
     path = _write_openai(tmp_path, [_branchy_openai_conversation()])
-    _assert_refusal(read(path, limits=replace(TINY, max_zip_bytes=10)), "larger than the import limit")
+    _assert_refusal(read(path, limits=replace(TINY, max_zip_bytes=10)), "file_too_large")
 
 
 def test_read_refuses_total_inflation_over_the_cap(tmp_path):
     path = _write_zip(tmp_path, {"one.bin": b"0" * 60_000, "two.bin": b"0" * 60_000, "conversations.json": b"[]"})
-    _assert_refusal(read(path, limits=replace(TINY, max_total_uncompressed_bytes=100_000)), "expands larger")
+    _assert_refusal(read(path, limits=replace(TINY, max_total_uncompressed_bytes=100_000)), "zip_too_large_unpacked")
 
 
 def test_read_returns_a_result_for_a_non_zip(tmp_path):
     not_a_zip = tmp_path / "plain.bin"
     not_a_zip.write_bytes(b"not a zip")
-    _assert_refusal(read(not_a_zip, limits=TINY), "not a zip archive")
+    _assert_refusal(read(not_a_zip, limits=TINY), "not_a_zip")
 
 
 # --- safety: caps inside a good file -----------------------------------------------------------
@@ -607,7 +612,7 @@ def test_read_stops_at_the_conversation_cap(tmp_path):
     result = read(path, limits=replace(TINY, max_conversations=1))
     assert len(result.chats) == 1
     assert result.truncated is True
-    assert any("stopped after 1 of 2" in problem for problem in result.problems)
+    assert result.problems == ("too_many_chats",)
 
 
 def test_read_stops_at_the_message_cap(tmp_path):
@@ -648,3 +653,139 @@ def test_read_never_writes_anything(tmp_path, monkeypatch):
     assert result.chats
     assert os.listdir(sandbox) == []
     assert os.listdir(fake_home) == []
+
+
+# --- shapes newer exports use ----------------------------------------------------------------
+
+
+def test_split_exports_are_read_in_numeric_member_order(tmp_path):
+    def one(chat_id: str, words: str) -> dict:
+        return _anthropic_conversation([_anthropic_message("human", text=words)], uuid=chat_id, name=chat_id)
+
+    path = _write_zip(
+        tmp_path,
+        {
+            # Written out of order on purpose: 10 must come after 2, not between 1 and 2.
+            "conversations-10.json": json.dumps([one("c10", "ten")]).encode(),
+            "conversations-2.json": json.dumps([one("c2", "two")]).encode(),
+            "conversations-1.json": json.dumps([one("c1", "one")]).encode(),
+            "users.json": b"[]",
+        },
+    )
+    result = read(path, limits=TINY)
+    assert result.source_format == "anthropic_export"
+    assert [chat.source_chat_id for chat in result.chats] == ["c1", "c2", "c10"]
+    assert [chat.messages[0].text for chat in result.chats] == ["one", "two", "ten"]
+
+
+def test_a_chat_repeated_across_split_members_is_listed_once(tmp_path):
+    chat = _anthropic_conversation([_anthropic_message("human", text="same chat")], uuid="dup")
+    path = _write_zip(
+        tmp_path,
+        {
+            "conversations-000.json": json.dumps([chat]).encode(),
+            "conversations-001.json": json.dumps([chat]).encode(),
+        },
+    )
+    result = read(path, limits=TINY)
+    assert [c.source_chat_id for c in result.chats] == ["dup"]
+    assert result.problems == ("chat_skipped_duplicate",)
+
+
+def test_a_top_level_object_holding_conversations_is_read(tmp_path):
+    conversation = _openai_conversation(
+        {
+            "root": _openai_node("root", None, ("u1",)),
+            "u1": _openai_node("u1", "root", (), role="user", parts=["wrapped export"]),
+        },
+        "u1",
+    )
+    path = _write_zip(tmp_path, {"conversations.json": json.dumps({"conversations": [conversation]}).encode()})
+    result = read(path, limits=TINY)
+    assert result.source_format == "openai_export"
+    assert [m.text for m in result.chats[0].messages] == ["wrapped export"]
+
+
+def test_empty_text_field_with_content_blocks_keeps_the_words(tmp_path):
+    conversation = _anthropic_conversation(
+        [_anthropic_message("assistant", text="", content=[{"type": "text", "text": "words live in blocks"}])]
+    )
+    result = read(_write_anthropic(tmp_path, [conversation]), limits=TINY)
+    assert [m.text for m in result.chats[0].messages] == ["words live in blocks"]
+
+
+def test_thinking_and_tool_blocks_never_become_text(tmp_path):
+    conversation = _anthropic_conversation(
+        [
+            _anthropic_message(
+                "assistant",
+                uuid="m1",
+                text="FLAT FIELD WITH TOOL OUTPUT",
+                content=[
+                    {"type": "thinking", "thinking": "SECRET REASONING"},
+                    {"type": "tool_use", "name": "search", "input": {"q": "TOOL INPUT"}},
+                    {"type": "tool_result", "content": [{"type": "text", "text": "TOOL RESULT"}]},
+                    {"type": "text", "text": "the answer"},
+                ],
+            ),
+            # Only reasoning and a tool call: the flat field must not leak in as the answer.
+            _anthropic_message(
+                "assistant",
+                uuid="m2",
+                text="LEAKED TOOL TEXT",
+                content=[{"type": "thinking", "thinking": "MORE REASONING"}, {"type": "tool_use", "name": "x", "input": {}}],
+            ),
+            _anthropic_message("assistant", uuid="m3", text="", content=[{"type": "redacted_thinking", "data": "x"}]),
+        ]
+    )
+    result = read(_write_anthropic(tmp_path, [conversation]), limits=TINY)
+    chat = result.chats[0]
+    assert [m.text for m in chat.messages] == ["the answer"]
+    joined = json.dumps([m.text for m in chat.messages])
+    for leaked in ("SECRET REASONING", "TOOL INPUT", "TOOL RESULT", "FLAT FIELD", "LEAKED", "MORE REASONING"):
+        assert leaked not in joined
+    assert chat.skipped == {"thinking_block": 1, "tool_block": 1, "tool": 1, "thinking": 1}
+
+
+def test_attachment_extracted_text_is_never_imported(tmp_path):
+    message = _anthropic_message("human", text="please read my notes")
+    message["attachments"] = [{"file_name": "notes.txt", "extracted_content": "PRIVATE FILE BODY"}]
+    message["files_v2"] = [{"file_name": "notes.txt"}, {"file_name": "photo.jpg"}]
+    result = read(_write_anthropic(tmp_path, [_anthropic_conversation([message])]), limits=TINY)
+    imported = result.chats[0].messages[0]
+    assert imported.text == "please read my notes"
+    assert imported.attachment_names == ("notes.txt", "photo.jpg")
+    assert "PRIVATE FILE BODY" not in repr(result)
+
+
+def test_message_list_follows_the_branch_the_user_last_saw(tmp_path):
+    messages = [
+        dict(_anthropic_message("human", uuid="u1", text="question"), parent_message_uuid="root"),
+        dict(_anthropic_message("assistant", uuid="a1", text="old answer"), parent_message_uuid="u1"),
+        dict(_anthropic_message("assistant", uuid="a2", text="new answer"), parent_message_uuid="u1"),
+    ]
+    conversation = _anthropic_conversation(messages, current_leaf_message_uuid="a2")
+    chat = read(_write_anthropic(tmp_path, [conversation]), limits=TINY).chats[0]
+    assert [m.text for m in chat.messages] == ["question", "new answer"]
+    assert chat.skipped == {"hidden_branch": 1}
+
+
+def test_mapping_export_leaves_out_tool_calls_reasoning_and_context(tmp_path):
+    conversation = _openai_conversation(
+        {
+            "root": _openai_node("root", None, ("u1",)),
+            "u1": _openai_node("u1", "root", ("ctx",), role="user", parts=["plan my week"]),
+            "ctx": _openai_node("ctx", "u1", ("th",), role="user", parts=["ABOUT ME"], content_type="user_editable_context"),
+            "th": _openai_node("th", "ctx", ("call",), role="assistant", parts=["THOUGHTS"], content_type="thoughts"),
+            "call": dict(
+                _openai_node("call", "th", ("an",), role="assistant", parts=["TOOL CALL"]),
+            ),
+            "an": _openai_node("an", "call", ("blank",), role="assistant", parts=["here is a plan"]),
+            "blank": _openai_node("blank", "an", (), role="assistant", parts=["   "]),
+        },
+        "blank",
+    )
+    conversation["mapping"]["call"]["message"]["recipient"] = "browser"
+    chat = read(_write_openai(tmp_path, [conversation]), limits=TINY).chats[0]
+    assert [(m.role, m.text) for m in chat.messages] == [("user", "plan my week"), ("assistant", "here is a plan")]
+    assert chat.skipped == {"context": 1, "thinking": 1, "tool": 1, "empty": 1}

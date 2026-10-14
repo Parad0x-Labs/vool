@@ -1,11 +1,15 @@
-"""Read chat history exports from other AI apps (readers only, nothing saved).
+"""Bring chats from other AI apps into VOOL.
 
-``read`` turns a file the user picked into a neutral, validated list of chats in memory.
-This package never writes to VOOL's database, memory, settings or any file; deciding what to
-do with the chats (import screen, privacy rules) belongs to the caller.
+* ``readers`` reads a data-export zip the user picked; ``local_sources`` finds and reads other
+  apps' chat stores on this computer. Readers only read and return the neutral ``ReadResult``.
+* ``store`` keeps imported chats in VOOL's history, apart from every memory store.
+* ``importer`` lands chosen chats there: new ids, nothing resident overwritten, secrets masked,
+  the same source chat never brought in twice.
+* ``flow`` is the one owner of a preview and an import run for the settings screen.
 """
-from core.chat_import.model import ImportedChat, ImportedMessage, ReadResult, Role
-from core.chat_import.readers import DEFAULT_LIMITS, FormatReader, Limits, detect, read, register_reader
+from core.chat_import.common import DEFAULT_LIMITS, Limits
+from core.chat_import.model import ImportedChat, ImportedMessage, ReadResult, Role, describe_problem
+from core.chat_import.readers import FormatReader, detect, read, register_reader
 
 __all__ = [
     "DEFAULT_LIMITS",
@@ -15,6 +19,7 @@ __all__ = [
     "Limits",
     "ReadResult",
     "Role",
+    "describe_problem",
     "detect",
     "read",
     "register_reader",
