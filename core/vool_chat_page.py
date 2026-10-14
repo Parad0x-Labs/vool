@@ -1737,10 +1737,10 @@ function paintChatSearchCount(matched, query) {
   if (!searchCountEl) return;
   if (!query) { searchCountEl.textContent = ''; searchCountEl.className = 'search-count'; }
   else if (query.length < SEARCH_MIN_CHARS) {
-    searchCountEl.textContent = 'type ' + SEARCH_MIN_CHARS + '+ characters';
+    searchCountEl.textContent = pageTF('chat.search_type_more', 'type {n}+ characters', { n: SEARCH_MIN_CHARS });
     searchCountEl.className = 'search-count';
   } else if (!matched) {
-    searchCountEl.textContent = 'no matches';
+    searchCountEl.textContent = pageT('chat.search_no_matches', 'no matches');
     searchCountEl.className = 'search-count none';
   } else {
     searchCountEl.textContent = (chatSearchIndex + 1) + ' / ' + matched;
@@ -1826,8 +1826,8 @@ function paintActivityCount(matched, query) {
   const prev = document.getElementById('xpSearchPrev'), next = document.getElementById('xpSearchNext');
   if (countEl) {
     if (!query) { countEl.textContent = ''; countEl.className = 'search-count'; }
-    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = SEARCH_MIN_CHARS + '+ chars'; countEl.className = 'search-count'; }
-    else if (!matched) { countEl.textContent = 'none'; countEl.className = 'search-count none'; }
+    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = pageTF('chat.search_chars_min', '{n}+ chars', { n: SEARCH_MIN_CHARS }); countEl.className = 'search-count'; }
+    else if (!matched) { countEl.textContent = pageT('chat.search_none', 'none'); countEl.className = 'search-count none'; }
     else { countEl.textContent = (activityIndex + 1) + ' / ' + matched; countEl.className = 'search-count'; }
   }
   if (prev) prev.disabled = !matched;
@@ -2168,7 +2168,7 @@ function ensureSessionInSidebar(chatId, firstMessage) {
   const title = String(firstMessage || '').split('\n')[0].trim().slice(0, 60);
   _pendingSessions.set(chatId, {
     session_id: chatId,
-    title: title || '(new chat)',
+    title: title || pageT('session.new_chat', '(new chat)'),
     project_id: view.projectId || '',
     archived: false,
     pending: true,
@@ -2665,7 +2665,7 @@ function renderPinPanel() {
   }
   for (const p of view.pins) {
     const card = document.createElement('div'); card.className = 'pin-card';
-    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : 'You';
+    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : pageT('pin.you', 'You');
     const txt = document.createElement('div'); txt.className = 'pin-text'; txt.textContent = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
     const row = document.createElement('div'); row.className = 'pin-row';
     const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = pageT('msg.copy', 'Copy'); copy.addEventListener('click', () => copyText(p.text, copy));
@@ -2685,7 +2685,7 @@ async function unpinFromPanel(pinId) {
 }
 
 function copyText(text, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, btn, done));
   } else {
@@ -2711,7 +2711,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = 'Copy failed';
+  btn.textContent = pageT('msg.copy_failed', 'Copy failed');
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -2738,7 +2738,7 @@ function richHtmlFor(raw) {
 }
 
 function copyRichMessage(raw, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
   let html = '';
   try { html = richHtmlFor(raw); } catch (e) { html = ''; }
   if (!html || typeof window.ClipboardItem !== 'function' || !(navigator.clipboard && navigator.clipboard.write)) { copyText(raw, btn); return; }
@@ -2818,9 +2818,9 @@ function requestTextInput(message, initialValue = '') {
   dialog.innerHTML = '<form method="dialog"><div class="modal-body">'
     + '<label id="textPromptLabel" for="textPromptValue"></label>'
     + '<input id="textPromptValue" type="text" autocomplete="off">'
-    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>Cancel</button>'
-    + '<button type="submit" class="set-btn">OK</button></div></div></form>';
-  dialog.querySelector('label').textContent = String(message || 'Enter a value');
+    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>' + pageT('xsetup.cancel', 'Cancel') + '</button>'
+    + '<button type="submit" class="set-btn">' + pageT('chat.prompt_ok', 'OK') + '</button></div></div></form>';
+  dialog.querySelector('label').textContent = String(message || pageT('chat.prompt_enter_value', 'Enter a value'));
   const input = dialog.querySelector('input'); input.value = String(initialValue == null ? '' : initialValue);
   document.body.appendChild(dialog);
   return new Promise((resolve) => {
@@ -2854,12 +2854,12 @@ async function createProjectFlow(assignSid) {
   let root = await nativePickFolder();
   if (root === null) return null;
   if (!root) {
-    root = await requestTextInput('Project folder — full path to a folder on this machine:', '');
+    root = await requestTextInput(pageT('session.project_folder_prompt', 'Project folder — full path to a folder on this machine:'), '');
     if (!root || !root.trim()) return null;
     root = root.trim();
   }
   const suggested = root.split('/').filter(Boolean).pop() || 'Project';
-  const name = await requestTextInput('Project name:', suggested);
+  const name = await requestTextInput(pageT('session.project_name_prompt', 'Project name:'), suggested);
   if (name === null) return null;
   try {
     const r = await fetch('/api/projects', {
@@ -2867,18 +2867,18 @@ async function createProjectFlow(assignSid) {
       body: JSON.stringify({ name: name.trim(), root: root }),
     });
     const d = await r.json();
-    if (!r.ok || !d.project) { alert('Could not add project: ' + ((d && d.error) || ('HTTP ' + r.status))); return null; }
+    if (!r.ok || !d.project) { alert(pageTF('session.project_add_failed', 'Could not add project: {error}', { error: (d && d.error) || ('HTTP ' + r.status) })); return null; }
     await refreshProjects();
     // Global "+ Project": mint + bind + focus a fresh chat for the new project (reuses the
     // r.ok-gated fail-closed bind in newChatInProject). The move-menu path (assignSid) reassigns the
     // existing chat instead.
     if (assignSid) { await assignSession(assignSid, d.project.id); } else { await newChatInProject(d.project.id); }
     return d.project.id;
-  } catch (e) { alert('Could not add project.'); return null; }
+  } catch (e) { alert(pageT('session.project_add_failed_short', 'Could not add project.')); return null; }
 }
 async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
-  if (!confirm('Delete project "' + (proj.name || 'this project') + '"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).')) return;
+  if (!confirm(pageTF('session.project_delete_confirm', 'Delete project "{name}"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).', { name: proj.name || pageT('session.project_this', 'this project') }))) return;
   try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
   await refreshProjects();
   await loadSessions();   // its chats now fall back to General; its memory is purged server-side
@@ -2918,7 +2918,7 @@ function openProjectMenu(sid, anchor) {
   add('General', '', !cur);
   for (const id in projects) add(projects[id].name || 'Project', id, cur === id);
   const nb = document.createElement('button');
-  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = '+ New project…';
+  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = pageT('session.new_project_menu', '+ New project…');
   nb.addEventListener('click', (e) => { e.stopPropagation(); closeProjectMenu(); createProjectFlow(sid); });
   menu.appendChild(nb);
   document.body.appendChild(menu);
@@ -2957,18 +2957,18 @@ function makeSessionItem(s, archived, nested) {
   const emo = document.createElement('span'); emo.className = 's-emoji'; if (s.emoji) emo.textContent = s.emoji;
   const title = document.createElement('span');
   title.className = 's-title';
-  title.textContent = s.title || '(new chat)';
+  title.textContent = s.title || pageT('session.new_chat', '(new chat)');
   title.title = s.title || '';
   title.addEventListener('click', () => openSession(s.session_id));
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
-  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = 'Set chat emoji or colour';
+  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
   actions.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
-    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = 'Move to project';
+    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = pageT('session.move_title', 'Move to project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
@@ -2980,15 +2980,15 @@ function makeSessionItem(s, archived, nested) {
     actions.appendChild(pinB);
   }
   const ren = document.createElement('button');
-  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
+  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = pageT('session.rename_title', 'Rename');
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
   const arch = document.createElement('button');
   arch.type = 'button'; arch.className = 's-act';
   arch.textContent = archived ? '↩' : '\u{1F5C4}';
-  arch.title = archived ? 'Unarchive' : 'Archive';
+  arch.title = archived ? pageT('session.unarchive_title', 'Unarchive') : pageT('session.archive_title', 'Archive');
   arch.addEventListener('click', (e) => { e.stopPropagation(); archiveSession(s.session_id, !archived); });
   const del = document.createElement('button');
-  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = 'Delete chat (removes it and its memory)';
+  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = pageT('session.delete_title', 'Delete chat (removes it and its memory)');
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
@@ -3005,7 +3005,7 @@ async function setChatPinned(sid, pinned) {
 }
 async function deleteSession(sid, title) {
   if (!sid) return;
-  if (!confirm('Delete "' + (title || 'this chat') + '"? This permanently removes the chat and everything VOOL learned in it.')) return;
+  if (!confirm(pageTF('session.delete_confirm', 'Delete "{name}"? This permanently removes the chat and everything VOOL learned in it.', { name: title || pageT('session.delete_this', 'this chat') }))) return;
   try { await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, delete: true }) }); } catch (e) {}
   if (sid === displayedChat) {
     // Deleting the chat you are IN has to leave you somewhere, so a replacement is opened. It must
@@ -3027,18 +3027,18 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
   nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
-  nameEl.title = proj.root ? ((proj.exists === false ? 'Folder not found: ' : '') + proj.root) : name;
+  nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = 'Reveal folder in Finder';
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = pageT('session.reveal_folder_title', 'Reveal folder in Finder');
   prev.addEventListener('click', (e) => { e.stopPropagation(); revealProject(pid); });
-  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = 'Rename project';
+  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = pageT('session.rename_project_title', 'Rename project');
   pren.addEventListener('click', (e) => { e.stopPropagation(); startProjectRename(head, nameEl, pid); });
-  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = 'Delete project (forget its memory; chats move to General)';
+  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = pageT('session.delete_project_title', 'Delete project (forget its memory; chats move to General)');
   pdel.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(pid); });
-  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = 'New chat in this project';
+  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = pageT('session.new_chat_in_project_title', 'New chat in this project');
   pnew.addEventListener('click', (e) => { e.stopPropagation(); newChatInProject(pid); });
-  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = 'Set project emoji or colour';
+  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = pageT('session.project_emoji_title', 'Set project emoji or colour');
   pemo.addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(pid, pemo); });
   pact.appendChild(pemo); pact.appendChild(pnew); pact.appendChild(prev); pact.appendChild(pren); pact.appendChild(pdel);
   head.appendChild(caret); head.appendChild(emo); head.appendChild(nameEl); head.appendChild(cnt);
@@ -3086,7 +3086,7 @@ function openAppearancePicker(anchor, current, onEmoji, onColor) {
     grid.appendChild(b);
   }
   box.appendChild(grid);
-  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = 'Clear emoji & colour';
+  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = pageT('session.clear_appearance', 'Clear emoji & colour');
   clr.addEventListener('click', (ev) => { ev.stopPropagation(); onColor(''); onEmoji(''); closeEmojiPicker(); });
   box.appendChild(clr);
   document.body.appendChild(box);
@@ -3427,7 +3427,7 @@ function renderSessions(sessions) {
   if (!active.length && !archived.length && !projectIds.length) {
     const none = document.createElement('div');
     none.className = 'side-empty';
-    none.textContent = 'No past chats yet.';
+    none.textContent = pageT('session.no_past_chats', 'No past chats yet.');
     sessionsEl.appendChild(none);
     return;
   }
@@ -3460,7 +3460,7 @@ function renderSessions(sessions) {
     const genCollapsed = !!collapsed[GEN_KEY];
     const gh = document.createElement('div'); gh.className = 'proj-head general' + (genCollapsed ? ' collapsed' : '');
     const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = genCollapsed ? '▸' : '▾';
-    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'General';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = pageT('session.general', 'General');
     // The true count of unbound chats, not how many of the capped page happen to be unbound.
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(groupCount('', general.length));
     gh.appendChild(c); gh.appendChild(n); gh.appendChild(cnt);
@@ -3485,7 +3485,7 @@ function renderSessions(sessions) {
   if (archived.length) {
     const head = document.createElement('div');
     head.className = 'arch-head';
-    head.textContent = 'Archived (' + archived.length + ')';
+    head.textContent = pageTF('session.archived_count', 'Archived ({n})', { n: archived.length });
     const box = document.createElement('div');
     box.style.display = 'none';
     head.addEventListener('click', () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; });
@@ -3499,7 +3499,7 @@ function renderSessions(sessions) {
 function startRename(item, titleEl, id) {
   const input = document.createElement('input');
   input.className = 's-rename';
-  input.value = titleEl.textContent === '(new chat)' ? '' : titleEl.textContent;
+  input.value = titleEl.textContent === pageT('session.new_chat', '(new chat)') ? '' : titleEl.textContent;
   let done = false;
   const finish = async (save) => {
     if (done) return; done = true;
@@ -4239,7 +4239,7 @@ function renderAssistantContent(el, text, displayMetadata) {
   if (vp && vp.review_flagged) {
     const warn = document.createElement('p'); warn.className = 'chat-provenance chat-verifier-flag';
     const code0 = document.createElement('code');
-    code0.textContent = '\u26a0 review flagged \u2014 double-check this answer';
+    code0.textContent = pageT('msg.review_flagged', '\u26a0 review flagged \u2014 double-check this answer');
     warn.appendChild(code0); el.appendChild(warn);
   }
   const footer = String((normalized.display_metadata && normalized.display_metadata.provenance_footer) || '').trim();
@@ -4269,13 +4269,13 @@ function mountAnswerReport(host, chatId, requestId) {
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
   const report = document.createElement('button');
   report.type = 'button'; report.className = 'msg-act msg-report';
-  report.textContent = 'Report';
-  report.title = 'Report a wrong answer or a problem with this answer';
+  report.textContent = pageT('msg.report', 'Report');
+  report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const down = document.createElement('button');
   down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
   down.textContent = '\u{1F44E}';
-  down.title = 'Bad answer \u2014 report it'; down.setAttribute('aria-label', down.title);
+  down.title = pageT('msg.report_down_title', 'Bad answer \u2014 report it'); down.setAttribute('aria-label', down.title);
   down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const pin = actions.querySelector('.msg-pin');
   actions.insertBefore(report, pin || null);
@@ -4289,7 +4289,7 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!actions) return;
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = 'Download this answer as PDF';
+  button.textContent = '\u2193'; button.title = pageT('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -4300,13 +4300,13 @@ function mountAnswerExport(host, chatId, requestId) {
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
         if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
-        status.textContent = result.cancelled ? 'Cancelled' : 'Saved';
+        status.textContent = result.cancelled ? pageT('msg.pdf_cancelled', 'Cancelled') : pageT('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || 'PDF export failed');
+          throw new Error(refusal.message || refusal.error || pageT('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
@@ -4314,9 +4314,9 @@ function mountAnswerExport(host, chatId, requestId) {
         link.href = url; link.download = 'vool-answer.pdf';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
-        status.textContent = 'Downloaded';
+        status.textContent = pageT('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || 'PDF export failed'; }
+    } catch (error) { status.textContent = error.message || pageT('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -4341,7 +4341,7 @@ async function mountProofChip(host, chatId, requestId, presentationSelection) {
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'proof-chip-head';
-  head.title = 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim';
+  head.title = pageT('msg.run_record_title', 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim');
   const cost = (typeof compact.cost === 'object' && compact.cost) || {};
   const costText = cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? (compact.cost.tokens + ' tok') : 'cost not recorded');
   const seg = (cls, text) => { const span = document.createElement('span'); span.className = cls; span.textContent = text; return span; };
@@ -4495,10 +4495,10 @@ function openImageMenu(img, x, y) {
   const local = img.dataset.local || '';
   const menu = document.createElement('div'); menu.className = 'proj-menu'; menu.id = 'imgMenu';
   const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'proj-menu-item'; b.textContent = label; b.addEventListener('click', (e) => { e.stopPropagation(); _imgMenuClose(); fn(); }); menu.appendChild(b); };
-  if (local) add('Open in Preview', () => openImageNative(local));
-  if (local) add('Show in Finder', () => revealImage(local));
-  add('Copy image', () => copyImageToClipboard(img));
-  if (local) add('Copy path', () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
+  if (local) add(pageT('msg.img_open_preview', 'Open in Preview'), () => openImageNative(local));
+  if (local) add(pageT('msg.img_show_in_finder', 'Show in Finder'), () => revealImage(local));
+  add(pageT('msg.img_copy', 'Copy image'), () => copyImageToClipboard(img));
+  if (local) add(pageT('msg.img_copy_path', 'Copy path'), () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
   document.body.appendChild(menu);
   menu.style.top = Math.min(y, window.innerHeight - 170) + 'px';
   menu.style.left = Math.min(x, window.innerWidth - 190) + 'px';
@@ -4673,7 +4673,7 @@ function startRunTimers(run) {
   run.timer = setInterval(() => {
     if (run.ended) return;
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
-    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
   // Poll the runtime ledger so the Activity panel shows the real timeline (scope, classify, model,
   // tools, timeouts, terminal), scoped to this turn. Only while the panel is open AND this run's
@@ -4810,13 +4810,13 @@ function buildCard(run, host) {
 }
 
 const HUMAN_ACTIVITY_STATES = {
-  Planning: 'Planning', Searching: 'Searching', Reading: 'Reading', Editing: 'Editing',
-  Running: 'Running', Testing: 'Testing', 'Waiting for permission': 'Waiting for approval',
+  Planning: pageT('run.stage_planning', 'Planning'), Searching: pageT('run.stage_searching', 'Searching'), Reading: pageT('run.stage_reading', 'Reading'), Editing: pageT('run.stage_editing', 'Editing'),
+  Running: pageT('run.stage_running', 'Running'), Testing: pageT('run.stage_testing', 'Testing'), 'Waiting for permission': pageT('run.stage_waiting_approval', 'Waiting for approval'),
 };
 function humanActivityState(run) {
-  if (run.permission) return 'Waiting for approval';
+  if (run.permission) return pageT('run.stage_waiting_approval', 'Waiting for approval');
   const stage = String(run.stage || '').trim();
-  return HUMAN_ACTIVITY_STATES[stage] || 'Working';
+  return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
 }
 function recordedModelProvider(model) {
   if (!model) return '';
@@ -4887,10 +4887,10 @@ function renderCard(run) {
   const stageText = run.action || run.stage || '';
   r.stage.textContent = stageText;
   r.stage.title = stageText;
-  if (!run.ended) r.title.textContent = run.pricePaused ? 'Paused — waiting for your price' : 'VOOL is working';
+  if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
-  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   r.steps.textContent = run.steps.length ? stepsRollupText(run.steps) : '';
   r.mode.textContent = MODE_LABELS[run.activeMode] || MODE_LABELS.manual;
   r.mode.classList.toggle('bypass', run.activeMode === 'bypass_permissions');
@@ -4901,16 +4901,16 @@ function renderCard(run) {
     r.model.textContent = compactLabel(compactModelBadge(run.model));
     const _identity = modelIdentityDetails(run.model);
     if (!_identity.length) _identity.push(modelProviderPresentation(run.model));
-    r.model.title = _identity.join(' | ') || 'Recorded model identity';
+    r.model.title = _identity.join(' | ') || pageT('run.model_identity_title', 'Recorded model identity');
   }
-  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? (usd + ' used') : '';
+  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? pageTF('run.cost_used', '{cost} used', { cost: usd }) : '';
   const recent = run.steps.slice(-3).map((s) => (s.status === 'completed' ? '✓ ' : (s.status === 'failed' ? '× ' : '• ')) + (s.summary || s.tool || 'Action'));
   r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
-  if (run.status === 'running') r.title.textContent = run.verifying ? 'Answer ready · model review running…' : humanActivityState(run);
+  if (run.status === 'running') r.title.textContent = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
-  r.sr.textContent = (run.permission ? 'Waiting for approval. ' : '') + (run.action || run.stage || '');
+  r.sr.textContent = (run.permission ? pageT('run.sr_waiting', 'Waiting for approval. ') : '') + (run.action || run.stage || '');
 }
 
 const REVIEW_STATE_BY_RAW_TYPE = Object.freeze({
@@ -5021,7 +5021,7 @@ function applyResultSummary(run) {
   r.summary.textContent = parts.join(' · ');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';
-  r.sr.textContent = parts.join(' · ') || 'Done';
+  r.sr.textContent = parts.join(' · ') || pageT('run.sr_done', 'Done');
   // Routing, approval, failure, review and ledger events are meaningful even when no tool completed.
   const hasActivity = hasMeaningfulActivity(run);
   if (r.view) r.view.style.display = hasActivity ? '' : 'none';
@@ -6659,18 +6659,18 @@ function scopeSessionSet() {
   return set;
 }
 function scopeWhere() {
-  if (panelScope === 'chat') return 'this chat';
-  if (panelScope === 'project') return 'project ' + currentProjectName();
+  if (panelScope === 'chat') return pageT('panel.scope_chat', 'this chat');
+  if (panelScope === 'project') return pageTF('panel.scope_project', 'project {name}', { name: currentProjectName() });
   return 'VOOL';
 }
 // "No receipts for this chat yet." / "...for project Lumen yet." / "...anywhere in VOOL yet."
 function emptyScopeText(kind) {
-  if (panelScope === 'all') return 'No ' + kind + ' recorded anywhere in VOOL yet.';
-  return 'No ' + kind + ' for ' + scopeWhere() + ' yet.';
+  if (panelScope === 'all') return pageTF('panel.empty_all', 'No {kind} recorded anywhere in VOOL yet.', { kind: kind });
+  return pageTF('panel.empty_scoped', 'No {kind} for {scope} yet.', { kind: kind, scope: scopeWhere() });
 }
 function chatTitleFor(sid) {
   const chat = _lastSessions.find((s) => s.session_id === sid) || {};
-  return chat.title || String(sid || '').slice(-8) || 'Chat';
+  return chat.title || String(sid || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
 }
 function scopeKey() { return panelScope + '|' + displayedChat + '|' + (view.projectId || ''); }
 // Durable per-chat ledgers for a wider scope. Chat scope needs none of this: the open chat's own
@@ -6775,7 +6775,7 @@ function renderActivityHistoryHtml() {
     const bounded = h.bounded_execution || {};
     const task = h.request_preview || item.request_preview || h.title || 'Task';
     const status = h.request_state_label || h.status || item.status || 'unknown';
-    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || 'Chat';
+    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
     const evidence = [];
     if (h.latest_tool) evidence.push('last action ' + h.latest_tool);
     if (Array.isArray(h.changed_paths) && h.changed_paths.length) evidence.push(h.changed_paths.length + ' file' + (h.changed_paths.length === 1 ? '' : 's') + ' changed');
@@ -6869,15 +6869,15 @@ function wireActivityPanelActions() {
   }));
   xpBodyEl.querySelectorAll('[data-recovery]').forEach((button) => button.addEventListener('click', async () => {
     const action = button.getAttribute('data-recovery');
-    if (action === 'review') { toast('Showing the saved task timeline and receipts below.'); return; }
+    if (action === 'review') { toast(pageT('recovery.toast_timeline', 'Showing the saved task timeline and receipts below.')); return; }
     if (action === 'resume') { const sid = displayedChat; if (!isChatBusy(sid)) { view.recoveredTask = null; renderPanel(); await runTurn('Continue the interrupted task from its saved checkpoint.', null, { chatId: sid }); } return; }
     if (action === 'cancel') {
       button.disabled = true;
       try {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
         const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-        view.recoveredTask = null; toast('Interrupted task cancelled.'); await loadActivityHistory();
-      } catch (e) { button.disabled = false; toast('Could not cancel recovered task: ' + e.message); }
+        view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
+      } catch (e) { button.disabled = false; toast(pageT('recovery.cancel_failed_prefix', 'Could not cancel recovered task: ') + e.message); }
     }
   }));
 }
@@ -6958,7 +6958,7 @@ function renderPanelBody() {
   // The one Copy control names the tab it will actually copy ("Copy Activity", "Copy Event log").
   const copyBtn = document.getElementById('xpCopy');
   if (copyBtn) {
-    const copyLabel = 'Copy ' + (panelTab || 'Activity') + ' (' + scopeWhere() + ')';
+    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTab || pageT('panel.tab_activity', 'Activity'), scope: scopeWhere() });
     copyBtn.title = copyLabel; copyBtn.setAttribute('aria-label', copyLabel);
   }
   const run = view.run, body = xpBodyEl;
@@ -6978,11 +6978,11 @@ function renderPanelBody() {
       // claimed. It used to be the last turn only.
       restored += renderChatActivity(view, { live: false });
       restored += renderActivityHistoryHtml();
-      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>';
+      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>';
       xpBodyEl.dataset.activityRendered = '1';
       wireActivityPanelActions(); return;
     }
-    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>'; return;
+    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>'; return;
   }
   let html = '';
   if (panelTab === 'Steps') {
@@ -7030,11 +7030,11 @@ function renderPanelBody() {
     html = renderRecoveryHtml() + html + renderActivityHistoryHtml();
   } else if (panelTab === 'Changes' || panelTab === 'Files') {
     const paths = Object.keys(run.files);
-    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('file changes')) + '</div>'; return; }
+    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_file_changes', 'file changes'))) + '</div>'; return; }
     paths.forEach((p) => { html += '<div class="xp-row ok"><span class="ic">✎</span><div class="bd mono">' + esc(p) + '</div></div>'; });
   } else if (panelTab === 'Tests') {
     const t = run.tests;
-    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('test runs')) + '</div>'; return; }
+    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_test_runs', 'test runs'))) + '</div>'; return; }
     html = '<div class="xp-note">' + esc(t.done + (t.total ? (' of ' + t.total) : '') + ' tests complete' + (t.failed ? (' · ' + t.failed + ' failed') : '')) + '</div>';
   } else if (panelTab === 'Preview') {
     if (run.preview) { html = '<div class="xp-note">Preview: <span class="mono">' + esc(run.preview) + '</span></div>'; }
@@ -7144,10 +7144,10 @@ function renderAgents(body) {
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
     if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">Reading activity for ' + esc(scopeWhere()) + '\u2026</div>'; return; }
-    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
-  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   // The event log is a flat list -- there is nothing to disclose -- so it gets the control that
   // actually applies to it. Copy all still reads from the data, not from what happens to be scrolled.
   let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">Copy all</button></div>';
@@ -7177,7 +7177,7 @@ async function renderReceipts(body) {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
     const d = await r.json();
     const list = d.receipts || [];
-    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
       ? 'Receipts consistent — every receipt shown is individually valid and correctly linked to the one before it. This does not prove the history is complete: receipts deleted from the end leave no trace. This does not prove the answer is correct.'
       : (d.chain_verified === false
@@ -7208,7 +7208,7 @@ async function renderScopedReceipts(body) {
     } catch (e) { /* one unreadable chat must not empty the panel */ }
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
-  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')
     + ' in ' + esc(scopeWhere()) + '. Each chain is verified within its own chat.'
@@ -7268,7 +7268,7 @@ function wireReceiptActions(body, list) {
       const text = btn.getAttribute('data-copy') === 'hash'
         ? String(rc.content_hash || '')
         : JSON.stringify(rc, null, 2);
-      if (!text) { toast('That receipt carries no hash to copy.'); return; }
+      if (!text) { toast(pageT('receipts.no_hash_toast', 'That receipt carries no hash to copy.')); return; }
       copyText(text, btn);
     });
   });
@@ -7327,12 +7327,12 @@ function renderQueue(items) {
     const label = document.createElement('span');
     label.className = 'qchip-text';
     const queuedAttachmentCount = ((item.payload && item.payload.attachments) || []).length;
-    label.textContent = (running ? 'Running: ' : (item.payload && item.payload.price_wait ? 'Waiting for price · ' + item.payload.price_wait.model_id + ': ' : ('Queued ' + pos + ': '))) + preview + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
+    label.textContent = (running ? pageTF('queue.item_running', 'Running: {preview}', { preview: preview }) : (item.payload && item.payload.price_wait ? pageTF('queue.item_price_wait', 'Waiting for price · {model}: {preview}', { model: item.payload.price_wait.model_id, preview: preview }) : pageTF('queue.item_queued', 'Queued {pos}: {preview}', { pos: pos, preview: preview }))) + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
     label.title = preview;
     chip.appendChild(label);
     if (!running) {
       const x = document.createElement('button');
-      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = 'Cancel this queued message';
+      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = pageT('queue.cancel_title', 'Cancel this queued message');
       x.addEventListener('click', async function () { await queueOp('cancel', displayedChat, { queue_item_id: item.queue_item_id }); refreshQueue(); });
       chip.appendChild(x);
     }
@@ -7342,8 +7342,8 @@ function renderQueue(items) {
   if (hiddenCount > 0) {
     const more = document.createElement('button');
     more.type = 'button'; more.className = 'qchip qchip-more'; more.id = 'queueMore';
-    more.textContent = '+' + hiddenCount + ' queued';
-    more.title = 'Show all queued messages'; more.setAttribute('aria-expanded', 'false');
+    more.textContent = pageTF('queue.more_hidden', '+{n} queued', { n: hiddenCount });
+    more.title = pageT('queue.show_all_title', 'Show all queued messages'); more.setAttribute('aria-expanded', 'false');
     more.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, true);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7352,8 +7352,8 @@ function renderQueue(items) {
   } else if (expanded && pending.length > QUEUE_VISIBLE_LIMIT) {
     const less = document.createElement('button');
     less.type = 'button'; less.className = 'qchip qchip-more'; less.id = 'queueMore';
-    less.textContent = 'Show less';
-    less.title = 'Collapse the queue'; less.setAttribute('aria-expanded', 'true');
+    less.textContent = pageT('queue.show_less', 'Show less');
+    less.title = pageT('queue.collapse_title', 'Collapse the queue'); less.setAttribute('aria-expanded', 'true');
     less.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, false);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7524,7 +7524,7 @@ async function runTurn(text, queueItemId, opts) {
       // confirm remains the fallback so an unmounted fragment can never brick sending.
       const ok = window.VoolPriceGate
         ? await window.VoolPriceGate.review({ kind: 'per-send', id: String(selectedModel), label: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel })
-        : window.confirm('Use the PAID model "' + ((CLOUD_MODEL_LABELS[selectedModel]) || selectedModel) + '" for this turn? It may charge your account each turn. VOOL spend caps still apply.');
+        : window.confirm(pageTF('model.confirm_paid', 'Use the PAID model "{name}" for this turn? It may charge your account each turn. VOOL spend caps still apply.', { name: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel }));
       if (!ok) {
         finishRun(run, 'cancelled', pageT('run.cancelled_paid', 'Cancelled \u2014 paid model not confirmed'));
         releaseComposer(run);
@@ -7793,7 +7793,7 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   try { balance = await postJsonWithin('/api/cloud/usepod/balance', {}, 20000); } catch (e) { balance = null; }
   const blocker = usepodBalanceBlocker(balance);
   if (!blocker) return true;
-  toast(blocker + ' Nothing was sent.');
+  toast(blocker + pageT('usepod.nothing_sent', ' Nothing was sent.'));
   openSettingsInFrame('models/usepod/spend');
   return false;
 }
@@ -7810,10 +7810,10 @@ async function send() {
   if (!text && !draft.length) return;
   // Attachments gate the send BEFORE the typed text is cleared: nothing is sent, nothing is
   // lost, and a second press after the upload is fixed sends the message exactly once.
-  if (draft.some((i) => i.state === 'uploading')) { toast('Wait for the attachments to finish uploading.'); return; }
-  if (draft.some((i) => i.state === 'failed')) { toast('Remove or retry the failed attachment before sending.'); return; }
+  if (draft.some((i) => i.state === 'uploading')) { toast(pageT('attach.toast_wait_uploading', 'Wait for the attachments to finish uploading.')); return; }
+  if (draft.some((i) => i.state === 'failed')) { toast(pageT('attach.toast_failed_present', 'Remove or retry the failed attachment before sending.')); return; }
   // A message that is only the documents' markers carries no words of the user's own.
-  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast('Add a message saying what to do with the ' + (draft.some((i) => i.document) ? 'document' : 'attachment') + '.'); inputEl.focus(); return; }
+  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast(pageTF('attach.toast_say_what', 'Add a message saying what to do with the {kind}.', { kind: draft.some((i) => i.document) ? pageT('attach.document', 'document') : pageT('attach.attachment', 'attachment') })); inputEl.focus(); return; }
   const selected = effectiveModel(chatId, text);
   if (String(selected).startsWith('usepod:') && !isChatBusy(chatId)) {
     if (spendingPreflightPending) return;
@@ -7829,17 +7829,17 @@ async function send() {
   if (String(selected).startsWith('usepod:')) {
     let target;
     try { target = await postJsonWithin('/api/cloud/usepod/price-wait/check', {model_id:String(selected).slice(7)}, 20000); }
-    catch (e) { toast('Price check unavailable. Your draft is unchanged.'); return; }
+    catch (e) { toast(pageT('send.price_check_unavailable', 'Price check unavailable. Your draft is unchanged.')); return; }
     if (!isDisplayed(chatId) || inputEl.value !== draftText || effectiveModel(chatId, text) !== selected) return;
     if (target && target.enabled) {
       const queued = await queueOp('enqueue', chatId, {text, attachments:attachments.map(a=>a.id), price_wait_model:String(selected).slice(7), idempotency_key:'price-' + Date.now()});
-      if (!queued || !queued.item) { toast('Could not save this task to the price queue. Your draft is unchanged.'); return; }
+      if (!queued || !queued.item) { toast(pageT('send.price_queue_save_failed', 'Could not save this task to the price queue. Your draft is unchanged.')); return; }
       // Same wakeup contract as the busy branch below: the arrival must survive an empty claim
       // that was already on the wire when this item landed.
       chatState(chatId).queueArrivals++;
       inputEl.value = ''; if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
       const owner = chatState(chatId); attachments.forEach(a=>{owner.queuedAttachmentMeta[a.id]=a;});owner.attachments=[];renderAttachStrip();
-      await refreshQueue(); toast(target.ready ? 'Price is available. Starting within your UsePod budget.' : 'Task saved. Waiting for your price; keep VOOL open.');
+      await refreshQueue(); toast(target.ready ? pageT('send.price_ready_start', 'Price is available. Starting within your UsePod budget.') : pageT('send.task_saved_waiting', 'Task saved. Waiting for your price; keep VOOL open.'));
       pumpQueue(chatId); return;
     }
   }
@@ -7900,12 +7900,12 @@ function attachHintText() {
   const L = ATTACH_LIMITS;
   // The audio mention follows the server's own accept list: where the speech dependency is
   // absent, audio uploads are refused typed and the picker never advertised them.
-  const families = 'text, code, PNG, JPEG, GIF, WebP' + ((L.accept && /audio/.test(L.accept)) ? ', audio' : '');
-  return 'Up to ' + L.max_files_per_turn + ' files · ' + fmtBytes(L.max_bytes_per_file) + ' each · ' + fmtBytes(L.max_bytes_per_turn) + ' per message · ' + families;
+  const families = pageT('attach.families', 'text, code, PNG, JPEG, GIF, WebP') + ((L.accept && /audio/.test(L.accept)) ? ', ' + pageT('attach.audio_family', 'audio') : '');
+  return pageTF('attach.hint', 'Up to {max_files} files · {per_file} each · {per_message} per message · {families}', { max_files: L.max_files_per_turn, per_file: fmtBytes(L.max_bytes_per_file), per_message: fmtBytes(L.max_bytes_per_turn), families: families });
 }
 function reflectAttachHint() {
   if (attachHintEl) attachHintEl.textContent = attachHintText();
-  if (attachBtnEl) attachBtnEl.title = 'Attach files or photos to this message — ' + attachHintText();
+  if (attachBtnEl) attachBtnEl.title = pageT('attach.title_prefix', 'Attach files or photos to this message — ') + attachHintText();
 }
 async function loadAttachmentLimits() {
   // The rules come from the server's own tables, so the picker's accept list and the hint can
@@ -7941,9 +7941,9 @@ function buildAttachChip(item, opts) {
   } else {
     const ico = document.createElement('span'); ico.className = 'att-ico'; ico.textContent = item.kind === 'image' ? '\u{1F5BC}' : (item.document ? '\u{1F4CB}' : '\u{1F4C4}'); chip.appendChild(ico);
   }
-  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? 'pasted text' : 'attachment'); name.title = item.name || ''; chip.appendChild(name);
+  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? pageT('attach.pasted_text', 'pasted text') : pageT('attach.attachment', 'attachment')); name.title = item.name || ''; chip.appendChild(name);
   const meta = document.createElement('span'); meta.className = 'att-meta';
-  if (item.state === 'uploading') meta.textContent = 'uploading…';
+  if (item.state === 'uploading') meta.textContent = pageT('attach.uploading', 'uploading…');
   else if (item.document) {
     // Name, type, size and shape are the chip's whole claim about the document; what the model
     // did with it (once known) rides the same line.
@@ -7956,7 +7956,7 @@ function buildAttachChip(item, opts) {
   if (item.document && item.state !== 'failed') buildDocPreview(chip, item);
   if (opts.draft && item.document && item.state === 'ready') {
     const asMessage = document.createElement('button'); asMessage.type = 'button'; asMessage.className = 'att-as-message';
-    asMessage.textContent = 'Use as message'; asMessage.title = 'Move the full text into your editable message; nothing is sent';
+    asMessage.textContent = pageT('attach.use_as_message', 'Use as message'); asMessage.title = pageT('attach.use_as_message_title', 'Move the full text into your editable message; nothing is sent');
     asMessage.addEventListener('click', () => useDocumentAsMessage(item.localId)); chip.appendChild(asMessage);
   }
   if (opts.draft && item.kind === 'image' && item.state === 'ready') {
@@ -7964,15 +7964,15 @@ function buildAttachChip(item, opts) {
     if (warning) { const warn = document.createElement('span'); warn.className = 'att-warn'; warn.textContent = warning; chip.appendChild(warn); }
   }
   if (item.state === 'failed') {
-    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || 'Upload failed.'; chip.appendChild(err);
+    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || pageT('attach.upload_failed', 'Upload failed.'); chip.appendChild(err);
     if (item.retryable) {
-      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = 'Retry'; retry.title = 'Upload this file again';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = pageT('attach.retry', 'Retry'); retry.title = pageT('attach.retry_title', 'Upload this file again');
       retry.addEventListener('click', () => retryAttachment(item.localId));
       chip.appendChild(retry);
     }
   }
   if (opts.draft) {
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = 'Remove this attachment'; x.setAttribute('aria-label', 'Remove ' + (item.name || 'attachment'));
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = pageT('attach.remove_title', 'Remove this attachment'); x.setAttribute('aria-label', pageTF('attach.remove_aria', 'Remove {name}', { name: item.name || pageT('attach.attachment', 'attachment') }));
     x.addEventListener('click', () => removeAttachment(item.localId));
     chip.appendChild(x);
   }
@@ -7985,32 +7985,32 @@ function buildAttachChip(item, opts) {
 function buildDocPreview(chip, item) {
   const cid = String(item.sessionId || displayedChat || '');
   const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'att-expand';
-  toggle.textContent = 'Preview'; toggle.title = 'Show the beginning of this document exactly as pasted'; toggle.setAttribute('aria-expanded', 'false');
+  toggle.textContent = pageT('attach.preview', 'Preview'); toggle.title = pageT('attach.preview_title', 'Show the beginning of this document exactly as pasted'); toggle.setAttribute('aria-expanded', 'false');
   const pre = document.createElement('pre'); pre.className = 'att-preview'; pre.hidden = true;
   const more = document.createElement('span'); more.className = 'att-more'; more.hidden = true;
   let loaded = false;
   function paint(text) {
     const head = text.length > DOC_PREVIEW_CHARS ? text.slice(0, DOC_PREVIEW_CHARS) : text;
     pre.textContent = head;
-    if (text.length > head.length) { more.textContent = '… ' + (text.length - head.length).toLocaleString() + ' more characters; the whole document was kept and is what the model reads.'; more.hidden = false; }
+    if (text.length > head.length) { more.textContent = pageTF('attach.doc_more_chars', '… {n} more characters; the whole document was kept and is what the model reads.', { n: (text.length - head.length).toLocaleString(appLocale()) }); more.hidden = false; }
     else more.hidden = true;
   }
   async function load() {
     if (loaded) return;
     loaded = true;
     if (typeof item.text === 'string') { paint(item.text); return; }
-    if (!item.id) { pre.textContent = 'This document has no stored copy yet.'; return; }
+    if (!item.id) { pre.textContent = pageT('attach.doc_no_copy', 'This document has no stored copy yet.'); return; }
     try {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
-      if (r.status === 410) { pre.textContent = 'This document was erased from the chat; its name and size are all that remain.'; return; }
-      if (!r.ok) { pre.textContent = 'This document is no longer available (HTTP ' + r.status + ').'; return; }
+      if (r.status === 410) { pre.textContent = pageT('attach.doc_erased', 'This document was erased from the chat; its name and size are all that remain.'); return; }
+      if (!r.ok) { pre.textContent = pageTF('attach.doc_gone_http', 'This document is no longer available (HTTP {status}).', { status: r.status }); return; }
       paint(await r.text());
-    } catch (e) { loaded = false; pre.textContent = 'The preview could not be loaded. Check the connection and try again.'; }
+    } catch (e) { loaded = false; pre.textContent = pageT('attach.doc_preview_failed', 'The preview could not be loaded. Check the connection and try again.'); }
   }
   toggle.addEventListener('click', () => {
     const open = pre.hidden;
     pre.hidden = !open; more.hidden = !open || !more.textContent;
-    toggle.textContent = open ? 'Hide' : 'Preview';
+    toggle.textContent = open ? pageT('attach.hide', 'Hide') : pageT('attach.preview', 'Preview');
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) load();
   });
@@ -8059,7 +8059,7 @@ async function addPastedDocument(text, chatId, opts) {
   if (councilOwnsComposer()) { toast(councilLockNote); return null; }
   const cid = String(chatId || displayedChat);
   const bucket = attachBucket(cid);
-  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — the pasted text was not added.'); return null; }
+  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast(pageTF('attach.limit_no_paste', 'Up to {n} attachments per message — the pasted text was not added.', { n: ATTACH_LIMITS.max_files_per_turn })); return null; }
   const item = {
     localId: 'la-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
     file: null, bytes: null, text: text, document: true, sessionId: cid, source: opts.source === 'drop' ? 'drop' : 'paste',
@@ -8141,7 +8141,7 @@ async function addAttachmentFiles(fileList, chatId) {
   const room = ATTACH_LIMITS.max_files_per_turn - bucket.length;
   let accepted = files;
   if (files.length > room) {
-    toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — ' + (files.length - Math.max(0, room)) + ' not added.');
+    toast(pageTF('attach.limit_some_not_added', 'Up to {n} attachments per message — {count} not added.', { n: ATTACH_LIMITS.max_files_per_turn, count: files.length - Math.max(0, room) }));
     accepted = files.slice(0, Math.max(0, room));
   }
   const fresh = [];
@@ -8222,7 +8222,7 @@ async function useDocumentAsMessage(localId) {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
       if (!r.ok) throw new Error('unavailable');
       text = await r.text();
-    } catch (e) { toast('Could not load the document. It is still attached.'); return; }
+    } catch (e) { toast(pageT('attach.doc_load_failed', 'Could not load the document. It is still attached.')); return; }
   }
   if (!isDisplayed(cid) || inputEl.value !== before || !attachBucket(cid).includes(item) || councilOwnsComposer()) return;
   const marker = documentMarker(item);
@@ -8230,7 +8230,7 @@ async function useDocumentAsMessage(localId) {
   removeAttachment(localId);
   inputEl.value = next;
   inputEl.dispatchEvent(new Event('input', {bubbles:true})); inputEl.focus();
-  toast('Moved into your message. Review it, then send.');
+  toast(pageT('attach.moved_to_message', 'Moved into your message. Review it, then send.'));
 }
 function retryAttachment(localId) {
   const cid = displayedChat;
@@ -8291,7 +8291,7 @@ if (composerFooterEl && typeof composerFooterEl.addEventListener === 'function')
       const images = files.filter((f) => (f.type || '').indexOf('image/') === 0);
       const texts = files.filter((f) => (f.type || '').indexOf('image/') !== 0);
       if (images.length) addAttachmentFiles(images, displayedChat);
-      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(f.name + ' could not be read as text.')); });
+      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(pageTF('attach.read_failed', '{name} could not be read as text.', { name: f.name }))); });
       return;
     }
     let text = '';
@@ -8333,9 +8333,9 @@ let dictationRecorder = null;
 const DICTATION_NOTICE_DISMISSED_KEY = 'vool_dictation_notice_dismissed_v1';
 const DICTATION_LOCALE_KEY = 'vool_dictation_locale_v1';
 const VOICE_MODE_KEY = 'vool_voice_mode_v1';
-const DICTATION_TITLE_IDLE = 'Dictate into this message — recorded and transcribed on this machine only';
-const DICTATION_TITLE_RECORDING = 'Recording — click to stop and transcribe';
-const DICTATION_TITLE_PTT = 'Hold to talk — release to transcribe into this message';
+const DICTATION_TITLE_IDLE = dictT('dictate_title', 'Dictate into this message — recorded and transcribed on this machine only');
+const DICTATION_TITLE_RECORDING = dictT('recording_stop_title', 'Recording — click to stop and transcribe');
+const DICTATION_TITLE_PTT = dictT('ptt_title', 'Hold to talk — release to transcribe into this message');
 function dictT(key, fallback, params) {
   // Localised through the page's i18n bundle when it is present; the inline English is the
   // honest fallback until a catalog resolves the key.
@@ -8363,7 +8363,7 @@ if (dictationDismissEl) dictationDismissEl.addEventListener('click', async () =>
   try {
     const response = await fetch('/api/settings/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({speech_notice_dismissed:true})});
     if (!response.ok) throw new Error('Preference was not saved');
-  } catch (e) { toast('Notice hidden for now. Could not save this choice for restart.'); }
+  } catch (e) { toast(pageT('dictation.notice_hide_failed', 'Notice hidden for now. Could not save this choice for restart.')); }
 });
 // Native private web sessions can discard browser storage on exit. The existing
 // profile preference is the durable authority; wait for it before the boot probe.
@@ -8383,7 +8383,7 @@ function setDictating(on) {
   dictateBtnEl.classList.remove('error');
   if (voiceMode()) {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_PTT;
-    dictateBtnEl.setAttribute('aria-label', on ? 'Recording — release to transcribe' : DICTATION_TITLE_PTT);
+    dictateBtnEl.setAttribute('aria-label', on ? pageT('dictation.ptt_recording_aria', 'Recording — release to transcribe') : DICTATION_TITLE_PTT);
   } else {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE;
     dictateBtnEl.setAttribute('aria-label', on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE);
@@ -8405,7 +8405,7 @@ function setDictationError(note) {
 function setTranscribing(on) {
   if (!dictateBtnEl) return;
   dictateBtnEl.classList.toggle('transcribing', on);
-  dictateBtnEl.title = on ? 'Transcribing on this machine…' : dictationIdleTitle();
+  dictateBtnEl.title = on ? pageT('dictation.transcribing_title', 'Transcribing on this machine…') : dictationIdleTitle();
 }
 async function beginDictationRecording() {
   if (dictating || !dictateBtnEl) return false;
@@ -8987,7 +8987,7 @@ function initComposerControls() {
       e.stopPropagation();
       const requested = it.getAttribute('data-mode'); closePops(null);
       if (requested === 'bypass_permissions') { openBypassModal(); return; }
-      try { await setModeController(requested); } catch (err) { toast('Mode was not changed: ' + err.message); }
+      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: err.message })); }
     });
   });
   const modeItems = Array.from(document.querySelectorAll('#modePop .pop-item'));
@@ -9291,8 +9291,8 @@ function cloudSelectionId(provider, id) {
 }
 function buildCloudPicker() {
   const box = document.createElement('div'); box.className = 'cloud-picker cloud-dyn';
-  const label = document.createElement('label'); label.textContent = 'Provider';
-  const select = document.createElement('select'); select.setAttribute('aria-label', 'Model provider');
+  const label = document.createElement('label'); label.textContent = pageT('keys.provider_aria', 'Provider');
+  const select = document.createElement('select'); select.setAttribute('aria-label', pageT('keys.model_provider_aria', 'Model provider'));
   cloudProviderRows.forEach((p) => {
     const option = document.createElement('option'); option.value = p.id; option.textContent = p.label || p.id;
     select.appendChild(option);
@@ -9612,15 +9612,15 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
       const priceRose = code === 'price_above_accepted';
       if (classifiedPaid || costUnclassified || pricingIndeterminate || priceRose) {
         const reasonText = classifiedPaid
-          ? 'The server classified this model as PAID.'
+          ? pageT('model.reason_paid_classified', 'The server classified this model as PAID.')
           : costUnclassified
-            ? 'The server could not verify what this model costs.'
+            ? pageT('model.reason_cost_unknown', 'The server could not verify what this model costs.')
             : priceRose
-              ? 'The catalog now lists this model ABOVE the price you accepted earlier.'
-              : "This model's published pricing is indeterminate on the server.";
+              ? pageT('model.reason_price_rose', 'The catalog now lists this model ABOVE the price you accepted earlier.')
+              : pageT('model.reason_indeterminate', "This model's published pricing is indeterminate on the server.");
         const gateOk = window.VoolPriceGate
           ? await window.VoolPriceGate.review({ kind: 'pin', id: cloudSelectionId(provider, id), provider: provider, label: name || id, code: code, accepted: j.accepted || null, current: j.current || null })
-          : window.confirm(reasonText + ' Pin "' + id + '" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.');
+          : window.confirm(reasonText + pageTF('model.pin_confirm_suffix', ' Pin "{id}" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.', { id: id }));
         if (gateOk) {
           paidDecision = gateOk;
           if (!stillCurrent()) return false;
@@ -9669,7 +9669,7 @@ async function switchAutoFreeModel(id, selectEl) {
       return true;
     }
   } catch (e) {}
-  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = 'Could not change Auto fallback.'; }
+  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = pageT('model.auto_fallback_failed', 'Could not change Auto fallback.'); }
   return false;
 }
 
@@ -9699,7 +9699,7 @@ function makeCloudRow(m) {
     switching = true; it.disabled = true;
     delete it.dataset.selectionError;
     const previousHint = kind.textContent;
-    kind.textContent = 'Checking model and price…';
+    kind.textContent = pageT('model.checking', 'Checking model and price…');
     it.setAttribute('aria-busy', 'true');
     try {
     // The switch first asks the server to classify this exact provider/model, then
@@ -9721,7 +9721,7 @@ function makeCloudRow(m) {
 
 function buildCloudToolbar(onPricesChange) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar';
-  const lab = document.createElement('span'); lab.textContent = 'Sort'; bar.appendChild(lab);
+  const lab = document.createElement('span'); lab.textContent = pageT('addons.sort', 'Sort'); bar.appendChild(lab);
   const sel = document.createElement('select');
   Object.keys(CLOUD_ORDER_LABELS).forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = CLOUD_ORDER_LABELS[k]; if (k === cloudOrder) o.selected = true; sel.appendChild(o); });
   sel.addEventListener('click', (e) => e.stopPropagation());
@@ -9738,16 +9738,16 @@ function buildCloudToolbar(onPricesChange) {
 
 function buildAutoFallbackControl(freeModels) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar auto-fallback';
-  const lab = document.createElement('label'); lab.textContent = 'Auto fallback';
+  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto fallback');
   const sel = document.createElement('select');
-  const best = document.createElement('option'); best.value = 'auto'; best.textContent = 'Best verified free'; sel.appendChild(best);
+  const best = document.createElement('option'); best.value = 'auto'; best.textContent = pageT('model.auto_best_free', 'Best verified free'); sel.appendChild(best);
   freeModels.forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name || m.id; sel.appendChild(o); });
   sel.value = autoFreeModel;
   if (sel.value !== autoFreeModel) { autoFreeModel = 'auto'; sel.value = 'auto'; }
   sel.addEventListener('click', (e) => e.stopPropagation());
   sel.addEventListener('change', async (e) => { e.stopPropagation(); const previous = autoFreeModel; if (!(await switchAutoFreeModel(sel.value, sel))) sel.value = previous; });
   lab.appendChild(sel); bar.appendChild(lab);
-  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = 'used only by VOOL Auto; never paid'; bar.appendChild(hint);
+  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = pageT('model.auto_hint', 'used only by VOOL Auto; never paid'); bar.appendChild(hint);
   return bar;
 }
 
@@ -9825,7 +9825,7 @@ async function renderCloudModels() {
     row.className = 'pop-group cloud-dyn cloud-empty';
     const msg = document.createElement('span'); msg.className = 'pi-hint';
     const refreshInfo = data && typeof data.refresh === 'object' && data.refresh ? data.refresh : null;
-    if (fetchError) msg.textContent = 'Could not load the model catalog: ' + fetchError;
+    if (fetchError) msg.textContent = pageTF('model.catalog_load_failed', 'Could not load the model catalog: {error}', { error: fetchError });
     else if (refreshInfo && refreshInfo.ok === false) msg.textContent = 'Model catalog refresh failed' + (refreshInfo.error ? ': ' + refreshInfo.error : '') + '.';
     else msg.textContent = 'No model catalog loaded yet. The connection test checks your key, not the catalog.';
     row.appendChild(msg);

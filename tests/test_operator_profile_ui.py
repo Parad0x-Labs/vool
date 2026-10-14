@@ -120,7 +120,9 @@ def test_profile_frame_is_consumed_from_the_stream():
 @pytest.mark.parametrize('kind', ['candidate', 'item', 'scope'])
 @pytest.mark.parametrize('cancel', [False, True])
 def test_profile_text_entry_keeps_revision_and_cancel_authority(browser, kind, cancel):
-    prompt_source = HTML[HTML.index('function requestTextInput('):HTML.index('async function nativePickFolder(')]
+    # The dialog's buttons localize through the page's own pageT/pageTF; lift them verbatim too.
+    prompt_source = (HTML[HTML.index('function pageT('):HTML.index('const queueEl')]
+                     + HTML[HTML.index('function requestTextInput('):HTML.index('async function nativePickFolder(')])
     item_source = HTML[HTML.index('function renderProfileItem('):HTML.index('function _explainCloudError(')]
     item = {'item_id': 'synthetic-item', 'status': 'candidate' if kind == 'candidate' else 'active',
             'label': 'Nickname', 'value_text': 'Initial <b>value</b>', 'revision': 7,

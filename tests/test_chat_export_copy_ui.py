@@ -240,7 +240,8 @@ def test_copy_failure_is_reported_not_celebrated() -> None:
     source = _page_script()
     lo = source.index("function copyText(text, btn) {")
     hi = source.index("\n// Styled-clipboard support is probed", lo)
-    body = source[lo:hi].rstrip() + "\n"
+    # The button feedback localizes through the page's own pageT; lift it verbatim (no bundle: English).
+    body = source[source.index("function pageT("):source.index("function pageTF(")] + source[lo:hi].rstrip() + "\n"
     program = (
         "class El {\n"
         "  constructor() { this._t = ''; this._h = ''; this.dataset = {}; this.style = {}; }\n"
@@ -269,7 +270,8 @@ def test_textarea_fallback_refuses_cr_payloads() -> None:
     source = _page_script()
     lo = source.index("function copyText(text, btn) {")
     hi = source.index("\n// Styled-clipboard support is probed", lo)
-    body = source[lo:hi].rstrip() + "\n"
+    # The button feedback localizes through the page's own pageT; lift it verbatim (no bundle: English).
+    body = source[source.index("function pageT("):source.index("function pageTF(")] + source[lo:hi].rstrip() + "\n"
     program = (
         "class El {\n"
         "  constructor() { this._t = ''; this._h = ''; this.dataset = {}; this.style = {}; }\n"

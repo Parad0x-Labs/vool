@@ -138,7 +138,10 @@ def test_render_takes_no_unused_toggle() -> None:
 def _project_flow_page(browser, picker):
     import json
 
-    source = HTML[HTML.index('function _jget('):HTML.index('async function deleteProject(')]
+    # The flow's dialog and prompts localize through the page's own pageT/pageTF; lift them
+    # verbatim too (with no bundle loaded they return the inline English).
+    source = (HTML[HTML.index('function pageT('):HTML.index('const queueEl')]
+              + HTML[HTML.index('function _jget('):HTML.index('async function deleteProject(')])
     setup = '''
       window.posted = []; window.bound = []; window.legacyPrompts = 0;
       window.prompt = () => {window.legacyPrompts++; return null;};
