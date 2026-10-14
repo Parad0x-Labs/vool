@@ -517,6 +517,7 @@ _ERROR_TEXT = {
     "message_not_servable": "that message is withheld or erased",
     "pin_refused": "the pin store refused it",
     "no_message": "there's no answer of mine in this chat yet",
+    "private_chat": "private chat is on, so I'm not saving anything from this chat. Say \"turn recording back on\" first",
 }
 
 
@@ -881,7 +882,9 @@ def _record_demand_receipts(message: str, run: _Run, *, plan_text: str) -> None:
         return
 
 
-def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True) -> _Run:
+def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True, private: bool = False) -> _Run:
+    """Run the plan. ``private``: the turn is a private chat turn (core.private_chat), so nothing it
+    asks may be written: a pin, a name, a project move would keep the chat's id or the words typed."""
     from core import chat_housekeeping as hk
 
     run = _Run(session_id=str(session_id or ""))
@@ -902,6 +905,9 @@ def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True)
             continue
         if action.kind in _MUTATING and not mutations_allowed:
             run.lines.append(f"You asked me not to change anything, so I didn't {_verb(action.kind)} anything.")
+            continue
+        if action.kind in _MUTATING and private:
+            _fail(run, action.kind, "private_chat")
             continue
         if action.kind in ("pin_message", "unpin_message"):
             _do_message_pin(run, action)
@@ -939,7 +945,8 @@ def execute_plan(plan: Plan, *, session_id: str, mutations_allowed: bool = True)
         # The chats just acted on are what "it" means next.
         run.referent, run.referent_ambiguous = chats, False
     if run.search_hits is not None:
-        hk.remember_results(run.session_id, run.search_hits, query=" ".join(a.value for a in plan.actions if a.kind == "search"))
+        hk.remember_results(run.session_id, run.search_hits, query=" ".join(a.value for a in plan.actions if a.kind == "search"),
+                            private=private)
     return run
 
 
@@ -975,14 +982,19 @@ def maybe_handle_housekeeping_request(
                 reason="chat_housekeeping_not_owner_local",
             )
         }
+    from core.private_chat import turn_is_private
+
+    private = turn_is_private(source_context, session_id)
     try:
-        run = execute_plan(plan, session_id=session_id, mutations_allowed=not commands_forbidden_in_context(source_context))
+        run = execute_plan(plan, session_id=session_id, mutations_allowed=not commands_forbidden_in_context(source_context),
+                           private=private)
     except Exception as exc:  # a store failure is reported, never hidden behind a model answer
         run = _Run(session_id=str(session_id or ""))
         run.lines.append(f"I couldn't finish that: the chat store failed ({type(exc).__name__}). Nothing else was changed after the failure.")
         run.any_failure = True
         run.details.append({"action": "error", "error": f"{type(exc).__name__}: {exc}"[:300]})
-    hk.record_handled_request(session_id, effective_input or text)
+    if not private:
+        hk.record_handled_request(session_id, effective_input or text)
     _record_demand_receipts(str(effective_input or text), run, plan_text=text)
     response = "\n".join(line for line in run.lines if line).strip() or "I didn't find anything to change."
     response = response.replace("…**.", "…**").replace("….", "…")

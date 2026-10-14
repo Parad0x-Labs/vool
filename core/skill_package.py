@@ -653,6 +653,9 @@ def import_package(
             staged_dir = dirs[0] / slug
         try:
             _write_atomic(staged_dir / "SKILL.md", skill["bytes"])
+            # Someone else's file: whatever is installed from this draft is recorded as imported.
+            _write_atomic(staged_dir / skill_tools.IMPORTED_MARK,
+                          (json.dumps({"sha256": skill["sha256"]}) + "\n").encode("utf-8"))
         except OSError as exc:
             return {"status": "error", "reason": f"{type(exc).__name__}: could not stage the skill"}
         verdict = skill_tools.validate_skill(str(staged_dir / "SKILL.md"))

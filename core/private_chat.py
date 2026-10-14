@@ -35,12 +35,15 @@ from typing import Any
 from storage.db import get_connection
 
 __all__ = [
+    "PRIVATE_CHAT_REF",
     "PRIVATE_TASK_SUMMARY",
     "PRIVATE_TURN_KEY",
+    "REPLY_KEYS",
     "REPLY_REMEMBER_REFUSED",
     "PrivateCommand",
     "end_private_request",
     "is_private",
+    "localized_reply",
     "mark_request_private",
     "observe_private_door",
     "observe_private_turn",
@@ -49,6 +52,7 @@ __all__ = [
     "private_prompt_block",
     "private_request_session",
     "private_since",
+    "record_chat_ref",
     "request_is_private",
     "session_id_from",
     "set_private",
@@ -66,6 +70,9 @@ PRIVATE_TURN_KEY = "private_chat"
 SWITCHED_ON_KEY = "private_chat_switched_on"
 #: What a task row stores for a private turn instead of the turn's words.
 PRIVATE_TASK_SUMMARY = "private chat"
+#: What a record that can never be deleted (a signed, append-only manifest) names instead of the
+#: chat, when it is written for a private turn.
+PRIVATE_CHAT_REF = "private-chat"
 
 # ── storage ──────────────────────────────────────────────────────────────────
 
@@ -214,17 +221,51 @@ def private_request_session(request_id: str | None = None) -> str:
     return entry[1] if entry else ""
 
 
+# Chat-door requests still running, by request id: a private chat's records are erased only when no
+# other request of the same chat is still in flight (a second tab, a queued send, a saved turn after
+# "turn recording back on"), so a running turn never loses rows it is writing.
+_DOOR_REQUESTS: dict[str, str] = {}
+_DOOR_REQUESTS_MAX = 2048
+
+
+def _note_door_request(session_id: str) -> None:
+    rid = _current_request_id()
+    if not rid or not session_id:
+        return
+    with _LOCK:
+        _DOOR_REQUESTS[rid] = session_id
+        while len(_DOOR_REQUESTS) > _DOOR_REQUESTS_MAX:
+            _DOOR_REQUESTS.pop(next(iter(_DOOR_REQUESTS)), None)
+
+
+def chat_has_request_in_flight(session_id: str, *, besides: str = "") -> bool:
+    sid = _clean(session_id)
+    with _LOCK:
+        return any(owner == sid and rid != besides for rid, owner in _DOOR_REQUESTS.items())
+
+
 def end_private_request(request_id: str) -> int:
-    """Request end for a private turn: blank the words its working ledgers held while it ran.
+    """Request end for a private turn: blank the words its working ledgers held while it ran, and
+    erase the run records of a chat that has nothing saved.
 
     No-op for an ordinary request. Returns how many records were scrubbed.
     """
     rid = _clean(request_id)
+    with _LOCK:
+        _DOOR_REQUESTS.pop(rid, None)
     if not rid or not request_is_private(rid):
         return 0
     from core.conductor.obligation_ledger import scrub_request_texts
 
-    return scrub_request_texts(rid)
+    scrubbed = scrub_request_texts(rid)
+    # A chat with nothing saved leaves no run record that it existed (core.private_chat_traces),
+    # once none of its requests is still running.
+    from core.private_chat_traces import erase_if_unsaved
+
+    sid = private_request_session(rid)
+    if sid and not chat_has_request_in_flight(sid):
+        erase_if_unsaved(sid)
+    return scrubbed
 
 
 def turn_is_private(source_context: Mapping[str, Any] | None, session_id: str | None = None) -> bool:
@@ -237,6 +278,19 @@ def turn_is_private(source_context: Mapping[str, Any] | None, session_id: str | 
         return True
     sid = session_id_from(context, session_id)
     return bool(sid) and is_private(sid)
+
+
+def record_chat_ref(chat_id: Any) -> str:
+    """The chat id a permanent record may keep: :data:`PRIVATE_CHAT_REF` on a private turn of that
+    chat (or when the switch cannot be read), else the id itself."""
+    sid = _clean(chat_id)
+    if not sid or sid == PRIVATE_CHAT_REF:
+        return sid
+    try:
+        private = turn_is_private(None, sid)
+    except Exception:
+        private = True
+    return PRIVATE_CHAT_REF if private else sid
 
 
 #: Event detail keys a private turn's stored runtime events may keep: identities and states only.
@@ -428,7 +482,12 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
     elif on:
         chosen, action = on, ON
     else:
-        return None
+        # The app's other languages, read as strictly (core.private_chat_languages), whatever
+        # language the app is shown in: people mix.
+        from core.private_chat_languages import parse as parse_other_language
+
+        other = parse_other_language(raw, currently_private=currently_private)
+        return PrivateCommand(*other) if other is not None else None
     return PrivateCommand(action, _rest_without(raw, chosen))
 
 
@@ -480,14 +539,73 @@ REPLY_FAILED_ON = (
 )
 
 
-def private_prompt_block() -> str:
-    """The system note a model sees on a private turn, so it never promises to remember."""
+#: The catalog key of each reply (core/i18n/catalogs, ``private.reply.*``). The English constants
+#: above are the source: en.json carries them byte for byte, and a test pins the mirror.
+REPLY_KEYS = {
+    "private.reply.on": REPLY_ON,
+    "private.reply.already_on": REPLY_ALREADY_ON,
+    "private.reply.off": REPLY_OFF,
+    "private.reply.already_off": REPLY_ALREADY_OFF,
+    "private.reply.status_on": REPLY_STATUS_ON,
+    "private.reply.status_off": REPLY_STATUS_OFF,
+    "private.reply.remember_refused": REPLY_REMEMBER_REFUSED,
+    "private.reply.failed": REPLY_FAILED,
+    "private.reply.failed_on": REPLY_FAILED_ON,
+}
+_KEY_OF_REPLY = {text: key for key, text in REPLY_KEYS.items()}
+
+
+def localized_reply(reply: str, source_context: Mapping[str, Any] | None) -> str:
+    """``reply`` (one of the English REPLY_* constants) in the app language of this turn's page.
+
+    English when the page sent no language, an unknown one, or its catalog cannot serve the key.
+    """
+    from core.private_chat_languages import ui_locale_of
+
+    key = _KEY_OF_REPLY.get(reply)
+    locale = ui_locale_of(source_context)
+    if key is None or locale == "en":
+        return reply
+    try:
+        from core.i18n.catalog import catalog_for
+
+        catalog = catalog_for(locale)
+        if key not in catalog.locale_keys:
+            return reply
+        return catalog.text(key)
+    except Exception:
+        _log.warning("private chat reply catalog unreadable; answering in English", exc_info=True)
+        return reply
+
+
+def _say_in_app_language(english: str, which: str, locale: str | None) -> str:
+    """``"english"``, plus the app language's own words for it when the app is not in English."""
+    from core.private_chat_languages import LANGUAGES, canonical
+
+    if not locale or locale not in LANGUAGES:
+        return f'"{english}"'
+    try:
+        from core.i18n.locales import get_locale
+
+        spec = get_locale(locale)
+        language = spec.endonym if spec is not None else locale
+    except Exception:
+        language = locale
+    return f'"{english}" (in the app\'s language, {language}: "{canonical(locale, which)}")'
+
+
+def private_prompt_block(locale: str | None = None) -> str:
+    """The system note a model sees on a private turn, so it never promises to remember.
+
+    Written in English, like every other system note VOOL gives a model; when the app is shown in
+    another language the note also names the words that end private chat in that language.
+    """
     return (
         "PRIVATE CHAT IS ON for this conversation. Nothing from this chat is saved: not the "
         "messages, not a summary, not memory. Never say you will remember, keep in mind, note or "
         "save anything from it, and never claim anything was saved. If the user asks you to "
         "remember something, say private chat is on, so it won't be kept, and that they can say "
-        "\"turn recording back on\" first."
+        f"{_say_in_app_language('turn recording back on', 'off', locale)} first."
     )
 
 
@@ -515,17 +633,33 @@ def looks_like_privacy_request(text: str) -> bool:
     """Loose: the message talks about (not) recording or saving, in any way the parser did not
     read as a command. Used only to tell the model the truth, never to switch anything."""
     raw = str(text or "").translate(_APOSTROPHES)
-    return bool(_PRIVACY_ASK_RE.search(raw) or (_FOREIGN_SAVE_RE.search(raw) and _FOREIGN_NOT_RE.search(raw)))
+    if _PRIVACY_ASK_RE.search(raw) or (_FOREIGN_SAVE_RE.search(raw) and _FOREIGN_NOT_RE.search(raw)):
+        return True
+    from core.private_chat_languages import mentions_privacy
+
+    return mentions_privacy(raw)
 
 
-def not_on_prompt_block() -> str:
+def not_on_prompt_block(locale: str | None = None) -> str:
     """The system note for a turn that may ask not to be recorded while private chat is off."""
     return (
         "PRIVATE CHAT IS NOT ON for this conversation: it is being saved as usual. If the user is "
         "asking you not to record, save or remember something, say plainly that this chat is still "
-        "being saved, and that they can say \"private chat\" (in English) to turn private chat on. "
+        f"being saved, and that they can say {_say_in_app_language('private chat', 'on', locale)} "
+        "to turn private chat on. "
         "Never say you won't save it, will forget it, or will keep it off the record."
     )
+
+
+def _release_unused_row(session_id: str) -> None:
+    """A chat that turns private before anything of it was saved (one opened inside a project
+    already has its row) keeps no row (core.context_namespace.release_unused_chat_row)."""
+    try:
+        from core.context_namespace import release_unused_chat_row
+
+        release_unused_chat_row(session_id)
+    except Exception:
+        _log.warning("private chat could not release an unused chat row", exc_info=True)
 
 
 def observe_private_door(
@@ -547,6 +681,7 @@ def observe_private_door(
     """
     context = source_context if isinstance(source_context, dict) else None
     sid = _clean(session_id)
+    _note_door_request(sid)
     currently = is_private(sid) if sid else False
     try:
         command = parse_private_command(user_text, currently_private=currently)
@@ -560,6 +695,7 @@ def observe_private_door(
                 set_private(sid, True)
                 if context is not None:
                     context[SWITCHED_ON_KEY] = True
+                _release_unused_row(sid)
             except Exception:
                 _log.warning("private chat switch failed at the chat door", exc_info=True)
     if private:
@@ -609,6 +745,8 @@ def observe_private_turn(
                 elif command.bare:
                     reply = REPLY_FAILED
             else:
+                if want_on and now_on and not currently:
+                    _release_unused_row(sid)
                 if command.bare and reply is None:
                     if want_on:
                         reply = REPLY_ALREADY_ON if currently else REPLY_ON
@@ -629,6 +767,7 @@ def observe_private_turn(
         context[NOT_ON_KEY] = True
     if reply is None:
         return None
+    reply = localized_reply(reply, context if context is not None else source_context)
     return {
         "result": agent._fast_path_result(
             session_id=session_id,

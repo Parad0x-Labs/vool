@@ -867,10 +867,7 @@ def dispatch_get(
         separate from the model answer language (its own Settings widget) and from dictation
         recognition (its own composer control).
         """
-        from core.i18n.catalog import resolve_render_locale
-
-        query_locale = (page_query.get("ui_locale") or [""])[0]
-        return resolve_render_locale(query_locale, _ui_locale_cookie(page_headers), "en")
+        return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -939,6 +936,20 @@ def dispatch_get(
         except Exception as exc:
             return apply_runtime_headers(
                 json_response(500, {"ok": False, "error": "notification_store_unavailable", "reason": type(exc).__name__}), runtime
+            )
+        return apply_runtime_headers(json_response(200, view), runtime)
+    # Market watches (Settings > Notifications > Watching): the wallet and price watch list.
+    # Owner-local read, exactly like the notification preference reads above it.
+    if normalized_path == "/api/market/watches":
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core import market_watch
+
+        try:
+            view = market_watch.settings_view()
+        except Exception as exc:
+            return apply_runtime_headers(
+                json_response(500, {"ok": False, "error": "market_watch_unavailable", "reason": type(exc).__name__}), runtime
             )
         return apply_runtime_headers(json_response(200, view), runtime)
     if normalized_path == "/api/calendar/alerts":
@@ -1299,6 +1310,14 @@ def dispatch_get(
             runtime,
         )
 
+    if normalized_path in ("/api/chat/import/sources", "/api/chat/import/status"):
+        # Bring chats from other AI apps (Settings): which local apps are present (existence
+        # checks only) and how a running import is going. Owner-only, same guards as X setup.
+        from core.web.api.chat_import_api import handle_get as _chat_import_get
+
+        _ci_status, _ci_payload = _chat_import_get(normalized_path, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
+
     if normalized_path == "/api/chat/attachments/limits":
         # The rules the composer states up front, from the same tables the door enforces.
         from core.chat_attachments import limits_payload
@@ -1420,6 +1439,12 @@ def dispatch_get(
                     json_response(404, {"error": "session not found"}),
                     runtime,
                 )
+            # A chat brought in from another app: its messages come first, as history. They
+            # are marked `imported` so the page shows them and never sends them to a model.
+            if not str((query.get("event_kind") or [""])[0]):
+                from core.chat_import.store import imported_history_messages
+
+                messages.extend(imported_history_messages(session_id))
             # `include_artifacts=True` is what makes this the TRANSCRIPT reader rather than
             # a recall reader: assistant-authored artifacts (a council verdict card) are
             # part of what the chat log shows and part of nothing the model is fed.
@@ -1428,8 +1453,9 @@ def dispatch_get(
             ):
                 # Background refresh uses the same governed transcript projection,
                 # with only reminder artifacts crossing the wire.
-                event_kind = str((query.get("event_kind") or [""])[0])
-                if event_kind and str(event.get("artifact_kind") or "") != event_kind:
+                # one kind, or several comma-separated (reminders and paid AI answers share the idle refresh)
+                event_kinds = {k for k in str((query.get("event_kind") or [""])[0]).split(",") if k}
+                if event_kinds and str(event.get("artifact_kind") or "") not in event_kinds:
                     continue
                 user_text = str(event.get("user") or "").strip()
                 assistant_text = str(event.get("assistant") or "").strip()
@@ -2983,6 +3009,55 @@ def dispatch_get(
     return apply_runtime_headers(json_response(404, {"error": "not found"}), runtime)
 
 
+#: Body fields that carry a credential on the Settings routes that write one. They are withheld from the
+#: accept-once digest (invocation_requests.raw_digest): an unkeyed hash of a body holding a password is
+#: an offline guessing target. The digest still binds every other field of the request.
+_DIGEST_WITHHELD_FIELDS: dict[str, tuple[str, ...]] = {
+    "/api/email/accounts/add": ("password",),
+    "/api/x/setup": ("bearer_token", "credentials"),
+}
+
+
+def _body_for_digest(normalized_path: str, body: dict[str, Any]) -> dict[str, Any]:
+    withheld = _DIGEST_WITHHELD_FIELDS.get(normalized_path)
+    if not withheld:
+        return body
+    return {key: ("<withheld>" if key in withheld else value) for key, value in body.items()}
+
+
+def _credential_page_refusal(headers: dict[str, Any] | None, client_host: str) -> str:
+    """Why a Settings POST that writes a credential is refused, or '' when it may proceed.
+
+    'owner': not this machine's loopback peer, or the browser says another site (any port) sent it.
+    'content_type': not exactly application/json. An empty type is refused too: a page on another
+    local port can send a typeless body without a CORS preflight.
+    'origin': an Origin that is not this app's own scheme, host AND port (the Host header). A request
+    with no Origin (a local non-browser client) passes the other checks unchanged."""
+    from urllib.parse import urlsplit
+
+    from core.web.api.runtime import host_header_allowed
+
+    lowered = {str(key).lower(): str(value or "") for key, value in (headers or {}).items()}
+    if not is_loopback_host(client_host):
+        return "owner"
+    site = lowered.get("sec-fetch-site", "").strip().lower()
+    if site and site not in ("same-origin", "none"):
+        return "owner"
+    if lowered.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        return "content_type"
+    origin = lowered.get("origin", "").strip()
+    if origin:
+        host = lowered.get("host", "").strip().lower()
+        try:
+            parts = urlsplit(origin)
+            netloc = parts.netloc.lower()
+        except ValueError:
+            return "origin"
+        if parts.scheme not in ("http", "https") or not host or netloc != host or not host_header_allowed(host):
+            return "origin"
+    return ""
+
+
 def dispatch_post(
     *,
     path: str,
@@ -3042,6 +3117,7 @@ def dispatch_post(
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
         "/api/calendar/accounts/reconnect",
+        "/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove",
     }:
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
@@ -3115,6 +3191,30 @@ def dispatch_post(
             patch = body.get("preferences")
             result = notification_center.save_preferences(patch if isinstance(patch, dict) else {})
             return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
+        # Market watches: owner-local actions on the watch list (pause, resume, remove), the
+        # same lane shape as the notification preference writes above them.
+        if normalized_path in {"/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove"}:
+            from core import market_watch
+
+            # Same-origin only, like the X setup routes: a page on another site cannot pause or
+            # remove a watch through the owner's browser.
+            fetch_site = next((str(value or "") for key, value in (headers or {}).items()
+                               if str(key).lower() == "sec-fetch-site"), "")
+            if fetch_site.lower() == "cross-site":
+                return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross_site_refused"}), runtime)
+
+            selector = {"id": str(body.get("id") or ""), "subject": str(body.get("subject") or "")}
+            try:
+                if normalized_path.endswith("/pause"):
+                    result = market_watch.set_state(selector, "paused")
+                elif normalized_path.endswith("/resume"):
+                    result = {"ok": True, "watch": market_watch.resume_watch(selector)}
+                else:
+                    result = market_watch.remove_watch(selector)
+            except market_watch.WatchError as exc:
+                status_code = 404 if exc.code == "unknown_watch" else 400 if exc.code == "requirement_missing" else 409
+                return apply_runtime_headers(json_response(status_code, {"ok": False, "reason": exc.code, "detail": exc.message}), runtime)
+            return apply_runtime_headers(json_response(200, result), runtime)
         if normalized_path == "/api/calendar/alerts/policy":
             result = calendar_alerts.set_lead_minutes(
                 account_id=str(body.get("account_id") or ""), calendar_id=str(body.get("calendar_id") or ""),
@@ -3207,7 +3307,7 @@ def dispatch_post(
             else f"channel:http:{client_host or 'unknown'}"
         )
         _raw_digest = "sha256:" + _hashlib.sha256(
-            json.dumps(body, sort_keys=True, ensure_ascii=True, default=str).encode("utf-8")
+            json.dumps(_body_for_digest(normalized_path, body), sort_keys=True, ensure_ascii=True, default=str).encode("utf-8")
         ).hexdigest()
         _accepted = accept_invocation(
             external_kind="http",
@@ -3432,6 +3532,19 @@ def _ui_locale_cookie(headers: dict[str, Any] | None) -> str:
     return morsel.value if morsel else ""
 
 
+def request_ui_locale(headers: dict[str, Any] | None, query_locale: str = "") -> str:
+    """The app's UI language for one request: ?ui_locale= > the vool_ui_locale cookie > en.
+
+    The cookie is what the page's language picker persists (core.i18n.page_bundle), and every
+    same-origin request the page makes carries it, a chat turn included. Unknown values are skipped,
+    never guessed (core.i18n.catalog.resolve_render_locale). The cookie is read by the same
+    _ui_locale_cookie the turn's bound locale uses (core.i18n.turn_locale), so the two never disagree.
+    """
+    from core.i18n.catalog import resolve_render_locale
+
+    return resolve_render_locale(query_locale, _ui_locale_cookie(headers), "en")
+
+
 # ---- Chat attachments: the ONE raw-body door, and the receipts every step leaves --------------
 #
 # Bytes never arrive as JSON. Both HTTP shells (starlette `_dispatch` and the legacy handler)
@@ -3444,15 +3557,24 @@ BUNDLE_UPLOAD_PATH = "/api/session/bundle/upload"
 BUNDLE_UPLOAD_CEILING = 256 * 1024 * 1024
 
 
+#: An export zip of chats from another AI app (core.web.api.chat_import_api).
+CHAT_IMPORT_UPLOAD_PATH = "/api/chat/import/upload"
+
+
 def is_raw_upload_path(path: str) -> bool:
-    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH)
+    return (str(path or "").rstrip("/") or "/") in (RAW_UPLOAD_PATH, BUNDLE_UPLOAD_PATH, CHAT_IMPORT_UPLOAD_PATH)
 
 
 def raw_upload_body_ceiling(path: str = "") -> int:
     """The largest body the raw door will hold whole: the per-file limit plus header slack,
-    or the bundle ceiling for the session-bundle door."""
+    or the bundle ceiling for the session-bundle door, or the export-zip ceiling for the chat
+    import door."""
     if (str(path or "").rstrip("/") or "/") == BUNDLE_UPLOAD_PATH:
         return BUNDLE_UPLOAD_CEILING
+    if (str(path or "").rstrip("/") or "/") == CHAT_IMPORT_UPLOAD_PATH:
+        from core.web.api.chat_import_api import upload_ceiling
+
+        return upload_ceiling()
     from core.chat_attachments import MAX_BYTES_PER_FILE
 
     return MAX_BYTES_PER_FILE + 64 * 1024
@@ -3503,6 +3625,14 @@ def dispatch_upload(
 
     def _out(response: ApiResponse) -> ApiResponse:
         return apply_runtime_headers(response, runtime) if runtime is not None else response
+
+    if path == "/api/chat/import/upload":
+        # An export zip of chats from another AI app, picked in Settings: kept owner-only under
+        # the data folder and answered with an opaque id. Nothing is read until the preview.
+        from core.web.api.chat_import_api import handle_upload as _chat_import_upload
+
+        _ciu_status, _ciu_payload = _chat_import_upload(raw_body, headers=headers, client_host=client_host)
+        return _out(json_response(_ciu_status, _ciu_payload))
 
     if path == "/api/session/bundle/upload":
         # A session-bundle file the operator picked for import: staged under the home's
@@ -5161,27 +5291,26 @@ def _dispatch_post_inner(
         _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()})
         return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
 
+    if normalized_path in ("/api/chat/import/preview", "/api/chat/import/start", "/api/chat/import/discard"):
+        # Bring chats from other AI apps (Settings): preview a source the user picked, import the
+        # chats they ticked, or drop the preview. Owner-only, same guards as /api/x/setup below.
+        from core.web.api.chat_import_api import handle_post as _chat_import_post
+
+        _ci_status, _ci_payload = _chat_import_post(normalized_path, body, headers=headers, client_host=client_host)
+        return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
+
     if normalized_path == "/api/x/setup":
         # Guided X (Twitter) connection from Settings: check, save, test or remove the user's own X
         # keys. Every check is a read (core/x_setup.py); nothing here posts to X. Owner-local and
         # same-origin only; the response never carries key material.
         import json as _json
 
-        from core.web.api.runtime import host_header_allowed
-
-        def _x_setup_header(name: str) -> str:
-            for key, value in (headers or {}).items():
-                if str(key).lower() == name:
-                    return str(value or "")
-            return ""
-
-        if not is_loopback_host(client_host) or _x_setup_header("sec-fetch-site").lower() == "cross-site":
+        _xs_refusal = _credential_page_refusal(headers, client_host)
+        if _xs_refusal == "owner":
             return apply_runtime_headers(json_response(403, {"error": "X setup is only available inside this VOOL app"}), runtime)
-        content_type = _x_setup_header("content-type").lower()
-        if content_type and "json" not in content_type:
+        if _xs_refusal == "content_type":
             return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
-        origin = _x_setup_header("origin").strip()
-        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+        if _xs_refusal:
             return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
         try:
             if len(_json.dumps(body)) > 65536:
@@ -5233,6 +5362,32 @@ def _dispatch_post_inner(
 
         _xa_status, _xa_payload = _cr_forward("x.activity", dict(body), client_host=client_host)
         return apply_runtime_headers(json_response(_xa_status, _xa_payload), runtime)
+
+    if normalized_path in ("/api/email/accounts/add", "/api/email/accounts/remove"):
+        # Add or remove a password (IMAP/SMTP) email account from Settings (core/email_setup.py). Adding
+        # signs in to the mail servers once, with certificates verified, and stores the account only after
+        # they accept the login. The guards are the ones /api/x/setup uses (_credential_page_refusal):
+        # owner-local, same origin including the port, application/json only, bounded body. The response
+        # never carries the password, and the accept-once digest withholds it (_body_for_digest).
+        import json as _json
+
+        from core import email_setup
+
+        _es_refusal = _credential_page_refusal(headers, client_host)
+        if _es_refusal == "owner":
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        if _es_refusal == "content_type":
+            return apply_runtime_headers(json_response(415, {"ok": False, "error": "content-type must be application/json"}), runtime)
+        if _es_refusal:
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 65536:
+                return apply_runtime_headers(json_response(413, {"ok": False, "error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"ok": False, "error": "unserializable body"}), runtime)
+        _es_action = "add" if normalized_path.endswith("/add") else "remove"
+        _es_status, _es_payload = email_setup.handle(_es_action, dict(body))
+        return apply_runtime_headers(json_response(_es_status, _es_payload), runtime)
 
     if normalized_path == "/api/search/detect":
         # Which provider does this pasted key belong to? Prefix-only, entirely local: nothing is
@@ -7024,11 +7179,18 @@ def _dispatch_post_inner(
                         runtime,
                     )
                 through_turn = candidate_turn
-            cloned = clone_chat_namespace(
-                session_id,
-                new_session_id,
-                through_turn=through_turn,
-            )
+            try:
+                cloned = clone_chat_namespace(
+                    session_id,
+                    new_session_id,
+                    through_turn=through_turn,
+                )
+            except ValueError as exc:
+                # A deleted chat, a private chat nothing was saved of, or a taken target id.
+                return apply_runtime_headers(
+                    json_response(409, {"error": str(exc)}),
+                    runtime,
+                )
             if cloned.project_id:
                 set_session_meta(
                     cloned.chat_id,
@@ -7602,6 +7764,11 @@ def _dispatch_post_inner(
 
         source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
         source_context["chat_id"] = context_namespace.chat_id
+        # The page's app language, server-read from its cookie (never a body field): a reply VOOL
+        # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).
+        from core.private_chat_languages import UI_LOCALE_KEY
+
+        source_context[UI_LOCALE_KEY] = request_ui_locale(headers)
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id
         requested_model = str(model or "").strip()

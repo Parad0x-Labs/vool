@@ -2765,6 +2765,8 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             handler="external_lane",
             permission_actions=("spend_funds",),
         ),
+        # Pay-per-answer AI over x402: asks an endpoint the owner added and parks its payment; never pays.
+        *_paid_ai_contracts(wallet_tools_enabled=wallet_tools_enabled),
         RuntimeToolContract(
             intent="operator.list_tools",
             description="List the operator tools this runtime exposes.",
@@ -3186,13 +3188,24 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
     ]
 
 
+def _paid_ai_contracts(*, wallet_tools_enabled: bool) -> list[RuntimeToolContract]:
+    from core.x402_ai import contracts
+
+    return contracts(wallet_tools_enabled=wallet_tools_enabled)
+
+
 def _chain_contracts() -> list[RuntimeToolContract]:
     from core.chain_data import chain_contracts
+    from core.market_data import market_contracts
+    from core.market_watch import market_watch_contracts
+    from core.token_flow import flow_contracts
     from core.token_performance import performance_contracts
     from core.token_research import research_contracts
 
     # token.research rides beside the chain lookup; it adds the X gate only when X is connected.
-    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts()]
+    # market_watch rides here too: its reads are the chain and price tools' own, already gated.
+    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts(),
+            *market_watch_contracts(), *market_contracts(), *flow_contracts()]
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:

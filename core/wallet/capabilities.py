@@ -172,6 +172,8 @@ def network_rows(*, active_environment: str, wallets: list[dict[str, Any]]) -> l
             "display_name": spec.display_name, "environment": spec.environment, "family": spec.family, "active": spec.environment == active_environment,
             **environment_module.presentation(spec),
             "native_symbol": native.symbol, "native_display_symbol": spec.native_display_symbol or native.symbol, "native_decimals": native.decimals,
+            # the tokens a Crypto Pilot account on this row may send besides the native coin (USDT on the rows that carry it)
+            "send_tokens": [{"symbol": token.symbol, "decimals": token.decimals} for token in chains.user_transfer_tokens(spec.network)],
             "explorer_label": spec.explorer_label, "explorer_link_text": f"View on {spec.explorer_label}" if spec.explorer_label else "",
             "fee_model": spec.fee_model, "finality": spec.finality,
             "accounts": row_accounts,

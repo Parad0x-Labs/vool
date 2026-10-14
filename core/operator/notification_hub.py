@@ -164,12 +164,23 @@ def migrate_market_state(read_seq, dismissed):
         return centre.import_model_read_state(states)
 
 
+def _private_turn(session_id) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(None, str(session_id or ""))
+    except Exception:
+        return True
+
+
 def record_runtime_event(session_id, event):
     kind = event.get("event_type")
     if kind not in {"task_completed", "task_failed", "task_cancelled", "task_pending_approval"}:
         return
     if kind == "task_completed" and event.get("status") in _NON_WORK_COMPLETIONS:
         return
+    if kind != "task_pending_approval" and _private_turn(session_id):
+        return  # a private chat's turns are not announced: the item would name the chat for good
     turn = event.get("client_turn_id") or event.get("turn_key")
     if not turn:
         return  # no stable identity: never guess which turn ended

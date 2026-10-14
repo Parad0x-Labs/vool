@@ -435,6 +435,13 @@ def build_context_manifest(
     candidate_items: list[dict[str, Any]] | None = None,
 ) -> ContextManifest:
     manifest_id = str(uuid.uuid4())
+    # The manifest is signed and can never be deleted: a private turn's names no chat.
+    from core.private_chat import record_chat_ref
+
+    chat_id = record_chat_ref(chat_id)
+    access_policy = dict(access_policy or {})
+    if "chat_id" in access_policy:
+        access_policy["chat_id"] = record_chat_ref(access_policy["chat_id"])
     safe = _sanitized_manifest_fields(
         task_id=task_id,
         trace_id=trace_id,

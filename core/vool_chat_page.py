@@ -2334,6 +2334,30 @@ function ensureSessionInSidebar(chatId, firstMessage) {
     archived: false,
     pending: true,
   });
+  // The server already said this chat is private and nothing of it is saved (reopened after a
+  // reload): its row is the private one from the start, so the words just typed (the last history
+  // entry) never title it. The turn's commit corrects it if the message turns out to be saved.
+  const st = chatState(chatId);
+  if (st.privateChat && st.history.slice(0, -1).every((m) => m.role !== 'user' || isPrivateEntry(m))) {
+    markPendingSessionPrivate(chatId, true);
+    return;
+  }
+  renderSessions(_lastSessions);
+}
+// A chat that started private (core.private_chat) is never in the server's chat list: it has no
+// saved message and no chat record. Its overlay row stays on this page only, named by the private
+// label rather than by the words typed, offers no action that would save something about it, and is
+// gone after a reload. The first saved turn makes the server's own row, which replaces it.
+function markPendingSessionPrivate(chatId, isPrivate, savedText) {
+  const row = _pendingSessions.get(chatId);
+  if (!row || !!row.private === !!isPrivate) return;
+  if (isPrivate) {
+    row.private = true;
+    row.title = pageT('private.banner_short', 'Private');
+  } else {
+    delete row.private;
+    row.title = String(savedText || '').split('\n')[0].trim().slice(0, 60) || '(new chat)';
+  }
   renderSessions(_lastSessions);
 }
 // A chat exists on the server only once its first turn ends, so a rename (or archive) made while
@@ -2415,7 +2439,9 @@ function splitAssistantDisplayContent(text, metadata) {
   return { content: content, display_metadata: displayMetadata };
 }
 function canonicalMessagesForModel(history) {
-  return (history || []).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
+  // Messages brought in from another app are history to read, never model input: they are
+  // left out here, so continuing such a chat sends only what was said in VOOL.
+  return (history || []).filter((m) => !(m && m.imported)).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
 }
 function applyResponseCommit(run, commit) {
   if (!run || !commit || commit.type !== 'response.commit' || Number(commit.version) < 1) return false;
@@ -2841,8 +2867,12 @@ function applyPrivateCommit(run, meta) {
     if (userEntry) delete userEntry.private;
     withRunDom(run, () => unmarkPrivateMsg(run.userMsgEl));
     if (owner.privateChat) { owner.privateChat = false; if (isDisplayed(run.chatId)) reflectPrivate(); }
+    markPendingSessionPrivate(run.chatId, false, userEntry && userEntry.content);
     return;
   }
+  // Only a chat with no saved message: one that was saved first is the server's row by now, or
+  // will be, and keeps its title.
+  if (owner.history.every((m) => m.role !== 'user' || m === userEntry || m.private)) markPendingSessionPrivate(run.chatId, true);
   run.private = true;
   if (userEntry) userEntry.private = true;
   owner.privateChat = !!meta.private_chat_on;
@@ -3407,6 +3437,12 @@ function makeSessionItem(s, archived, nested) {
   item.addEventListener('click', (e) => {
     if (e.target === item || e.target === emo || (e.target.classList && e.target.classList.contains('lc-badge'))) openSession(s.session_id);
   });
+  if (s.private) {
+    item.classList.add('session-private');
+    emo.innerHTML = GHOST_SVG;
+    item.appendChild(emo); item.appendChild(title);
+    return item;
+  }
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
@@ -3895,12 +3931,14 @@ async function refreshReminderArtifacts(chatId) {
   const run = target.run, length = target.history.length;
   reminderRefreshes.add(chatId);
   try {
-    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery');
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery,paid_ai_answer');
     if (!r.ok) return;
     const data = await r.json();
     if (target.run !== run || target.history.length !== length || (target.run && !target.run.ended)) return;
+    // a paid AI answer arrives after its payment is approved: one per payment
     const key = (m) => m.artifact && m.artifact.kind === 'reminder_delivery' && m.artifact.reminder_id
-      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '') : '';
+      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '')
+      : (m.artifact && m.artifact.kind === 'paid_ai_answer' && m.artifact.proposal_id ? 'paid:' + String(m.artifact.proposal_id) : '');
     const seen = new Set(target.history.map(key).filter(Boolean));
     let changed = false;
     for (const m of (data.messages || [])) {
@@ -5044,9 +5082,10 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!host || !chatId || !requestId || host.querySelector('.msg-export-pdf')) return;
   const actions = host.querySelector('.msg-actions');
   if (!actions) return;
+  const label = (key, fallback) => (typeof pageT === 'function') ? pageT(key, fallback) : fallback;
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = pageT('msg.pdf_title', 'Download this answer as PDF');
+  button.textContent = '\u2193'; button.title = label('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -5057,13 +5096,13 @@ function mountAnswerExport(host, chatId, requestId) {
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
         if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
-        status.textContent = result.cancelled ? pageT('msg.pdf_cancelled', 'Cancelled') : pageT('msg.pdf_saved', 'Saved');
+        status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || pageT('msg.pdf_failed', 'PDF export failed'));
+          throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
@@ -5071,9 +5110,9 @@ function mountAnswerExport(host, chatId, requestId) {
         link.href = url; link.download = 'vool-answer.pdf';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
-        status.textContent = pageT('msg.pdf_downloaded', 'Downloaded');
+        status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || pageT('msg.pdf_failed', 'PDF export failed'); }
+    } catch (error) { status.textContent = error.message || label('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -5532,15 +5571,21 @@ function paintStreamingText(run) {
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
-  run.streamPaintTimer = setTimeout(() => {
+  // Leading edge: a piece that arrives after a quiet spell paints at once; pieces that follow
+  // close behind are batched into one paint every streamPaintDelay.
+  const paint = () => {
     run.streamPaintTimer = null;
     if (run.ended) return;
     withRunDom(run, () => {
       if (!run.textEl) return;
       paintStreamingText(run);
+      run.lastStreamPaint = Date.now();
       followLog();   // only while the reader is at the bottom
     });
-  }, streamPaintDelay(run));
+  };
+  const wait = (run.lastStreamPaint || 0) + streamPaintDelay(run) - Date.now();
+  if (wait <= 0) { paint(); return; }
+  run.streamPaintTimer = setTimeout(paint, wait);
 }
 function endStreamPaint(run) {
   if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
@@ -5553,7 +5598,14 @@ function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else paintStreamingText(run);
+      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata);
+      else {
+        // The fresh node now shows everything so far: a batched paint still waiting is moot, and
+        // the next piece paints straight into this node.
+        if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+        paintStreamingText(run);
+        run.lastStreamPaint = 0;
+      }
     } else if (run.assistantMsgEl) {
       run.assistantMsgEl.classList.add('pending');
       run.textEl.textContent = '…';
@@ -9174,6 +9226,7 @@ function attachmentMeta(a) {
 // A transcript row from the server, with the attachment receipt the runtime persisted with it.
 function historyEntryFromServer(m) {
   const entry = { role: m.role, content: m.content, ts: m.ts, request_id: m.request_id || '' };
+  if (m.imported === true) entry.imported = true;
   if (m.artifact && typeof m.artifact === 'object') entry.artifact = { ...m.artifact };
   if (m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length) {
     entry.attachments = m.attachments.map((a) => Object.assign(attachmentMeta(a), { previewUrl: '' }));
@@ -12468,7 +12521,7 @@ function renderSkills(d, query) {
   }
   const q = String(query || '').trim().toLowerCase();
   let skills = [];
-  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party })));
+  (d.plugins || []).forEach((pl) => (pl.skills || []).forEach((s) => skills.push({ name: s.name, description: s.description, plugin: pl.name || pl.id, first_party: pl.first_party, own: !pl.first_party && s.own === true, slug: s.slug })));
   if (q) skills = skills.filter((s) => ((s.name || '') + ' ' + (s.description || '') + ' ' + (s.plugin || '')).toLowerCase().indexOf(q) !== -1);
   skills.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   const head = document.createElement('div'); head.className = 'plugins-empty'; head.style.marginBottom = '12px';
@@ -12487,6 +12540,8 @@ function renderSkills(d, query) {
     if (s.first_party) h.appendChild(_firstPartyBadge());
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
+    // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
+    if (s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
     body.appendChild(card);
   });
 }
@@ -13330,7 +13385,9 @@ panelBtnEl.addEventListener('click', togglePanel);
         previewEl.textContent = "Couldn't count this chat's messages right now.";
         return;
       }
-      const n = Number(j.message_count) || 0;
+      // No count in the answer means the count is unknown, not zero: never claim an empty chat.
+      if (typeof j.message_count !== 'number') { previewEl.textContent = "Couldn't count this chat's messages right now."; return; }
+      const n = j.message_count;
       if (!n) { nothing('Nothing to export yet. Send a message first.'); return; }
       const lines = ['Exports all ' + n + ' message' + (n === 1 ? '' : 's') + ' in this chat.'];
       if (j.unavailable_by_policy) lines.push(j.unavailable_by_policy + ' kept out by your privacy settings.');
@@ -13355,11 +13412,13 @@ panelBtnEl.addEventListener('click', togglePanel);
     try {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi) {
-        if (typeof nativeApi.save_chat_export !== 'function') throw new Error('This app build cannot save chat exports. Update the app and try again.');
+        // The app's own refusal is the useful part, so it is shown as given.
+        const refusal = (message) => { const err = new Error(message); err.fromApp = true; return err; };
+        if (typeof nativeApi.save_chat_export !== 'function') throw refusal('This app build cannot save chat exports. Update the app and try again.');
         nativeExportBusy = true;
         const result = await nativeApi.save_chat_export(exportChat, fmt,
           el('exportTimestamps').checked, el('exportAttachments').checked);
-        if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'Export save failed');
+        if (!result.ok && !result.cancelled) throw refusal(result.message || result.error || "Couldn\u2019t export this chat. Try again.");
         statusEl.textContent = result.cancelled ? 'Export cancelled.' : 'Export saved.';
         if (result.ok) overlay.hidden = true;
         return;
@@ -13388,6 +13447,7 @@ panelBtnEl.addEventListener('click', togglePanel);
     } catch (e) {
       exportAborter = null;
       statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
+        : (e && e.fromApp) ? e.message
         : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;

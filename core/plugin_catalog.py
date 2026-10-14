@@ -150,6 +150,8 @@ def _skill_frontmatter(skill_md: Path) -> dict[str, str]:
 
 
 def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] | None:
+    from core.registry.handoff import is_own_skill
+
     manifest = _read_json(plugin_dir / ".codex-plugin" / "plugin.json")
     if not manifest:
         return None
@@ -168,6 +170,9 @@ def _plugin_entry(plugin_dir: Path, *, bundled: bool = False) -> dict[str, Any] 
             skills.append({
                 "name": front.get("name") or skill_dir.name,
                 "description": front.get("description", ""),
+                "slug": skill_dir.name,
+                # The Add-ons page offers "Publish to Skill Codex" only for a skill the person made.
+                "own": not first_party and is_own_skill(skill_dir),
             })
     return {
         "id": str(manifest.get("name") or plugin_dir.name),

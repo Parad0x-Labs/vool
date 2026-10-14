@@ -418,7 +418,7 @@ class VoolAPIHandler(BaseHTTPRequestHandler):
         if is_raw_upload_path(urlparse(self.path).path):
             # Same door as the starlette shell: bytes, not JSON, bounded by the authority's ceiling
             # BEFORE the body is read.
-            if content_length > raw_upload_body_ceiling():
+            if content_length > raw_upload_body_ceiling(urlparse(self.path).path):
                 self._write_response(
                     apply_runtime_headers(
                         json_response(413, {"ok": False, "error": "too_large", "message": "The upload is over the attachment size limit."}),
@@ -662,6 +662,14 @@ def main() -> int:
             start_default_dispatcher()
         except Exception:
             logger.exception("reminder dispatcher failed to start; server continues without scheduled delivery")
+        # Market watches: the wallet and price watch poller. One daemon thread; it sleeps while
+        # nothing is watched and never runs on a fresh install. Fail-soft like the dispatcher.
+        try:
+            from core.market_watch import start_default_poller
+
+            start_default_poller()
+        except Exception:
+            logger.exception("market watch poller failed to start; server continues without watch alerts")
         # Calendar alerts: the bounded background sync of opted-in calendars (a few accounts per tick, each
         # refreshed every 10 minutes, never on chat turns). Fail-soft like the dispatcher.
         try:
@@ -727,6 +735,12 @@ def main() -> int:
             from core.operator.reminder_dispatcher import stop_default_dispatcher
 
             stop_default_dispatcher()
+        except Exception:
+            pass
+        try:
+            from core.market_watch import stop_default_poller
+
+            stop_default_poller()
         except Exception:
             pass
         try:
