@@ -63,6 +63,37 @@ def carries(value: Any, token: str) -> bool:
     return bool(needle) and any(needle in " ".join(_SEPARATORS.split(part.casefold())) for part in parts)
 
 
+#: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id, a number.
+_RUNTIME_MADE_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?"
+    r"|(?:[a-z]+[-_:])?[0-9a-f]{16,}"
+    r"|-?\d+(?:\.\d+)?"
+)
+
+
+#: The memory mirror's own marks on a line: "- [2026-10-14] " in front, "<!--mem:memory-...-->" behind.
+_MIRROR_STAMPS_RE = re.compile(r"^\s*-\s*\[\d{4}-\d{2}-\d{2}\]\s*|<!--\s*mem:[A-Za-z0-9_.:-]+\s*-->\s*$")
+
+
+def _without_nested_identities(value: Any, structural: frozenset[str]) -> Any:
+    """Nested copies of a row identity (``provenance.recorded_at``, ``provenance.content_hash``) are the
+    runtime's own bookkeeping, like the top-level ones. Dropped only when the value has the runtime's shape,
+    so a nested field that happens to share an identity's name but holds words still answers to a forget
+    (measured 2026-10-14: "forget 14" matched every row recorded on the 14th and then refused its own rewrite)."""
+    if isinstance(value, Mapping):
+        return {key: _without_nested_identities(item, structural) for key, item in value.items()
+                if not (key in structural and (item is None or isinstance(item, (int, float))
+                                               or (isinstance(item, str) and _RUNTIME_MADE_RE.fullmatch(item))))}
+    if isinstance(value, list):
+        return [_without_nested_identities(item, structural) for item in value]
+    return value
+
+
+def memory_words(value: Any) -> Any:
+    """A payload as it is checked against a forget: its row ids and stamps, at any depth, left out."""
+    return _without_nested_identities(value, ROW_IDENTITIES)
+
+
 def row_payload(
     row: Mapping[str, Any] | Any, *, structural_fields: Sequence[str] = (),
     json_fields: Sequence[str] = (),
@@ -76,7 +107,7 @@ def row_payload(
         if key in structured or key.endswith("_json"):
             if value is not None and isinstance(value, (str, bytes, bytearray)):
                 value = json.loads(value)
-        payload[key] = value
+        payload[key] = _without_nested_identities(value, structural) if structural else value
     return payload
 
 
@@ -239,7 +270,8 @@ def verify_forget_stores(
         except FileNotFoundError:
             return False
         for line in lines:
-            if not carries(line, token):
+            # The line's words: its day stamp and its record marker are the writer's own.
+            if not carries(_MIRROR_STAMPS_RE.sub(" ", line), token):
                 continue
             match = re.search(r"<!--\s*mem:([A-Za-z0-9_.:-]+)\s*-->\s*$", line)
             if match and owners.get(match.group(1), "") not in {"", chat_id}:

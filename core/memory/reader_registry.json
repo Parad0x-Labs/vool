@@ -87,6 +87,7 @@
     "payload_strings": "transform",
     "carries": "transform",
     "row_payload": "transform",
+    "memory_words": "transform",
     "payload_columns": "transform",
     "schema_json_fields": "transform",
     "session_metadata_carriers": "transform",
