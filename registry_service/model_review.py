@@ -57,6 +57,14 @@ class NoAnswer(ReviewUnavailable):
     """The review service could not be reached; an outage never counts against a skill."""
 
 
+def month_spent(ledger: Path, now: float) -> float:
+    """What the paid review spent this month, read from its ledger; needs no key."""
+    try:
+        return float(json.loads(ledger.read_text()).get(time.strftime("%Y-%m", time.gmtime(now)), 0.0))
+    except (OSError, ValueError, AttributeError):
+        return 0.0
+
+
 class ModelReview:
     def __init__(self, provider: str, model: str, *, ledger: Path, monthly_cap: float = 20.0, key: str = "",
                  request=None, clock=time.time):
@@ -74,10 +82,7 @@ class ModelReview:
         return time.strftime("%Y-%m", time.gmtime(self.clock()))
 
     def spent(self) -> float:
-        try:
-            return float(json.loads(self.ledger.read_text()).get(self._month(), 0.0))
-        except (OSError, ValueError, AttributeError):
-            return 0.0
+        return month_spent(self.ledger, self.clock())
 
     def _charge(self, cost: float) -> None:
         try:

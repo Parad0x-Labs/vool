@@ -23,6 +23,9 @@ from core.registry.media import KINDS
 from core.registry.requirements import package_requirements, require_for_new_version, undeclared_needs
 from registry_service.authority import ACCOUNT_AGE, AGREEMENT, marks_document, mit_license
 
+# An upload waiting for the signing Mac can sit out a used-up monthly review budget, so it waits past a month.
+CHECKING_DAYS = 35
+
 
 def owned_by(db, account: str) -> tuple[set[str], set[str]]:
     """Publisher names the account holds, as its public profile shows them, and skills it had published."""
@@ -554,10 +557,15 @@ class Store:
         checked = []
         if agreement and not findings:
             # The same checks the signing Mac runs, so the creator hears about a problem at once.
-            from core.registry.checks import run
+            from core.registry import checks
 
-            outcome = run(raw, self.path.parent / "scratch", targets=[], official=official)
-            checked = [item for items in outcome["findings"].values() for item in items]
+            try:
+                outcome = checks.run(raw, self.path.parent / "scratch", targets=[], official=official)
+                checked = [item for items in outcome["findings"].values() for item in items]
+            except OSError:
+                raise  # this server's own trouble, not the package's
+            except Exception:  # anything unplanned about one package refuses it, as on the signing Mac
+                checked = [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             completed = now + int(time.monotonic() - started)
@@ -946,6 +954,9 @@ class Store:
             db.execute("DELETE FROM sessions WHERE expires<=?", (now,))
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
             db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
-            db.execute("UPDATE submissions SET artifact=NULL, review=NULL, state='expired' WHERE created<? AND state NOT IN ('published','rejected','refused','admitted','expired')", (now - 7 * 86400,))
+            # An upload waiting on the Mac may wait out a used-up monthly review budget; anything else waits 7 days.
+            db.execute("UPDATE submissions SET artifact=NULL, review=NULL, state='expired' WHERE (state='checking' AND created<?) "
+                       "OR (created<? AND state NOT IN ('published','rejected','refused','admitted','expired','checking'))",
+                       (now - CHECKING_DAYS * 86400, now - 7 * 86400))
             db.execute("DELETE FROM authority_nonces WHERE expires<=?", (now,))
             db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))

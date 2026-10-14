@@ -27,6 +27,8 @@ _ALLOWED_MARKS = {"\n", "\t", "\r", "‌", "‍", "‎", "‏"}
 _INVISIBLE = {"͏", "ᅟ", "ᅠ", "឴", "឵", "⠀", "ㅤ", "ﾠ",
               *(chr(code) for code in range(0xFE00, 0xFE0E)), *(chr(code) for code in range(0xE0100, 0xE01F0))}
 MIN_INSTRUCTIONS = 80
+# Said when the checks fail in a way nobody planned for; the upload is refused, never passed.
+UNREADABLE = "Our checks couldn't read this skill. Make it plainer, then upload it again."
 QUOTE = 120
 # The review model reads at most this much, so nothing longer can pass; refusing early also bounds the work.
 MAX_TEXT = 120_000
@@ -55,8 +57,7 @@ SOFTWARE.
 """
 # The whole licence is the MIT text; only the copyright lines are the creator's.
 _MIT_BODY = " ".join(_MIT.split("\n\n", 2)[2].casefold().split())
-_MIT_FULL = re.compile(r"(?:(?:the )?mit licen[cs]e(?: \(mit\))? )?(?:copyright (?:\(c\) |© )?[^©]{1,200}? )+?" +
-                       re.escape(_MIT_BODY))
+_MIT_TITLE = re.compile(r"(?:the )?mit licen[cs]e(?: \(mit\))? ")
 # Words that read as the Skill Codex vouching for a skill. Only the team's own skills may use them.
 _RESERVED = re.compile(r"\b(?:verified|official|certified|endorsed|tested by|parad0x|paradox labs|vool team|"
                        r"vool-team|safe to use|security checked)\b", re.IGNORECASE)
@@ -139,7 +140,7 @@ def _finding(check: str, path: str, reason: str, *, line: int | None = None, quo
         item["rule"] = rule
     if line is not None:
         item["line"] = line
-    if quote is not None:
+    if quote is not None and not _looks_secret(quote):  # the finding is stored and shown
         item["quote"] = quote[:QUOTE]
     return item
 
@@ -224,35 +225,52 @@ _PLACEHOLDER = re.compile(r"(?i)((?:password|passwd|secret|token|api[_-]?key|cre
                           r"[\"'`]?(?:true|false|none|null|yes|no|empty|required|optional|hidden|masked|redacted)\b[\"'`]?")
 
 
-def _secrets(texts: dict[str, str], artifact: dict) -> list[dict]:
+def _looks_secret(line: str) -> bool:
+    """A key, token or password on this line, as written or as the rules read it."""
     from core.registry.intake import secret_findings
-    from core.secret_redaction import _bip39_index, contains_secret
+    from core.secret_redaction import contains_secret
 
-    findings = []
+    for form in {line, _fold(line)[0]}:  # also with joiners and marks taken out, as the rules read it
+        plain = _PLACEHOLDER.sub(r"\1x", form)
+        if secret_findings({"line": form.encode()}) or contains_secret(plain) or _HEX_KEY.search(form):
+            return True
+    return False
+
+
+def _secret_lines(text: str) -> tuple[list[int], set[int]]:
+    """(lines to report, every line holding part of a secret). Neither may ever be quoted back."""
+    from core.secret_redaction import _bip39_index
+
+    lines = text.splitlines()
+    report = {number for number, line in enumerate(lines, 1) if _looks_secret(line)}
+    held = set(report)
+    # A recovery phrase may be spread over several lines: 11 list words in any 12, across the file.
     words = _bip39_index()
+    tokens = []
+    for number, line in enumerate(lines, 1):
+        spaced = _LIST_MARKERS.sub(" ", _fold(line)[0].casefold())
+        tokens += [(token.strip(".,;:!?\"'()[]*`_"), number) for token in spaced.split()]
+    listed = [token in words for token, _ in tokens]
+    for start in range(max(1, len(tokens) - 11)):
+        if sum(listed[start:start + 12]) >= 11:
+            window = [index for index in range(start, min(start + 12, len(tokens))) if listed[index]]
+            # Point at the phrase's first word, not a heading word before it.
+            report.add(tokens[window[0]][1])
+            held.update(tokens[index][1] for index in window)
+            break
+    return sorted(report), held
+
+
+def _secrets(texts: dict[str, str]) -> tuple[list[dict], dict[str, set[int]]]:
+    """Findings for lines that hold a secret, and every such line per file so no other finding quotes it."""
+    findings, held = [], {}
     for name, text in texts.items():
-        lines = set()
-        for number, line in enumerate(text.splitlines(), 1):
-            for form in {line, _fold(line)[0]}:  # also with joiners and marks taken out, as the rules read it
-                plain = _PLACEHOLDER.sub(r"\1x", form)
-                if secret_findings({name: form.encode()}) or contains_secret(plain) or _HEX_KEY.search(form):
-                    lines.add(number)
-        # A recovery phrase may be spread over several lines: 11 list words in any 12, across the file.
-        tokens = []
-        for number, line in enumerate(text.splitlines(), 1):
-            spaced = _LIST_MARKERS.sub(" ", _fold(line)[0].casefold())
-            tokens += [(token.strip(".,;:!?\"'()[]*`_"), number) for token in spaced.split()]
-        listed = [token in words for token, _ in tokens]
-        for start in range(max(1, len(tokens) - 11)):
-            if sum(listed[start:start + 12]) >= 11:
-                # Point at the phrase's first word, not a heading word before it.
-                lines.add(tokens[next(index for index in range(start, start + 12) if listed[index])][1])
-                break
+        report, held[name] = _secret_lines(text)
         # Never quote it back: the finding is stored and shown.
         findings += [_finding("secrets", name, "This line looks like a key, password or recovery phrase. Take it out; "
                                                "nobody needs one to use a skill.", line=number, rule="secret")
-                     for number in sorted(lines)]
-    return findings
+                     for number in report]
+    return findings, held
 
 
 # "Never paste your recovery phrase" is advice: a negation right before the verb, nowhere else, excuses an ask.
@@ -282,27 +300,33 @@ def _fold(line: str) -> tuple[str, str]:
 
 
 def _flat(lines: list[str]) -> tuple[str, str, list[int], list[int]]:
-    """Lines joined with spaces, so a line break or a continuation splits nothing; with each line's start offset."""
+    """Lines joined with spaces, so a line break splits nothing; with each line's start offset.
+
+    A line ending in a backslash continues straight into the next one, as a shell reads it, so `pip ins\\` over
+    `tall` reads as `pip install`.
+    """
     plain, folded, plain_starts, folded_starts = [], [], [], []
     plain_at = folded_at = 0
     for line in lines:
-        line = line[:-1] if line.endswith("\\") else line
-        one, two = _fold(line)
+        joined = line.endswith("\\")
+        one, two = _fold(line[:-1] if joined else line)
+        gap = "" if joined else " "
         plain_starts.append(plain_at)
         folded_starts.append(folded_at)
-        plain.append(one)
-        folded.append(two)
-        plain_at += len(one) + 1
-        folded_at += len(two) + 1
-    return " ".join(plain), " ".join(folded), plain_starts, folded_starts
+        plain.append(one + gap)
+        folded.append(two + gap)
+        plain_at += len(one) + len(gap)
+        folded_at += len(two) + len(gap)
+    return "".join(plain), "".join(folded), plain_starts, folded_starts
 
 
-def _instructions(texts: dict[str, str]) -> list[dict]:
+def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]]) -> list[dict]:
     """Every rule over every text a person or VOOL reads: the skill files, registry.json and the manifest."""
     import bisect
 
     findings = []
     for name, text in texts.items():
+        hidden = secret_lines.get(name, set())
         if name == "LICENSE":
             continue  # checked word for word against the MIT text
         lines = text.splitlines()
@@ -337,19 +361,39 @@ def _instructions(texts: dict[str, str]) -> list[dict]:
                 if (rule, index) in seen:
                     continue
                 seen.add((rule, index))
+                quote = " ".join(lines[index].split()) if lines and not (numbered and index + 1 in hidden) else None
                 findings.append(_finding("instructions-primary", name, reason,
-                                         line=index + 1 if numbered else None,
-                                         quote=" ".join(lines[index].split()) if lines else None, rule=rule))
+                                         line=index + 1 if numbered else None, quote=quote, rule=rule))
                 if len(findings) >= MAX_FINDINGS:
                     return findings
     return findings
 
 
+def _is_mit(text: str) -> bool:
+    """An optional title, one or more copyright lines, then the MIT text word for word. One pass, nothing to backtrack."""
+    if not text.endswith(" " + _MIT_BODY):
+        return False
+    head = text[:-len(_MIT_BODY)]
+    title = _MIT_TITLE.match(head)
+    statements = (" " + head[title.end() if title else 0:]).split(" copyright ")
+    if statements[0]:
+        return False
+    for statement in statements[1:]:
+        holder = statement.strip()
+        for mark in ("(c) ", "© "):
+            if holder.startswith(mark):
+                holder = holder[len(mark):]
+                break
+        if not 1 <= len(holder) <= 200 or "©" in holder:
+            return False
+    return len(statements) > 1
+
+
 def _license(artifact: dict) -> list[dict]:
     text = " ".join(artifact["files"].get("LICENSE", b"").decode("utf-8", "replace").casefold().split())
-    if artifact["metadata"]["license"] != "MIT" or not _MIT_FULL.fullmatch(text):
+    if artifact["metadata"]["license"] != "MIT" or not _is_mit(text):
         return [_finding("license", "LICENSE", "Every Skill Codex skill uses the MIT licence. Put the MIT licence text "
-                                               "in LICENSE, with only your copyright line, and nothing else.")]
+                                               "in LICENSE, with its copyright lines and nothing else.")]
     return []
 
 
@@ -368,7 +412,8 @@ def _quality(artifact: dict, texts: dict[str, str], *, official: bool) -> list[d
     for name, text in texts.items():
         if name.endswith("/SKILL.md"):
             body = text.split("---", 2)[2] if text.startswith("---") and text.count("---") >= 2 else text
-            if len(body.strip()) < MIN_INSTRUCTIONS:
+            # Counted as a web page counts it: a Windows line break is one character there.
+            if len(body.replace("\r\n", "\n").strip()) < MIN_INSTRUCTIONS:
                 findings.append(_finding("quality", name, "The instructions are too short to be useful. Say what the "
                                                           "skill does, step by step.", rule="short"))
         if name.startswith("skills/") or name.endswith(".json"):
@@ -404,8 +449,9 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
                                             "text under 120,000 characters.", rule="too-long"))
         return {"artifact": artifact, "findings": findings, "results": {}}
-    findings["secrets"] += _secrets(texts, artifact)
-    findings["instructions-primary"] += _instructions(texts)
+    secrets, secret_lines = _secrets(texts)
+    findings["secrets"] += secrets
+    findings["instructions-primary"] += _instructions(texts, secret_lines)
     findings["license"] += _license(artifact)
     findings["quality"] += _quality(artifact, texts, official=official)
     if artifact["manifest"].get("requires"):

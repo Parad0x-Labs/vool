@@ -53,7 +53,8 @@ from registry_service.authority import HEADER, MARKS_SCHEMA, keyid, marks_docume
 PREFIX = "/registry/api"
 ADMISSION_SECONDS = 30 * 86400 - 3600
 RENEW_BEFORE = 5 * 86400
-AUTHORIZE_BEFORE = 3 * 86400
+# Renew the 7-day list once less than 6 days are left, so it outlasts the Mac being off for six days.
+AUTHORIZE_BEFORE = 6 * 86400
 ROOT_SECONDS = 2 * 365 * 86400
 REVIEW_ATTEMPTS = 3
 # Paid reviews per publisher name per month, so one account cannot use up everyone's budget.
@@ -235,8 +236,7 @@ class Authority:
                 raise  # this Mac's own trouble, not the package's
             print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
                   " ".join(str(exc).split())[:300], file=sys.stderr)
-            return {"refused": [{"check": "archive", "path": "package", "reason":
-                                 "Our checks couldn't read this skill. Make it plainer, then upload it again."}]}
+            return {"refused": [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]}
 
     def _clash(self, metadata: dict) -> str | None:
         """A version number this skill already used or passed, which the signed list cannot hold twice."""
@@ -560,10 +560,13 @@ def main(argv=None) -> int:
                     return 0
                 time.sleep(max(60, args.every))
         if args.command == "status":
+            from registry_service.model_review import month_spent
+
             print(json.dumps({"skills": len(authority.state["entries"]), "revoked": len(authority.state["revoked"]),
                               "list_valid_until": authority.state.get("authorized_until", 0),
-                              "review_spent_this_month": authority.review.spent() if authority.config["review"]["provider"]
-                              == "openrouter" else 0, "marks": authority.state["marks"]}, indent=2, sort_keys=True))
+                              "review_spent_this_month": month_spent(authority.dir / "spend.json", authority.now())
+                              if authority.config["review"]["provider"] == "openrouter" else 0,
+                              "marks": authority.state["marks"]}, indent=2, sort_keys=True))
             return 0
         authority.gate(getpass.getpass("Authenticator code: "))
         if args.command == "targets":
