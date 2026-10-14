@@ -4355,6 +4355,112 @@ function widgetAnswerLanguage(stack) {
     'then the language you wrote in when that is unambiguous.'));
 }
 
+/* Add a password email account (core/email_setup.py, POST /api/email/accounts/add). The server signs in to
+   the IMAP server once, with the certificate verified, and saves the account only after the login is
+   accepted; Local Only and an existing account are refused before any connection. The password field is
+   never prefilled, it is cleared after every attempt, and no answer from the server carries it. Removal
+   (POST /api/email/accounts/remove) deletes the stored entries and changes nothing on the mail server. */
+const EMAIL_SETUP_FIELDS = {
+  address: () => T('emailadd.address', 'Email address'),
+  username: () => T('emailadd.username', 'Username (leave empty to use the email address)'),
+  password: () => T('emailadd.password', 'Password'),
+  imap_host: () => T('emailadd.imap_host', 'Incoming mail server (IMAP)'),
+  imap_port: () => T('emailadd.imap_port', 'Incoming server port'),
+  smtp_host: () => T('emailadd.smtp_host', 'Outgoing mail server (SMTP), optional'),
+  smtp_port: () => T('emailadd.smtp_port', 'Outgoing server port'),
+  replace: () => T('emailadd.replace', 'Replace the saved details for this address'),
+};
+const EMAIL_SETUP_ERRORS = {
+  invalid: () => T('emailadd.err.invalid', 'Some details are missing or not valid. Nothing was saved.'),
+  local_only: () => T('emailadd.err.local_only', 'Local Only is on, so VOOL did not contact this mail server. Nothing was saved.'),
+  exists: () => T('emailadd.err.exists', 'This email account is already set up. Tick replace to save the new details.'),
+  managed_elsewhere: () => T('emailadd.err.managed_elsewhere', "This account was connected through its provider's sign-in, so it is changed there, not here."),
+  auth_failed: () => T('emailadd.err.auth_failed', 'The mail server did not accept this username and password. Nothing was saved.'),
+  cannot_reach: () => T('emailadd.err.cannot_reach', 'VOOL could not reach this mail server. Check the server name and port. Nothing was saved.'),
+  tls_failed: () => T('emailadd.err.tls_failed', "The mail server's security certificate could not be verified, so VOOL did not send the password. Nothing was saved."),
+  timeout: () => T('emailadd.err.timeout', 'The mail server did not answer in time. Nothing was saved.'),
+  store_failed: () => T('emailadd.err.store_failed', 'The sign-in worked, but VOOL could not save the account securely on this machine. Check local storage and try again.'),
+  not_found: () => T('emailadd.err.not_found', 'There is no such email account.'),
+  owner_local_required: () => T('emailadd.err.forbidden', 'Email accounts can only be changed inside the VOOL app on this machine.'),
+};
+async function emailSetupCall(action, payload) {
+  try {
+    const r = await fetch('/api/email/accounts/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && !!j && j.ok === true, http: r.status, j: j || {} };
+  } catch (e) { return { ok: false, http: 0, j: {} }; }
+}
+function emailSetupError(res) {
+  const kind = String((res && res.j && res.j.error) || '');
+  if (kind === 'invalid' && EMAIL_SETUP_FIELDS[res.j.field]) {
+    return tfmt('emailadd.err.invalid_field', 'Check “{field}”. Nothing was saved.', { field: EMAIL_SETUP_FIELDS[res.j.field]() });
+  }
+  if (EMAIL_SETUP_ERRORS[kind]) return EMAIL_SETUP_ERRORS[kind]();
+  if (res && res.http === 403) return EMAIL_SETUP_ERRORS.owner_local_required();
+  return T('emailadd.err.failed', 'Something went wrong. Nothing was saved.');
+}
+function openEmailAddDialog(onSaved) {
+  document.querySelector('dialog.email-add-dialog')?.remove();
+  const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog email-add-dialog';
+  dlg.setAttribute('aria-label', T('emailadd.dialog_title', 'Add an email account'));
+  dlg.appendChild(el('h3', null, T('emailadd.dialog_title', 'Add an email account')));
+  dlg.appendChild(el('p', 'subtle', T('emailadd.intro', 'VOOL signs in to your mail server once to check these details. They are saved on this machine only after the server accepts them.')));
+  dlg.appendChild(el('p', 'subtle', T('emailadd.app_password_hint', "If your provider uses two-step sign-in, create an app password in your account's security settings and use it here.")));
+  const body = el('div', 'stack');
+  const field = (name, type, value) => {
+    const label = EMAIL_SETUP_FIELDS[name]();
+    const wrap = el('label', 'stack');
+    wrap.appendChild(el('span', null, label));
+    const input = el('input', 'inp'); input.type = type; input.name = name; input.spellcheck = false;
+    input.autocomplete = type === 'password' ? 'new-password' : 'off';
+    input.setAttribute('aria-label', label);
+    if (value) input.value = value;
+    if (type === 'number') { input.min = '1'; input.max = '65535'; }
+    wrap.appendChild(input); body.appendChild(wrap);
+    return input;
+  };
+  const address = field('address', 'email');
+  const username = field('username', 'text');
+  const password = field('password', 'password');
+  const imapHost = field('imap_host', 'text');
+  const imapPort = field('imap_port', 'number', '993');
+  const smtpHost = field('smtp_host', 'text');
+  const smtpPort = field('smtp_port', 'number', '465');
+  body.appendChild(el('p', 'subtle', T('emailadd.smtp_note', 'Without an outgoing server, VOOL can read this mailbox but not send from it.')));
+  const replaceWrap = el('label', 'inline');
+  const replace = el('input'); replace.type = 'checkbox'; replace.name = 'replace';
+  replaceWrap.appendChild(replace); replaceWrap.appendChild(el('span', null, EMAIL_SETUP_FIELDS.replace()));
+  body.appendChild(replaceWrap);
+  dlg.appendChild(body);
+  const note = el('p', 'subtle email-add-state'); note.setAttribute('role', 'status');
+  const save = el('button', 'btn primary email-add-save', T('emailadd.save', 'Check and save')); save.type = 'button';
+  save.addEventListener('click', async () => {
+    save.disabled = true; note.textContent = T('emailadd.checking', 'Signing in to the mail server once…');
+    const payload = { address: address.value.trim(), password: password.value, imap_host: imapHost.value.trim(),
+                      imap_port: Number(imapPort.value) || 993, replace: replace.checked };
+    password.value = '';
+    if (username.value.trim()) payload.username = username.value.trim();
+    if (smtpHost.value.trim()) { payload.smtp_host = smtpHost.value.trim(); payload.smtp_port = Number(smtpPort.value) || 465; }
+    const res = await emailSetupCall('add', payload);
+    payload.password = '';
+    save.disabled = false;
+    if (res.ok) {
+      const done = tfmt('emailadd.saved', 'Saved. VOOL can now use {address}.', { address: res.j.address || payload.address });
+      dlg.close();
+      if (onSaved) await onSaved(done);
+      return;
+    }
+    note.textContent = emailSetupError(res);
+  });
+  const close = el('button', 'btn', T('keyguide.setup_close', 'Close')); close.type = 'button';
+  close.addEventListener('click', () => dlg.close());
+  const actions = el('div', 'inline'); actions.appendChild(save); actions.appendChild(close);
+  dlg.appendChild(note); dlg.appendChild(actions);
+  dlg.addEventListener('close', () => { password.value = ''; dlg.remove(); });
+  document.body.appendChild(dlg);
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  address.focus();
+}
 /* --- Email accounts: every configured mailbox as the account authority sees it (core/email_accounts.py,
    GET /api/email/accounts): its identity, what it can do, its state, and which one is the default. The
    default is ONE Operator Profile item (default_account.email, an opaque credential NAME), written through
@@ -4373,7 +4479,14 @@ function widgetEmailAccounts(stack) {
   const err = state.sourceErr['/api/email/accounts'];
   const body = el('div', 'stack'); body.id = 'emailAccounts';
   const status = el('div', 'state idle'); status.id = 'emailAccountsStatus'; status.setAttribute('role', 'status');
+  /* The list is redrawn after every change, so a message is written to the status line that is live then. */
+  const sayNow = (msg, bad) => { const s = document.getElementById('emailAccountsStatus'); if (s) { s.className = 'state ' + (bad ? 'failed' : 'saved'); s.textContent = msg; } };
+  const addRow = el('div', 'inline email-add-entry');
+  const addBtn = el('button', 'btn email-add-open', T('emailadd.open', 'Add email account')); addBtn.type = 'button';
+  addBtn.addEventListener('click', () => openEmailAddDialog(async (msg) => { await readSource('/api/email/accounts'); renderPane(); sayNow(msg); }));
+  addRow.appendChild(addBtn);
   stack.appendChild(body);
+  stack.appendChild(addRow);
   stack.appendChild(status);
   if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
@@ -4392,7 +4505,7 @@ function widgetEmailAccounts(stack) {
   const def = src.default || {};
   const sel = src.selection || {};
   if (!accounts.length) {
-    body.appendChild(el('div', 'empty', 'No email account is configured. Add one through email account setup; nothing here asks for a password.'));
+    body.appendChild(el('div', 'empty', T('emailadd.empty', 'No email account is set up yet. Use Add email account to connect one.')));
   }
   accounts.forEach(a => {
     const rowEl = el('div', 'inline email-account'); rowEl.dataset.emailAccount = a.account;
@@ -4419,6 +4532,18 @@ function widgetEmailAccounts(stack) {
         else say('VOOL stored ' + JSON.stringify(back) + ' as the default instead.', true);
       });
       rowEl.appendChild(use);
+    }
+    /* A password account can be removed here; an account connected by its provider's sign-in cannot. */
+    if (a.provider !== 'gmail' && a.provider !== 'graph') {
+      const rm = el('button', 'btn danger email-remove', T('keys.remove', 'Remove')); rm.type = 'button'; rm.dataset.account = a.account;
+      rm.addEventListener('click', async () => {
+        if (!confirm(tfmt('emailadd.remove_confirm', 'Remove the email account “{account}” from this machine?\n\nIts saved password is deleted. Nothing changes on the mail server.', { account: a.account }))) return;
+        rm.disabled = true; say(T('emailadd.removing', 'Removing…'));
+        const res = await emailSetupCall('remove', { account: a.account });
+        if (!res.ok) { rm.disabled = false; say(tfmt('emailadd.not_removed', 'Not removed. {reason}', { reason: emailSetupError(res) }), true); return; }
+        await refresh(); sayNow(tfmt('emailadd.removed', 'Removed {account}.', { account: a.account }));
+      });
+      rowEl.appendChild(rm);
     }
     body.appendChild(rowEl);
   });

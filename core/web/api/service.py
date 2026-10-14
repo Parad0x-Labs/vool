@@ -5194,6 +5194,39 @@ def _dispatch_post_inner(
         _xs_status, _xs_payload = _cr_forward("x.setup", dict(body), client_host=client_host)
         return apply_runtime_headers(json_response(_xs_status, _xs_payload), runtime)
 
+    if normalized_path in ("/api/email/accounts/add", "/api/email/accounts/remove"):
+        # Add or remove a password (IMAP/SMTP) email account from Settings (core/email_setup.py). Adding
+        # signs in to the IMAP server once, with the certificate verified, and stores the account only after
+        # the login is accepted. The guards are the ones /api/x/setup uses: owner-local and same-origin only,
+        # JSON, bounded body. The response never carries the password.
+        import json as _json
+
+        from core import email_setup
+        from core.web.api.runtime import host_header_allowed
+
+        def _email_setup_header(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        if not is_loopback_host(client_host) or _email_setup_header("sec-fetch-site").lower() == "cross-site":
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        content_type = _email_setup_header("content-type").lower()
+        if content_type and "json" not in content_type:
+            return apply_runtime_headers(json_response(415, {"ok": False, "error": "content-type must be application/json"}), runtime)
+        origin = _email_setup_header("origin").strip()
+        if origin and not host_header_allowed(origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross-origin request not allowed"}), runtime)
+        try:
+            if len(_json.dumps(body)) > 65536:
+                return apply_runtime_headers(json_response(413, {"ok": False, "error": "request body too large"}), runtime)
+        except (TypeError, ValueError):
+            return apply_runtime_headers(json_response(400, {"ok": False, "error": "unserializable body"}), runtime)
+        _es_action = "add" if normalized_path.endswith("/add") else "remove"
+        _es_status, _es_payload = email_setup.handle(_es_action, dict(body))
+        return apply_runtime_headers(json_response(_es_status, _es_payload), runtime)
+
     if normalized_path == "/api/search/detect":
         # Which provider does this pasted key belong to? Prefix-only, entirely local: nothing is
         # stored and no network call is made, so the UI can label the key the moment it is pasted.

@@ -330,6 +330,8 @@ _EXTERNAL: dict[str, str] = {
     "http:GET:/api/email/recovery": "email lane read feed (store recovery surface)",
     "http:POST:/api/email/recovery/acknowledge": "email lane operator action (recovery acknowledgement)",
     "http:POST:/api/email/recovery/check": "email lane operator action (recovery check)",
+    "http:POST:/api/email/accounts/add": "email lane operator action (add a password account after one verified IMAP login)",
+    "http:POST:/api/email/accounts/remove": "email lane operator action (remove a password account)",
     "http:GET:/api/cloud/usepod/discovery": "usepod lane read feed (discovery)",
     "http:GET:/api/cloud/usepod/x402/unresolved": "usepod lane read feed (unresolved x402 state)",
     "http:POST:/api/cloud/usepod/*": "usepod lane operator surface family (its own spend/consent gates)",
