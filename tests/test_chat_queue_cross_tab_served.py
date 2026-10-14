@@ -901,8 +901,20 @@ def test_opening_a_chat_pumps_its_pending_queue(two_tabs):
     # Two chats exist; the current one's row is `.active` -- the target chat is the other row,
     # and its title click is the real open action (openSession).
     tab_b.locator(".session:not(.active) .s-title").first.click(timeout=5000)
-    _wait_for(lambda: len(calls_for(M2)) >= 1, 6, "opening the chat never pumped its pending message")
+    # The open's own act is the CLAIM: the pending item leaves the queue's pending set. That is
+    # timed against the heartbeat's period; reaching the provider afterwards is the turn
+    # pipeline's latency (memory helpers, the fallback ladder), measured at 9 s on a loaded
+    # machine with no GPU while the claim itself took under 1 s.
+    _wait_for(
+        lambda: not [i for i in _queue_state(daemon, session_id).get("queue") or [] if i.get("status") == "pending"],
+        6,
+        "opening the chat never claimed its pending message",
+    )
     elapsed = time.monotonic() - clicked
     assert elapsed < 4.0, f"the open did not pump (took {elapsed:.1f}s -- the heartbeat's sweep, not the open)"
+    # And the claimed message executes through the real lane exactly once.
+    _wait_for(lambda: len(calls_for(M2)) >= 1, 45, "the opened chat's claimed message never executed")
+    time.sleep(0.5)
+    assert len(calls_for(M2)) == 1, "the opened chat's message ran more than once"
     _wait_for(lambda: _queue_state(daemon, session_id).get("queue") == [], 20, "the queue never drained")
     assert not errors, errors
