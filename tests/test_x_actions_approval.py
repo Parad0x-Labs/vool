@@ -440,3 +440,5 @@ def test_publish_guidance_points_at_approval_not_at_a_missing_capability():
 
     text = unsupported_capability_guidance("tweet it out now")
     assert "not a capability" not in text and "approve" in text and "only your approval sends it" in text
+    dm = unsupported_capability_guidance("dm it to him")
+    assert "direct message for you to approve" in dm and "send DMs" not in dm  # DMs are proposable now

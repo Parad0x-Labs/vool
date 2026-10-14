@@ -184,6 +184,8 @@ def _approve(action_id):
      "/2/dm_conversations/with/33/messages", {"text": "gm, saw your call"}, "Send a direct message to @bob_trades"),
     ({"kind": "list_create", "name": "alpha callers", "private": True}, "POST", "/2/lists",
      {"name": "alpha callers", "description": "", "private": True}, '"alpha callers" (private)'),
+    ({"kind": "list_create", "name": "open book", "description": "who I read"}, "POST", "/2/lists",
+     {"name": "open book", "description": "who I read", "private": False}, '"open book" (public)'),
     ({"kind": "list_add", "list_id": "9001", "username": "bob_trades"}, "POST", "/2/lists/9001/members",
      {"user_id": "33"}, "Add to your list: alpha @bob_trades"),
 ])
@@ -214,6 +216,36 @@ def test_a_dm_refused_for_permissions_names_the_dm_permission(x):
     _, (status, out) = _approve(proposed.details["action"]["id"])
     assert status == 400 and "Read and write and Direct message" in out["message"]
     assert out["action"]["state"] == "failed"
+
+
+def test_a_refused_send_gives_back_the_action_and_the_days_post(x):
+    """X refused it (4xx), so it did nothing: it must not use up the user's action limit or post cap."""
+    from core import usage_quota, x_usage
+
+    x.refuse["/2/tweets"] = 403
+    before = x_usage.snapshot()["actions"]
+    proposed = _run("x.action.propose", {"kind": "post", "text": "gm"})
+    _, (status, out) = _approve(proposed.details["action"]["id"])
+    assert status == 400 and out["action"]["state"] == "failed"
+    assert x_usage.snapshot()["actions"] == before
+    assert usage_quota.usage_today("x.post") == 0
+
+
+def test_a_new_lists_card_shows_its_description(x):
+    proposed = _run("x.action.propose", {"kind": "list_create", "name": "open book", "description": "who I read"})
+    shown, _ = _approve(proposed.details["action"]["id"])
+    assert shown["text"] == "who I read" and "(public)" in shown["summary"]
+
+
+def test_reads_with_no_stated_size_hold_room_for_a_full_answer(x):
+    """Trends state no page size; with 10 reads left the call is held back rather than overrun."""
+    from core import x_usage
+
+    used = x_usage.snapshot()["reads"]
+    x_usage.set_limits(monthly_reads=used + 10)
+    out = _run("x.account", {"kind": "trends"})
+    assert not out.ok and out.status == "usage_limit_reached"
+    assert all(r["path"] != "/2/users/personalized_trends" for r in x.requests)
 
 
 @pytest.mark.parametrize("text,intent", [

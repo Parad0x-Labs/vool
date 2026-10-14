@@ -132,7 +132,7 @@ def summary(action: dict[str, Any]) -> str:
     if kind in _USER_KINDS:
         return f"{verb} @{target.get('username')}"
     if kind == "list_create":
-        return f"{verb} \"{target.get('name')}\"" + (" (private)" if target.get("private") else "")
+        return f"{verb} \"{target.get('name')}\"" + (" (private)" if target.get("private") else " (public)")
     if kind in {"post", "delete"}:
         return verb
     return f"{verb} @{target.get('author')}" if target.get("author") else verb
@@ -223,7 +223,9 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         return _result(False, exc.status, exc.message + " Nothing was proposed.")
     now = time.time()
     action = {
-        "id": "xa_" + secrets.token_hex(8), "kind": kind, "text": payload.get("text", ""), "payload": payload,
+        "id": "xa_" + secrets.token_hex(8), "kind": kind, "payload": payload,
+        # The card shows ``text``: what will be sent, or a new list's description.
+        "text": payload.get("text", "") or payload.get("description", ""),
         "nonce": (nonce := secrets.token_hex(16)), "hash": _digest(payload, nonce), "target": target, "state": "pending", "created_at": now, "updated_at": now,
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
         "session": str((source_context or {}).get("session_id") or ""),
@@ -452,10 +454,13 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
             # X may have done it before failing to answer, or before redirecting.
             action = _finish(action, state="unknown", message=message + " It may or may not have gone out: check X before trying again.")
             return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
+        # X refused it outright, so it counts against neither the action limit nor the daily cap.
+        _release_slot(publishes)
         action = _finish(action, state="failed", message=message + " X did not do it.")
         return {"ok": False, "state": err.status, "message": action["message"], "action": public(action)}
     except Exception as exc:
         if _never_connected(exc):
+            _release_slot(publishes)
             action = _finish(action, state="failed", message="Could not reach X from this machine. Nothing was sent.")
         else:
             action = _finish(action, state="unknown",
@@ -477,6 +482,12 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
     return {"ok": True, "action": public(action), "message": f"{action['summary']}: sent." + (f" {result['url']}" if result.get("url") else "")}
 
 
+
+def _release_slot(publishes: bool) -> None:
+    """Give back the reserved action (and the day's post) when X provably did not act."""
+    x_usage.unreserve_action()
+    if publishes:
+        usage_quota.release_quota(POST_QUOTA)
 
 
 def _never_connected(exc: BaseException) -> bool:

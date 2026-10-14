@@ -152,8 +152,8 @@ def consume_quota(capability: str, *, tier: str, units: int = 1, today: str | No
 
 
 def release_quota(capability: str, *, units: int = 1, today: str | None = None) -> None:
-    """Give back units consumed for something that provably never happened (it was refused before
-    it left the machine). Never goes below zero."""
+    """Give back units consumed for something that provably never happened (refused before it left
+    the machine, or refused outright by the provider). Never goes below zero."""
     day = _today(today)
     usage = _load_usage()
     used = int(usage.get(day, {}).get(str(capability), 0))

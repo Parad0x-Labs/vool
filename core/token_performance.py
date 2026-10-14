@@ -41,6 +41,8 @@ _cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
 _CACHE_S = 120.0
 _clock = time.time
+WEB_OFF_TEXT = ("Past token prices come from public trading data online, and web access is off. Turn on web "
+                "access in Settings to check how calls did. Nothing was looked up.")
 
 
 class PriceError(Exception):
@@ -144,9 +146,7 @@ def evaluate(calls: list[Any], *, source_context: dict[str, Any] | None = None, 
         return {"ok": False, "status": "too_many", "calls": [],
                 "text": f"That is {len(rows)} calls; ask for {MAX_CALLS} or fewer at a time. Nothing was looked up."}
     if not _web_on(source_context):
-        return {"ok": False, "status": "web_off", "calls": [],
-                "text": "Past token prices come from public trading data online, and web access is off. Turn on web "
-                        "access in Settings to check how calls did. Nothing was looked up."}
+        return {"ok": False, "status": "web_off", "calls": [], "text": WEB_OFF_TEXT}
     now = int(now or _clock())
     results = []
     for row in rows:
@@ -180,6 +180,8 @@ def _line(r: dict[str, Any]) -> str:
         bits.append(f"peak after ${r['peak_after']:.6g} ({r['peak_pct']:+.1f}%) at {r['peak_at']}")
     if r.get("low_after") is not None:
         bits.append(f"low after ${r['low_after']:.6g} ({r['low_pct']:+.1f}%)")
+    if r.get("candle"):
+        bits.append(f"from {r['candle']} candles")
     if r.get("note"):
         bits.append(r["note"])
     return ", ".join(bits)
@@ -211,12 +213,23 @@ def _one(token: str, at: int | None, chain: str, now: int) -> dict[str, Any]:
             note = "posted before its main pool started trading; price shown is the first trade after"
         else:
             note = "the price history doesn't reach back that far; price shown is the earliest available"
-    start = max(i for i, c in enumerate(candles) if c[0] <= max(at, first_ts))
-    price_at = float(candles[start][1]) if at >= first_ts else float(candles[0][1])
-    after = candles[start:]
-    price_now = float(after[-1][4])
-    peak = max(after, key=lambda c: float(c[2]))
-    low = min(after, key=lambda c: float(c[3]))
+    # The price at the post is the close of the last candle that had ended by then; peak and low count
+    # only candles that started after it, so a move earlier in the same candle is never credited.
+    ended = [c for c in candles if c[0] + step <= at]
+    after = [c for c in candles if c[0] >= at]
+    if ended:
+        price_at = float(ended[-1][4])
+    elif after:
+        price_at = float(after[0][1])
+    else:
+        price_at = float(candles[-1][1])
+        note = note or "posted inside the latest candle; price shown is that candle's open"
+    price_now = float(candles[-1][4])
+    last_trade = candles[-1][0] + step
+    if now - last_trade > 3 * step:
+        note = "; ".join(n for n in (note, f"last trade {_iso(candles[-1][0])}, so 'now' is that price") if n)
+    peak = max(after, key=lambda c: float(c[2])) if after else None
+    low = min(after, key=lambda c: float(c[3])) if after else None
     if price_at <= 0:
         raise PriceError("no_trades", "the trading data has no usable price at that time")
 
@@ -229,9 +242,10 @@ def _one(token: str, at: int | None, chain: str, now: int) -> dict[str, Any]:
     return {
         "status": "ok", "chain": _CHAIN_OF_NETWORK.get(network, network), "symbol": pool.get("symbol") or "",
         "pool": pool["address"], "price_at": price_at, "price_now": price_now, "change_now_pct": pct(price_now),
-        "peak_after": float(peak[2]), "peak_pct": pct(float(peak[2])), "peak_at": _iso(peak[0]),
-        "low_after": float(low[3]), "low_pct": pct(float(low[3])),
-        "candle": f"{aggregate} {timeframe}", "liquidity_usd": pool.get("liquidity_usd"), "note": note,
+        "peak_after": float(peak[2]) if peak else None, "peak_pct": pct(float(peak[2])) if peak else None,
+        "peak_at": _iso(peak[0]) if peak else "",
+        "low_after": float(low[3]) if low else None, "low_pct": pct(float(low[3])) if low else None,
+        "candle": f"{aggregate}-{timeframe}", "liquidity_usd": pool.get("liquidity_usd"), "note": note,
     }
 
 
@@ -341,4 +355,4 @@ def _candles(network: str, pool: str, token: str, timeframe: str, aggregate: int
     return list(seen.values())
 
 
-__all__ = ["INTENT", "MAX_CALLS", "evaluate", "performance_contracts", "run_tool"]
+__all__ = ["INTENT", "MAX_CALLS", "WEB_OFF_TEXT", "evaluate", "performance_contracts", "run_tool"]

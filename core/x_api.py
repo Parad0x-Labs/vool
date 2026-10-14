@@ -130,8 +130,11 @@ def _http_failure(status: int, body: dict[str, Any] | None) -> XReadError:
 
 
 def _request(path: str, params: dict[str, Any] | None = None, *, user_context: bool = False,
-             saved: dict[str, Any] | None = None) -> dict[str, Any]:
-    """One read-only GET to the pinned X origin. Counts usage; raises XReadError on any failure."""
+             saved: dict[str, Any] | None = None, worst: int = 0) -> dict[str, Any]:
+    """One read-only GET to the pinned X origin. Counts usage; raises XReadError on any failure.
+
+    ``worst`` raises the held-back count for reads whose size no parameter states (trends, Spaces
+    by host)."""
     from core.secret_redaction import register_exact_secret
 
     saved = _saved() if saved is None else saved
@@ -140,7 +143,7 @@ def _request(path: str, params: dict[str, Any] | None = None, *, user_context: b
     authorization, secrets_in_use = _auth(saved, "GET", url, user_context=user_context)
     for value in secrets_in_use:
         register_exact_secret(value)
-    worst_case = _worst_case(clean)
+    worst_case = max(_worst_case(clean), int(worst or 0))
     refusal = x_usage.reserve_reads(worst_case)
     if refusal:
         raise XReadError("usage_limit_reached", refusal)
@@ -598,7 +601,11 @@ def token_callers(token: str, *, max_results: Any = 50, archive: bool = False, s
             for rank, row in enumerate(rows, 1):
                 row["rank_by_first_call"] = rank
         wanted = _int(history_for, 0, 0, 10)
-        if evaluate_calls and not wanted:
+        from core import token_performance
+
+        web_on = token_performance._web_on(source_context) if evaluate_calls else False
+        if evaluate_calls and web_on and not wanted:
+            # Pricing needs the callers' earlier calls; read them only when the prices can be looked up.
             wanted = min(5, len(rows))
         for row in rows[:wanted]:
             history = user_posts(f"id:{row['id']}" if row["id"] else row["username"], max_results=history_posts,
@@ -611,7 +618,10 @@ def token_callers(token: str, *, max_results: Any = 50, archive: bool = False, s
                 row["history_error"] = history.message
                 if history.status in {"usage_limit_reached", "rate_limited", "exhausted"}:
                     break
-        performance_note = _price_calls(rows[:wanted] if wanted else rows[:5], token, source_context) if evaluate_calls else ""
+        performance_note = ""
+        if evaluate_calls:
+            performance_note = (_price_calls(rows[:wanted] if wanted else rows[:5], token, source_context) if web_on
+                                else token_performance.WEB_OFF_TEXT)
         data = {
             "token": token, "token_kind": found.data.get("token_kind"), "query": found.data.get("query"),
             "min_followers": floor, "callers_below_min_followers": dropped,
@@ -669,7 +679,7 @@ def _price_calls(rows: list[dict[str, Any]], token: str, source_context: dict[st
         if priced:
             row["calls_priced"] = len(priced)
             row["calls_up_now"] = sum(1 for p in priced if p["change_now_pct"] > 0)
-            row["calls_doubled_at_peak"] = sum(1 for p in priced if p["peak_pct"] >= 100)
+            row["calls_doubled_at_peak"] = sum(1 for p in priced if (p.get("peak_pct") or 0) >= 100)
     skipped = len(wanted) - len(picked)
     priced_n = sum(1 for c in out.get("calls") or [] if c.get("status") == "ok")
     note = f"Priced {priced_n} of {len(picked)} call(s) from public trading data"
@@ -934,7 +944,9 @@ def spaces(*, query: Any = "", ids: Any = "", hosts: Any = "", state: str = "all
             saved = _saved()
             names = hosts if isinstance(hosts, list) else [h for h in re.split(r"[,\s]+", str(hosts)) if h]
             uids = [_user_id(h, saved)[0] for h in names[:20]]
-            payload = _request("/2/spaces/by/creator_ids", {"user_ids": ",".join(uids), **common}, saved=saved)
+            # X states no page size here; hold a generous ten Spaces per host, each with its host.
+            payload = _request("/2/spaces/by/creator_ids", {"user_ids": ",".join(uids), **common}, saved=saved,
+                               worst=len(uids) * 10 * 2)
         else:
             raise XReadError("invalid_arguments", "Give words to search Spaces for, Space ids, or the hosts' usernames.")
         users = _users_by_id(payload)
@@ -995,7 +1007,7 @@ def account_info(kind: str = "muted", *, max_results: Any = 100, next_token: str
                            {"users": users, "next_token": str(meta.get("next_token") or "")})
         if k == "trends":
             payload = _request("/2/users/personalized_trends", {"personalized_trend.fields": "category,post_count,trend_name,trending_since"},
-                               user_context=True, saved=saved)
+                               user_context=True, saved=saved, worst=50)
             trends = [{k2: t.get(k2) for k2 in ("trend_name", "category", "post_count", "trending_since") if t.get(k2) is not None}
                       for t in payload.get("data") or [] if isinstance(t, dict)]
             return XResult(True, "executed", f"{len(trends)} trend(s) picked for your account.", {"trends": trends})

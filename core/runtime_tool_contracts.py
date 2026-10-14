@@ -3198,7 +3198,9 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             "history_for=N (max 10) also reads the top N callers' recent posts and lists the other tokens each "
             "of them called. min_followers=N keeps only accounts with N+ followers. evaluate_calls=true also prices "
             "each call from public trading data (this token from each caller's first post, then their other "
-            "address calls): price then, now, and peak and low after, so you can judge how their calls did.",
+            "address calls): price then, now, and peak and low after, so you can judge how their calls did. "
+            "With history_for unset it reads the top 5 callers' recent posts for this (more X reads; needs web "
+            "access on, and reads nothing extra when it is off).",
             "x.token_callers", "find and rank the accounts that called a token on X, with their other calls",
             {"token": "string (address, $CASHTAG or name)", "max_results": "int optional (10-100 posts)",
              "history_for": "int optional (0-10 callers)", "history_posts": "int optional (5-100 posts each)",

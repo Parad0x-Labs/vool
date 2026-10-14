@@ -106,14 +106,35 @@ def test_price_then_now_peak_and_low(prices, enable_web):
     out = _run("token.performance", {"token": SOL, "at": "2026-10-13T08:00:00Z"})
     assert out.ok, out.response_text
     [call] = out.details["calls"]
-    assert call["price_at"] == pytest.approx(2.0)  # the 08:00 candle opens at the post's time
-    assert call["price_now"] == pytest.approx(2.0) and call["change_now_pct"] == 0.0
-    assert call["peak_after"] == pytest.approx(3.3) and call["peak_pct"] == pytest.approx(65.0)
+    assert call["price_at"] == pytest.approx(1.0)  # the close of the 07:55 candle, the last one done by 08:00
+    assert call["price_now"] == pytest.approx(2.0) and call["change_now_pct"] == 100.0
+    assert call["peak_after"] == pytest.approx(3.3) and call["peak_pct"] == pytest.approx(230.0)
+    assert call["low_after"] == pytest.approx(1.8)  # only candles after the post count, not the 1.0 before it
     assert call["peak_at"] == "2026-10-13 10:00 UTC" and call["symbol"] == "FDOG" and call["chain"] == "solana"
+    assert "from 5-minute candles" in out.response_text and "last trade" not in out.response_text
     ohlcv = next(r for r in prices.requests if "/ohlcv/" in r["path"])
     assert ohlcv["path"].endswith(f"/networks/solana/pools/{POOL}/ohlcv/minute")
     assert ohlcv["query"]["token"] == SOL and ohlcv["query"]["currency"] == "usd"
     assert all(r["auth"] is None for r in prices.requests)  # keyless: nothing of the user's is sent
+
+
+def test_a_move_inside_the_posts_own_candle_is_not_credited(prices, enable_web):
+    """A post at 08:02 lands inside the 08:00 candle; that candle's high happened partly before the
+    post, so the price then is the 07:55 close and the peak counts only from 08:05 on."""
+    prices.ohlcv = _candles(T0 - 3600, 84, 300, lambda i: 1.0 if i < 12 else (5.0 if i == 12 else 2.0))
+    out = _run("token.performance", {"token": SOL, "at": "2026-10-13T08:02:00Z"})
+    [call] = out.details["calls"]
+    assert call["price_at"] == pytest.approx(1.0)
+    assert call["peak_after"] == pytest.approx(2.2) and call["peak_at"] == "2026-10-13 08:05 UTC"
+
+
+def test_a_token_that_stopped_trading_says_when_now_is(prices, enable_web, monkeypatch):
+    from core import token_performance
+
+    monkeypatch.setattr(token_performance, "_clock", lambda: float(NOW + 3600))
+    out = _run("token.performance", {"token": SOL, "at": "2026-10-13T08:00:00Z"})
+    [call] = out.details["calls"]
+    assert "last trade 2026-10-13 13:55 UTC" in call["note"] and call["price_now"] == pytest.approx(2.0)
 
 
 def test_gaps_are_named_never_filled(prices, enable_web):
@@ -152,7 +173,7 @@ def test_callers_with_min_followers_and_how_their_calls_did(fake_x, prices, enab
     assert [c["username"] for c in callers] == ["early_ape", "late_whale"]  # both have 1,000+
     early = callers[0]
     assert early["this_call_performance"]["status"] == "ok"
-    assert early["this_call_performance"]["peak_pct"] == pytest.approx(65.0)
+    assert early["this_call_performance"]["peak_pct"] == pytest.approx(230.0)
     evm_call = next(c for c in early["other_calls"] if c["token"] == EVM.lower())
     assert evm_call["performance"]["status"] == "not_found"  # no pool in the fixture: named, not guessed
     assert early["calls_priced"] == 1
@@ -160,6 +181,14 @@ def test_callers_with_min_followers_and_how_their_calls_did(fake_x, prices, enab
     out = _run("x.token_callers", {"token": SOL, "min_followers": 50_000})
     assert [c["username"] for c in out.details["callers"]] == ["late_whale"]
     assert out.details["callers_below_min_followers"] == 1 and "1 smaller account(s) left out" in out.response_text
+
+
+def test_pricing_calls_with_web_off_reads_no_extra_histories(fake_x, prices):
+    _connect()
+    out = _run("x.token_callers", {"token": SOL, "evaluate_calls": True})
+    assert out.ok and "web access is off" in out.response_text
+    assert [r["path"] for r in fake_x.requests] == ["/2/tweets/search/recent"]  # no callers' timelines read
+    assert prices.requests == []
 
 
 @pytest.mark.parametrize("text,seated", [
