@@ -3188,11 +3188,12 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
 def _chain_contracts() -> list[RuntimeToolContract]:
     from core.chain_data import chain_contracts
+    from core.token_flow import flow_contracts
     from core.token_performance import performance_contracts
     from core.token_research import research_contracts
 
     # token.research rides beside the chain lookup; it adds the X gate only when X is connected.
-    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts()]
+    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts(), *flow_contracts()]
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:

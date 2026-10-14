@@ -3366,6 +3366,10 @@ def _dispatch_runtime_tool(
             from core.token_performance import run_tool as _performance_tool
 
             return _performance_tool(intent, arguments, source_context)
+        if intent == "token.flow":
+            from core.token_flow import run_tool as _flow_tool
+
+            return _flow_tool(intent, arguments, source_context)
         if intent in {"token.research", "token.launches"}:
             from core.token_research import run_tool as _research_tool
 

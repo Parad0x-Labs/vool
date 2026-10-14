@@ -164,6 +164,15 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"|\btrack\s+record\b[^.?!]{0,60}?\b(?:calls?|tokens?|coins?|picks?)\b"
         r"|\b(?:calls?|tokens?|coins?|picks?)\b[^.?!]{0,60}?\btrack\s+record\b"
         r"|\b(?:win\s*rate|hit\s*rate)\b[^.?!]{0,40}?\b(?:calls?|caller|picks?)\b", re.I)),
+    # buy/sell activity: "is this token being bought or sold", "buy/sell volume for $FDOG today"
+    ("token.flow", "web", re.compile(
+        r"\b(?:bought\s+or\s+sold|buy(?:ing)?\s+or\s+sell(?:ing)?|buys?\s+(?:and|or|/)\s+sells?)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|memecoin)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|(?:\b(?:token|coin|memecoin)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"[^.?!]{0,40}?\b(?:being\s+)?(?:bought\s+or\s+sold|buy(?:ing)?\s+or\s+sell(?:ing)?)\b"
+        r"|\b(?:buy|sell)(?:ing)?\s+(?:volume|pressure|flow|activity)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|memecoin|today|24\s*hours?|last\s+(?:day|hour))\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\b(?:volume|pressure|flow|activity)\b[^.?!]{0,40}?\b(?:for|of)\b[^.?!]{0,20}?\$[A-Za-z][A-Za-z0-9]{1,9}\b", re.I)),
     # new tokens: "new launches", "newest tokens", "latest memecoins on solana", "fresh mints"
     ("token.launches", "web", re.compile(
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
