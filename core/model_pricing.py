@@ -504,11 +504,27 @@ def estimate_call_usd(
     """
     price = lookup_model_price(provider_id, model_id, prompt_tokens=prompt_tokens)
     usd = price.usd_for(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, attempts=attempts)
+    source = price.source
+    # A call that carries prompt-cache breakpoints may WRITE its whole prompt to the cache, which
+    # the provider bills above the input rate. Reserve (and, absent a reported cost, settle) at
+    # that worst case; the same plan decides the wire in the adapter (core.prompt_cache).
+    from core.prompt_cache import cache_breakpoint_plan
+
+    plan = cache_breakpoint_plan(openrouter_lane=provider_slot(provider_id) == "openrouter", model_id=model_id)
+    if plan.enabled and plan.write_multiplier > 1.0:
+        surcharge = (
+            max(0, int(prompt_tokens))
+            * float(price.prompt_usd_per_token)
+            * (plan.write_multiplier - 1.0)
+            * max(1, int(attempts))
+        )
+        usd = round(usd + surcharge, 8)
+        source = f"{source}; prompt at the {plan.write_multiplier}x cache-write rate"
     return CostEstimate(
         usd=usd,
         known=price.known,
         basis=price.basis or (BASIS_PUBLISHED_PRICE if price.known else BASIS_UNKNOWN_CEILING),
-        source=price.source,
+        source=source,
         provider_id=str(provider_id or ""),
         model_id=str(model_id or ""),
         prompt_tokens=max(0, int(prompt_tokens)),

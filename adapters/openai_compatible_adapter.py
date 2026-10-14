@@ -1117,6 +1117,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 messages, destination_class="cloud_provider"
             )
         messages = _finalize_provider_evidence_messages(request, messages)
+        # Explicit prompt-cache breakpoints (core.prompt_cache): only Anthropic models on the
+        # OpenRouter lane, only with the prompt_cache_breakpoints flag on. The reservation for
+        # this call was sized from the same plan, at the cache-write price.
+        from core.prompt_cache import apply_cache_breakpoints, cache_breakpoint_plan
+
+        messages, _cache_breakpoints = apply_cache_breakpoints(
+            messages,
+            cache_breakpoint_plan(
+                openrouter_lane=self._is_openrouter_lane(),
+                model_id=str(self.manifest.model_name or ""),
+                local_runtime=self._runtime_family() == "ollama",
+            ),
+        )
         payload: dict[str, Any] = {
             "model": self.manifest.model_name,
             "messages": messages,
@@ -1214,7 +1227,12 @@ class OpenAICompatibleAdapter(ModelAdapter):
             lane="openai",
             provider_id=str(getattr(self.manifest, "provider_id", "") or ""),
             model=str(getattr(self.manifest, "model_name", "") or ""),
-            extra={"output_mode": getattr(request, "output_mode", ""), "force_json": force_json, "stream": stream},
+            extra={
+                "output_mode": getattr(request, "output_mode", ""),
+                "force_json": force_json,
+                "stream": stream,
+                "cache_breakpoints": _cache_breakpoints,
+            },
         )
         return payload
 

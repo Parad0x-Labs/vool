@@ -466,8 +466,10 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
         model_id = str(getattr(manifest, "model_name", "") or "")
         cost_class = reported_cost_class(manifest)
         from core.model_pricing import cached_prompt_tokens
+        from core.prompt_cache import cache_write_prompt_tokens
 
         cached_tokens = cached_prompt_tokens(usage)
+        cache_write_tokens = cache_write_prompt_tokens(usage)
         usage_meter.record_usage(
             provider_id=provider_id,
             model_id=model_id,
@@ -478,6 +480,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             prompt_tokens_reported=prompt_tokens_reported,
             output_tokens_reported=output_tokens_reported,
             cached_prompt_tokens=cached_tokens,
+            cache_write_prompt_tokens=cache_write_tokens,
         )
         summary = {
             "provider_id": provider_id,
@@ -489,6 +492,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             "prompt_tokens_reported": prompt_tokens_reported,
             "output_tokens_reported": output_tokens_reported,
             "cached_prompt_tokens": cached_tokens,
+            "cache_write_prompt_tokens": cache_write_tokens,
         }
         if cost_class == "paid_cloud":
             # The priced figure a surface can render: the same number the spend ledger settles
