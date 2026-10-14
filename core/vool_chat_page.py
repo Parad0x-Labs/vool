@@ -3910,12 +3910,14 @@ async function refreshReminderArtifacts(chatId) {
   const run = target.run, length = target.history.length;
   reminderRefreshes.add(chatId);
   try {
-    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery');
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery,paid_ai_answer');
     if (!r.ok) return;
     const data = await r.json();
     if (target.run !== run || target.history.length !== length || (target.run && !target.run.ended)) return;
+    // a paid AI answer arrives after its payment is approved: one per payment
     const key = (m) => m.artifact && m.artifact.kind === 'reminder_delivery' && m.artifact.reminder_id
-      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '') : '';
+      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '')
+      : (m.artifact && m.artifact.kind === 'paid_ai_answer' && m.artifact.proposal_id ? 'paid:' + String(m.artifact.proposal_id) : '');
     const seen = new Set(target.history.map(key).filter(Boolean));
     let changed = false;
     for (const m of (data.messages || [])) {

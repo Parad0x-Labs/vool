@@ -203,6 +203,15 @@ def _payment_channels() -> list[dict[str, Any]]:
         return [{"error": f"unreadable:{type(exc).__name__}"}]
 
 
+def _ai_endpoints() -> list[dict[str, Any]] | dict[str, str]:
+    try:
+        from core import x402_ai
+
+        return x402_ai.endpoints()
+    except Exception as exc:
+        return {"error": f"unreadable:{type(exc).__name__}"}
+
+
 def crypto_pilot_status() -> dict[str, Any]:
     """The Crypto Pilot surface: the active network environment and where it came from, every declared row
     with its accounts and typed capabilities. No network I/O, no writes (a derived environment is pinned
@@ -245,6 +254,8 @@ def crypto_pilot_status() -> dict[str, Any]:
         "networks": capabilities.network_rows(active_environment=state.environment, wallets=wallets),
         # the owner's choice of how paid requests are paid: each channel, on or off, and whether this install can use it
         "payment_channels": _payment_channels(),
+        # the owner's pay-per-answer AI endpoints (Settings, Crypto, Pay-per-answer AI)
+        "ai_endpoints": _ai_endpoints(),
         "credential_policy": {
             "pin": {"min": pilot_custody.PIN_MIN, "max": pilot_custody.PIN_MAX, "text": f"{pilot_custody.PIN_MIN}–{pilot_custody.PIN_MAX} digits"},
             "password": {"min": custody._PASSWORD_MIN, "max": custody._PASSWORD_MAX, "text": f"{custody._PASSWORD_MIN}–{custody._PASSWORD_MAX} characters, not only digits"},

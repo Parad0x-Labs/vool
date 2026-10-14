@@ -753,6 +753,7 @@ function drawCrypto(st){
     inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
   }
   box.appendChild(channelControls(cp));
+  box.appendChild(paidAiControls(cp));
   box.appendChild(devOptions(cp, inactiveEmpty.sort(byOrder)));
 }
 var CHANNEL_REASONS = {
@@ -791,6 +792,72 @@ function channelControls(cp){
     });
     box.appendChild(row);
   });
+  box.appendChild(msg);
+  return box;
+}
+function paidAiControls(cp){
+  // The owner's pay-per-answer AI endpoints: a model VOOL may ask through x402, the most one answer may cost, and
+  // whether it is on. Asking happens from chat; every answer is paid only after the owner approves it in the wallet.
+  var box = el('div', 'vw-cx-row vw-cx-paid-ai'); box.id = 'vwCxPaidAi';
+  box.appendChild(el('div', 'vw-cx-title', 'Pay-per-answer AI'));
+  box.appendChild(el('div', 'vw-cx-env', 'Add an AI service that charges a small fee per answer, in USDC on Base. Then ask it from any chat, for example "ask my paid AI: …", and name it when you have more than one. Only your question is sent, never the rest of the chat. You approve each payment first. It stays under your caps and this price limit, and you get a receipt.'));
+  box.appendChild(el('div', 'vw-cx-env', 'VOOL checks that each answer comes from the model you chose. If the service names a different model, or no model, VOOL pauses it. Turn it back on here when you are ready. VOOL cannot see what really runs behind the service.'));
+  var msg = el('div', 'vw-msg');
+  var list = el('div', 'vw-cx-paid-ai-list'); list.id = 'vwPaidAiList';
+  function draw(rows){
+    list.textContent = '';
+    if (rows && rows.error) { list.appendChild(el('div', 'vw-cx-warn', 'Your services could not be shown right now. Reload this page to try again.')); return; }
+    if (!rows || !rows.length) { list.appendChild(el('div', 'vw-cx-env', 'No service added yet.')); return; }
+    rows.forEach(function(r){
+      var row = el('div', 'vw-cx-channel'); row.setAttribute('data-endpoint', r.id); row.setAttribute('data-on', r.on ? 'true' : 'false');
+      var toggle = el('input'); toggle.type = 'checkbox'; toggle.id = 'vwAi_' + r.id; toggle.checked = !!r.on;
+      var label = el('label', null, r.label); label.setAttribute('for', toggle.id);
+      row.appendChild(toggle); row.appendChild(label);
+      var price = (Number(r.max_price_minor || 0) / 1000000).toString();
+      row.appendChild(el('div', 'vw-cx-env', r.model + ' · up to ' + price + ' USDC per answer'));
+      row.appendChild(el('div', 'vw-cx-env', r.base_url));
+      if (!r.on && r.paused_reason) row.appendChild(el('div', 'vw-cx-warn', 'Paused: ' + r.paused_reason + '. Tick the box to turn it back on.'));
+      var remove = el('button', 'vw-toggle', 'Remove'); remove.type = 'button'; remove.setAttribute('aria-label', 'remove ' + r.label);
+      row.appendChild(remove);
+      toggle.addEventListener('change', function(){
+        var wanted = toggle.checked; toggle.disabled = true;
+        postJson('/api/wallet/ai-endpoints', { action: 'set_on', id: r.id, on: wanted }).then(function(res){
+          toggle.disabled = false;
+          if (!res.ok) { toggle.checked = !wanted; cxMsg(msg, faultMessage(res, 'The service was not changed.'), true); return; }
+          draw(res.data.ai_endpoints); cxMsg(msg, r.label + (wanted ? ' is on.' : ' is off: nothing is asked or paid there.'));
+        }).catch(function(){ toggle.disabled = false; toggle.checked = !wanted; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      remove.addEventListener('click', function(){
+        remove.disabled = true;
+        postJson('/api/wallet/ai-endpoints', { action: 'remove', id: r.id }).then(function(res){
+          remove.disabled = false;
+          if (!res.ok) { cxMsg(msg, faultMessage(res, 'The service was not removed.'), true); return; }
+          draw(res.data.ai_endpoints); cxMsg(msg, r.label + ' was removed.');
+        }).catch(function(){ remove.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      list.appendChild(row);
+    });
+  }
+  draw(cp.ai_endpoints || []);
+  box.appendChild(list);
+  var form = el('div', 'vw-cx-actions'); form.id = 'vwPaidAiForm';
+  function field(id, placeholder, aria){ var i = el('input', 'vw-limit'); i.type = 'text'; i.id = id; i.autocomplete = 'off'; i.placeholder = placeholder; i.setAttribute('aria-label', aria); form.appendChild(i); return i; }
+  var name = field('vwPaidAiName', 'Name, e.g. Research', 'name for this service');
+  var url = field('vwPaidAiUrl', 'Address, starting with https://', 'service address, starting with https://');
+  var model = field('vwPaidAiModel', 'Model name, exactly as listed', 'exact model name the service lists');
+  var max = field('vwPaidAiMax', 'Most per answer, e.g. 0.05', 'most one answer may cost, in USDC');
+  var add = el('button', 'vw-btn', 'Add service'); add.type = 'button'; add.id = 'vwPaidAiAdd';
+  form.appendChild(add);
+  add.addEventListener('click', function(){
+    add.disabled = true;
+    postJson('/api/wallet/ai-endpoints', { action: 'add', label: name.value, base_url: url.value, model: model.value, max_price: max.value }).then(function(res){
+      add.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'The service was not added.'), true); return; }
+      name.value = ''; url.value = ''; model.value = ''; max.value = '';
+      draw(res.data.ai_endpoints); cxMsg(msg, 'Added. Ask it from any chat; nothing is paid until you approve an answer.');
+    }).catch(function(){ add.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  box.appendChild(form);
   box.appendChild(msg);
   return box;
 }
@@ -1757,6 +1824,13 @@ function openSheet(p, cardControls, cardResult, opener){
         if (companion && companion.collection_id) {
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
           line.setAttribute('data-companion-outcome', companion.state || ''); cardResult.appendChild(line);
+        }
+        // a pay-per-answer AI answer that could not go into the chat log (a private chat, or a save that failed) is shown here
+        var paidAi = res.data && res.data.paid_ai;
+        if (paidAi && paidAi.text && !paidAi.posted) {
+          var answerNode = el('div', 'vw-transfer-detail vw-paid-ai-answer', paidAi.text);
+          answerNode.style.whiteSpace = 'pre-wrap'; answerNode.setAttribute('data-paid-ai', paidAi.verdict || '');
+          cardResult.appendChild(answerNode);
         }
         return;
       }

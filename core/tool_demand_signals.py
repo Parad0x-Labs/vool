@@ -134,6 +134,10 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("wallet.payment_status", "wallet", re.compile(r"\bpay-[0-9a-f]{20}\b|\b(?:status|state)\b[^.?!]{0,40}?\b(?:payment|proposal)\b", re.I)),
     ("wallet.simulate", "wallet", re.compile(r"\bsimulate\b[^.?!]{0,40}?\b(?:payment|proposal|transaction)\b", re.I)),
     ("x402.propose", "wallet", re.compile(r"\bx402\b[^.?!]{0,80}?\b(?:fetch|get|access|pay|paid|buy|resource|offer)\b|\b(?:fetch|access)\b[^.?!]{0,60}?\bpaid\b", re.I)),
+    # pay-per-answer AI (core/x402_ai): the owner's own paid service, named as such; asking it only parks a payment
+    ("ai.paid_ask", "wallet", re.compile(
+        r"\b(?:ask|use|query|try)\b[^.?!]{0,30}?\b(?:paid|pay[\s-]?per[\s-]?answer)\s+(?:ai|model|llm|service|endpoint)\b"
+        r"|\bask\b[^.?!]{0,60}?\b(?:with|over|via|through|using|paying\s+with)\s+x402\b", re.I)),
     ("wallet.status", "wallet", re.compile(r"\bwallet\b[^.?!]{0,30}?\b(?:status|balance|limits?)\b|\b(?:my|the)\s+wallet\b", re.I)),
     # -- Zcash private invoices (core/zcash; seated only when the lane is on, since the contracts exist only then) --
     # every pattern is anchored on the coin's own name, so no other money talk seats them

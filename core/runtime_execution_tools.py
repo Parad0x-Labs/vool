@@ -3417,6 +3417,10 @@ def _dispatch_runtime_tool(
             from core.chain_data import run_tool as _chain_tool
 
             return _chain_tool(intent, arguments, source_context)
+        if intent == "ai.paid_ask":
+            from core.x402_ai import run_tool as _paid_ai_tool
+
+            return _paid_ai_tool(intent, arguments, source_context)
         if intent == "token.performance":
             from core.token_performance import run_tool as _performance_tool
 

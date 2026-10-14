@@ -2626,6 +2626,13 @@
       "registry_command_id": "update.rollback",
       "surface": "http"
     },
+    "http:POST:/api/wallet/ai-endpoints": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/wallet/ai-endpoints",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "wallet.ai_endpoints.set",
+      "surface": "http"
+    },
     "http:POST:/api/wallet/approval-method": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/wallet/approval-method",
@@ -3120,7 +3127,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 305,
-    "GENERATED_ADAPTER": 131,
+    "GENERATED_ADAPTER": 132,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

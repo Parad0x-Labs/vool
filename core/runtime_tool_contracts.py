@@ -2765,6 +2765,8 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
             handler="external_lane",
             permission_actions=("spend_funds",),
         ),
+        # Pay-per-answer AI over x402: asks an endpoint the owner added and parks its payment; never pays.
+        *_paid_ai_contracts(wallet_tools_enabled=wallet_tools_enabled),
         RuntimeToolContract(
             intent="operator.list_tools",
             description="List the operator tools this runtime exposes.",
@@ -3184,6 +3186,12 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
         # so a chain question without a key gets "add a key", never a number from memory.
         *_chain_contracts(),
     ]
+
+
+def _paid_ai_contracts(*, wallet_tools_enabled: bool) -> list[RuntimeToolContract]:
+    from core.x402_ai import contracts
+
+    return contracts(wallet_tools_enabled=wallet_tools_enabled)
 
 
 def _chain_contracts() -> list[RuntimeToolContract]:
