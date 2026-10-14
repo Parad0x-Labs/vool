@@ -164,6 +164,17 @@ def _wait_terminal_or_holding(goal_id: str, timeout: float = 20.0) -> dict[str, 
     return goal
 
 
+def _wait_after_resume(goal_id: str, payload: dict[str, Any], timeout: float = 20.0) -> dict[str, Any]:
+    """A Resume pressed while the paused step is still settling answers ``settling``: the goal
+    reads paused until that step's worker hands over to its successor. Only then is a paused
+    reading a real outcome."""
+    if payload.get("settling"):
+        deadline = time.time() + timeout
+        while time.time() < deadline and (load_goal(goal_id) or {}).get("state") == "paused":
+            time.sleep(0.05)
+    return _wait_terminal_or_holding(goal_id, timeout=timeout)
+
+
 class _AppendAgent:
     """Synthetic provider whose step effect is a NON-idempotent append, verified by the
     declared tool event — the exact shape the review's duplication probe used."""
@@ -262,7 +273,7 @@ def test_card_resume_and_retry_spawn_workers_with_the_real_runtime() -> None:
         # reproduction: spawn(None, ...) crashed in _run_agent_locked on runtime.agent).
         status, payload = _post(_APP, "/api/goal/resume", {"session_id": _canonical(goal_id), "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True, payload
-        goal = _wait_terminal_or_holding(goal_id)
+        goal = _wait_after_resume(goal_id, payload)
         assert goal["state"] == "completed", goal["last_reason"]
         step_calls = [c for c in agent.calls if STEP_MARKER in c["text"]]
         assert step_calls and all(c["runtime"] is app_runtime for c in step_calls[1:]), (
@@ -350,7 +361,7 @@ def test_pause_after_committed_append_never_duplicates_the_effect() -> None:
 
         status, payload = _post(_APP, "/api/goal/resume", {"session_id": _canonical(goal_id), "goal_id": goal_id})
         assert status == 200 and payload["ok"] is True
-        goal = _wait_terminal_or_holding(goal_id)
+        goal = _wait_after_resume(goal_id, payload)
         assert goal["state"] == "completed", goal["last_reason"]
         # EXACTLY ONE append for step one: the committed effect was reconciled from its
         # receipt, not replayed.

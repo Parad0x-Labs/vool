@@ -198,6 +198,9 @@ def render_goal_progress_fragment() -> str:
         .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
         .then(function(res){
           if (res.d && res.d.goal) applyView(res.d.goal, body.session_id); else schedulePoll(0);
+          // Resume pressed while the paused step is still finishing: the goal reads paused until
+          // that step hands over, so keep reading the state until it moves on.
+          if (res.d && res.d.settling) followSettling(40);
           if (res.d && res.d.approval && window.VoolPageActions) window.VoolPageActions.reviewGoalApproval(res.d.goal, res.d.approval);
           else if (!res.ok && res.d && res.d.error && window.VoolPageActions) window.VoolPageActions.toast(res.d.error);
         })
@@ -231,6 +234,12 @@ def render_goal_progress_fragment() -> str:
       $('vgcElapsed').textContent = e;
       $('vgcFootElapsed').textContent = t('goal.elapsed_label','Elapsed') + ' ' + e + (view.paused ? ' \u00b7 ' + t('goal.paused_note','paused') : '');
     }, 1000);
+  }
+  function followSettling(left){
+    if (left <= 0) return;
+    setTimeout(function(){
+      fetchState().then(function(){ if (view && view.state === 'paused') followSettling(left - 1); });
+    }, 500);
   }
   function schedulePoll(delay){
     if (pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
