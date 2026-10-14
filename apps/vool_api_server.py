@@ -418,7 +418,7 @@ class VoolAPIHandler(BaseHTTPRequestHandler):
         if is_raw_upload_path(urlparse(self.path).path):
             # Same door as the starlette shell: bytes, not JSON, bounded by the authority's ceiling
             # BEFORE the body is read.
-            if content_length > raw_upload_body_ceiling():
+            if content_length > raw_upload_body_ceiling(urlparse(self.path).path):
                 self._write_response(
                     apply_runtime_headers(
                         json_response(413, {"ok": False, "error": "too_large", "message": "The upload is over the attachment size limit."}),
