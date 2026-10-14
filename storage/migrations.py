@@ -1580,7 +1580,8 @@ CREATE TABLE IF NOT EXISTS chat_goals (
     created_turn_id TEXT NOT NULL DEFAULT '',
     last_reason TEXT NOT NULL DEFAULT '',
     model TEXT NOT NULL DEFAULT '',
-    exec_context_json TEXT NOT NULL DEFAULT '{}'
+    exec_context_json TEXT NOT NULL DEFAULT '{}',
+    worker_epoch INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_goals_session
