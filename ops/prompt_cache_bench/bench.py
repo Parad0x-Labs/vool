@@ -272,6 +272,34 @@ def _done_keys(rows: list[dict[str, Any]]) -> set[tuple[str, int]]:
     return finished
 
 
+def _spend_line(ledger: SpendLedger, results_path: Path) -> str:
+    arm = sum(float(r.get("usd") or 0.0) for r in _read_jsonl(results_path) if r.get("kind") == "turn")
+    return (
+        f"arm ${arm:.4f} | run billed ${ledger.billed_usd:.4f} + notional ${ledger.notional_usd:.4f} "
+        f"| hard stop at ${ledger.cap_usd:.2f}"
+    )
+
+
+def _remove_scratch(attempt_dir: Path, root: Path) -> list[str]:
+    """Delete the attempt's throwaway product copy, profile and workspaces; keep the evidence.
+
+    Only these named children of an attempt directory inside the run root are removed.
+    """
+    attempt_dir = attempt_dir.resolve()
+    if root.resolve() not in attempt_dir.parents:
+        raise HarnessError(f"refusing to clean {attempt_dir}: not inside the run root")
+    removed = []
+    for name in ("app", "home", "user-home", "ws", "workspace-root"):
+        target = attempt_dir / name
+        if target.exists():
+            for path in [target, *target.rglob("*")]:
+                with contextlib.suppress(OSError):
+                    path.chmod(0o700 if path.is_dir() else 0o600)
+            shutil.rmtree(target)
+            removed.append(name)
+    return removed
+
+
 def _fresh_workspace(dest: Path) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
@@ -394,6 +422,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
     attempt_dir.mkdir(parents=True)
     staged = stage_app(REPO, args.sha, attempt_dir)
     home = attempt_dir / "home"
+    (attempt_dir / "user-home").mkdir(parents=True, exist_ok=True)
     remaining = max(0.01, ledger.cap_usd - ledger.counted_usd)
     _write_home_policy(staged.path, home, per_call=args.per_call_usd, per_task=args.per_task_usd, daily=remaining)
     env = {
@@ -402,6 +431,8 @@ def cmd_vool(args: argparse.Namespace) -> int:
         "VOOL_LOCAL_MODELS_ENABLED": "0",
         "VOOL_INTENT_ARBITER": "0",
         "VOOL_DEBUG_PROMPT": "1",
+        # A throwaway HOME too, so nothing in the operator's own home is read or written.
+        "HOME": str(attempt_dir / "user-home"),
         "VOOL_PROMPT_CACHE_BREAKPOINTS": "1" if args.cache != "off" else "0",
     }
     if args.cache != "off":
@@ -413,6 +444,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
         "arm": "vool",
         "model": args.model,
         "cache": args.cache,
+        "mode": args.mode,
         "sha": staged.sha_full,
         "archive_sha256": staged.archive_sha256,
         "repeats": args.repeats,
@@ -454,7 +486,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     extra_body={
                         "model": f"openrouter-byok:{args.model}",
                         "model_selection": "pin",
-                        "mode": "plan",
+                        "mode": args.mode,
                         "stream": False,
                     },
                     timeout_s=TURN_TIMEOUT_S,
@@ -492,7 +524,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     f"{args.label} {task['id']} r{repeat} t{index}: {wall}s "
                     f"in={usage['prompt_tokens']} cached={usage['cached_tokens']} "
                     f"write={usage['cache_write_tokens']} out={usage['output_tokens']} "
-                    f"${usage['usd']:.5f} calls={usage['calls']} status={exchange.status}",
+                    f"${usage['usd']:.5f} calls={usage['calls']} status={exchange.status} | {_spend_line(ledger, results_path)}",
                     flush=True,
                 )
                 if exchange.error or exchange.status != 200 or not answer:
@@ -515,8 +547,14 @@ def cmd_vool(args: argparse.Namespace) -> int:
                 "ledger": _read_json(root / "spend.json", {}),
             }
         )
+        prompt_log = home / "logs" / "prompt_debug.jsonl"
+        if prompt_log.exists():
+            shutil.copy2(prompt_log, attempt_dir / "prompt_debug.jsonl")
         _write_json(attempt_dir / "manifest.json", manifest)
         _scrub_key_from_logs(attempt_dir, key)
+        if args.clean_scratch:
+            manifest["scratch_removed"] = _remove_scratch(attempt_dir, root)
+            _write_json(attempt_dir / "manifest.json", manifest)
     return exit_code
 
 
@@ -571,6 +609,8 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     command = [
                         claude, "-p", turn["text"], "--output-format", "json", "--model", args.cli_model,
                         "--allowedTools", "Read", "Glob", "Grep",
+                        # No MCP servers from the operator's settings: the arm uses the CLI's own tools.
+                        "--strict-mcp-config", "--mcp-config", '{"mcpServers": {}}',
                     ]
                     if session_id:
                         command += ["--resume", session_id]
@@ -623,7 +663,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     print(
                         f"{args.label} {task['id']} r{repeat} t{index}: {wall}s in={row['prompt_tokens']} "
                         f"cached={row['cached_tokens']} write={row['cache_write_tokens']} out={row['output_tokens']} "
-                        f"${cost if cost is not None else float('nan'):.5f} exit={proc.returncode}",
+                        f"${cost if cost is not None else float('nan'):.5f} exit={proc.returncode} | {_spend_line(ledger, results_path)}",
                         flush=True,
                     )
                 _append_jsonl(results_path, {"kind": "chat_complete", "task": task["id"], "repeat": repeat, "attempt": attempt})
@@ -634,6 +674,10 @@ def cmd_cli(args: argparse.Namespace) -> int:
         _write_json(arm_dir / f"{attempt}-status.json", {"status": status, "finished_at": _now(), "ledger": _read_json(root / "spend.json", {})})
         if args.route == "openrouter":
             _scrub_key_from_logs(arm_dir, env.get("ANTHROPIC_AUTH_TOKEN", ""))
+        if args.clean_scratch and (arm_dir / "ws").exists():
+            if root.resolve() not in (arm_dir / "ws").resolve().parents:
+                raise HarnessError("refusing to clean a workspace outside the run root")
+            shutil.rmtree(arm_dir / "ws")
     return exit_code
 
 
@@ -853,6 +897,8 @@ def main(argv: list[str] | None = None) -> int:
     vool.add_argument("--per-call-usd", type=float, default=0.60)
     vool.add_argument("--per-task-usd", type=float, default=2.00)
     vool.add_argument("--python", default="")
+    vool.add_argument("--clean-scratch", action="store_true", help="remove the staged app, profile and workspaces after the run")
+    vool.add_argument("--mode", default="auto", help="VOOL operating mode for every turn (isolated workspace)")
     vool.set_defaults(func=cmd_vool)
 
     cli = sub.add_parser("cli")
@@ -861,6 +907,7 @@ def main(argv: list[str] | None = None) -> int:
     cli.add_argument("--cli-model", required=True, help="Claude Code model name, e.g. claude-sonnet-4-5")
     cli.add_argument("--route", choices=("login", "openrouter"), default="login")
     cli.add_argument("--claude-bin", default="claude")
+    cli.add_argument("--clean-scratch", action="store_true", help="remove the task workspaces after the run")
     cli.set_defaults(func=cmd_cli)
 
     grade = sub.add_parser("grade")
