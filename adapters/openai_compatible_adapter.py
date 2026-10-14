@@ -991,7 +991,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         table, so core.local_inference_autopilot's live routing scores providers on
         actual measured speed instead of static/zero manifest metadata. Never lets
         a benchmark-recording failure affect the real chat response. A private turn's call
-        records nothing, and no call hands its prompt over."""
+        records nothing; the recorder keeps counts and durations, never the prompt or answer."""
         try:
             from core.private_chat import request_is_private
 
@@ -1002,7 +1002,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             record_ollama_generate_benchmark(
                 provider_id=self.manifest.provider_id,
                 model_id=self.manifest.model_name,
-                prompt="",
+                prompt=request.prompt,
                 response_payload=response_payload,
             )
         except Exception:
