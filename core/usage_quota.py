@@ -151,6 +151,18 @@ def consume_quota(capability: str, *, tier: str, units: int = 1, today: str | No
     return QuotaCheck(capability, tier, new_used, limit, max(0, limit - new_used), True, day)
 
 
+def release_quota(capability: str, *, units: int = 1, today: str | None = None) -> None:
+    """Give back units consumed for something that provably never happened (it was refused before
+    it left the machine). Never goes below zero."""
+    day = _today(today)
+    usage = _load_usage()
+    used = int(usage.get(day, {}).get(str(capability), 0))
+    if used <= 0:
+        return
+    usage.setdefault(day, {})[str(capability)] = max(0, used - max(1, int(units)))
+    _save_usage(_prune(usage, day))
+
+
 def reset_usage() -> None:
     """Clear all tracked usage (admin / tests)."""
     path = _usage_path()
@@ -165,6 +177,7 @@ __all__ = [
     "check_quota",
     "consume_quota",
     "quota_limits",
+    "release_quota",
     "reset_usage",
     "usage_today",
 ]

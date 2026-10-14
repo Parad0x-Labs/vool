@@ -29,13 +29,13 @@ import threading
 import time
 from typing import Any
 
-from core import x_usage
+from core import usage_quota, x_usage
 from core.runtime_paths import data_path
 
 _FILE = "x_actions.json"
 EXPIRY_S = 24 * 3600
 MAX_PENDING = 20
-MAX_TEXT = 4000
+POST_QUOTA = "x.post"  # the daily posting cap in core/usage_quota
 KINDS = ("post", "reply", "quote", "delete", "like", "unlike", "repost", "unrepost", "follow", "unfollow")
 _TEXT_KINDS = {"post", "reply", "quote"}
 _POST_KINDS = {"reply", "quote", "delete", "like", "unlike", "repost", "unrepost"}
@@ -150,8 +150,14 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         text = str(args.get("text") or "").strip()
         if not text:
             return _result(False, "invalid_arguments", "Say what the post should say. Nothing was proposed.")
-        if len(text) > MAX_TEXT:
-            return _result(False, "invalid_arguments", f"That text is longer than {MAX_TEXT} characters. Nothing was proposed.")
+        from core.x_platform_policy import STANDARD_POST_LIMIT, weighted_length
+
+        # X counts weighted characters (links 23, most emoji and CJK 2); a longer post needs a
+        # paid X plan VOOL can't confirm, so it would fail at X only after the user approved it.
+        if weighted_length(text) > STANDARD_POST_LIMIT:
+            return _result(False, "invalid_arguments",
+                           f"That post is {weighted_length(text)} characters as X counts them (links count as 23, most "
+                           f"emoji as 2), over X's {STANDARD_POST_LIMIT}. Shorten it or split it into a thread. Nothing was proposed.")
         if any(_hidden(ch) for ch in text):
             return _result(False, "invalid_arguments", "That text has invisible characters that change how it reads, "
                            "so it could look different on X than on the approval card. Nothing was proposed.")
@@ -335,11 +341,22 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
         refusal = x_usage.reserve_action()
         if refusal:
             return {"ok": False, "state": "usage_limit_reached", "message": refusal}
+        publishes = action["kind"] in _TEXT_KINDS
+        if publishes:
+            # Posts, replies and quotes also keep the daily posting cap (core/usage_quota "x.post").
+            day = usage_quota.consume_quota(POST_QUOTA, tier=usage_quota.active_tier())
+            if not day.allowed:
+                x_usage.unreserve_action()
+                return {"ok": False, "state": "daily_limit_reached",
+                        "message": f"VOOL has already posted {day.used} times on X today, its daily limit. "
+                                   "Nothing was sent; you can approve this again tomorrow."}
         action.update(state="sending", updated_at=time.time())
         try:
             _save(state)
         except OSError:
             x_usage.unreserve_action()
+            if publishes:
+                usage_quota.release_quota(POST_QUOTA)
             return {"ok": False, "state": "store_unreadable", "message": "VOOL could not save this X action. Nothing was sent."}
     method, path, body = _request_for(action)
     keys = OAuth1Keys(**{name: saved[name] for name in FIELDS})
@@ -360,6 +377,8 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
             raw = response.read(256 * 1024) or b""
     except RemoteFetchRefusedError:
         x_usage.unreserve_action()
+        if publishes:
+            usage_quota.release_quota(POST_QUOTA)
         action = _finish(action, state="pending", message="VOOL is not allowed to go online right now (for example Local Only is on). Nothing was sent; you can approve again later.")
         return {"ok": False, "state": "refused", "message": action["message"], "action": public(action)}
     except CredentialRedirectRefusedError:

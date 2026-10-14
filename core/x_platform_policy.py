@@ -232,9 +232,9 @@ ARTICLE_UNKNOWN_NOTE = (
 )
 
 PUBLISH_REFUSAL_GUIDANCE = (
-    "I can draft, edit and convert the text, but I cannot publish, schedule or post it. "
-    "Publishing is not a capability of this runtime. Use the copy-ready text in your own "
-    "X composer."
+    "I never post on my own and I can't schedule posts or send DMs. With your X account connected "
+    "(Settings > API Keys > X), I can prepare a post, reply or quote for you to approve there, and "
+    "only your approval sends it. Otherwise, use the copy-ready text in your own X composer."
 )
 
 

@@ -399,3 +399,44 @@ def test_a_redirected_send_is_unclear_not_nothing_sent(fake_x):
     action = _propose({"kind": "post", "text": "hello"}).details["action"]
     status, out = _approve(action["id"])
     assert status == 400 and out["action"]["state"] == "unknown" and "check X" in out["message"]
+
+
+def test_posts_over_xs_weighted_280_are_refused_before_approval(fake_x):
+    from core.x_platform_policy import weighted_length
+
+    fits = "a" * 256 + " https://example.com/" + "b" * 50  # the whole link counts as 23, not its length
+    assert weighted_length(fits) == 280 and len(fits) > 280
+    assert _propose({"kind": "post", "text": fits}).ok
+    over = "中" * 141  # CJK counts 2 each: 282
+    out = _propose({"kind": "reply", "post": "555", "text": over})
+    assert not out.ok and out.status == "invalid_arguments" and "282 characters as X counts them" in out.response_text
+
+
+def test_publishing_keeps_a_daily_cap_and_a_refused_send_gives_the_day_back(fake_x, monkeypatch):
+    import core.remote_fetch_policy as policy
+    from core import usage_quota
+
+    monkeypatch.setattr(usage_quota, "capability_limit", lambda capability, tier: 1 if capability == "x.post" else None)
+    first, second = (_propose({"kind": "post", "text": t}).details["action"]["id"] for t in ("one", "two"))
+    like = _propose({"kind": "like", "post": "555"}).details["action"]["id"]
+    real_open = policy.open_remote_url
+
+    def refuse(*args, **kwargs):
+        raise policy.RemoteFetchRefusedError("local only")
+
+    monkeypatch.setattr(policy, "open_remote_url", refuse)
+    assert _approve(first)[1]["state"] == "refused"
+    assert usage_quota.usage_today("x.post") == 0  # never left the machine: the day's post is given back
+    monkeypatch.setattr(policy, "open_remote_url", real_open)
+    assert _approve(first)[0] == 200
+    status, out = _approve(second)
+    assert status == 400 and out["state"] == "daily_limit_reached" and "Nothing was sent" in out["message"]
+    assert _approve(like)[0] == 200  # likes and follows are not posts
+    assert [w["path"] for w in fake_x.writes()] == ["/2/tweets", "/2/users/1234567890/likes"]
+
+
+def test_publish_guidance_points_at_approval_not_at_a_missing_capability():
+    from core.x_platform_policy import unsupported_capability_guidance
+
+    text = unsupported_capability_guidance("tweet it out now")
+    assert "not a capability" not in text and "approve" in text and "only your approval sends it" in text

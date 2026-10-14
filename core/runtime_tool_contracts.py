@@ -3258,7 +3258,7 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             capability_claim="propose a post, reply, like, repost or follow on X for the user to approve",
             supported=connected, unsupported_reason=_X_UNSUPPORTED,
             input_schema={"kind": "string (post|reply|quote|delete|like|unlike|repost|unrepost|follow|unfollow)",
-                          "text": "string (post, reply, quote)", "post": "string (post link or id: reply, quote, "
+                          "text": "string, at most 280 characters as X counts them (post, reply, quote)", "post": "string (post link or id: reply, quote, "
                           "delete, like, unlike, repost, unrepost)", "username": "string (follow, unfollow)"},
             output_schema={"action": "object (id, kind, state)"},
             side_effect_class="creative_state",
