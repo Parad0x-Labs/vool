@@ -21,7 +21,7 @@ _PAGE = r"""<!doctype html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>VOOL · Open a .null site</title>
+<title>VOOL · .null browser</title>
 <style>
 __VOOL_PALETTE_CSS__
   :root { --panel2:var(--field); --green:#4c4; --amber:#da3; --red:#f44;
