@@ -292,12 +292,13 @@ function mountEmoteButton(){
   var btn = document.createElement('button');
   btn.id = 'vxEmoteBtn';
   btn.type = 'button';
-  btn.className = 'vx-btn';
+  // The same line icon set as the microphone and voice buttons beside it, not a text glyph.
+  btn.className = 'vx-btn vi';
+  btn.setAttribute('data-ico', 'smile');
   btn.title = 'Add a pet reaction';
   btn.setAttribute('aria-label', 'Add a pet reaction');
   btn.setAttribute('aria-haspopup', 'true');
   btn.setAttribute('aria-expanded', 'false');
-  btn.textContent = '\\u263a';
   send.parentNode.insertBefore(btn, send);
   var pop = document.createElement('div');
   pop.id = 'vxEmotePop';
