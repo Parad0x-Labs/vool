@@ -145,7 +145,8 @@ class SpendLedger:
     otherwise, so the cap can only stop a run early, never late.
     """
 
-    def __init__(self, root: Path, cap_usd: float, *, count_notional: bool = True) -> None:
+    def __init__(self, root: Path, cap_usd: float, *, count_notional: bool = True, hold_usd: float = 0.0) -> None:
+        self.hold_usd = float(hold_usd)  # kept back for a later step of the same run (grading)
         self.path = root / "spend.json"
         self.cap_usd = float(cap_usd)
         self.count_notional = count_notional
@@ -163,7 +164,7 @@ class SpendLedger:
         return self.billed_usd + (self.notional_usd if self.count_notional else 0.0)
 
     def reserve(self) -> float:
-        return max(INITIAL_TURN_RESERVE_USD, 2.0 * self.max_turn_usd)
+        return max(INITIAL_TURN_RESERVE_USD, 2.0 * self.max_turn_usd) + self.hold_usd
 
     def check(self, what: str) -> None:
         if self.counted_usd + self.reserve() > self.cap_usd:
@@ -263,7 +264,9 @@ def profile_key_store(home: Path) -> str:
     keys = data / "keys"
     node_key = any((keys / name).exists() for name in ("node_signing_key.json", "node_signing_key.keyring.json", "node_signing_key.b64"))
     if (data / "credentials.enc.json").exists() and node_key:
-        return "vault"
+        if (keys / "node_signing_key.keyring.json").exists():
+            return "vault (its opening key is in the macOS Keychain)"
+        return "vault (opened with files in the profile; no Keychain needed)"
     raise HarnessError(f"the VOOL profile at {home} has no saved keys (add the OpenRouter key in VOOL Settings)")
 
 
@@ -305,14 +308,14 @@ def _read_profile_key(key_home: str) -> str:
         raise HarnessError("VOOL_HOME is set in this shell; unset it (or set KEY_HOME to the profile to read)")
     home = installed_profile_home(key_home)
     store = profile_key_store(home)
-    if store == "keychain" or (home / "data" / "keys" / "node_signing_key.keyring.json").exists():
-        print("VOOL keeps this key in the macOS Keychain: if macOS asks to allow access, click Always Allow.", flush=True)
+    if "Keychain)" in store or store == "keychain":
+        print("VOOL keeps this key behind the macOS Keychain: if macOS asks to allow access, click Allow (asked once per run).", flush=True)
     env = {k: v for k, v in os.environ.items() if k not in {"NULLA_HOME", "VOOL_CREDENTIAL_STORE"}}
     env.update({"VOOL_HOME": str(home), "VOOL_KEYCHAIN_ALLOWED": "0", "PYTHONDONTWRITEBYTECODE": "1"})
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]);"
         "from ops.prompt_cache_bench.bench import _child_read_key;"
-        "sys.exit(_child_read_key(sys.argv[2], float(sys.argv[3]), sys.argv[4]))"
+        "sys.exit(_child_read_key(sys.argv[2], float(sys.argv[3]), sys.argv[4].split()[0]))"
     )
     proc = subprocess.run(
         [sys.executable, "-c", code, str(REPO), KEY_NAME, str(KEYCHAIN_CLICK_TIMEOUT_S), store],
@@ -527,7 +530,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     arm_dir = root / args.label
     arm_dir.mkdir(parents=True, exist_ok=True)
-    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
+    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional, hold_usd=getattr(args, "hold_usd", 0.0))
     results_path = arm_dir / "results.jsonl"
     done = _done_keys(_read_jsonl(results_path))
     tasks = load_tasks(args.tasks)
@@ -739,7 +742,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     arm_dir = root / args.label
     arm_dir.mkdir(parents=True, exist_ok=True)
-    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
+    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional, hold_usd=getattr(args, "hold_usd", 0.0))
     results_path = arm_dir / "results.jsonl"
     done = _done_keys(_read_jsonl(results_path))
     tasks = load_tasks(args.tasks)
@@ -902,7 +905,7 @@ def _final_rows(root: Path) -> list[tuple[Path, dict[str, Any]]]:
 
 def cmd_grade(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
-    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
+    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional, hold_usd=getattr(args, "hold_usd", 0.0))
     key = resolve_key(args.key_source, args.key_home)
     tasks = {t["id"]: t for t in load_tasks()}
     grades_path = root / "grades.jsonl"
@@ -1089,7 +1092,13 @@ PHASES = {
     "grade": ("grade",),
 }
 PHASES["after_grade"] = PHASES["after"] + PHASES["grade"]
-PHASES["all"] = PHASES["baseline"] + PHASES["after"] + PHASES["grade"]
+# One paste for the final answer. The Claude arms that the caching question compares go first, so a
+# cap stop can only cut the side arms; grading keeps GRADE_HOLD_USD back from every arm before it.
+PHASES["all"] = (
+    "vool-base-claude", "vool-after-claude-system", "vool-after-claude-history",
+    "cli-claude", "vool-base-gpt", "vool-base-k3", "grade",
+)
+GRADE_HOLD_USD = 0.75
 MIN_FREE_DISK_GB = 3.0
 
 
@@ -1335,7 +1344,7 @@ def _start_dryrun(args: argparse.Namespace, root: Path) -> subprocess.Popen:
 def cmd_run(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
+    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional, hold_usd=getattr(args, "hold_usd", 0.0))
     ledger.save()
     failures: list[str] = []
     exit_code = EXIT_OK
@@ -1360,6 +1369,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 failures.append(f"{label}: skipped after cap")
                 continue
             base = {k: getattr(args, k) for k in ("run_root", "cap_usd", "cap_excludes_notional", "key_source", "key_home", "tasks", "repeats")}
+            base["hold_usd"] = GRADE_HOLD_USD if kind != "grade" and "grade" in [lbl for lbl, _, _ in _arm_specs(args, k3)] else 0.0
             if kind == "vool":
                 ns = argparse.Namespace(**base, label=label, per_call_usd=0.60, per_task_usd=2.00, python=args.python, clean_scratch=True, mode="auto", **opts)
                 func = cmd_vool
