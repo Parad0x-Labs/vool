@@ -2164,10 +2164,18 @@ function ensureSessionInSidebar(chatId, firstMessage) {
     archived: false,
     pending: true,
   });
+  // The server already said this chat is private and nothing of it is saved (reopened after a
+  // reload): its row is the private one from the start, so the words just typed (the last history
+  // entry) never title it. The turn's commit corrects it if the message turns out to be saved.
+  const st = chatState(chatId);
+  if (st.privateChat && st.history.slice(0, -1).every((m) => m.role !== 'user' || isPrivateEntry(m))) {
+    markPendingSessionPrivate(chatId, true);
+    return;
+  }
   renderSessions(_lastSessions);
 }
-// A chat that started private (core.private_chat) is never in the server's list: nothing of it is
-// saved, not even that it exists. Its overlay row stays on this page only, named by the private
+// A chat that started private (core.private_chat) is never in the server's chat list: it has no
+// saved message and no chat record. Its overlay row stays on this page only, named by the private
 // label rather than by the words typed, offers no action that would save something about it, and is
 // gone after a reload. The first saved turn makes the server's own row, which replaces it.
 function markPendingSessionPrivate(chatId, isPrivate, savedText) {

@@ -8,10 +8,12 @@ daemon, the way the chat page sends turns. Authored wording only.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -127,6 +129,13 @@ def test_a_chat_that_starts_private_leaves_no_chat_until_recording_is_back_on(tm
             sidebar = _get(daemon, "/api/chat/sessions").get("sessions") or []
             assert "New chat" not in [row.get("title") for row in sidebar], sidebar
             assert _rows_for(daemon, plain), "control: the ordinary chat is still listed"
+            # Copying or branching it would make a chat that names it as its parent: refused plainly.
+            for operation in ({"operation": "duplicate"}, {"operation": "branch", "through_turn": 0}):
+                with pytest.raises(HTTPError) as refused:
+                    _post(daemon, "/api/chat/session", {"session_id": "openclaw:" + "c3" * 10,
+                                                        "new_session_id": "openclaw:" + "e6" * 10, **operation})
+                assert refused.value.code == 409, (operation, refused.value.code)
+            assert _namespace_rows_naming(home, "c3" * 10) == [] and _namespace_rows_naming(home, "e6" * 10) == []
 
             # Ending private chat is itself sent while it is on: still nothing. A tab that has not heard
             # it ended sends one more unsaved message: still nothing.
@@ -158,11 +167,17 @@ def test_a_chat_that_starts_private_leaves_no_chat_until_recording_is_back_on(tm
         for key in ("c3" * 10, "d4" * 10):
             assert _namespace_rows_naming(home, key) == [], key
 
+        # After a restart the chat is still private (its switch is kept) and still leaves no chat.
+        with ServedDaemon(home, env_extra={"VOOL_MODEL_LOAD_FLOOR_GB": "0"}) as daemon:
+            key = "c3" * 10
+            _, commit = _stream(daemon, f"The boat is called {SECRET}.", "openclaw:" + key)
+            assert commit.get("display_metadata", {}).get("private_chat") is True, commit
+            assert _rows_for(daemon, key) == [] and _namespace_rows_naming(home, key) == []
+            assert [row["title"] for row in _rows_for(daemon, plain)] == ["My cat is called Biscuit."]
 
-def test_a_private_chat_without_a_row_keeps_its_reads_and_gets_its_row_once_saved(tmp_path, monkeypatch):
-    """The namespace owner's half: while a chat that started private stays private, every reader finds
-    an active namespace with the grants a row would carry (the confirmed profile still reaches the
-    private turn), yet no row is written. Deleting it forgets it. Saving again creates the row."""
+
+def _isolated_store(tmp_path, monkeypatch) -> str:
+    """Point the namespace owner and the private switch at one fresh database; returns its path."""
     from core import context_namespace as ns
     from core import private_chat
     from storage import db
@@ -170,46 +185,99 @@ def test_a_private_chat_without_a_row_keeps_its_reads_and_gets_its_row_once_save
     path = str(tmp_path / "runtime.db")
     monkeypatch.setattr(ns, "get_connection", lambda: db.get_connection(path))
     monkeypatch.setattr(private_chat, "get_connection", lambda: db.get_connection(path))
-    monkeypatch.setattr(ns, "_UNSAVED", {})
-    chat = "openclaw:" + "e5" * 10
+    return path
 
-    def saved_rows() -> list[str]:
-        conn = sqlite3.connect(path)
-        try:
-            return [table for table in ("context_namespaces", "context_import_grants")
-                    if conn.execute(f"SELECT 1 FROM {table} WHERE chat_id = ?", (chat,)).fetchone()]
-        finally:
-            conn.close()
+
+def _saved_rows(path: str, chat: str) -> list[str]:
+    conn = sqlite3.connect(path)
+    try:
+        return [table for table in ("context_namespaces", "context_import_grants")
+                if conn.execute(f"SELECT 1 FROM {table} WHERE chat_id = ?", (chat,)).fetchone()]
+    finally:
+        conn.close()
+
+
+def test_a_private_chat_without_a_row_keeps_its_reads_and_gets_its_row_once_saved(tmp_path, monkeypatch):
+    """The namespace owner's half: while a chat that started private stays private, every reader finds
+    an active namespace with the grants a row would carry (the confirmed profile still reaches the
+    private turn), yet no row is written. An import granted then revoked while private stays revoked.
+    Deleting it forgets it. The first saved turn creates the row and carries its imports over, even
+    when a reader asked about the chat first (as the chat door does)."""
+    from core import context_namespace as ns
+    from core import private_chat
+
+    path = _isolated_store(tmp_path, monkeypatch)
+    chat = "openclaw:" + tmp_path.name[-20:].replace("_", "e")
+    defaults = {("user_profile", "profile:confirmed"), ("action_receipt", f"chat:{chat}")}
 
     private_chat.set_private(chat, True)
     made = ns.ensure_chat_namespace(chat, grant_confirmed_profile=True)
     assert made.chat_id == chat and made.lifecycle_state == "active"
     assert ns.load_chat_namespace(chat) == made
-    scopes = {(g.scope, g.source_id) for g in ns.list_context_imports(chat)}
-    assert scopes == {("user_profile", "profile:confirmed"), ("action_receipt", f"chat:{chat}")}
+    assert {(g.scope, g.source_id) for g in ns.list_context_imports(chat)} == defaults
     assert ns.list_chat_namespaces(include_deleted=True) == ()
-    assert saved_rows() == []
+    assert _saved_rows(path, chat) == []
 
     # Deleting a chat nothing was saved of leaves no tombstone row either.
     assert ns.set_chat_namespace_state(chat, "deleted").lifecycle_state == "deleted"
-    assert ns.load_chat_namespace(chat) is None and saved_rows() == []
+    assert ns.load_chat_namespace(chat) is None and _saved_rows(path, chat) == []
     with pytest.raises(ValueError):
         ns.set_chat_namespace_state(chat, "archived")
 
     ns.ensure_chat_namespace(chat, grant_confirmed_profile=True)
+    ns.grant_context_import(chat, scope="project", source_id="project:p1", source_project_id="p1")
+    ns.grant_context_import(chat, scope="project", source_id="project:p2", source_project_id="p2")
+    assert ns.revoke_context_import(chat, scope="project", source_id="project:p2") is True
+    with_project = defaults | {("project", "project:p1")}
+    assert {(g.scope, g.source_id) for g in ns.list_context_imports(chat)} == with_project
+    # Cloning it would name the private chat as the copy's parent: refused, and no row appears.
+    with pytest.raises(ValueError):
+        ns.clone_chat_namespace(chat, chat + "-copy")
+    assert _saved_rows(path, chat) == [] and ns.load_chat_namespace(chat + "-copy") is None
+
     private_chat.set_private(chat, False)
-    # No longer private and not yet saved: there is no chat.
+    # No longer private and not yet saved: there is no chat, and asking does not lose its imports.
     assert ns.load_chat_namespace(chat) is None
+    assert ns.list_context_imports(chat) == ()
     saved = ns.ensure_chat_namespace(chat, grant_confirmed_profile=True)
     assert saved.lifecycle_state == "active"
-    assert saved_rows() == ["context_namespaces", "context_import_grants"]
-    assert {(g.scope, g.source_id) for g in ns.list_context_imports(chat)} == scopes
+    assert _saved_rows(path, chat) == ["context_namespaces", "context_import_grants"]
+    assert {(g.scope, g.source_id) for g in ns.list_context_imports(chat)} == with_project
     assert [n.chat_id for n in ns.list_chat_namespaces()] == [chat]
 
-    # A chat that already has its row keeps it when it goes private.
+    # A chat that already has its row keeps it, and its imports, when it goes private.
     private_chat.set_private(chat, True)
-    assert ns.ensure_chat_namespace(chat) == ns.load_chat_namespace(chat)
+    assert ns.ensure_chat_namespace(chat) == ns.load_chat_namespace(chat) == saved
+    assert {(g.scope, g.source_id) for g in ns.list_context_imports(chat)} == with_project
     assert [n.chat_id for n in ns.list_chat_namespaces()] == [chat]
+
+
+def test_a_private_chat_pushed_out_by_many_others_still_writes_nothing(tmp_path, monkeypatch):
+    """Past the in-process bound, the oldest private chat is forgotten. Its next turn finds a fresh
+    namespace with only its default grants: no row, no error, and no import it had while private."""
+    from core import context_namespace as ns
+    from core import private_chat
+
+    path = _isolated_store(tmp_path, monkeypatch)
+    first = "openclaw:" + tmp_path.name[-20:].replace("_", "f")
+    others = [f"{first}-{n}" for n in range(ns._UNSAVED_MAX)]
+    try:
+        for chat in [first, *others]:
+            private_chat.set_private(chat, True)
+            ns.ensure_chat_namespace(chat, grant_confirmed_profile=True)
+            if chat == first:
+                ns.grant_context_import(chat, scope="project", source_id="project:p1", source_project_id="p1")
+        assert ns.load_chat_namespace(first) is None  # forgotten
+        again = ns.ensure_chat_namespace(first, grant_confirmed_profile=True)
+        assert again.lifecycle_state == "active"
+        assert {(g.scope, g.source_id) for g in ns.list_context_imports(first)} == {
+            ("user_profile", "profile:confirmed"), ("action_receipt", f"chat:{first}")}
+        assert ns.list_chat_namespaces(include_deleted=True) == ()
+        assert _saved_rows(path, first) == []
+    finally:
+        for chat in [first, *others]:
+            with contextlib.suppress(ValueError):  # the one pushed out by the last ensure is gone already
+                ns.set_chat_namespace_state(chat, "deleted")
 
 
 SIDEBAR = """(() => [...document.querySelectorAll('#sessions .session')].map(s => ({
@@ -291,18 +359,28 @@ def test_the_page_shows_a_private_first_chat_as_private_only_until_reload(tmp_pa
                 page.wait_for_selector("#sessions .side-empty", timeout=30_000)
                 assert sidebar(page) == []
 
+                # Another private message after the reload: the row it brings back never carries the
+                # words typed, not even while the answer is on its way.
+                page.evaluate("""() => { window.__sideTexts = [];
+                  new MutationObserver(() => window.__sideTexts.push(document.getElementById('sessions').textContent))
+                    .observe(document.getElementById('sessions'), {subtree: true, childList: true, characterData: true}); }""")
+                send(page, f"The band is {SECRET} Brass.", 1)
+                seen = page.evaluate("() => window.__sideTexts")
+                assert seen and not [t for t in seen if SECRET in t], seen
+                assert sidebar(page) == [{"title": "Private", "private": True, "actions": False}]
+
                 # Recording back on, then a saved message: the chat gets its row, titled by that message.
                 page.click("#privateEnd")
-                wait_answers(page, 1)
+                wait_answers(page, 2)
                 page.wait_for_selector("#privateBanner[hidden]", state="attached", timeout=10_000)
                 assert [r["title"] for r in sidebar(page)] == ["Private"]
-                send(page, "My cat likes tuna.", 2)
+                send(page, "My cat likes tuna.", 3)
                 rows = sidebar(page)
                 assert rows == [{"title": "My cat likes tuna.", "private": False, "actions": True}], rows
 
                 # The same chat going private again keeps its row and its title.
-                send(page, "private chat", 3)
-                send(page, f"The cake is from {SECRET} Bakery.", 4)
+                send(page, "private chat", 4)
+                send(page, f"The cake is from {SECRET} Bakery.", 5)
                 rows = sidebar(page)
                 assert rows == [{"title": "My cat likes tuna.", "private": False, "actions": True}], rows
                 assert "New chat" not in page.evaluate("() => document.getElementById('sessions').textContent")

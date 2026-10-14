@@ -6984,11 +6984,18 @@ def _dispatch_post_inner(
                         runtime,
                     )
                 through_turn = candidate_turn
-            cloned = clone_chat_namespace(
-                session_id,
-                new_session_id,
-                through_turn=through_turn,
-            )
+            try:
+                cloned = clone_chat_namespace(
+                    session_id,
+                    new_session_id,
+                    through_turn=through_turn,
+                )
+            except ValueError as exc:
+                # A deleted chat, a private chat nothing was saved of, or a taken target id.
+                return apply_runtime_headers(
+                    json_response(409, {"error": str(exc)}),
+                    runtime,
+                )
             if cloned.project_id:
                 set_session_meta(
                     cloned.chat_id,

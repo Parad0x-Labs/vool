@@ -58,11 +58,13 @@ def _clean_id(value: Any, *, field: str) -> str:
     return cleaned
 
 
-# A chat whose first turn is private (core.private_chat) gets no namespace row: the row would be a
-# lasting record that the private chat existed, and the sidebar lists every namespace, so it showed
-# as an empty "New chat". Such a chat lives in this process only, keyed by chat id, holding what a
-# row and its default grants would hold (ids and times, never a word of the chat), for as long as
-# the chat stays private. The first turn that is saved creates the row as usual and drops this.
+# A chat whose first turn is private (core.private_chat) gets no namespace row: the sidebar lists
+# every namespace, so the row showed as an empty "New chat", and it kept the chat's id and its
+# import grants on disk. Such a chat lives in this process only, keyed by chat id, holding what a
+# row and its grants would hold (ids and times, never a word of the chat). Readers see it only while
+# the chat is private; the first turn that is saved creates the row, carries its grants over and
+# drops this. The bound evicts the oldest: an evicted chat that is still private gets a fresh entry
+# with its default grants on its next turn (imports granted while private are gone, never widened).
 _UNSAVED: dict[str, tuple[ContextNamespace, dict[tuple[str, str], ContextImportGrant]]] = {}
 _UNSAVED_MAX = 512
 _UNSAVED_LOCK = threading.Lock()
@@ -93,11 +95,9 @@ def _unsaved_entry(
         entry = _UNSAVED.get(clean_chat)
     if entry is None:
         return None
-    if _chat_is_private_now(clean_chat):
-        return entry
-    with _UNSAVED_LOCK:
-        _UNSAVED.pop(clean_chat, None)
-    return None
+    # Kept when the chat is no longer private: the saved turn that follows creates the row and
+    # carries these grants over (ensure_chat_namespace), whichever reader happened to ask first.
+    return entry if _chat_is_private_now(clean_chat) else None
 
 
 def _grant_record(
@@ -544,11 +544,13 @@ def set_chat_namespace_state(chat_id: str, state: NamespaceState) -> ContextName
     namespace = _load_saved_namespace(clean_chat)
     if namespace is None:
         unsaved = _unsaved_entry(clean_chat)
-        if unsaved is not None and clean_state == "deleted":
-            # Nothing of it was saved, so deleting it is forgetting it: no tombstone row either.
+        if clean_state == "deleted":
+            # Nothing of it was saved, so deleting it is forgetting it: no tombstone row either, and
+            # nothing left for a later saved turn to carry over.
             with _UNSAVED_LOCK:
                 _UNSAVED.pop(clean_chat, None)
-            return replace(unsaved[0], lifecycle_state="deleted", updated_at=_utcnow())
+            if unsaved is not None:
+                return replace(unsaved[0], lifecycle_state="deleted", updated_at=_utcnow())
         raise ValueError("chat namespace does not exist")
     current_state = namespace.lifecycle_state
     if current_state == "deleted" and clean_state != "deleted":
@@ -703,6 +705,11 @@ def revoke_context_import(chat_id: str, *, scope: GrantScope, source_id: str) ->
     clean_chat = _clean_id(chat_id, field="chat_id")
     clean_scope = str(scope or "").strip().lower()
     clean_source = _clean_id(source_id, field="source_id")
+    with _UNSAVED_LOCK:
+        entry = _UNSAVED.get(clean_chat)
+        dropped = entry is not None and entry[1].pop((clean_scope, clean_source), None) is not None
+    if dropped and _load_saved_namespace(clean_chat) is None:
+        return True
     ensure_context_namespace_schema()
     conn = get_connection()
     try:
