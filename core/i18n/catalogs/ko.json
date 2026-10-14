@@ -531,7 +531,7 @@
     "fault.wallet_dependency_unavailable.message": "이 빌드는 EVM 서명이나 ABI 인코딩을 할 수 없습니다: 이더리움 라이브러리가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. Solana, 보관, 지출 상한은 영향을 받지 않습니다; 라이브러리를 설치한 뒤 다시 시도하세요.",
     "fault.wallet_paykit_unavailable.action": "pay-kit 결제를 켜려면 Python 3.11 이상에서 VOOL의 선택적 pay 추가 요소를 설치하세요; 어느 경우든 지갑은 자체 서명자, 지출 상한, 승인을 유지합니다.",
     "fault.wallet_paykit_unavailable.message": "이 빌드는 Solana x402 또는 MPP 제안을 결제할 수 없습니다: 선택적 pay 추가 요소(Solana pay-kit, Python 3.11 이상)가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요.",
-    "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 사용자 승인은 모든 채널에 적용됩니다.",
+    "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 당신의 승인은 모든 채널에 적용됩니다.",
     "fault.wallet_payment_channel_off.message": "그 결제는 꺼져 있는 결제 채널을 거치므로, 서명하거나 보낸 것이 없습니다. 설정, 암호화폐, 결제 채널에서 채널을 켠 뒤 다시 시도하세요.",
     "fault.wallet_x402_sdk_unavailable.action": "Crypto Pilot 지갑에서 Base의 x402 제안을 결제하려면 VOOL의 선택적 x402 추가 요소를 설치하세요; 어느 경우든 지갑은 자체 서명자, 지출 상한, 승인을 유지합니다.",
     "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요.",
