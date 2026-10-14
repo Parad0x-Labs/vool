@@ -213,7 +213,8 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         # the amount columns are signed 64-bit; a larger native-unit amount is refused before any write
         raise wallet_fault("wallet_limit_exceeded", authority=AUTHORITY, context={"limit": "storage", "reason": "amount_exceeds_storage_limit", "maximum_minor": str(amounts.INT64_MAX)}, source_context=source_context)
     asset_name = _validated_asset(resolved_network, asset, source_context=source_context)
-    _require_token_lane(resolved_network, asset_name, origin=str(origin), source_context=source_context)
+    _require_token_lane(resolved_network, asset_name, origin=str(origin), pilot=custody.seal_policy(profile.wallet_id) == custody.PILOT_SEAL_POLICY,
+                        source_context=source_context)
     clean_memo = str(memo or "")[:_MAX_MEMO]
     key = str(idempotency_key or "").strip()[:128]
     digest = idempotency.content_digest(wallet_id=profile.wallet_id, destination=dest, amount_minor=amount, asset=asset_name, memo=clean_memo, network=resolved_network)
@@ -316,17 +317,30 @@ def _validated_asset(network: str, asset: str, *, source_context: dict[str, Any]
         raise wallet_fault(exc.code, authority=AUTHORITY, context=dict(exc.context), source_context=source_context) from None
 
 
-def _require_token_lane(network: str, asset: str, *, origin: str, source_context: dict[str, Any] | None) -> None:
+def _require_token_lane(network: str, asset: str, *, origin: str, pilot: bool = False, source_context: dict[str, Any] | None) -> None:
     """A token on a Mainnet row moves only for a service payment lane (UsePod's x402, a pay-kit x402 or MPP payment, or an x402
-    SDK payment, to any site) and the DNA fee collection; the pilot's own transfers there stay native coins. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
+    SDK payment, to any site) and the DNA fee collection, and then only a lane token (``chains.PAYMENT_LANE_TOKENS``); the
+    owner's own transfers (a chat or Crypto request) from a Crypto Pilot wallet may also move the tokens the registry names
+    for them (``chains.USER_TRANSFER_TOKENS``, USDT on Solana), approved like any other transfer. Every other origin keeps to
+    native coins there. Test-network rows keep their registered tokens for every origin (the existing x402 lane pays with them)."""
     from core.wallet import chains
 
     spec = chains.resolve_network(network)
-    if not spec.is_mainnet or origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS, ORIGIN_X402_SDK) or chains.asset_for(spec.network, asset).native:
+    registered = chains.asset_for(spec.network, asset)
+    if not spec.is_mainnet or registered.native:
         return
+    reason = "mainnet_tokens_move_only_for_usepod_x402"
+    if origin in (ORIGIN_USEPOD, ORIGIN_DNA_FEE, *PAYKIT_ORIGINS, ORIGIN_X402_SDK):
+        if registered.symbol in chains.PAYMENT_LANE_TOKENS:
+            return
+        reason = "payment_lanes_pay_only_with_lane_tokens"
+    elif origin in (ORIGIN_USER, ORIGIN_MODEL) and chains.is_user_transfer_token(spec.network, registered.symbol):
+        if pilot:
+            return
+        reason = "token_transfers_need_a_crypto_pilot_wallet"
     raise wallet_fault(
         "wallet_network_disabled", authority=AUTHORITY,
-        context={"network": spec.network, "asset": str(asset)[:16], "origin": origin[:16], "reason": "mainnet_tokens_move_only_for_usepod_x402"},
+        context={"network": spec.network, "asset": str(asset)[:16], "origin": origin[:16], "reason": reason},
         source_context=source_context,
     )
 

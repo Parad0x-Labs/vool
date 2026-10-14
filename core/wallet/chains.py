@@ -145,7 +145,8 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: tokens are USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only, and USDC on Base, for
 #: the x402 SDK lane only (proposals refuse them for every other origin); the pilot's own transfers move native coins only.
 #: Arbitrum rows added after the pilot were verified on 2026-10-13 against docs.arbitrum.io/chain-info and live RPC
-#: reads; native ETH only.
+#: reads; native ETH only. USDT on Solana (2026-10-14) is a token the owner may send from a Crypto Pilot wallet
+#: (USER_TRANSFER_TOKENS); the payment lanes keep to PAYMENT_LANE_TOKENS.
 _REGISTRY: dict[str, ChainIdentity] = {
     SOLANA_DEVNET: ChainIdentity(
         network=SOLANA_DEVNET, family=FAMILY_SVM, testnet=True,
@@ -235,6 +236,10 @@ _REGISTRY: dict[str, ChainIdentity] = {
             # Circle's USDC mint on Solana (docs.usepod.ai/api/x402-payments names USDC on this network); the
             # mint's program and decimals are re-read from the chain before any transfer is built.
             "USDC": AssetSpec(chain=SOLANA_MAINNET, symbol="USDC", address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals=6),
+            # Tether's USDT mint on Solana (SPL Token program, 6 decimals; tether.to lists it under supported protocols).
+            # The owner's own transfers only (USER_TRANSFER_TOKENS); the mint's program and decimals are re-read from the
+            # chain before any transfer is built.
+            "USDT": AssetSpec(chain=SOLANA_MAINNET, symbol="USDT", address="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals=6),
         }),
         environment=ENVIRONMENT_MAINNET, chain_key="solana", explorer_label="Solscan",
         explorer_address_template="https://solscan.io/account/{address}", fee_model=FEE_SVM, finality=FINALITY_SVM_CONFIRMED,
@@ -309,6 +314,31 @@ EVM_TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 
 
 # --- resolution --------------------------------------------------------------------------------------
+
+#: Tokens the owner's own transfers (a chat or Crypto request, approved with the wallet's PIN or password) may move,
+#: per row. Every other registered token moves only for the lane that registered it.
+USER_TRANSFER_TOKENS: frozenset[tuple[str, str]] = frozenset({(SOLANA_MAINNET, "USDT")})
+#: Token symbols a service payment lane (UsePod x402, the pay-kit lanes, the DNA fee collection) may pay with.
+PAYMENT_LANE_TOKENS: frozenset[str] = frozenset({"USDC"})
+
+
+def is_user_transfer_token(network: Any, asset: Any) -> bool:
+    """True when ``asset`` (a symbol or exact mint/contract) is a token the owner's own transfers may move on this row."""
+    try:
+        spec = resolve_network(network)
+        registered = asset_for(spec.network, str(asset or ""))
+    except Exception:
+        return False
+    return not registered.native and (spec.network, registered.symbol) in USER_TRANSFER_TOKENS
+
+
+def user_transfer_tokens(network: Any) -> tuple[AssetSpec, ...]:
+    try:
+        spec = resolve_network(network)
+    except Exception:
+        return ()
+    return tuple(asset for symbol, asset in spec.assets.items() if (spec.network, symbol) in USER_TRANSFER_TOKENS)
+
 
 def resolve_network(value: Any) -> ChainIdentity:
     """The ONLY door from a caller-supplied name to a network. Fail closed, typed."""
@@ -627,10 +657,12 @@ __all__ = [
     "FEE_OP_STACK",
     "FEE_SVM",
     "IDENTITY_POLICY_VERSION",
+    "PAYMENT_LANE_TOKENS",
     "REGISTRY",
     "SCHEME_EXACT",
     "SOLANA_DEVNET",
     "SOLANA_MAINNET",
+    "USER_TRANSFER_TOKENS",
     "AssetSpec",
     "ChainIdentity",
     "VerifiedChainIdentity",
@@ -643,6 +675,7 @@ __all__ = [
     "explorer_tx_url",
     "invalidate_chain_identity",
     "is_declared",
+    "is_user_transfer_token",
     "native_asset",
     "native_display_symbol",
     "network_rpc_url",
@@ -652,5 +685,6 @@ __all__ = [
     "rpc_origin_allowed_or_refuse",
     "rpc_origin_excluded",
     "select_declared_offer",
+    "user_transfer_tokens",
     "verify_chain_identity",
 ]

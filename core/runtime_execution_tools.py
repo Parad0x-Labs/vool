@@ -2564,33 +2564,42 @@ def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
     if not accounts:
         return {"lines": [f"Balances: no account on {where} yet."], "balances": [], "read": 0, "unavailable": 0}
 
-    def read(item: tuple[dict[str, Any], Any]) -> dict[str, Any]:
+    def read(item: tuple[dict[str, Any], Any]) -> list[dict[str, Any]]:
         entry, spec = item
         try:
             answer = balances.read_balance(str(entry["wallet_id"]), source_context=source_context)
         except Exception as exc:  # a refusal is a reason, never a number
             answer = {"state": balances.STATE_UNAVAILABLE, "reason": str(getattr(exc, "code", "") or type(exc).__name__), "balance_minor": None}
-        return {**answer, "wallet_id": entry["wallet_id"], "label": str(entry.get("label") or ""), "network": spec.network,
-                "display_name": spec.display_name, "chain_order": chains.CHAIN_KEY_ORDER.index(spec.chain_key) if spec.chain_key in chains.CHAIN_KEY_ORDER else 99}
+        tokens = chains.user_transfer_tokens(spec.network)
+        try:
+            token_answers = balances.read_token_balances(str(entry["wallet_id"]), source_context=source_context) if tokens else []
+        except Exception as exc:
+            token_answers = [{"asset": token.symbol, "state": balances.STATE_UNAVAILABLE, "reason": str(getattr(exc, "code", "") or type(exc).__name__), "balance_minor": None}
+                             for token in tokens]
+        where = {"wallet_id": entry["wallet_id"], "label": str(entry.get("label") or ""), "network": spec.network, "display_name": spec.display_name,
+                 "chain_order": chains.CHAIN_KEY_ORDER.index(spec.chain_key) if spec.chain_key in chains.CHAIN_KEY_ORDER else 99}
+        return [{**answer, **where, "token": False}] + [{**token_answer, **where, "token": True} for token_answer in token_answers]
 
     with ThreadPoolExecutor(max_workers=min(6, len(accounts))) as pool:
-        rows = sorted(pool.map(read, accounts), key=lambda r: (r["chain_order"], r["display_name"], r["label"]))
+        rows = sorted((row for answer in pool.map(read, accounts) for row in answer), key=lambda r: (r["chain_order"], r["display_name"], r["label"], r["token"]))
 
-    def name(row: dict[str, Any]) -> str:
-        return row["display_name"] + (f" ({row['label']})" if row["label"] and row["label"] != row["display_name"] else "")
+    def name(row: dict[str, Any], *, with_token: bool = True) -> str:
+        label = row["display_name"] + (f" ({row['label']})" if row["label"] and row["label"] != row["display_name"] else "")
+        return f"{label} {row.get('asset')}" if with_token and row["token"] else label
 
     held = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) > 0]
     empty = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) == 0]
     unknown = [r for r in rows if r.get("state") != balances.STATE_READ]
-    lines = [f"Balances on {where} (each chain's own coin):"]
-    lines += [f"- {name(r)}: {r.get('balance_display') or (str(r.get('balance_human')) + ' ' + str(r.get('asset') or ''))}" for r in held]
+    token_symbols = sorted({str(r.get("asset") or "") for r in rows if r["token"]})
+    lines = [f"Balances on {where} (each chain's own coin{' and ' + ', '.join(token_symbols) if token_symbols else ''}):"]
+    lines += [f"- {name(r, with_token=False)}: {r.get('balance_display') or (str(r.get('balance_human')) + ' ' + str(r.get('asset') or ''))}" for r in held]
     if not held:
         lines.append("- Nothing held on any chain that could be read.")
     if empty:
         lines.append("Nothing held on: " + ", ".join(name(r) for r in empty) + ".")
     if unknown:
         lines.append("Could not be read (unknown, not zero): " + ", ".join(f"{name(r)} ({r.get('reason') or 'unavailable'})" for r in unknown) + ".")
-    public = [{k: r.get(k) for k in ("wallet_id", "label", "network", "display_name", "asset", "state", "reason", "balance_minor", "balance_human", "ref")} for r in rows]
+    public = [{k: r.get(k) for k in ("wallet_id", "label", "network", "display_name", "asset", "token", "state", "reason", "balance_minor", "balance_human", "ref")} for r in rows]
     return {"lines": lines, "balances": public, "read": len(held) + len(empty), "unavailable": len(unknown)}
 
 

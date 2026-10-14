@@ -108,6 +108,12 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
             continue
         native = chains.native_asset(spec.network)
         row_symbols = {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}
+        sent, sent_decimals = native.symbol, native.decimals
+        if symbol and symbol not in row_symbols and custody.seal_policy(str(entry.get("wallet_id") or "")) == custody.PILOT_SEAL_POLICY:
+            # a token the owner's own transfers may move on this row (USDT on Solana), from a Crypto Pilot account only
+            token = next((t for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol), None)
+            if token is not None:
+                row_symbols, sent, sent_decimals = {token.symbol.upper()}, token.symbol, token.decimals
         if wanted_wallet and str(entry.get("wallet_id")) != wanted_wallet:
             continue
         if explicit_network and chains.resolve_network(explicit_network).network != spec.network:
@@ -119,21 +125,35 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
         if family_hint and spec.family != family_hint:
             continue
         candidates.append({"wallet_id": str(entry.get("wallet_id")), "label": str(entry.get("label") or ""), "network": spec.network,
-                           "display_name": spec.display_name, "chain_key": spec.chain_key, "asset": native.symbol, "decimals": native.decimals, "mode": str(entry.get("mode") or "")})
+                           "display_name": spec.display_name, "chain_key": spec.chain_key, "asset": sent, "decimals": sent_decimals, "mode": str(entry.get("mode") or ""),
+                           "token": sent != native.symbol})
     if not candidates:
-        raise wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context={
-            "reason": "no_signing_account_for_request", "active_environment": active, "chain": chain_key, "network": explicit_network, "asset": symbol,
-        }, source_context=source_context)
-    if len(candidates) > 1 and not wanted_wallet:
+        context = {"reason": "no_signing_account_for_request", "active_environment": active, "chain": chain_key, "network": explicit_network, "asset": symbol}
+        carried_by = sorted({spec.display_name for spec in chains.all_networks() for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol})
+        if not carried_by:
+            raise wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
+        # a token this wallet sends only on certain rows: the refusal says where it can go
+        context.update({"reason": "token_not_sendable_here", "token_networks": carried_by})
+        fault = wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
+        here = sorted({spec.display_name for spec in rows for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol})
+        where = _names(here or carried_by)
+        fault.user_message = (f"{symbol} goes out from a Crypto Pilot account on {where}, and this wallet has no account there yet." if here
+                              else f"{symbol} can be sent on Mainnet only ({where}). Switch the wallet to Mainnet to send it.")
+        raise fault
+    if len(candidates) > 1 and not wanted_wallet and not any(c["token"] for c in candidates):
+        # (a token request on several chains is never settled by the default account: the owner says which chain)
         # the owner's designated account settles a request that several accounts fit; a default on another row does not
         default = custody.default_wallet()
         preferred = [c for c in candidates if default is not None and c["wallet_id"] == default.wallet_id]
         if preferred:
             candidates = preferred
     if len(candidates) > 1:
-        raise wallet_fault("wallet_request_ambiguous", authority=AUTHORITY_REQUESTS, context={
+        fault = wallet_fault("wallet_request_ambiguous", authority=AUTHORITY_REQUESTS, context={
             "reason": "several_accounts_fit", "candidates": [{k: c[k] for k in ("wallet_id", "label", "network", "display_name", "asset")} for c in candidates[:8]],
         }, source_context=source_context)
+        if any(c["token"] for c in candidates):
+            fault.user_message = f"{candidates[0]['asset']} can go out on {_names([c['display_name'] for c in candidates], joiner='or')}. Which chain should it use?"
+        raise fault
     chosen = candidates[0]
     decimals = int(chosen["decimals"])
     minor: int | None = None
@@ -154,6 +174,11 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
 
 
 AUTHORITY_REQUESTS = "core.wallet.transfers"
+
+
+def _names(names: list[str], *, joiner: str = "and") -> str:
+    unique = list(dict.fromkeys(names))
+    return unique[0] if len(unique) == 1 else f"{', '.join(unique[:-1])} {joiner} {unique[-1]}"
 
 
 # --- the transfer store (design v5 §2) -----------------------------------------------------------------

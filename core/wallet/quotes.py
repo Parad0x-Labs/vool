@@ -283,7 +283,7 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
 
     paykit = _paykit_block(proposal, spec, source_context=source_context)
     sdk = _x402_sdk_block(proposal, spec, source_context=source_context)
-    token_payment = spec.is_svm and proposal.origin in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS) and svm_tokens.is_token_transfer(spec.network, proposal.asset)
+    token_payment = spec.is_svm and bool(svm_tokens.token_route(proposal))
     if sdk is not None:
         # an EIP-3009 authorization the site's facilitator submits: the token is quoted, this wallet pays no network fee
         return _mint_authorization_quote(spec, proposal, profile, sdk=sdk, source_context=source_context)
@@ -336,13 +336,7 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         "minimum_after_minor": balance - amount - fee_max,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
-        # who the destination was resolved to (Contacts), bound by this digest beside the exact to_address
-        "recipient_saved": recipient.get("resolution") == "contact",
-        "recipient_label": (str(recipient.get("display_name") or "") + (f" · {recipient['label']}" if recipient.get("label") else ""))
-        if recipient.get("resolution") == "contact" else "",
-        "recipient_contact_id": str(recipient.get("contact_id") or ""), "recipient_endpoint_id": str(recipient.get("endpoint_id") or ""),
-        "recipient_fingerprint": str(recipient.get("fingerprint") or ""), "recipient_verification": str(recipient.get("verification") or ""),
-        "recipient_warning": str(recipient.get("warning") or ""),
+        **_recipient_fields(recipient),
     }
     if paykit is not None:
         fields["paykit"] = paykit
@@ -521,11 +515,27 @@ def _mint_authorization_quote(spec: chains.ChainIdentity, proposal: Any, profile
     return {"quote_id": quote_id, "proposal_id": proposal.proposal_id, "digest": digest, "state": STATE_OPEN, "fields": fields}
 
 
+def _recipient_fields(recipient: dict[str, Any]) -> dict[str, Any]:
+    """Who the destination was resolved to (Contacts), bound by the quote's digest beside the exact to_address."""
+    saved = recipient.get("resolution") == "contact"
+    return {
+        "recipient_saved": saved,
+        "recipient_label": (str(recipient.get("display_name") or "") + (f" · {recipient['label']}" if recipient.get("label") else "")) if saved else "",
+        "recipient_contact_id": str(recipient.get("contact_id") or ""), "recipient_endpoint_id": str(recipient.get("endpoint_id") or ""),
+        "recipient_fingerprint": str(recipient.get("fingerprint") or ""), "recipient_verification": str(recipient.get("verification") or ""),
+        "recipient_warning": str(recipient.get("warning") or ""),
+    }
+
+
 def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *, paykit: dict[str, Any] | None = None, source_context: dict[str, Any] | None) -> dict[str, Any]:
-    """A registered token on a Solana row, paid for the UsePod x402 lane: the principal is quoted, held and shown in the
-    token, the network fee in the native coin -- two assets, never one sum. Every chain fact comes through
-    ``svm_tokens.require_payable`` (mint, recipient token account, spendable token balance, a native balance carrying
-    the fee and the rent-exempt remainder), with what other in-flight transfers already hold subtracted per asset."""
+    """A registered token on a Solana row, paid for a service payment lane or sent by the owner: the principal is quoted,
+    held and shown in the token, the network fee in the native coin -- two assets, never one sum. Every chain fact comes
+    through ``svm_tokens.require_payable`` (mint, recipient token account, spendable token balance, a native balance
+    carrying the fee and the rent-exempt remainder), with what other in-flight transfers already hold subtracted per asset.
+
+    The owner's own transfer to a recipient with no account for the token yet opens that account in the same
+    transaction: its rent is native, part of the native ceiling (``fee_max_minor``, itemised in ``fee_parts``), shown on
+    the sheet and bound by the approval with ``create_recipient_account``."""
     from core.wallet import lifecycle, svm_tokens
 
     native = chains.native_asset(spec.network)
@@ -535,10 +545,12 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
     amount = int(proposal.amount_minor)
     held_token = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=token.symbol)
     held_native = _held_elsewhere(profile.wallet_id, spec.network, proposal.proposal_id, asset=native.symbol)
+    owner_route = svm_tokens.token_route(proposal) == svm_tokens.ROUTE_OWNER
     try:
+        create = lifecycle._creates_recipient_account(rpc, proposal, source_context=source_context)
         latest = rpc._call("getLatestBlockhash", [{"commitment": "confirmed"}])
         blockhash = str(latest["value"]["blockhash"])
-        message = lifecycle._build_message(proposal, profile.public_key, blockhash)
+        message = lifecycle._build_message(proposal, profile.public_key, blockhash, create_recipient_account=create)
         fee = rpc._call("getFeeForMessage", [base64.b64encode(bytes(message)).decode("ascii"), {"commitment": "confirmed"}])
     except WalletFault:
         raise
@@ -553,8 +565,14 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         fee_minor = int(paykit["payer_fee_max_minor"])
     facts = svm_tokens.require_payable(
         rpc, network=spec.network, asset=token.symbol, payer=profile.public_key, recipient_owner=proposal.destination, amount_minor=amount,
-        held_token_minor=held_token, fee_max_minor=fee_minor, held_native_minor=held_native, source_context=source_context,
+        held_token_minor=held_token, fee_max_minor=fee_minor, held_native_minor=held_native, allow_create=owner_route, source_context=source_context,
     )
+    if bool(facts["create_recipient_account"]) != create:
+        raise _fault("wallet_quote_unavailable", network=spec.network, reason="recipient_token_account_changed_while_quoting", source_context=source_context)
+    account_rent = int(facts["recipient_account_rent_minor"])
+    network_fee = fee_minor
+    # the native ceiling this transfer may spend: its network fee and, when it opens the recipient's account, that rent
+    fee_minor = network_fee + account_rent
     principal_balance, fee_balance = int(facts["principal_balance_minor"]), int(facts["fee_balance_minor"])
     now = _now()
     fields: dict[str, Any] = {
@@ -569,9 +587,10 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "balance_observed_at": now, "balance_stale": False, "balance_ref": f"slot:{int((latest.get('context') or {}).get('slot') or 0)}",
         "balance_minor": principal_balance, "principal_balance_minor": principal_balance, "fee_balance_minor": fee_balance,
         "held_elsewhere_minor": held_token, "held_native_elsewhere_minor": held_native,
-        "fee_estimate_minor": fee_minor, "fee_max_minor": fee_minor, "fee_parts": {} if paykit is not None and paykit["sponsored"] else {"base_minor": fee_minor},
+        "fee_estimate_minor": fee_minor, "fee_max_minor": fee_minor,
+        "fee_parts": {} if paykit is not None and paykit["sponsored"] else ({"base_minor": network_fee, "account_rent_minor": account_rent} if create else {"base_minor": network_fee}),
         "rent_minimum_minor": int(facts["rent_minimum_minor"]), "recent_blockhash": blockhash,
-        "last_valid_block_height": int(latest["value"].get("lastValidBlockHeight") or 0), "cues": [],
+        "last_valid_block_height": int(latest["value"].get("lastValidBlockHeight") or 0), "cues": ["new_recipient_token_account"] if create else [],
         # the principal ceiling in the token; the fee ceiling is its own field, in the gas asset
         "max_total_minor": amount,
         "estimated_after_minor": principal_balance - amount, "minimum_after_minor": principal_balance - held_token - amount,
@@ -579,6 +598,12 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
     }
+    if owner_route:
+        # bound by the approval: whether this transfer opens the recipient's account, and that account's rent, and who
+        # the destination was resolved to (the owner's own transfer may name a saved contact)
+        fields["create_recipient_account"] = create
+        fields["recipient_account_rent_minor"] = account_rent
+        fields.update(_recipient_fields(dict(getattr(proposal, "recipient", {}) or {})))
     if paykit is not None:
         fields["paykit"] = paykit
     # one formatting authority per asset: token figures in the token's decimals, fee figures in the native coin's

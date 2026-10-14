@@ -298,15 +298,35 @@ def _svm_client(row: dict[str, Any], rpc: Any = None) -> Any:
     return RpcClient(chains.network_rpc_url(row["network"]), network=row["network"])
 
 
-def _svm_fee(client: Any, tx_id: str) -> int | None:
-    """The fee the chain charged, or None when the node does not serve the transaction (never zero by default)."""
+def _svm_fee(client: Any, tx_id: str, *, with_account_rent: bool = False) -> int | None:
+    """The fee the chain charged, or None when the node does not serve the transaction (never zero by default).
+
+    ``with_account_rent`` (a transfer whose quote opened the recipient's token account): what the fee payer's own
+    balance lost to the transaction -- the fee plus the rent of an account it opened, read from the node's pre and post
+    balances of the fee payer (the first account) -- or None when the node does not serve those balances."""
     with contextlib.suppress(Exception):
         answer = client._call("getTransaction", [tx_id, {"commitment": "confirmed", "maxSupportedTransactionVersion": 0}])
         if isinstance(answer, dict):
-            fee = ((answer.get("meta") or {}).get("fee"))
+            meta = answer.get("meta") or {}
+            if with_account_rent:
+                pre, post = meta.get("preBalances"), meta.get("postBalances")
+                if isinstance(pre, list) and isinstance(post, list) and pre and post:
+                    return int(pre[0]) - int(post[0])
+                return None
+            fee = meta.get("fee")
             if fee is not None:
                 return int(fee)
     return None
+
+
+def _opens_recipient_account(row: dict[str, Any]) -> bool:
+    """Whether the quote this transfer was approved on opened the recipient's token account (its rent is native spend)."""
+    from core.wallet import quotes
+
+    with contextlib.suppress(Exception):
+        record = quotes.get_quote(str(row.get("quote_id") or ""))
+        return bool(record and record["fields"].get("create_recipient_account"))
+    return False
 
 
 def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
@@ -316,7 +336,7 @@ def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
     own = str(row.get("payer_signature") or "")
     if own and own != str(tx_id):
         return 0
-    return _svm_fee(client, tx_id)
+    return _svm_fee(client, tx_id, with_account_rent=_opens_recipient_account(row))
 
 
 #: how many of the payer's latest transactions one pass reads to find a pay-kit payment whose id is still unknown

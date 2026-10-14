@@ -66,8 +66,9 @@ def wallet_family_for_asset(asset: str, *, environment: str = "") -> str:
 
 
 def networks_for_asset(asset: str, *, environment: str = "") -> set[str]:
-    """The declared rows (of one environment) where this wallet can send the asset. The wallet sends each row's native
-    coin only (core.wallet.transfers.resolve_request), so a token symbol names no row here."""
+    """The declared rows (of one environment) where this wallet can send the asset: each row's native coin, and the tokens
+    the owner's own transfers may move there (``core.wallet.chains.USER_TRANSFER_TOKENS``, USDT on Solana). Any other
+    token names no row here."""
     symbol = str(asset or "").strip().upper()
     if not symbol:
         return set()
@@ -81,7 +82,7 @@ def networks_for_asset(asset: str, *, environment: str = "") -> set[str]:
             native = chains.native_asset(spec.network)
         except Exception:
             continue
-        if symbol in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
+        if symbol in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()} or any(token.symbol.upper() == symbol for token in chains.user_transfer_tokens(spec.network)):
             out.add(spec.network)
     return out
 
@@ -116,8 +117,9 @@ def _narrow_to_asset(resolution: resolver.Resolution, destination: str, *, asset
 
 def resolve_wallet_recipient(destination: str, *, network: str = "", chain: str = "", asset: str = "", environment: str = "") -> RecipientOutcome:
     """A payment destination: an address given directly, or exactly one saved wallet address on a fitting network. When
-    the request names a chain's own coin but no network, only saved wallets on chains whose coin it is count; any other
-    asset is left to the wallet, which decides what it can send."""
+    the request names an asset the wallet can send (a chain's own coin, or a token like USDT on the chains that carry
+    it) but no network, only saved wallets on those chains count; any other asset is left to the wallet, which decides
+    what it can send."""
     family = wallet_family_for_asset(asset, environment=environment)
     try:
         resolution = resolver.resolve(destination, kind=KIND_WALLET, network=network, chain=chain, family=family, environment=environment)

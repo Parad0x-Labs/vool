@@ -263,7 +263,9 @@ class RpcClient:
         return int(((result or {}).get("value")) or 0)
 
 
-def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, blockhash: str) -> Any:
+def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, blockhash: str, *, create_recipient_account: bool = False) -> Any:
+    """The message a Solana proposal signs, built here from the proposal alone. ``create_recipient_account`` (the owner's
+    own token transfer only, as its quote said) puts the recipient account's ``CreateIdempotent`` before the transfer."""
     from solders.hash import Hash
     from solders.message import Message
     from solders.pubkey import Pubkey
@@ -272,12 +274,15 @@ def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, b
     if proposal.asset != "SOL":
         from core.wallet import svm_tokens
 
-        if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS) and svm_tokens.is_token_transfer(proposal.network, proposal.asset):
-            # a UsePod x402 token payment, a DNA fee collection to the treasury, or (as the simulation's stand-in for the
-            # pay-kit lane's own message) an x402 token payment: one TransferChecked between the two associated token accounts
+        route = svm_tokens.token_route(proposal)
+        if route:
+            # a UsePod x402 token payment, a DNA fee collection to the treasury, (as the simulation's stand-in for the
+            # pay-kit lane's own message) an x402 token payment, or the owner's own token transfer: one TransferChecked
+            # between the two associated token accounts; only the owner's transfer may open the recipient's account first
             return svm_tokens.build_transfer_message(
                 payer=payer_pubkey, recipient_owner=proposal.destination, asset=svm_tokens.token_asset(proposal.network, proposal.asset),
                 amount_minor=int(proposal.amount_minor), blockhash=blockhash,
+                create_recipient_account=bool(create_recipient_account) and route == svm_tokens.ROUTE_OWNER,
             )
         raise wallet_fault("wallet_simulation_failed", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "asset": proposal.asset, "reason": "asset_not_supported_in_p1"})
     payer = Pubkey.from_string(payer_pubkey)
@@ -285,20 +290,35 @@ def _build_message(proposal: proposals.TransactionProposal, payer_pubkey: str, b
     return Message.new_with_blockhash([instruction], payer, Hash.from_string(blockhash))
 
 
-def _refuse_unpayable_token(rpc: Any, spec: chains.ChainIdentity, proposal: proposals.TransactionProposal, payer: str, *, source_context: dict[str, Any] | None) -> None:
-    """A UsePod token payment's own chain facts refuse typed before a simulation reports them as an error: the mint, the
-    recipient's token account, the payer's token balance, and a native balance carrying this message's fee."""
+def _creates_recipient_account(rpc: Any, proposal: proposals.TransactionProposal, *, source_context: dict[str, Any] | None) -> bool:
+    """True when the owner's own token transfer must open the recipient's associated account (none exists yet); False
+    for every other proposal. An account at that address that is not the recipient's account of this mint refuses."""
     from core.wallet import svm_tokens
 
-    message = _build_message(proposal, payer, rpc.latest_blockhash())
+    if svm_tokens.token_route(proposal) != svm_tokens.ROUTE_OWNER:
+        return False
+    token = svm_tokens.token_asset(proposal.network, proposal.asset, source_context=source_context)
+    return svm_tokens.read_token_account(rpc, owner=proposal.destination, mint=token.address, refusal_code="wallet_recipient_refused", source_context=source_context) is None
+
+
+def _refuse_unpayable_token(rpc: Any, spec: chains.ChainIdentity, proposal: proposals.TransactionProposal, payer: str, *, source_context: dict[str, Any] | None) -> bool:
+    """A token payment's own chain facts refuse typed before a simulation reports them as an error: the mint, the
+    recipient's token account (the owner's own transfer may open it for a wallet key), the payer's token balance, and a
+    native balance carrying this message's fee and any new account's rent. Returns whether the recipient's account is
+    opened by this transfer."""
+    from core.wallet import svm_tokens
+
+    create = _creates_recipient_account(rpc, proposal, source_context=source_context)
+    message = _build_message(proposal, payer, rpc.latest_blockhash(), create_recipient_account=create)
     answer = rpc._call("getFeeForMessage", [base64.b64encode(bytes(message)).decode("ascii"), {"commitment": "confirmed"}])
     fee = (answer or {}).get("value") if isinstance(answer, dict) else None
     if fee is None:
         raise wallet_fault("wallet_quote_unavailable", authority=AUTHORITY, context={"proposal_id": proposal.proposal_id, "reason": "fee_unknown_for_message"}, source_context=source_context)
-    svm_tokens.require_payable(
+    facts = svm_tokens.require_payable(
         rpc, network=spec.network, asset=proposal.asset, payer=payer, recipient_owner=proposal.destination, amount_minor=int(proposal.amount_minor),
-        fee_max_minor=int(fee), source_context=source_context,
+        fee_max_minor=int(fee), allow_create=svm_tokens.token_route(proposal) == svm_tokens.ROUTE_OWNER, source_context=source_context,
     )
+    return bool(facts["create_recipient_account"])
 
 
 def _serialize(message: Any, signature: bytes) -> bytes:
@@ -452,8 +472,8 @@ class PaymentLifecycle:
     def _base(self, proposal: proposals.TransactionProposal) -> dict[str, Any]:
         return {"proposal_id": proposal.proposal_id, "wallet_id": proposal.wallet_id, "network": proposal.network, "asset": proposal.asset, "amount_minor": proposal.amount_minor, "destination": proposal.destination, "origin": proposal.origin, "host": self._host_for(proposal.network)}
 
-    def _message_for(self, proposal: proposals.TransactionProposal, payer_pubkey: str, *, rpc: RpcClient | None = None) -> Any:
-        return _build_message(proposal, payer_pubkey, (rpc or self._rpc_for(proposal.network)).latest_blockhash())
+    def _message_for(self, proposal: proposals.TransactionProposal, payer_pubkey: str, *, rpc: RpcClient | None = None, create_recipient_account: bool = False) -> Any:
+        return _build_message(proposal, payer_pubkey, (rpc or self._rpc_for(proposal.network)).latest_blockhash(), create_recipient_account=create_recipient_account)
 
     # -- stage 1: prepare -------------------------------------------------------------------------
     def prepare(self, proposal_id: str) -> proposals.TransactionProposal:
@@ -494,15 +514,16 @@ class PaymentLifecycle:
             else:
                 from core.wallet import svm_tokens
 
-                if str(proposal.origin) in (proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE, *proposals.PAYKIT_ORIGINS) and svm_tokens.is_token_transfer(spec.network, proposal.asset):
+                creates_account = False
+                if svm_tokens.token_route(proposal):
                     try:
-                        _refuse_unpayable_token(rpc, spec, proposal, profile.public_key, source_context=self.source_context)
+                        creates_account = _refuse_unpayable_token(rpc, spec, proposal, profile.public_key, source_context=self.source_context)
                     except WalletFault as exc:
                         reason = str(exc.context.get("reason") or exc.code)
                         end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=exc.code, detail={"reason": reason}, reason=reason)
                         raise
                 try:
-                    simulation = rpc.simulate(_serialize(self._message_for(proposal, profile.public_key, rpc=rpc), ZERO_SIGNATURE))
+                    simulation = rpc.simulate(_serialize(self._message_for(proposal, profile.public_key, rpc=rpc, create_recipient_account=creates_account), ZERO_SIGNATURE))
                 except WalletFault as exc:
                     end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code="wallet_simulation_failed", reason=str(exc.context.get("reason") or exc.code))
                     raise
@@ -945,13 +966,23 @@ class PaymentLifecycle:
                 raise self._fault("wallet_quote_unavailable", proposal, reason=f"revalidation_read_failed:{type(exc).__name__}") from None
             if token_balance < amount + extra_principal:
                 raise expired("token_balance_changed", balance_minor=token_balance, amount_minor=amount + extra_principal)
+            if "create_recipient_account" in fields:
+                # the owner's own transfer: the recipient's account is still what the quote saw. One quoted to an existing
+                # account needs it there and not frozen; one quoted to open it needs the address free or already the
+                # recipient's account of this mint (opening it is then a no-op, and its rent is not spent)
+                try:
+                    current = svm_tokens.read_token_account(rpc, owner=proposal.destination, mint=str(fields.get("mint") or ""), refusal_code="wallet_recipient_refused")
+                except WalletFault:
+                    raise expired("recipient_token_account_changed") from None
+                if (current is None and not fields.get("create_recipient_account")) or (current is not None and current.frozen):
+                    raise expired("recipient_token_account_changed")
         else:
             if balance < amount + fee_max + extra_principal + extra_fee:
                 raise expired("balance_changed", balance_minor=balance, max_total_minor=amount + fee_max + extra_principal + extra_fee)
             remainder = balance - amount - fee_max - extra_principal - extra_fee
             if remainder == 0 or remainder < rent_minimum:
                 raise expired("remainder_below_rent_minimum", remainder_minor=remainder, rent_minimum_minor=rent_minimum)
-        message = _build_message(proposal, profile.public_key, blockhash)
+        message = _build_message(proposal, profile.public_key, blockhash, create_recipient_account=bool(fields.get("create_recipient_account")))
         companion_message = _build_message(companion["proposal"], profile.public_key, blockhash) if companion else None
         return {"rpc": rpc, "blockhash": blockhash, "slot": slot, "last_valid": last_valid, "balance": balance, "message": message, "companion_message": companion_message, "read_at": time.time()}
 

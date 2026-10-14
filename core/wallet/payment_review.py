@@ -153,6 +153,11 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         network_line = "Network fee: paid by the site (its fee payer signs and pays it; this wallet pays none)"
     elif sdk:
         network_line = "Network fee: paid by the site (its facilitator submits the payment and pays the gas; this wallet pays none)"
+    elif fields.get("create_recipient_account"):
+        fee_decimals = fields.get("fee_decimals", fields.get("decimals"))
+        parts = fields.get("fee_parts") or {}
+        network_line = (f"Network fee and the recipient's new {asset} account: at most {payment_fee_max} {gas} "
+                        f"(network fee {_human(parts.get('base_minor'), fee_decimals)} {gas}, opening their {asset} account {_human(parts.get('account_rent_minor'), fee_decimals)} {gas})")
     else:
         network_line = f"Network fee: at most {payment_fee_max} {gas} (estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas})"
     if fields.get("balance_stale"):
@@ -160,6 +165,8 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     for cue in fields.get("cues") or []:
         if cue == "new_recipient_account":
             warnings.append({"code": cue, "text": "The recipient account does not exist yet; this transfer creates it."})
+        elif cue == "new_recipient_token_account":
+            warnings.append({"code": cue, "text": f"This wallet has no {asset} account yet, so this transfer opens one for it. That costs a small one-time amount of {gas}, shown above."})
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
@@ -203,6 +210,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         ("l1_estimate_minor", "L1 data fee estimate"),
         ("l1_ceiling_minor", "L1 data fee maximum"),
         ("operator_minor", "Operator fee"),
+        ("account_rent_minor", "Recipient token account (one-time)"),
     ):
         if key in fee_parts:
             details.append([label, f"{_human(fee_parts[key], fields.get('fee_decimals', fields.get('decimals')))} {gas} = {_int(fee_parts[key])} atomic units"])
