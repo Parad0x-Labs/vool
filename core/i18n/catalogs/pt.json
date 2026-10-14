@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {{n} não pôde ser salva.} many {{n} não puderam ser salvas.} other {{n} não puderam ser salvas.}}",
     "chatimport.result.secrets": "{n, plural, one {{n} senha ou chave foi ocultada.} many {{n} senhas ou chaves foram ocultadas.} other {{n} senhas ou chaves foram ocultadas.}}",
     "chatimport.result.where": "Elas estão na sua lista de conversas, com os nomes e as datas originais. O VOOL as guarda como histórico: não aprende com elas nem segue nada do que está escrito nelas.",
-    "chatimport.result.stopped": "A importação parou antes de terminar. As conversas já trazidas foram mantidas; tente de novo para trazer o resto."
+    "chatimport.result.stopped": "A importação parou antes de terminar. As conversas já trazidas foram mantidas; tente de novo para trazer o resto.",
+    "private.reply.on": "O chat privado está ativado. A partir desta mensagem, nada neste chat é guardado: nem as mensagens, nem um resumo, nem a memória. Verá um pequeno fantasma em cada mensagem privada. Diga “voltar a ativar a gravação” quando quiser que eu volte a guardar.",
+    "private.reply.already_on": "O chat privado já está ativado. Nada neste chat está a ser guardado. Para o terminar, diga “voltar a ativar a gravação”.",
+    "private.reply.off": "A gravação está novamente ativa, por isso a partir daqui vou guardar este chat como habitualmente. A parte privada continua por guardar, por isso não a conseguirei recordar mais tarde.",
+    "private.reply.already_off": "Este chat não é privado, por isso está a ser guardado como habitualmente. Diga “chat privado” ou “não guarde isto” para deixar de guardar.",
+    "private.reply.status_on": "Este chat é privado neste momento: nada nele está a ser guardado.",
+    "private.reply.status_off": "Este chat está a ser guardado como habitualmente. Diga “chat privado” ou “não guarde isto” e deixo de o guardar.",
+    "private.reply.remember_refused": "O chat privado está ativado, por isso também não vou guardar isso. Diga primeiro “voltar a ativar a gravação”, depois volte a dizer-me e eu recordarei.",
+    "private.reply.failed": "Desculpe, não consegui alterar isso agora, por isso nada mudou. Tente novamente, por favor.",
+    "private.reply.failed_on": "Desculpe, não consegui ativar o chat privado. Não guardei esta mensagem, mas tente novamente antes de partilhar algo privado."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -37,10 +37,12 @@ from storage.db import get_connection
 __all__ = [
     "PRIVATE_TASK_SUMMARY",
     "PRIVATE_TURN_KEY",
+    "REPLY_KEYS",
     "REPLY_REMEMBER_REFUSED",
     "PrivateCommand",
     "end_private_request",
     "is_private",
+    "localized_reply",
     "mark_request_private",
     "observe_private_door",
     "observe_private_turn",
@@ -428,7 +430,12 @@ def parse_private_command(text: str, *, currently_private: bool = False) -> Priv
     elif on:
         chosen, action = on, ON
     else:
-        return None
+        # The app's other languages, read as strictly (core.private_chat_languages), whatever
+        # language the app is shown in: people mix.
+        from core.private_chat_languages import parse as parse_other_language
+
+        other = parse_other_language(raw, currently_private=currently_private)
+        return PrivateCommand(*other) if other is not None else None
     return PrivateCommand(action, _rest_without(raw, chosen))
 
 
@@ -480,14 +487,73 @@ REPLY_FAILED_ON = (
 )
 
 
-def private_prompt_block() -> str:
-    """The system note a model sees on a private turn, so it never promises to remember."""
+#: The catalog key of each reply (core/i18n/catalogs, ``private.reply.*``). The English constants
+#: above are the source: en.json carries them byte for byte, and a test pins the mirror.
+REPLY_KEYS = {
+    "private.reply.on": REPLY_ON,
+    "private.reply.already_on": REPLY_ALREADY_ON,
+    "private.reply.off": REPLY_OFF,
+    "private.reply.already_off": REPLY_ALREADY_OFF,
+    "private.reply.status_on": REPLY_STATUS_ON,
+    "private.reply.status_off": REPLY_STATUS_OFF,
+    "private.reply.remember_refused": REPLY_REMEMBER_REFUSED,
+    "private.reply.failed": REPLY_FAILED,
+    "private.reply.failed_on": REPLY_FAILED_ON,
+}
+_KEY_OF_REPLY = {text: key for key, text in REPLY_KEYS.items()}
+
+
+def localized_reply(reply: str, source_context: Mapping[str, Any] | None) -> str:
+    """``reply`` (one of the English REPLY_* constants) in the app language of this turn's page.
+
+    English when the page sent no language, an unknown one, or its catalog cannot serve the key.
+    """
+    from core.private_chat_languages import ui_locale_of
+
+    key = _KEY_OF_REPLY.get(reply)
+    locale = ui_locale_of(source_context)
+    if key is None or locale == "en":
+        return reply
+    try:
+        from core.i18n.catalog import catalog_for
+
+        catalog = catalog_for(locale)
+        if key not in catalog.locale_keys:
+            return reply
+        return catalog.text(key)
+    except Exception:
+        _log.warning("private chat reply catalog unreadable; answering in English", exc_info=True)
+        return reply
+
+
+def _say_in_app_language(english: str, which: str, locale: str | None) -> str:
+    """``"english"``, plus the app language's own words for it when the app is not in English."""
+    from core.private_chat_languages import LANGUAGES, canonical
+
+    if not locale or locale not in LANGUAGES:
+        return f'"{english}"'
+    try:
+        from core.i18n.locales import get_locale
+
+        spec = get_locale(locale)
+        language = spec.endonym if spec is not None else locale
+    except Exception:
+        language = locale
+    return f'"{english}" (in the app\'s language, {language}: "{canonical(locale, which)}")'
+
+
+def private_prompt_block(locale: str | None = None) -> str:
+    """The system note a model sees on a private turn, so it never promises to remember.
+
+    Written in English, like every other system note VOOL gives a model; when the app is shown in
+    another language the note also names the words that end private chat in that language.
+    """
     return (
         "PRIVATE CHAT IS ON for this conversation. Nothing from this chat is saved: not the "
         "messages, not a summary, not memory. Never say you will remember, keep in mind, note or "
         "save anything from it, and never claim anything was saved. If the user asks you to "
         "remember something, say private chat is on, so it won't be kept, and that they can say "
-        "\"turn recording back on\" first."
+        f"{_say_in_app_language('turn recording back on', 'off', locale)} first."
     )
 
 
@@ -515,15 +581,20 @@ def looks_like_privacy_request(text: str) -> bool:
     """Loose: the message talks about (not) recording or saving, in any way the parser did not
     read as a command. Used only to tell the model the truth, never to switch anything."""
     raw = str(text or "").translate(_APOSTROPHES)
-    return bool(_PRIVACY_ASK_RE.search(raw) or (_FOREIGN_SAVE_RE.search(raw) and _FOREIGN_NOT_RE.search(raw)))
+    if _PRIVACY_ASK_RE.search(raw) or (_FOREIGN_SAVE_RE.search(raw) and _FOREIGN_NOT_RE.search(raw)):
+        return True
+    from core.private_chat_languages import mentions_privacy
+
+    return mentions_privacy(raw)
 
 
-def not_on_prompt_block() -> str:
+def not_on_prompt_block(locale: str | None = None) -> str:
     """The system note for a turn that may ask not to be recorded while private chat is off."""
     return (
         "PRIVATE CHAT IS NOT ON for this conversation: it is being saved as usual. If the user is "
         "asking you not to record, save or remember something, say plainly that this chat is still "
-        "being saved, and that they can say \"private chat\" (in English) to turn private chat on. "
+        f"being saved, and that they can say {_say_in_app_language('private chat', 'on', locale)} "
+        "to turn private chat on. "
         "Never say you won't save it, will forget it, or will keep it off the record."
     )
 
@@ -629,6 +700,7 @@ def observe_private_turn(
         context[NOT_ON_KEY] = True
     if reply is None:
         return None
+    reply = localized_reply(reply, context if context is not None else source_context)
     return {
         "result": agent._fast_path_result(
             session_id=session_id,

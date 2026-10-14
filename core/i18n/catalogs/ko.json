@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, other {{n}개를 저장하지 못했습니다.}}",
     "chatimport.result.secrets": "{n, plural, other {암호나 키 {n}개를 가렸습니다.}}",
     "chatimport.result.where": "원래 이름과 날짜 그대로 채팅 목록에 있습니다. VOOL은 이 채팅을 기록으로 보관합니다. 채팅에서 학습하지 않으며, 그 안에 적힌 내용을 따르지도 않습니다.",
-    "chatimport.result.stopped": "가져오기가 끝나기 전에 멈췄습니다. 이미 가져온 채팅은 그대로 있습니다. 나머지를 가져오려면 다시 시도하세요."
+    "chatimport.result.stopped": "가져오기가 끝나기 전에 멈췄습니다. 이미 가져온 채팅은 그대로 있습니다. 나머지를 가져오려면 다시 시도하세요.",
+    "private.reply.on": "비공개 채팅이 켜졌습니다. 이 메시지부터 이 채팅에서는 아무것도 저장되지 않습니다. 메시지도, 요약도, 메모리도 저장되지 않아요. 비공개 메시지에는 작은 유령 표시가 붙습니다. 다시 저장하길 원하시면 “기록 다시 켜기”라고 말씀하세요.",
+    "private.reply.already_on": "비공개 채팅이 이미 켜져 있습니다. 이 채팅에서는 아무것도 저장되지 않아요. 끝내려면 “기록 다시 켜기”라고 말씀하세요.",
+    "private.reply.off": "기록이 다시 켜졌습니다. 지금부터 이 채팅은 평소처럼 저장할게요. 비공개였던 부분은 저장되지 않은 채로 남아 있어서 나중에 기억해 낼 수 없습니다.",
+    "private.reply.already_off": "이 채팅은 비공개가 아니어서 평소처럼 저장되고 있습니다. 저장을 멈추려면 “비공개 채팅” 또는 “이거 저장하지 마세요”라고 말씀하세요.",
+    "private.reply.status_on": "이 채팅은 지금 비공개 상태입니다. 어떤 내용도 저장되지 않아요.",
+    "private.reply.status_off": "이 채팅은 평소처럼 저장되고 있습니다. “비공개 채팅” 또는 “이거 저장하지 마세요”라고 말씀하시면 저장을 멈추겠습니다.",
+    "private.reply.remember_refused": "비공개 채팅이 켜져 있어서 그 내용도 저장하지 않아요. 먼저 “기록 다시 켜기”라고 말씀하신 뒤 다시 알려 주시면 기억하겠습니다.",
+    "private.reply.failed": "죄송합니다. 지금은 변경하지 못해서 아무것도 바뀌지 않았습니다. 다시 시도해 주세요.",
+    "private.reply.failed_on": "죄송합니다. 비공개 채팅을 켜지 못했습니다. 이 메시지는 저장하지 않았지만, 개인적인 내용을 공유하기 전에 다시 시도해 주세요."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

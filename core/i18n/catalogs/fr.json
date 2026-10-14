@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {{n} n’a pas pu être enregistrée.} many {{n} n’ont pas pu être enregistrées.} other {{n} n’ont pas pu être enregistrées.}}",
     "chatimport.result.secrets": "{n, plural, one {{n} mot de passe ou clé a été masqué.} many {{n} mots de passe ou clés ont été masqués.} other {{n} mots de passe ou clés ont été masqués.}}",
     "chatimport.result.where": "Elles sont dans votre liste de discussions, avec leurs noms et dates d’origine. VOOL les garde comme historique : il n’en apprend rien et ne suit rien de ce qui y est écrit.",
-    "chatimport.result.stopped": "L’import s’est arrêté avant la fin. Les discussions déjà apportées sont conservées ; réessayez pour apporter le reste."
+    "chatimport.result.stopped": "L’import s’est arrêté avant la fin. Les discussions déjà apportées sont conservées ; réessayez pour apporter le reste.",
+    "private.reply.on": "La discussion privée est activée. À partir de ce message, rien de cette discussion n'est enregistré : ni les messages, ni un résumé, ni la mémoire. Vous verrez un petit fantôme sur chaque message privé. Dites « réactiver l'enregistrement » quand vous voulez que j'enregistre à nouveau.",
+    "private.reply.already_on": "La discussion privée est déjà activée. Rien de cette discussion n'est enregistré. Dites « réactiver l'enregistrement » pour y mettre fin.",
+    "private.reply.off": "L'enregistrement est de nouveau actif, j'enregistre donc cette discussion comme d'habitude à partir d'ici. La partie privée reste non enregistrée, je ne pourrai donc pas m'en souvenir plus tard.",
+    "private.reply.already_off": "Cette discussion n'est pas privée, elle est donc enregistrée comme d'habitude. Dites « discussion privée » ou « n'enregistrez pas ça » pour arrêter l'enregistrement.",
+    "private.reply.status_on": "Cette discussion est privée en ce moment : rien n'y est enregistré.",
+    "private.reply.status_off": "Cette discussion est enregistrée comme d'habitude. Dites « discussion privée » ou « n'enregistrez pas ça » et j'arrêterai de l'enregistrer.",
+    "private.reply.remember_refused": "La discussion privée est activée, je n'enregistrerai donc pas cela non plus. Dites d'abord « réactiver l'enregistrement », puis redites-le-moi et je le retiendrai.",
+    "private.reply.failed": "Désolé, je n'ai pas pu changer cela pour le moment, rien n'a donc changé. Veuillez réessayer.",
+    "private.reply.failed_on": "Désolé, je n'ai pas pu activer la discussion privée. Je n'ai pas enregistré ce message, mais veuillez réessayer avant de partager quoi que ce soit de privé."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

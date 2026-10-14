@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {{n} no se pudo guardar.} many {{n} no se pudieron guardar.} other {{n} no se pudieron guardar.}}",
     "chatimport.result.secrets": "{n, plural, one {Se ocultó {n} contraseña o clave.} many {Se ocultaron {n} contraseñas o claves.} other {Se ocultaron {n} contraseñas o claves.}}",
     "chatimport.result.where": "Están en tu lista de chats con sus nombres y fechas originales. VOOL los guarda como historial: no aprende de ellos ni sigue nada de lo que dicen.",
-    "chatimport.result.stopped": "La importación se detuvo antes de terminar. Los chats ya traídos se conservan; vuelve a intentarlo para traer el resto."
+    "chatimport.result.stopped": "La importación se detuvo antes de terminar. Los chats ya traídos se conservan; vuelve a intentarlo para traer el resto.",
+    "private.reply.on": "El chat privado está activado. Desde este mensaje no se guarda nada de este chat: ni los mensajes, ni un resumen, ni la memoria. Verás un pequeño fantasma en cada mensaje privado. Di «volver a activar el registro» cuando quieras que vuelva a guardar.",
+    "private.reply.already_on": "El chat privado ya está activado. No se está guardando nada de este chat. Di «volver a activar el registro» para terminarlo.",
+    "private.reply.off": "El registro vuelve a estar activo, así que a partir de aquí guardaré este chat como siempre. La parte privada sigue sin guardarse, así que no podré recordarla más adelante.",
+    "private.reply.already_off": "Este chat no es privado, así que se está guardando como siempre. Di «chat privado» o «no guardes esto» para dejar de guardar.",
+    "private.reply.status_on": "Este chat es privado ahora mismo: no se está guardando nada de él.",
+    "private.reply.status_off": "Este chat se está guardando como siempre. Di «chat privado» o «no guardes esto» y dejaré de guardarlo.",
+    "private.reply.remember_refused": "El chat privado está activado, así que eso tampoco lo voy a guardar. Di primero «volver a activar el registro», luego cuéntamelo otra vez y lo recordaré.",
+    "private.reply.failed": "Lo siento, no he podido cambiarlo ahora mismo, así que no ha cambiado nada. Inténtalo de nuevo, por favor.",
+    "private.reply.failed_on": "Lo siento, no he podido activar el chat privado. No he guardado este mensaje, pero vuelve a intentarlo antes de compartir nada privado."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {Nie udało się zapisać {n} czatu.} few {Nie udało się zapisać {n} czatów.} many {Nie udało się zapisać {n} czatów.} other {Nie udało się zapisać {n} czatu.}}",
     "chatimport.result.secrets": "{n, plural, one {Ukryto {n} hasło lub klucz.} few {Ukryto {n} hasła lub klucze.} many {Ukryto {n} haseł lub kluczy.} other {Ukryto {n} hasła lub klucza.}}",
     "chatimport.result.where": "Są na Twojej liście czatów, z oryginalnymi nazwami i datami. VOOL przechowuje je jako historię: nie uczy się z nich i nie wykonuje niczego, co w nich zapisano.",
-    "chatimport.result.stopped": "Import zatrzymał się przed końcem. Już przeniesione czaty zostają; spróbuj ponownie, aby przenieść resztę."
+    "chatimport.result.stopped": "Import zatrzymał się przed końcem. Już przeniesione czaty zostają; spróbuj ponownie, aby przenieść resztę.",
+    "private.reply.on": "Prywatny czat jest włączony. Od tej wiadomości w tym czacie nic nie jest zapisywane: ani wiadomości, ani streszczenie, ani pamięć. Przy każdej prywatnej wiadomości zobaczysz małego ducha. Powiedz „włącz ponownie zapisywanie”, kiedy zechcesz, żebym znów zapisywał.",
+    "private.reply.already_on": "Prywatny czat jest już włączony. W tym czacie nic nie jest zapisywane. Powiedz „włącz ponownie zapisywanie”, żeby go zakończyć.",
+    "private.reply.off": "Zapisywanie jest znów włączone, więc od teraz zapisuję ten czat jak zwykle. Część prywatna pozostaje niezapisana, więc nie będę mógł jej sobie później przypomnieć.",
+    "private.reply.already_off": "Ten czat nie jest prywatny, więc jest zapisywany jak zwykle. Powiedz „prywatny czat” lub „nie zapisuj tego”, żeby przestać zapisywać.",
+    "private.reply.status_on": "Ten czat jest teraz prywatny: nic z niego nie jest zapisywane.",
+    "private.reply.status_off": "Ten czat jest zapisywany jak zwykle. Powiedz „prywatny czat” lub „nie zapisuj tego”, a przestanę go zapisywać.",
+    "private.reply.remember_refused": "Prywatny czat jest włączony, więc tego też nie zapiszę. Najpierw powiedz „włącz ponownie zapisywanie”, potem powtórz, a zapamiętam.",
+    "private.reply.failed": "Przepraszam, nie udało się tego teraz zmienić, więc nic się nie zmieniło. Spróbuj jeszcze raz.",
+    "private.reply.failed_on": "Przepraszam, nie udało się włączyć prywatnego czatu. Tej wiadomości nie zapisałem, ale spróbuj jeszcze raz, zanim podzielisz się czymś prywatnym."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

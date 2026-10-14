@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {{n} pokalbio nepavyko išsaugoti.} few {{n} pokalbių nepavyko išsaugoti.} other {{n} pokalbių nepavyko išsaugoti.}}",
     "chatimport.result.secrets": "{n, plural, one {Paslėptas {n} slaptažodis ar raktas.} few {Paslėpti {n} slaptažodžiai ar raktai.} other {Paslėpta {n} slaptažodžių ar raktų.}}",
     "chatimport.result.where": "Jie yra jūsų pokalbių sąraše su originaliais pavadinimais ir datomis. VOOL saugo juos kaip istoriją: iš jų nesimoko ir nevykdo nieko, kas juose parašyta.",
-    "chatimport.result.stopped": "Importas sustojo nepasibaigęs. Jau perkelti pokalbiai išlieka; bandykite dar kartą, kad perkeltumėte likusius."
+    "chatimport.result.stopped": "Importas sustojo nepasibaigęs. Jau perkelti pokalbiai išlieka; bandykite dar kartą, kad perkeltumėte likusius.",
+    "private.reply.on": "Privatus pokalbis įjungtas. Nuo šios žinutės šiame pokalbyje niekas neišsaugoma: nei žinutės, nei santrauka, nei atmintis. Prie kiekvienos privačios žinutės matysite mažą vaiduoklį. Kai norėsite, kad vėl saugočiau, pasakykite „vėl įjungti įrašymą“.",
+    "private.reply.already_on": "Privatus pokalbis jau įjungtas. Šiame pokalbyje niekas neišsaugoma. Norėdami jį baigti, pasakykite „vėl įjungti įrašymą“.",
+    "private.reply.off": "Įrašymas vėl įjungtas, tad nuo čia šį pokalbį saugosiu kaip įprasta. Privati dalis lieka neišsaugota, todėl vėliau jos nebegalėsiu prisiminti.",
+    "private.reply.already_off": "Šis pokalbis nėra privatus, todėl jis saugomas kaip įprasta. Norėdami nustoti saugoti, pasakykite „privatus pokalbis“ arba „neišsaugokite to“.",
+    "private.reply.status_on": "Šis pokalbis šiuo metu privatus: jame niekas neišsaugoma.",
+    "private.reply.status_off": "Šis pokalbis saugomas kaip įprasta. Pasakykite „privatus pokalbis“ arba „neišsaugokite to“, ir nustosiu jį saugoti.",
+    "private.reply.remember_refused": "Privatus pokalbis įjungtas, tad ir to neišsaugosiu. Pirmiausia pasakykite „vėl įjungti įrašymą“, tada pakartokite, ir aš tai įsiminsiu.",
+    "private.reply.failed": "Atsiprašau, dabar to pakeisti nepavyko, todėl niekas nepasikeitė. Pabandykite dar kartą.",
+    "private.reply.failed_on": "Atsiprašau, nepavyko įjungti privataus pokalbio. Šios žinutės neišsaugojau, bet prieš dalydamiesi kuo nors privačiu pabandykite dar kartą."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

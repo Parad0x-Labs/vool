@@ -2498,7 +2498,16 @@
     "chatimport.result.failed": "{n, plural, one {{n} could not be saved.} other {{n} could not be saved.}}",
     "chatimport.result.secrets": "{n, plural, one {{n} password or key was hidden.} other {{n} passwords or keys were hidden.}}",
     "chatimport.result.where": "They are in your chat list with their original names and dates. VOOL keeps them as history: it does not learn from them or follow anything written in them.",
-    "chatimport.result.stopped": "The import stopped before it finished. Chats already brought in are kept; try again to bring in the rest."
+    "chatimport.result.stopped": "The import stopped before it finished. Chats already brought in are kept; try again to bring in the rest.",
+    "private.reply.on": "Private chat is on. From this message on, nothing in this chat is saved: not the messages, not a summary, not memory. You'll see a small ghost on each private message. Say \"turn recording back on\" when you want me to save again.",
+    "private.reply.already_on": "Private chat is already on. Nothing in this chat is being saved. Say \"turn recording back on\" to end it.",
+    "private.reply.off": "Recording is back on, so I'll save this chat as usual from here. The private part stays unsaved, so I won't be able to recall it later.",
+    "private.reply.already_off": "This chat isn't private, so it is being saved as usual. Say \"private chat\" or \"don't record this\" to stop saving.",
+    "private.reply.status_on": "This chat is private right now: nothing in it is being saved.",
+    "private.reply.status_off": "This chat is being saved as usual. Say \"private chat\" or \"don't record this\" and I'll stop saving it.",
+    "private.reply.remember_refused": "Private chat is on, so I won't save that either. Say \"turn recording back on\" first, then tell me again and I'll remember it.",
+    "private.reply.failed": "Sorry, I couldn't change that just now, so nothing changed. Please try again.",
+    "private.reply.failed_on": "Sorry, I couldn't turn private chat on. I haven't saved this message, but please try again before you share anything private."
   },
   "html_keys": [
     "bypass.modal_limits",

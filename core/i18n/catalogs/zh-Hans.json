@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, other {{n} 个未能保存。}}",
     "chatimport.result.secrets": "{n, plural, other {已隐藏 {n} 个密码或密钥。}}",
     "chatimport.result.where": "它们在你的聊天列表里，保留原来的名称和日期。VOOL 把它们作为历史记录保存：不会从中学习，也不会执行其中写的任何内容。",
-    "chatimport.result.stopped": "导入在完成前停止了。已经带入的聊天会保留；再试一次即可带入其余的。"
+    "chatimport.result.stopped": "导入在完成前停止了。已经带入的聊天会保留；再试一次即可带入其余的。",
+    "private.reply.on": "私密聊天已开启。从这条消息起，这个聊天中的任何内容都不会保存：消息、摘要、记忆都不会。每条私密消息上会有一个小幽灵标记。想让我重新保存时，请说“重新开启记录”。",
+    "private.reply.already_on": "私密聊天已经开启。这个聊天中的任何内容都不会保存。要结束私密聊天，请说“重新开启记录”。",
+    "private.reply.off": "记录已重新开启，从这里开始我会照常保存这个聊天。私密部分仍未保存，所以之后我无法回想起来。",
+    "private.reply.already_off": "这个聊天不是私密的，所以会照常保存。要停止保存，请说“私密聊天”或“不要保存这个”。",
+    "private.reply.status_on": "这个聊天目前是私密的：其中的任何内容都不会保存。",
+    "private.reply.status_off": "这个聊天会照常保存。说“私密聊天”或“不要保存这个”，我就停止保存。",
+    "private.reply.remember_refused": "私密聊天已开启，所以这个我也不会保存。请先说“重新开启记录”，然后再告诉我一次，我就会记住。",
+    "private.reply.failed": "抱歉，刚才没能更改，所以什么都没有变化。请再试一次。",
+    "private.reply.failed_on": "抱歉，我没能开启私密聊天。这条消息我没有保存，但在分享任何私密内容之前，请再试一次。"
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

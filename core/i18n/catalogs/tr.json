@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {{n} sohbet kaydedilemedi.} other {{n} sohbet kaydedilemedi.}}",
     "chatimport.result.secrets": "{n, plural, one {{n} parola veya anahtar gizlendi.} other {{n} parola veya anahtar gizlendi.}}",
     "chatimport.result.where": "Özgün adları ve tarihleriyle sohbet listenizdeler. VOOL onları geçmiş olarak saklar: onlardan öğrenmez ve içlerinde yazan hiçbir şeye uymaz.",
-    "chatimport.result.stopped": "İçe aktarma bitmeden durdu. Getirilmiş sohbetler korunur; geri kalanını getirmek için yeniden deneyin."
+    "chatimport.result.stopped": "İçe aktarma bitmeden durdu. Getirilmiş sohbetler korunur; geri kalanını getirmek için yeniden deneyin.",
+    "private.reply.on": "Özel sohbet açık. Bu iletiden itibaren bu sohbette hiçbir şey kaydedilmiyor: ne iletiler ne özet ne de bellek. Her özel iletide küçük bir hayalet göreceksiniz. Yeniden kaydetmemi istediğinizde “kaydı yeniden aç” yazın.",
+    "private.reply.already_on": "Özel sohbet zaten açık. Bu sohbette hiçbir şey kaydedilmiyor. Bitirmek için “kaydı yeniden aç” yazın.",
+    "private.reply.off": "Kayıt yeniden açık, bu yüzden bu sohbeti buradan itibaren her zamanki gibi kaydedeceğim. Özel kısım kaydedilmemiş olarak kalıyor, bu yüzden onu sonradan hatırlayamayacağım.",
+    "private.reply.already_off": "Bu sohbet özel değil, bu yüzden her zamanki gibi kaydediliyor. Kaydetmeyi durdurmak için “özel sohbet” ya da “bunu kaydetmeyin” yazın.",
+    "private.reply.status_on": "Bu sohbet şu anda özel: içindeki hiçbir şey kaydedilmiyor.",
+    "private.reply.status_off": "Bu sohbet her zamanki gibi kaydediliyor. “özel sohbet” ya da “bunu kaydetmeyin” yazarsanız kaydetmeyi bırakırım.",
+    "private.reply.remember_refused": "Özel sohbet açık, bu yüzden onu da kaydetmeyeceğim. Önce “kaydı yeniden aç” yazın, sonra bana tekrar söyleyin, hatırlayacağım.",
+    "private.reply.failed": "Üzgünüm, bunu şu anda değiştiremedim, hiçbir şey değişmedi. Lütfen tekrar deneyin.",
+    "private.reply.failed_on": "Üzgünüm, özel sohbeti açamadım. Bu iletiyi kaydetmedim, ama özel bir şey paylaşmadan önce lütfen tekrar deneyin."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

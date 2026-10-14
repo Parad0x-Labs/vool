@@ -2498,9 +2498,18 @@
     "chatimport.result.failed": "{n, plural, one {Không lưu được {n} cuộc.} other {Không lưu được {n} cuộc.}}",
     "chatimport.result.secrets": "{n, plural, one {Đã ẩn {n} mật khẩu hoặc khóa.} other {Đã ẩn {n} mật khẩu hoặc khóa.}}",
     "chatimport.result.where": "Chúng nằm trong danh sách trò chuyện của bạn với tên và ngày gốc. VOOL giữ chúng làm lịch sử: không học từ chúng và không làm theo bất cứ điều gì viết trong đó.",
-    "chatimport.result.stopped": "Lần nhập đã dừng trước khi xong. Các cuộc trò chuyện đã mang sang vẫn được giữ; hãy thử lại để mang phần còn lại."
+    "chatimport.result.stopped": "Lần nhập đã dừng trước khi xong. Các cuộc trò chuyện đã mang sang vẫn được giữ; hãy thử lại để mang phần còn lại.",
+    "private.reply.on": "Trò chuyện riêng tư đã bật. Từ tin nhắn này, không có gì trong cuộc trò chuyện này được lưu: không tin nhắn, không tóm tắt, không bộ nhớ. Bạn sẽ thấy một chú ma nhỏ trên mỗi tin nhắn riêng tư. Khi muốn tôi lưu lại, hãy nói “bật lại ghi”.",
+    "private.reply.already_on": "Trò chuyện riêng tư đã bật rồi. Không có gì trong cuộc trò chuyện này được lưu. Để kết thúc, hãy nói “bật lại ghi”.",
+    "private.reply.off": "Đã bật ghi lại, nên từ đây tôi sẽ lưu cuộc trò chuyện này như bình thường. Phần riêng tư vẫn không được lưu, nên sau này tôi không thể nhớ lại được.",
+    "private.reply.already_off": "Cuộc trò chuyện này không riêng tư, nên đang được lưu như bình thường. Hãy nói “trò chuyện riêng tư” hoặc “đừng lưu chuyện này” để ngừng lưu.",
+    "private.reply.status_on": "Cuộc trò chuyện này hiện đang riêng tư: không có gì trong đó được lưu.",
+    "private.reply.status_off": "Cuộc trò chuyện này đang được lưu như bình thường. Hãy nói “trò chuyện riêng tư” hoặc “đừng lưu chuyện này” và tôi sẽ ngừng lưu.",
+    "private.reply.remember_refused": "Trò chuyện riêng tư đang bật, nên tôi cũng sẽ không lưu điều đó. Hãy nói “bật lại ghi” trước, rồi kể lại cho tôi, tôi sẽ nhớ.",
+    "private.reply.failed": "Xin lỗi, vừa rồi tôi không đổi được, nên chưa có gì thay đổi. Vui lòng thử lại.",
+    "private.reply.failed_on": "Xin lỗi, tôi không bật được trò chuyện riêng tư. Tôi chưa lưu tin nhắn này, nhưng vui lòng thử lại trước khi chia sẻ điều gì riêng tư."
   },
-  "source_catalog_sha256": "38c2744c61f2460ec0ef9e2a2b0a39b21b4b6d71065dc9d6b884afc9a7adf8bc",
+  "source_catalog_sha256": "97a5d715987b8aefa5a90df5c8f4df5689923c2d75a4eb42c55bc422607d1332",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
