@@ -107,6 +107,8 @@ class Store:
                 db.execute("ALTER TABLE submissions ADD COLUMN auto_consent INTEGER NOT NULL DEFAULT 0")
             if "needs_notices" not in columns:
                 db.execute("ALTER TABLE submissions ADD COLUMN needs_notices BLOB NOT NULL DEFAULT X'5B5D'")  # []
+            if "via" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN via TEXT")  # NULL: stored before it was recorded
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
@@ -349,10 +351,11 @@ class Store:
         require(row and row[0] == namespace, "upload reservation expired or ownership changed")
         return namespace
 
-    def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None) -> dict:
+    def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None, _via: str = "upload") -> dict:
+        """`_via` says how the bytes arrived: "upload", or "draft" and "import" for bytes this service built."""
         if _slot is None:
             with self.upload_slot(account, now=now) as slot:
-                return self.upload(account, raw, now=now, _slot=slot)
+                return self.upload(account, raw, now=now, _slot=slot, _via=_via)
         started = time.monotonic()
         with self.connection() as db:
             namespace = self._check_upload_slot(db, account, _slot, now)
@@ -374,10 +377,11 @@ class Store:
             self._check_upload_slot(db, account, _slot, completed)
             count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
             require(count < 10, "daily submission quota reached")
-            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings,needs_notices) "
-                       "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings,needs_notices,via) "
+                       "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                        (identifier, account, completed, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
-                        None if findings else raw, "rejected" if findings else "quarantined", canonical(findings), canonical(notices)))
+                        None if findings else raw, "rejected" if findings else "quarantined", canonical(findings), canonical(notices),
+                        _via))
         return self.submission(account, identifier)
 
     def draft(self, account: str, value: dict, *, now: int, _slot: str | None = None) -> dict:
@@ -408,7 +412,7 @@ class Store:
             (source / "skills" / name / "SKILL.md").write_text(value["skill_markdown"], encoding="utf-8")
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
-        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot)
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="draft")
         if local["findings"] and result["state"] != "rejected":
             with self.connection() as db:
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
@@ -508,7 +512,7 @@ class Store:
             info = bind(info, lambda path: (source / path).read_bytes())
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
-        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot)
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="import")
         with self.connection() as db:
             if local["findings"] and result["state"] != "rejected":
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
@@ -522,7 +526,7 @@ class Store:
             row = db.execute("SELECT * FROM submissions WHERE id=? AND account=?", (identifier, account)).fetchone()
         require(row, "submission not found")
         return {key: row[key] for key in ("id", "created", "package_id", "version", "sha256", "state", "consent", "github_url")} | {
-            "findings": decode(row["findings"]), "needs_notices": decode(row["needs_notices"])}
+            "findings": decode(row["findings"]), "needs_notices": decode(row["needs_notices"]), "via": row["via"]}
 
     def submissions(self, account: str) -> list[dict]:
         with self.connection() as db:

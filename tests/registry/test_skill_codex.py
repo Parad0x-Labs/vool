@@ -365,7 +365,7 @@ def test_github_import_pins_the_commit_binds_the_owner_and_can_publish_when_chec
         assert response.status_code == 201, response.text
         result = response.json()
     commit = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
-    assert result["state"] == "quarantined"
+    assert result["state"] == "quarantined" and result["via"] == "import"
     assert result["source"] == {"repository": "alice/skills", "commit": commit, "path": "skills/notes"}
     with store.connection() as db:
         row = db.execute("SELECT artifact, publisher_bound, auto_consent FROM submissions WHERE id=?", (result["id"],)).fetchone()
@@ -653,7 +653,7 @@ def test_website_drafts_note_needs_the_instructions_seem_to_use_but_do_not_list(
         assert created.status_code == 201, created.text
         result = created.json()
         # Advice, not a refusal: the draft goes on to its checks with web search declared and the wallet named.
-        assert result["state"] == "quarantined" and result["findings"] == []
+        assert result["state"] == "quarantined" and result["findings"] == [] and result["via"] == "draft"
         assert result["needs_notices"] == [{"need": "wallet", "label": "VOOL wallet",
                                             "reason": 'SKILL.md seems to use "VOOL wallet". If it does, add "wallet" to needs.'}]
         assert client.get(PREFIX + "/submissions/" + result["id"]).json()["needs_notices"] == result["needs_notices"]
@@ -669,11 +669,14 @@ def test_website_drafts_note_needs_the_instructions_seem_to_use_but_do_not_list(
                                headers={**mutation(csrf), "Content-Type": "application/vnd.vool.registry+json"})
         assert uploaded.status_code == 201, uploaded.text
         assert [item["need"] for item in uploaded.json()["needs_notices"]] == ["wallet"]
-    # A submission stored before notices were recorded reads as having none.
+        assert uploaded.json()["via"] == "upload"
+    # A submission stored before notices and its route were recorded reads as having no notices and no route.
     with store.connection() as db:
         db.execute("ALTER TABLE submissions DROP COLUMN needs_notices")
+        db.execute("ALTER TABLE submissions DROP COLUMN via")
     upgraded = Store(store.path)
-    assert [item["needs_notices"] for item in upgraded.submissions(store.authenticate(token, now=NOW))] == [[], [], []]
+    assert [(item["needs_notices"], item["via"]) for item in upgraded.submissions(store.authenticate(token, now=NOW))] == [
+        ([], None)] * 3
     catalog.close()
 
 @pytest.mark.parametrize("case, message", [
