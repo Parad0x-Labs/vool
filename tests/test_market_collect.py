@@ -35,36 +35,70 @@ def _candle(ts: float, close: float, volume: float) -> list[float]:
     return [ts, close, close * 1.05, close * 0.95, close, volume]
 
 
-def _trade(ts: int, kind: str, usd: float, base_amount: float, wallet: str, tx: str) -> dict:
-    """One trade as the source documents it: from_amount is the token sold, to_amount the bought."""
-    return {"id": tx, "type": "trade", "attributes": {
-        "tx_id": tx, "block_number": "123", "block_timestamp": _iso(ts), "kind": kind,
-        "from_amount": repr(base_amount if kind == "sell" else usd / 2),
-        "to_amount": repr(base_amount if kind == "buy" else usd / 2),
-        "volume_in_usd": usd, "tx_from_address": wallet, "tx_to_address": ROUTER,
-    }}
+WSOL = "So11111111111111111111111111111111111111112"
+EVM_POOL = "0x" + "a" * 40
+
+
+def _trade(ts: int, side: str, usd: float, token_amount: float, wallet: str, tx: str, *,
+           token_is_base: bool = True, addresses: bool = True) -> dict:
+    """One trade in GeckoTerminal v2's documented shape (GET /networks/{network}/pools/{pool}/trades).
+
+    ``side`` is what happened to the asked token (SOL): "buy" means the trader got it. The source's
+    own ``kind`` names the POOL'S BASE token, so it is the opposite when the token is the quote side.
+    The trader gave ``from_token_amount`` of ``from_token_address`` and got ``to_token_amount`` of
+    ``to_token_address``; prices are per token in USD."""
+    other_amount = usd / 150.0  # wSOL at $150
+    token_leg = {"address": SOL, "amount": token_amount, "price": usd / token_amount}
+    other_leg = {"address": WSOL, "amount": other_amount, "price": 150.0}
+    got, gave = (token_leg, other_leg) if side == "buy" else (other_leg, token_leg)
+    kind = side if token_is_base else ("sell" if side == "buy" else "buy")
+    attrs = {
+        "block_number": 123, "tx_hash": tx, "tx_from_address": wallet,
+        "from_token_amount": repr(gave["amount"]), "to_token_amount": repr(got["amount"]),
+        "price_from_in_currency_token": "1", "price_to_in_currency_token": "1",
+        "price_from_in_usd": repr(gave["price"]), "price_to_in_usd": repr(got["price"]),
+        "block_timestamp": _iso(ts), "kind": kind, "volume_in_usd": repr(usd),
+    }
+    if addresses:
+        attrs["from_token_address"] = gave["address"]
+        attrs["to_token_address"] = got["address"]
+    return {"id": f"solana_123_{tx}_0_{ts}", "type": "trade", "attributes": attrs}
+
+
+def _pool(address: str, name: str, base: str, quote: str, network: str = "solana") -> dict:
+    """A pool in the documented shape: relationships.base_token / quote_token, ids "<network>_<address>"."""
+    return {"id": f"{network}_{address}", "type": "pool",
+            "attributes": {"address": address, "name": name, "reserve_in_usd": "50000",
+                           "pool_created_at": "2026-10-01T07:00:00Z"},
+            "relationships": {"base_token": {"data": {"id": f"{network}_{base}", "type": "token"}},
+                              "quote_token": {"data": {"id": f"{network}_{quote}", "type": "token"}},
+                              "dex": {"data": {"id": "raydium", "type": "dex"}}}}
+
+
+#: (seconds before NOW, side for SOL, USD, SOL amount, wallet, tx)
+TRADES = [
+    (600, "buy", 500.0, 250.0, WALLET_A, "t" * 60),
+    (1200, "buy", 300.0, 150.0, "Buy2BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "u" * 60),
+    (1800, "sell", 200.0, 90.0, "Se11333333333333333333333333333333333333333", "v" * 60),
+    (3600, "buy", 100.0, 50.0, WALLET_A, "w" * 60),
+    (7200, "sell", 50.0, 25.0, "Se11333333333333333333333333333333333333333", "x" * 60),
+    (9000, "buy", 25.0, 12.5, "Buy4DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "y" * 60),
+]
 
 
 class FakeMarket:
-    """Loopback GeckoTerminal: pools (with the base-token relationship), candles, trade pages."""
+    """Loopback GeckoTerminal v2: token pools (with base/quote relationships), candles, and the pool's
+    trades listing, which has no paging -- one answer, the last 300 trades of the past 24h."""
 
     def __init__(self):
         self.requests: list[dict] = []
-        self.pools = {SOL: [{"attributes": {"address": POOL, "name": "FDOG / SOL", "reserve_in_usd": "50000",
-                                            "pool_created_at": "2026-10-01T07:00:00Z"},
-                             "relationships": {"tokens": {"data": [{"id": SOL, "type": "token"},
-                                                                  {"id": "So11111111111111111111111111111111111111112",
-                                                                   "type": "token"}]}}}]}
+        self.token_is_base = True
+        self.addresses = True
+        self.pools = {SOL: [_pool(POOL, "FDOG / SOL", SOL, WSOL)]}
+        self.evm_pools = {EVM_TOKEN: [_pool(EVM_POOL, "TKN / WETH", EVM_TOKEN, "0x" + "c" * 40, network="eth")]}
         self.ohlcv = [_candle(T0 + i * 3600, 1.0 + i * 0.05, 1000.0) for i in range(24)]
-        self.trade_pages: list[list[dict]] = [[
-            _trade(NOW - 600, "buy", 500.0, 250.0, WALLET_A, "t" * 60),
-            _trade(NOW - 1200, "buy", 300.0, 150.0, "Buy2BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", "u" * 60),
-            _trade(NOW - 1800, "sell", 200.0, 90.0, "Se11333333333333333333333333333333333333333", "v" * 60),
-            _trade(NOW - 3600, "buy", 100.0, 50.0, WALLET_A, "w" * 60),
-            _trade(NOW - 7200, "sell", 50.0, 25.0, "Se11333333333333333333333333333333333333333", "x" * 60),
-            _trade(NOW - 9000, "buy", 25.0, 12.5, "Buy4DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "y" * 60),
-        ]]
-        self.trade_status: dict[int, int] = {}
+        self.trades: list[dict] | None = None  # None: built from TRADES with the flags above
+        self.trade_status = 200
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -75,14 +109,14 @@ class FakeMarket:
                 parts = urlsplit(self.path)
                 query = {k: v[0] for k, v in parse_qs(parts.query).items()}
                 outer.requests.append({"path": parts.path, "query": query, "auth": self.headers.get("Authorization")})
-                page_no = int(query.get("page") or 1)
                 if "/trades" in parts.path:
-                    status = outer.trade_status.get(page_no, 200)
-                    body = ({"errors": [{"title": "rate limited"}]} if status != 200
-                            else {"data": outer.trade_pages[page_no - 1] if page_no <= len(outer.trade_pages) else []})
+                    status = outer.trade_status
+                    body = ({"errors": [{"status": str(status), "title": "Too Many Requests"}]} if status != 200
+                            else {"data": outer.trade_rows()})
                 elif parts.path.endswith("/pools") and "/tokens/" in parts.path:
                     token = parts.path.split("/tokens/")[1].split("/")[0]
-                    body, status = {"data": outer.pools.get(token, [])}, 200
+                    pools = outer.evm_pools if "/networks/eth/" in parts.path else outer.pools
+                    body, status = {"data": pools.get(token, [])}, 200
                 elif "/ohlcv/" in parts.path:
                     body, status = {"data": {"attributes": {"ohlcv_list": list(reversed(outer.ohlcv))}}}, 200
                 else:
@@ -96,6 +130,12 @@ class FakeMarket:
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         self.url = f"http://127.0.0.1:{self.server.server_port}"
+
+    def trade_rows(self) -> list[dict]:
+        if self.trades is not None:
+            return self.trades
+        return [_trade(NOW - ago, side, usd, amount, wallet, tx, token_is_base=self.token_is_base,
+                       addresses=self.addresses) for ago, side, usd, amount, wallet, tx in TRADES]
 
     def __enter__(self):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -238,7 +278,7 @@ def test_the_five_market_tools_are_registered_with_honest_contracts():
 def test_no_key_and_web_off_refuses_and_stores_nothing(market, helius, vault_home):
     out = _run("market.collect", {"token": SOL})
     assert not out.ok and out.status == "nothing_available"
-    assert "Turn on web access" in out.response_text and "Nothing was collected" in out.response_text
+    assert "Turn on web access" in out.response_text and out.response_text.count("Nothing was collected") == 1
     assert market.requests == [] and helius.requests == []  # nothing went online
     from core import market_data
 
@@ -275,9 +315,19 @@ def test_web_on_and_no_key_keeps_candles_and_trades_and_names_the_missing_key(ma
     assert sources["transfers"]["status"] == "skipped" and "Helius or Alchemy" in sources["transfers"]["detail"]
     assert out.details["coverage"]["partial"] and "Partial dataset" in out.response_text
     assert "not read: To look up token transfer history" in out.response_text
+    # the public source DID go online here, so the chat lookup's "VOOL did not go online" is not borrowed
+    assert "did not go online" not in out.response_text
+    assert "trades: 6 row(s)" in out.response_text and "(last 300 trades (24h))" in out.response_text
     trades_requested = [r for r in market.requests if "/trades" in r["path"]]
-    assert len(trades_requested) == 2 and trades_requested[0]["query"]["page"] == "1"
-    assert all(r["query"].get("auth") is None for r in market.requests)  # keyless: nothing of the user's sent
+    assert len(trades_requested) == 1 and "page" not in trades_requested[0]["query"]  # the listing has no paging
+    assert all(r["auth"] is None for r in market.requests)  # keyless: nothing of the user's sent
+    from core import market_data
+
+    stored = sorted((r["ts"], r["kind"], r["amount"], r["usd"], r["price"], r["wallet"], r["tx"])
+                    for r in market_data._load_rows(out.details["dataset"]) if r["source"] == "trades")
+    expected = sorted((NOW - ago, side, amount, usd, pytest.approx(usd / amount), wallet, tx)
+                      for ago, side, usd, amount, wallet, tx in TRADES)
+    assert stored == expected  # tx_hash, tx_from_address, the token's own amount and USD price, read as documented
 
 
 def test_key_only_and_web_off_keeps_transfers_only(market, helius, vault_home):
@@ -323,34 +373,83 @@ def test_transfers_get_a_price_from_the_collected_candles(market, helius, vault_
     assert transfer_in["usd"] == pytest.approx(215.0)
 
 
-def test_trades_direction_follows_the_pools_base_token(market, vault_home, enable_web):
-    market.pools[SOL][0]["relationships"]["tokens"]["data"].reverse()  # the pool's base is now the quote side
-    out = _run("market.collect", {"token": SOL})
-    assert out.ok, out.response_text
+def _trade_kinds(dataset_id: str) -> list[tuple[int, str, object]]:
     from core import market_data
 
-    [dataset_id] = [d["id"] for d in _datasets()]
-    kinds = sorted(r["kind"] for r in market_data._load_rows(dataset_id) if r["source"] == "trades")
-    assert kinds == ["buy", "buy", "sell", "sell", "sell", "sell"]  # the source's 4 buys flipped to sells
+    return sorted((r["ts"], r["kind"], r["amount"]) for r in market_data._load_rows(dataset_id) if r["source"] == "trades")
 
 
-def test_rate_limit_mid_paging_stops_and_labels_the_dataset_partial(market, vault_home, enable_web):
-    market.trade_status[2] = 429
+_EXPECTED_SIDES = sorted((NOW - ago, side, amount) for ago, side, _usd, amount, _w, _tx in TRADES)
+
+
+def test_a_token_on_the_quote_side_is_oriented_from_the_trade_legs(market, vault_home, enable_web):
+    # the pool is wSOL / SOL-token: the source's kind names wSOL, so every kind is the opposite of the token's side
+    market.pools[SOL] = [_pool(POOL, "SOL / FDOG", WSOL, SOL)]
+    market.token_is_base = False
     out = _run("market.collect", {"token": SOL})
-    assert out.ok, out.response_text  # page 1's trades and the candles are kept
+    assert out.ok, out.response_text
+    assert _trade_kinds(out.details["dataset"]) == _EXPECTED_SIDES
+
+
+def test_without_leg_addresses_the_kind_is_swapped_for_a_quote_side_token(market, vault_home, enable_web):
+    market.pools[SOL] = [_pool(POOL, "SOL / FDOG", WSOL, SOL)]
+    market.token_is_base = False
+    market.addresses = False
+    out = _run("market.collect", {"token": SOL})
+    assert out.ok, out.response_text
+    assert _trade_kinds(out.details["dataset"]) == _EXPECTED_SIDES  # oriented by relationships.quote_token
+
+
+def test_a_trade_whose_side_cannot_be_told_counts_as_neither(market, vault_home, enable_web):
+    pool = _pool(POOL, "FDOG / SOL", SOL, WSOL)
+    del pool["relationships"]["base_token"], pool["relationships"]["quote_token"]
+    market.pools[SOL] = [pool]
+    market.addresses = False
+    out = _run("market.collect", {"token": SOL})
+    assert out.ok, out.response_text
+    assert {kind for _ts, kind, _amount in _trade_kinds(out.details["dataset"])} == {"trade"}
+    assert "6 trade(s) did not say which side the token was on" in out.response_text
+    analysis = _run("market.analyze", {"dataset_id": out.details["dataset"]})
+    values = analysis.details["metrics"]["values"]
+    assert "buy_count" not in values and "sell_count" not in values  # never a confident 0 buys
+    assert "none of the 6 trade row(s) says whether the token was bought or sold" in analysis.response_text
+
+
+def test_one_request_dedupes_by_tx_hash_and_labels_the_source_limit(market, vault_home, enable_web):
+    rows = market.trade_rows()
+    market.trades = [*rows, rows[0]] * 50  # 350 entries, the same 6 transactions over and over
+    out = _run("market.collect", {"token": SOL})
+    assert out.ok, out.response_text
+    trades = out.details["coverage"]["sources"]["trades"]
+    assert trades["rows"] == 6 and trades["status"] == "partial"
+    assert "returned its limit of 300 trades" in trades["stopped_reason"]
+    assert len([r for r in market.requests if "/trades" in r["path"]]) == 1
+
+
+def test_a_window_longer_than_a_day_says_the_trades_cover_only_24h(market, vault_home, enable_web):
+    out = _run("market.collect", {"token": SOL, "window": "7d"})
+    assert out.ok, out.response_text
+    trades = out.details["coverage"]["sources"]["trades"]
+    assert trades["status"] == "partial" and "not the whole 7d window" in trades["stopped_reason"]
+    assert "only its last 300 trades (24h)" in out.response_text
+
+
+def test_rate_limited_trades_keep_the_candles_and_label_the_dataset_partial(market, vault_home, enable_web):
+    market.trade_status = 429
+    out = _run("market.collect", {"token": SOL})
+    assert out.ok, out.response_text  # the candles are kept
     sources = out.details["coverage"]["sources"]
-    assert sources["trades"]["rows"] == 6
-    assert sources["trades"]["stopped_reason"] == "stopped at page 2 of ?: the public price source is limiting " \
-                                                  "requests right now; try again in a minute"
-    assert sources["trades"]["status"] == "partial"
-    assert "rate limited" not in out.response_text and "limiting requests" in out.response_text
+    assert sources["candles"]["rows"] == 24
+    assert sources["trades"]["rows"] == 0 and sources["trades"]["status"] == "failed"
+    assert "limiting requests" in sources["trades"]["detail"]
     assert "Partial dataset" in out.response_text
-    assert len([r for r in market.requests if "/trades" in r["path"]]) == 2  # it backed off, never looped
+    assert len([r for r in market.requests if "/trades" in r["path"]]) == 1  # it backed off, never looped
 
 
 def test_etherscan_transfers_when_the_public_source_has_no_pool(market, vault_home, enable_web, monkeypatch):
     from core import chain_providers as cp
 
+    market.evm_pools = {}
     _store("chain.data.etherscan", ETHERSCAN_KEY)
     transfer = {"blockNumber": "21000000", "timeStamp": str(NOW - 600), "hash": "0x" + "9" * 64,
                 "from": "0x" + "1" * 40, "to": "0x" + "2" * 40, "value": str(5_000_000), "tokenDecimal": "6"}
@@ -379,6 +478,159 @@ def test_etherscan_transfers_when_the_public_source_has_no_pool(market, vault_ho
     [dataset_id] = [d["id"] for d in _datasets()]
     sides = sorted((r["kind"], round(r["amount"], 6)) for r in market_data._load_rows(dataset_id))
     assert sides == [("in", 5.0), ("out", 5.0)]
+
+
+# --------------------------------------------------------------------------- transfer paging
+
+
+def _etherscan_page(page_no: int, size: int = 1000) -> list[dict]:
+    """``size`` ERC-20 transfers in Etherscan's documented tokentx shape, all inside the 24h window."""
+    first = NOW - 60 - (page_no - 1) * size
+    return [{"blockNumber": "21000000", "timeStamp": str(first - i), "hash": f"0x{page_no:02x}{i:062x}",
+             "from": "0x" + "1" * 40, "to": "0x" + f"{i % 7 + 2}" * 40, "value": "1000000", "tokenDecimal": "6",
+             "contractAddress": EVM_TOKEN} for i in range(size)]
+
+
+def _etherscan_collect(monkeypatch, answer):
+    from core import chain_providers as cp
+
+    _store("chain.data.etherscan", ETHERSCAN_KEY)
+    with FakeProviderServer(answer) as server:
+        monkeypatch.setattr(cp, "ETHERSCAN_API_URL", f"{server.url.rstrip('/')}/etherscan/v2/api")
+        out = _run("market.collect", {"token": EVM_TOKEN, "chain": "ethereum"})
+    return out, server
+
+
+def _page_of(record) -> int:
+    return int(parse_qs(record["query"])["page"][0])
+
+
+def test_etherscan_paging_says_it_stopped_at_the_page_budget(market, vault_home, monkeypatch):
+    out, server = _etherscan_collect(monkeypatch, lambda record: (
+        200, {"status": "1", "message": "OK", "result": _etherscan_page(_page_of(record))}))
+    assert out.ok, out.response_text
+    transfers = out.details["coverage"]["sources"]["transfers"]
+    assert len(server.requests) == 5 and transfers["rows"] == 10_000  # 5 pages x 1,000 transfers x 2 sides
+    assert transfers["stopped_reason"].startswith("stopped at page 5: page budget")
+    assert "stopped at page 5: page budget" in out.response_text and "Partial dataset" in out.response_text
+
+
+def test_a_rate_limit_on_page_3_keeps_pages_1_and_2_labelled_partial(market, vault_home, monkeypatch):
+    def answer(record):
+        if _page_of(record) == 3:
+            return 429, {"status": "0", "message": "NOTOK", "result": "Max calls per sec rate limit reached"}
+        return 200, {"status": "1", "message": "OK", "result": _etherscan_page(_page_of(record))}
+
+    out, server = _etherscan_collect(monkeypatch, answer)
+    assert out.ok, out.response_text
+    transfers = out.details["coverage"]["sources"]["transfers"]
+    assert len(server.requests) == 3  # it stopped at the 429, never retried in a loop
+    assert transfers["status"] == "partial" and transfers["rows"] == 4_000
+    assert transfers["stopped_reason"].startswith("stopped at page 3: Etherscan is limiting requests")
+    assert "Partial dataset" in out.response_text
+
+
+def test_a_bad_transfer_row_keeps_the_candles_and_trades(market, vault_home, enable_web, monkeypatch):
+    bad = _etherscan_page(1, size=2)
+    bad[1]["timeStamp"] = "yesterday"  # not the documented unix seconds
+    out, _server = _etherscan_collect(monkeypatch, lambda record: (
+        200, {"status": "1", "message": "OK", "result": bad}))
+    assert out.ok, out.response_text  # the public sources' rows are kept and stored
+    sources = out.details["coverage"]["sources"]
+    assert sources["candles"]["rows"] == 24 and sources["trades"]["rows"] == 6
+    assert sources["transfers"]["status"] == "failed"
+    assert "shape VOOL does not recognise" in sources["transfers"]["detail"]
+
+
+def test_alchemy_paging_says_it_stopped_at_the_page_budget(market, vault_home, monkeypatch):
+    from core import chain_providers as cp
+
+    _store("chain.data.alchemy", "alch_fixture_key_0123456789abcd")
+    stamp = _iso(NOW - 600).replace("Z", ".000Z")
+    page = {"transfers": [{"blockNum": "0x1", "hash": f"0x{i:064x}", "from": "0x" + "1" * 40, "to": "0x" + "2" * 40,
+                           "value": 1.5, "asset": "TKN", "category": "erc20",
+                           "metadata": {"blockTimestamp": stamp}} for i in range(1000)], "pageKey": "next-page"}
+    with FakeProviderServer(lambda record: (200, {"jsonrpc": "2.0", "id": 1, "result": page})) as server:
+        monkeypatch.setattr(cp, "alchemy_url", lambda chain: f"{server.url.rstrip('/')}/alchemy/v2")
+        out = _run("market.collect", {"token": EVM_TOKEN, "chain": "ethereum"})
+    assert out.ok, out.response_text
+    transfers = out.details["coverage"]["sources"]["transfers"]
+    assert len(server.requests) == 5 and transfers["provider"] == "alchemy"
+    assert transfers["stopped_reason"].startswith("stopped at page 5: page budget")
+
+
+def test_the_helius_setup_notes_say_the_key_also_collects_trade_data():
+    from core import chain_providers as cp
+
+    notes = " ".join(cp.config_for("helius").setup_notes)
+    assert "collect trade data" in notes and "transfer history" in notes
+
+
+# --------------------------------------------------------------------------- private chat and projects
+
+
+def _no_datasets_stored() -> bool:
+    return _datasets() == []
+
+
+def test_a_private_chat_collects_nothing_and_goes_nowhere(market, helius, vault_home, enable_web, tmp_path):
+    from core.private_chat import set_private
+    from core.project_store import create_project
+
+    _store("chain.data.helius", HELIUS_KEY)
+    (tmp_path / "proj").mkdir()
+    ok, project = create_project("Private lab", str(tmp_path / "proj"))
+    assert ok
+    set_private("chat-private", True)
+    out = _run("market.collect", {"token": SOL}, source_context={"chat_id": "chat-private", "project_id": project["id"]})
+    assert not out.ok and out.status == "private_chat"
+    assert "private chat" in out.response_text and "Nothing was collected" in out.response_text
+    assert market.requests == [] and helius.requests == []  # nothing went online
+    assert _no_datasets_stored() and not (tmp_path / "proj" / "market-data").exists()
+    # a turn stamped private by the chat door is refused the same way
+    stamped = _run("market.collect", {"token": SOL}, source_context={"chat_id": "chat-other", "private_chat": True})
+    assert stamped.status == "private_chat" and _no_datasets_stored()
+
+
+def test_analyzing_in_a_private_chat_saves_no_result(market, vault_home, enable_web):
+    from core import market_data
+    from core.private_chat import set_private
+
+    dataset_id = _run("market.collect", {"token": SOL}, source_context={"chat_id": "chat-1"}).details["dataset"]
+    set_private("chat-private", True)
+    out = _run("market.analyze", {"dataset_id": dataset_id}, source_context={"chat_id": "chat-private"})
+    assert out.ok and "private chat, so the result was not saved" in out.response_text
+    conn = market_data._conn()
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM market_analyses").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_datasets_are_seen_only_from_the_project_that_collected_them(market, vault_home, enable_web, tmp_path):
+    from core.project_store import create_project
+
+    projects = []
+    for name in ("alpha", "beta"):
+        (tmp_path / name).mkdir()
+        ok, project = create_project(name, str(tmp_path / name))
+        assert ok
+        projects.append(project["id"])
+    alpha, beta = ({"chat_id": "chat-a", "project_id": projects[0]}, {"chat_id": "chat-b", "project_id": projects[1]})
+    plain = {"chat_id": "chat-plain"}
+    dataset_id = _run("market.collect", {"token": SOL}, source_context=alpha).details["dataset"]
+    assert dataset_id in _run("market.datasets", {}, source_context=alpha).response_text
+    for other in (beta, plain):
+        assert dataset_id not in _run("market.datasets", {}, source_context=other).response_text
+        assert _run("market.analyze", {"dataset_id": dataset_id}, source_context=other).status == "unknown_dataset"
+        check = _run("market.thesis_check", {"dataset_id": dataset_id, "claims": [
+            {"metric": "rows_trades", "comparator": ">", "value": 0}]}, source_context=other)
+        assert check.status == "unknown_dataset"
+        assert _run("market.dataset_delete", {"dataset_id": dataset_id}, source_context=other).status == "unknown_dataset"
+    assert [d["id"] for d in _datasets()] == [dataset_id]  # nobody else could delete it
+    assert _run("market.analyze", {"dataset_id": dataset_id}, source_context=alpha).ok
+    assert _run("market.dataset_delete", {"dataset_id": dataset_id}, source_context=alpha).ok
+    assert _no_datasets_stored()
 
 
 # --------------------------------------------------------------------------- datasets tools
@@ -451,26 +703,61 @@ def test_a_project_chat_gets_csv_copies_and_a_plain_chat_writes_no_files(market,
 # --------------------------------------------------------------------------- the chat offers the tool
 
 
+# Every market rule needs a market anchor in the same sentence: an address, a $TICKER, "this/that
+# token|coin|mint", or a dataset id (md_…) / "market dataset". The ordinary sentences below were all
+# seated before that anchor existed; trade words alone are everyday English.
 @pytest.mark.parametrize(("text", "seated"), [
-    ("collect the last week of trades for BONK", True),
+    ("collect the last week of trades for $BONK", True),
     ("collect the last 7 days of trades for " + SOL, True),
-    ("is BONK being bought or sold right now", True),
+    ("is $BONK being bought or sold right now", True),
     ("can you pull the trading data for that token", True),
     ("grab the market data for this mint", True),
-    ("list the datasets you have", True),
-    ("what datasets do you have collected", True),
+    ("list the market datasets you have", True),
+    ("what market datasets do you have collected", True),
     ("delete dataset md_abc123", True),
-    ("what patterns do you see", True),
-    ("analyze the collected trades", True),
-    ("check my thesis: smart wallets bought before every pump", True),
+    ("what patterns do you see in md_abc123", True),
+    ("analyze the collected trades for $BONK", True),
+    ("check my thesis on $BONK: smart wallets bought before every pump", True),
     ("test the idea that the buy share is above 60", False),  # an idea alone is not a thesis check demand
     ("collect my thoughts about the meeting", False),
     ("tell me the history of rome", False),
     ("delete my browser history", False),
     ("how do I sell my house", False),
+    # ordinary sentences with trade words and no market anchor
+    ("Grab the candles from the store", False),
+    ("Did the house get bought or sold", False),
+    ("Is there much sell pressure this quarter", False),
+    ("Fetch the market data for apples", False),
+    ("fetch the trading history from my broker statement", False),
+    ("My thesis is due tomorrow", False),
+    ("My idea is that we go to Rome", False),
+    ("Check my thesis draft for typos", False),
+    ("What patterns do you see in this poem?", False),
+    ("Delete the dataset I uploaded for the ML class", False),
+    ("list the CSV datasets in the folder", False),
+    ("Grab the candles from the store. Then check $BONK's price", False),  # the anchor is in another sentence
 ])
 def test_plain_sentences_seat_the_market_tools(text, seated):
     from core.tool_demand_signals import resolve_demand_signals
 
     intents = set(resolve_demand_signals(text).explicit_intents)
     assert any(intent.startswith("market.") for intent in intents) is seated
+
+
+@pytest.mark.parametrize(("text", "intent"), [
+    ("collect the last 7 days of trades for " + SOL, "market.collect"),
+    ("check my thesis on $BONK: smart wallets bought before every pump", "market.thesis_check"),
+    ("delete dataset md_abc123", "market.dataset_delete"),
+])
+def test_a_seated_sentence_puts_the_tool_in_the_models_offer(text, intent):
+    from core.capability_graph import model_visible_specs
+
+    offered = [spec["intent"] for spec in model_visible_specs(user_text=text)]
+    assert intent in offered, offered
+
+
+def test_ordinary_trade_words_do_not_put_a_market_tool_in_the_offer():
+    from core.capability_graph import model_visible_specs
+
+    offered = [spec["intent"] for spec in model_visible_specs(user_text="Grab the candles from the store")]
+    assert not [intent for intent in offered if intent.startswith("market.")], offered

@@ -82,6 +82,24 @@ def is_explicit_code_repair(text: str) -> bool:
     )
 
 
+# -- market data tools (core/market_data): every branch needs a market anchor in the SAME sentence --
+# A token anchor (an EVM or Solana address, a $TICKER, "this/that token|coin|mint") or a collected
+# dataset's id (md_<hex>). Trade words alone are ordinary English ("grab the candles from the store",
+# "my thesis is due tomorrow", "delete the dataset I uploaded for the ML class"), so none of the
+# market rules seats on them without the anchor.
+_MARKET_TOKEN_ANCHOR = (
+    r"\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
+    r"|\b(?:this|that)\s+(?:token|coin|memecoin|mint)\b"
+)
+_MARKET_DATASET_ANCHOR = r"\bmd_[0-9a-f]{3,}\b|\bmarket\s+datasets?\b"
+
+
+def _market_rule(branch: str, *, datasets: bool = False) -> re.Pattern[str]:
+    """``branch`` and an anchor both inside one sentence (lookaheads from the sentence start)."""
+    anchor = _MARKET_TOKEN_ANCHOR + ("|" + _MARKET_DATASET_ANCHOR if datasets else "")
+    return re.compile(rf"(?:^|(?<=[.?!]))(?=[^.?!]*?(?:{anchor}))(?=[^.?!]*?(?:{branch}))", re.I)
+
+
 _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     # -- repository operations (RepoOps control plane) ------------------------
     # GitHub-management demands -- pull requests, issues, CI truth, the typed git vertical --
@@ -169,36 +187,35 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
         r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
     # -- market data collection (core/market_data; trades collected locally, then analyzed in code) --
-    # collect: a collecting verb near trade words, trades asked for a token, or a buy/sell-pressure
-    # question -- the collected rows answer it, never the model's memory
-    ("market.collect", "web", re.compile(
+    # each branch also needs a market anchor in the same sentence (_market_rule above)
+    # collect: a collecting verb near trade words, trades asked for a token, or a buy/sell-pressure question
+    ("market.collect", "web", _market_rule(
         r"\b(?:collect|pull|gather|grab|download|fetch)\b[^.?!]{0,60}?"
         r"\b(?:trades?|swaps?|trading\s+(?:data|history|activity)|market\s+data|candles?)\b"
-        r"|\b(?:trades?|swaps?|transactions?)\b[^.?!]{0,40}?\b(?:for|of|on)\b[^.?!]{0,60}?"
-        r"(?:\b(?:token|coin|mint|ca|contract)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\b(?:trades?|swaps?)\b[^.?!]{0,40}?\b(?:for|of|on)\b"
         r"|\blast\s+(?:\d+\s*)?(?:hours?|days?|weeks?)\s+of\s+(?:\w+\s+){0,2}?trades?\b"
-        r"|\b(?:being\s+)?bought\s+or\s+sold\b|\b(?:buy|sell)\s+pressure\b", re.I)),
-    # the stored datasets themselves: "list the datasets", "what datasets do you have"
-    ("market.datasets", "web", re.compile(
-        r"\b(?:list|show)\b[^.?!]{0,40}?\b(?:market\s+)?datasets?\b"
-        r"|\b(?:market\s+)?datasets?\b[^.?!]{0,40}?\b(?:do\s+you\s+(?:have|know)|are\s+(?:there|stored|saved)|have\s+you\s+collected)\b"
-        r"|\bmy\s+(?:collected\s+)?(?:market\s+)?datasets?\b", re.I)),
+        r"|\b(?:being\s+)?bought\s+or\s+sold\b|\b(?:buy|sell)(?:ing)?\s+pressure\b")),
+    # the stored datasets themselves: "list the market datasets", "what market datasets do you have"
+    ("market.datasets", "web", _market_rule(
+        r"\b(?:list|show)\b[^.?!]{0,40}?\bdatasets?\b"
+        r"|\bdatasets?\b[^.?!]{0,40}?\b(?:do\s+you\s+(?:have|know)|are\s+(?:there|stored|saved)|have\s+you\s+collected)\b"
+        r"|\bmy\s+(?:collected\s+)?(?:market\s+)?datasets?\b", datasets=True)),
     # deleting a stored dataset or its collected data
-    ("market.dataset_delete", "web", re.compile(
-        r"\b(?:delete|remove|drop|clear|forget)\b[^.?!]{0,50}?\b(?:the\s+)?(?:market\s+)?datasets?\b"
+    ("market.dataset_delete", "web", _market_rule(
+        r"\b(?:delete|remove|drop|clear|forget)\b[^.?!]{0,50}?\bdatasets?\b"
         r"|\b(?:delete|remove|drop|clear)\b[^.?!]{0,50}?\bcollected\s+(?:market\s+)?(?:data|trades?)\b"
-        r"|\b(?:market\s+)?datasets?\b[^.?!]{0,30}?\b(?:deleted|removed|dropped)\b", re.I)),
-    # "what patterns do you see", "analyze the dataset", "patterns in the trades"
-    ("market.analyze", "web", re.compile(
+        r"|\bdatasets?\b[^.?!]{0,30}?\b(?:deleted|removed|dropped)\b", datasets=True)),
+    # "what patterns do you see in md_…", "analyze the trades for $BONK"
+    ("market.analyze", "web", _market_rule(
         r"\b(?:what|any)\s+patterns?\b[^.?!]{0,60}?\b(?:do|did|can)\s+you\s+see\b"
         r"|\b(?:analy[sz]e|find\s+patterns?\s+in|look\s+for\s+patterns?\s+in)\b[^.?!]{0,60}?"
-        r"\b(?:the\s+)?(?:dataset|collected\s+(?:data|trades?)|market\s+data|trades?)\b"
-        r"|\bpatterns?\s+in\s+the\s+(?:data|trades?|dataset|numbers?)\b", re.I)),
-    # "check my thesis: ...", "test the idea that ..."
-    ("market.thesis_check", "web", re.compile(
+        r"\b(?:dataset|collected\s+(?:data|trades?)|market\s+data|trades?)\b"
+        r"|\bpatterns?\s+in\s+the\s+(?:data|trades?|dataset|numbers?)\b", datasets=True)),
+    # "check my thesis on $BONK: ...", "my theory about this token is that ..."
+    ("market.thesis_check", "web", _market_rule(
         r"\b(?:check|test|verify|validate)\b[^.?!]{0,40}?\b(?:my|the|this|that|a)\s+thesis\b"
         r"|\bthesis\b[^.?!]{0,40}?\b(?:is|holds?|true|right|correct|wrong|supported|contradicted)\b"
-        r"|\bmy\s+(?:theory|hypothesis|idea)\b[^.?!]{0,60}?\b(?:is|that)\b", re.I)),
+        r"|\bmy\s+(?:theory|hypothesis|idea)\b[^.?!]{0,60}?\b(?:is|that)\b", datasets=True)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",

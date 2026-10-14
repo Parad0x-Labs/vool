@@ -804,6 +804,22 @@ def _etherscan_read(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: s
 # --------------------------------------------------------------------------- market data sources
 
 
+#: Page budgets for one collect: Etherscan and Alchemy list up to 1,000 transfers a page; Solana lists
+#: up to 1,000 signatures a page and then reads each transaction (``max_requests``).
+TRANSFER_PAGE_BUDGET = 5
+SOLANA_SIGNATURE_PAGE_BUDGET = 3
+_SHAPE_ERRORS = (ValueError, KeyError, TypeError, AttributeError, IndexError, InvalidOperation)
+
+
+class _Paging:
+    """What a paged transfer read has gathered so far, so a failure on page 3 keeps pages 1-2."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self.stopped = ""
+        self.where = "page 1"
+
+
 def token_transfers(token: str, chain: str, since_ts: int, *, until_ts: int, provider: str = "",
                     max_rows: int = 200_000, max_requests: int = 100) -> dict[str, Any]:
     """One token's transfer history, newest first, for ``market.collect`` (core/market_data.py).
@@ -811,26 +827,34 @@ def token_transfers(token: str, chain: str, since_ts: int, *, until_ts: int, pro
     Reads through exactly the same door and key rules as the chat lookup: one provider (the one
     named, else the first stored one in table order that serves the chain and this operation),
     the operator's own key, no fallback behind the operator's back. A provider failure is
-    returned, never raised, so the caller keeps the sources that did answer; ``rows`` is then
-    empty. Each row: ``{ts, wallet, kind in|out, amount (token units), tx}`` -- one row per
-    wallet side of a transfer, because a net-flow question is asked per wallet.
+    returned, never raised, so the caller keeps the sources that did answer: a failure before any
+    row arrived returns its code (``rate_limited``, ``bad_answer``, ...) with no rows; a failure
+    after some pages arrived returns ``status: partial`` with those rows and ``stopped_reason``
+    naming the page and the cause. A read that ran out of its page budget says so in
+    ``stopped_reason`` too. Each row: ``{ts, wallet, kind in|out, amount (token units), tx}`` --
+    one row per wallet side of a transfer, because a net-flow question is asked per wallet.
     """
     try:
         cfg, _others = _choose_provider({"provider": provider} if provider else {}, chain, cp.OP_TOKEN_TRANSFERS)
     except ChainDataError as exc:
         return {"status": exc.code, "message": exc.message, "provider": str(provider or ""), "rows": [], "stopped_reason": ""}
+    paging = _Paging()
     try:
-        if chain == cp.CHAIN_SOLANA:
-            rows, stopped = _solana_token_transfers(cfg, token, since_ts, until_ts, max_rows, max_requests)
-        elif cfg.provider_id == "etherscan":
-            rows, stopped = _etherscan_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows)
-        else:
-            rows, stopped = _alchemy_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows)
+        try:
+            if chain == cp.CHAIN_SOLANA:
+                _solana_token_transfers(cfg, token, since_ts, until_ts, max_rows, max_requests, paging)
+            elif cfg.provider_id == "etherscan":
+                _etherscan_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows, paging)
+            else:
+                _alchemy_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows, paging)
+        except _SHAPE_ERRORS:
+            raise _shape_error(cfg) from None
     except ChainDataError as exc:
+        if paging.rows:
+            return {"status": "partial", "message": exc.message, "provider": cfg.provider_id, "rows": paging.rows,
+                    "stopped_reason": f"stopped at {paging.where}: {exc.message}"}
         return {"status": exc.code, "message": exc.message, "provider": cfg.provider_id, "rows": [], "stopped_reason": ""}
-    except (ValueError, KeyError, TypeError, AttributeError, IndexError, InvalidOperation):
-        raise _shape_error(cfg) from None
-    return {"status": "ok", "provider": cfg.provider_id, "rows": rows, "stopped_reason": stopped}
+    return {"status": "ok", "provider": cfg.provider_id, "rows": paging.rows, "stopped_reason": paging.stopped}
 
 
 def _sides(frm: object, to: object, ts: int, amount: object, tx: str) -> list[dict[str, Any]]:
@@ -843,7 +867,7 @@ def _sides(frm: object, to: object, ts: int, amount: object, tx: str) -> list[di
 
 
 def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: int, until_ts: int,
-                            max_rows: int, max_requests: int) -> tuple[list[dict[str, Any]], str]:
+                            max_rows: int, max_requests: int, paging: _Paging) -> None:
     """Solana transfer history: the mint's signatures, then each transaction's pre/post token
     balances, whose per-owner difference is the transfer. Skips failed transactions and names
     how many were skipped."""
@@ -851,7 +875,9 @@ def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: i
     signatures: list[tuple[str, int]] = []
     seen: set[str] = set()
     before = None
-    for _page in range(3):
+    budget_hit = False
+    for page_no in range(1, SOLANA_SIGNATURE_PAGE_BUDGET + 1):
+        paging.where = f"signature page {page_no}"
         options: dict[str, Any] = {"limit": 1000, "commitment": "confirmed"}
         if before:
             options["before"] = before
@@ -871,18 +897,20 @@ def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: i
         before = str(last["signature"])
         last_ts = last.get("blockTime")
         # a page that adds nothing (a provider echoing the same page) or reaches past the window ends paging
-        if added == 0 or (isinstance(last_ts, int) and last_ts < since_ts):
+        if added == 0 or (isinstance(last_ts, int) and last_ts < since_ts) or len(page) < 1000:
             break
-    stopped = ""
+        budget_hit = page_no == SOLANA_SIGNATURE_PAGE_BUDGET
+    stopped = (f"stopped at signature page {SOLANA_SIGNATURE_PAGE_BUDGET}: page budget (older transfers in the "
+               f"window were not read)") if budget_hit else ""
     if len(signatures) > max_requests:
-        stopped = f"stopped after the newest {max_requests} transactions of {len(signatures)} found: read budget"
+        stopped = stopped or f"stopped after the newest {max_requests} transactions of {len(signatures)} found: read budget"
         signatures = signatures[:max_requests]
-    rows: list[dict[str, Any]] = []
     skipped_failed = 0
-    for signature, ts in signatures:
-        if len(rows) >= max_rows:
-            stopped = stopped or f"stopped at {len(rows)} rows: row cap"
+    for number, (signature, ts) in enumerate(signatures, start=1):
+        if len(paging.rows) >= max_rows:
+            stopped = stopped or f"stopped at {len(paging.rows)} rows: row cap"
             break
+        paging.where = f"transaction {number} of {len(signatures)}"
         result = _rpc(cfg, chain, "getTransaction",
                       [signature, {"encoding": "json", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}])
         if not isinstance(result, dict) or not isinstance(result.get("meta"), dict):
@@ -907,60 +935,61 @@ def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: i
             delta = (post.get(index) or (owner, 0.0))[1] - (pre.get(index) or (owner, 0.0))[1]
             if owner and delta:
                 moved[owner] = moved.get(owner, 0.0) + delta
-        for owner, delta in moved.items():
-            rows.append({"ts": ts, "wallet": owner, "kind": "in" if delta > 0 else "out", "amount": abs(delta),
-                         "tx": signature})
+        paging.rows.extend({"ts": ts, "wallet": owner, "kind": "in" if delta > 0 else "out", "amount": abs(delta),
+                            "tx": signature} for owner, delta in moved.items())
     if skipped_failed:
         stopped = stopped or f"{skipped_failed} failed transaction(s) skipped"
-    return rows, stopped
+    paging.stopped = stopped
 
 
 def _etherscan_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
-                               until_ts: int, max_rows: int) -> tuple[list[dict[str, Any]], str]:
+                               until_ts: int, max_rows: int, paging: _Paging) -> None:
     """ERC-20 transfer history from Etherscan's token-transfer listing, newest pages first."""
-    rows: list[dict[str, Any]] = []
-    stopped = ""
-    for page_no in range(1, 6):
+    for page_no in range(1, TRANSFER_PAGE_BUDGET + 1):
+        paging.where = f"page {page_no}"
         result = _etherscan(cfg, chain, {"module": "account", "action": "tokentx", "contractaddress": token,
                                           "page": str(page_no), "offset": "1000", "sort": "desc"}, empty_ok=True)
-        page = result if isinstance(result, list) else []
-        if not page:
-            break
+        if not isinstance(result, list):
+            raise _shape_error(cfg)
+        if not result:
+            return
         oldest: int | None = None
-        for t in page:
+        page_rows: list[dict[str, Any]] = []
+        for t in result:
             ts = int(str(t.get("timeStamp") or 0))
             oldest = ts if oldest is None else min(oldest, ts)
             if not since_ts <= ts <= until_ts:
                 continue
             decimals = int(str(t.get("tokenDecimal") or 0))
             amount = Decimal(str(t.get("value") or 0)).scaleb(-decimals) if decimals >= 0 else None
-            rows.extend(_sides(t.get("from"), t.get("to"), ts, float(amount) if amount is not None else None,
-                               str(t.get("hash") or "")))
-        if len(rows) >= max_rows:
-            stopped = f"stopped at {len(rows)} rows: row cap"
-            break
-        if oldest is not None and oldest < since_ts:
-            break
-    return rows, stopped
+            page_rows.extend(_sides(t.get("from"), t.get("to"), ts, float(amount) if amount is not None else None,
+                                    str(t.get("hash") or "")))
+        paging.rows.extend(page_rows)
+        if len(paging.rows) >= max_rows:
+            paging.stopped = f"stopped at {len(paging.rows)} rows: row cap"
+            return
+        if (oldest is not None and oldest < since_ts) or len(result) < 1000:
+            return
+    paging.stopped = f"stopped at page {TRANSFER_PAGE_BUDGET}: page budget (older transfers in the window were not read)"
 
 
 def _alchemy_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
-                             until_ts: int, max_rows: int) -> tuple[list[dict[str, Any]], str]:
+                             until_ts: int, max_rows: int, paging: _Paging) -> None:
     """ERC-20 transfer history from Alchemy's transfer listing, newest pages first."""
     from datetime import datetime
 
     params: dict[str, Any] = {"fromBlock": "0x0", "toBlock": "latest", "contractAddresses": [token],
                               "category": ["erc20"], "withMetadata": True, "maxCount": hex(1000), "order": "desc"}
-    rows: list[dict[str, Any]] = []
-    stopped = ""
-    for _page in range(5):
+    for page_no in range(1, TRANSFER_PAGE_BUDGET + 1):
+        paging.where = f"page {page_no}"
         result = _rpc(cfg, chain, "alchemy_getAssetTransfers", [params])
         if not isinstance(result, dict):
             raise _shape_error(cfg)
         transfers = [t for t in result.get("transfers") or [] if isinstance(t, dict)]
         if not transfers:
-            break
+            return
         oldest: int | None = None
+        page_rows: list[dict[str, Any]] = []
         for t in transfers:
             stamp = str((t.get("metadata") or {}).get("blockTimestamp") or "").replace("Z", "+00:00")
             try:
@@ -970,15 +999,16 @@ def _alchemy_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str
             oldest = ts if oldest is None else min(oldest, ts)
             if not since_ts <= ts <= until_ts:
                 continue
-            rows.extend(_sides(t.get("from"), t.get("to"), ts, t.get("value"), str(t.get("hash") or "")))
-        if len(rows) >= max_rows:
-            stopped = f"stopped at {len(rows)} rows: row cap"
-            break
+            page_rows.extend(_sides(t.get("from"), t.get("to"), ts, t.get("value"), str(t.get("hash") or "")))
+        paging.rows.extend(page_rows)
+        if len(paging.rows) >= max_rows:
+            paging.stopped = f"stopped at {len(paging.rows)} rows: row cap"
+            return
         page_key = result.get("pageKey")
         if not page_key or (oldest is not None and oldest < since_ts):
-            break
+            return
         params["pageKey"] = page_key
-    return rows, stopped
+    paging.stopped = f"stopped at page {TRANSFER_PAGE_BUDGET}: page budget (older transfers in the window were not read)"
 
 
 # --------------------------------------------------------------------------- Settings "Test"

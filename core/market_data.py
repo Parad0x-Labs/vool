@@ -1,8 +1,8 @@
 """Collect a token's trade data locally, then compute every pattern and thesis check from it.
 
 ``market.collect`` answers "collect the last 7 days of trades for <token>": price/volume candles and
-the most liquid pool's trades from the same public DEX data ``token.performance`` reads (the web
-lookups switch gates them), plus the token's transfer history through the user's own chain-data key
+the most liquid pool's last 300 trades of the past 24h (the public listing has no paging) from the
+same public DEX data ``token.performance`` reads (the web lookups switch gates them), plus the token's transfer history through the user's own chain-data key
 (the same slots and the same one outbound door ``core/chain_data`` uses). The rows land in local
 SQLite tables through the same DB helper the notification centre uses; in a project chat a CSV copy
 per source is written into the project's own folder. ``market.analyze`` and ``market.thesis_check``
@@ -17,7 +17,12 @@ Rules this holds:
 * Sources are independent and partial is honest: web off means no public candles or trades (the
   answer says how to turn them on), no key means no transfers (the answer says which key would
   read them). What did come is kept and labelled with its exact coverage -- from/to time, rows per
-  source, and where paging stopped ("stopped at page 3 of ?: rate limited").
+  source, and where paging stopped ("stopped at page 3: <the provider's rate-limit reply>",
+  "stopped at page 5: page budget").
+* Private chat saves nothing: ``market.collect`` refuses in a private chat (nothing goes online,
+  nothing is stored), and an analysis run there is not saved. Datasets are scoped to the project
+  they were collected in (or to chats outside any project): listing, analysis, thesis checks and
+  deletes see only those.
 * Fail closed: nothing available, every source failed, a bad address, an unknown chain, a window
   out of range -- a structured refusal with the plain next step, and nothing stored.
 * Rate limits: a bounded page budget per collect for every provider; an HTTP 429 stops that
@@ -28,6 +33,7 @@ Rules this holds:
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import re
 import threading
@@ -51,16 +57,23 @@ INTENTS = (COLLECT, DATASETS, DATASET_DELETE, ANALYZE, THESIS_CHECK)
 DEFAULT_WINDOW_S = 24 * 3600
 MIN_WINDOW_S = 3600
 MAX_WINDOW_S = 30 * 86400
-#: The per-collect page budgets: every provider stops after its own budget, and an HTTP 429 stops
-#: the source outright. GeckoTerminal's own ceiling is 30 calls/minute, so 1 pool page + 3 candle
-#: pages + 10 trade pages stay under it for one collect.
-MAX_TRADES_PAGES = 10
+#: The per-collect budgets: every provider stops after its own budget, and an HTTP 429 stops the
+#: source outright. GeckoTerminal's pool-trades listing has no paging: one request returns the pool's
+#: last 300 trades of the past 24 hours, and that is all of it this source can give.
+TRADES_SOURCE_LIMIT = 300
+TRADES_SOURCE_SPAN_S = 24 * 3600
+TRADES_COVERAGE = "last 300 trades (24h)"
 MAX_TRANSFER_TX_READS = 100
 MAX_DATASETS = 20
 MAX_ROWS = 200_000
 #: Below this many stored rows the analysis refuses every metric: with 5 rows any "pattern" is
 #: noise wearing a number.
 MIN_ANALYZE_ROWS = 6
+#: Per-metric minimums. A share or a ratio computed from a handful of rows is noise wearing a
+#: number (one trade is "buy share 100%"), so below these the metric says "not enough data".
+MIN_SHARE_TRADES = 10          # buy_share_pct: trades that carry a USD figure
+MIN_CONCENTRATION_WALLETS = 20  # top10_volume_share_pct: with 10 or fewer wallets the top 10 are everyone
+MIN_FIRST_BUYERS = 5           # first_buyers_count / early_buyers_still_holding
 TABLE_CAP = 6_000
 MAX_CLAIMS = 20
 
@@ -74,6 +87,9 @@ _WEB_OFF_TEXT = ("Collecting trades uses public DEX candles and pool trades (whi
                  "token's transfer history through a saved chain-data key. Turn on web access in Settings and, for "
                  "transfer history, add a Helius, Alchemy or Etherscan key in Settings → API Keys, then ask again. "
                  "Nothing was collected.")
+_PRIVATE_TEXT = ("This is a private chat, and a private chat saves nothing, so VOOL does not collect market data "
+                 "here: a collected dataset is stored on this computer (and copied into the project folder in a "
+                 "project). Ask again in a regular chat to collect it. Nothing was collected and nothing went online.")
 
 #: The metric names ``market.analyze`` defines; ``market.thesis_check`` accepts only these. A name
 #: with a ``:<argument>`` (a date, a wallet) takes its value from that argument's rows.
@@ -98,12 +114,13 @@ def market_contracts() -> list[Any]:
             intent=COLLECT,
             description=(
                 "Collect a token's trade data into a local dataset that market.analyze and market.thesis_check read: "
-                "price/volume candles and the most liquid pool's trades from public DEX data (needs web access on), "
+                "price/volume candles and the most liquid pool's last 300 trades of the past 24h from public DEX "
+                "data (needs web access on), "
                 "plus the token's transfer history through the user's own chain-data key (Helius, Alchemy or Etherscan, "
                 "whichever is saved). Only the sources that are allowed run, and the answer states exactly what it got "
                 "and where paging stopped. Give the token contract address, the chain when it is not Solana, and a "
                 "window from 1h to 30d (default 24h). Read-only market data: nothing is signed or sent. Say the dataset "
-                "id back to the user; keep it for the analysis tools."
+                "id back to the user; keep it for the analysis tools. Refused in a private chat (nothing is stored there)."
             ),
             tool_surface=SURFACE,
             capability_id="web.market_data",
@@ -216,6 +233,8 @@ def market_contracts() -> list[Any]:
             input_schema={
                 "dataset_id": "str: the dataset the thesis is about",
                 "claims": "list (1-20) of {metric, comparator, value, tolerance?, window?, note?}",
+                "window": "str (optional): e.g. 24h -- the last part of the dataset every claim without its own "
+                          "window looks at",
             },
             output_schema={"verdicts": "list"},
             side_effect_class="read_only",
@@ -238,13 +257,13 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
     if intent == COLLECT:
         out = _collect(args, source_context)
     elif intent == DATASETS:
-        out = _list_datasets()
+        out = _list_datasets(source_context)
     elif intent == DATASET_DELETE:
-        out = _delete_dataset(args)
+        out = _delete_dataset(args, source_context)
     elif intent == ANALYZE:
-        out = _analyze(args)
+        out = _analyze(args, source_context)
     elif intent == THESIS_CHECK:
-        out = _thesis_check(args)
+        out = _thesis_check(args, source_context)
     else:
         out = {"ok": False, "status": "unsupported_intent", "text": "That is not a market data tool."}
     observation = _tool_observation(intent=intent, tool_surface=SURFACE, ok=out["ok"], status=out["status"],
@@ -340,6 +359,31 @@ def _public(*values: str) -> None:
             register_public_identifier(value)
 
 
+def _project_of(source_context: dict[str, Any] | None) -> str:
+    """The asking chat's project ('' outside a project): datasets are seen only from where they were collected."""
+    context = source_context if isinstance(source_context, dict) else {}
+    return str(context.get("_trusted_project_id") or context.get("project_id") or "").strip()
+
+
+def _turn_is_private(source_context: dict[str, Any] | None) -> bool:
+    """Private chat (core.private_chat): fail closed -- an unreadable switch counts as private."""
+    try:
+        from core.private_chat import turn_is_private
+
+        return bool(turn_is_private(source_context if isinstance(source_context, dict) else {}))
+    except Exception:
+        return True
+
+
+def _same_address(a: object, b: object) -> bool:
+    left, right = str(a or "").strip(), str(b or "").strip()
+    if not left or not right:
+        return False
+    if left.lower().startswith("0x") and right.lower().startswith("0x"):
+        return left.lower() == right.lower()  # EVM addresses are case-insensitive (checksum casing)
+    return left == right
+
+
 def _short(token: str) -> str:
     return f"{token[:6]}…{token[-4:]}" if len(token) > 16 else token
 
@@ -416,10 +460,13 @@ def _dataset_row(row: Any) -> dict[str, Any]:
     return data
 
 
-def _get_dataset(dataset_id: str) -> dict[str, Any] | None:
+def _get_dataset(dataset_id: str, project_id: str) -> dict[str, Any] | None:
+    """The dataset when it belongs to ``project_id`` (the asking chat's project, '' outside one).
+    A dataset of another project is answered exactly like an unknown id: its existence is not told."""
     conn = _conn()
     try:
-        row = conn.execute("SELECT * FROM market_datasets WHERE id = ?", (str(dataset_id or "").strip(),)).fetchone()
+        row = conn.execute("SELECT * FROM market_datasets WHERE id = ? AND project_id = ?",
+                           (str(dataset_id or "").strip(), str(project_id or ""))).fetchone()
     finally:
         conn.close()
     return _dataset_row(row) if row else None
@@ -490,11 +537,13 @@ def _prune_datasets(current_chat: str) -> list[dict[str, Any]]:
 
 
 def _save_analysis(dataset_id: str, focus: str, result: dict[str, Any]) -> None:
+    """Keep the latest analysis per dataset only: the rows are fixed, so an older result adds nothing."""
     with _LOCK:
         _init_tables()
         conn = _conn()
         try:
-            conn.execute("INSERT OR REPLACE INTO market_analyses (dataset_id, created_at, focus, result_json)"
+            conn.execute("DELETE FROM market_analyses WHERE dataset_id = ?", (dataset_id,))
+            conn.execute("INSERT INTO market_analyses (dataset_id, created_at, focus, result_json)"
                          " VALUES (?, ?, ?, ?)",
                          (dataset_id, _utcnow(), str(focus or "")[:60], json.dumps(result, sort_keys=True)))
             conn.commit()
@@ -541,6 +590,9 @@ def _write_csv_copies(project_id: str, token: str, rows_by_source: dict[str, lis
 
 
 def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict[str, Any]:
+    if _turn_is_private(source_context):
+        # checked first: a private chat neither goes online for this nor stores a row or a file
+        return _result(False, "private_chat", _PRIVATE_TEXT)
     token = str(args.get("token") or args.get("address") or args.get("mint") or args.get("contract") or "").strip()
     named_chain = str(args.get("chain") or args.get("network") or "").strip()
     window_s, window_text = _window_of(args.get("window"))
@@ -563,7 +615,7 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
     since = now - window_s
     context = source_context if isinstance(source_context, dict) else {}
     chat_id = str(context.get("runtime_session_id") or context.get("chat_id") or context.get("session_id") or "")
-    project_id = str(context.get("_trusted_project_id") or context.get("project_id") or "")
+    project_id = _project_of(context)
 
     rows_by_source: dict[str, list[dict[str, Any]]] = {}
     coverage: dict[str, Any] = {"token": token, "chain": chain, "window": window_text,
@@ -589,6 +641,11 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
                 coverage["symbol"] = pool.get("symbol") or ""
                 coverage["sources"]["candles"] = _collect_candles(network, pool, token, since, now, rows_by_source)
                 coverage["sources"]["trades"] = _collect_trades(network, pool, token, since, now, rows_by_source)
+                if window_s > TRADES_SOURCE_SPAN_S and coverage["sources"]["trades"].get("rows"):
+                    trades_entry = coverage["sources"]["trades"]
+                    trades_entry["status"] = "partial"
+                    trades_entry["stopped_reason"] = (f"the public trades source gives only its {TRADES_COVERAGE}, "
+                                                      f"not the whole {window_text} window")
     else:
         coverage["sources"]["candles"] = coverage["sources"]["trades"] = {
             "status": "skipped", "rows": 0, "detail": "web access is off (public DEX data needs it on)"}
@@ -643,6 +700,8 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
         if entry.get("provider"):
             label = cp.config_for(str(entry["provider"]))
             line += f", via {label.label if label else entry['provider']}"
+        if entry.get("coverage"):
+            line += f" ({entry['coverage']})"
         if entry.get("status") == "failed":
             line += f" -- failed: {entry.get('detail') or 'no data'}"
         elif entry.get("status") == "skipped":
@@ -664,7 +723,7 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
 def _nothing_collected(coverage: dict[str, Any]) -> dict[str, Any]:
     sources = coverage.get("sources") or {}
     if all((sources.get(name) or {}).get("status") == "skipped" for name in ("candles", "trades", "transfers")):
-        return _result(False, "nothing_available", _WEB_OFF_TEXT + " Nothing was collected.", coverage=coverage)
+        return _result(False, "nothing_available", _WEB_OFF_TEXT, coverage=coverage)
     reasons = []
     for name in ("candles", "trades", "transfers"):
         entry = sources.get(name) or {}
@@ -695,68 +754,106 @@ def _collect_candles(network: str, pool: dict[str, Any], token: str, since: int,
     return entry
 
 
-def _pool_base_token(network: str, token: str) -> str:
-    """The pool's base token address, which decides which side a trade's buy/sell names."""
+def _pool_sides(network: str, pool_address: str, token: str) -> tuple[str, str]:
+    """(base token, quote token) addresses of the chosen pool, from its documented relationships
+    ``base_token`` / ``quote_token`` (ids "<network>_<address>"). The same pools page ``_top_pool``
+    read, so the cached answer is reused; ("", "") when the source does not say."""
     from urllib.parse import quote
 
     try:
         payload = tp._get(f"/networks/{network}/tokens/{quote(token)}/pools", {"page": 1})
-    except Exception:
-        return ""
-    for pool in payload.get("data") or []:
-        tokens = (((pool.get("relationships") or {}).get("tokens") or {}).get("data")) or []
-        if isinstance(tokens, list) and tokens and isinstance(tokens[0], dict):
-            return str(tokens[0].get("id") or "")
-    return ""
+    except tp.PriceError:
+        return "", ""
+
+    def side(rel: dict[str, Any], name: str) -> str:
+        data = (rel.get(name) or {}).get("data") if isinstance(rel.get(name), dict) else None
+        ident = str((data or {}).get("id") or "") if isinstance(data, dict) else ""
+        return ident[len(network) + 1:] if ident.startswith(network + "_") else ident
+
+    for pool in (payload.get("data") if isinstance(payload, dict) else None) or []:
+        if not isinstance(pool, dict):
+            continue
+        if not _same_address((pool.get("attributes") or {}).get("address"), pool_address):
+            continue
+        rel = pool.get("relationships") if isinstance(pool.get("relationships"), dict) else {}
+        return side(rel, "base_token"), side(rel, "quote_token")
+    return "", ""
+
+
+def _orient_trade(attrs: dict[str, Any], token: str, base: str, quote_token: str) -> tuple[str, float | None, float | None]:
+    """(kind, token amount, token USD price) of one documented trade, from the asked token's side.
+
+    The documented fields name both legs: the trader gave ``from_token_amount`` of
+    ``from_token_address`` and got ``to_token_amount`` of ``to_token_address``. When the asked token
+    is the "to" leg it was bought, when it is the "from" leg it was sold. Without the addresses the
+    source's ``kind`` (relative to the pool's base token) is used, swapped when the asked token is the
+    quote side. A trade whose side cannot be told is kept as kind "trade" and counts as neither."""
+    to_addr, from_addr = attrs.get("to_token_address"), attrs.get("from_token_address")
+    if _same_address(to_addr, token):
+        return "buy", _float(attrs.get("to_token_amount")), _float(attrs.get("price_to_in_usd"))
+    if _same_address(from_addr, token):
+        return "sell", _float(attrs.get("from_token_amount")), _float(attrs.get("price_from_in_usd"))
+    kind = str(attrs.get("kind") or "").lower()
+    if kind not in ("buy", "sell") or not base:
+        return "trade", None, None
+    if _same_address(base, token):
+        oriented = kind
+    elif quote_token and _same_address(quote_token, token):
+        oriented = "sell" if kind == "buy" else "buy"
+    else:
+        return "trade", None, None
+    # the token was bought: the trader got it (the "to" leg); sold: the trader gave it (the "from" leg)
+    leg = "to" if oriented == "buy" else "from"
+    return oriented, _float(attrs.get(f"{leg}_token_amount")), _float(attrs.get(f"price_{leg}_in_usd"))
 
 
 def _collect_trades(network: str, pool: dict[str, Any], token: str, since: int, now: int,
                     rows_by_source: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """The pool's trades from GeckoTerminal v2 ``/networks/{network}/pools/{pool}/trades``: ONE request
+    (the listing has no paging) answering the last 300 trades of the past 24 hours. Rows are deduped
+    by ``tx_hash``; buy/sell is from the asked token's side (``_orient_trade``)."""
     from urllib.parse import quote
 
-    base = _pool_base_token(network, token)
+    base, quote_token = _pool_sides(network, pool["address"], token)
+    try:
+        payload = tp._get(f"/networks/{network}/pools/{quote(pool['address'])}/trades")
+    except tp.PriceError as exc:
+        return {"status": "failed", "rows": 0, "detail": exc.message, "coverage": TRADES_COVERAGE}
+    data = [t for t in (payload.get("data") if isinstance(payload, dict) else None) or [] if isinstance(t, dict)]
     rows: list[dict[str, Any]] = []
-    stopped = ""
-    page_no = 1
-    while page_no <= MAX_TRADES_PAGES:
-        try:
-            payload = tp._get(f"/networks/{network}/pools/{quote(pool['address'])}/trades", {"page": page_no})
-        except tp.PriceError as exc:
-            if rows:
-                rows_by_source["trades"] = rows  # what page 1 brought is kept, labelled partial
-            return {"status": "partial" if rows else "failed", "rows": len(rows),
-                    "stopped_reason": f"stopped at page {page_no} of ?: {exc.message}", "detail": exc.message}
-        data = [t for t in payload.get("data") or [] if isinstance(t, dict)]
-        if not data:
-            break
-        oldest: int | None = None
-        for trade in data:
-            attrs = trade.get("attributes") or {}
-            ts = _ts_of(attrs.get("block_timestamp"))
-            if ts is None:
+    seen: set[str] = set()
+    unoriented = 0
+    for trade in data:
+        attrs = trade.get("attributes") if isinstance(trade.get("attributes"), dict) else {}
+        ts = _ts_of(attrs.get("block_timestamp"))
+        tx = str(attrs.get("tx_hash") or "")
+        if ts is None or not since <= ts <= now + 300:
+            continue
+        if tx:
+            if tx in seen:
                 continue
-            oldest = ts if oldest is None else min(oldest, ts)
-            if not since <= ts <= now + 300:
-                continue
-            kind = str(attrs.get("kind") or "").lower()
-            usd = _float(attrs.get("volume_in_usd"))
-            amount = None
-            if kind in ("buy", "sell"):
-                if base and base != token:
-                    # the source's direction names the pool's base token; ours is the other side
-                    kind = "sell" if kind == "buy" else "buy"
-                amount = _float(attrs.get("to_amount") if kind == "buy" else attrs.get("from_amount"))
-            price = usd / amount if usd is not None and amount else None
-            rows.append({"ts": ts, "kind": kind, "wallet": str(attrs.get("tx_from_address") or ""),
-                         "amount": amount, "usd": usd, "price": price, "tx": str(attrs.get("tx_id") or "")})
-        if oldest is not None and oldest < since:
-            break
-        page_no += 1
-    if page_no > MAX_TRADES_PAGES:
-        stopped = f"stopped at page {MAX_TRADES_PAGES} of ?: page budget"
+            seen.add(tx)
+        kind, amount, price = _orient_trade(attrs, token, base, quote_token)
+        if kind == "trade":
+            unoriented += 1
+        usd = _float(attrs.get("volume_in_usd"))
+        if price is None and usd is not None and amount:
+            price = usd / amount
+        rows.append({"ts": ts, "kind": kind, "wallet": str(attrs.get("tx_from_address") or ""),
+                     "amount": amount, "usd": usd, "price": price, "tx": tx})
     if rows:
         rows_by_source["trades"] = rows
-    entry: dict[str, Any] = {"status": "ok" if rows else "empty", "rows": len(rows), "stopped_reason": stopped}
+    entry: dict[str, Any] = {"status": "ok" if rows else "empty", "rows": len(rows), "coverage": TRADES_COVERAGE,
+                             "stopped_reason": ""}
+    if len(data) >= TRADES_SOURCE_LIMIT:
+        entry["status"] = "partial"
+        entry["stopped_reason"] = (f"the source returned its limit of {TRADES_SOURCE_LIMIT} trades; older trades "
+                                   f"in the window were not available")
+    if unoriented:
+        entry["unoriented"] = unoriented
+        entry["stopped_reason"] = "; ".join(filter(None, [
+            entry["stopped_reason"], f"{unoriented} trade(s) did not say which side the token was on and count as "
+                                     f"neither buy nor sell"]))
     if not rows:
         entry["detail"] = "no trades in that window"
     return entry
@@ -771,15 +868,19 @@ def _collect_transfers(token: str, chain: str, since: int, now: int,
         return {"status": "skipped", "rows": 0, "detail": "row cap already reached"}
     out = chain_data.token_transfers(token, chain, since, until_ts=now, max_rows=budget,
                                      max_requests=MAX_TRANSFER_TX_READS)
-    if out["status"] != "ok":
-        detail = str(out.get("message") or out["status"])
+    if out["status"] not in ("ok", "partial"):
+        # the chat lookup's own closing ("Nothing was looked up, and VOOL did not go online.") speaks
+        # for a whole lookup; here other sources may have gone online, so only the reason is kept
+        detail = re.sub(r"\s*Nothing was looked up(?:, and VOOL did not go online)?\.\s*$", "",
+                        str(out.get("message") or out["status"])).strip() or out["status"]
         return {"status": "failed" if out["status"] not in ("key_missing", "not_offered") else "skipped",
                 "rows": 0, "detail": detail, "provider": out.get("provider") or ""}
     rows = out["rows"]
     if rows:
         rows_by_source["transfers"] = rows
-    entry: dict[str, Any] = {"status": "ok" if rows else "empty", "rows": len(rows),
-                             "provider": out.get("provider") or "", "stopped_reason": str(out.get("stopped_reason") or "")}
+    entry: dict[str, Any] = {"status": "partial" if out["status"] == "partial" else ("ok" if rows else "empty"),
+                             "rows": len(rows), "provider": out.get("provider") or "",
+                             "stopped_reason": str(out.get("stopped_reason") or "")}
     if not rows:
         entry["detail"] = "no transfers found in that window"
     return entry
@@ -810,19 +911,23 @@ def _price_transfer_rows(rows_by_source: dict[str, list[dict[str, Any]]]) -> Non
 # --------------------------------------------------------------------------- datasets tools
 
 
-def _list_datasets() -> dict[str, Any]:
+def _list_datasets(source_context: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The datasets collected from the asking chat's project (or, outside a project, from chats
+    outside any project): a project's market data is not listed in another project's chats."""
+    project_id = _project_of(source_context)
     _init_tables()
     conn = _conn()
     try:
         rows = conn.execute(
             "SELECT d.id, d.token, d.chain, d.window, d.created_at, d.coverage_json,"
             " (SELECT COUNT(*) FROM market_rows r WHERE r.dataset_id = d.id) AS rows"
-            " FROM market_datasets d ORDER BY d.created_at DESC"
+            " FROM market_datasets d WHERE d.project_id = ? ORDER BY d.created_at DESC", (project_id,)
         ).fetchall()
     finally:
         conn.close()
     if not rows:
-        return _result(True, "ok", "No market datasets are collected yet. Collect one with market.collect.")
+        where = "in this project" if project_id else "here"
+        return _result(True, "ok", f"No market datasets are collected {where} yet. Collect one with market.collect.")
     datasets = []
     lines = [f"{len(rows)} market dataset(s) stored locally (newest first):"]
     for row in rows:
@@ -839,12 +944,12 @@ def _list_datasets() -> dict[str, Any]:
     return _result(True, "ok", "\n".join(lines), datasets=datasets)
 
 
-def _delete_dataset(args: dict[str, Any]) -> dict[str, Any]:
+def _delete_dataset(args: dict[str, Any], source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     dataset_id = str(args.get("dataset_id") or args.get("id") or "").strip()
     if not dataset_id:
         return _result(False, "missing_dataset", "Give the dataset_id to delete (list them with market.datasets).")
     _init_tables()
-    dataset = _get_dataset(dataset_id)
+    dataset = _get_dataset(dataset_id, _project_of(source_context))
     if not dataset:
         return _result(False, "unknown_dataset", f"There is no market dataset {dataset_id}. Nothing was deleted.")
     with _LOCK:
@@ -868,19 +973,21 @@ def _delete_dataset(args: dict[str, Any]) -> dict[str, Any]:
 # --------------------------------------------------------------------------- analysis
 
 
-def _analyze(args: dict[str, Any]) -> dict[str, Any]:
+def _analyze(args: dict[str, Any], source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     dataset_id = str(args.get("dataset_id") or args.get("id") or "").strip()
     focus = str(args.get("focus") or "").strip().lower()
     if not dataset_id:
         return _result(False, "missing_dataset", "Give the dataset_id to analyze (list them with market.datasets).")
     _init_tables()
-    dataset = _get_dataset(dataset_id)
+    dataset = _get_dataset(dataset_id, _project_of(source_context))
     if not dataset:
         return _result(False, "unknown_dataset", f"There is no market dataset {dataset_id}.")
     rows = _load_rows(dataset_id)
     metrics = _compute_metrics(dataset, rows)
-    _save_analysis(dataset_id, focus, metrics)
-    text = _render_analysis(dataset, metrics, rows, focus)
+    private = _turn_is_private(source_context)
+    if not private:
+        _save_analysis(dataset_id, focus, metrics)
+    text = _render_analysis(dataset, metrics, rows, focus, saved=not private)
     _public(dataset["token"], *sorted({r["wallet"] for r in rows if r.get("wallet")})[:30])
     return _result(True, "ok", text, dataset=dataset_id, metrics=metrics)
 
@@ -889,15 +996,44 @@ def _source_rows(rows: list[dict[str, Any]], source: str) -> list[dict[str, Any]
     return [r for r in rows if r["source"] == source]
 
 
+def _candle_interval_s(candles: list[dict[str, Any]]) -> int | None:
+    """The candle size the rows were collected at (the most common gap between candles)."""
+    gaps: dict[int, int] = {}
+    for previous, current in itertools.pairwise(candles):
+        gap = current["ts"] - previous["ts"]
+        if gap > 0:
+            gaps[gap] = gaps.get(gap, 0) + 1
+    return max(gaps.items(), key=lambda item: (item[1], -item[0]))[0] if gaps else None
+
+
+def _interval_text(seconds: int | None) -> str:
+    if not seconds:
+        return "candle"
+    if seconds % 86400 == 0:
+        return "daily candle" if seconds == 86400 else f"{seconds // 86400}-day candle"
+    if seconds % 3600 == 0:
+        return "hourly candle" if seconds == 3600 else f"{seconds // 3600}-hour candle"
+    if seconds % 60 == 0:
+        return f"{seconds // 60}-minute candle"
+    return f"{seconds}-second candle"
+
+
 def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
                      window_s: int | None = None) -> dict[str, Any]:
     """Every number the analyze reply and the thesis checks read. Values are absent (never 0 or
-    guessed) when their rows are missing or too few; each section records its row count."""
+    guessed) when their rows are missing or too few; each section records its row count.
+
+    Swaps appear twice when both sources ran: once as a pool trade and once as the transfer legs of
+    the same transaction (one of them the pool's own vault). Trade-shaped metrics (buy/sell, trade
+    counts, concentration) read the trades only; net flows and holdings read the trades plus the
+    transfers whose transaction is NOT a collected trade, and never the pool itself."""
     import statistics
 
     if window_s:
         end = max((r["ts"] for r in rows), default=int(_clock()))
         rows = [r for r in rows if end - window_s <= r["ts"] <= end]
+    coverage = dataset.get("coverage") or {}
+    pool_address = str(coverage.get("pool") or "")
     candles = sorted(_source_rows(rows, "candles"), key=lambda r: r["ts"])
     trades = sorted(_source_rows(rows, "trades"), key=lambda r: r["ts"])
     transfers = _source_rows(rows, "transfers")
@@ -913,6 +1049,8 @@ def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
         return metrics
 
     closes = [r["price"] for r in candles if r.get("price")]
+    interval = _candle_interval_s([r for r in candles if r.get("price")])
+    metrics["candle_interval_s"] = interval
     lines: list[str] = []
     if len(closes) >= 2:
         window_return = (closes[-1] / closes[0] - 1) * 100
@@ -941,7 +1079,8 @@ def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
             values["max_hourly_price_rise_pct"] = round(biggest_rises[-1][0], 2)
         lines.append(f"return over the window {values.get('window_return_pct')}%"
                      + (f"; per day: {', '.join(day_bits)}" if day_bits else "")
-                     + (f"; volatility {values.get('volatility_pct')}% per candle" if "volatility_pct" in values else "")
+                     + (f"; volatility {values.get('volatility_pct')}% (standard deviation of the change per "
+                        f"{_interval_text(interval)})" if "volatility_pct" in values else "")
                      + (f"; biggest hourly rise {values.get('max_hourly_price_rise_pct')}%"
                         if "max_hourly_price_rise_pct" in values else ""))
         metrics["sections"].append({"title": "prices", "rows": len(candles), "lines": lines,
@@ -970,53 +1109,68 @@ def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
                                     "lines": [f"not enough data: {len(hourly)} hourly volume point(s); spike "
                                               f"detection needs at least 12"]})
 
-    # -- buy/sell ---------------------------------------------------------------------------
+    # -- buy/sell (trades only) ----------------------------------------------------------------
     buys = [r for r in trades if r["kind"] == "buy"]
     sells = [r for r in trades if r["kind"] == "sell"]
-    values["buy_count"] = len(buys)
-    values["sell_count"] = len(sells)
-    if trades:
-        buy_usd = sum(r["usd"] for r in buys if r.get("usd"))
-        sell_usd = sum(r["usd"] for r in sells if r.get("usd"))
-        priced = sum(1 for r in trades if r.get("usd") is not None)
-        values["buy_usd_total"] = round(buy_usd, 2)
-        values["sell_usd_total"] = round(sell_usd, 2)
-        if buy_usd + sell_usd > 0:
+    if buys or sells:
+        values["buy_count"] = len(buys)
+        values["sell_count"] = len(sells)
+        buy_usd = sum(r["usd"] for r in buys if r.get("usd") is not None)
+        sell_usd = sum(r["usd"] for r in sells if r.get("usd") is not None)
+        priced = sum(1 for r in buys + sells if r.get("usd") is not None)
+        lines = [f"{len(buys)} buy(s) vs {len(sells)} sell(s) ({priced} of {len(trades)} trade row(s) carry a USD figure"
+                 + (f"; {len(trades) - len(buys) - len(sells)} could not be told buy or sell" if len(buys) + len(sells)
+                    < len(trades) else "") + ")"]
+        if priced:
+            values["buy_usd_total"] = round(buy_usd, 2)
+            values["sell_usd_total"] = round(sell_usd, 2)
+            lines.append(f"bought {_money(buy_usd)}, sold {_money(sell_usd)}")
+        if priced >= MIN_SHARE_TRADES and buy_usd + sell_usd > 0:
             values["buy_share_pct"] = round(buy_usd / (buy_usd + sell_usd) * 100, 1)
-        lines = [f"{len(buys)} buy(s) {_money(buy_usd)} vs {len(sells)} sell(s) {_money(sell_usd)}"
-                 f" ({priced} of {len(trades)} trade row(s) carry a USD figure)"]
-        if "buy_share_pct" in values:
             lines.append(f"buy share {values['buy_share_pct']}% of traded USD")
+        else:
+            lines.append(f"buy share: not enough data ({priced} priced trade(s); it needs at least {MIN_SHARE_TRADES})")
         metrics["sections"].append({"title": "buy/sell", "rows": len(trades), "lines": lines})
+    elif trades:
+        metrics["sections"].append({"title": "buy/sell", "rows": len(trades),
+                                    "lines": [f"not enough data: none of the {len(trades)} trade row(s) says whether "
+                                              f"the token was bought or sold"]})
     else:
         metrics["sections"].append({"title": "buy/sell", "rows": 0,
                                     "lines": ["not enough data: no buy/sell rows (the public trades source did not "
                                               "contribute to this dataset)"]})
 
-    # -- wallet flows -----------------------------------------------------------------------
+    # -- wallet flows: trades, plus transfers that are not the same swap again ------------------
+    trade_txs = {r["tx"] for r in trades if r.get("tx")}
+    other_transfers = [r for r in transfers if not (r.get("tx") and r["tx"] in trade_txs)]
+
+    def is_party(row: dict[str, Any]) -> bool:
+        return bool(row.get("wallet")) and not (pool_address and _same_address(row["wallet"], pool_address))
+
+    flow_rows = [r for r in trades + other_transfers
+                 if is_party(r) and r.get("usd") is not None and r["kind"] in ("buy", "sell", "in", "out")]
     flow: dict[str, float] = {}
-    for row in trades + transfers:
-        if row.get("usd") is None or not row.get("wallet"):
-            continue
+    for row in flow_rows:
         sign = 1.0 if row["kind"] in ("buy", "in") else -1.0
         flow[row["wallet"]] = flow.get(row["wallet"], 0.0) + sign * float(row["usd"])
     for wallet, net in flow.items():
         values[f"net_usd_flow:{wallet}"] = round(net, 2)
     counts: dict[str, int] = {}
     for row in trades:
-        if row.get("wallet"):
+        if is_party(row):
             counts[row["wallet"]] = counts.get(row["wallet"], 0) + 1
     for wallet, count in counts.items():
         values[f"trade_count:{wallet}"] = count
-    usd_rows = sum(1 for r in trades + transfers if r.get("usd") is not None and r.get("wallet"))
     if flow:
         top_flow = sorted(flow.items(), key=lambda item: abs(item[1]), reverse=True)[:20]
-        lines = [f"{len(flow)} wallet(s), {usd_rows} row(s) with a USD figure; net USD flow = bought + received - "
-                 f"sold - sent, priced where a price was known"]
+        doubled = len(transfers) - len(other_transfers)
+        lines = [f"{len(flow)} wallet(s), {len(flow_rows)} row(s) with a USD figure; net USD flow = bought + received "
+                 f"- sold - sent, priced where a price was known"
+                 + (f"; {doubled} transfer row(s) of collected trades counted once, as the trade" if doubled else "")]
         lines += [f"{_short(wallet)} {'+' if net >= 0 else ''}{_money(net)}" for wallet, net in top_flow]
-        metrics["sections"].append({"title": "net USD flow", "rows": usd_rows, "lines": lines})
+        metrics["sections"].append({"title": "net USD flow", "rows": len(flow_rows), "lines": lines})
     else:
-        metrics["sections"].append({"title": "net USD flow", "rows": usd_rows,
+        metrics["sections"].append({"title": "net USD flow", "rows": 0,
                                     "lines": ["not enough data: no row carries both a wallet and a USD figure"]})
     if counts:
         top_count = sorted(counts.items(), key=lambda item: item[1], reverse=True)[:20]
@@ -1028,30 +1182,41 @@ def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
 
     # -- first buyers ------------------------------------------------------------------------
     first_buy: dict[str, int] = {}
-    net_token: dict[str, float] = {}
-    for row in trades + transfers:
-        if not row.get("wallet") or row.get("amount") is None or row["kind"] not in ("buy", "sell", "in", "out"):
-            continue
-        sign = 1.0 if row["kind"] in ("buy", "in") else -1.0
-        net_token[row["wallet"]] = net_token.get(row["wallet"], 0.0) + sign * float(row["amount"])
-        if row["source"] == "trades" and row["kind"] == "buy":
+    for row in buys:
+        if is_party(row):
             first_buy[row["wallet"]] = min(first_buy.get(row["wallet"], row["ts"]), row["ts"])
-    if first_buy:
+    if len(first_buy) >= MIN_FIRST_BUYERS:
         buyers = sorted(first_buy.items(), key=lambda item: item[1])[:50]
-        holding = [wallet for wallet, _ in buyers if net_token.get(wallet, 0.0) > 0]
         values["first_buyers_count"] = len(buyers)
-        values["early_buyers_still_holding"] = len(holding)
+        buyer_set = {wallet for wallet, _ in buyers}
+        held_rows = [r for r in trades + other_transfers if r.get("wallet") in buyer_set
+                     and r["kind"] in ("buy", "sell", "in", "out")]
+        missing = sum(1 for r in held_rows if r.get("amount") is None)
+        lines = [f"the first {len(buyers)} buyer(s) in the collected rows"]
+        if missing:
+            lines.append(f"still holding: not enough data ({missing} of their {len(held_rows)} row(s) carry no token "
+                         f"amount, so their net position is unknown)")
+        else:
+            net_token: dict[str, float] = {}
+            for row in held_rows:
+                sign = 1.0 if row["kind"] in ("buy", "in") else -1.0
+                net_token[row["wallet"]] = net_token.get(row["wallet"], 0.0) + sign * float(row["amount"])
+            holding = [wallet for wallet, _ in buyers if net_token.get(wallet, 0.0) > 0]
+            values["early_buyers_still_holding"] = len(holding)
+            lines.append(f"{len(holding)} of them still hold by net token flow over the collected window")
+        lines += [_short(wallet) for wallet, _ in buyers[:10]]
+        metrics["sections"].append({"title": "first buyers", "rows": len(buys), "lines": lines})
+    else:
         metrics["sections"].append({"title": "first buyers", "rows": len(buys),
-                                    "lines": [f"of the first {len(buyers)} buyer(s), {len(holding)} still hold by net "
-                                              f"flow over the collected window",
-                                              *(_short(wallet) for wallet, _ in buyers[:10])]})
+                                    "lines": [f"not enough data: {len(first_buy)} buying wallet(s); it needs at least "
+                                              f"{MIN_FIRST_BUYERS}"]})
 
     # -- buyers before the biggest hourly rises ----------------------------------------------
     biggest_rises = next((s.get("biggest_rises") or [] for s in metrics["sections"] if s.get("title") == "prices"), [])
     if biggest_rises and buys:
         early = set()
         for _pct, hour in biggest_rises:
-            early.update(r["wallet"] for r in buys if r.get("wallet") and hour - 3600 <= r["ts"] < hour)
+            early.update(r["wallet"] for r in buys if is_party(r) and hour - 3600 <= r["ts"] < hour)
         values["buyers_before_top_rises_count"] = len(early)
         metrics["sections"].append({"title": "buyers before rises", "rows": len(buys),
                                     "lines": [f"{len(early)} wallet(s) bought within 1h before each of the "
@@ -1060,24 +1225,28 @@ def _compute_metrics(dataset: dict[str, Any], rows: list[dict[str, Any]],
                                                  if biggest_rises else ""),
                                               *(_short(wallet) for wallet in sorted(early)[:10])]})
 
-    # -- volume concentration -----------------------------------------------------------------
+    # -- volume concentration (trades only: a transfer leg of a swap is the pool's vault) ---------
     wallet_volume: dict[str, float] = {}
-    for row in trades + transfers:
-        if row.get("usd") is not None and row.get("wallet"):
+    for row in trades:
+        if row.get("usd") is not None and is_party(row):
             wallet_volume[row["wallet"]] = wallet_volume.get(row["wallet"], 0.0) + float(row["usd"])
-    if wallet_volume:
-        total = sum(wallet_volume.values())
+    total = sum(wallet_volume.values())
+    if len(wallet_volume) >= MIN_CONCENTRATION_WALLETS and total > 0:
         top10 = sum(value for _, value in sorted(wallet_volume.items(), key=lambda item: item[1], reverse=True)[:10])
-        if total > 0:
-            values["top10_volume_share_pct"] = round(top10 / total * 100, 1)
-            metrics["sections"].append({"title": "concentration", "rows": usd_rows,
-                                        "lines": [f"the top 10 wallet(s) account for "
-                                                  f"{values['top10_volume_share_pct']}% of the traded USD "
-                                                  f"({_money(top10)} of {_money(total)}, {len(wallet_volume)} wallet(s))"]})
+        values["top10_volume_share_pct"] = round(top10 / total * 100, 1)
+        metrics["sections"].append({"title": "concentration", "rows": len(trades),
+                                    "lines": [f"the top 10 wallet(s) account for "
+                                              f"{values['top10_volume_share_pct']}% of the traded USD "
+                                              f"({_money(top10)} of {_money(total)}, {len(wallet_volume)} wallet(s))"]})
+    else:
+        metrics["sections"].append({"title": "concentration", "rows": len(trades),
+                                    "lines": [f"not enough data: {len(wallet_volume)} trading wallet(s) with a USD "
+                                              f"figure; the top-10 share needs at least {MIN_CONCENTRATION_WALLETS}"]})
     return metrics
 
 
-def _render_analysis(dataset: dict[str, Any], metrics: dict[str, Any], rows: list[dict[str, Any]], focus: str) -> str:
+def _render_analysis(dataset: dict[str, Any], metrics: dict[str, Any], rows: list[dict[str, Any]], focus: str,
+                     saved: bool = True) -> str:
     coverage = dataset.get("coverage") or {}
     head = (f"Dataset {dataset['id']} ({_short(dataset['token'])} on {cp.CHAIN_LABELS.get(dataset['chain'], dataset['chain'])}, "
             f"window {dataset['window']}, collected {str(dataset['created_at'])[:19].replace('T', ' ')} UTC, "
@@ -1097,10 +1266,18 @@ def _render_analysis(dataset: dict[str, Any], metrics: dict[str, Any], rows: lis
         row_note = f" ({section['rows']} row(s))" if section.get("rows") is not None else ""
         body.append(f"[{section['title']}{row_note}]")
         body.extend(f"- {line}" for line in section.get("lines") or [])
-    body.append("The full result is saved with the dataset; check a thesis against it with market.thesis_check.")
+    if saved:
+        body.append("The full result is saved with the dataset; check a thesis against it with market.thesis_check.")
+    else:
+        body.append("This is a private chat, so the result was not saved; check a thesis against the dataset with "
+                    "market.thesis_check.")
     text = "\n".join(body)
-    if len(text.encode("utf-8")) > TABLE_CAP:
-        text = text[:TABLE_CAP].rsplit("\n", 1)[0] + "\n(table capped at 6 KB; the full result is saved with the dataset)"
+    raw = text.encode("utf-8")
+    if len(raw) > TABLE_CAP:
+        # the cap is in bytes: cut the encoded text, drop a split character, then the partial line
+        cut = raw[:TABLE_CAP].decode("utf-8", errors="ignore").rsplit("\n", 1)[0]
+        text = cut + ("\n(table capped at 6 KB; the full result is saved with the dataset)" if saved
+                      else "\n(table capped at 6 KB)")
     return text
 
 
@@ -1112,7 +1289,7 @@ _COMPARATORS = {">": lambda a, v: a > v, "<": lambda a, v: a < v, ">=": lambda a
                 "within": lambda a, v, t: abs(a - v) <= t}
 
 
-def _thesis_check(args: dict[str, Any]) -> dict[str, Any]:
+def _thesis_check(args: dict[str, Any], source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     dataset_id = str(args.get("dataset_id") or args.get("id") or "").strip()
     claims = args.get("claims")
     if not dataset_id:
@@ -1123,17 +1300,24 @@ def _thesis_check(args: dict[str, Any]) -> dict[str, Any]:
                        "the market.analyze tool defines, then check them. Nothing was evaluated.")
     if len(claims) > MAX_CLAIMS:
         return _result(False, "too_many", f"That is {len(claims)} claims; write {MAX_CLAIMS} or fewer at a time.")
+    window_s: int | None = None
+    if args.get("window") not in (None, ""):
+        # a window for the whole thesis applies to every claim that names none of its own
+        window_s, why = _window_of(args.get("window"))
+        if window_s is None:
+            return _result(False, "invalid_arguments", f"The thesis window is not usable: {why}. Nothing was evaluated.")
     _init_tables()
-    dataset = _get_dataset(dataset_id)
+    dataset = _get_dataset(dataset_id, _project_of(source_context))
     if not dataset:
         return _result(False, "unknown_dataset", f"There is no market dataset {dataset_id}.")
     rows = _load_rows(dataset_id)
-    window_s, _why = _window_of(args.get("window")) if args.get("window") is not None else (None, "")
     verdicts = []
     for claim in claims:
-        verdicts.append(_evaluate_claim(claim if isinstance(claim, dict) else {}, dataset, rows))
+        verdicts.append(_evaluate_claim(claim if isinstance(claim, dict) else {}, dataset, rows,
+                                        default_window_s=window_s))
+    scope = f"; claims without their own window look at the last {args.get('window')} of it" if window_s else ""
     lines = [f"Thesis check on dataset {dataset_id} ({_short(dataset['token'])}, window {dataset['window']}, "
-             f"{len(rows)} row(s)). Each claim as written, next to what the stored rows say:"]
+             f"{len(rows)} row(s){scope}). Each claim as written, next to what the stored rows say:"]
     for verdict in verdicts:
         lines.append(f"- {verdict['claim_text']} -> {verdict['verdict']}. {verdict['detail']}")
     lines.append("Supported means the rows agree with the claim; contradicted means they say the opposite; "
@@ -1141,7 +1325,8 @@ def _thesis_check(args: dict[str, Any]) -> dict[str, Any]:
     return _result(True, "ok", "\n".join(lines), dataset=dataset_id, verdicts=verdicts, window_seconds=window_s)
 
 
-def _evaluate_claim(claim: dict[str, Any], dataset: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _evaluate_claim(claim: dict[str, Any], dataset: dict[str, Any], rows: list[dict[str, Any]],
+                    default_window_s: int | None = None) -> dict[str, Any]:
     metric = str(claim.get("metric") or "").strip()
     comparator = str(claim.get("comparator") or "").strip()
     value = _float(claim.get("value"))
@@ -1164,6 +1349,8 @@ def _evaluate_claim(claim: dict[str, Any], dataset: dict[str, Any], rows: list[d
         return out("not checkable", "the claim's value is not a number")
     if window_s is None and why:
         return out("not checkable", f"the claim's window is not usable: {why}")
+    if window_s is None:
+        window_s = default_window_s
     metrics = _compute_metrics(dataset, rows, window_s=window_s)
     actual = metrics["values"].get(metric)
     rows_total = metrics["rows_total"]

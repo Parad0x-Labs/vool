@@ -113,4 +113,26 @@ def test_a_thesis_sentence_reaches_the_tool():
     from core.tool_demand_signals import resolve_demand_signals
 
     assert "market.thesis_check" in resolve_demand_signals(
-        "check my thesis: smart wallets bought before every pump").explicit_intents
+        "check my thesis on $BONK: smart wallets bought before every pump").explicit_intents
+    # a thesis with no token or dataset named is a school essay as often as a trade idea
+    assert "market.thesis_check" not in resolve_demand_signals("check my thesis draft for typos").explicit_intents
+
+
+def test_a_thesis_window_applies_to_claims_without_their_own():
+    dataset_id = _known_dataset()  # 100% over 24h, flat over the last 5h
+    out = _run({"dataset_id": dataset_id, "window": "5h", "claims": [
+        {"metric": "window_return_pct", "comparator": ">", "value": 50},
+        {"metric": "window_return_pct", "comparator": ">", "value": 50, "window": "24h"},
+    ]})
+    assert out.ok, out.response_text
+    assert [v["verdict"] for v in out.details["verdicts"]] == ["contradicted", "supported"]
+    assert out.details["verdicts"][0]["actual"] == 0.0
+    assert "claims without their own window look at the last 5h" in out.response_text
+
+
+def test_an_unusable_thesis_window_is_refused_not_ignored():
+    dataset_id = _known_dataset()
+    out = _run({"dataset_id": dataset_id, "window": "banana", "claims": [
+        {"metric": "window_return_pct", "comparator": ">", "value": 50}]})
+    assert not out.ok and out.status == "invalid_arguments"
+    assert "thesis window is not usable" in out.response_text and "Nothing was evaluated" in out.response_text

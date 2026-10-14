@@ -177,8 +177,8 @@ CHAIN_PROVIDERS: dict[str, ChainProviderConfig] = {
             "Choose Helius in the list, paste the key, and press Save key. VOOL asks Helius once whether it accepts it.",
         ),
         setup_notes=(
-            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders.",
-            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups do not use them, and VOOL does not open a stream.",
+            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders. When you ask VOOL to collect trade data for a token, it also reads that token's transfer history with this key.",
+            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups and trade data collection do not use them, and VOOL does not open a stream.",
         ),
     ),
     "alchemy": ChainProviderConfig(
