@@ -1,11 +1,17 @@
-# x402 payments in VOOL 0.7.0
+# x402 payments in VOOL 0.7.1
 
 x402 lets a website ask for a small payment before it returns content (an HTTP 402
-answer). In VOOL 0.7.0:
+answer). In VOOL 0.7.1:
 
-- **Websites: test networks only.** Paying a website with x402 works on Solana Devnet,
-  Base Sepolia, Ethereum Sepolia and BNB testnet. Mainnet x402 for websites is planned
-  for 0.7.1.
+- **Websites: USDC on Base.** Websites that ask for x402 payment in USDC on Base or Base
+  Sepolia can be paid from your Crypto Pilot wallet: one approval with your PIN, within
+  your limits. The website's payment service covers the network fee. No live mainnet
+  payment has been made with this yet. Solana Devnet, Ethereum Sepolia and BNB testnet
+  remain available as test networks.
+- **Payment channels.** **Settings → Crypto → Payment channels** lists every way the wallet
+  can pay a website, each with its own on/off switch. A channel that's off refuses before
+  anything is signed. Paying through Solana pay-kit is not included in the downloads, so
+  that channel shows as not usable.
 - **One mainnet exception.** The pay-per-call option in the model marketplace in Settings
   can pay from the Solana Mainnet Crypto Pilot wallet in USDC or SOL. Each call waits for
   your approval within your wallet limits and shows the 0.1% VOOL fee. It has not yet been
