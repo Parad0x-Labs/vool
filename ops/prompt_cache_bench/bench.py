@@ -49,10 +49,30 @@ EXIT_OK = 0
 EXIT_CAP = 4
 EXIT_HARNESS = 2
 EXIT_USAGE = 3
+EXIT_INCOMPLETE = 5
+
+
+class ArmAborted(RuntimeError):
+    """The arm's first chat failed: every later chat would fail the same way, so none is sent."""
 
 
 class HarnessError(RuntimeError):
     pass
+
+
+def _close_chat(results_path: Path, task_id: str, repeat: int, attempt: str, failure: str, *, any_success: bool) -> bool:
+    """Record how a chat ended. Only a chat whose every turn answered is ``chat_complete``.
+
+    A failed chat is recorded as ``chat_failed`` so a resume runs it again and the report counts it.
+    Returns whether the chat succeeded; raises :class:`ArmAborted` when nothing has succeeded yet.
+    """
+    if not failure:
+        _append_jsonl(results_path, {"kind": "chat_complete", "task": task_id, "repeat": repeat, "attempt": attempt})
+        return True
+    _append_jsonl(results_path, {"kind": "chat_failed", "task": task_id, "repeat": repeat, "attempt": attempt, "reason": failure})
+    if not any_success:
+        raise ArmAborted(f"first chat failed ({task_id} r{repeat} {failure}); no further chats sent")
+    return False
 
 
 class CapReached(RuntimeError):
@@ -468,12 +488,14 @@ def cmd_vool(args: argparse.Namespace) -> int:
     client = WireClient(f"http://127.0.0.1:{daemon.port}", wire_log, default_timeout_s=TURN_TIMEOUT_S)
     status = "complete"
     exit_code = EXIT_OK
+    any_success, failed_chats = bool(done), 0
     try:
         for task, repeat in todo:
             chat_id = f"pcb-{args.label}-{task['id']}-r{repeat}-{uuid.uuid4().hex[:6]}"
             workspace = _fresh_workspace(attempt_dir / "ws" / chat_id)
             session_id = ""
             last_seq = 0
+            failure = ""
             for index, turn in enumerate(task["turns"]):
                 ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
                 turn_id = f"t{index}-{uuid.uuid4().hex[:8]}"
@@ -528,11 +550,20 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     flush=True,
                 )
                 if exchange.error or exchange.status != 200 or not answer:
-                    _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name})
-            _append_jsonl(results_path, {"kind": "chat_complete", "task": task["id"], "repeat": repeat, "attempt": attempt_dir.name})
+                    reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else "empty answer")
+                    failure = f"turn {index}: {str(reason)[:300]}"
+                    _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name, "reason": failure})
+                    break  # later turns build on this one; the chat is re-run whole on resume
+            ok = _close_chat(results_path, task["id"], repeat, attempt_dir.name, failure, any_success=any_success)
+            any_success, failed_chats = any_success or ok, failed_chats + (not ok)
+        if failed_chats:
+            status, exit_code = f"incomplete: {failed_chats} chat(s) failed", EXIT_INCOMPLETE
     except CapReached as stop:
         status, exit_code = f"cap_stop: {stop}", EXIT_CAP
         print(status, flush=True)
+    except ArmAborted as stop:
+        status, exit_code = f"aborted: {stop}", EXIT_HARNESS
+        print(status, file=sys.stderr, flush=True)
     except Exception as exc:
         # A crash is never recorded as "complete": the manifest says what broke and the exit is non-zero.
         status, exit_code = f"crashed: {type(exc).__name__}: {exc}", EXIT_HARNESS
@@ -603,6 +634,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
         {"label": args.label, "arm": "cli", "model": args.cli_model, "route": args.route, "claude_version": version, "started_at": _now()},
     )
     status, exit_code = "complete", EXIT_OK
+    any_success, failed_chats = bool(done), 0
     try:
         for task in tasks:
             for repeat in range(args.repeats):
@@ -610,6 +642,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     continue
                 workspace = _fresh_workspace(arm_dir / "ws" / f"{task['id']}-r{repeat}-{uuid.uuid4().hex[:6]}")
                 session_id = ""
+                failure = ""
                 for index, turn in enumerate(task["turns"]):
                     ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
                     command = [
@@ -672,10 +705,21 @@ def cmd_cli(args: argparse.Namespace) -> int:
                         f"${cost if cost is not None else float('nan'):.5f} exit={proc.returncode} | {_spend_line(ledger, results_path)}",
                         flush=True,
                     )
-                _append_jsonl(results_path, {"kind": "chat_complete", "task": task["id"], "repeat": repeat, "attempt": attempt})
+                    if proc.returncode or row["is_error"] or not row["answer"].strip():
+                        reason = row["answer"].strip() or row["stderr_tail"].strip() or (f"exit {proc.returncode}" if proc.returncode else "empty answer")
+                        failure = f"turn {index}: {reason[:300]}"
+                        _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt, "reason": failure})
+                        break  # later turns resume this session; the chat is re-run whole on resume
+                ok = _close_chat(results_path, task["id"], repeat, attempt, failure, any_success=any_success)
+                any_success, failed_chats = any_success or ok, failed_chats + (not ok)
+        if failed_chats:
+            status, exit_code = f"incomplete: {failed_chats} chat(s) failed", EXIT_INCOMPLETE
     except CapReached as stop:
         status, exit_code = f"cap_stop: {stop}", EXIT_CAP
         print(status, flush=True)
+    except ArmAborted as stop:
+        status, exit_code = f"aborted: {stop}", EXIT_HARNESS
+        print(status, file=sys.stderr, flush=True)
     except Exception as exc:
         # A crash is never recorded as "complete": the manifest says what broke and the exit is non-zero.
         status, exit_code = f"crashed: {type(exc).__name__}: {exc}", EXIT_HARNESS
@@ -838,11 +882,27 @@ def summarize(root: Path) -> dict[str, Any]:
             "quality_max": 2 * len(known_scores),
             "quality_ungraded": len(scores) - len(known_scores),
         }
+    # What the table leaves out: chats that failed or never finished still spent money and time.
+    summary["not_counted"] = {}
+    for results in sorted(root.glob("*/results.jsonl")):
+        rows = _read_jsonl(results)
+        counted = {(r["task"], int(r["repeat"]), r["attempt"]) for r in rows if r.get("kind") == "chat_complete"}
+        dropped = [r for r in rows if r.get("kind") == "turn" and (r["task"], int(r["repeat"]), r.get("attempt")) not in counted]
+        failed = [r for r in rows if r.get("kind") == "chat_failed"]
+        if dropped or failed:
+            summary["not_counted"][results.parent.name] = {
+                "turns": len(dropped),
+                "failed_chats": len(failed),
+                "usd": _sum([r.get("usd") for r in dropped]),
+                "reasons": sorted({str(r.get("reason") or "") for r in failed})[:5],
+            }
     return summary
 
 
 def cmd_report(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
+    if args.cap_usd is not None and not (root / "spend.json").exists():
+        SpendLedger(root, args.cap_usd).save()  # a run that never paid still says so
     summary = summarize(root)
     _write_json(root / "summary.json", summary)
     lines = [
@@ -868,6 +928,11 @@ def cmd_report(args: argparse.Namespace) -> int:
             f"{fmt(row['output_tokens'])} | {fmt(row['output_tokens_per_second'])} | {fmt(row['usd_total'])} "
             f"({row['usd_kind']}) | {fmt(row['usd_per_turn'])} | {quality} |"
         )
+    if summary["not_counted"]:
+        lines += ["", "Not counted above (failed or unfinished chats; their spend is in the totals):", ""]
+        for label, row in summary["not_counted"].items():
+            reasons = "; ".join(row["reasons"]) or "unfinished"
+            lines.append(f"- {label}: {row['turns']} turns, {row['failed_chats']} failed chats, USD {fmt(row['usd'])}. {reasons}")
     lines += [
         "",
         "Notes: USD for VOOL rows is what OpenRouter reported per call (usage.cost). USD for a Claude CLI row on a",
@@ -927,6 +992,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = sub.add_parser("report")
     report.add_argument("--run-root", required=True)
+    report.add_argument("--cap-usd", type=float, default=None)
     report.set_defaults(func=cmd_report)
 
     args = parser.parse_args(argv)
