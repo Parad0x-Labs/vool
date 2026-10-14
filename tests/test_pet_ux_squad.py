@@ -149,7 +149,7 @@ def test_an_untitled_chat_never_puts_a_random_code_in_the_pets_mouth() -> None:
     assert "chatTitle" not in untitled, f"an id fragment reached the pet: {untitled.get('chatTitle')}"
     assert named["chatTitle"] == "Trip plans", "a real title still travels with the pet"
     bubble = out["bubble"]
-    assert bubble["title"] == "", f"no id in the in-app bubble either: {bubble['title']!r}"
+    assert bubble["title"] == "New chat", f"no id in the in-app bubble either: {bubble['title']!r}"
     assert bubble["shown"] == "flex" and bubble["activity"], f"the activity still shows: {bubble}"
 
 

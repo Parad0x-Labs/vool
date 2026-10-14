@@ -1233,7 +1233,8 @@ function vnPaintNow(now) {
      chat's activity, never model prose. Idle keeps the title and drops the activity line, so
      a finished turn stops advertising stale work. */
   {
-    const bound = vnBoundChatTitle(chatId);
+    // A chat with no title yet is named in words in the window, never by its id.
+    const bound = vnBoundChatTitle(chatId) || (chatId ? vnLabel("companion.untitled_chat", "New chat") : "");
     let line2;
     if (vnDevPuppet) {
       line2 = String(vnDevPuppet.scene || vnDevPuppet.state || "").toUpperCase() + " · PREVIEW";

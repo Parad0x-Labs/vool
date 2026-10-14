@@ -62,8 +62,8 @@ def test_settings_state_the_shared_effect_once_per_page(tmp_path):
                 assert any("Applies immediately." in line for line in row_lines), row_lines
                 assert any("Applies from your next message" in line for line in row_lines), row_lines
 
-                # English: no string count under the language picker.
-                assert page.locator("#uiLocaleCoverage").inner_text().strip() == ""
+                # English: no string count under the language picker, only the source-language line.
+                assert page.locator("#uiLocaleCoverage").inner_text().strip() == "English (the source language)"
                 assert not errors, errors
                 page.close()
 
@@ -73,7 +73,10 @@ def test_settings_state_the_shared_effect_once_per_page(tmp_path):
                 page.locator(".nav-item[data-group='general']").click()
                 page.wait_for_selector("#paneBody [data-row='humor_percent']", timeout=10000)
                 assert page.locator("#paneMeta").inner_text() == de.text("settings.pane_meta.global_next")
-                assert page.locator("#uiLocaleCoverage").inner_text().strip() != ""
+                # A complete catalog gets no line; a partial one says how much falls back to English.
+                missing = len(set(de.keys) - (de.locale_keys & set(de.keys)))
+                coverage = page.locator("#uiLocaleCoverage").inner_text().strip()
+                assert (coverage == "") if missing == 0 else (str(missing) in coverage), coverage
                 assert not errors, errors
                 page.close()
             finally:
