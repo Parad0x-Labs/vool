@@ -5442,13 +5442,85 @@ function attachRunDom(run, host) {
   paintRunState(run);
 }
 
+// An answer is shown formatted while it streams: headings, lists, bold and code look the way they
+// will at the end instead of popping from raw Markdown on the last token. Repaints are batched
+// (at most one per STREAM_PAINT_MS) and use the same renderer as the final answer. The element is
+// marked data-streaming meanwhile so half-written charts and diagrams are never hydrated; the
+// final render (server commit or stream end) clears the mark and paints the canonical text.
+const STREAM_PAINT_MS = 120;
+// A very long answer costs more to repaint, so it repaints less often (about every 120 ms up to
+// 24k characters, then slower in proportion), keeping the page responsive while it streams.
+function streamPaintDelay(run) { return Math.max(STREAM_PAINT_MS, Math.round(String(run.text || '').length / 200)); }
+// What a partial answer shows: the text so far, minus a trailing piece that is not finished yet --
+// a half-received table row, or an opened **, ` or [link]( that has not closed -- so raw markup
+// never flashes up for a moment. The final render always paints the complete text.
+// Hold back only a SHORT unfinished tail: an unusual literal (2**10, a lone backtick) then shows raw
+// for a moment instead of freezing the rest of its line until the answer ends.
+const STREAM_HOLD_MAX = 80;
+function streamingPreviewText(text) {
+  const t = String(text || '');
+  const fences = (t.match(/^\s*(```|~~~)/gm) || []).length;
+  if (fences % 2) return t;                          // an open code block: its contents are literal
+  const nl = t.lastIndexOf('\n');
+  const lastLine = t.slice(nl + 1);
+  const isRow = (line) => /^\s*\|.*\|\s*$/.test(line);
+  // A table's header row waits for its separator line, so it never flashes as a raw "| a | b |".
+  if (/^\s*\|?[\s:|-]*$/.test(lastLine) && nl >= 0) {
+    const nl2 = t.lastIndexOf('\n', nl - 1);       // two lines back, without splitting the answer
+    const header = t.slice(nl2 + 1, nl);
+    const above = nl2 >= 0 ? t.slice(t.lastIndexOf('\n', nl2 - 1) + 1, nl2) : '';
+    if (isRow(header) && !isRow(above)) return t.slice(0, nl2 + 1);
+  }
+  if (/^\s*\|/.test(lastLine) && !/\|\s*$/.test(lastLine)) return t.slice(0, nl + 1);  // half a row
+  if (isRow(lastLine)) {                             // a first row may be a header: wait for its newline
+    const above = nl >= 0 ? t.slice(t.lastIndexOf('\n', nl - 1) + 1, nl) : '';
+    if (!isRow(above)) return t.slice(0, nl + 1);
+  }
+  // Finished inline code is literal: blank it out (same length) before looking for open markers.
+  const masked = lastLine.replace(/(`+)[^`]*?\1/g, (m) => ' '.repeat(m.length));
+  const holdFrom = (at) => (at >= 0 && lastLine.length - at <= STREAM_HOLD_MAX) ? t.slice(0, nl + 1 + at) : t;
+  const tick = masked.indexOf('`');
+  if (tick >= 0) return holdFrom(tick);              // an inline code span still open
+  const stars = [...masked.matchAll(/\*\*/g)].map((m) => m.index);
+  if (stars.length % 2) {
+    const at = stars[stars.length - 1];
+    // Only a real bold opener (start of a word, text after it) waits; "2**10" stays as written.
+    if (!/[\p{L}\p{N}]/u.test(masked.charAt(at - 1) || ' ') && /\S/.test(masked.charAt(at + 2) || '')) return holdFrom(at);
+  }
+  const link = masked.match(/!?\[[^\]]*(\]\([^)]*)?$/);
+  // Once "](" has arrived it is surely a link, however long its address: hold it whole.
+  if (link) return link[1] ? t.slice(0, nl + 1 + link.index) : holdFrom(link.index);
+  return t;
+}
+function paintStreamingText(run) {
+  if (!run.textEl) return;
+  run.textEl.dataset.streaming = '1';
+  renderRichText(run.textEl, streamingPreviewText(run.text));
+}
+function scheduleStreamPaint(run) {
+  if (run.streamPaintTimer) return;
+  run.streamPaintTimer = setTimeout(() => {
+    run.streamPaintTimer = null;
+    if (run.ended) return;
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      paintStreamingText(run);
+      followLog();   // only while the reader is at the bottom
+    });
+  }, streamPaintDelay(run));
+}
+function endStreamPaint(run) {
+  if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+  if (run.textEl) delete run.textEl.dataset.streaming;
+}
+
 // Replay everything the run already knows onto fresh refs: answer text, live card, and -- for a
 // turn that ended while its chat was off screen -- its terminal state.
 function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else run.textEl.textContent = run.text;
+      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else paintStreamingText(run);
     } else if (run.assistantMsgEl) {
       run.assistantMsgEl.classList.add('pending');
       run.textEl.textContent = '…';
@@ -8535,6 +8607,7 @@ async function runTurn(text, queueItemId, opts) {
           const committedUsage = run.displayMetadata && run.displayMetadata.usage;
           const committedTokens = Number(committedUsage && committedUsage.output_tokens) || 0;
           run.tokens = committedTokens || Math.round(assistant.length / 4);
+          endStreamPaint(run);
           withRunDom(run, () => {
             if (!run.textEl) return;
             run.assistantMsgEl.classList.remove('pending');
@@ -8556,10 +8629,10 @@ async function runTurn(text, queueItemId, opts) {
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
             run.assistantMsgEl.classList.remove('pending');
-            run.textEl.textContent = assistant;
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
             followLog();
           });
+          if (!hasResponseCommit) scheduleStreamPaint(run);
         }
       }
     }
@@ -8595,6 +8668,9 @@ async function runTurn(text, queueItemId, opts) {
       finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
     }
   }
+  // The stream is over: no batched repaint may land after the terminal paint below (or the error
+  // and stop text the catch above just wrote).
+  endStreamPaint(run);
   if (!hasResponseCommit && assistant) {
     // Compatibility with an older server: retain the response, but still migrate any appended
     // provenance footer out of canonical conversation content before it is recorded.

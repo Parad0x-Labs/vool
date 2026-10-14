@@ -168,6 +168,9 @@ def render_chat_visuals_fragment() -> str:
     if (root.querySelectorAll) blocks.push(...root.querySelectorAll('.chat-code-wrap'));
     blocks.forEach(block => {
       if (seen.has(block)) return;
+      // An answer still streaming is repainted every few frames; its half-written chart or
+      // diagram is not a visual yet. The final render brings fresh blocks without the mark.
+      if (block.closest('[data-streaming]')) return;
       const code = block.querySelector('code[class~="lang-chart" i], code[class~="lang-mermaid" i]');
       if (!code) return;
       seen.add(block);
