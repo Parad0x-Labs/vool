@@ -26,6 +26,15 @@ facts, and the mirror is rebuilt from it.
 In cloud mode, relevant memory may be part of the context sent to the provider, on
 the same terms as any other context. See [Local and cloud](local-and-cloud.md).
 
+Forgetting in a chat also erases the words from that chat's run history in the runtime
+database: the turn records, checkpoints, attempts, task plans, finalized answers, candidate
+knowledge, context reports and notifications that quoted them. Records that other records
+depend on stay with the forgotten words blanked; the rest are deleted. The database's
+write-ahead log is then folded so older copies do not stay in the `-wal` file. Another
+chat's records are not touched. A queued message that has not been sent yet is kept, and
+the forget then says it could not be fully applied. Numbers are matched as whole numbers:
+forgetting "12" does not erase "room 312".
+
 Memory readers also check a durable forget authority. A fresh memory home creates
 it before accepting writes. An older semantic store upgrades in place only when
 no prior erasure is recorded; its retained memories remain available. An existing

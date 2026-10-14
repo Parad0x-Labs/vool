@@ -2165,6 +2165,11 @@ def maybe_handle_memory_command(
         from core.turn_context import forget_chat_context_pages
 
         forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
+        from core.memory.run_history import checkpoint_write_ahead_logs, forget_run_history
+
+        # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
+        # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
+        forget_run_history(token, chat_id=resolved_session, erasures=erasures)
         for owner, operation_store in owner_stores.items():
             block_status: dict[str, Any] = {}
             try:
@@ -2181,7 +2186,7 @@ def maybe_handle_memory_command(
             "dialogue_derivatives", "session_summaries", "context_capsule_versions",
             "memory_fts", "source_fts", "source_embeddings",
             "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-            "context_pages", "chat_session_metadata", "swarm_sniffed_context",
+            "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history",
         )
         for store in required_stores:
             if store not in erasures.get("stores", {}):
@@ -2202,6 +2207,8 @@ def maybe_handle_memory_command(
                 LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
         from core.memory.carriers import verify_forget_stores
         verify_forget_stores(resolved_session, token, owner_memories=owner_stores, erasures=erasures)
+        # Last: the erased rows' old page images must not outlive the erasure in the -wal files.
+        checkpoint_write_ahead_logs(erasures, memories=by_database.values())
         completed_stores = []
         try:
             if not any(key.endswith("_failures") and value for key, value in erasures.items()):

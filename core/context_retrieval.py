@@ -7503,9 +7503,9 @@ def _sweep_derived_dialogue_surfaces(
         return
 
     def carries(*values: object) -> bool:
-        return any(needle in _normalize_forget_token(str(value or "")) for value in values)
+        return any(forget_needle_in(_normalize_forget_token(str(value or "")), needle) for value in values)
 
-    from core.memory.carriers import ROW_IDENTITIES, payload_columns
+    from core.memory.carriers import ROW_IDENTITIES, forget_needle_in, payload_columns
     from core.memory.carriers import carries as structured_match
 
     def structured_carries(value: object) -> bool:
@@ -7710,9 +7710,11 @@ def _without_runtime_day_stamps(text: str) -> str:
 def text_carries_revoked_token(text: str, revocations: tuple[str, ...]) -> bool:
     if not revocations:
         return False
+    from core.memory.carriers import forget_needle_in
+
     hay = _normalize_forget_token(_without_runtime_day_stamps(text))
     return any(
-        token and _normalize_forget_token(token) in hay for token in revocations
+        token and forget_needle_in(hay, _normalize_forget_token(token)) for token in revocations
     )
 
 
@@ -7791,7 +7793,7 @@ def forget_session_memory(
         # when no token-free clause survives; other sessions' events are
         # never touched.
         try:
-            from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
+            from core.memory.carriers import ROW_IDENTITIES, carries, forget_needle_in, row_payload
             from core.memory.files import (
                 conversation_log_path,
             )
@@ -7809,9 +7811,8 @@ def forget_session_memory(
                         continue
                     user_text = str(row.get("user") or "")
                     assistant_text = str(row.get("assistant") or "")
-                    user_carries = needle in _normalize_forget_token(user_text)
-                    asst_carries = needle in _normalize_forget_token(
-                        assistant_text)
+                    user_carries = forget_needle_in(_normalize_forget_token(user_text), needle)
+                    asst_carries = forget_needle_in(_normalize_forget_token(assistant_text), needle)
                     payload = row_payload(row, structural_fields=ROW_IDENTITIES)
                     if not carries(payload, token):
                         kept.append(row)

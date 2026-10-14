@@ -95,7 +95,10 @@
     "session_metadata_payload": "transform",
     "prune_payload": "writer",
     "verify_forget_stores": "transform",
-    "ROW_IDENTITIES": "configuration"
+    "ROW_IDENTITIES": "configuration",
+    "normalized_forget_text": "transform",
+    "forget_needle_in": "transform",
+    "text_carries": "transform"
   },
   "core/memory/command_result.py": {
     "command_turn_key": "authority",
@@ -200,6 +203,11 @@
     "authorize_payload": "authority",
     "writing": "authority",
     "fenced_writer": "authority"
+  },
+  "core/memory/run_history.py": {
+    "forget_run_history": "writer",
+    "verify_run_history": "transform",
+    "checkpoint_write_ahead_logs": "writer"
   },
   "core/memory/withdrawals.py": {
     "payload_is_withdrawn": "transform"

@@ -61,12 +61,49 @@ def payload_strings(value: Any) -> tuple[str, ...]:
     raise ValueError("memory carrier has an opaque payload")
 
 
+def normalized_forget_text(text: Any) -> str:
+    """Case and separators (whitespace, hyphen, underscore) are not meaning: "thermal-pool" is "thermal pool"."""
+    return " ".join(_SEPARATORS.split(str(text or "").casefold())).strip()
+
+
+def forget_needle_in(hay: str, needle: str) -> bool:
+    """Whether a normalized forget needle occurs in normalized text.
+
+    A needle without digits is a plain substring, as it always was. A needle with digits names a
+    number or a code, and is only that number where it stands as its own: the run of letters and
+    digits it sits in may not hold other digits. "forget 12" erases "gate code 12", "12kg" and
+    "B12", never "room 312", "1234" or a hex id such as "a12f9c" (measured 2026-10-14: "forget 12"
+    also erased "the meeting is in room 312").
+    """
+    if not needle:
+        return False
+    if not any(char.isdecimal() for char in needle):
+        return needle in hay
+    start = hay.find(needle)
+    while start >= 0:
+        left = start
+        while left > 0 and hay[left - 1].isalnum():
+            left -= 1
+        right = start + len(needle)
+        while right < len(hay) and hay[right].isalnum():
+            right += 1
+        if not any(char.isdecimal() for char in hay[left:start] + hay[start + len(needle):right]):
+            return True
+        start = hay.find(needle, start + 1)
+    return False
+
+
+def text_carries(text: Any, token: str) -> bool:
+    """The one forget-law carry test for a single text."""
+    return forget_needle_in(normalized_forget_text(text), normalized_forget_text(token))
+
+
 def carries(value: Any, token: str) -> bool:
-    needle = " ".join(_SEPARATORS.split(str(token).casefold())).strip()
+    needle = normalized_forget_text(token)
     # Inspect the whole shape even after finding a match: malformed later
     # fields are still an unverified carrier, not an ignorable parse error.
     parts = payload_strings(value)
-    return bool(needle) and any(needle in " ".join(_SEPARATORS.split(part.casefold())) for part in parts)
+    return bool(needle) and any(forget_needle_in(normalized_forget_text(part), needle) for part in parts)
 
 
 #: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id ("req:http:<hex>"), a
@@ -401,6 +438,9 @@ def verify_forget_stores(
 
             verify(table, sql_rows)
         _verify_pages(conn, tables, chat_id, token, verify)
+        from core.memory.run_history import verify_run_history
+
+        verify_run_history(conn, tables, chat_id, token, verify)
 
         # The swarm learning dataset is a retained store in the same database:
         # its full serialized payload answers to this operation like every

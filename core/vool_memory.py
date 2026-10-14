@@ -2987,10 +2987,12 @@ def _normalize_forget_token(token: str) -> str:
 
 def text_carries_forget_token(text: str, needle: str) -> bool:
     """Separator/case-insensitive carry test for one forget-law needle."""
+    from core.memory.carriers import forget_needle_in
+
     normalized = _normalize_forget_token(needle)
     if not normalized:
         return False
-    return normalized in _normalize_forget_token(text)
+    return forget_needle_in(_normalize_forget_token(text), normalized)
 
 
 def _requested_session_scope(session_id: str | None) -> str | None:
