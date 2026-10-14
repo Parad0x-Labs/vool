@@ -977,8 +977,8 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 #uiLocaleSelect:disabled { opacity:.55; cursor:not-allowed; }
 #uiLocaleWrap .loc-note { font-size:11px; line-height:1.5; color:var(--muted); margin:6px 0 2px; }
 #backRow { padding:12px 12px 4px; }
-#skipToPane { position:absolute; left:-9999px; top:8px; z-index:2000; background:var(--panel); color:var(--ink); border:1px solid var(--accent); border-radius:8px; padding:6px 10px; }
-#skipToPane:focus { left:8px; }
+#skipToPane { position:absolute; inset-inline-start:8px; top:8px; transform:translateY(-300%); z-index:2000; background:var(--panel); color:var(--ink); border:1px solid var(--accent); border-radius:8px; padding:6px 10px; }
+#skipToPane:focus { transform:none; }
 #back { display:flex; align-items:center; gap:8px; width:100%; background:transparent; color:var(--muted); border:none; border-radius:8px; padding:6px 8px; font:inherit; font-size:13px; cursor:pointer; text-align:left; }
 #back:hover { color:var(--ink); background:var(--active); }
 #searchWrap { padding:4px 12px 10px; }
@@ -1098,7 +1098,7 @@ label.inline { cursor:pointer; }
 </style>
 </head>
 <body>
-<a id="skipToPane" href="#pane">Skip to settings</a>
+<a id="skipToPane" href="#pane" data-i18n="settings.nav.skip">Skip to settings</a>
 <nav id="side" aria-label="Settings sections">
   <div id="backRow"><button id="back" type="button" data-i18n="settings.nav.back">&larr; Back to VOOL</button></div>
   <div id="searchWrap">
@@ -1111,7 +1111,7 @@ label.inline { cursor:pointer; }
 </nav>
 <main id="pane" tabindex="-1">
   <div id="paneInner">
-    <div id="offlineBanner" class="offline-banner" role="alert" hidden><span>VOOL isn&rsquo;t responding. Changes can&rsquo;t be saved right now.</span> <button type="button" class="btn" id="offlineRetry">Try again</button></div>
+    <div id="offlineBanner" class="offline-banner" role="alert" hidden><span data-i18n="settings.offline.banner">VOOL isn&rsquo;t responding. Changes can&rsquo;t be saved right now.</span> <button type="button" class="btn" id="offlineRetry" data-i18n="addons.retry">Try again</button></div>
     <h1 id="paneTitle">Settings</h1>
     <p class="pane-blurb" id="paneBlurb"></p>
     <div id="paneBody"></div>
@@ -1173,8 +1173,8 @@ const SAVE_TIMEOUT_MS = 15000;
     }, e => { setOffline(true); throw e; });
   };
 })();
-const NOT_ANSWERING_SHORT = "Not saved \u2014 VOOL isn\u2019t responding.";
-const MAY_NOT_HAVE_SAVED = "VOOL didn\u2019t answer in time, so this may not have saved. It is checked again when VOOL answers.";
+const NOT_ANSWERING_SHORT = T('settings.save.not_answering', "Not saved \u2014 VOOL isn\u2019t responding.");
+const MAY_NOT_HAVE_SAVED = T('settings.save.may_not_have_saved', "VOOL didn\u2019t answer in time, so this may not have saved. It is checked again when VOOL answers.");
 const $ = (sel, root) => (root || document).querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const live = (msg) => { const l = $('#live'); if (l) l.textContent = msg; };
@@ -1375,9 +1375,9 @@ function recheckUnsure(now) {
         UNSURE.delete(id);
         if (same(valueOf(row), attempted)) {
           st.retry = undefined;
-          setState(id, 'saved', 'VOOL answered again: this was saved after all.');
+          setState(id, 'saved', T('settings.save.landed', 'VOOL answered again: this was saved after all.'));
         } else {
-          setState(id, 'failed', 'VOOL answered again: this was not saved. The stored value is shown.');
+          setState(id, 'failed', T('settings.save.not_landed', 'VOOL answered again: this was not saved. The stored value is shown.'));
           /* A write VOOL was still holding can land a moment after it wakes: look once more. */
           setTimeout(async () => {
             const st2 = rowState(id);
@@ -1385,7 +1385,7 @@ function recheckUnsure(now) {
             if (!(await readSource(row.read ? row.read.url : row.write.url))) return;
             if (same(valueOf(row), attempted)) {
               st2.retry = undefined;
-              setState(id, 'saved', 'VOOL answered again: this was saved after all.');
+              setState(id, 'saved', T('settings.save.landed', 'VOOL answered again: this was saved after all.'));
               if (row.group === state.group) renderPane();
             }
           }, 5000);
@@ -1406,16 +1406,25 @@ const SEARCH_SYNONYMS = {
   password: ['passphrase', 'key', 'pin'], pin: ['passphrase'], name: ['call you', 'called'],
   bitcoin: ['crypto', 'wallet'], money: ['spend', 'budget', 'wallet'], cost: ['spend', 'budget', 'price'],
   backup: ['export'], restore: ['import'], data: ['memory', 'remember', 'privacy'],
+  /* the same everyday requests typed in German */
+  löschen: ['vergessen', 'entfernen'], entfernen: ['vergessen', 'löschen'], daten: ['gedächtnis', 'merkt', 'privatsphäre'],
 };
 /* Small words carry no meaning in a settings search: "delete my data" is searched as "delete data". */
-const SEARCH_STOPWORDS = new Set(['my', 'the', 'a', 'an', 'to', 'of', 'for', 'i', 'me', 'how', 'do', 'can', 'all', 'and']);
+const SEARCH_STOPWORDS = new Set(['my', 'the', 'a', 'an', 'to', 'of', 'for', 'i', 'me', 'how', 'do', 'can', 'all', 'and',
+  'mein', 'meine', 'meinen', 'meiner', 'die', 'der', 'das', 'den', 'dem', 'ein', 'eine', 'einen', 'ich', 'wie', 'alle', 'und', 'zu']);
 /* Where an everyday request belongs when several rows match it. */
-const SEARCH_PREFER = { delete: 'profile_items', erase: 'profile_items', wipe: 'profile_items', forget: 'profile_items', data: 'profile_items' };
+const SEARCH_PREFER = { delete: 'profile_items', erase: 'profile_items', wipe: 'profile_items', forget: 'profile_items', data: 'profile_items',
+  löschen: 'profile_items', vergessen: 'profile_items', daten: 'profile_items' };
 /* Words for something Settings does not have: said plainly instead of a wrong section. */
 const SEARCH_ABSENT = {
-  dark: 'VOOL has one colour scheme, so there is no light or dark setting.',
-  light: 'VOOL has one colour scheme, so there is no light or dark setting.',
-  theme: 'VOOL has one colour scheme, so there is no theme setting.',
+  dark: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  light: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  theme: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
+  /* the same requests typed in German (the most used non-English app language) */
+  dunkel: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  hell: T('settings.search.no_dark', 'VOOL has one colour scheme, so there is no light or dark setting.'),
+  thema: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
+  design: T('settings.search.no_theme', 'VOOL has one colour scheme, so there is no theme setting.'),
 };
 function rowText(r) { return [r.label, r.help, r.keywords, r.groupTitle].filter(Boolean).join(' ').toLowerCase(); }
 function queryWords(q) {
@@ -1463,7 +1472,7 @@ function renderNav() {
     b.addEventListener('click', () => { state.onlyRow = ''; state.focusPart = ''; state.focusRow = ''; state.notice = ''; go(g.id); });
     nav.appendChild(b);
   });
-  if (!any) nav.appendChild(el('div', 'nav-empty', 'Nothing matches “' + state.query + '”.'));
+  if (!any) nav.appendChild(el('div', 'nav-empty', tfmt('settings.search.no_match', 'No setting matches “{query}”', { query: state.query })));
   const currentItem = nav.querySelector('.nav-item[aria-current="true"]');
   if (hadNavFocus) {
     const current = currentItem || nav.querySelector('.nav-item');
@@ -1638,9 +1647,10 @@ function renderPane() {
   if (!shown && q && !MODEL.some(x => hitsFor(x.id, q) > 0)) {
     /* Nothing anywhere matches: say so in the pane too, with places to try, instead of leaving the
        previous section on screen with an empty card under it. */
-    $('#paneTitle').textContent = 'No setting matches \u201c' + state.query + '\u201d';
+    $('#paneTitle').textContent = tfmt('settings.search.no_match', 'No setting matches \u201c{query}\u201d', { query: state.query });
     const absent = absentNote(q);
-    $('#paneBlurb').textContent = absent ? absent + ' Try other words, or one of these:' : 'Try other words, or one of these:';
+    const tryOther = T('settings.search.try_other', 'Try other words, or one of these:');
+    $('#paneBlurb').textContent = absent ? absent + ' ' + tryOther : tryOther;
     const tries = el('div', 'row wide');
     const bar = el('div', 'inline');
     [['memory', 'Memory & Personalisation'], ['permissions', 'Privacy & Permissions'], ['backup', 'Backup & restore']].forEach(([gid, label]) => {
@@ -1649,11 +1659,11 @@ function renderPane() {
       b.addEventListener('click', () => { $('#search').value = ''; state.query = ''; go(gid); });
       bar.appendChild(b);
     });
-    const clearB = el('button', 'btn', 'Clear search'); clearB.type = 'button';
+    const clearB = el('button', 'btn', T('header.search_clear_title', 'Clear search')); clearB.type = 'button';
     clearB.addEventListener('click', () => { $('#search').value = ''; onSearch(''); $('#search').focus(); });
     bar.appendChild(clearB);
     tries.appendChild(bar);
-    tries.appendChild(el('div', 'subtle', 'You can also ask VOOL in a chat.'));
+    tries.appendChild(el('div', 'subtle', T('settings.search.ask_chat', 'You can also ask VOOL in a chat.')));
     card.appendChild(tries);
   } else if (!shown) card.appendChild(el('div', 'row', ''));
   if (state.notice === 'setup_hidden') {
@@ -1770,14 +1780,14 @@ function widgetBundleExport(stack) {
   const status = el('div', 'state idle'); status.id = 'sbExportStatus'; status.setAttribute('role', 'status');
   const say = (msg, warn) => { status.className = 'state ' + (warn ? 'failed' : 'saved'); status.textContent = msg; };
   const pick = el('div', 'inline');
-  const chatSel = el('select', 'inp'); chatSel.id = 'sbChat'; chatSel.setAttribute('aria-label', 'Chat to export');
-  const none = el('option', null, 'Choose a chat…'); none.value = ''; chatSel.appendChild(none);
+  const chatSel = el('select', 'inp'); chatSel.id = 'sbChat'; chatSel.setAttribute('aria-label', T('settings.backup.chat_aria', 'Chat to export'));
+  const none = el('option', null, T('settings.backup.choose_chat', 'Choose a chat…')); none.value = ''; chatSel.appendChild(none);
   pick.appendChild(el('span', 'subtle', 'Chat')); pick.appendChild(chatSel);
   stack.appendChild(pick);
   const preview = el('div', 'sb-box'); preview.id = 'sbExportPreview'; preview.hidden = true; stack.appendChild(preview);
   const encRow = el('label', 'inline');
   const enc = document.createElement('input'); enc.type = 'checkbox'; enc.id = 'sbEncrypt'; enc.checked = true;
-  encRow.appendChild(enc); encRow.appendChild(el('span', null, 'Encrypt with a passphrase (recommended)'));
+  encRow.appendChild(enc); encRow.appendChild(el('span', null, T('settings.backup.encrypt', 'Encrypt with a passphrase (recommended)')));
   stack.appendChild(encRow);
   const passRow = el('div', 'inline'); passRow.id = 'sbPassFields';
   const pass = document.createElement('input'); pass.type = 'password'; pass.id = 'sbPass'; pass.className = 'inp';
@@ -1826,7 +1836,7 @@ function widgetBundleExport(stack) {
     });
     if (!sessions.length) {
       /* Nothing to export is a plain fact, not a success: neutral words, and nothing to press. */
-      status.className = 'state loading'; status.textContent = 'No chats to export yet.';
+      status.className = 'state loading'; status.textContent = T('settings.backup.no_chats', 'No chats to export yet.');
       chatSel.disabled = true; exportBtn.disabled = true;
     }
   }).catch(e => say('Could not list chats — ' + e.message, true));
@@ -1971,8 +1981,8 @@ function widgetExtras(stack, which) {
    open in their own tab or window so Settings stays put. Nothing here is a claim -- each is a
    plain anchor to a route that exists. */
 const ADVANCED_SURFACES = [
-  { href: '/trace', label: 'Open the activity page', note: 'what VOOL is doing, step by step, while it answers' },
-  { href: '/web0', label: 'Open the Web0 page', note: 'opens sites an ordinary browser cannot' },
+  { href: '/trace', label: T('settings.advanced.trace', 'Open the activity page'), note: T('settings.advanced.trace_note', 'what VOOL is doing, step by step, while it answers') },
+  { href: '/web0', label: T('settings.advanced.web0', 'Open the Web0 page'), note: T('settings.advanced.web0_note', 'opens sites an ordinary browser cannot') },
 ];
 function widgetAdvancedLinks(stack) {
   ADVANCED_SURFACES.forEach(s => {
@@ -2063,8 +2073,8 @@ function widgetSetupProgress(stack) {
     pill.appendChild(el('span', null, s.done ? T('setup.checklist.done', 'Done')
       : (s.skipped ? T('setup.checklist.skipped', 'Skipped') : T('setup.checklist.todo', 'To do'))));
     line.appendChild(pill);
-    line.appendChild(el('span', null, s.title));
-    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: s.later })));
+    line.appendChild(el('span', null, T('setup.step.' + s.id + '.title', s.title)));
+    if (!s.done) line.appendChild(el('span', 'subtle', tfmt('setup.checklist.later_prefix', 'later: {later}', { later: T('setup.step.' + s.id + '.later', s.later) })));
     list.appendChild(line);
   });
   stack.appendChild(list);
@@ -2193,7 +2203,7 @@ function widgetCompanionPet(stack) {
   appearanceBar.append(appearance, appearanceStatus);
   stack.appendChild(appearanceBar);
   if (!api || !api.detach_companion) {
-    stack.appendChild(el('div', 'empty', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.'));
+    stack.appendChild(el('div', 'empty', T('settings.companion.needs_app', 'The desktop pet needs the VOOL app window. In a browser tab the companion stays docked in the chat.')));
     return;
   }
   const bar = el('div', 'inline');
@@ -2235,7 +2245,7 @@ function widgetUpdates(stack) {
      stays reachable under Technical details. */
   const unavailable = phase === 'unavailable';
   const message = phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
-    : unavailable ? 'Automatic updates are not available for this copy of VOOL.'
+    : unavailable ? T('settings.updates.unavailable', 'Automatic updates are not available for this copy of VOOL.')
     : error || src && src.message || T('settings.widget.loading', 'Loading…');
   const status = el('div', 'subtle', message); status.setAttribute('role', 'status');
   status.dataset.testid = 'settings-update-status'; stack.appendChild(status);
@@ -2244,12 +2254,12 @@ function widgetUpdates(stack) {
   check.disabled = unavailable || ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
   check.addEventListener('click', async () => {
     check.disabled = true;
-    status.textContent = 'Checking…';
+    status.textContent = T('settings.updates.checking', 'Checking…');
     try {
       const response = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.ok === false) throw new Error('VOOL could not check for updates just now. Try again later.');
+      if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));
       await readSource('/api/update/status');
       widgetUpdates(stack);
     } catch (e) { status.textContent = String(e.message || e); check.disabled = false; }
@@ -2257,7 +2267,7 @@ function widgetUpdates(stack) {
   stack.appendChild(check);
   if (unavailable && src && (src.unavailable_plain || src.message)) {
     const more = document.createElement('details');
-    more.appendChild(el('summary', 'subtle', 'Technical details'));
+    more.appendChild(el('summary', 'subtle', T('settings.technical_details', 'Technical details')));
     more.appendChild(el('div', 'subtle', String(src.unavailable_plain || src.message)));
     stack.appendChild(more);
   }
@@ -2297,7 +2307,7 @@ function widgetBuild(stack) {
   });
   if (!keys.length) dl.appendChild(el('dd', 'empty', 'No version details are available.'));
   const more = document.createElement('details');
-  more.appendChild(el('summary', 'subtle', 'Technical details'));
+  more.appendChild(el('summary', 'subtle', T('settings.technical_details', 'Technical details')));
   more.appendChild(dl);
   stack.appendChild(more);
   const bar = el('div', 'inline');
@@ -2321,10 +2331,10 @@ function widgetUsage(stack) {
   let active = widgetCache.usageRange || 'today';
   const draw = async () => {
     body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading usage…'));
+    body.appendChild(el('div', 'empty', T('settings.usage.reading', 'Reading usage…')));
     let data;
     try { data = await getJSON('/api/runtime/usage' + (active ? '?range=' + active : '')); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Usage could not be read. ' + e.message)); return; }
+    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', T('settings.usage.unreadable', 'Usage could not be read.') + ' ' + e.message)); return; }
     body.textContent = '';
     const dl = el('dl', 'kv');
     const line = (label, bucket, extra) => {
@@ -2332,18 +2342,19 @@ function widgetUsage(stack) {
       dl.appendChild(el('dt', null, label));
       const t = (bucket.total_tokens || 0).toLocaleString();
       const n = bucket.responses || 0;
-      dl.appendChild(el('dd', null, t + ' tokens over ' + n + (n === 1 ? ' answer' : ' answers') + (extra || '')));
+      dl.appendChild(el('dd', null, (n === 1 ? tfmt('settings.usage.tokens_one', '{tokens} tokens over 1 answer', { tokens: t })
+        : tfmt('settings.usage.tokens_many', '{tokens} tokens over {count} answers', { tokens: t, count: n })) + (extra || '')));
     };
-    line('Free, on this computer', data.free_local);
-    line('Free, online', data.free_cloud);
+    line(T('settings.usage.free_local', 'Free, on this computer'), data.free_local);
+    line(T('settings.usage.free_online', 'Free, online'), data.free_cloud);
     const paid = data.paid_cloud || {};
     const est = paid.usd_estimate != null ? Number(paid.usd_estimate) : null;
-    const usd = est == null ? '' : (est > 0 && est < 0.01 ? ' · less than $0.01' : ' · about $' + est.toFixed(2));
-    line('Paid, online', paid, usd);
-    line('Other', data.remote_unknown);
-    dl.appendChild(el('dt', null, 'Total'));
+    const usd = est == null ? '' : (est > 0 && est < 0.01 ? ' · ' + T('settings.usage.under_cent', 'less than $0.01') : ' · ' + tfmt('settings.usage.about_usd', 'about ${amount}', { amount: est.toFixed(2) }));
+    line(T('settings.usage.paid_online', 'Paid, online'), paid, usd);
+    line(T('settings.usage.other', 'Other'), data.remote_unknown);
+    dl.appendChild(el('dt', null, T('settings.usage.total', 'Total')));
     dl.appendChild(el('dd', null, (data.total_tokens || 0).toLocaleString() + ' tokens'));
-    if (!data.total_tokens) body.appendChild(el('div', 'subtle', 'Nothing used in this period yet.'));
+    if (!data.total_tokens) body.appendChild(el('div', 'subtle', T('settings.usage.none_yet', 'Nothing used in this period yet.')));
     body.appendChild(dl);
     (data.notices || []).forEach(n => body.appendChild(el('div', 'subtle', typeof n === 'string' ? n : (n.message || ''))));
   };
@@ -2409,7 +2420,7 @@ function widgetKeys(stack) {
   else {
     const creds = src.credentials || src.items || [];
     const yours = creds.filter(c => isOperatorKey(c.name));
-    if (!yours.length) list.appendChild(el('div', 'empty', 'No keys yet. Without a key VOOL can only use a model installed on this computer.'));
+    if (!yours.length) list.appendChild(el('div', 'empty', T('keys.empty_plain', 'No keys yet. Without a key VOOL can only use a model installed on this computer.')));
     const groups = [...KEY_FAMILIES.map(f => f.id), 'managed'];
     groups.forEach(fam => {
       const rows = creds.filter(c => keyFamilyOf(c.name) === fam);
@@ -3105,7 +3116,7 @@ function mpMicroToUsdc(micro) {
 /* The machine's name in plain words: "This Mac" only on a Mac, "This computer" everywhere else. */
 function thisComputerName() {
   const p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
-  return /mac/i.test(p) ? 'This Mac' : 'This computer';
+  return /mac/i.test(p) ? T('settings.models.this_mac', 'This Mac') : T('settings.models.this_computer', 'This computer');
 }
 function mpOpenRow(rowId, part) {
   location.hash = '#models/' + rowId + (part ? '/' + part : '');
@@ -3262,7 +3273,7 @@ function widgetModelsOverview(stack) {
     head.appendChild(el('div', 'row-label', 'What will answer'));
     const pinLine = reads.pin && reads.pin.model
       ? ((reads.pin.provider && reads.pin.provider !== 'openrouter' ? reads.pin.provider + ':' : '') + reads.pin.model)
-      : 'VOOL picks automatically';
+      : T('settings.models.auto_pick', 'VOOL picks automatically');
     const pinState = reads.pin ? String(reads.pin.cost_state || '') : '';
     head.appendChild(el('div', null, pinLine + (pinState ? ' — ' + pinState + (pinState === 'paid' ? ' · ready for answers once its limits and budget are set' : '') : '')));
     if (mpView.pane === 'detail') return mpDrawDetail(root, reads, st, draw);
@@ -3295,11 +3306,11 @@ function widgetModelsOverview(stack) {
        model is told so, and where to go instead. */
     const localModels = (reads.local && reads.local.models) || [];
     const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.length);
-    const localLine = !reads.local ? 'VOOL could not check for local models right now.'
-      : reads.local.local_models_disabled ? 'Local models are turned off on this copy of VOOL.'
-      : localReady ? 'A model on this computer answers without the internet, for free.'
-      : 'No local model yet. Install one, or add a key in API Keys to use an online model.';
-    cards.appendChild(mkCard('local', thisComputerName(), localLine, 'View local models', localReady));
+    const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
+      : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
+      : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
+      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
+    cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
     // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
     // card sends the operator to the detail with the saved approval, never through guided again
     // (a second proposal would duplicate the consent identity).
@@ -3309,7 +3320,7 @@ function widgetModelsOverview(stack) {
       : 'Inference marketplace — connect a token to start.', st.connected && !st.budgetActive && !mpResumeState ? 'Continue setup' : (st.connected ? 'Manage' : 'Set up'), st.connected && st.budgetActive));
     cards.appendChild(mkCard('openrouter', 'OpenRouter', 'Bring-your-own-key cloud models. VOOL-wide spending limits apply.', 'View OpenRouter', false));
     root.appendChild(head); root.appendChild(cards);
-    const fine = el('div', 'subtle', 'Changes here go through the same checks as in a chat. Opening this page changes nothing.');
+    const fine = el('div', 'subtle', T('settings.models.same_checks', 'Changes here go through the same checks as in a chat. Opening this page changes nothing.'));
     root.appendChild(fine);
   };
   draw();
@@ -3573,9 +3584,9 @@ function widgetLocalModels(stack) {
     if (data.apple_silicon_notice) body.appendChild(el('div', 'state failed', T('settings.local_models.apple_silicon_notice', data.apple_silicon_notice)));
     const models = data.models || [];
     if (!models.length) {
-      body.appendChild(el('div', 'empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.'));
+      body.appendChild(el('div', 'empty', T('settings.models.local_empty', 'No local model yet. A local model runs privately on this computer; once one is installed, it appears here.')));
       const cmd = el('div', 'inline');
-      cmd.appendChild(el('span', 'subtle', 'For people comfortable with a terminal:'));
+      cmd.appendChild(el('span', 'subtle', T('settings.models.terminal', 'For people comfortable with a terminal:')));
       cmd.appendChild(el('code', 'mono', 'ollama pull qwen3:8b'));
       body.appendChild(cmd);
       return;
@@ -3733,8 +3744,8 @@ function widgetModel(stack) {
     if (!provider) {
       /* Nothing to pick yet: say what makes this row useful, with the way there. */
       const line = el('div', 'inline');
-      line.appendChild(el('span', 'subtle', 'Add a key in API Keys to choose a model here.'));
-      const jump = el('button', 'btn', 'Go to API Keys'); jump.type = 'button';
+      line.appendChild(el('span', 'subtle', T('settings.models.need_key', 'Add a key in API Keys to choose a model here.')));
+      const jump = el('button', 'btn', T('settings.models.go_keys', 'Go to API Keys')); jump.type = 'button';
       jump.addEventListener('click', () => { location.hash = '#keys'; });
       line.appendChild(jump);
       body.appendChild(line);
@@ -4589,8 +4600,8 @@ function widgetAnswerLanguage(stack) {
   const readable = (v) => known.has(String(v || '').trim().toLowerCase());
 
   const sel = el('select', 'inp');
-  sel.setAttribute('aria-label', 'Answer language');
-  const none = el('option', null, 'No preference — VOOL follows your message');
+  sel.setAttribute('aria-label', T('settings.row.answer_language.label', 'Answer language'));
+  const none = el('option', null, T('settings.answer_language.none', 'No preference — VOOL follows your message'));
   none.value = '';
   sel.appendChild(none);
   LANGUAGES.forEach(l => { const o = el('option', null, l.label); o.value = l.label; sel.appendChild(o); });
@@ -4599,7 +4610,7 @@ function widgetAnswerLanguage(stack) {
   const st = el('div', 'state idle');
   const row = el('div', 'inline');
   row.appendChild(sel);
-  const clear = el('button', 'btn', 'Clear');
+  const clear = el('button', 'btn', T('header.search_clear', 'Clear'));
   clear.type = 'button';
   clear.disabled = !global_;
   row.appendChild(clear);
@@ -4610,7 +4621,7 @@ function widgetAnswerLanguage(stack) {
   /* Paused memory refuses every write to the profile, this one included: say so before a choice is made. */
   if (src.paused) {
     sel.disabled = true; clear.disabled = true;
-    st.className = 'state stale'; st.textContent = 'Memory is paused. Resume it in Memory & Personalisation to change this.';
+    st.className = 'state stale'; st.textContent = T('settings.answer_language.paused', 'Memory is paused. Resume it in Memory & Personalisation to change this.');
   }
 
   const fail = (msg) => { st.className = 'state failed'; st.textContent = msg; };
@@ -4666,8 +4677,8 @@ function widgetAnswerLanguage(stack) {
       ') and wins where it applies. This setting applies everywhere else.'));
   }
   stack.appendChild(el('div', 'subtle',
-    'Kept with everything else VOOL remembers, under Memory & Personalisation. For each answer, ' +
-    'what your message asks for comes first, then this, then the language you wrote in.'));
+    T('settings.answer_language.footer', 'Kept with everything else VOOL remembers, under Memory & Personalisation. For each answer, ' +
+    'what your message asks for comes first, then this, then the language you wrote in.')));
 }
 
 /* --- Email accounts: every configured mailbox as the account authority sees it (core/email_accounts.py,
@@ -4716,7 +4727,7 @@ function widgetEmailAccounts(stack) {
   if (!accounts.length) {
     /* No account: say so once, plainly, and nothing else -- no "Reading uses / Sending uses" lines that
        would name a mailbox that does not exist. Adding a mailbox is not a control on this page yet. */
-    body.appendChild(el('div', 'empty', 'No email account yet, so VOOL cannot read or send email. Adding an email account from Settings is not available in this version. Settings never asks for an email password.'));
+    body.appendChild(el('div', 'empty', T('settings.email.none', 'No email account yet, so VOOL cannot read or send email. Adding an email account from Settings is not available in this version. Settings never asks for an email password.')));
     return;
   }
   accounts.forEach(a => {
@@ -4805,7 +4816,7 @@ function widgetEmailRecovery(stack) {
   };
   const rec = src.recovery || null;
   const summary = el('div', 'email-recovery-summary'); summary.id = 'emailRecoverySummary'; summary.setAttribute('role', 'status');
-  summary.textContent = rec ? (src.summary || '') : (src.send_hold ? (src.summary || '') : 'Nothing is on hold. Sending is not paused.');
+  summary.textContent = rec ? (src.summary || '') : (src.send_hold ? (src.summary || '') : T('settings.email.no_hold', 'Nothing is on hold. Sending is not paused.'));
   body.appendChild(summary);
   if (!rec) return;
   const evidence = el('div', 'subtle mono email-recovery-evidence');
@@ -4880,9 +4891,11 @@ function widgetEmailRecovery(stack) {
    after every action so the page only ever shows what the store reports. A suggestion VOOL made
    from a chat (a candidate) is decided in that chat, where the conversation that produced it is. */
 /* Profile records in words: category ids, origins and scopes are the store's vocabulary, not the reader's. */
-const PROFILE_CATEGORY_TEXT = { language: 'Answer language', preferred_name: 'Your name', email_signature: 'Email signature', 'default_account.email': 'Default email account' };
-const PROFILE_ORIGIN_TEXT = { explicit: 'You set this', settings: 'You set this in Settings', inferred: 'VOOL picked this up in a chat', imported: 'Imported' };
-const PROFILE_SCOPE_TEXT = { global: 'applies everywhere', work: 'work only', personal: 'personal only', chat: 'one chat only', project: 'one project only' };
+const PROFILE_CATEGORY_TEXT = { language: T('settings.profile.cat.language', 'Answer language'), preferred_name: T('settings.profile.cat.name', 'Your name'), email_signature: T('settings.profile.cat.signature', 'Email signature'), 'default_account.email': T('settings.profile.cat.default_email', 'Default email account') };
+const PROFILE_ORIGIN_TEXT = { explicit: T('settings.profile.origin.explicit', 'You set this'), settings: T('settings.profile.origin.settings', 'You set this in Settings'), inferred: T('settings.profile.origin.inferred', 'VOOL picked this up in a chat'), imported: T('settings.profile.origin.imported', 'Imported') };
+const PROFILE_SCOPE_TEXT = { global: T('settings.profile.scope.global', 'applies everywhere'), work: T('settings.profile.scope.work', 'work only'), personal: T('settings.profile.scope.personal', 'personal only'), chat: T('settings.profile.scope.chat', 'one chat only'), project: T('settings.profile.scope.project', 'one project only') };
+/* Short scope names for the pill and the Move scope list (the store's ids stay the values). */
+const PROFILE_SCOPE_NAME = { global: T('settings.profile.scope_name.global', 'Everywhere'), work: T('settings.profile.scope_name.work', 'Work'), personal: T('settings.profile.scope_name.personal', 'Personal'), chat: T('settings.profile.scope_name.chat', 'One chat'), project: T('settings.profile.scope_name.project', 'One project') };
 /* Settings has its own Undo; a chat hint to "say 'undo that'" does not belong in its messages. */
 function profileWords(text) {
   return String(text == null ? '' : text).replace(/\s*Say ['\u2018\u2019]undo that['\u2018\u2019] to restore\.?/gi, '').trim();
@@ -4908,7 +4921,7 @@ function widgetProfile(stack) {
 
   const draw = async () => {
     body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading what VOOL remembers…'));
+    body.appendChild(el('div', 'empty', T('settings.profile.reading', 'Reading what VOOL remembers…')));
     let p;
     try { p = await getJSON('/api/profile'); }
     catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
@@ -4919,16 +4932,16 @@ function widgetProfile(stack) {
     body.textContent = '';
     /* Store-wide: Pause/Resume (POST /api/profile/pause) and Export (GET /api/profile/export). */
     const bar = el('div', 'inline');
-    const pause = el('button', 'btn', p.paused ? 'Resume memory' : 'Pause memory'); pause.type = 'button'; pause.id = 'profilePauseBtn';
+    const pause = el('button', 'btn', p.paused ? T('settings.profile.resume', 'Resume memory') : T('settings.profile.pause', 'Pause memory')); pause.type = 'button'; pause.id = 'profilePauseBtn';
     pause.setAttribute('aria-pressed', p.paused ? 'true' : 'false');
     pause.addEventListener('click', async () => {
       pause.disabled = true;
       const res = await post('pause', { paused: !p.paused });
       if (!res.ok) { pause.disabled = false; say('Not changed — ' + report(res, 'HTTP ' + res.status), true); return; }
       await draw();
-      say(res.data.paused ? 'Memory paused: VOOL keeps what it knows and learns nothing new until you resume.' : 'Memory resumed: VOOL learns from conversation again.');
+      say(res.data.paused ? T('settings.profile.paused_note', 'Memory paused: VOOL keeps what it knows and learns nothing new until you resume.') : T('settings.profile.resumed_note', 'Memory resumed: VOOL learns from conversation again.'));
     });
-    const exp = el('button', 'btn', 'Export profile'); exp.type = 'button'; exp.id = 'profileExportBtn';
+    const exp = el('button', 'btn', T('settings.profile.export', 'Export profile')); exp.type = 'button'; exp.id = 'profileExportBtn';
     const out = el('pre', 'mono profile-export'); out.id = 'profileExportOut'; out.hidden = true;
     /* Export gives a file. It never overwrites the clipboard, which may hold something the person copied. */
     exp.addEventListener('click', async () => {
@@ -4936,7 +4949,7 @@ function widgetProfile(stack) {
       try {
         const doc = await getJSON('/api/profile/export');
         const text = JSON.stringify(doc, null, 2);
-        out.textContent = text; out.hidden = true; view.hidden = false; view.textContent = 'Show what was exported';
+        out.textContent = text; out.hidden = true; view.hidden = false; view.textContent = T('settings.profile.show_export', 'Show what was exported');
         const a = document.createElement('a');
         a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
         a.download = 'vool-memory-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -4947,20 +4960,21 @@ function widgetProfile(stack) {
       exp.disabled = false;
     });
     /* The exported document stays folded away; it is there to look at on request, and closes again. */
-    const view = el('button', 'btn', 'Show what was exported'); view.type = 'button'; view.hidden = true;
-    view.addEventListener('click', () => { out.hidden = !out.hidden; view.textContent = out.hidden ? 'Show what was exported' : 'Hide'; });
+    const view = el('button', 'btn', T('settings.profile.show_export', 'Show what was exported')); view.type = 'button'; view.hidden = true;
+    view.addEventListener('click', () => { out.hidden = !out.hidden; view.textContent = out.hidden ? T('settings.profile.show_export', 'Show what was exported') : T('keys.hide', 'Hide'); });
     bar.appendChild(pause); bar.appendChild(exp); bar.appendChild(view);
     body.appendChild(bar);
     if (p.paused) body.appendChild(el('div', 'subtle', 'Memory is paused: VOOL is not learning anything new right now. What it already remembers stays in force and stays editable below.'));
     body.appendChild(out);
     const items = (p.items || []).filter(it => it.status !== 'deleted');
     body.appendChild(profileNameField(items, !!p.paused));
-    if (!items.length) { body.appendChild(el('div', 'empty', 'Nothing remembered yet. As you chat, what VOOL learns about you is listed here, and you can edit or forget any of it.')); return; }
+    if (!items.length) { body.appendChild(el('div', 'empty', T('settings.profile.empty', 'Nothing remembered yet. As you chat, what VOOL learns about you is listed here, and you can edit or forget any of it.'))); return; }
     /* Scopes an item can be moved to from here. A chat- or project-scoped move needs the chat or
        project it belongs to, which Settings does not have -- those two are done where they apply. */
     const movable = (p.scopes || ['global', 'work', 'personal']).filter(s => s !== 'chat' && s !== 'project');
     items.forEach(it => body.appendChild(profileItemRow(it, movable)));
-    body.appendChild(el('div', 'subtle', items.length + ' remembered item' + (items.length === 1 ? '' : 's') + '. Restore previous undoes the latest change to an item. A suggestion VOOL made in a chat is decided in that chat.'));
+    body.appendChild(el('div', 'subtle', (items.length === 1 ? T('settings.profile.count_one', '1 remembered item.') : tfmt('settings.profile.count_many', '{count} remembered items.', { count: items.length }))
+      + ' ' + T('settings.profile.count_note', 'Restore previous undoes the latest change to an item. A suggestion VOOL made in a chat is decided in that chat.')));
   };
 
   /* "What should VOOL call you?": the setup step points here, so the step can be done here. It writes the
@@ -4969,17 +4983,17 @@ function widgetProfile(stack) {
   function profileNameField(items, paused) {
     const wrap = el('div', 'stack profile-name');
     const nameItem = items.find(it => it.category === 'preferred_name' && (it.scope || 'global') === 'global');
-    wrap.appendChild(el('div', 'row-label', 'What should VOOL call you?'));
+    wrap.appendChild(el('div', 'row-label', T('settings.profile.name_label', 'What should VOOL call you?')));
     const line = el('div', 'inline');
     const input = document.createElement('input'); input.type = 'text'; input.className = 'inp'; input.id = 'profileNameInput';
-    input.maxLength = 60; input.autocomplete = 'off'; input.placeholder = 'A first name or nickname';
-    input.setAttribute('aria-label', 'What should VOOL call you?');
+    input.maxLength = 60; input.autocomplete = 'off'; input.placeholder = T('settings.profile.name_placeholder', 'A first name or nickname');
+    input.setAttribute('aria-label', T('settings.profile.name_label', 'What should VOOL call you?'));
     input.value = nameItem ? String(nameItem.value_text || nameItem.value || '') : '';
-    const save = el('button', 'btn primary', 'Save name'); save.type = 'button'; save.id = 'profileNameSave';
+    const save = el('button', 'btn primary', T('settings.profile.name_save', 'Save name')); save.type = 'button'; save.id = 'profileNameSave';
     const st = el('span', 'state idle'); st.setAttribute('role', 'status');
     if (paused) {
       input.disabled = true; save.disabled = true;
-      st.className = 'state stale'; st.textContent = 'Memory is paused. Resume memory to change your name.';
+      st.className = 'state stale'; st.textContent = T('settings.profile.name_paused', 'Memory is paused. Resume memory to change your name.');
     }
     const send = async () => {
       const value = input.value.trim();
@@ -4988,7 +5002,7 @@ function widgetProfile(stack) {
         const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_address: value }) });
         const j = await r.json().catch(() => null);
         if (!r.ok || (j && j.error)) throw new Error(profileWords((j && j.error) || ('HTTP ' + r.status)));
-        widgetCache.profileNote = value ? 'Saved. VOOL will call you ' + value + '.' : 'Name cleared.';
+        widgetCache.profileNote = value ? tfmt('settings.profile.name_saved', 'Saved. VOOL will call you {name}.', { name: value }) : T('settings.profile.name_cleared', 'Name cleared.');
         await draw();
       } catch (e) { save.disabled = false; st.className = 'state failed'; st.textContent = 'Not saved — ' + e.message; }
     };
@@ -5010,16 +5024,16 @@ function widgetProfile(stack) {
     head.appendChild(scopePill);
     rowEl.appendChild(head);
     const whenUsed = it.last_used_at ? new Date(it.last_used_at).toLocaleString() : '';
-    rowEl.appendChild(el('div', 'subtle', (PROFILE_ORIGIN_TEXT[it.origin] || ('From ' + (it.origin || 'VOOL'))) + ' · ' + (PROFILE_SCOPE_TEXT[it.scope || 'global'] || it.scope) + (whenUsed && whenUsed !== 'Invalid Date' ? ' · last used ' + whenUsed : ' · not used yet')));
+    rowEl.appendChild(el('div', 'subtle', (PROFILE_ORIGIN_TEXT[it.origin] || ('From ' + (it.origin || 'VOOL'))) + ' · ' + (PROFILE_SCOPE_TEXT[it.scope || 'global'] || it.scope) + (whenUsed && whenUsed !== 'Invalid Date' ? ' · ' + tfmt('settings.profile.last_used', 'last used {when}', { when: whenUsed }) : ' · ' + T('settings.profile.not_used', 'not used yet'))));
     const run = async (label, action, payload, okText, plainOk) => {
       const res = await post(action, payload);
-      if (res.status === 409) { say(label + ': this item changed elsewhere — the list was reloaded; try again.', true); await draw(); return; }
+      if (res.status === 409) { say(T('settings.profile.changed_elsewhere', 'This item changed elsewhere. The list was reloaded; try again.'), true); await draw(); return; }
       say(res.ok && plainOk ? okText : report(res, res.ok ? okText : ('Could not ' + label.toLowerCase() + '.')), !res.ok);
       if (res.ok) await draw();
     };
     const acts = el('div', 'inline');
     /* Edit: an inline field bound to POST /api/profile/item, CAS-guarded by the revision shown. */
-    const edit = el('button', 'btn profile-edit', 'Edit'); edit.type = 'button';
+    const edit = el('button', 'btn profile-edit', T('settings.profile.edit', 'Edit')); edit.type = 'button';
     const editor = el('div', 'inline'); editor.hidden = true;
     /* The answer language is edited with the same list the General row offers, so Memory cannot store a
        language VOOL then ignores. */
@@ -5032,41 +5046,41 @@ function widgetProfile(stack) {
       input = document.createElement('input'); input.className = 'inp profile-edit-input'; input.type = 'text';
       input.value = String(it.value_text || '');
     }
-    input.setAttribute('aria-label', 'New value for ' + (it.label || it.category));
+    input.setAttribute('aria-label', tfmt('settings.profile.new_value', 'New value for {item}', { item: PROFILE_CATEGORY_TEXT[it.category] || it.label || it.category }));
     const saveBtn = el('button', 'btn primary profile-edit-save', 'Save'); saveBtn.type = 'button';
-    const cancel = el('button', 'btn', 'Cancel'); cancel.type = 'button';
+    const cancel = el('button', 'btn', T('xsetup.cancel', 'Cancel')); cancel.type = 'button';
     edit.addEventListener('click', () => { editor.hidden = !editor.hidden; if (!editor.hidden) input.focus(); });
     cancel.addEventListener('click', () => { editor.hidden = true; input.value = String(it.value_text || ''); });
-    saveBtn.addEventListener('click', () => run('Edit', 'item', { item_id: it.item_id, value: input.value, expected_revision: it.revision }, 'Saved.'));
+    saveBtn.addEventListener('click', () => run('Edit', 'item', { item_id: it.item_id, value: input.value, expected_revision: it.revision }, T('settings.profile.saved', 'Saved.')));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); } });
     editor.appendChild(input); editor.appendChild(saveBtn); editor.appendChild(cancel);
-    const forget = el('button', 'btn danger profile-forget', 'Forget'); forget.type = 'button';
+    const forget = el('button', 'btn danger profile-forget', T('settings.profile.forget', 'Forget')); forget.type = 'button';
     /* Forget acts at once, so the page offers its own Undo for a short while: it restores the item's
        previous revision through the same restore door as "Restore previous". */
     forget.addEventListener('click', async () => {
-      await run('Forget', 'forget', { item_id: it.item_id, expected_revision: it.revision }, 'Forgotten. You can undo this for a few seconds.', true);
+      await run('Forget', 'forget', { item_id: it.item_id, expected_revision: it.revision }, T('settings.profile.forgotten', 'Forgotten. You can undo this for a few seconds.'), true);
       if (status.className.indexOf('failed') >= 0) return;
-      const undo = el('button', 'retry', 'Undo'); undo.type = 'button';
+      const undo = el('button', 'retry', T('settings.profile.undo', 'Undo')); undo.type = 'button';
       undo.addEventListener('click', async () => {
         undo.remove();
         const res = await post('restore', { item_id: it.item_id });
-        say(res.ok ? 'Brought back.' : ('Could not undo — ' + report(res, 'HTTP ' + res.status)), !res.ok);
+        say(res.ok ? T('settings.profile.brought_back', 'Brought back.') : (T('settings.profile.undo_failed', 'Could not undo.') + ' ' + report(res, 'HTTP ' + res.status)), !res.ok);
         if (res.ok) await draw();
       });
       status.appendChild(document.createTextNode(' ')); status.appendChild(undo);
       setTimeout(() => undo.remove(), 10000);
     });
-    const scopeSel = el('select', 'inp profile-scope-select'); scopeSel.setAttribute('aria-label', 'Scope for ' + (it.label || it.category));
+    const scopeSel = el('select', 'inp profile-scope-select'); scopeSel.setAttribute('aria-label', tfmt('settings.profile.scope_for', 'Where {item} applies', { item: PROFILE_CATEGORY_TEXT[it.category] || it.label || it.category }));
     const options = movable.includes(it.scope) ? movable : [it.scope].concat(movable);
-    options.forEach(s => { const o = el('option', null, s); o.value = s; if (s === it.scope) o.selected = true; scopeSel.appendChild(o); });
-    const move = el('button', 'btn profile-scope-move', 'Move scope'); move.type = 'button';
+    options.forEach(s => { const o = el('option', null, PROFILE_SCOPE_NAME[s] || s); o.value = s; if (s === it.scope) o.selected = true; scopeSel.appendChild(o); });
+    const move = el('button', 'btn profile-scope-move', T('settings.profile.move', 'Move scope')); move.type = 'button';
     move.addEventListener('click', () => {
-      if (scopeSel.value === it.scope) { say('Already ' + it.scope + '.'); return; }
-      run('Move scope', 'scope', { item_id: it.item_id, scope: scopeSel.value, expected_revision: it.revision }, 'Moved.');
+      if (scopeSel.value === it.scope) { say(T('settings.profile.already_there', 'It already applies there.')); return; }
+      run('Move scope', 'scope', { item_id: it.item_id, scope: scopeSel.value, expected_revision: it.revision }, T('settings.profile.moved', 'Moved.'));
     });
-    const restore = el('button', 'btn profile-restore', 'Restore previous'); restore.type = 'button';
+    const restore = el('button', 'btn profile-restore', T('settings.profile.restore', 'Restore previous')); restore.type = 'button';
     restore.hidden = Number(it.revision || 1) <= 1;   /* a first version has nothing earlier to restore */
-    restore.addEventListener('click', () => run('Restore previous', 'restore', { item_id: it.item_id }, 'Restored.'));
+    restore.addEventListener('click', () => run('Restore previous', 'restore', { item_id: it.item_id }, T('settings.profile.restored', 'Restored.')));
     acts.appendChild(edit); acts.appendChild(forget); acts.appendChild(scopeSel); acts.appendChild(move); acts.appendChild(restore);
     rowEl.appendChild(acts);
     rowEl.appendChild(editor);
@@ -5356,17 +5370,10 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
         for row in group.get("rows", []):
             rid = row["id"]
             row["label"] = resolved(f"settings.row.{rid}.label", row["label"])
-            if rid == "autonomy_mode" and "setup.step.permissions.title" in en_keys:
-                row["label"] = catalog.text("setup.step.permissions.title")
             for field in ("help", "placeholder", "effect"):
                 if row.get(field):
                     row[field] = resolved(f"settings.row.{rid}.{field}", row[field])
             for option in row.get("options") or []:
-                if rid == "autonomy_mode" and f"setup.autonomy.{option['value']}_title" in en_keys:
-                    # One set of words for "how much VOOL may do alone": the setup screen's own
-                    # translated titles, so setup and Settings name the same choice the same way.
-                    option["label"] = catalog.text(f"setup.autonomy.{option['value']}_title")
-                    continue
                 option["label"] = resolved(
                     f"settings.row.{rid}.option.{option['value']}", option["label"]
                 )
@@ -5418,7 +5425,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
         # English: the help names the real place of the answer-language control, as a link. The keyed
         # catalog text ("…in the operator profile") points at a place that does not exist; other
         # locales keep their translation until the catalog carries the corrected sentence.
-        # The keyed translation still points to an "operator profile" that is no longer there; the
-        # current English is used in every language until settings.language_help is refreshed.
-        .replace(_LOCALE_HELP_KEYED, _LOCALE_HELP_EN, 1)
+        # English gets the same sentence with a working link; other languages get the catalog's
+        # translation of it (a catalog message carries no link markup).
+        .replace(_LOCALE_HELP_KEYED, _LOCALE_HELP_EN if tag == "en" else _LOCALE_HELP_KEYED, 1)
     )

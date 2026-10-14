@@ -198,7 +198,8 @@ function mountInto(host){
           if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
           else if (!j.ok) say(report.detail || CT('vns.status.failed', 'That did not work.'), true);
           else if (!read) say(CE('vcs.sync.nothing', 'Nothing synced: no calendars are chosen for this account yet. Tick the calendars VOOL should read.'), true);
-          else say(CE('vcs.sync.done', 'Synced ' + read + (read === 1 ? ' calendar' : ' calendars') + ', ' + (report.events_seen || 0) + ' events read.'));
+          else say(read === 1 ? CTF('vcs.sync.done_one', 'Synced 1 calendar, {events} events read.', {events: report.events_seen || 0})
+                              : CTF('vcs.sync.done_many', 'Synced {count} calendars, {events} events read.', {count: read, events: report.events_seen || 0}));
         });
       }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
     });
