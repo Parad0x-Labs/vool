@@ -23,6 +23,7 @@ the host selects (``?theme=light`` or ``data-theme="light"`` on ``<html>``).
 from __future__ import annotations
 
 import json
+import sys
 
 from core.setup_progress import STEPS
 from core.ui_palette import DARK_PALETTE_CSS
@@ -51,6 +52,8 @@ CAPTIONS = {
     "folder": "The pointer clicks “+ Project”, picks the Documents folder, and the folder appears in the list.",
     "permissions": "The pointer opens the list and picks “Ask me first”. It saves right away.",
     "name": "The pointer clicks the box, types a name, and presses Save.",
+    # With no private model on this computer the example picks the choice that can work here.
+    "thinking_online": "The pointer clicks “Online”. A tick appears — then you paste a key from a company you pay.",
 }
 
 _SETUP_HTML = r"""<!doctype html>
@@ -150,6 +153,8 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 @keyframes pick-on { 0%,28% { border-color:var(--mk-border); box-shadow:none; } 33%,100% { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); } }
 @keyframes tick-in { 0%,36% { opacity:0; transform:scale(.4); } 44%,100% { opacity:1; transform:scale(1); } }
 .mock[data-step="thinking"] .cursor { animation-name:cur-thinking; }
+@keyframes cur-thinking-online { 0% { left:82%; top:86%; } 25%,100% { left:70%; top:52%; } }
+.mock.online-example[data-step="thinking"] .cursor { animation-name:cur-thinking-online; }
 .mock[data-step="thinking"] .cursor::after { animation-name:click; }
 .mock[data-step="thinking"] .mk-choice.on { animation-name:pick-on; }
 .mock[data-step="thinking"] .mk-tick { animation-name:tick-in; }
@@ -233,7 +238,9 @@ h2 { margin:0 0 6px; font-size:28px; font-weight:700; letter-spacing:-.3px; line
 footer { display:flex; align-items:center; gap:10px; padding:14px 20px; border-top:1px solid var(--border); background:var(--panel); }
 footer .grow { flex:1 1 auto; }
 #live { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-@media (max-width: 560px) { h2 { font-size:23px; } .mock { height:200px; } main { padding:16px 12px; } }
+/* Phone width: the example would push every real control below the footer, so it steps aside with its
+   caption and play button (they only describe the example). The step sentence still says what to do. */
+@media (max-width: 560px) { h2 { font-size:23px; } .mock, .example-bar { display:none; } main { padding:16px 12px; } }
 /* Short windows: the real control must stay on the first screen, so the example shrinks, then steps aside
    (its caption stays as the text version). */
 @media (max-height: 760px) { .mock { height:160px; } h2 { font-size:23px; } .sentence { margin-bottom:12px; } }
@@ -273,6 +280,7 @@ const STEPS = __SETUP_STEPS__;
 const COPY = __SETUP_COPY__;
 const CAPTIONS = __SETUP_CAPTIONS__;
 const BUILD_COMMIT = "__PAGE_BUILD_COMMIT__";
+const ON_MAC = __SETUP_ON_MAC__;
 </script>
 """
 
@@ -294,6 +302,11 @@ const framed = () => { try { return window.top !== window.self; } catch (e) { re
 const reducedMotion = () => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 const fmt = (s, vars) => String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] == null ? '' : vars[k]));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Not on a Mac, the words that name "this Mac" come from their "_pc" twins ("this computer").
+const PC = (key) => (ON_MAC ? key : key + '_pc');
+const PC_WORDS = ON_MAC
+  ? { local_title: 'On my Mac', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this Mac.', saved_thinking: 'Saved: VOOL thinks on this Mac.' }
+  : { local_title: 'On this computer', online_sub: 'Smarter answers. You paste a key from a company you pay; it is kept only on this computer.', saved_thinking: 'Saved: VOOL thinks on this computer.' };
 const OFFLINE = () => T('setup.status.offline', 'VOOL isn’t running right now, so nothing was saved. Open VOOL again and try once more.');
 
 /* One visible message slot per step (#stepNote): a newer message replaces the older one instead of
@@ -360,11 +373,18 @@ async function postJSON(url, body) {
   try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }); }
   catch (e) { return { ok: false, status: 0, offline: true, json: null }; }
   const j = await r.json().catch(() => null);
-  return { ok: r.ok && !(j && (j.error || j.ok === false)), status: r.status, json: j };
+  const ok = r.ok && !(j && (j.error || j.ok === false));
+  // A write that landed answers any earlier failure on this step (an offline VOOL, a refused value).
+  if (ok) clearFailNote();
+  return { ok: ok, status: r.status, json: j };
 }
 
 async function refresh() {
-  try { view.snap = await getJSON('/api/setup/state'); view.offline = false; }
+  try {
+    view.snap = await getJSON('/api/setup/state'); view.offline = false;
+    // VOOL answers again: a stored "VOOL isn't running" note is no longer true on any step.
+    Object.keys(view.notes).forEach((id) => { const n = view.notes[id]; if (n && n.text === OFFLINE()) view.notes[id] = null; });
+  }
   catch (e) { view.snap = null; view.offline = !!(e && e.offline); }
   render();
   return view.snap;
@@ -405,29 +425,35 @@ function openSettings(section) {
 /* ------------------------------------------------------------------ the mock (aria-hidden; caption is the text) */
 const CURSOR_SVG = '<svg viewBox="0 0 16 20" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L1 15 L4.6 11.6 L7.4 18 L9.8 17 L7 10.8 L12 10.8 Z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 // Every word in the example goes through the catalog, so the example speaks the page's language.
-const M = (key, fallback) => esc(T('setup.mock.' + key, fallback));
-function mockFor(id) {
+// Words the app already says elsewhere reuse those keys (and their translations).
+const M_SHARED = { chats: 'sidebar.chats', project: 'sidebar.new_project', saved: 'contacts.saved', save: 'setup.name.save', pick_folder: 'setup.step.folder.title' };
+const M = (key, fallback) => esc(T(M_SHARED[key] || 'setup.mock.' + key, fallback));
+function mockFor(id, onlineExample) {
   const win = '<div class="mk-win"><div class="mk-side"><div class="mk-side-head"><span>' + M('chats', 'Chats') + '</span><span class="mk-plus">' + M('project', '+ Project') + '</span></div>'
     + (id === 'folder' ? '<div class="mk-proj">&#128193; ' + M('documents', 'Documents') + '</div>' : '')
     + '<div class="mk-chat"></div><div class="mk-chat"></div></div>'
-    + '<div class="mk-main"><div class="mk-head">VOOL</div><div class="mk-body">' + mockBody(id) + '</div><div class="mk-composer">' + M('composer', 'Message VOOL…') + '</div></div></div>';
+    + '<div class="mk-main"><div class="mk-head">VOOL</div><div class="mk-body">' + mockBody(id, onlineExample) + '</div><div class="mk-composer">' + M('composer', 'Message VOOL…') + '</div></div></div>';
   const extra = id === 'folder'
     ? '<div class="mk-dialog"><div class="t">' + M('choose_folder', 'Choose a folder') + '</div><div class="f">&#128193; ' + M('desktop', 'Desktop') + '</div><div class="f pick">&#128193; ' + M('documents', 'Documents') + '</div><div class="f">&#128193; ' + M('pictures', 'Pictures') + '</div></div>'
     : '';
   return '<span class="mock-badge">' + COPY.example + '</span>' + win + extra + '<div class="cursor">' + CURSOR_SVG + '</div>';
 }
-function mockBody(id) {
-  const local = esc(T('setup.thinking.local_title', 'On my Mac'));
-  if (id === 'thinking') return '<div class="mk-choices"><div class="mk-choice on"><b>' + local + '</b><span>' + M('private_free', 'Private. Free.') + '</span><span class="mk-tick">&#10003;</span></div><div class="mk-choice"><b>' + M('online', 'Online') + '</b><span>' + M('needs_key', 'Smarter. Needs a key.') + '</span></div></div>';
+function mockBody(id, onlineExample) {
+  const local = esc(T(PC('setup.thinking.local_title'), PC_WORDS.local_title));
+  if (id === 'thinking') {
+    const tick = '<span class="mk-tick">&#10003;</span>';
+    return '<div class="mk-choices"><div class="mk-choice' + (onlineExample ? '' : ' on') + '"><b>' + local + '</b><span>' + M('private_free', 'Private. Free.') + '</span>' + (onlineExample ? '' : tick) + '</div>'
+      + '<div class="mk-choice' + (onlineExample ? ' on' : '') + '"><b>' + M('online', 'Online') + '</b><span>' + M('needs_key', 'Smarter. Needs a key.') + '</span>' + (onlineExample ? tick : '') + '</div></div>';
+  }
   if (id === 'permissions') return '<div class="mk-row"><b>' + esc(T('setup.step.permissions.title', 'What may it do alone?')) + '</b><span class="mk-select"><span class="mk-sel-a">' + esc(AUTONOMY[2].title) + '</span><span class="mk-sel-b">' + esc(AUTONOMY[0].title) + '</span></span><div class="mk-menu"><div>' + esc(AUTONOMY[2].title) + '</div><div>' + esc(AUTONOMY[1].title) + '</div><div class="pick">' + esc(AUTONOMY[0].title) + '</div></div></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
   if (id === 'name') return '<div class="mk-field"><span class="mk-input"><span class="mk-typed">' + M('name', 'Sam') + '</span><span class="mk-caret"></span></span><span class="mk-save">' + M('save', 'Save') + '</span></div><span class="mk-saved">' + M('saved', 'Saved') + ' &#10003;</span>';
   return '<div class="mk-row"><b>' + M('pick_folder', 'Pick a folder') + '</b></div>';
 }
-function renderMock(id) {
+function renderMock(id, onlineExample) {
   const mock = $('#mock');
-  mock.className = 'mock';
+  mock.className = 'mock' + (onlineExample ? ' online-example' : '');
   mock.dataset.step = id;
-  mock.innerHTML = mockFor(id);
+  mock.innerHTML = mockFor(id, onlineExample);
   applyMotion();
 }
 function applyMotion() {
@@ -471,18 +497,23 @@ function render() {
     dots.appendChild(li);
   });
   $('#stepTitle').textContent = step.title;
-  $('#stepSentence').textContent = step.sentence;
-  $('#caption').textContent = CAPTIONS[step.id] || '';
-  renderMock(step.id);
-  // The thinking example shows a click that succeeds; with no private model here that click cannot
-  // succeed, so the example steps aside instead of promising it.
-  const hideExample = step.id === 'thinking' && noLocalModel();
-  $('#mock').hidden = hideExample;
-  $('.example-bar').hidden = hideExample;
+  // The page's own step model words the sentence for this computer ("this Mac" only on a Mac).
+  $('#stepSentence').textContent = (STEPS.find((s) => s.id === step.id) || step).sentence;
+  // The thinking example shows a click that succeeds. With no private model here, clicking the private
+  // choice cannot succeed, so the example picks "Online" instead of promising it.
+  const onlineExample = step.id === 'thinking' && noLocalModel();
+  $('#caption').textContent = (onlineExample ? CAPTIONS.thinking_online : CAPTIONS[step.id]) || '';
+  renderMock(step.id, onlineExample);
+  $('#mock').hidden = false;
+  $('.example-bar').hidden = false;
   renderControl(step);
   const st = $('#stepStatus');
   st.className = 'status' + (step.done ? ' done' : (step.skipped ? ' skipped' : ''));
-  st.textContent = step.done ? fmt(COPY.done, { later: step.later }) : (step.skipped ? fmt(COPY.skipped, { later: step.later }) : '');
+  // The page's own step model names the place to go later, worded to follow "in"; a place that ends in its
+  // own question mark keeps it, without a second full stop after it.
+  const where = (STEPS.find((s) => s.id === step.id) || step).later;
+  const said = step.done ? fmt(COPY.done, { later: where }) : (step.skipped ? fmt(COPY.skipped, { later: where }) : '');
+  st.textContent = said.replace(/([?!？！؟])[.。]$/, '$1');
   $('#backBtn').disabled = view.index === 0;
   $('#skipBtn').hidden = !!step.done;
   document.body.dataset.step = step.id;
@@ -519,7 +550,7 @@ function renderSummary() {
   }
   $('#skipBtn').hidden = true;
   $('#backBtn').disabled = false;
-  $('#nextBtn').textContent = T('setup.summary.close', 'Close');
+  $('#nextBtn').textContent = T('keyguide.setup_close', 'Close');
 }
 
 /* ------------------------------------------------------------------ the real controls */
@@ -537,14 +568,14 @@ function fail(host, msg) { setNote('failed', msg); }
 function controlThinking(host, step) {
   const row = el('div', 'choices');
   const unavailable = noLocalModel();
-  const localTitle = T('setup.thinking.local_title', 'On my Mac');
+  const localTitle = T(PC('setup.thinking.local_title'), PC_WORDS.local_title);
   const local = el('button', 'choice'); local.type = 'button'; local.id = 'chooseLocal';
   local.appendChild(el('b', null, localTitle));
   local.appendChild(el('span', null, unavailable
     ? T('setup.thinking.local_not_ready', 'Not ready yet: there is no private model on this computer.')
     : T('setup.thinking.local_sub', 'Private and free. Nothing you type leaves this computer.')));
   const online = el('button', 'choice'); online.type = 'button'; online.id = 'chooseOnline';
-  online.appendChild(el('b', null, T('setup.thinking.online_title', 'Online, with a key'))); online.appendChild(el('span', null, T('setup.thinking.online_sub', 'Smarter answers. You paste a key from a company you pay; it is kept only on this Mac.')));
+  online.appendChild(el('b', null, T('setup.thinking.online_title', 'Online, with a key'))); online.appendChild(el('span', null, T(PC('setup.thinking.online_sub'), PC_WORDS.online_sub)));
   local.setAttribute('aria-pressed', step.done ? 'true' : 'false');
   if (unavailable) { local.classList.add('unavailable'); local.setAttribute('aria-disabled', 'true'); }
   local.addEventListener('click', async () => {
@@ -560,7 +591,7 @@ function controlThinking(host, step) {
     if (!res.ok && res.status !== 409) { fail(host, notSaved(res)); return; }
     await refresh();
     if (!current().done) setNote('failed', T('setup.thinking.local_not_confirmed', 'VOOL could not confirm a private model on this computer yet, so this step stays open.'));
-    live(current().done ? T('setup.status.saved_thinking', 'Saved: VOOL thinks on this Mac.') : T('setup.status.not_confirmed', 'Not confirmed yet.'));
+    live(current().done ? T(PC('setup.status.saved_thinking'), PC_WORDS.saved_thinking) : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   });
   online.addEventListener('click', () => openSettings('keys'));
   row.appendChild(local); row.appendChild(online);
@@ -573,7 +604,7 @@ function controlThinking(host, step) {
 // the owner names the cloud model once, and Auto uses it only while no local model runs.
 function controlCloudDefault(host, cloud) {
   const box = el('div', 'cloud-default'); box.id = 'cloudDefault';
-  const localTitle = T('setup.thinking.local_title', 'On my Mac');
+  const localTitle = T(PC('setup.thinking.local_title'), PC_WORDS.local_title);
   const onlineTitle = T('setup.thinking.online_title', 'Online, with a key');
   box.appendChild(el('p', null, fmt(T('setup.thinking.no_local', 'There is no private model on this computer yet, so “{local}” can’t answer.'), { local: localTitle })));
   const candidates = Array.isArray(cloud.candidates) ? cloud.candidates : [];
@@ -642,7 +673,7 @@ function controlFolder(host, step) {
     draft('folder', '');
     const where = (res.json && res.json.project && res.json.project.root) || clean;
     await refresh();
-    if (current().done) setNote('done', fmt(T('setup.status.folder_where', 'VOOL works inside {root}.'), { root: where }));
+    if (current().done) setNote('done', fmt(T('setup.status.saved_folder', 'Saved: VOOL works inside {name}.'), { name: where }));
     live(current().done ? fmt(T('setup.status.saved_folder', 'Saved: VOOL works inside {name}.'), { name: name }) : T('setup.status.not_confirmed', 'Not confirmed yet.'));
   };
   choose.addEventListener('click', async () => {
@@ -823,6 +854,21 @@ window.__voolSetup = {
 """
 
 
+# Keys whose words name "this Mac". Off a Mac the page uses their "_pc" twin, which says "this computer".
+_MAC_WORDED_KEYS = frozenset({"setup.step.thinking.sentence", "setup.step.name.sentence", "setup.caption.thinking"})
+# The page says "you can change this any time in {later}"; the folder step's shared wording ("the “+ Project”
+# button in the chat sidebar") does not follow "in", so the page names the place instead.
+_LATER_KEYS = {"folder": "setup.page.folder_later"}
+
+
+def _on_mac() -> bool:
+    return sys.platform == "darwin"
+
+
+def _platform_key(key: str) -> str:
+    return key if _on_mac() or key not in _MAC_WORDED_KEYS else key + "_pc"
+
+
 def setup_steps_model(ui_locale: str = "en") -> list[dict]:
     """The step model, resolved through the deterministic catalog for one UI locale.
 
@@ -838,8 +884,8 @@ def setup_steps_model(ui_locale: str = "en") -> list[dict]:
         {
             "id": s.id,
             "title": catalog.text(f"setup.step.{s.id}.title") if s.title else "",
-            "sentence": catalog.text(f"setup.step.{s.id}.sentence") if s.sentence else "",
-            "later": catalog.text(f"setup.step.{s.id}.later") if s.later else "",
+            "sentence": catalog.text(_platform_key(f"setup.step.{s.id}.sentence")) if s.sentence else "",
+            "later": catalog.text(_LATER_KEYS.get(s.id, f"setup.step.{s.id}.later")) if s.later else "",
         }
         for s in STEPS
     ]
@@ -875,7 +921,7 @@ def _localized_captions(ui_locale: str) -> dict:
     from core.i18n.catalog import catalog_for
 
     catalog = catalog_for(ui_locale)
-    return {step_id: catalog.text(f"setup.caption.{step_id}") for step_id in CAPTIONS}
+    return {step_id: catalog.text(_platform_key(f"setup.caption.{step_id}")) for step_id in CAPTIONS}
 
 
 def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
@@ -899,6 +945,7 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en") -> 
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_CAPTIONS__", json.dumps(_localized_captions(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
+        .replace("__SETUP_ON_MAC__", "true" if _on_mac() else "false")
         # The bootstrap defines VOOLT before the page's own script runs (setup has no
         # document-order law; a plain head-adjacent injection is the documented form).
         .replace("<script>\nconst STEPS", render_i18n_bootstrap(tag) + "\n<script>\nconst STEPS", 1)
