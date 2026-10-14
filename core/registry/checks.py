@@ -209,6 +209,10 @@ def _code(artifact: dict) -> list[dict]:
     if declared:
         findings.append(_finding("code", ".codex-plugin/plugin.json", "The manifest declares " + ", ".join(declared) +
                                  ", which run code. Skills can't run code."))
+    if "vool" in manifest:
+        # VOOL writes this block itself to mark a pack as the owner's own; a package claiming it would pass as theirs.
+        findings.append(_finding("code", ".codex-plugin/plugin.json", "The manifest has a \"vool\" section, which only "
+                                 "VOOL itself writes. Take it out."))
     for field in ("permissions", "credential_bindings"):
         if manifest.get(field):
             findings.append(_finding("code", ".codex-plugin/plugin.json", "The manifest asks for " +
