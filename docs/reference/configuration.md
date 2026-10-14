@@ -29,8 +29,7 @@ Change settings in the app under **Settings**. The ones that decide what VOOL ma
 * **Operating mode** — Manual asks before every change; Auto lets everyday edits and
   commands run, while deleting, overwriting, installing, spending and changing settings
   still ask. See [Tools](../concepts/tools.md).
-* **Online features** — web access, update checks and crypto stay off on a fresh install
-  until you turn them on.
+* **Web access and crypto** — both stay off until you turn them on.
 
 VOOL has no product telemetry setting because it sends no product telemetry.
 
