@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tests._credential_intelligence_support import FakeProviderServer, isolated_home, vault_home  # noqa: F401 (fixtures)
+from tests._credential_intelligence_support import FakeProviderServer, isolated_home, vault_home
 
 SOL = "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"
 EVM_TOKEN = "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae"

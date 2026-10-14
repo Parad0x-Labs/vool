@@ -502,7 +502,8 @@ def _save_analysis(dataset_id: str, focus: str, result: dict[str, Any]) -> None:
             conn.close()
 
 
-def _write_csv_copies(project_id: str, token: str, rows_by_source: dict[str, list[dict[str, Any]]]) -> dict[str, str]:
+def _write_csv_copies(project_id: str, token: str, rows_by_source: dict[str, list[dict[str, Any]]],
+                      now: int) -> dict[str, str]:
     """A CSV copy per source, only when the chat belongs to a project whose folder exists."""
     if not project_id:
         return {}
@@ -514,7 +515,7 @@ def _write_csv_copies(project_id: str, token: str, rows_by_source: dict[str, lis
         return {}
     if not root:
         return {}
-    folder = Path(root) / "market-data" / f"{token}-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    folder = Path(root) / "market-data" / f"{token}-{_iso_date(now)}"
     files: dict[str, str] = {}
     try:
         folder.mkdir(parents=True, exist_ok=True)
@@ -598,7 +599,7 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
 
     total_rows = sum(len(rows) for rows in rows_by_source.values())
     if not total_rows:
-        return _nothing_collected(coverage, web_on)
+        return _nothing_collected(coverage)
     if total_rows > MAX_ROWS:
         keep = total_rows - MAX_ROWS
         for source in ("transfers", "trades", "candles"):
@@ -625,7 +626,7 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
                               or (coverage["sources"][name] or {}).get("stopped_reason")
                               for name in coverage["sources"]) or len(succeeded) < 3
 
-    files = _write_csv_copies(project_id, token, rows_by_source)
+    files = _write_csv_copies(project_id, token, rows_by_source, now)
     if files:
         coverage["files"] = files
     dataset_id, dropped = _store_dataset(token, chain, window_text, coverage, chat_id, project_id, rows_by_source)
@@ -660,7 +661,7 @@ def _collect(args: dict[str, Any], source_context: dict[str, Any] | None) -> dic
     return _result(True, "ok", "\n".join(lines), dataset=dataset_id, coverage=coverage, rows=total_rows)
 
 
-def _nothing_collected(coverage: dict[str, Any], web_on: bool) -> dict[str, Any]:
+def _nothing_collected(coverage: dict[str, Any]) -> dict[str, Any]:
     sources = coverage.get("sources") or {}
     if all((sources.get(name) or {}).get("status") == "skipped" for name in ("candles", "trades", "transfers")):
         return _result(False, "nothing_available", _WEB_OFF_TEXT + " Nothing was collected.", coverage=coverage)
