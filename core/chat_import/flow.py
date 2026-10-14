@@ -109,7 +109,18 @@ def reset_for_tests() -> None:
 
 
 def sources(*, home: Path | None = None, env: dict[str, str] | None = None, platform: str | None = None) -> dict[str, Any]:
+    _drop_orphan_uploads()
     return {"local": local_sources.detect(home=home, env=env, platform=platform), "file": True}
+
+
+def _drop_orphan_uploads() -> None:
+    """Delete picked files no preview refers to any more (left behind by a restart)."""
+    with _LOCK:
+        known = set(_UPLOADS.values())
+        with contextlib.suppress(OSError):
+            for leftover in _import_dir("incoming").iterdir():
+                if leftover.is_file() and leftover.suffix == ".zip" and leftover not in known:
+                    leftover.unlink()
 
 
 # --------------------------------------------------------------------------- upload

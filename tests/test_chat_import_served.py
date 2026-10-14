@@ -429,3 +429,14 @@ def test_a_chat_carrying_words_forgotten_everywhere_is_held_back(app):
     finally:
         connection.close()
     assert all("flourstone" not in text.lower() for text in texts)
+
+
+def test_a_picked_file_left_behind_by_a_restart_is_removed(app):
+    _upload_and_preview(app, _export_zip(EXPORT))
+    incoming = runtime_paths.data_path("chat_import", "incoming")
+    assert len(list(incoming.iterdir())) == 1
+    status, _ = _call(app, "GET", "/api/chat/import/sources")
+    assert status == 200 and len(list(incoming.iterdir())) == 1  # still in use by the open preview
+    flow._UPLOADS.clear()  # what a server restart forgets
+    _call(app, "GET", "/api/chat/import/sources")
+    assert list(incoming.iterdir()) == []

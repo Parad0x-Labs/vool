@@ -261,6 +261,7 @@ function mountInto(host){
   lookBtn.addEventListener('click', look);
 
   var progress = h('progress', 'vci-progress'); progress.hidden = true; progress.max = 1; progress.value = 0;
+  progress.setAttribute('aria-hidden', 'true'); // the status line above reads the same progress aloud
   root.insertBefore(progress, previewBox);
   function resultText(outcome){
     var parts = [IT('chatimport.result.brought', '{n, plural, one {Brought in {n} chat.} other {Brought in {n} chats.}}', {n: outcome.brought_in || 0})];
