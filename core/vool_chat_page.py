@@ -13245,7 +13245,9 @@ panelBtnEl.addEventListener('click', togglePanel);
         previewEl.textContent = "Couldn't count this chat's messages right now.";
         return;
       }
-      const n = Number(j.message_count) || 0;
+      // No count in the answer means the count is unknown, not zero: never claim an empty chat.
+      if (typeof j.message_count !== 'number') { previewEl.textContent = "Couldn't count this chat's messages right now."; return; }
+      const n = j.message_count;
       if (!n) { nothing('Nothing to export yet. Send a message first.'); return; }
       const lines = ['Exports all ' + n + ' message' + (n === 1 ? '' : 's') + ' in this chat.'];
       if (j.unavailable_by_policy) lines.push(j.unavailable_by_policy + ' kept out by your privacy settings.');
@@ -13270,11 +13272,13 @@ panelBtnEl.addEventListener('click', togglePanel);
     try {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi) {
-        if (typeof nativeApi.save_chat_export !== 'function') throw new Error('This app build cannot save chat exports. Update the app and try again.');
+        // The app's own refusal is the useful part, so it is shown as given.
+        const refusal = (message) => { const err = new Error(message); err.fromApp = true; return err; };
+        if (typeof nativeApi.save_chat_export !== 'function') throw refusal('This app build cannot save chat exports. Update the app and try again.');
         nativeExportBusy = true;
         const result = await nativeApi.save_chat_export(exportChat, fmt,
           el('exportTimestamps').checked, el('exportAttachments').checked);
-        if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'Export save failed');
+        if (!result.ok && !result.cancelled) throw refusal(result.message || result.error || "Couldn\u2019t export this chat. Try again.");
         statusEl.textContent = result.cancelled ? 'Export cancelled.' : 'Export saved.';
         if (result.ok) overlay.hidden = true;
         return;
@@ -13303,6 +13307,7 @@ panelBtnEl.addEventListener('click', togglePanel);
     } catch (e) {
       exportAborter = null;
       statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
+        : (e && e.fromApp) ? e.message
         : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;
