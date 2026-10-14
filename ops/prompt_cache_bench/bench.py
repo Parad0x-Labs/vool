@@ -137,12 +137,17 @@ def load_tasks(only: str = "") -> list[dict[str, Any]]:
 
 
 class SpendLedger:
-    """Money the providers reported, against one hard cap for the whole run root.
+    """Money spent, against one hard cap for the whole run root. Fails closed.
 
-    ``billed_usd`` is money OpenRouter reported charging (VOOL turns and judge calls).
-    ``notional_usd`` is what Claude Code reports for a turn billed to a Claude login: a list-price
-    figure, not a charge on the OpenRouter key. Both count toward the cap unless the run says
-    otherwise, so the cap can only stop a run early, never late.
+    Two independent meters, and the cap is held against the LARGER of them:
+
+    * the per-call figures the providers reported (``billed_usd``; a call whose cost is unknown is
+      held at a full turn reserve in ``held_unknown_usd``, never counted as zero);
+    * the OpenRouter key's own usage counter since this run root started (``key_usage_start``,
+      persisted, so a crash, a timeout, a call no event reported or a resume cannot hide spend).
+
+    ``notional_usd`` is kept for older run roots only. The cap can stop a run early, never late
+    by more than one turn's reserve.
     """
 
     def __init__(self, root: Path, cap_usd: float, *, count_notional: bool = True, hold_usd: float = 0.0) -> None:
@@ -150,23 +155,53 @@ class SpendLedger:
         self.path = root / "spend.json"
         self.cap_usd = float(cap_usd)
         self.count_notional = count_notional
+        self._key = ""
         state = _read_json(self.path, {})
         self.billed_usd = float(state.get("billed_usd") or 0.0)
         self.notional_usd = float(state.get("notional_usd") or 0.0)
+        self.held_unknown_usd = float(state.get("held_unknown_usd") or 0.0)
         self.unknown_cost_calls = int(state.get("unknown_cost_calls") or 0)
         self.max_turn_usd = float(state.get("max_turn_usd") or 0.0)
+        start, last = state.get("key_usage_start"), state.get("key_usage_last")
+        self.key_usage_start = float(start) if isinstance(start, (int, float)) else None
+        self.key_usage_last = float(last) if isinstance(last, (int, float)) else None
         if state.get("cap_usd") not in (None, self.cap_usd):
             # The cap is a property of the run root; a resumed run may lower it, never raise it.
             self.cap_usd = min(self.cap_usd, float(state["cap_usd"]))
 
+    def attach_key(self, key: str) -> None:
+        """Start (or resume) the key-usage meter. The key stays in memory only."""
+        self._key = key
+        if self.key_usage_start is None:
+            self.key_usage_start = key_usage_usd(key)
+            self.key_usage_last = self.key_usage_start
+            self.save()
+
+    def refresh(self) -> None:
+        if self._key:
+            now = key_usage_usd(self._key)
+            if now is not None:
+                self.key_usage_last = now
+                if self.key_usage_start is None:
+                    self.key_usage_start = now
+
+    @property
+    def key_meter_usd(self) -> float | None:
+        if self.key_usage_start is None or self.key_usage_last is None:
+            return None
+        return max(0.0, self.key_usage_last - self.key_usage_start)
+
     @property
     def counted_usd(self) -> float:
-        return self.billed_usd + (self.notional_usd if self.count_notional else 0.0)
+        reported = self.billed_usd + self.held_unknown_usd + (self.notional_usd if self.count_notional else 0.0)
+        return max(reported, self.key_meter_usd or 0.0)
 
     def reserve(self) -> float:
         return max(INITIAL_TURN_RESERVE_USD, 2.0 * self.max_turn_usd) + self.hold_usd
 
     def check(self, what: str) -> None:
+        self.refresh()
+        self.save()
         if self.counted_usd + self.reserve() > self.cap_usd:
             raise CapReached(
                 f"cap stop before {what}: counted ${self.counted_usd:.4f} + reserve ${self.reserve():.4f} "
@@ -180,6 +215,8 @@ class SpendLedger:
             self.notional_usd += float(notional)
         if unknown:
             self.unknown_cost_calls += 1
+            # Unknown is never zero: hold a full turn's reserve (on top of any part that was reported).
+            self.held_unknown_usd += max(INITIAL_TURN_RESERVE_USD, self.max_turn_usd)
         self.max_turn_usd = max(self.max_turn_usd, float(billed or 0.0) + float(notional or 0.0))
         self.save()
 
@@ -188,11 +225,16 @@ class SpendLedger:
             self.path,
             {
                 "cap_usd": self.cap_usd,
+                "counted_usd": round(self.counted_usd, 8),
                 "billed_usd": round(self.billed_usd, 8),
+                "held_unknown_usd": round(self.held_unknown_usd, 8),
                 "notional_usd": round(self.notional_usd, 8),
                 "count_notional": self.count_notional,
                 "unknown_cost_calls": self.unknown_cost_calls,
                 "max_turn_usd": round(self.max_turn_usd, 8),
+                "key_usage_start": self.key_usage_start,
+                "key_usage_last": self.key_usage_last,
+                "key_meter_usd": None if self.key_meter_usd is None else round(self.key_meter_usd, 8),
                 "updated_at": _now(),
             },
         )
@@ -398,8 +440,8 @@ def _done_keys(rows: list[dict[str, Any]]) -> set[tuple[str, int]]:
 def _spend_line(ledger: SpendLedger, results_path: Path) -> str:
     arm = sum(float(r.get("usd") or 0.0) for r in _read_jsonl(results_path) if r.get("kind") == "turn")
     return (
-        f"arm ${arm:.4f} | run billed ${ledger.billed_usd:.4f} + notional ${ledger.notional_usd:.4f} "
-        f"| hard stop at ${ledger.cap_usd:.2f}"
+        f"arm ${arm:.4f} | run counted ${ledger.counted_usd:.4f} (reported ${ledger.billed_usd:.4f}, "
+        f"key meter {'unknown' if ledger.key_meter_usd is None else f'${ledger.key_meter_usd:.4f}'}) | hard stop at ${ledger.cap_usd:.2f}"
     )
 
 
@@ -538,15 +580,16 @@ def cmd_vool(args: argparse.Namespace) -> int:
     if not todo:
         print(json.dumps({"label": args.label, "status": "nothing_to_do"}))
         return EXIT_OK
-    ledger.check(f"{args.label} boot")
     key = resolve_key(args.key_source, args.key_home)
+    ledger.attach_key(key)
+    ledger.check(f"{args.label} boot")
 
     attempt_dir = arm_dir / f"attempt-{int(_now())}"
     attempt_dir.mkdir(parents=True)
     staged = stage_app(REPO, args.sha, attempt_dir)
     home = attempt_dir / "home"
     (attempt_dir / "user-home").mkdir(parents=True, exist_ok=True)
-    remaining = max(0.01, ledger.cap_usd - ledger.counted_usd)
+    remaining = max(0.01, ledger.cap_usd - ledger.counted_usd - ledger.hold_usd)
     _write_home_policy(staged.path, home, per_call=args.per_call_usd, per_task=args.per_task_usd, daily=remaining)
     env = {
         "OPENROUTER_API_KEY": key,
@@ -599,6 +642,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
             session_id = ""
             last_seq = 0
             failure = ""
+            chat_calls = 0
             for index, turn in enumerate(task["turns"]):
                 ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
                 turn_id = f"t{index}-{uuid.uuid4().hex[:8]}"
@@ -652,12 +696,22 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     f"${usage['usd']:.5f} calls={usage['calls']} status={exchange.status} | {_spend_line(ledger, results_path)}",
                     flush=True,
                 )
-                if exchange.error or exchange.status != 200 or not answer or not usage["calls"]:
-                    # VOOL answers a provider failure in words with HTTP 200; no model call means no measurement.
-                    reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else ("empty answer" if not answer else f"no model call: {answer}"))
+                chat_calls += int(usage["calls"])
+                if exchange.error or exchange.status != 200 or not answer:
+                    reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else "empty answer")
                     failure = f"turn {index}: {str(reason)[:300]}"
                     _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name, "reason": failure})
                     break  # later turns build on this one; the chat is re-run whole on resume
+                if not usage["calls"]:
+                    # VOOL answered in words without calling the model (e.g. it sent the question to a
+                    # web lookup that is off). That is the product's answer: it stays in the chat, is
+                    # graded like any other, and is listed in the report.
+                    _append_jsonl(results_path, {"kind": "no_model_call", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name, "answer": answer[:300]})
+                    if index >= 1 and not chat_calls:
+                        # Two turns and not one model call: the route itself is broken (key, provider).
+                        failure = f"turn {index}: no model call in this chat so far: {answer[:240]}"
+                        _append_jsonl(results_path, {"kind": "turn_failed", "task": task["id"], "repeat": repeat, "turn": index, "attempt": attempt_dir.name, "reason": failure})
+                        break
             ok = _close_chat(results_path, task["id"], repeat, attempt_dir.name, failure, any_success=any_success)
             any_success, failed_chats = any_success or ok, failed_chats + (not ok)
         if failed_chats:
@@ -716,6 +770,7 @@ def _scrub_key_from_logs(directory: Path, key: str) -> None:
 # Claude Code CLI arm
 
 
+CLI_MAX_AGENT_TURNS = 8  # one user turn may use a few tool steps; this bounds a runaway loop
 OPENROUTER_ANTHROPIC_BASE = "https://openrouter.ai/api"  # OpenRouter's Anthropic-compatible endpoint
 CLI_SMALL_MODEL = "anthropic/claude-haiku-4.5"  # Claude Code's own background calls, kept on OpenRouter
 
@@ -752,6 +807,8 @@ def cmd_cli(args: argparse.Namespace) -> int:
     version = subprocess.run([claude, "--version"], capture_output=True, text=True, timeout=60).stdout.strip()
     attempt = f"attempt-{int(_now())}"
     key = resolve_key(args.key_source, args.key_home) if args.route == "openrouter" else ""
+    if key:
+        ledger.attach_key(key)
     env = _cli_env(args.route, key, args.cli_model)
     usage_mark = key_usage_usd(key) if key else None
     _write_json(
@@ -772,14 +829,18 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
                     command = [
                         claude, "-p", turn["text"], "--output-format", "json", "--model", args.cli_model,
-                        "--allowedTools", "Read", "Glob", "Grep",
+                        "--allowedTools", "Read", "Glob", "Grep", "--max-turns", str(CLI_MAX_AGENT_TURNS),
                         # No MCP servers from the operator's settings: the arm uses the CLI's own tools.
                         "--strict-mcp-config", "--mcp-config", '{"mcpServers": {}}',
                     ]
                     if session_id:
                         command += ["--resume", session_id]
                     started = time.monotonic()
-                    proc = subprocess.run(command, cwd=workspace, env=env, capture_output=True, text=True, timeout=TURN_TIMEOUT_S)
+                    try:
+                        proc = subprocess.run(command, cwd=workspace, env=env, capture_output=True, text=True, timeout=TURN_TIMEOUT_S)
+                    except subprocess.TimeoutExpired:
+                        # Paid calls may have run: the key meter below still charges this turn.
+                        proc = subprocess.CompletedProcess(command, 124, "", f"timed out after {TURN_TIMEOUT_S:.0f}s")
                     wall = round(time.monotonic() - started, 3)
                     data: dict[str, Any] = {}
                     with contextlib.suppress(ValueError):
@@ -907,6 +968,7 @@ def cmd_grade(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional, hold_usd=getattr(args, "hold_usd", 0.0))
     key = resolve_key(args.key_source, args.key_home)
+    ledger.attach_key(key)
     tasks = {t["id"]: t for t in load_tasks()}
     grades_path = root / "grades.jsonl"
     graded = {(g["label"], g["task"], g["repeat"], g["turn"]) for g in _read_jsonl(grades_path)}
@@ -947,7 +1009,7 @@ def cmd_grade(args: argparse.Namespace) -> int:
                     score, reason = int(verdict["score"]), str(verdict.get("reason") or "")[:300]
                 else:
                     reason = "judge reply unparseable"
-            except (urllib.error.URLError, ValueError, KeyError, TimeoutError) as exc:
+            except Exception as exc:  # any failed judge call: recorded as unknown cost, held
                 reason = f"judge call failed: {type(exc).__name__}"
             ledger.record(billed=cost, notional=None, unknown=cost is None)
             _append_jsonl(
@@ -1017,6 +1079,15 @@ def summarize(root: Path) -> dict[str, Any]:
             "quality_max": 2 * len(known_scores),
             "quality_ungraded": len(scores) - len(known_scores),
         }
+    summary["no_model_call"] = {}
+    counted_keys = {(r["label"], r["task"], int(r["repeat"]), int(r["turn"]), r.get("attempt")) for _, r in _final_rows(root)}
+    for results in sorted(root.glob("*/results.jsonl")):
+        label = results.parent.name
+        misses = [r for r in _read_jsonl(results) if r.get("kind") == "no_model_call"
+                  and (label, r["task"], int(r["repeat"]), int(r["turn"]), r.get("attempt")) in counted_keys]
+        if misses:
+            summary["no_model_call"][label] = {"turns": len(misses), "example_task": misses[0]["task"],
+                                               "example_turn": int(misses[0]["turn"]), "example": str(misses[0].get("answer") or "")}
     # What the table leaves out: chats that failed or never finished still spent money and time.
     summary["not_counted"] = {}
     for results in sorted(root.glob("*/results.jsonl")):
@@ -1064,6 +1135,10 @@ def cmd_report(args: argparse.Namespace) -> int:
             f"{fmt(row['output_tokens'])} | {fmt(row['output_tokens_per_second'])} | {fmt(row['usd_total'])} "
             f"({row['usd_kind']}) | {fmt(row['usd_per_turn'])} | {quality} |"
         )
+    if summary["no_model_call"]:
+        lines += ["", "VOOL answered these turns without calling the model (counted above and graded as answered):", ""]
+        for label, row in summary["no_model_call"].items():
+            lines.append(f"- {label}: {row['turns']} turns. e.g. turn {row['example_turn']} of {row['example_task']}: {row['example'][:200]}")
     if summary["not_counted"]:
         lines += ["", "Not counted above (failed or unfinished chats; their spend is in the totals):", ""]
         for label, row in summary["not_counted"].items():
@@ -1134,6 +1209,10 @@ def _check_claude_cli(claude_bin: str, model: str, key: str, root: Path, ledger:
     claude = shutil.which(claude_bin)
     if not claude:
         return f"Claude Code is not installed or not on PATH ({claude_bin})"
+    try:
+        ledger.check("the Claude Code check")
+    except CapReached as stop:
+        return str(stop)
     probe_dir = root / "check" / "claude-probe"
     probe_dir.mkdir(parents=True, exist_ok=True)
     try:
@@ -1143,6 +1222,7 @@ def _check_claude_cli(claude_bin: str, model: str, key: str, root: Path, ledger:
             cwd=probe_dir, env=_cli_env("openrouter", key, model), capture_output=True, text=True, timeout=180,
         )
     except subprocess.TimeoutExpired:
+        ledger.record(billed=None, notional=None, unknown=True)
         return "Claude Code did not answer within 3 minutes"
     finally:
         shutil.rmtree(probe_dir, ignore_errors=True)
@@ -1151,7 +1231,8 @@ def _check_claude_cli(claude_bin: str, model: str, key: str, root: Path, ledger:
         parsed = json.loads(proc.stdout.strip().splitlines()[-1])
         data = parsed if isinstance(parsed, dict) else {}
     cost = data.get("total_cost_usd")
-    ledger.record(billed=float(cost) if isinstance(cost, (int, float)) else None, notional=None, unknown=False)
+    known = isinstance(cost, (int, float))
+    ledger.record(billed=float(cost) if known else None, notional=None, unknown=not known)
     if proc.returncode or data.get("is_error") or not str(data.get("result") or "").strip():
         said = str(data.get("result") or proc.stderr or proc.stdout or "").strip().splitlines()
         return f"Claude Code could not answer through OpenRouter: {(said[0] if said else f'exit {proc.returncode}')[:200]}"

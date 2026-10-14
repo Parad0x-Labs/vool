@@ -613,6 +613,24 @@ def provider_reported_usd(usage: Any) -> float | None:
     return max(0.0, total)
 
 
+def _with_anthropic_cache_tokens(usage: Any, prompt_tokens: int) -> int:
+    """Anthropic's native usage counts cache reads and writes OUTSIDE ``input_tokens``; the prompt
+    total is their sum. A block that already says ``prompt_tokens`` (OpenAI/OpenRouter shape)
+    includes them and is left alone."""
+    try:
+        block = dict(usage or {})
+    except Exception:
+        return prompt_tokens
+    if "prompt_tokens" in block or "cache_creation_input_tokens" not in block:
+        return prompt_tokens
+    extra = 0
+    for name in ("cache_creation_input_tokens", "cache_read_input_tokens"):
+        value = block.get(name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            extra += int(value)
+    return prompt_tokens + extra
+
+
 def settlement_usd(
     *,
     provider_id: str,
@@ -628,6 +646,7 @@ def settlement_usd(
     """
     reported = provider_reported_usd(usage)
     prompt_tokens, completion_tokens = usage_tokens(usage)
+    prompt_tokens = _with_anthropic_cache_tokens(usage, prompt_tokens)
     attempts = max(1, int(attempts))
     if reported is not None:
         return CostEstimate(
@@ -670,7 +689,7 @@ def settlement_usd(
         )
     # The provider counted what it wrote: only those tokens carry the write surcharge. Cache READS
     # stay at the full input rate here (no discount is assumed without a reported cost).
-    from core.prompt_cache import ANTHROPIC_CACHE_WRITE_MULTIPLIER
+    from core.prompt_cache import ANTHROPIC_CACHE_WRITE_MULTIPLIER, reservation_cache_plan
 
     base = estimate_call_usd(
         provider_id=provider_id,
@@ -681,7 +700,9 @@ def settlement_usd(
         include_cache_write=False,
     )
     written = min(written, prompt_tokens)
-    if written <= 0:
+    if written <= 0 or not reservation_cache_plan(model_id).enabled:
+        # Only a call VOOL can mark is billed a write surcharge; with the flag off, or for a model
+        # that caches on its own, settlement is what it was before breakpoints existed.
         return base
     price = lookup_model_price(provider_id, model_id, prompt_tokens=prompt_tokens)
     surcharge = written * float(price.prompt_usd_per_token) * (ANTHROPIC_CACHE_WRITE_MULTIPLIER - 1.0) * attempts

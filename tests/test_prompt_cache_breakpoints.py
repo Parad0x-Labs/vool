@@ -150,3 +150,34 @@ def test_the_usage_meter_records_cache_writes(tmp_path, monkeypatch) -> None:
     finally:
         conn.close()
     assert row[0] == 800
+
+
+def test_anthropic_native_usage_settles_the_cached_tokens_too(flag_on) -> None:
+    """Anthropic counts cache reads and writes outside ``input_tokens``; leaving them out undercharges."""
+    from core.model_pricing import settlement_usd
+
+    provider = "openrouter-byok:" + CLAUDE
+    native = settlement_usd(
+        provider_id=provider, model_id=CLAUDE,
+        usage={"input_tokens": 50, "output_tokens": 10, "cache_creation_input_tokens": 8_000, "cache_read_input_tokens": 2_000},
+    )
+    same = settlement_usd(
+        provider_id=provider, model_id=CLAUDE,
+        usage={"prompt_tokens": 10_050, "completion_tokens": 10, "prompt_tokens_details": {"cache_write_tokens": 8_000}},
+    )
+    assert native.prompt_tokens == 10_050
+    assert native.usd == pytest.approx(same.usd)
+
+
+def test_a_searched_claude_call_without_a_cost_counts_the_write_and_the_search(flag_on) -> None:
+    from core.model_own_tools import provider_search_fee_usd, searched_call_cost_estimate
+    from core.model_pricing import settlement_usd
+
+    provider = "openrouter-byok:" + CLAUDE
+    usage = {
+        "prompt_tokens": 20_000, "completion_tokens": 100,
+        "prompt_tokens_details": {"cache_write_tokens": 20_000}, "server_tool_use": {"web_search_requests": 2},
+    }
+    tokens = settlement_usd(provider_id=provider, model_id=CLAUDE, usage=usage)
+    counted = searched_call_cost_estimate(provider_id=provider, model_id=CLAUDE, usage=usage)
+    assert counted["usd"] == pytest.approx(tokens.usd + provider_search_fee_usd(usage))

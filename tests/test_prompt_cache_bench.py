@@ -162,3 +162,30 @@ def test_the_claude_code_arm_must_answer_on_the_pinned_model() -> None:
     assert "did not answer on" in bench._wrong_cli_model({"modelUsage": {"anthropic/claude-sonnet-4": {}}}, pinned)
     assert "did not answer on" in bench._wrong_cli_model({"modelUsage": {"claude-opus-5-5": {}}}, pinned)
     assert "opus" in bench._wrong_cli_model({"modelUsage": {"claude-sonnet-4-5": {}, "claude-opus-5-5": {}}}, pinned)
+
+
+def test_a_call_with_no_reported_cost_is_held_not_counted_as_zero(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(bench, "key_usage_usd", lambda key: None)  # the key meter is unreachable
+    ledger = bench.SpendLedger(tmp_path, 1.0)
+    ledger.record(billed=None, notional=None, unknown=True)
+    assert ledger.counted_usd >= bench.INITIAL_TURN_RESERVE_USD
+    resumed = bench.SpendLedger(tmp_path, 1.0)  # a crash and resume keeps the hold
+    assert resumed.counted_usd == pytest.approx(ledger.counted_usd)
+    resumed.check("the second turn")  # $0.40 held + $0.40 reserve fits under $1
+    resumed.record(billed=None, notional=None, unknown=True)
+    with pytest.raises(bench.CapReached):
+        resumed.check("the third turn")
+
+
+def test_spend_no_event_reported_still_stops_the_run_through_the_key_meter(tmp_path, monkeypatch) -> None:
+    usage = {"now": 10.0}
+    monkeypatch.setattr(bench, "key_usage_usd", lambda key: usage["now"])
+    ledger = bench.SpendLedger(tmp_path, 2.0)
+    ledger.attach_key("sk-or-test")
+    ledger.check("the first turn")
+    usage["now"] = 11.8  # a timed-out turn spent $1.80 that no event reported
+    resumed = bench.SpendLedger(tmp_path, 2.0)
+    resumed.attach_key("sk-or-test")  # resuming keeps the run's starting meter
+    with pytest.raises(bench.CapReached, match=r"counted \$1\.8000"):
+        resumed.check("the next turn")
+    assert "sk-or-test" not in (tmp_path / "spend.json").read_text(encoding="utf-8")
