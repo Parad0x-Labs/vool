@@ -663,8 +663,9 @@ function vnClampBubble() {
   vnBubble.style.setProperty("--vn-bubble-dx", dx + "px");
 }
 /* The BOUND chat's title. The chat page already owns chat titles, so reuse that owner instead
-   of duplicating the lookup; if it is not reachable from here, fall back to the session tail
-   the page itself uses. Never another chat's title -- always the id this pet is bound to. */
+   of duplicating the lookup. A chat with no title yet reads "New chat" in the UI language, never
+   a raw id tail a person cannot place. Never another chat's title -- always the id this pet is
+   bound to. */
 function vnBoundChatTitle(chatId) {
   const id = String(chatId || "");
   if (!id) return "";

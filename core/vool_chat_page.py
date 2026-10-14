@@ -11,6 +11,7 @@ message has a Copy button.
 """
 from __future__ import annotations
 
+from core.ui_icons import ICON_CSS
 from core.ui_palette import DARK_PALETTE_CSS
 
 _VOOL_CHAT_HTML = r"""<!doctype html>
@@ -403,6 +404,12 @@ header a:hover { text-decoration:underline; }
   header #modelBtn .model-lane.auto + #modelLbl { flex-shrink:0; }
 }
 #menu { display:none; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; cursor:pointer; }
+/* Zero-height anchor between the conversation and the composer: the button floats over the
+   bottom of #log without taking layout space from either. */
+#jumpLatestWrap { position:relative; height:0; z-index:5; }
+#jumpLatest { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.28); }
+#jumpLatest:hover, #jumpLatest:focus-visible { border-color:var(--accent); }
+#jumpLatest[hidden] { display:none; }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
 .msg.user { align-self:flex-end; background:var(--user); border:1px solid var(--border); }
@@ -469,6 +476,16 @@ header a:hover { text-decoration:underline; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
 .empty-sub { color:var(--ink); font-size:16px; margin-bottom:18px; }
+.empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
+.empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
+.empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
+/* On a phone the starters stack on the left, clear of the pet's resting spot on the right, and stay
+   under menus and panels (no z-index of their own). */
+@media (max-width:600px) { .empty-starts { flex-direction:column; align-items:flex-start; } }
+/* While the box holds a draft the starters step back, so it is clear they would not replace it. */
+#log.has-draft .empty-starts { visibility:hidden; }
+/* Shortcut labels read left to right in every language ("Ctrl+/" never turns into "/+Ctrl"). */
+kbd { direction:ltr; unicode-bidi:isolate; }
 .empty-hint { font-family:Georgia,'Times New Roman',serif; font-style:italic; font-size:14px; line-height:1.5; color:var(--ink); max-width:440px; margin:2px auto 0; }
 /* A size container: the control row's breakpoint has to key off the room the FOOTER actually has,
    not off the window. The sidebar and the Activity panel can take 900px of a 1280px window, so a
@@ -1182,13 +1199,13 @@ body:not(.panel-open) #xpanel { display:none; }
   <div id="sessions"></div>
   <div class="side-foot">
     <details id="homeMenu" class="home-menu">
-      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span aria-hidden="true">&#8962;</span> <span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
+      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span class="vi" data-ico="home" aria-hidden="true"></span><span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
       <div id="homeOptions" class="home-options" role="group" aria-label="Home" data-i18n-aria-label="sidebar.home">
-        <button id="pluginsBtn" type="button" class="side-foot-btn" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
-        <button id="filesBtn" type="button" class="side-foot-btn" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">&#128193; Files</button>
-        <button id="contactsBtn" type="button" class="side-foot-btn" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">&#128100; Contacts</button>
-        <button id="settingsBtn" type="button" class="side-foot-btn" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">&#9881; Settings</button>
-        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
+        <button id="pluginsBtn" type="button" class="side-foot-btn vi" data-ico="addons" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
+        <button id="filesBtn" type="button" class="side-foot-btn vi" data-ico="files" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">Files</button>
+        <button id="contactsBtn" type="button" class="side-foot-btn vi" data-ico="contacts" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">Contacts</button>
+        <button id="settingsBtn" type="button" class="side-foot-btn vi" data-ico="settings" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">Settings</button>
+        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn vi" data-ico="report" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
       </div>
     </details>
   </div>
@@ -1223,7 +1240,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
-  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i">&#128204;</span><span class="pin-n"></span></button>
+  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
   <button id="panelBtn" type="button" aria-pressed="false" title="Show what VOOL did this turn — tools, files, tests, receipts" data-i18n="header.activity" data-i18n-title="header.activity_title">Activity</button>
@@ -1255,6 +1272,7 @@ body:not(.panel-open) #xpanel { display:none; }
   <button type="button" id="searchClose" class="search-btn" title="Close search (Esc)" aria-label="Close search" data-i18n-title="header.search_close_title" data-i18n-aria-label="header.search_close_aria">&times;</button>
 </div>
 <div id="log" role="log" aria-live="polite" aria-label="Conversation" data-i18n-aria-label="chat.log_aria"></div>
+<div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
     <span class="setup-line-text" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
@@ -1264,7 +1282,7 @@ body:not(.panel-open) #xpanel { display:none; }
   <div id="queueWaiting" role="status"></div>
   <div id="queue" aria-label="Queued messages" data-i18n-aria-label="chat.queue_aria"></div>
   <div id="permBar" class="perm-bar" role="alertdialog" aria-label="Permission needed" data-i18n-aria-label="permissions.bar_aria" hidden>
-    <span class="perm-ico">&#128272;</span>
+    <span class="perm-ico vi" data-ico="lock" aria-hidden="true"></span>
     <span class="perm-copy"><span class="perm-msg" id="permMsg" data-i18n="permissions.bar_message">Permission needed</span><span class="perm-meta" id="permMeta"></span><span class="perm-detail" id="permDetail" hidden></span></span>
     <span class="perm-actions">
       <button type="button" id="permOnce" class="perm-btn" data-i18n="permissions.allow_once">Allow once</button>
@@ -1294,7 +1312,7 @@ body:not(.panel-open) #xpanel { display:none; }
     <div id="ownToolsBanner" class="own-tools-banner" hidden title="The model's own tools are on: cloud models you choose don't get VOOL's tools, and some search the web themselves. Auto and local models keep VOOL's tools." data-i18n-title="own_tools.banner_title"><span class="ot-mark" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6.6 1.4a2.4 2.4 0 0 0-2.9 3.1L1.4 6.8a.9.9 0 0 0 1.3 1.3L5 5.8a2.4 2.4 0 0 0 3.1-2.9L6.8 4.2 5.8 3.2z"/></svg></span><span class="ot-text" data-i18n="own_tools.banner">Model's own tools</span><button type="button" id="ownToolsEnd" aria-label="Turn off the model's own tools" title="Turn off the model's own tools" data-i18n-aria-label="own_tools.end_title" data-i18n-title="own_tools.end_title">&times;</button></div>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
-      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
+      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico vi" data-ico="attach" aria-hidden="true"></span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
       <input type="file" id="attachInput" multiple hidden tabindex="-1" aria-hidden="true">
     </div>
     <div id="ctxBar" class="ctx-bar" aria-label="Current project and chat" data-i18n-aria-label="chat.ctx_aria"></div>
@@ -1308,8 +1326,8 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
   <div class="composer-row">
     <textarea id="input" dir="auto" aria-label="Message VOOL" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
-    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#127897;</span></button>
-    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#128266;</span></button>
+    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="mic" aria-hidden="true"></span></button>
+    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="voice" aria-hidden="true"></span></button>
     <button id="send" data-i18n="composer.send">Send</button>
   </div>
   <div id="dictationNotice" hidden><div id="dictationNote" role="status" hidden></div><button id="dictationDismiss" type="button" aria-label="Dismiss speech notice permanently" title="Don't show this notice again">×</button></div>
@@ -1409,7 +1427,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="pinOverlay" class="modal-overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
     <div class="modal-head">
-      <span id="pinTitle">&#128204; Pinned in this chat</span>
+      <span id="pinTitle">Pinned in this chat</span>
       <button type="button" id="pinClose" class="modal-x" title="Close" aria-label="Close pinned">&times;</button>
     </div>
     <div class="modal-body" id="pinBody"></div>
@@ -1455,7 +1473,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="bugReportOverlay" class="modal-overlay" hidden>
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
     <div class="modal-head">
-      <span id="bugReportTitle">&#128172; Report a problem</span>
+      <span id="bugReportTitle">Report a problem</span>
       <button type="button" id="bugReportClose" class="modal-x" title="Close" aria-label="Close bug report">&times;</button>
     </div>
     <div class="modal-body" id="bugReportBody"></div>
@@ -1623,6 +1641,43 @@ body:not(.panel-open) #xpanel { display:none; }
   });
 })();
 const logEl = document.getElementById('log');
+// The browser tab tells someone working in another tab that VOOL is done or waiting on them, and
+// goes back to plain "VOOL" the moment they look. Only a real terminal state marks it.
+const TAB_TITLE = document.title || 'VOOL';
+function markTabTitle(kind) {
+  if (!document.hidden) return;
+  const word = kind === 'completed' ? pageT('chat.tab_answer_ready', 'Answer ready')
+    : kind === 'awaiting_approval' ? pageT('chat.tab_needs_you', 'Needs your OK')
+    : kind === 'failed' ? pageT('chat.tab_failed', 'Something went wrong') : '';
+  if (word) document.title = '\u25CF ' + word + ' \u00B7 ' + TAB_TITLE;
+}
+// Shortcut key caps say what to press on THIS machine: the handlers all accept Cmd or Ctrl, so a
+// Mac shows the command sign and Linux/Windows show "Ctrl+". Unknown platforms keep the sign.
+const VOOL_IS_MAC = (() => {
+  try {
+    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    return !p || /mac|iphone|ipad|ipod/i.test(p);
+  } catch (e) { return true; }
+})();
+function voolKeyLabel(text) { return VOOL_IS_MAC ? String(text) : String(text).replace(/\u2318\s?/g, 'Ctrl+'); }
+function voolKeyLabelsIn(root) {
+  if (VOOL_IS_MAC || !root) return;
+  root.querySelectorAll('kbd').forEach((k) => { if (k.textContent.indexOf('\u2318') !== -1) k.textContent = voolKeyLabel(k.textContent); });
+}
+// The conversation follows new text only while the reader is already at the bottom. Scrolling up
+// to read an earlier answer pins the view where the reader left it; the "Latest" button (shown
+// while they are scrolled away from the bottom) brings them back. Their own send always follows.
+const LOG_FOLLOW_SLACK = 80;
+let logFollowing = true;
+const jumpLatestEl = document.getElementById('jumpLatest');
+function logAtBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight <= LOG_FOLLOW_SLACK; }
+function syncJumpLatest() { if (jumpLatestEl) jumpLatestEl.hidden = logFollowing || logAtBottom(); }
+function followLog(force) {
+  if (force || logFollowing) { logEl.scrollTop = logEl.scrollHeight; logFollowing = true; }
+  syncJumpLatest();
+}
+logEl.addEventListener('scroll', () => { logFollowing = logAtBottom(); syncJumpLatest(); }, { passive: true });
+if (jumpLatestEl) jumpLatestEl.addEventListener('click', () => followLog(true));
 const inputEl = document.getElementById('input');
 const sendEl = document.getElementById('send');
 // Catalog lookup for the composer's own words: the deterministic i18n bundle resolves the
@@ -2600,9 +2655,17 @@ function showEmpty() {
     ['first_run.fact_20', 'Bigger is not always better — a small local model answers everyday questions instantly.'],
   ];
   const fact = facts[Math.floor(Math.random() * facts.length)];
+  // Three first steps a new person can take with one tap. Each only fills the message box -- it
+  // never sends -- so the model, mode and every approval stay exactly what the person chose.
+  const starts = [
+    ['first_run.start_what_can_you_do', 'What can you do?'],
+    ['first_run.start_plan_my_day', 'Help me plan my day'],
+    ['first_run.start_explain', 'Explain something to me simply'],
+  ];
   logEl.innerHTML = '<div class="empty">'
     + '<div class="empty-greet">' + esc(greet) + '</div>'
     + '<div class="empty-sub">' + esc(line) + '</div>'
+    + '<div class="empty-starts">' + starts.map((st) => { const t = emptyT(st[0], st[1]); return '<button type="button" class="empty-start" data-start="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>'
     + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
     + '</div>';
 }
@@ -2695,7 +2758,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
   if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(role === 'user');   // the reader's own message always brings them down; replies follow only if they were there
   return el;
 }
 
@@ -2882,7 +2945,7 @@ async function unpinFromPanel(pinId) {
 }
 
 function copyText(text, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, btn, done));
   } else {
@@ -2908,7 +2971,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = pageT('msg.copy_failed', 'Copy failed');
+  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed') : 'Copy failed';
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -2935,7 +2998,7 @@ function richHtmlFor(raw) {
 }
 
 function copyRichMessage(raw, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   let html = '';
   try { html = richHtmlFor(raw); } catch (e) { html = ''; }
   if (!html || typeof window.ClipboardItem !== 'function' || !(navigator.clipboard && navigator.clipboard.write)) { copyText(raw, btn); return; }
@@ -3233,12 +3296,12 @@ function makeSessionItem(s, archived, nested) {
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
-  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour'); semo.setAttribute('aria-label', 'Emoji and colour for this chat');
+  semo.type = 'button'; semo.className = 's-act vi'; semo.dataset.ico = 'palette'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour'); semo.setAttribute('aria-label', 'Emoji and colour for this chat');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
   actions.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
-    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = pageT('session.move_title', 'Move to project'); move.setAttribute('aria-label', 'Move chat to a project');
+    move.type = 'button'; move.className = 's-act vi'; move.dataset.ico = 'move'; move.title = pageT('session.move_title', 'Move to project'); move.setAttribute('aria-label', 'Move chat to a project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
@@ -3250,15 +3313,15 @@ function makeSessionItem(s, archived, nested) {
     actions.appendChild(pinB);
   }
   const ren = document.createElement('button');
-  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = pageT('session.rename_title', 'Rename'); ren.setAttribute('aria-label', 'Rename chat');
+  ren.type = 'button'; ren.className = 's-act vi'; ren.dataset.ico = 'rename'; ren.title = pageT('session.rename_title', 'Rename'); ren.setAttribute('aria-label', 'Rename chat');
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
   const arch = document.createElement('button');
-  arch.type = 'button'; arch.className = 's-act';
-  arch.textContent = archived ? '↩' : '\u{1F5C4}';
+  arch.type = 'button'; arch.className = 's-act vi';
+  arch.dataset.ico = archived ? 'restore' : 'archive';
   arch.title = archived ? pageT('session.unarchive_title', 'Unarchive') : pageT('session.archive_title', 'Archive'); arch.setAttribute('aria-label', archived ? 'Unarchive chat' : 'Archive chat');
   arch.addEventListener('click', (e) => { e.stopPropagation(); archiveSession(s.session_id, !archived); });
   const del = document.createElement('button');
-  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = pageT('session.delete_title', 'Delete chat (removes it and its memory)'); del.setAttribute('aria-label', 'Delete chat');
+  del.type = 'button'; del.className = 's-act vi'; del.dataset.ico = 'trash'; del.title = pageT('session.delete_title', 'Delete chat (removes it and its memory)'); del.setAttribute('aria-label', 'Delete chat');
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
@@ -3325,15 +3388,15 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = /Mac/.test(navigator.platform || '') ? pageT('session.reveal_folder_title', 'Reveal folder in Finder') : 'Show folder'; prev.setAttribute('aria-label', 'Show project folder');
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act vi'; prev.dataset.ico = 'folder-open'; prev.title = /Mac/.test(navigator.platform || '') ? pageT('session.reveal_folder_title', 'Reveal folder in Finder') : 'Show folder'; prev.setAttribute('aria-label', 'Show project folder');
   prev.addEventListener('click', (e) => { e.stopPropagation(); revealProject(pid); });
-  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = pageT('session.rename_project_title', 'Rename project'); pren.setAttribute('aria-label', 'Rename project');
+  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act vi'; pren.dataset.ico = 'rename'; pren.title = pageT('session.rename_project_title', 'Rename project'); pren.setAttribute('aria-label', 'Rename project');
   pren.addEventListener('click', (e) => { e.stopPropagation(); startProjectRename(head, nameEl, pid); });
-  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = pageT('session.delete_project_title', 'Delete project (forget its memory; chats move to General)'); pdel.setAttribute('aria-label', 'Delete project');
+  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act vi'; pdel.dataset.ico = 'trash'; pdel.title = pageT('session.delete_project_title', 'Delete project (forget its memory; chats move to General)'); pdel.setAttribute('aria-label', 'Delete project');
   pdel.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(pid); });
   const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = pageT('session.new_chat_in_project_title', 'New chat in this project');
   pnew.addEventListener('click', (e) => { e.stopPropagation(); newChatInProject(pid); });
-  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = pageT('session.project_emoji_title', 'Set project emoji or colour');
+  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act vi'; pemo.dataset.ico = 'palette'; pemo.title = pageT('session.project_emoji_title', 'Set project emoji or colour');
   pemo.addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(pid, pemo); });
   pnew.setAttribute('aria-label', 'New chat in this project'); pemo.setAttribute('aria-label', 'Emoji and colour for this project');
   pact.appendChild(pemo); pact.appendChild(pnew); pact.appendChild(prev); pact.appendChild(pren); pact.appendChild(pdel);
@@ -3448,7 +3511,7 @@ function renderContextBar() {
   else bar.appendChild(mkChip(' cc-project muted', '', 'General', '', 'Not bound to a project'));
   const sep = document.createElement('span'); sep.className = 'ctx-sep'; sep.textContent = '›'; bar.appendChild(sep);
   const chat = (_lastSessions || []).find((s) => s.session_id === displayedChat) || null;
-  const chatName = (chat && chat.title) ? chat.title : 'New chat';
+  const chatName = (chat && chat.title) ? chat.title : ((typeof pageT === 'function') ? pageT('companion.untitled_chat', 'New chat') : 'New chat');
   bar.appendChild(mkChip('', (chat && chat.emoji) || '', chatName, (chat && chat.color) || '', chatName));
   // A tight composer hides the muted project chip and ellipsizes the chat name, so the bar itself
   // carries the whole path -- the collapse is a display decision, never a loss of information.
@@ -3947,7 +4010,7 @@ function renderChat(chatId) {
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
   privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
 }
@@ -4526,6 +4589,9 @@ function provenanceBlockHtml(rawLine, renderedLine) {
     + '<span class="prov-raw" dir="ltr" hidden>' + renderedLine + '</span></p>';
 }
 
+// The code-block Copy label in the UI language. The renderer is also lifted out and run on its
+// own (rich copy, sanitised exports), where the page's catalog lookup may not exist: English then.
+function codeCopyLabel(key, fallback) { return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; }
 function renderRichText(el, text) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
@@ -4659,7 +4725,7 @@ function renderRichText(el, text) {
       const rawBody = rawLines.slice(bodyStart, i).join('\n');
       i += 1;
       const lang = fence[2] ? ' class="lang-' + esc(fence[2].toLowerCase()) + '"' : '';
-      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="Copy this code block exactly">Copy</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
+      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="' + esc(codeCopyLabel('msg.code_copy_title', 'Copy this code block exactly')) + '">' + esc(codeCopyLabel('msg.copy', 'Copy')) + '</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
       continue;
     }
 
@@ -4816,8 +4882,8 @@ function mountAnswerReport(host, chatId, requestId) {
   report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const down = document.createElement('button');
-  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
-  down.textContent = '\u{1F44E}';
+  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down vi';
+  down.dataset.ico = 'thumbs-down';
   down.title = pageT('msg.report_down_title', 'Bad answer \u2014 report it'); down.setAttribute('aria-label', down.title);
   down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const pin = actions.querySelector('.msg-pin');
@@ -5049,6 +5115,16 @@ function openImageMenu(img, x, y) {
 }
 if (logEl) {
   logEl.addEventListener('click', (e) => {
+    const start = e.target.closest && e.target.closest('.empty-start');
+    if (start) {
+      // A starter only fills an EMPTY box: words or attachments already there are never replaced.
+      if (inputEl.value.trim() || attachBucket(displayedChat).length) { inputEl.focus(); return; }
+      inputEl.value = start.dataset.start || start.textContent;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.focus();
+      inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      return;
+    }
     const img = e.target.closest && e.target.closest('img.chat-img');
     if (img && img.dataset.local) { e.preventDefault(); openImageNative(img.dataset.local); }
     // A built file: the desktop app saves it through its native save sheet (its web view does not
@@ -5347,7 +5423,7 @@ function buildCard(run, host) {
   run.card = card; run.refs = refs;
   if (run.permission || run.pricePaused) card.classList.add('tc-hold');   // re-built mid-approval: the mark holds, it is not working
   if (run.ended) refs.stop.style.display = 'none';   // a re-hung terminal card has nothing to stop
-  logEl.scrollTop = logEl.scrollHeight;
+  if (typeof followLog === 'function') followLog();
   renderCard(run);
   return refs;
 }
@@ -5602,6 +5678,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   paintFinishedCard(run);
   if (isDisplayed(run.chatId)) renderPanel();
   setTimeout(loadActivityHistory, 250);
+  if (typeof markTabTitle === 'function') markTabTitle(kind);
   // Named fragment call site: lifecycle notifications. The fragment decides visibility (it only
   // surfaces completions the operator was NOT looking at); this site only reports the truth.
   if (window.VoolNotify && window.VoolNotify.runFinished) {
@@ -7240,9 +7317,13 @@ function emptyScopeText(kind) {
   if (panelScope === 'all') return pageTF('panel.empty_all', 'No {kind} recorded anywhere in VOOL yet.', { kind: kind });
   return pageTF('panel.empty_scoped', 'No {kind} for {scope} yet.', { kind: kind, scope: scopeWhere() });
 }
-function chatTitleFor(sid) {
+// `untitled` lets a caller name a chat that has no title yet in words ("New chat") instead of the
+// id tail, which only means something next to other ids (the Activity groups keep the tail).
+function chatTitleFor(sid, untitled) {
   const chat = _lastSessions.find((s) => s.session_id === sid) || {};
-  return chat.title || String(sid || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
+  if (chat.title) return chat.title;
+  if (untitled != null) return untitled;
+  return String(sid || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
 }
 function scopeKey() { return panelScope + '|' + displayedChat + '|' + (view.projectId || ''); }
 // Durable per-chat ledgers for a wider scope. Chat scope needs none of this: the open chat's own
@@ -8344,7 +8425,7 @@ async function runTurn(text, queueItemId, opts) {
             run.assistantMsgEl.classList.remove('pending');
             renderAssistantContent(run.textEl, assistant, run.displayMetadata);
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
           continue;
         }
@@ -8362,7 +8443,7 @@ async function runTurn(text, queueItemId, opts) {
             run.assistantMsgEl.classList.remove('pending');
             run.textEl.textContent = assistant;
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
         }
       }
@@ -8764,6 +8845,7 @@ function renderAttachStrip() {
   attachChipsEl.innerHTML = '';
   items.forEach((item) => attachChipsEl.appendChild(buildAttachChip(item, { draft: true })));
   attachStripEl.hidden = !items.length;
+  if (typeof syncDraftMark === 'function') syncDraftMark();
 }
 function buildMsgAttachments(list) {
   const wrap = document.createElement('div'); wrap.className = 'msg-att';
@@ -10943,7 +11025,7 @@ async function brCopyReport(btn) {
       remove_fields: brFlow.removedFields, remove_attachments: brFlow.removedAttachments,
     });
     await brWriteClipboard(data.clipboard_text || '');
-    if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
+    if (btn) { btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
     toast('Report copied. Paste it wherever you want to send it.');
   } catch (e) {
     toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
@@ -11629,7 +11711,7 @@ async function renderKeys() {
       note.innerHTML = '';
       const t = document.createElement('span'); t.textContent = text; note.appendChild(t);
       const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'set-btn key-copy'; cp.textContent = 'Copy';
-      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = 'Copied'; setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
+      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
       note.appendChild(cp);
     });
     row.appendChild(dot); row.appendChild(lbl); row.appendChild(test); row.appendChild(diag);
@@ -13099,12 +13181,44 @@ if (xpScopeEl) {
 // over category headlines and none of the evidence under them.
 const xpCopyEl = document.getElementById('xpCopy');
 if (xpCopyEl) xpCopyEl.addEventListener('click', () => copyPanelEvidence(xpCopyEl, panelTab || 'Activity'));
+// Starters step back while the box holds a draft (they only ever fill an empty box).
+function syncDraftMark() { if (logEl && inputEl) logEl.classList.toggle('has-draft', !!inputEl.value.trim() || attachBucket(displayedChat).length > 0); }
+inputEl.addEventListener('input', syncDraftMark);
 inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  // Enter that confirms an input-method candidate (Japanese, Chinese, Korean...) is part of
+  // typing, not a send.
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+  // Up in an EMPTY box brings back your last message to fix and resend; it never sends by itself
+  // and never replaces anything you have typed or attached.
+  if (e.key === 'ArrowUp' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !inputEl.value) {
+    if (attachBucket(displayedChat).length) return;
+    const mine = logEl.querySelectorAll('.msg.user');
+    const last = mine.length ? msgTextEl(mine[mine.length - 1]) : null;
+    // Attachment markers stay with the message that carried them: only the typed words come back.
+    const text = last ? textWithoutMarkers(last.dataset.raw != null ? last.dataset.raw : last.textContent) : '';
+    if (!text) return;
+    e.preventDefault();
+    inputEl.value = text;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    inputEl.setSelectionRange(text.length, text.length);
+  }
 });
 
 const modelConnectEl = document.getElementById('modelConnect');
 if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('modelPop').classList.remove('open'); document.getElementById('modelBtn').setAttribute('aria-expanded', 'false'); document.getElementById('settingsBtn').click(); });
+// A phone has no Shift key to hint at: narrow screens get the short placeholder, so the box says
+// what it is for instead of a cut-off keyboard tip.
+(() => {
+  if (!window.matchMedia) return;
+  const narrow = window.matchMedia('(max-width: 600px)');
+  const full = inputEl.getAttribute('placeholder') || '';
+  const apply = () => { inputEl.placeholder = narrow.matches ? pageT('composer.placeholder_short', 'Message VOOL') : pageT('composer.placeholder', full); };
+  apply();
+  // The i18n DOM pass fills data-i18n-placeholder on DOMContentLoaded; re-apply after it.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  if (narrow.addEventListener) narrow.addEventListener('change', apply);
+})();
 initComposerControls();
 buildTabs();
 loadSessions();
@@ -13241,6 +13355,7 @@ setInterval(refreshSidebarActivity, 5000);        // the only tick that touches 
 document.addEventListener('visibilitychange', () => {
   // Regaining focus on the chat already on screen is the same acknowledgment as opening it.
   if (!document.hidden && displayedChat) markChatSeen(displayedChat);
+  if (!document.hidden) document.title = TAB_TITLE;
   maybeRepaintSidebarLifecycle();
 });
 
@@ -13434,7 +13549,7 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + ICON_CSS)
 
 
 def _page_fragments() -> tuple[str, ...]:

@@ -229,6 +229,7 @@ function mountFilter(){
   wrap.innerHTML = '<input id="vxFilter" type="text" placeholder="' + attr(placeholder) + '" autocomplete="off" aria-label="' + attr(extrasT('chats.filter_aria', 'Search chats')) + '">';
   sessions.parentNode.appendChild(wrap);
   var field = wrap.querySelector('#vxFilter');
+  if (typeof voolKeyLabel === 'function') field.placeholder = voolKeyLabel(field.placeholder);
   field.addEventListener('input', function(){ filterValue = field.value; applyFilter(); });
   if (typeof MutationObserver === 'function') {
     new MutationObserver(function(){ if (filterValue.trim()) applyFilter(); }).observe(sessions, { childList: true, subtree: true });

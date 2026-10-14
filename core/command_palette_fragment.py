@@ -194,7 +194,7 @@ function renderList(){
         if (action.command) return registryRow(action.command, index);
         return '<div class="vp-item' + (index === selected ? ' vp-sel' : '') + '" role="option"' +
           ' aria-selected="' + (index === selected) + '" data-vp="' + esc(action.id) + '">' +
-          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(action.kbd) + '</span>' : '') +
+          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(typeof voolKeyLabel === 'function' ? voolKeyLabel(action.kbd) : action.kbd) + '</span>' : '') +
           '</div>';
       }).join('')
     : '<div class="vp-empty">No matching command</div>';
@@ -350,7 +350,8 @@ function vpMountHint(){
   // The key caps name the keys THIS keyboard has: ⌘ on a Mac, Ctrl everywhere else. In a plain
   // browser tab Ctrl+N belongs to the browser (it opens a window), so it is not advertised there.
   if (!IS_MAC) {
-    hint.querySelectorAll('kbd').forEach(function(k){ k.textContent = k.textContent.replace('\u2318', 'Ctrl+'); });
+    if (typeof voolKeyLabelsIn === 'function') voolKeyLabelsIn(hint);
+    else hint.querySelectorAll('kbd').forEach(function(k){ k.textContent = k.textContent.replace('\u2318', 'Ctrl+'); });
     if (!(window.pywebview && window.pywebview.api)) {
       var parts = hint.innerHTML.split(' \u00b7 ');
       hint.innerHTML = parts.filter(function(part){ return part.indexOf('<kbd>Ctrl+N</kbd>') === -1; }).join(' \u00b7 ');

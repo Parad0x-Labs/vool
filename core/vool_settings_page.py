@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 
+from core.ui_icons import ICON_CSS
 from core.ui_palette import DARK_PALETTE_CSS
 
 # --------------------------------------------------------------------------------------
@@ -772,7 +773,7 @@ def _settings_groups() -> list[dict]:
             # Crypto (Pilot): off by default, discoverable when off. The section is absent in the School edition by the
             # edition floor (core/product_edition.py), never by a scattered check here.
             "id": "calendars",
-            "icon": "\U0001f4c5",
+            "icon": "▦",
             "title": "Calendars",
             "blurb": "The calendars VOOL reads for your agenda and alerts, and where new events go.",
             "rows": [
@@ -792,7 +793,7 @@ def _settings_groups() -> list[dict]:
         },
         {
             "id": "notifications",
-            "icon": "\U0001f514",
+            "icon": "◎",
             "title": "Notifications",
             "blurb": "Calendar alerts, reminders, quiet hours and system notifications.",
             "rows": [
@@ -1494,6 +1495,11 @@ function labelMatches(r, q) { const t = String(r.label || '').toLowerCase(); ret
 function hitsFor(groupId, q) { return ALL_ROWS.filter(r => r.group === groupId && matches(r, q)).length; }
 
 /* ------------------------------------------------------------------ render */
+const SETTINGS_NAV_ICONS = {
+  setup: 'check', general: 'settings', permissions: 'shield', keys: 'key', email: 'mail', models: 'models',
+  memory: 'memory', backup: 'backup', network: 'globe', budgets: 'budgets', calendars: 'calendar',
+  notifications: 'bell', wallet: 'wallet', companion: 'appearance', advanced: 'advanced', about: 'about',
+};
 function renderNav() {
   const nav = $('#nav');
   /* Rebuilding the list destroys the focused element, which silently ends keyboard navigation:
@@ -1515,7 +1521,10 @@ function renderNav() {
     b.setAttribute('role', 'listitem');
     b.dataset.group = g.id;
     b.setAttribute('aria-current', g.id === state.group ? 'true' : 'false');
-    const ico = el('span', 'ico', g.icon || '○'); ico.setAttribute('aria-hidden', 'true');
+    // One line-icon style for every section (core/ui_icons.py); a section without one keeps its glyph.
+    const icoName = SETTINGS_NAV_ICONS[g.id];
+    const ico = el('span', icoName ? 'ico vi' : 'ico', icoName ? '' : (g.icon || '○')); ico.setAttribute('aria-hidden', 'true');
+    if (icoName) ico.dataset.ico = icoName;
     b.appendChild(ico);
     b.appendChild(el('span', null, g.title));
     if (q) b.appendChild(el('span', 'hits', String(hits)));
@@ -5638,7 +5647,7 @@ def _locale_coverage_note(tag: str) -> str:
 # own control next to the microphone; the note under the select says so in the selected
 # language (settings.language_help, an existing catalog key).
 _LOCALE_BLOCK = """<div id="uiLocaleWrap">
-  <label class="loc-label" for="uiLocaleSelect"><span class="loc-globe" aria-hidden="true">&#127760;</span><span class="loc-word" data-i18n-html="settings.language_heading">Language <span class="set-sub">screens only &mdash; never the answer language</span></span></label>
+  <label class="loc-label" for="uiLocaleSelect"><span class="loc-globe vi" data-ico="globe" aria-hidden="true"></span><span class="loc-word" data-i18n-html="settings.language_heading">Language <span class="set-sub">screens only &mdash; never the answer language</span></span></label>
   <select id="uiLocaleSelect" aria-label="App language — these screens only, never the answer language" title="Choose the language of these screens and controls. It never changes the language VOOL answers in." data-i18n-aria-label="settings.language_select_aria" data-i18n-title="settings.language_select_title"></select>
   <p class="loc-note" data-i18n-html="settings.language_help">Choose the language of these screens and controls. It never changes the language VOOL answers in &mdash; that has its own setting.</p>
   <p class="loc-note" id="uiLocaleCoverage"></p>
@@ -5720,7 +5729,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
-    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace(
+    page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + ICON_CSS).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
         + "\n" + render_notification_settings_fragment() + "\n</body>", 1
     )

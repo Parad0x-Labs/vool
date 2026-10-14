@@ -164,7 +164,7 @@ bell.id = 'vfBell';
 bell.type = 'button';
 bell.title = NTF('notif.bell_title', 'Notifications \u2014 background completions and watched-model market changes');
 bell.setAttribute('aria-label', bell.title);
-bell.innerHTML = '\\ud83d\\udd14<span id="vfBadge" hidden></span>';
+bell.innerHTML = '<span class="vi" data-ico="bell" aria-hidden="true"></span><span id="vfBadge" hidden></span>';
 var pop = document.createElement('div');
 pop.id = 'vfPop';
 pop.hidden = true;
