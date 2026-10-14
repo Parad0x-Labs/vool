@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import posixpath
 import re
 from contextlib import suppress
 from typing import Any
@@ -38,6 +39,8 @@ _HONEST_DENIAL_RE = re.compile(
     # and `emit_turn_honesty_receipt` shares this predicate, so the denial would be RECORDED as a
     # claim. Caught by the family's own "a denial is not itself a claim" test.
     r"|did\s+not\s+write\s+anything\s+to\s+memory"
+    r"|did\s+not\s+create\s+or\s+save\s+a\s+file"
+    r"|nothing\s+was\s+generated\s+on\s+this\s+turn"
     r"|nothing\s+was\s+(?:stored|persisted|saved\s+to\s+memory)"
     r")\b",
     re.IGNORECASE,
@@ -65,7 +68,7 @@ _HONEST_NO_EXECUTION_RESPONSE = (
 # ledger records as absent.
 _BUILD_OBJECT = (
     r"(?:files?|scripts?|tests?|folders?|director(?:y|ies)|packages?|projects?|crates?|modules?|"
-    r"scaffolds?|repos?|repositor(?:y|ies)|[\w./-]+\.[A-Za-z]{2,5})"
+    r"scaffolds?|repos?|repositor(?:y|ies)|(?<![\w./-])[\w./-]+\.[A-Za-z]{2,5})"
 )
 # Determiners, quantifiers and counts between the verb and its object: "both files", "the two
 # files", "all three scripts". Zero or more, so the bare "created files" still matches.
@@ -91,6 +94,109 @@ _BUILD_CLAIM_NOT_SELF_RE = re.compile(
     r"(?:create|write|make|add|run|generate|save|scaffold)\b",
     re.IGNORECASE,
 )
+# A completion claim about a DELIVERABLE FILE -- a document, deck, spreadsheet or PDF said to be
+# made, saved, exported or attached. Measured live 2026-10-05 on main 9adff83: "give it to me as a
+# Word document" was answered "Created a five-item packing checklist ... and saved it as a Word
+# document." and "I want a PowerPoint file" with "Created a three-slide PowerPoint presentation
+# ..." on turns where no tool ran -- and VOOL has no docx/pptx/xlsx writer at all. The build
+# vocabulary above names files, scripts and tests, never a document, so both shipped. The object is
+# a FORMAT (Word, PowerPoint, PDF, .xlsx ...) or a file-only noun (presentation, spreadsheet, slide
+# deck, workbook); a bare "document" or "report" is left alone because an answer can BE one.
+_DELIVERABLE_FORMAT = (
+    r"(?:word|excel|power\s*point|keynote|google\s+(?:docs?|sheets?|slides?)|pdf|docx|xlsx|xls|pptx|"
+    r"odt|ods|odp|rtf|epub)"
+)
+#: Text, data and archive files (measured live 2026-10-06, formats stack: "Created a comprehensive
+#: moving-house checklist and saved it as a Markdown (.md) file for you." on a turn where no tool ran).
+#: These name ordinary words too ("in plain text", "the JSON response"), so they count only as a
+#: FILE: with a file noun, as a bare extension (".md"), or as a filename ("notes.md").
+_DATA_FILE_FORMAT = r"(?:markdown|md|text|txt|plain[\s-]+text|csv|tsv|json|ya?ml|xml|html?|zip|tar(?:\.gz|ball)?|tgz)"
+_DATA_FILE_EXTENSION = r"(?:md|markdown|txt|csv|tsv|json|ya?ml|xml|html?|zip|tar\.gz|tgz)"
+_DATA_FILE_NOUN = r"(?:files?|documents?|docs?|archives?|exports?|versions?|copy|copies|bundles?)"
+_DELIVERABLE_NOUN = (
+    r"(?:documents?|docs?|files?|presentations?|decks?|slide\s*decks?|slides(?:hows?)?|spreadsheets?|"
+    r"workbooks?|sheets?|reports?|exports?|versions?|copy|copies)"
+)
+#: A deliverable named as the SOURCE or SUBJECT ("a summary of the PowerPoint", "the PDF content")
+#: is not a claim that one was produced.
+_DELIVERABLE_NOT_PRODUCT = r"(?!\s+(?:content|contents|text|outline|summary|structure|layout|draft|notes|format)\b)"
+_DELIVERABLE_OBJECT = (
+    rf"(?:{_DELIVERABLE_FORMAT}\s+{_DELIVERABLE_NOUN}\b"
+    # A bare format names the product only where the phrase ends ("saved it as a PDF.", "to Excel
+    # and ..."); "the Excel formula" and "a PDF reader" are about something else.
+    rf"|{_DELIVERABLE_FORMAT}\b(?=\s*(?:[.,;:!?)]|$)|\s+(?:and|so|which|that|for|with|in|to|now|here|"
+    rf"is|are|was|were|has|have)\b)"
+    rf"|(?:presentations?|(?:slide\s*)?decks?|spreadsheets?|workbooks?)\b"
+    # "a Markdown (.md) file", "a CSV file", "a .txt file", "a .zip", "backup.zip"
+    rf"|{_DATA_FILE_FORMAT}(?:\s*\(\.?{_DATA_FILE_EXTENSION}\))?\s+{_DATA_FILE_NOUN}\b|tarballs?\b)"
+    rf"{_DELIVERABLE_NOT_PRODUCT}"
+)
+#: The object as a bare extension (".md") or a filename ("backup.zip"). Only after a production verb:
+#: "Here's your config.yaml:" introduces content shown in the reply, not a file said to exist.
+_DELIVERABLE_NAMED_FILE = rf"(?:(?<![\w.])\.{_DATA_FILE_EXTENSION}\b(?!\.\w)|(?<![\w~/./\\-])[\w~/./\\-]+(?:[ \t]+[\w~/./\\-]+){{0,5}}\.{_DATA_FILE_EXTENSION}\b(?!\.\w))"
+_DELIVERABLE_VERB = (
+    r"(?:created|generated|made|built|prepared|produced|saved|exported|converted|attached|wrote|written|"
+    r"compiled|put\s+together|uploaded|rendered|packaged|zipped|compressed|archived|bundled)"
+)
+#: Words between the verb and the object that make the object a source rather than the product.
+_DELIVERABLE_SOURCE_WORD = r"(?:of|from|about|on|with|by|based|describing|summari[sz]ing|explaining|using|for)"
+_DELIVERABLE_CLAIM_RE = re.compile(
+    rf"(?:"
+    # "saved it as a Word document", "exported the budget to Excel", "created a three-slide PowerPoint presentation"
+    # Not the adjective ("the attached notes.txt", "your exported data"): that names a file someone
+    # else provided or the reply is talking about, not one this turn produced.
+    rf"(?<!\bthe\s)(?<!\byour\s)(?<!\bmy\s)(?<!\bthis\s)(?<!\bthat\s)"
+    rf"\b{_DELIVERABLE_VERB}(?:\s+(?!{_DELIVERABLE_SOURCE_WORD}\b)[\w'-]+){{0,6}}?\s+(?:{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})"
+    # "your Word document is ready", "the PDF has been generated"
+    rf"|(?:\b{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})\s+(?:is|are|was|were|has\s+(?:now\s+)?been|have\s+(?:now\s+)?been)\s+(?:(?:now|successfully)\s+)?"
+    rf"(?:ready|created|generated|saved|exported|attached|available|done|complete|uploaded|made|prepared)"
+    # "here is your PowerPoint file", "attached is the spreadsheet"
+    rf"|\b(?:here(?:'s|\s+is|\s+are)|attached\s+(?:is|are))\s+(?:your|the)\s+(?:[\w-]+\s+){{0,2}}?{_DELIVERABLE_OBJECT}"
+    rf")",
+    re.IGNORECASE,
+)
+#: An offer, a plan, a refusal or the user's own action -- not a report that a file now exists.
+_DELIVERABLE_NOT_DONE_RE = re.compile(
+    r"\b(?:i'?ll|i\s+will|i\s+can|i\s+could|i\s+would|i'?d|let\s+me|want\s+me\s+to|shall\s+i|should\s+i|"
+    r"if\s+you|you\s+can|you\s+could|you\s+(?:already\s+|just\s+)?(?:created|saved|exported|attached|uploaded|made)|"
+    r"can'?t|cannot|couldn'?t|unable|not\s+able|didn'?t|did\s+not|haven'?t|have\s+not|hasn'?t|has\s+not|"
+    r"isn'?t|is\s+not|wasn'?t|was\s+not|no\s+(?:file|document)|never)\b",
+    re.IGNORECASE,
+)
+
+#: A PROMISE that a file is about to be made ("I will now generate the PDF with this summary.",
+#: "I'll create this in an Excel file for you now."). Measured live the same day: the content came
+#: back in the chat with that promise appended, on a turn where no tool ran and none was queued, so
+#: the user waits for a file that never comes. An offer ("I can make it a PDF if you want") is honest
+#: and stays.
+_GENERIC_FILE_PROMISE_RE = re.compile(
+    r"\b(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to)"
+    r"\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
+    r"(?:create|generate|make|build|prepare|produce|save|export|convert|compile|render|attach)"
+    r"(?:\s+(?:the|a|an|one|both|all|each|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|those|these|your|new|other|\d+))*"
+    r"\s+files?\b",
+    re.IGNORECASE,
+)
+_DELIVERABLE_PROMISE_RE = re.compile(
+    rf"(?:{_GENERIC_FILE_PROMISE_RE.pattern})|"
+    rf"\b(?:(?:i['’]?ll|i\s+will|let\s+me|i['’]?m\s+going\s+to|i\s+am\s+going\s+to)\s+(?:now\s+)?(?:go\s+ahead\s+and\s+)?"
+    rf"(?:create|generate|make|build|prepare|produce|save|export|convert|put\s+together|compile|render|attach|turn)"
+    rf"|(?:now\s+)?(?:creating|generating|exporting|saving|converting|preparing|rendering)\s+(?:the|your|a|an|this)\b)"
+    rf"[^.!?\n]*?(?:\b{_DELIVERABLE_OBJECT}|{_DELIVERABLE_NAMED_FILE})",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?:])\s+")
+#: "If you want, I'll make it a PDF" waits for the user; it is an offer, not a promise of work underway.
+_CONDITIONAL_OFFER_RE = re.compile(
+    r"\b(?:if\s+you|if\s+that|would\s+you\s+like|do\s+you\s+want|want\s+me\s+to|shall\s+i|should\s+i|"
+    r"just\s+(?:say|tell|let)|once\s+you|when\s+you)\b",
+    re.IGNORECASE,
+)
+#: "I'll create the files next, then run the suite" lays out a plan for a later step; it does not
+#: say a file is being made on this turn, so there is no waiting user to protect.
+_DEFERRED_PLAN_RE = re.compile(r"\b(?:next|later|afterwards|after\s+(?:that|this))\b", re.IGNORECASE)
+_UNBACKED_PROMISE_NOTE = "(I cannot verify that file from this turn's execution record.)"
+
 #: What a persistence claim is ABOUT. Memory, preferences and standing rules are the things a user
 #: asks to be remembered, and none of them appear in the file/tool/funds vocabularies above.
 _PERSISTENCE_OBJECT = (
@@ -125,6 +231,11 @@ _HONEST_NO_PERSISTENCE_RESPONSE = (
     "I did not write anything to memory -- no preference, rule or setting was stored on this turn, "
     "and nothing here will carry into a later chat. I can still follow it for the rest of this "
     "conversation if you repeat it, but I am not going to say it was saved when it was not."
+)
+
+_HONEST_NO_DELIVERABLE_RESPONSE = (
+    "I cannot verify that file from this turn's execution record. "
+    "I do not have matching evidence or a verified download to offer."
 )
 
 _HONEST_NO_BUILD_RESPONSE = (
@@ -451,6 +562,91 @@ def _describes_a_stored_record(sentence: str, match: re.Match[str]) -> bool:
     )
 
 
+def _file_claim_text(text: str) -> str:
+    # Read displayed filenames, not Markdown's punctuation or link destination.
+    text = re.sub(
+        rf"\[([^\]\n]{{1,240}}\.{_DATA_FILE_EXTENSION})\]\([^\n)]*\)",
+        r"\1", text, flags=re.I,
+    )
+    return re.sub(
+        rf"(?:`|\*{{1,2}}|_{{1,2}}|[\"'])([^`*\"'\n]{{1,240}}\.{_DATA_FILE_EXTENSION})(?:`|\*{{1,2}}|_{{1,2}}|[\"'])",
+        r"\1", text, flags=re.I,
+    )
+
+
+_FILE_COUNT_WORD_PATTERN = r"(?:one|both|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|\d+)"
+_COMPLETED_FILE_COUNT_RE = re.compile(
+    rf"\b(?:{_DELIVERABLE_VERB}\s+(?:(?:the|all)\s+)?(?:a\s+)?{_FILE_COUNT_WORD_PATTERN}\s+files?"
+    rf"|{_FILE_COUNT_WORD_PATTERN}\s+files?\s+(?:are|were|have\s+been)\s+(?:saved|created|written|generated|ready))\b", re.I,
+)
+_FILE_LIST_HEADING_RE = re.compile(r"^\s*(?:files?\s+(?:created|saved|written|generated)|(?:created|saved|written|generated)\s+files?)\s*:\s*$", re.I)
+_QUALIFIED_FILE_COMPLETION_START_RE = re.compile(
+    rf"^\s*(?:(?:i|i've|i\s+have)\s+)?{_DELIVERABLE_VERB}\s+", re.I,
+)
+
+
+def _deliverable_claim_fragments(text: str) -> list[str]:
+    normalized = _file_claim_text(text)
+    fragments = []
+    # A completion heading owns the immediately following list, not unrelated prose.
+    listing: list[str] = []
+    for line in [*normalized.splitlines(), ""]:
+        if _FILE_LIST_HEADING_RE.match(line):
+            if listing:
+                fragments.append(", ".join(listing))
+            listing = [line]
+        elif listing and re.match(r"\s*(?:[-*+] |\d+[.)] )", line):
+            listing.append(re.sub(r"^\s*(?:[-*+] |\d+[.)] )", "", line))
+        elif listing:
+            fragments.append(", ".join(listing))
+            listing = []
+    # Separate a disclosed failure from the successful clause it qualifies. Don't
+    # split bare commas: they may join several outputs that all need evidence.
+    for sentence in _split_sentences(normalized):
+        for clause in re.split(r",\s*(?:but|however)\s+|;\s*", sentence, flags=re.I):
+            match = _DELIVERABLE_CLAIM_RE.search(clause) or _COMPLETED_FILE_COUNT_RE.search(clause)
+            if match is None:
+                # Recognize a literal qualified target even when its directory is
+                # too large for the bounded name parser. It must fail verification,
+                # rather than disappear from the file-evidence obligation.
+                start = _QUALIFIED_FILE_COMPLETION_START_RE.match(clause)
+                filename = _SPECIFIC_DELIVERABLE_NAME_RE.search(clause) if start else None
+                if start and filename:
+                    target = clause[start.end():filename.end()]
+                    before_directory = re.split(r"[/\\]", target, maxsplit=1)[0]
+                    if ("/" in target or "\\" in target) and not re.search(
+                            rf"\b{_DELIVERABLE_SOURCE_WORD}\b", before_directory, re.I):
+                        match = start
+            if match is None:
+                continue
+            if _DELIVERABLE_NOT_DONE_RE.search(clause[:match.end()]) or _NOT_A_SELF_CLAIM_RE.search(clause):
+                continue
+            fragments.append(clause)
+    return fragments
+
+
+def _build_claim_sentence(body: str) -> bool:
+    """Whether some sentence reports this runtime's own finished build (files written, tests run)."""
+    return any(
+        _BUILD_CLAIM_RE.search(sentence)
+        and not (_BUILD_CLAIM_NOT_SELF_RE.search(sentence) or _NOT_A_SELF_CLAIM_RE.search(sentence))
+        for sentence in _split_sentences(body)
+    )
+
+
+def _only_a_file_count(fragment: str) -> bool:
+    """A claim fragment that counts files ("created both files") and names no document or file.
+
+    Inside a build report such a count is the build's own output: the build law, which reads the
+    turn's execution record, decides it, as it did before deliverable claims existed. A named file
+    or a document, deck, spreadsheet or PDF stays a deliverable claim."""
+    return (
+        _COMPLETED_FILE_COUNT_RE.search(fragment) is not None
+        and _DELIVERABLE_CLAIM_RE.search(fragment) is None
+        and _SPECIFIC_DELIVERABLE_NAME_RE.search(fragment) is None
+    )
+
+
 def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
     """What kind of finished work a reply claims: ``""``, ``"mutation"``, ``"build"`` or ``"persistence"``.
 
@@ -503,7 +699,10 @@ def completion_claim_kind(text: str, *, request_text: str | None = None) -> str:
         )
         if modal_context and not self_report:
             continue
-        return "mutation"
+        return "deliverable" if _deliverable_claim_fragments(body) else "mutation"
+    fragments = _deliverable_claim_fragments(body)
+    if fragments and not (_build_claim_sentence(body) and all(map(_only_a_file_count, fragments))):
+        return "deliverable"
     for sentence in _split_sentences(body):
         if not _BUILD_CLAIM_RE.search(sentence):
             continue
@@ -550,6 +749,394 @@ def _claims_false_payment(text: str) -> bool:
                 continue  # somebody else's behaviour or a possibility, not a report of this runtime's spend
             return True
     return False
+
+
+#: Action words of a tool that CREATES or EXPORTS a file, read from the tool name's own segments
+#: ("workspace.write_file" -> write, "file.deliver" -> deliver). A noun ("file", "pdf", "document")
+#: is not an action: "workspace.read_file" and "pdf.extract_text" read a file and make nothing, so a
+#: name that merely mentions a file can never back a claim that one was made.
+_FILE_WRITE_ACTIONS = frozenset({
+    "write", "save", "export", "generate", "render", "create", "convert", "attach", "deliver",
+})
+#: Segments that mark a tool as reading or inspecting, never producing, whatever else it names.
+_FILE_READ_ACTIONS = frozenset({
+    "read", "extract", "ocr", "list", "search", "inspect", "view", "open", "get", "fetch", "stat", "find",
+    "grep", "glob", "preview", "parse", "summary", "summarize",
+})
+#: A receipt or fact that ran and failed, or was refused, is not a file.
+_FAILED_STATUSES = frozenset({
+    "failed", "failure", "error", "errored", "refused", "denied", "blocked", "rejected", "cancelled",
+    "canceled", "timeout", "timed_out", "aborted", "skipped", "pending", "pending_approval",
+})
+#: Output formats a claim can name, grouped as the files that would satisfy it.
+_DELIVERABLE_FAMILIES = (
+    (re.compile(r"\b(?:word|docx?|google\s+docs?)\b", re.IGNORECASE), frozenset({"docx", "doc"})),
+    (re.compile(r"\b(?:excel|xlsx|xls|spreadsheets?|workbooks?|google\s+sheets?)\b", re.IGNORECASE),
+     frozenset({"xlsx", "xls", "csv", "tsv", "ods"})),
+    (re.compile(r"\b(?:power\s*point|pptx|ppt|keynote|presentations?|(?:slide\s*)?decks?|slideshows?|google\s+slides?)\b",
+                re.IGNORECASE), frozenset({"pptx", "ppt", "key", "odp"})),
+    (re.compile(r"\bpdf\b", re.IGNORECASE), frozenset({"pdf"})),
+    (re.compile(r"\bodt\b", re.IGNORECASE), frozenset({"odt"})),
+    (re.compile(r"\bods\b", re.IGNORECASE), frozenset({"ods"})),
+    (re.compile(r"\bodp\b", re.IGNORECASE), frozenset({"odp"})),
+    (re.compile(r"\brtf\b", re.IGNORECASE), frozenset({"rtf"})),
+    (re.compile(r"\bepub\b", re.IGNORECASE), frozenset({"epub"})),
+    (re.compile(r"\bmarkdown\b|(?<![\w])\.?md\b", re.IGNORECASE), frozenset({"md", "markdown"})),
+    (re.compile(r"\b(?:text|txt|plain[\s-]+text)\s+(?:files?|documents?)\b|\.txt\b", re.IGNORECASE), frozenset({"txt"})),
+    (re.compile(r"\bcsv\b", re.IGNORECASE), frozenset({"csv"})),
+    (re.compile(r"\btsv\b", re.IGNORECASE), frozenset({"tsv"})),
+    (re.compile(r"\bjson\b", re.IGNORECASE), frozenset({"json"})),
+    (re.compile(r"\bya?ml\b", re.IGNORECASE), frozenset({"yaml", "yml"})),
+    (re.compile(r"\bxml\b", re.IGNORECASE), frozenset({"xml"})),
+    (re.compile(r"\bhtml?\b", re.IGNORECASE), frozenset({"html", "htm"})),
+    (re.compile(r"\bzip(?:ped)?\b", re.IGNORECASE), frozenset({"zip"})),
+    (re.compile(r"\btar(?:\.gz|ball)?\b|\btgz\b", re.IGNORECASE), frozenset({"gz", "tgz", "tar"})),
+)
+_TOOL_SEGMENT_RE = re.compile(r"[a-z0-9]+")
+_IDENTITY_KEYS = ("format", "filename", "file_name", "path", "file_path", "output_path", "target", "name", "media_type")
+
+
+def _claimed_deliverable_families(matches: list[str]) -> list[frozenset[str]]:
+    """The output formats the claimed (or promised) file would need, one family per format named."""
+    families: list[frozenset[str]] = []
+    for text in matches:
+        for pattern, family in _DELIVERABLE_FAMILIES:
+            if pattern.search(text) and family not in families:
+                families.append(family)
+    return families
+
+
+def _receipt_succeeded(receipt: dict[str, Any]) -> bool:
+    """Ran AND succeeded. ``executed`` alone is not success: a writer that ran and failed made nothing."""
+    execution = receipt.get("execution")
+    if not isinstance(execution, dict):
+        execution = {}
+    if execution.get("ok") is False or receipt.get("ok") is False or receipt.get("success") is False:
+        return False
+    for value in (execution.get("status"), execution.get("outcome"), receipt.get("status"), receipt.get("outcome")):
+        if str(value or "").strip().lower() in _FAILED_STATUSES:
+            return False
+    return _receipt_shows_execution(receipt)
+
+
+def _is_file_writer(tool: str) -> bool:
+    segments = set(_TOOL_SEGMENT_RE.findall(str(tool or "").lower()))
+    return bool(segments & _FILE_WRITE_ACTIONS) and not (segments & _FILE_READ_ACTIONS)
+
+
+def _output_formats(tool: str, *details: object) -> set[str]:
+    """Every output format a writer's record names: a format field, a file extension, or a format in
+    the tool's own name ("document.export_pdf")."""
+    known = {fmt for _, family in _DELIVERABLE_FAMILIES for fmt in family}
+    found = {segment for segment in _TOOL_SEGMENT_RE.findall(str(tool or "").lower()) if segment in known}
+
+    def _scan(value: object, depth: int) -> None:
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                if key in _IDENTITY_KEYS and isinstance(inner, str):
+                    text = inner.strip().lower()
+                    tail = text.rsplit(".", 1)[-1] if "." in text else text
+                    tail = tail.rsplit("/", 1)[-1]
+                    if tail in known:
+                        found.add(tail)
+                elif depth < 3 and isinstance(inner, (dict, list)):
+                    _scan(inner, depth + 1)
+        elif isinstance(value, list) and depth < 3:
+            for inner in value[:16]:
+                _scan(inner, depth + 1)
+
+    for detail in details:
+        _scan(detail, 0)
+    return found
+
+
+def _turn_file_writes(*, session_id: str | None, source_context: dict[str, object] | None) -> list[set[str]]:
+    """This turn's SUCCESSFUL file-creating executions, each as the output formats it is known to have
+    made (empty when its record names none). Reads and failed or refused attempts are never here."""
+    writes: list[set[str]] = []
+    for receipt in list((source_context or {}).get("tool_receipts") or []):
+        if not isinstance(receipt, dict) or not _receipt_succeeded(receipt):
+            continue
+        tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
+        if _is_file_writer(tool):
+            writes.append(_output_formats(tool, receipt.get("observation"), receipt.get("details"),
+                                          receipt.get("arguments"), receipt.get("execution")))
+    try:
+        from core.execution_truth import KIND_TOOL, facts_for_turn, resolve_turn_key
+
+        turn_key = resolve_turn_key(dict(source_context or {}), None)
+        for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()):
+            if not (fact.in_category(KIND_TOOL) and fact.ok) or str(fact.status or "").lower() in _FAILED_STATUSES:
+                continue
+            if _is_file_writer(fact.name):
+                writes.append(_output_formats(fact.name, fact.detail))
+    except Exception:
+        pass
+    return writes
+
+
+_SPECIFIC_DELIVERABLE_NAME_RE = re.compile(
+    rf"(?<![\w.])\.?[\w-]+(?:\.[\w-]+)*\.{_DATA_FILE_EXTENSION}\b(?!\.\w)",
+    re.IGNORECASE,
+)
+_OUTPUT_FILE_KEYS = frozenset({"filename", "file_name", "path", "file_path", "output_path", "target"})
+_FILE_COUNT_WORDS = {"one": 1, "both": 2, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                     "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "dozen": 12}
+
+
+_PATH_CHAR_RE = re.compile(r"[\w~/.\\-]")
+
+
+def _trailing_path_run(prefix: str) -> str:
+    """The run of path characters that ends ``prefix``, found in one backward pass.
+
+    A ``[...]+$`` search retries from every start inside a long run that a later character breaks,
+    which is quadratic in the run's length; this walk reads each character once."""
+    start = len(prefix)
+    while start > 0 and _PATH_CHAR_RE.fullmatch(prefix[start - 1]):
+        start -= 1
+    return prefix[start:]
+
+
+def _claimed_file_names(claims: list[str]) -> set[str] | None:
+    names: set[str] = set()
+    for text in claims:
+        text = _file_claim_text(text)
+        for match in _SPECIFIC_DELIVERABLE_NAME_RE.finditer(text):
+            name = match.group(0)
+            # A bounded preceding object span allows real filenames with spaces.
+            # Do not accept an arbitrary suffix of a different written basename.
+            prefix_start = max(0, match.start() - 240)
+            prefix = text[prefix_start:match.start()]
+            boundaries = list(re.finditer(rf"\b{_DELIVERABLE_VERB}\s+|\(\s*at\s+|[,;:]\s*|\b(?:and|into|as|to)\s+", prefix, re.I))
+            # Once a directory begins, words within its components are literal.
+            # A later separator is prose only after an earlier complete filename,
+            # or in the runtime's explicit parenthesized location annotation.
+            first_separator = re.search(r"[/\\]", prefix)
+            if first_separator:
+                boundaries = [boundary for boundary in boundaries
+                              if boundary.start() < first_separator.start()
+                              or boundary.group(0).lstrip().startswith("(")
+                              or _SPECIFIC_DELIVERABLE_NAME_RE.search(prefix[:boundary.start()])]
+            if boundaries:
+                extra = prefix[boundaries[-1].end():]
+                # "Created file ~/Desktop/a.txt": the noun names what the path is, not part of it.
+                extra = re.sub(r"^(?:(?:the|a|an|your)\s+)?(?:(?:new\s+)?file\s+)?", "", extra, flags=re.I)
+                if re.fullmatch(r"[\w ~/.-]{0,240}", extra):
+                    name = extra + name
+                elif "/" in extra or "\\" in extra:
+                    return None  # A bounded parse cannot discard an unparsed directory.
+            else:
+                # Passive claims and completion lists may have no production verb.
+                path_prefix = _trailing_path_run(prefix)
+                if re.fullmatch(r"[\w ~/./\\-]{1,120}", prefix):
+                    name = prefix + name
+                elif path_prefix:
+                    if (len(path_prefix) == len(prefix) and prefix_start > 0
+                            and _PATH_CHAR_RE.fullmatch(text[prefix_start - 1])):
+                        return None
+                    if re.fullmatch(r"[\w ~/./\\-]+", prefix) and "/" in prefix and " " in prefix:
+                        return None
+                    name = path_prefix + name
+            # "was created at /abs/dir/a.txt": the preposition that introduces a location is not part
+            # of the path it introduces.
+            name = name.strip()
+            located = re.search(r"\b(?:at|in|into|to|under|inside)\s+(?=\S*[/\\])(\S+)$", name, flags=re.I)
+            if " " in name and located:
+                name = located.group(1)
+            names.add(name.replace("\\", "/").strip())
+    return names
+
+
+def _file_claim_matches_output(claim: str, outputs: set[str], context: dict[str, object] | None) -> bool:
+    """A named directory is part of the claim, not a disposable display prefix.
+
+    A bare filename retains its display-name contract. Qualified paths require the
+    same lexical path, or an absolute/relative mapping under the turn's existing
+    workspace root. Do not infer a root from an unrelated output or the process cwd.
+    """
+    if "/" not in claim:
+        return any(claim.casefold() == name.rsplit("/", 1)[-1].casefold() for name in outputs)
+    root = str((context or {}).get("workspace_root") or (context or {}).get("workspace") or "")
+    root = root.replace("\\", "/")
+
+    def identity(name: str) -> str:
+        normalized = posixpath.normpath(name.replace("\\", "/"))
+        if posixpath.isabs(root) and not posixpath.isabs(normalized) and not normalized.startswith("~"):
+            normalized = posixpath.normpath(posixpath.join(root, normalized))
+        return normalized
+
+    expected = identity(claim)
+    return any(expected == identity(name) for name in outputs)
+
+
+def _output_file_names(*details: object, identities_only: bool = False) -> set[str]:
+    """Known output identities, retaining directories so two real paths count as two files."""
+    names: set[str] = set()
+
+    def scan(value: object, depth: int = 0) -> None:
+        if isinstance(value, dict):
+            if identities_only:
+                for key in ("path", "file_path", "output_path", "target", "filename", "file_name", "name"):
+                    inner = value.get(key)
+                    if isinstance(inner, str) and inner and (key != "name" or "." in inner):
+                        names.add(posixpath.normpath(inner.replace("\\", "/")))
+                        # Several aliases in one observation describe one output, not several.
+                        return
+            for key, inner in value.items():
+                if isinstance(inner, str) and (
+                    key in _OUTPUT_FILE_KEYS or (key == "name" and "." in inner)
+                ):
+                    name = posixpath.normpath(inner.replace("\\", "/"))
+                    if name:
+                        names.add(name)
+                elif depth < 3 and key not in {"arguments", "input", "content"}:
+                    scan(inner, depth + 1)
+        elif isinstance(value, list) and depth < 3:
+            for item in value[:16]:
+                scan(item, depth + 1)
+
+    for detail in details:
+        scan(detail)
+    return names
+
+
+def _turn_file_output_names(*, session_id: str | None, source_context: dict[str, object] | None,
+                            identities_only: bool = False) -> set[str]:
+    names: set[str] = set()
+    for receipt in list((source_context or {}).get("tool_receipts") or []):
+        if not isinstance(receipt, dict) or not _receipt_succeeded(receipt):
+            continue
+        tool = str(receipt.get("tool_name") or receipt.get("tool") or receipt.get("intent") or "")
+        if _is_file_writer(tool):
+            if identities_only:
+                outputs = _output_file_names(receipt.get("observation"), identities_only=True)
+                if not outputs:
+                    outputs = _output_file_names(receipt.get("details"), identities_only=True)
+                if not outputs and "write_file" in tool:
+                    outputs = _output_file_names(receipt.get("arguments"), identities_only=True)
+                names.update(outputs)
+            else:
+                names.update(_output_file_names(receipt.get("observation"), receipt.get("details")))
+            if not identities_only and "write_file" in tool:
+                names.update(_output_file_names(receipt.get("arguments")))
+    try:
+        from core.execution_truth import KIND_TOOL, facts_for_turn, resolve_turn_key
+
+        turn_key = resolve_turn_key(dict(source_context or {}), None)
+        for fact in facts_for_turn(turn_key, session_id=str(session_id or "").strip()):
+            if fact.in_category(KIND_TOOL) and fact.ok and str(fact.status or "").lower() not in _FAILED_STATUSES:
+                if _is_file_writer(fact.name):
+                    names.update(_output_file_names(fact.detail, identities_only=identities_only))
+    except Exception:
+        pass
+    return names
+
+
+def _promised_file_count(claims: list[str]) -> int | None:
+    required = 0
+    for text in claims:
+        match = _GENERIC_FILE_PROMISE_RE.search(text) or _COMPLETED_FILE_COUNT_RE.search(text)
+        if match is None:
+            continue
+        body = match.group(0)
+        count = re.search(
+            rf"\b({_FILE_COUNT_WORD_PATTERN})(?:\s+(?:new|other|your|these|those)){{0,2}}\s+files?\b",
+            body, re.IGNORECASE,
+        )
+        if count:
+            token = count.group(1).lower()
+            if token.isdigit():
+                token = token.lstrip("0") or "0"
+                # Such counts cannot be verified from bounded turn output metadata. Do not
+                # feed arbitrary model text into an unbounded integer conversion.
+                if len(token) > 18:
+                    return None
+                amount = int(token)
+            else:
+                amount = _FILE_COUNT_WORDS[token]
+        else:
+            amount = 2 if re.search(r"\bfiles\b", body, re.IGNORECASE) else 1
+        required = max(required, amount)
+    return required
+
+
+def _turn_wrote_a_file(
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+    claimed: list[str] | None = None,
+) -> bool:
+    """Whether a tool that creates or exports a file SUCCEEDED on this turn, and made what was claimed.
+
+    When the claim names formats (a Word document, a PDF), every one of them needs a successful
+    writer whose record shows that format. A writer whose record names no output format cannot back
+    a format-named claim: "Your Word document is ready" after a plain text write is still false.
+    """
+    writes = _turn_file_writes(session_id=session_id, source_context=source_context)
+    if not writes:
+        return False
+    claims = list(claimed or [])
+    families = _claimed_deliverable_families(claims)
+    expected_names = _claimed_file_names(claims)
+    if expected_names is None:
+        return False
+    minimum_count = _promised_file_count(claims)
+    if minimum_count is None:
+        return False
+    if expected_names or minimum_count:
+        identities = _turn_file_output_names(session_id=session_id, source_context=source_context,
+                                             identities_only=True)
+        if any(not _file_claim_matches_output(name, identities, source_context) for name in expected_names):
+            return False
+        if len(identities) < minimum_count:
+            return False
+    made = set().union(*writes)
+    return all(family & made for family in families)
+
+
+def _strip_unbacked_file_promises(
+    output: dict[str, Any],
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any]:
+    """Drop sentences promising a file that no tool is making, keep the rest, and say so once.
+
+    The answer's real content stays; only the promise of a document, deck, spreadsheet or PDF that
+    this turn did not write is removed. A file-writing tool on this turn makes the promise true.
+    """
+    response = str(output.get("response") or "")
+    if not response.strip() or not _DELIVERABLE_PROMISE_RE.search(response):
+        return output
+    promised = [sentence for sentence in _split_sentences(_file_claim_text(response)) if _DELIVERABLE_PROMISE_RE.search(sentence)]
+    if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=promised):
+        return output
+    kept_lines: list[str] = []
+    removed: list[str] = []
+    for line in response.split("\n"):
+        sentences = _SENTENCE_SPLIT_RE.split(line)
+        survivors = []
+        for sentence in sentences:
+            if (_DELIVERABLE_PROMISE_RE.search(sentence) and not _CONDITIONAL_OFFER_RE.search(sentence)
+                    and not _DEFERRED_PLAN_RE.search(sentence)):
+                removed.append(sentence.strip())
+                continue
+            survivors.append(sentence)
+        if removed and line.strip() and not "".join(survivors).strip():
+            continue  # the whole line was the promise
+        kept_lines.append(" ".join(part for part in survivors if part) if len(survivors) != len(sentences) else line)
+    if not removed:
+        return output
+    body = "\n".join(kept_lines).strip()
+    guarded = dict(output)
+    guarded["response"] = f"{body}\n\n{_UNBACKED_PROMISE_NOTE}" if body else _HONEST_NO_DELIVERABLE_RESPONSE
+    guarded["action_honesty_validator"] = {
+        "applied": True,
+        "reason": "unbacked_file_promise_removed",
+        "removed": removed[:4],
+    }
+    return guarded
 
 
 def _turn_executed_a_spend(*, session_id: str | None, source_context: dict[str, object] | None) -> bool:
@@ -836,10 +1423,20 @@ def _location_answer_has_verified_past_receipt(
         return False
     if "action_receipt_location" in route:
         return True
+    # A path the answer qualifies with a directory names that path, not any file of the same name:
+    # "I saved other/a.md" is not backed by a record that wrote reports/a.md.
+    qualified_claims = {
+        claim for claim in (_claimed_file_names(_deliverable_claim_fragments(response)) or set()) if "/" in claim
+    }
     for receipt in verified:
         written = str(dict(receipt.get("arguments") or {}).get("path") or "").strip()
         name = written.replace("\\", "/").rsplit("/", 1)[-1]
         if name and name in response:
+            same_name = {claim for claim in qualified_claims if claim.rsplit("/", 1)[-1] == name}
+            if same_name and not any(
+                _file_claim_matches_output(claim, {written}, source_context) for claim in same_name
+            ):
+                continue
             return True
     return False
 
@@ -888,6 +1485,63 @@ def _enforce_active_mission_forbidden_terms(
         "original_response_excerpt": response[:240],
     }
     guarded["route_reason"] = "forbidden_term_blocked"
+    return guarded
+
+
+def _enforce_user_rule_words(
+    output: dict[str, Any],
+    *,
+    session_id: str | None,
+    source_context: dict[str, object] | None,
+) -> dict[str, Any]:
+    """Mask every word the user's rules in force here ban from replies (core.user_rules), and say
+    which exception let a word through that a broader rule would have masked.
+
+    The rules lane's own answer is exempt: it quotes the user's rules back to them.
+    """
+    response = str(output.get("response") or "")
+    if not response.strip() or not str(session_id or "").strip():
+        return output
+    try:
+        from core.user_rules import (
+            RULE_NOTE_RE,
+            override_note,
+            review_reply,
+            scope_keys_for,
+            turn_answered_rules_command,
+        )
+
+        if turn_answered_rules_command(session_id, source_context):
+            return output
+        keys = scope_keys_for(source_context) if isinstance(source_context, dict) and (
+            source_context.get("chat_id") or source_context.get("session_id")
+        ) else scope_keys_for(None, chat_id=str(session_id))
+        # The sealed reply is guarded again verify-only (K-08), so this pass must be idempotent:
+        # a reply that already carries this guard's note and has nothing left to mask is final.
+        existing = RULE_NOTE_RE.search(response)
+        body = response[: existing.start()] if existing else response
+        review = review_reply(body, chat_id=keys["chat"], project_id=keys["project"])
+    except Exception:
+        return output
+    if existing is not None and not review.hits:
+        return output
+    if not review.hits and not review.overrides:
+        return output
+    guarded = dict(output)
+    notes: list[str] = []
+    if review.hits:
+        rule_nos = sorted({hit.rule.rule_no for hit in review.hits})
+        named = ("rule " if len(rule_nos) == 1 else "rules ") + ", ".join(str(n) for n in rule_nos)
+        notes.append(f"Your {named} blocked {len(review.hits)} word{'s' if len(review.hits) != 1 else ''} here.")
+    if review.overrides:
+        notes.append(override_note(review.overrides))
+    guarded["response"] = f"{review.text}\n\n(" + " ".join(notes) + ")"
+    guarded["user_rule_validator"] = {
+        "applied": True,
+        "rules": sorted({hit.rule.rule_no for hit in review.hits}),
+        "terms": sorted({hit.term for hit in review.hits}),
+        "exceptions": sorted({lift.exception.rule_no for lift in review.overrides}),
+    }
     return guarded
 
 
@@ -1134,6 +1788,20 @@ def _verify_audit_claims_against_evidence(
             )
     return output
 
+def _rules_lane_owns_forget(
+    user_input: str, *, session_id: str | None, source_context: dict[str, object] | None
+) -> bool:
+    """"Forget the rule about X" is a rules command, not a memory forget: the rules lane answered it from
+    the rules store and filed its own turn fact. Only a whole-turn rules removal that names no second
+    forget qualifies; anything else still needs a verified memory forget outcome."""
+    try:
+        from core.user_rules import rules_command_owns_forget, turn_answered_rules_command
+
+        return rules_command_owns_forget(user_input) and turn_answered_rules_command(session_id, source_context)
+    except Exception:
+        return False
+
+
 def enforce_final_action_honesty(
     result: dict[str, Any],
     *,
@@ -1164,7 +1832,7 @@ def enforce_final_action_honesty(
     if requires_forget_outcome(
         output, user_input=user_input, effective_input=effective_input,
         source_context=source_context,
-    ):
+    ) and not _rules_lane_owns_forget(user_input, session_id=session_id, source_context=source_context):
         output["response"] = (
             "Forget could not be verified on this turn. Please retry the forget."
         )
@@ -1193,6 +1861,7 @@ def enforce_final_action_honesty(
         output, session_id=session_id, source_context=source_context
     )
     output = _enforce_active_mission_forbidden_terms(output, session_id=session_id)
+    output = _enforce_user_rule_words(output, session_id=session_id, source_context=source_context)
     output = _suppress_leaked_tool_call(output)
     output = _enforce_inspection_claims(output, user_input=user_input, session_id=session_id)
     output = _apply_answer_binding(output, user_input=user_input, session_id=session_id)
@@ -1225,21 +1894,37 @@ def enforce_final_action_honesty(
         output["route_reason"] = "fabricated_progress_blocked"
         return output
     if not claim_kind:
-        return output
+        return _strip_unbacked_file_promises(output, session_id=session_id, source_context=source_context)
     # NOT gated on this turn's prompt. Whether "the files were deleted" is TRUE depends on whether a
     # tool actually ran -- not on what the user happened to type. The old gate required an action
     # verb in the CURRENT prompt, so the guard switched itself off on every follow-up: the identical
     # fabricated claim was blocked right after "delete the temp files" and passed one turn later on
     # "ok and what now?". The remaining gates below are the ones that decide truthfulness:
     # an explicit denial, mode=tool_executed, or a real executed receipt in this session.
-    if str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed":
-        return output
-    if _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context):
-        return output
+    if claim_kind == "deliverable":
+        # A file said to exist needs a tool that WROTE one on this turn. Any other receipt (a web
+        # lookup, a memory read) or a tool-flavoured mode is not evidence that a document exists.
+        claimed = _deliverable_claim_fragments(response)
+        if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=claimed):
+            return output
+    elif (
+        str(output.get("mode") or output.get("mode_override") or "").strip().lower() == "tool_executed"
+        or _current_turn_has_executed_receipt(session_id=session_id, source_context=source_context)
+    ):
+        # A build report that counts or names its files ("created 3 files") is held to what this
+        # turn wrote once the turn has file writes to compare it with: one written file does not
+        # back three.
+        claimed = _deliverable_claim_fragments(response) if claim_kind == "build" else []
+        if not (claimed and _turn_file_writes(session_id=session_id, source_context=source_context)):
+            return output
+        if _turn_wrote_a_file(session_id=session_id, source_context=source_context, claimed=claimed):
+            return output
+        claim_kind = "deliverable"
     if _location_answer_has_verified_past_receipt(output, session_id=session_id, source_context=source_context):
         return output
 
     output["response"] = {
+        "deliverable": _HONEST_NO_DELIVERABLE_RESPONSE,
         "build": _HONEST_NO_BUILD_RESPONSE,
         "persistence": _HONEST_NO_PERSISTENCE_RESPONSE,
     }.get(claim_kind, _HONEST_NO_EXECUTION_RESPONSE)
@@ -1272,7 +1957,7 @@ def _final_claim_kind(
     if requires_forget_outcome(
         result, user_input=user_input, effective_input=effective_input,
         source_context=source_context,
-    ):
+    ) and not _rules_lane_owns_forget(user_input, session_id=session_id, source_context=source_context):
         return "forget"
     response = str(result.get("response") or "").strip()
     if response and len(response) < 220 and _FALSE_PROGRESS_CLAIM_RE.search(response):

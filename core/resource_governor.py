@@ -21,7 +21,6 @@ import contextlib
 import json
 import os
 import signal
-import subprocess
 import urllib.request
 from dataclasses import dataclass, field
 
@@ -109,23 +108,16 @@ def unload_idle_ollama() -> float:
 
 
 def stop_comfyui() -> bool:
-    """Gracefully stop an idle ComfyUI (SIGTERM the port-8188 process), releasing its ~5 GB.
+    """Gracefully stop the ComfyUI VOOL started (SIGTERM its recorded process group), releasing ~5 GB.
 
-    ensure_comfyui() restarts it on the next image request, so this is safe idle hygiene. Returns
-    True if a process was signaled.
+    Only the process ensure_comfyui() spawned in this run is signaled: never a process found by name
+    or port, so a ComfyUI the user runs themselves, or any other process whose command line matches,
+    is left alone. ensure_comfyui() restarts it on the next image request, so this is safe idle
+    hygiene. Returns True if a process was signaled.
     """
-    out = ""
-    with contextlib.suppress(OSError, subprocess.SubprocessError):
-        out = subprocess.run(
-            ["pgrep", "-f", f"main.py --port {_COMFYUI_PORT}"],
-            capture_output=True, text=True, timeout=2.0, check=False,
-        ).stdout or ""
-    signaled = False
-    for pid in [p for p in out.split() if p.strip().isdigit()]:
-        with contextlib.suppress(ProcessLookupError, PermissionError, ValueError):
-            os.kill(int(pid), signal.SIGTERM)
-            signaled = True
-    return signaled
+    from core.local_service_autostart import stop_started_service
+
+    return stop_started_service("ComfyUI", sig=signal.SIGTERM)
 
 
 # --------------------------------------------------------------------------- the gate

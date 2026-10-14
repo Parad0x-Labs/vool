@@ -829,6 +829,7 @@ def _emit_workspace_tool_events(
         # read. Measured: `workspace.search_text` and `workspace.read_file` were 100% empty while
         # `web.search`, which does pass them, was 0% empty.
         arguments={"path": path} if path else {},
+        observation=dict(getattr(execution, "details", {}) or {}).get("observation", {}),
     )
 
 

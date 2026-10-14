@@ -401,7 +401,8 @@ def test_pdf_read_denied_by_project_permissions_is_refused_like_the_model_route(
 def _fake_skill_handler(calls: list[str], ok_text: str = "skill staged"):
     import core.runtime_execution_tools as ret
 
-    def _handler(arguments: dict[str, Any]) -> Any:
+    def _handler(arguments: dict[str, Any], *_turn_context: Any) -> Any:
+        # The skill handlers also receive the turn's source_context (chat/project scope keys).
         calls.append(str(arguments.get("name") or arguments.get("path") or ""))
         return ret.RuntimeExecutionResult(
             handled=True, ok=True, status="ok", response_text=ok_text, details={},

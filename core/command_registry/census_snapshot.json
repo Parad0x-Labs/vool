@@ -344,6 +344,13 @@
       "registry_command_id": "",
       "surface": "cli-vool"
     },
+    "cli-vool:bug-report.answer": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.answer",
+      "note": "bug-report lane operator action (wrong-answer draft)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
     "cli-vool:bug-report.approve": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "bug-report.approve",
@@ -369,6 +376,20 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "bug-report.export",
       "note": "bug-report lane operator action (local sanitized export)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.list": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.list",
+      "note": "bug-report lane read (my reports)",
+      "registry_command_id": "",
+      "surface": "cli-vool"
+    },
+    "cli-vool:bug-report.open": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "bug-report.open",
+      "note": "bug-report lane operator action (browser/clipboard hand-off)",
       "registry_command_id": "",
       "surface": "cli-vool"
     },
@@ -747,6 +768,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/bug-report/destination",
       "note": "bug-report lane read feed (destination state)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/bug-report/list": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/bug-report/list",
+      "note": "bug-report lane read feed (my reports)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -1744,10 +1772,24 @@
       "registry_command_id": "auth.callback.record",
       "surface": "http"
     },
+    "http:POST:/api/bug-report/answer-draft": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/answer-draft",
+      "note": "bug-report lane operator action (wrong-answer draft)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/bug-report/approve": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/bug-report/approve",
       "note": "bug-report pipeline lane",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/delete": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/delete",
+      "note": "bug-report lane operator action (delete a local draft)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -1762,6 +1804,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/bug-report/export",
       "note": "bug-report lane operator action (local sanitized export)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/bug-report/handoff": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/bug-report/handoff",
+      "note": "bug-report lane operator action (browser/clipboard hand-off)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -1847,6 +1896,13 @@
       "name": "POST /api/calendar/sync",
       "note": "calendar lane operator action (account sync)",
       "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/chain/test": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/chain/test",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "chain.test",
       "surface": "http"
     },
     "http:POST:/api/chat": {
@@ -2724,6 +2780,13 @@
       "registry_command_id": "wallet.x402.retry",
       "surface": "http"
     },
+    "http:POST:/api/x/setup": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/setup",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.setup",
+      "surface": "http"
+    },
     "http:POST:/gate/unlock": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /gate/unlock",
@@ -2965,8 +3028,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 289,
-    "GENERATED_ADAPTER": 125,
+    "EXTERNAL_TRANSPORT_ONLY": 296,
+    "GENERATED_ADAPTER": 127,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

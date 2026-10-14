@@ -184,6 +184,23 @@ def _nsdate_to_utc(nsdate: Any, foundation: Any) -> datetime:
     return datetime.fromtimestamp(nsdate.timeIntervalSince1970(), tz=timezone.utc)
 
 
+def _all_day_dates(start_raw: Any, end_raw: Any) -> tuple[str, str]:
+    """An all-day event's days, as the contract carries them (start, exclusive end).
+
+    EventKit keeps an all-day event as floating midnights of this Mac's zone -- the zone
+    ``create_event`` writes them in -- so the day is read in that zone, never off the UTC
+    instant (east of UTC that is the day before). EventKit ends an all-day event at the last
+    second of its last day, which reads as the next day for an exclusive end.
+    """
+    start_local = datetime.fromtimestamp(start_raw.timeIntervalSince1970())
+    end_local = datetime.fromtimestamp(end_raw.timeIntervalSince1970())
+    start_day = start_local.date()
+    end_day = end_local.date() if end_local.time() == datetime.min.time() else end_local.date() + timedelta(days=1)
+    if end_day <= start_day:
+        end_day = start_day + timedelta(days=1)
+    return start_day.isoformat(), end_day.isoformat()
+
+
 def _sel(obj: Any, name: str, default: Any = None) -> Any:
     """Read one EventKit property through the ACTUAL selector bridge.
 
@@ -239,6 +256,7 @@ def _ek_to_cal(event: Any, *, provider_id: str, foundation: Any) -> CalEvent:
     except (AttributeError, TypeError, ValueError, OverflowError, OSError):
         raise CalendarReadUnusableError(detail="an event in the Mac event store has dates that are not readable") from None
     all_day = bool(_sel(event, "isAllDay", False))
+    all_day_dates = _all_day_dates(start_raw, end_raw) if all_day else ("", "")
     calendar = _sel(event, "calendar")
     tz_name = ""
     if calendar is not None:
@@ -269,8 +287,8 @@ def _ek_to_cal(event: Any, *, provider_id: str, foundation: Any) -> CalEvent:
         start_utc="" if all_day else start.isoformat(),
         end_utc="" if all_day else end.isoformat(),
         all_day=all_day,
-        start_date=start.date().isoformat() if all_day else "",
-        end_date=end.date().isoformat() if all_day else "",
+        start_date=all_day_dates[0],
+        end_date=all_day_dates[1],
         tz_name=tz_name,
         description=str(_sel(event, "notes") or ""),
         href="eventkit://" + uid,
