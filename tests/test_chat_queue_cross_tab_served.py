@@ -225,7 +225,7 @@ def test_send_from_a_second_tab_while_a_turn_is_live_queues_and_runs_once(two_ta
 
     # A call carrying THIS message's words -- the rig's certification probes ("sealed local
     # diagnostic...") are generation-shaped too and precede every turn, so per-message counting
-    # is the only honest invocation count.
+    # is the only true invocation count.
     def calls_for(message):
         return [call for call in provider.generation_calls() if message in str(call.get("text") or "")]
 

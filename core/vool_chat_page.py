@@ -8665,7 +8665,7 @@ async function runTurn(text, queueItemId, opts) {
           }
           // The release was refused (another dispatch consumed this claim) or the door
           // failed. The row keeps its in_flight record -- restart recovery's owner -- and
-          // the turn ends failed with the honest state. Never a duplicate, never a loss.
+          // the turn ends failed and says so. Never a duplicate, never a loss.
           run.text = pageT('run.queue_claim_stuck', 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.');
           if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
           if (run.textEl) run.textEl.textContent = run.text;
