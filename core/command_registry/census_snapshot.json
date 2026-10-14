@@ -1171,9 +1171,9 @@
       "surface": "http"
     },
     "http:GET:/api/market/watches": {
-      "classification": "LEGACY_UNMIGRATED",
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/market/watches",
-      "note": "",
+      "note": "market watch feed for Settings (the chat's watch.* tools are the operator path)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2270,23 +2270,23 @@
       "surface": "http"
     },
     "http:POST:/api/market/watches/pause": {
-      "classification": "LEGACY_UNMIGRATED",
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/market/watches/pause",
-      "note": "",
+      "note": "market watch lane: the owner's Settings switch for one watch, same-origin only",
       "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/market/watches/remove": {
-      "classification": "LEGACY_UNMIGRATED",
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/market/watches/remove",
-      "note": "",
+      "note": "market watch lane: the owner's Settings switch for one watch, same-origin only",
       "registry_command_id": "",
       "surface": "http"
     },
     "http:POST:/api/market/watches/resume": {
-      "classification": "LEGACY_UNMIGRATED",
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/market/watches/resume",
-      "note": "",
+      "note": "market watch lane: the owner's Settings switch for one watch, same-origin only",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3154,9 +3154,9 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 305,
+    "EXTERNAL_TRANSPORT_ONLY": 309,
     "GENERATED_ADAPTER": 132,
-    "LEGACY_UNMIGRATED": 4,
+    "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
 }
