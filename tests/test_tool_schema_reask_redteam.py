@@ -155,3 +155,34 @@ def test_paid_correction_that_succeeds_closes_with_one_spend_receipt(wire, paid_
     assert held.status == "billing_ambiguous" and held.reserved_usd > 0
     assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
     assert str(run["state"]) != "paid_running", run
+
+
+def test_free_lane_keeps_its_one_resend_for_an_unoffered_tool_name(wire):
+    # The verified-free lane's existing single resend for a named tool-call defect stays as it
+    # was; only argument defects moved to the router's corrective re-ask.
+    wire.outcomes = [_body({"archive_id": "sample"}, name="not_offered"), _body({"archive_id": "sample"})]
+    response, error, _ = _invoke(wire, adapter_free_retry=True)
+    assert response is not None and error is None, error
+    assert len(wire.bodies) == 2
+    assert response.tool_calls[0].arguments == {"archive_id": "sample"}
+
+
+def test_free_lane_unoffered_tool_name_twice_ends_typed_after_two_sends(wire):
+    wire.outcomes = [_body({"archive_id": "sample"}, name="not_offered")]
+    response, error, _ = _invoke(wire, adapter_free_retry=True)
+    assert response is None and error.startswith("unknown_tool_name:")
+    assert len(wire.bodies) == 2
+
+
+def test_free_lane_resend_and_router_correction_never_stack_past_three_sends(wire):
+    # Unoffered name, then a bad argument on the resend, then the router's correction: the
+    # correction dispatch itself gets no further hidden resend.
+    wire.outcomes = [
+        _body({"archive_id": "sample"}, name="not_offered"),
+        _body({"tape_id": "sample"}),
+        _body({"archive_id": "sample"}, name="not_offered"),
+        _body({"archive_id": "sample"}),
+    ]
+    response, error, _ = _invoke(wire, adapter_free_retry=True)
+    assert response is None and error.startswith("unknown_tool_name:")
+    assert len(wire.bodies) == 3

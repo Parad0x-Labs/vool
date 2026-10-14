@@ -479,7 +479,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
         # takes the native tool-calling path. A tool_intent turn with no tools is a structured-output
         # turn (json_schema), not a malformed tool request.
         native_tools = self._native_tools(request) if getattr(request, "tools", None) else ()
-        max_attempts = 2 if native_tools and self._is_verified_free_openrouter_lane() else 1
+        # The router's tool-schema correction is already the extra attempt; it gets no resend.
+        max_attempts = (
+            2
+            if native_tools
+            and self._is_verified_free_openrouter_lane()
+            and not (request.metadata or {}).get("tool_schema_correction")
+            else 1
+        )
         # The mode the RESPONSE carries. Normally the request's, but a repaired prose tool call is a
         # call and not an answer, and only this layer knows a repair happened.
         response_output_mode = request.output_mode
@@ -609,6 +616,11 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     data, definitions=native_tools, metadata=request.metadata
                 )
                 break
+            except MalformedToolArgumentsError:
+                # Argument defects are recovered by the router with corrective schema feedback
+                # and one recorded attempt budget. An identical hidden resend here would multiply
+                # that budget on free lanes.
+                raise
             except ToolCallParseError:
                 # SWITCHBOARD repair: a NAMED tool-call defect (UnknownToolNameError /
                 # MalformedToolArgumentsError / DuplicateToolCallError) must reach the router as
@@ -619,10 +631,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 # it -- the identical malformed call classified MALFORMED_TOOL_CALL on Ollama and
                 # MALFORMED_PROVIDER_RESPONSE (wrong: the wire format was fine, the MODEL's call
                 # was bad) on this lane.
-                # Named output errors are recovered by the router with corrective
-                # schema feedback and one recorded attempt budget. An identical
-                # hidden adapter retry would multiply that budget on free lanes.
-                raise
+                if attempt_index + 1 >= max_attempts:
+                    raise
             except ValueError as exc:
                 if attempt_index + 1 >= max_attempts:
                     raise RuntimeError(f"malformed provider response: {exc}") from exc
