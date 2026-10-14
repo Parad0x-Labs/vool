@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import threading
 import time
 import uuid
@@ -60,8 +61,58 @@ WINDOWS: dict[str, tuple[str, int, int, int]] = {
     "24h": ("hour", 1, 3600, 24 * 3600),
 }
 
+#: Why a watch could not be checked, as a code. ``last_error`` stores only one of these; Settings
+#: words it through the ``vmw.err.<code>`` catalog keys, so no provider text reaches the card.
+ERR_CODES = frozenset({
+    "rate_limited", "provider_down", "unreachable", "bad_answer", "no_pool", "budget", "resting",
+    "history_gap", "key_missing", "key_unreadable", "key_rejected", "quota_exhausted", "plan_refused",
+    "local_only", "web_off",
+})
+#: Refusals that a re-read of the local requirement cannot clear (the key is stored but the
+#: provider refuses it, or VOOL may not go online): the watch waits for the user's Resume.
+HOLD_CODES = frozenset({"key_unreadable", "key_rejected", "quota_exhausted", "plan_refused", "local_only"})
+_WALLET_SETUP_CODES = {
+    "key_missing": "key_missing", "key_unreadable": "key_unreadable", "key_rejected": "key_rejected",
+    "quota_exhausted": "quota_exhausted", "plan_refused": "plan_refused", "chain_not_enabled": "plan_refused",
+    "refused": "local_only",
+}
+_BACKOFF_CODES = frozenset({"rate_limited", "provider_down", "provider_error", "timeout", "unreachable"})
+_SETUP_WORDS = {
+    "key_missing": "no saved key serves {chain} history any more. Add one in Settings → API Keys.",
+    "key_unreadable": "VOOL could not read the saved key from this machine's key store. Check Settings → API Keys, "
+                      "then resume the watch.",
+    "key_rejected": "the saved key for {chain} history was refused. Replace it in Settings → API Keys, then resume "
+                    "the watch.",
+    "quota_exhausted": "the saved key for {chain} history has no quota left. Check the key's plan, then resume the "
+                       "watch.",
+    "plan_refused": "the saved key's plan does not include {chain} history. Check the plan or add another key, then "
+                    "resume the watch.",
+    "local_only": "VOOL is not allowed to go online right now (for example Local Only is on). Resume the watch when "
+                  "it may go online again.",
+}
+FACTS_CAP = 2000
+
+
+def _reason_code(code: str) -> str:
+    """A provider or transport failure folded into one of ``ERR_CODES``; unknown is a bad answer."""
+    code = str(code or "")
+    if code in ERR_CODES:
+        return code
+    if code in ("provider_error",):
+        return "provider_down"
+    if code in ("timeout",):
+        return "unreachable"
+    if code == "not_found":
+        return "no_pool"
+    return "bad_answer"
+
+
 _WEB_OFF_TEXT = ("Price watches read public trading data online, and web access is off. Turn on web "
                  "access in Settings to watch a price. Nothing was saved.")
+REPLY_WATCH_PRIVATE = (
+    "Private chat is on, so I won't save a watch either. "
+    "Say \"turn recording back on\" first, then ask again and I'll start watching it."
+)
 _CAP_TEXT = f"That is already {MAX_WATCHES} watches; remove one first. Nothing was saved."
 
 
@@ -327,9 +378,13 @@ def add_watch(args: dict[str, Any], *, source_context: dict[str, Any] | None = N
             raise WatchError("too_many", _CAP_TEXT)
         now = now_fn()
         if existing is not None:
+            rule_json = json.dumps(rule, sort_keys=True)
+            if rule_json != existing["rule_json"]:
+                # A new rule starts fresh: the old rule's armed/disarmed state does not carry over.
+                conn.execute("UPDATE market_watches SET last_seen_json = NULL WHERE id = ?", (existing["id"],))
             conn.execute(
                 "UPDATE market_watches SET label = ?, rule_json = ?, state = 'active', last_error = '' WHERE id = ?",
-                (label, json.dumps(rule, sort_keys=True), existing["id"]),
+                (label, rule_json, existing["id"]),
             )
             conn.commit()
             watch_id = existing["id"]
@@ -465,11 +520,39 @@ def _record_event(watch: dict[str, Any], kind: str, facts: dict[str, Any], notif
         conn.execute(
             "INSERT INTO market_watch_events (id, watch_id, at, kind, facts_json, notification_id) VALUES (?, ?, ?, ?, ?, ?)",
             ("mwe-" + uuid.uuid4().hex, watch["id"], now_fn(), kind,
-             json.dumps(facts, sort_keys=True, default=str)[:2000], str(notification_id or "")),
+             _facts_json(facts), str(notification_id or "")),
         )
         conn.commit()
     finally:
         conn.close()
+
+
+def _facts_json(facts: dict[str, Any], cap: int = FACTS_CAP) -> str:
+    """The event's facts as JSON of at most ``cap`` characters, always valid JSON.
+
+    Too long: lists lose items from the end, then long strings are shortened, then keys are
+    dropped from the end; the cut is marked with ``"trimmed": true``.
+    """
+    text = json.dumps(facts, sort_keys=True, default=str)
+    if len(text) <= cap:
+        return text
+    data: dict[str, Any] = json.loads(text)  # plain JSON types from here on
+    data["trimmed"] = True
+    for key in sorted(data):
+        while isinstance(data[key], list) and data[key] and len(json.dumps(data, sort_keys=True)) > cap:
+            data[key].pop()
+    if len(json.dumps(data, sort_keys=True)) > cap:
+        for key in sorted(data):
+            if isinstance(data[key], str) and len(data[key]) > 80:
+                data[key] = data[key][:80]
+            elif isinstance(data[key], (dict, list)):
+                inner = json.dumps(data[key], sort_keys=True)
+                if len(inner) > 200:
+                    data[key] = inner[:200]
+    keys = [key for key in sorted(data) if key != "trimmed"]
+    while keys and len(json.dumps(data, sort_keys=True)) > cap:
+        data.pop(keys.pop())
+    return json.dumps(data, sort_keys=True)
 
 
 def _update_watch(watch_id: str, *, last_checked_at: str | None = None, last_seen: dict[str, Any] | None = None,
@@ -614,6 +697,9 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
                                       details={**details, "observation": observation})
 
     args = dict(arguments or {})
+    if intent == "watch.add" and _turn_is_private(source_context):
+        # Private chat (core.private_chat): nothing from a private chat is saved, a watch included.
+        return result(False, "private_chat", REPLY_WATCH_PRIVATE)
     try:
         if intent == "watch.add":
             out = add_watch(args, source_context=source_context)
@@ -637,6 +723,16 @@ def run_tool(intent: str, arguments: dict[str, Any] | None, source_context: dict
     except WatchError as exc:
         return result(False, exc.code, exc.message)
     return result(False, "unsupported_intent", "That is not a watch tool.")
+
+
+def _turn_is_private(source_context: dict[str, Any] | None) -> bool:
+    """The private-chat check for this turn; an unreadable answer counts as private (fail closed)."""
+    try:
+        from core.private_chat import turn_is_private
+
+        return bool(turn_is_private(source_context))
+    except Exception:
+        return True
 
 
 def _chain_label(chain: str) -> str:
@@ -683,13 +779,12 @@ class _ProviderBudget:
         with self._lock:
             wait = self._blocked_until.get(provider, 0.0) - now
             if wait > 0:
-                minutes = max(1, round(wait / 60))
-                return False, f"{provider} is being given a rest after it refused requests; the next check waits about {minutes} minute(s)"
+                return False, "resting"
             calls = self._calls.setdefault(provider, deque())
             while calls and now - calls[0] > self._window_s:
                 calls.popleft()
             if len(calls) >= self._max_calls:
-                return False, f"the hourly limit of {self._max_calls} calls to {provider} is used up; the next check waits"
+                return False, "budget"
             return True, ""
 
     def allow_and_spend(self, provider: str, now: float) -> tuple[bool, str]:
@@ -730,35 +825,69 @@ class MarketWatchPoller:
         self._budget = _ProviderBudget()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._seen_this_process: set[str] = set()
+        self._price_chain_read: dict[str, float] = {}
+        self._last_purge: float | None = None
 
     # -- one sweep, separately callable so tests use the SAME code ------------------------
 
+    def _active_watches(self) -> list[dict[str, Any]] | None:
+        """The watches to consider, read only. None when the table was never created."""
+        conn = self._get_connection_fn()
+        try:
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'market_watches'"
+            ).fetchone()
+            if exists is None:
+                return None
+            rows = conn.execute(
+                "SELECT * FROM market_watches WHERE state != 'paused' ORDER BY created_at"
+            ).fetchall()
+        finally:
+            conn.close()
+        return [_watch(row) for row in rows]
+
+    def _purge_hourly(self, now_epoch: float) -> None:
+        if self._last_purge is not None and now_epoch - self._last_purge < 3600.0:
+            return
+        self._last_purge = now_epoch
+        _purge_old_events(now_fn=self._now_fn, get_connection_fn=self._get_connection_fn)
+
     def sweep_once(self, *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
-        """One pass over due watches. Never raises; a failure is recorded on its watch."""
+        """One pass over due watches. Never raises; a failure is recorded on its watch.
+
+        A fresh install (no watch table) and a list with nothing active read one row of the
+        schema and stop: no table is created, nothing is written, nothing goes online."""
         outcome: dict[str, Any] = {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 0, "errors": 0}
         try:
-            _ensure_tables(self._get_connection_fn)
-            _purge_old_events(now_fn=self._now_fn, get_connection_fn=self._get_connection_fn)
-            watches = [w for w in list_watches(get_connection_fn=self._get_connection_fn) if w["state"] != "paused"]
+            watches = self._active_watches()
             if not watches:
-                return outcome  # nothing watched: no requirement read, no network
+                return outcome  # nothing watched: no write, no requirement read, no network
+            now_epoch = _epoch(self._now_fn()) or time.time()
+            self._purge_hourly(now_epoch)
         except Exception:
             outcome["errors"] += 1
             return outcome
-        now = self._now_fn()
-        now_epoch = _epoch(now) or time.time()
-        if not watches:
-            return outcome
+
+        def last_checked(watch: dict[str, Any]) -> float:
+            return _epoch(watch.get("last_checked_at")) or 0.0
+
+        due = []
+        for watch in watches:
+            interval = self._wallet_interval_s if watch["kind"] == "wallet" else self._price_interval_s
+            checked = _epoch(watch.get("last_checked_at"))
+            if checked is not None and now_epoch - checked < interval:
+                continue
+            due.append(watch)
+        # Price reads share one hourly budget: the least recently checked watch goes first, so
+        # the one read per chain per price interval rotates through the list and none starves.
+        due.sort(key=lambda w: (w["kind"] != "wallet", last_checked(w)))
         # The poller's reads leave any turn: they run under the one named background scope
         # the effect door provides, exactly like the calendar sync, so the ledger sees them.
         from core.effect_gateway import named_background_effect_scope
 
         with named_background_effect_scope("market.watch.poller"):
-            for watch in watches:
-                interval = self._wallet_interval_s if watch["kind"] == "wallet" else self._price_interval_s
-                checked = _epoch(watch.get("last_checked_at"))
-                if checked is not None and now_epoch - checked < interval:
-                    continue
+            for watch in due:
                 try:
                     counts = self._poll_one(watch, now_epoch, source_context=source_context)
                 except Exception:
@@ -771,23 +900,17 @@ class MarketWatchPoller:
     def _poll_one(self, watch: dict[str, Any], now_epoch: float, *,
                   source_context: dict[str, Any] | None) -> dict[str, int]:
         counts = {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 0}
+        if watch["state"] == "needs_setup" and str(watch.get("last_error") or "") in HOLD_CODES:
+            # The provider refused (or VOOL may not go online): the notice went out once and
+            # the watch waits for the user's Resume. No call, no write.
+            return counts
         ok, refusal = _requirement_of(watch, source_context)
         if not ok:
             if watch["state"] == "active":
-                _update_watch(watch["id"], state="needs_setup", last_checked_at=self._now_fn(), last_error=refusal,
-                              get_connection_fn=self._get_connection_fn)
-                counts["needs_setup"] += 1
-                notification_id = _notify(
-                    watch, title=f"{watch['label']} stopped checking",
-                    body=f"The watch on {watch['label']} stopped: {refusal}",
-                    dedupe_key=f"market_watch.setup:{watch['id']}",
-                    now_fn=self._now_fn, get_connection_fn=self._get_connection_fn,
-                )
-                _record_event(watch, "needs_setup", {"reason": refusal}, notification_id,
-                              now_fn=self._now_fn, get_connection_fn=self._get_connection_fn)
-            else:
-                # needs_setup already told its story once; only the local requirement is re-read
-                _update_watch(watch["id"], last_checked_at=self._now_fn(), get_connection_fn=self._get_connection_fn)
+                code = "key_missing" if watch["kind"] == "wallet" else "web_off"
+                return self._needs_setup_now(watch, code, refusal)
+            # needs_setup already told its story once; only the local requirement is re-read
+            _update_watch(watch["id"], last_checked_at=self._now_fn(), get_connection_fn=self._get_connection_fn)
             return counts
         if watch["state"] == "needs_setup":
             _update_watch(watch["id"], state="active", get_connection_fn=self._get_connection_fn)
@@ -799,26 +922,40 @@ class MarketWatchPoller:
 
     # -- wallets: recent history through the chain-data providers -------------------------
 
+    def _catching_up(self, watch: dict[str, Any], now_epoch: float) -> bool:
+        """True when this read covers time VOOL did not watch: the first read of this process,
+        or a gap of more than two wallet intervals since the last good read."""
+        if watch["id"] not in self._seen_this_process:
+            return True
+        seen = watch.get("last_seen") or {}
+        last_good = _epoch(seen.get("at")) or _epoch(watch.get("last_checked_at"))
+        return last_good is None or now_epoch - last_good > 2 * self._wallet_interval_s
+
     def _poll_wallet(self, watch: dict[str, Any], now_epoch: float) -> dict[str, int]:
         from core import chain_data
         from core import chain_providers as cp
         from core.chain_data import ChainDataError
 
-        cfg, _others = chain_data._choose_provider({}, watch["chain"], cp.OP_HISTORY)
+        try:
+            cfg, _others = chain_data._choose_provider({}, watch["chain"], cp.OP_HISTORY)
+        except ChainDataError as exc:
+            return self._wallet_failure(watch, "", exc.code, now_epoch)
         provider = cfg.registry_id
-        allowed, reason = self._budget.allow(provider, now_epoch)
+        # Spent before the call: a failed call is a call the provider counted too.
+        allowed, code = self._budget.allow_and_spend(provider, now_epoch)
         if not allowed:
-            _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=reason,
+            _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=code,
                           get_connection_fn=self._get_connection_fn)
             return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 1}
+        catch_up = self._catching_up(watch, now_epoch)
+        self._seen_this_process.add(watch["id"])
         try:
             answer = chain_data.lookup({"query": "history", "address": watch["subject"], "chain": watch["chain"],
                                         "limit": 25})
         except ChainDataError as exc:
-            return self._wallet_failure(watch, provider, exc.code, exc.message, now_epoch)
-        except Exception as exc:
-            return self._wallet_failure(watch, provider, "provider_error", type(exc).__name__, now_epoch)
-        self._budget.spent(provider, now_epoch)
+            return self._wallet_failure(watch, provider, exc.code, now_epoch)
+        except Exception:
+            return self._wallet_failure(watch, provider, "provider_error", now_epoch)
         self._budget.recovered(provider)
         rows = [row for row in (answer.get("rows") or []) if isinstance(row, dict)]
         ids = [str(row.get("signature") or row.get("hash") or "") for row in rows]
@@ -836,31 +973,34 @@ class MarketWatchPoller:
                           last_seen={"ids": ids[:BASELINE_IDS_KEPT], "at": self._now_fn()}, last_error="",
                           get_connection_fn=self._get_connection_fn)
             return {"checked": 1, "events": 0, "needs_setup": 0, "skipped": 0}
-        events = self._wallet_events(watch, fresh)
+        events = self._wallet_events(watch, fresh, catch_up=catch_up)
         _update_watch(watch["id"], last_checked_at=self._now_fn(),
                       last_seen={"ids": list(dict.fromkeys([*ids, *map(str, seen)]))[:BASELINE_IDS_KEPT],
                                  "at": self._now_fn()},
                       last_error="", get_connection_fn=self._get_connection_fn)
         return {"checked": 1, "events": events, "needs_setup": 0, "skipped": 0}
 
-    def _wallet_failure(self, watch: dict[str, Any], provider: str, code: str, message: str, now_epoch: float) -> dict[str, int]:
-        if code in ("rate_limited", "provider_down"):
-            backoff = self._budget.failed(provider, now_epoch)
-            minutes = max(1, round(backoff / 60))
-            message = f"{message} Backing off about {minutes} minute(s)."
-        _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=message,
+    def _wallet_failure(self, watch: dict[str, Any], provider: str, code: str, now_epoch: float) -> dict[str, int]:
+        if code in _WALLET_SETUP_CODES:
+            return self._needs_setup_now(watch, _WALLET_SETUP_CODES[code])
+        if provider and code in _BACKOFF_CODES:
+            self._budget.failed(provider, now_epoch)
+        stored = "bad_answer" if code == "not_found" else _reason_code(code)
+        _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=stored,
                       get_connection_fn=self._get_connection_fn)
         return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 0}
 
-    def _wallet_events(self, watch: dict[str, Any], fresh: list[dict[str, Any]]) -> int:
+    def _wallet_events(self, watch: dict[str, Any], fresh: list[dict[str, Any]], *, catch_up: bool = False) -> int:
         from core.chain_data import _explorer
 
         chain_label = _chain_label(watch["chain"])
-        if len(fresh) > NEW_TX_SUMMARY_AT:
+        if len(fresh) > NEW_TX_SUMMARY_AT or (catch_up and len(fresh) > 1):
+            # Many at once, or the time VOOL was closed: one summary, never one per row.
             link = _explorer(watch["chain"], address=watch["subject"])
+            when = " since VOOL last checked" if catch_up else " in one check"
             notification_id = _notify(
                 watch, title=f"{watch['label']}: {len(fresh)} new transactions",
-                body=(f"{len(fresh)} new transactions appeared on {watch['label']} on {chain_label} in one check. "
+                body=(f"{len(fresh)} new transactions appeared on {watch['label']} on {chain_label}{when}. "
                       f"Open the history to see them.{' ' + link if link else ''}").strip(),
                 dedupe_key=f"market_watch:{watch['id']}:summary:{self._now_fn()[:16]}",
                 payload={"count": len(fresh)},
@@ -911,12 +1051,18 @@ class MarketWatchPoller:
                 return True, ""
         return self._budget.allow_and_spend("market.geckoterminal", now_epoch)
 
-    def _price_failure(self, watch: dict[str, Any], code: str, message: str, now_epoch: float) -> dict[str, int]:
-        if code in ("rate_limited", "provider_error"):
-            backoff = self._budget.failed("market.geckoterminal", now_epoch)
-            minutes = max(1, round(backoff / 60))
-            message = f"{message} Backing off about {minutes} minute(s)."
-        _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=message,
+    def _claim_chain(self, chain: str, now_epoch: float) -> bool:
+        """At most one price read per chain per price interval, whatever the number of watches."""
+        last = self._price_chain_read.get(chain)
+        if last is not None and now_epoch - last < self._price_interval_s:
+            return False
+        self._price_chain_read[chain] = now_epoch
+        return True
+
+    def _price_failure(self, watch: dict[str, Any], code: str, now_epoch: float) -> dict[str, int]:
+        if code in _BACKOFF_CODES:
+            self._budget.failed("market.geckoterminal", now_epoch)
+        _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=_reason_code(code),
                       get_connection_fn=self._get_connection_fn)
         return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 0}
 
@@ -928,23 +1074,26 @@ class MarketWatchPoller:
 
         network = token_performance._NETWORKS.get(watch["chain"], "")
         token = watch["subject"]
+        if not self._claim_chain(watch["chain"], now_epoch):
+            # Another watch on this chain read this interval; this one stays due and, being the
+            # least recently checked, goes first next time.
+            return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 0}
         pools_url = token_performance.API_ORIGIN + f"/networks/{network}/tokens/{quote(token)}/pools" + "?page=1"
-        allowed, reason = self._spend_price_call(pools_url, now_epoch)
+        allowed, code = self._spend_price_call(pools_url, now_epoch)
         if not allowed:
-            _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=reason,
+            _update_watch(watch["id"], last_checked_at=self._now_fn(), last_error=code,
                           get_connection_fn=self._get_connection_fn)
             return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 1}
         try:
             payload = token_performance._get(f"/networks/{network}/tokens/{quote(token)}/pools", {"page": 1})
             pool = _best_pool(payload)
-            price = float(pool.get("price_usd"))
+            price = _usable_price(pool.get("price_usd"))
         except PriceError as exc:
             if exc.status == "refused":
-                return self._needs_setup_now(watch, exc.message)
-            return self._price_failure(watch, exc.status, exc.message, now_epoch)
+                return self._needs_setup_now(watch, "local_only")
+            return self._price_failure(watch, exc.status, now_epoch)
         except (KeyError, TypeError, ValueError, IndexError):
-            return self._price_failure(watch, "bad_answer", "the price source answered in a shape VOOL does not recognise",
-                                       now_epoch)
+            return self._price_failure(watch, "bad_answer", now_epoch)
         self._budget.recovered("market.geckoterminal")
 
         rule = watch.get("rule") or {}
@@ -956,15 +1105,13 @@ class MarketWatchPoller:
                 outcome = self._window_move(network, str(pool.get("address") or ""), token, rule, price, now_epoch)
                 if outcome[0] == "budget":
                     _update_watch(watch["id"], last_checked_at=self._now_fn(),
-                                  last_seen={**state, "last_price": price},
-                                  last_error="the price source budget is used up; the next check waits",
+                                  last_seen={**state, "last_price": price}, last_error="budget",
                                   get_connection_fn=self._get_connection_fn)
                     return {"checked": 0, "events": 0, "needs_setup": 0, "skipped": 1}
                 pct = outcome[1]
                 if pct is None:
                     _update_watch(watch["id"], last_checked_at=self._now_fn(),
-                                  last_seen={**state, "last_price": price},
-                                  last_error="the price history does not reach back far enough to compare",
+                                  last_seen={**state, "last_price": price}, last_error="history_gap",
                                   get_connection_fn=self._get_connection_fn)
                     return {"checked": 1, "events": 0, "needs_setup": 0, "skipped": 0}
                 target = float(rule["move_pct"])
@@ -973,8 +1120,6 @@ class MarketWatchPoller:
                 if state.get("armed") and met:
                     fired_text = (f"{watch['label']} {'dropped' if target < 0 else 'rose'} {abs(pct):.1f}% in the last "
                                   f"{rule.get('window')}: now {price:.6g}")
-                if not state.get("armed") and (retrace if not rule.get("repeat") else not met):
-                    state["armed"] = True
             else:
                 threshold = float(rule.get("above") or rule.get("below") or 0)
                 above = "above" in rule
@@ -983,8 +1128,10 @@ class MarketWatchPoller:
                 if state.get("armed") and met:
                     word = "is above" if above else "is below"
                     fired_text = f"{watch['label']} {word} {threshold:g}: now {price:.6g}"
-                if not state.get("armed") and (retrace if not rule.get("repeat") else not met):
-                    state["armed"] = True
+            # Re-armed only once the price is back past the threshold by the 1% margin, with or
+            # without repeat: a price hovering at the line never alerts on every wobble.
+            if not state.get("armed") and retrace:
+                state["armed"] = True
         except (KeyError, TypeError, ValueError):
             pass
         if fired_text:
@@ -1004,15 +1151,17 @@ class MarketWatchPoller:
                       get_connection_fn=self._get_connection_fn)
         return {"checked": 1, "events": events, "needs_setup": 0, "skipped": 0}
 
-    def _needs_setup_now(self, watch: dict[str, Any], reason: str) -> dict[str, int]:
-        _update_watch(watch["id"], state="needs_setup", last_checked_at=self._now_fn(), last_error=reason,
+    def _needs_setup_now(self, watch: dict[str, Any], code: str, words: str = "") -> dict[str, int]:
+        """Stop the watch with its one notice; ``last_error`` keeps only the reason code."""
+        reason = words or _SETUP_WORDS.get(code, "").format(chain=_chain_label(watch["chain"]))
+        _update_watch(watch["id"], state="needs_setup", last_checked_at=self._now_fn(), last_error=code,
                       get_connection_fn=self._get_connection_fn)
         notification_id = _notify(
             watch, title=f"{watch['label']} stopped checking", body=f"The watch on {watch['label']} stopped: {reason}",
             dedupe_key=f"market_watch.setup:{watch['id']}",
             now_fn=self._now_fn, get_connection_fn=self._get_connection_fn,
         )
-        _record_event(watch, "needs_setup", {"reason": reason}, notification_id,
+        _record_event(watch, "needs_setup", {"reason": code}, notification_id,
                       now_fn=self._now_fn, get_connection_fn=self._get_connection_fn)
         return {"checked": 0, "events": 0, "needs_setup": 1, "skipped": 0}
 
@@ -1028,7 +1177,8 @@ class MarketWatchPoller:
         started = now_epoch - window_s
         candles_url = (token_performance.API_ORIGIN + f"/networks/{network}/pools/{pool}/ohlcv/{timeframe}"
                        + f"?aggregate={aggregate}")
-        if not self._spend_price_call(candles_url, now_epoch):
+        allowed, _code = self._spend_price_call(candles_url, now_epoch)
+        if not allowed:
             return "budget", None
         try:
             candles = token_performance._candles(network, pool, token, timeframe, aggregate, int(started), step)
@@ -1065,6 +1215,16 @@ class MarketWatchPoller:
             with contextlib.suppress(Exception):
                 self.sweep_once()
             self._stop.wait(self._tick)
+
+
+def _usable_price(value: Any) -> float:
+    """A quoted price VOOL may compare: finite and above zero. Anything else is a bad answer."""
+    if isinstance(value, bool):
+        raise ValueError("not a price")
+    price = float(value)
+    if not math.isfinite(price) or price <= 0:
+        raise ValueError("not a usable price")
+    return price
 
 
 def _best_pool(payload: Any) -> dict[str, Any]:
@@ -1128,9 +1288,17 @@ def settings_view(*, get_connection_fn: Callable[[], Any] = _default_connection)
             "rule_words": rule_in_words(watch["rule"]) if watch["kind"] == "price" else "new transactions",
             "state": watch["state"],
             "last_checked": str(watch.get("last_checked_at") or ""),
-            "last_error": str(watch.get("last_error") or ""),
+            # A reason code only (ERR_CODES); the card words it through vmw.err.<code>.
+            "last_error": _shown_error(watch.get("last_error")),
         })
     return {"ok": True, "watches": rows}
+
+
+def _shown_error(value: Any) -> str:
+    code = str(value or "")
+    if not code:
+        return ""
+    return code if code in ERR_CODES else "unknown"
 
 
 __all__ = [

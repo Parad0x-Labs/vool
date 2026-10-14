@@ -231,6 +231,30 @@ function mountInto(host){
     if (rule.repeat) text += NT('vmw.rule.repeat', ' (every time)');
     return text;
   }
+  /* Why the last check did not work: the server sends a reason code only, never provider text.
+     An unknown code says the generic line, so nothing unworded reaches the card. */
+  var WATCH_ERRORS = {
+    rate_limited: 'The price or history source is limiting requests. VOOL waits, then checks again.',
+    provider_down: 'The source could not answer. VOOL waits, then checks again.',
+    unreachable: 'The source could not be reached. VOOL checks again later.',
+    bad_answer: 'The source answered with something VOOL could not use. Nothing was alerted.',
+    no_pool: 'No trading pool was found for this token.',
+    budget: 'The hourly limit of checks is used up. The next check waits.',
+    resting: 'The source refused requests, so checks are resting for a few minutes.',
+    history_gap: 'The price history does not reach back far enough to compare yet.',
+    key_missing: 'No saved key serves this chain. Add one in Settings → API Keys.',
+    key_unreadable: 'The saved key could not be read from this computer. Check Settings → API Keys, then Resume.',
+    key_rejected: 'The saved key was refused. Replace it in Settings → API Keys, then Resume.',
+    quota_exhausted: 'The saved key has no quota left. Check its plan, then Resume.',
+    plan_refused: 'The saved key\'s plan does not include this. Check the plan or add another key, then Resume.',
+    local_only: 'VOOL may not go online right now (for example Local Only is on). Resume when it may.',
+    web_off: 'Web access is off. Turn it on in Settings to check prices.',
+    unknown: 'The last check did not work. VOOL checks again later.'
+  };
+  function watchErrorText(code){
+    var known = Object.prototype.hasOwnProperty.call(WATCH_ERRORS, code) ? code : 'unknown';
+    return NT('vmw.err.' + known, WATCH_ERRORS[known]);
+  }
   function watchStateText(state){
     var map = {active: ['vmw.state.active', 'Watching'], paused: ['vmw.state.paused', 'Paused'], needs_setup: ['vmw.state.needs_setup', 'Needs attention']};
     var pair = map[state] || [null, state];
@@ -261,7 +285,7 @@ function mountInto(host){
       row.appendChild(line);
       var when = watch.last_checked ? new Date(watch.last_checked) : null;
       row.appendChild(h('div', 'vns-note', NTF('vmw.last_check', 'Last checked {when}', {when: when ? when.toLocaleString() : NT('vmw.never', 'not yet')})));
-      if (watch.last_error) row.appendChild(h('div', 'vns-note', watch.last_error));
+      if (watch.last_error) row.appendChild(h('div', 'vns-note', watchErrorText(watch.last_error)));
       var actions = h('div', 'vns-row');
       if (watch.state === 'paused') {
         actions.appendChild(button(NT('vmw.btn.resume', 'Resume'), function(){ watchAct(watch, 'resume', NT('vmw.resumed', 'Resumed.')); }));

@@ -144,3 +144,53 @@ def test_the_card_texts_are_translated_in_every_catalog():
         for key in keys:
             assert key in messages, f"{path.name} lost {key}"
             assert messages[key] != en[key], f"{path.name} copied English for {key}"
+
+
+def test_the_card_shows_a_reason_code_never_provider_text(home):
+    from core.market_watch import _update_watch
+
+    watch = _add_wallet()
+    _update_watch(watch["id"], last_error="rate_limited")
+    status, result = api_get("/api/market/watches")
+    assert status == 200 and result["watches"][0]["last_error"] == "rate_limited"
+    # text that is not a known code (say, an older row's provider words) is shown as unknown
+    _update_watch(watch["id"], last_error="market.geckoterminal is being given a rest")
+    status, result = api_get("/api/market/watches")
+    assert result["watches"][0]["last_error"] == "unknown"
+    assert "geckoterminal" not in str(result)
+
+
+def test_the_card_words_every_reason_code_through_the_catalogs():
+    import json
+    from pathlib import Path
+
+    from core.market_watch import ERR_CODES
+    from core.notification_settings_fragment import render_notification_settings_fragment
+
+    page = render_notification_settings_fragment()
+    assert "NT('vmw.err.' + known" in page and "watch.last_error))" in page
+    catalogs = Path("core/i18n/catalogs")
+    en = json.loads((catalogs / "en.json").read_text(encoding="utf-8"))["messages"]
+    for code in [*ERR_CODES, "unknown"]:
+        assert f"vmw.err.{code}" in en, code
+        assert f"{code}:" in page, code
+
+
+def test_a_cross_site_post_cannot_pause_or_remove_a_watch(home):
+    import json
+
+    from core.market_watch import list_watches
+    from core.web.api.runtime import RuntimeServices
+    from core.web.api.service import dispatch_post
+
+    watch = _add_wallet()
+    for action in ("pause", "remove", "resume"):
+        res = dispatch_post(path=f"/api/market/watches/{action}", body={"id": watch["id"]},
+                            headers={"content-type": "application/json", "Sec-Fetch-Site": "cross-site"},
+                            runtime=RuntimeServices(display_name="N"), model_name="vool",
+                            workspace_root_provider=lambda: "/tmp", client_host="127.0.0.1")
+        assert res.status == 403 and json.loads(res.body.decode("utf-8"))["error"] == "cross_site_refused"
+    [row] = list_watches()
+    assert row["state"] == "active"
+    status, _ = api_post("/api/market/watches/pause", {"id": watch["id"]})  # same-origin still works
+    assert status == 200

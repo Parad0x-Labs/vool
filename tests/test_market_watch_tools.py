@@ -297,3 +297,52 @@ def test_rules_in_words():
     assert rule_in_words({"below": 0.02, "repeat": False}) == "drops below 0.02"
     assert rule_in_words({"move_pct": -20, "window": "1h", "repeat": True}) == "drops 20% within 1h every time"
     assert rule_in_words({"move_pct": 15, "window": "6h", "repeat": False}) == "rises 15% within 6h"
+
+
+@pytest.mark.parametrize("text", [
+    "Can you track my package to this address?",
+    "alert me when my mom calls",
+    "Notify me if the deploy goes red",
+    "tell me if the build drops",
+    "track the price of my flight",
+    "watch the contract changes in this PR",
+    "Stop watching TV",
+    "remove the alert from the dashboard code",
+    "pause the alert sound",
+    "Stop and watch this video",
+])
+def test_ordinary_sentences_with_watch_words_seat_no_watch_tool(text):
+    from core.tool_demand_signals import resolve_demand_signals
+
+    assert not any(intent.startswith("watch.") for intent in resolve_demand_signals(text).explicit_intents)
+
+
+@pytest.mark.parametrize(("text", "intent"), [
+    ("tell me when BONK goes above 0.00005", "watch.add"),
+    ("alert me if FDOG drops 20% in an hour", "watch.add"),
+    ("stop watching that wallet", "watch.remove"),
+])
+def test_a_seated_sentence_puts_its_watch_tool_in_the_offer(text, intent):
+    from core.capability_graph import model_visible_specs
+
+    intents = {str(spec.get("intent") or "") for spec in model_visible_specs(user_text=text)}
+    assert intent in intents
+
+
+def test_a_private_chat_refuses_to_add_a_watch_and_saves_nothing(vault_home):
+    from core.private_chat import set_private
+
+    _store_helius()
+    assert set_private("chat-watch-private", True)
+    try:
+        from core.runtime_execution_tools import execute_runtime_tool
+
+        out = execute_runtime_tool("watch.add", {"kind": "wallet", "chain": "solana", "subject": SOL},
+                                   source_context={"chat_id": "chat-watch-private"})
+    finally:
+        set_private("chat-watch-private", False)
+    assert not out.ok and out.status == "private_chat"
+    assert "Private chat is on" in out.response_text and "turn recording back on" in out.response_text
+    assert _rows() == []
+    # the same words in an ordinary chat save the watch
+    assert _run("watch.add", {"kind": "wallet", "chain": "solana", "subject": SOL}).ok

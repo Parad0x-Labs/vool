@@ -3129,6 +3129,13 @@ def dispatch_post(
         if normalized_path in {"/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove"}:
             from core import market_watch
 
+            # Same-origin only, like the X setup routes: a page on another site cannot pause or
+            # remove a watch through the owner's browser.
+            fetch_site = next((str(value or "") for key, value in (headers or {}).items()
+                               if str(key).lower() == "sec-fetch-site"), "")
+            if fetch_site.lower() == "cross-site":
+                return apply_runtime_headers(json_response(403, {"ok": False, "error": "cross_site_refused"}), runtime)
+
             selector = {"id": str(body.get("id") or ""), "subject": str(body.get("subject") or "")}
             try:
                 if normalized_path.endswith("/pause"):

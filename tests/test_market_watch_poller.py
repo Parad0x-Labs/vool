@@ -307,7 +307,8 @@ def test_a_rate_limit_backs_off_and_makes_no_alert(watch_home, clock, monkeypatc
         from core import market_watch
 
         watch = market_watch.list_watches()[0]
-        assert "limiting requests" in watch["last_error"] and "Backing off" in watch["last_error"]
+        # a reason code, worded by the Settings card's catalog (vmw.err.rate_limited), no provider text
+        assert watch["last_error"] == "rate_limited"
 
 
 def test_a_removed_key_stops_the_watch_with_one_notice_and_no_more_calls(watch_home, clock, monkeypatch):
@@ -401,7 +402,7 @@ def test_a_missing_pool_prices_nothing_and_says_why(watch_home, clock, enable_we
         from core import market_watch
 
         watch = market_watch.list_watches()[0]
-        assert "no trading pool was found" in watch["last_error"]
+        assert watch["last_error"] == "no_pool"
         assert watch["state"] == "active"  # a missing price is not a broken watch
 
 
@@ -420,7 +421,7 @@ def test_a_price_rate_limit_backs_off_and_holds(watch_home, clock, enable_web, m
         from core import market_watch
 
         watch = market_watch.list_watches()[0]
-        assert "limiting requests" in watch["last_error"]
+        assert watch["last_error"] == "rate_limited"
         calls = len(server.requests)
         clock.advance(seconds=70)  # past the first rest, due again: asked, refused, doubled
         _clear_price_cache()
@@ -473,3 +474,280 @@ def test_time_missed_while_closed_is_at_most_one_notification_per_watch(watch_ho
         outcome = poller.sweep_once()
         assert outcome["events"] == 1
         assert len(_items()) == 1 and _items()[0]["title"] == "Team wallet: 25 new transactions"
+
+
+def test_a_restart_with_five_missed_transactions_is_one_notification(watch_home, clock, monkeypatch):
+    """Five transactions while VOOL was closed: one summary, not five alerts (below the >10 rule)."""
+    _store_etherscan_key()
+    _add_wallet(clock)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.rows = [_tx("0x" + "aa" * 32)]
+        _poller(clock).sweep_once()  # the run before VOOL was closed: the baseline
+        clock.advance(hours=20)
+        server.rows = [*[_tx("0x" + f"{i:02x}" * 32, value=str(i)) for i in range(1, 6)], _tx("0x" + "aa" * 32)]
+        outcome = _poller(clock).sweep_once()  # a new process: the first sweep after the restart
+        assert outcome["events"] == 1
+        [item] = _items()
+        assert item["title"] == "Team wallet: 5 new transactions"
+        assert "since VOOL last checked" in item["body"]
+        assert [event["kind"] for event in _events()] == ["wallet_summary"]
+
+
+def test_a_quick_restart_still_folds_what_it_missed_into_one(watch_home, clock, monkeypatch):
+    _store_etherscan_key()
+    _add_wallet(clock)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.rows = [_tx("0x" + "aa" * 32)]
+        _poller(clock).sweep_once()
+        clock.advance(minutes=6)  # restarted inside two intervals: still the process's first sweep
+        server.rows = [_tx("0x" + "b1" * 32), _tx("0x" + "b2" * 32), _tx("0x" + "b3" * 32), _tx("0x" + "aa" * 32)]
+        assert _poller(clock).sweep_once()["events"] == 1
+        assert [item["title"] for item in _items()] == ["Team wallet: 3 new transactions"]
+
+
+def test_a_long_gap_in_one_process_is_one_notification(watch_home, clock, monkeypatch):
+    """The machine slept for hours with VOOL open: the gap is more than two intervals."""
+    _store_etherscan_key()
+    _add_wallet(clock)
+    poller = _poller(clock)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.rows = [_tx("0x" + "aa" * 32)]
+        poller.sweep_once()
+        clock.advance(hours=3)
+        server.rows = [_tx("0x" + "c1" * 32), _tx("0x" + "c2" * 32), _tx("0x" + "aa" * 32)]
+        assert poller.sweep_once()["events"] == 1
+        assert len(_items()) == 1
+
+
+def test_a_summary_event_keeps_valid_json(watch_home, clock, monkeypatch):
+    _store_etherscan_key()
+    _add_wallet(clock)
+    poller = _poller(clock)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.rows = [_tx("0x" + "aa" * 32)]
+        poller.sweep_once()
+        clock.advance(minutes=6)
+        server.rows = [*[_tx("0x" + f"{i:02x}" * 32, value=str(i)) for i in range(1, 26)], _tx("0x" + "aa" * 32)]
+        poller.sweep_once()
+    [event] = _events()
+    assert len(event["facts_json"]) <= 2000
+    facts = json.loads(event["facts_json"])
+    assert facts["count"] == 25 and facts["rows"] and facts["trimmed"] is True
+
+
+@pytest.mark.parametrize(("status", "code", "words"), [
+    (401, "key_rejected", "was refused"),
+    (402, "quota_exhausted", "no quota left"),
+    (403, "plan_refused", "does not include"),
+])
+def test_a_provider_refusal_stops_a_wallet_watch_with_one_notice(watch_home, clock, monkeypatch, status, code, words):
+    from core import market_watch
+
+    _store_etherscan_key()
+    _add_wallet(clock)
+    poller = _poller(clock)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.status = status
+        outcome = poller.sweep_once()
+        assert outcome["needs_setup"] == 1
+        [notice] = _items()
+        assert notice["title"] == "Team wallet stopped checking" and words in notice["body"]
+        assert "Etherscan" not in notice["body"]
+        watch = market_watch.list_watches()[0]
+        assert watch["state"] == "needs_setup" and watch["last_error"] == code
+        calls = len(server.requests)
+        for _ in range(3):  # the key is still stored, but the watch does not retry by itself
+            clock.advance(minutes=6)
+            poller.sweep_once()
+        assert len(server.requests) == calls and len(_items()) == 1
+        server.status = 200  # the user fixed the key and pressed Resume
+        server.rows = [_tx("0x" + "aa" * 32)]
+        market_watch.resume_watch({"id": watch["id"]})
+        clock.advance(minutes=6)
+        assert poller.sweep_once()["checked"] == 1
+        assert market_watch.list_watches()[0]["last_error"] == ""
+
+
+def test_local_only_stops_a_wallet_watch_with_one_notice(watch_home, clock, monkeypatch):
+    from core import market_watch, policy_engine
+
+    _store_etherscan_key()
+    _add_wallet(clock)
+    base = dict(policy_engine.load())
+    system = dict(base.get("system") or {})
+    system["local_only_mode"] = True
+    base["system"] = system
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", base)
+    outcome = _poller(clock).sweep_once()  # the real provider address: refused before any network
+    assert outcome["needs_setup"] == 1
+    [notice] = _items()
+    assert "Local Only" in notice["body"]
+    assert market_watch.list_watches()[0]["last_error"] == "local_only"
+
+
+def test_a_failed_wallet_call_counts_against_the_hourly_budget(watch_home, clock, monkeypatch):
+    from core import chain_providers as cp
+    from core import market_watch
+
+    _store_etherscan_key()
+    _add_wallet(clock)
+    poller = _poller(clock)
+    provider = cp.config_for("etherscan").registry_id
+    now = market_watch._epoch(clock())
+    for _ in range(market_watch.MAX_CALLS_PER_HOUR - 1):
+        poller._budget.spent(provider, now)
+    with FakeEtherscan() as server:
+        _eth(monkeypatch, server)
+        server.status = 404  # answered, failed, no backoff: only the budget can hold the next call
+        poller.sweep_once()
+        assert len(server.requests) == 1
+        clock.advance(minutes=6)
+        poller.sweep_once()
+        assert len(server.requests) == 1  # the failed call was the sixtieth
+        assert market_watch.list_watches()[0]["last_error"] == "budget"
+
+
+@pytest.mark.parametrize(("price", "rule"), [
+    (0.0, {"below": 0.1}), (-1.0, {"below": 0.1}), (float("nan"), {"above": 0.5}), (float("inf"), {"above": 0.5}),
+])
+def test_a_price_that_is_not_a_positive_finite_number_never_alerts(watch_home, clock, enable_web, monkeypatch,
+                                                                    price, rule):
+    from core import market_watch, token_performance
+
+    _add_price(clock, rule)
+    with FakePrices(price=price) as server:
+        monkeypatch.setattr(token_performance, "API_ORIGIN", server.url)
+        _clear_price_cache()
+        outcome = _poller(clock).sweep_once()
+    assert outcome["events"] == 0 and _items() == []
+    assert market_watch.list_watches()[0]["last_error"] == "bad_answer"
+
+
+def test_a_move_rule_holds_when_the_candle_read_has_no_budget(watch_home, clock, enable_web, monkeypatch):
+    from core import market_watch, token_performance
+
+    _add_price(clock, {"move_pct": -20, "window": "6h"})
+    poller = _poller(clock)
+    now = market_watch._epoch(clock())
+    for _ in range(market_watch.MAX_CALLS_PER_HOUR - 1):
+        poller._budget.spent("market.geckoterminal", now)
+    with FakePrices(price=0.39) as server:
+        monkeypatch.setattr(token_performance, "API_ORIGIN", server.url)
+        server.start_price = 0.5
+        _clear_price_cache()
+        outcome = poller.sweep_once()  # the pools read takes the last call; the candles may not
+    assert outcome["events"] == 0 and _items() == []
+    assert not any("/ohlcv/" in request["path"] for request in server.requests)
+    assert market_watch.list_watches()[0]["last_error"] == "budget"
+
+
+def test_three_price_watches_share_one_read_per_minute_and_none_starves(watch_home, clock, enable_web, monkeypatch):
+    from core import market_watch, token_performance
+
+    subjects = [SOL, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"]
+    for index, subject in enumerate(subjects):
+        _add_price(clock, {"above": 5}, subject=subject, label=f"T{index}")
+    poller = _poller(clock)
+    with FakePrices(price=0.4) as server:
+        monkeypatch.setattr(token_performance, "API_ORIGIN", server.url)
+        for _tick in range(10):  # 0s .. 180s, a sweep every 20 seconds
+            _clear_price_cache()
+            poller.sweep_once()
+            clock.advance(seconds=20)
+        pool_reads = [r for r in server.requests if r["path"].endswith("/pools")]
+    assert len(pool_reads) == 4  # one per minute: at 0, 60, 120 and 180 seconds
+    assert {r["path"].split("/tokens/")[1].split("/")[0] for r in pool_reads[:3]} == set(subjects)
+    assert all(watch["last_checked_at"] for watch in market_watch.list_watches())
+
+
+def test_a_new_threshold_on_an_existing_price_watch_starts_armed(watch_home, clock, enable_web, monkeypatch):
+    from core import token_performance
+
+    _add_price(clock, {"above": 0.5})
+    poller = _poller(clock)
+    with FakePrices(price=0.6) as server:
+        monkeypatch.setattr(token_performance, "API_ORIGIN", server.url)
+        _clear_price_cache()
+        assert poller.sweep_once()["events"] == 1  # fired: the 0.5 rule is now disarmed
+        _add_price(clock, {"above": 0.7})  # the same token, a new rule
+        clock.advance(minutes=2)
+        server.price = 0.75
+        _clear_price_cache()
+        assert poller.sweep_once()["events"] == 1
+    assert sorted(item["title"] for item in _items()) == ["FDOG is above 0.5: now 0.6", "FDOG is above 0.7: now 0.75"]
+
+
+def test_repeat_rearms_only_past_the_one_percent_margin(watch_home, clock, enable_web, monkeypatch):
+    from core import token_performance
+
+    _add_price(clock, {"above": 0.5, "repeat": True})
+    poller = _poller(clock)
+    with FakePrices(price=0.53) as server:
+        monkeypatch.setattr(token_performance, "API_ORIGIN", server.url)
+        for price in (0.53, 0.499, 0.51):  # a wobble at the line is not a new crossing
+            server.price = price
+            _clear_price_cache()
+            poller.sweep_once()
+            clock.advance(minutes=2)
+        assert len(_items()) == 1
+        for price in (0.49, 0.52):  # back past the line by the margin, then across: one more
+            server.price = price
+            _clear_price_cache()
+            poller.sweep_once()
+            clock.advance(minutes=2)
+        assert len(_items()) == 2
+
+
+def _traced_connection(path, statements):
+    import sqlite3
+
+    def connect():
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        conn.set_trace_callback(statements.append)
+        return conn
+
+    return connect
+
+
+def _writes(statements):
+    verbs = ("CREATE", "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "REPLACE")
+    return [s for s in statements if s.strip().upper().startswith(verbs)]
+
+
+def test_a_fresh_home_with_no_watches_writes_nothing(tmp_path, clock):
+    from core import market_watch
+
+    statements: list[str] = []
+    path = tmp_path / "fresh.db"
+    poller = market_watch.MarketWatchPoller(get_connection_fn=_traced_connection(path, statements), now_fn=clock)
+    for _ in range(3):
+        assert poller.sweep_once()["errors"] == 0
+        clock.advance(seconds=20)
+    assert _writes(statements) == []
+    assert path.stat().st_size == 0  # sqlite never wrote a page: no table, no file content
+
+
+def test_a_list_with_only_paused_watches_writes_nothing(tmp_path, clock):
+    from core import market_watch
+
+    statements: list[str] = []
+    path = tmp_path / "paused.db"
+    connect = _traced_connection(path, statements)
+    market_watch._ensure_tables(connect)
+    conn = connect()
+    conn.execute("INSERT INTO market_watches (id, kind, chain, subject, label, state, created_at) "
+                 "VALUES ('mw-p', 'wallet', 'ethereum', ?, 'Paused', 'paused', ?)", (EVM_ADDRESS, clock()))
+    conn.commit()
+    conn.close()
+    statements.clear()
+    poller = market_watch.MarketWatchPoller(get_connection_fn=connect, now_fn=clock)
+    for _ in range(3):
+        poller.sweep_once()
+        clock.advance(seconds=20)
+    assert _writes(statements) == []
