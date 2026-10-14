@@ -72,7 +72,12 @@ OP_HISTORY = "history"
 OP_TOKEN_INFO = "token_info"
 OP_HOLDERS = "holders"
 OP_TRANSACTION = "transaction"
-OPERATIONS: tuple[str, ...] = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION)
+#: A token's transfer history, in pages from the newest: the bulk source ``core/market_data.py``
+#: collects into a local dataset. Not one of the chat lookup words (``core/chain_data._OP_WORDS``):
+#: the chat reaches it through ``market.collect``, never as a bare lookup.
+OP_TOKEN_TRANSFERS = "token_transfers"
+OPERATIONS: tuple[str, ...] = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION,
+                               OP_TOKEN_TRANSFERS)
 
 #: Alchemy's documented network hosts for the chains this table serves.
 ALCHEMY_NETWORKS: dict[str, str] = {
@@ -147,9 +152,9 @@ class ChainProviderConfig:
         return op in self.coverage.get(chain, ())
 
 
-_SOLANA_RPC_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION)
-_ALCHEMY_EVM_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_TRANSACTION)
-_ETHERSCAN_OPS = (OP_BALANCE, OP_HISTORY, OP_TRANSACTION)
+_SOLANA_RPC_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_HOLDERS, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
+_ALCHEMY_EVM_OPS = (OP_BALANCE, OP_TOKENS, OP_HISTORY, OP_TOKEN_INFO, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
+_ETHERSCAN_OPS = (OP_BALANCE, OP_HISTORY, OP_TRANSACTION, OP_TOKEN_TRANSFERS)
 
 # Order matters: it is the order the settings list shows and the order a chain's providers are tried
 # when the operator names none.
@@ -172,8 +177,8 @@ CHAIN_PROVIDERS: dict[str, ChainProviderConfig] = {
             "Choose Helius in the list, paste the key, and press Save key. VOOL asks Helius once whether it accepts it.",
         ),
         setup_notes=(
-            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders.",
-            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups do not use them, and VOOL does not open a stream.",
+            "VOOL uses your Helius key for Solana lookups in chat: balances, tokens, recent transactions, token info and largest holders. When you ask VOOL to collect trade data for a token, it also reads that token's transfer history with this key.",
+            "LaserStream and Yellowstone gRPC are live data streams on paid Helius plans. Chat lookups and trade data collection do not use them, and VOOL does not open a stream.",
         ),
     ),
     "alchemy": ChainProviderConfig(

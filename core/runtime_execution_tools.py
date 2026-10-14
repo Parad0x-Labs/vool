@@ -3374,6 +3374,11 @@ def _dispatch_runtime_tool(
             from core.market_watch import run_tool as _watch_tool
 
             return _watch_tool(intent, arguments, source_context)
+        if intent in {"market.collect", "market.datasets", "market.dataset_delete", "market.analyze",
+                      "market.thesis_check"}:
+            from core.market_data import run_tool as _market_tool
+
+            return _market_tool(intent, arguments, source_context)
         if intent in {"token.research", "token.launches"}:
             from core.token_research import run_tool as _research_tool
 

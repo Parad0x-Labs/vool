@@ -3196,6 +3196,7 @@ def _paid_ai_contracts(*, wallet_tools_enabled: bool) -> list[RuntimeToolContrac
 
 def _chain_contracts() -> list[RuntimeToolContract]:
     from core.chain_data import chain_contracts
+    from core.market_data import market_contracts
     from core.market_watch import market_watch_contracts
     from core.token_performance import performance_contracts
     from core.token_research import research_contracts
@@ -3203,7 +3204,7 @@ def _chain_contracts() -> list[RuntimeToolContract]:
     # token.research rides beside the chain lookup; it adds the X gate only when X is connected.
     # market_watch rides here too: its reads are the chain and price tools' own, already gated.
     return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts(),
-            *market_watch_contracts()]
+            *market_watch_contracts(), *market_contracts()]
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:
