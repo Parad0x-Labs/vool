@@ -976,6 +976,12 @@ class PaymentLifecycle:
                     raise expired("recipient_token_account_changed") from None
                 if (current is None and not fields.get("create_recipient_account")) or (current is not None and current.frozen):
                     raise expired("recipient_token_account_changed")
+                if current is None:
+                    # an account still to open is opened only for a plain wallet key, as the quote checked
+                    try:
+                        svm_tokens.require_wallet_key_owner(rpc, proposal.destination, mint=str(fields.get("mint") or ""), source_context=self.source_context)
+                    except WalletFault:
+                        raise expired("recipient_token_account_changed") from None
         else:
             if balance < amount + fee_max + extra_principal + extra_fee:
                 raise expired("balance_changed", balance_minor=balance, max_total_minor=amount + fee_max + extra_principal + extra_fee)
@@ -1030,8 +1036,17 @@ class PaymentLifecycle:
                 raise self._fault("wallet_quote_mismatch", proposal, reason="token_call_differs_from_the_proposal")
             if balance < fee_max:
                 raise expired("fee_balance_changed", balance_minor=balance, fee_max_minor=fee_max)
+            def call(method: str, call_params: list[Any]) -> Any:
+                return rpc._call(method, call_params)
+
             try:
-                token_balance = evm_tokens.balance_minor(lambda method, call_params: rpc._call(method, call_params), token, profile.public_key, source_context=self.source_context)
+                evm_tokens.require_no_transfer_fee(call, token, source_context=self.source_context)
+            except WalletFault as exc:
+                if (exc.context or {}).get("reason") == "token_takes_a_transfer_fee":
+                    raise expired("token_takes_a_transfer_fee") from None
+                raise
+            try:
+                token_balance = evm_tokens.balance_minor(call, token, profile.public_key, source_context=self.source_context)
             except WalletFault:
                 raise
             except Exception as exc:

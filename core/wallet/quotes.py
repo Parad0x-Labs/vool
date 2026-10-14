@@ -212,6 +212,7 @@ def _evm_quote(spec: chains.ChainIdentity, proposal: Any, account_address: str, 
     token_facts: dict[str, Any] = {}
     if token is not None:
         evm_tokens.require_contract(call, token, source_context=source_context)
+        evm_tokens.require_no_transfer_fee(call, token, source_context=source_context)
         token_facts["principal_balance_minor"] = evm_tokens.balance_minor(call, token, account_address, source_context=source_context)
     balance = int(_evm_rpc(spec, url, "eth_getBalance", [account_address, "latest"], source_context=source_context), 16)
     block = _evm_rpc(spec, url, "eth_getBlockByNumber", ["latest", False], source_context=source_context)

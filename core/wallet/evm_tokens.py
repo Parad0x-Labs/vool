@@ -20,6 +20,12 @@ AUTHORITY = "core.wallet.evm_tokens"
 TRANSFER_SELECTOR = bytes.fromhex("a9059cbb")
 BALANCE_OF_SELECTOR = bytes.fromhex("70a08231")
 DECIMALS_SELECTOR = bytes.fromhex("313ce567")
+#: keccak("basisPointsRate()")[:4], keccak("maximumFee()")[:4]: the fee switch of Tether's Ethereum contract
+BASIS_POINTS_RATE_SELECTOR = bytes.fromhex("dd644f72")
+MAXIMUM_FEE_SELECTOR = bytes.fromhex("35390714")
+#: contracts that can take a cut of every transfer when their owner turns the fee on (the recipient then gets less
+#: than the amount on the sheet), as (network, lowercase contract)
+_FEE_SWITCH_CONTRACTS = frozenset({("eip155:1", "0xdac17f958d2ee523a2206206994597c13d831ec7")})
 #: keccak("Transfer(address,address,uint256)")
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 _UINT256_MAX = 2**256 - 1
@@ -89,6 +95,22 @@ def require_contract(call: Any, token: chains.AssetSpec, *, source_context: dict
         raise wallet_fault("wallet_quote_mismatch", authority=AUTHORITY, context={**context, "reason": "token_decimals_differ_from_registry", "chain_decimals": decimals}, source_context=source_context)
 
 
+def require_no_transfer_fee(call: Any, token: chains.AssetSpec, *, source_context: dict[str, Any] | None = None) -> None:
+    """A token whose contract can cut a fee from each transfer has that fee off right now (``basisPointsRate()`` or
+    ``maximumFee()`` reads zero), so the recipient gets exactly the amount the owner approves. A fee that is on refuses
+    typed; an unreadable switch refuses as unavailable. Tokens without such a switch pass without a read."""
+    if (token.chain, str(token.address).lower()) not in _FEE_SWITCH_CONTRACTS:
+        return
+    context = {"network": token.chain, "asset": token.symbol, "contract": token.address}
+    try:
+        rate = _word(call("eth_call", [{"to": token.address, "data": "0x" + BASIS_POINTS_RATE_SELECTOR.hex()}, "latest"]))
+        ceiling = _word(call("eth_call", [{"to": token.address, "data": "0x" + MAXIMUM_FEE_SELECTOR.hex()}, "latest"]))
+    except Exception:
+        raise wallet_fault("wallet_quote_unavailable", authority=AUTHORITY, context={**context, "reason": "token_transfer_fee_unreadable"}, source_context=source_context) from None
+    if rate and ceiling:
+        raise wallet_fault("wallet_quote_mismatch", authority=AUTHORITY, context={**context, "reason": "token_takes_a_transfer_fee", "basis_points": rate}, source_context=source_context)
+
+
 def balance_minor(call: Any, token: chains.AssetSpec, owner: str, *, block: str = "latest", source_context: dict[str, Any] | None = None) -> int:
     """What ``owner`` holds of ``token`` at ``block`` (the contract's own ``balanceOf``) in the wallet's units, rounded
     down (a dust remainder finer than the wallet's unit is never counted), or a typed refusal when the answer cannot be
@@ -130,6 +152,6 @@ def transfer_proven(receipt: Any, *, contract: str, payer: str, recipient: str, 
 
 
 __all__ = [
-    "AUTHORITY", "BALANCE_OF_SELECTOR", "DECIMALS_SELECTOR", "TRANSFER_SELECTOR", "TRANSFER_TOPIC", "balance_minor", "balance_of_calldata", "chain_amount",
-    "is_token_transfer", "require_contract", "token_asset", "transfer_calldata", "transfer_proven",
+    "AUTHORITY", "BALANCE_OF_SELECTOR", "BASIS_POINTS_RATE_SELECTOR", "DECIMALS_SELECTOR", "MAXIMUM_FEE_SELECTOR", "TRANSFER_SELECTOR", "TRANSFER_TOPIC", "balance_minor", "balance_of_calldata", "chain_amount",
+    "is_token_transfer", "require_contract", "require_no_transfer_fee", "token_asset", "transfer_calldata", "transfer_proven",
 ]

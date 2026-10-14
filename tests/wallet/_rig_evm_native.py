@@ -134,7 +134,7 @@ class ScriptedEvmNativeChain:
 
     def add_token(self, contract: str, *, decimals: int) -> None:
         with self._lock:
-            self.tokens[contract.lower()] = {"decimals": int(decimals), "balances": {}}
+            self.tokens[contract.lower()] = {"decimals": int(decimals), "balances": {}, "fee_basis_points": 0, "fee_ceiling": 0}
             self.code[contract.lower()] = "0x6080604052"
 
     def fund_token(self, contract: str, owner: str, amount: int) -> None:
@@ -337,6 +337,10 @@ class ScriptedEvmNativeChain:
                 data = str(call.get("data") or "")
                 if data == _selector("decimals()"):
                     return self._ok(body, "0x" + format(token["decimals"], "064x"))
+                if data == _selector("basisPointsRate()") and token.get("fee_switch", True):
+                    return self._ok(body, "0x" + format(token["fee_basis_points"], "064x"))
+                if data == _selector("maximumFee()") and token.get("fee_switch", True):
+                    return self._ok(body, "0x" + format(token["fee_ceiling"], "064x"))
                 if data.startswith(_selector("balanceOf(address)")) and len(data) == 10 + 64:
                     return self._ok(body, "0x" + format(token["balances"].get("0x" + data[-40:].lower(), 0), "064x"))
                 return self._err(body, -32000, "execution reverted")

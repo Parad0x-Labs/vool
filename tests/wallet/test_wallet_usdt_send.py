@@ -182,6 +182,23 @@ def test_a_recipient_account_closed_after_the_quote_asks_for_a_fresh_preview(cha
     assert node.distinct_sends() == 0
 
 
+def test_a_recipient_that_stops_being_a_plain_wallet_after_the_quote_gets_no_account_opened(chain) -> None:
+    from core.wallet import approval, lifecycle, quotes
+    from core.wallet.errors import WalletFault
+
+    node = chain
+    _wallet(node)
+    tomas = _person(node, usdt_account=False)
+    asked = _propose(destination=tomas, asset="USDT", amount="1", network=SOLANA_MAINNET)
+    quote = quotes.mint_quote(asked.details["proposal"]["proposal_id"])
+    assert quote["fields"]["create_recipient_account"] is True
+    node.token_accounts[tomas] = {"mint": USDC_MAINNET_MINT, "owner": tomas, "amount": 0, "frozen": False}  # his address now holds a token account
+    with pytest.raises(WalletFault) as caught:
+        lifecycle.default_lifecycle().approve_pilot_transfer(quote["proposal_id"], quote_id=quote["quote_id"], quote_digest=quote["digest"], approver=approval.PinApprover(PIN))
+    assert (caught.value.code, caught.value.context.get("reason")) == ("wallet_quote_expired", "recipient_token_account_changed")
+    assert node.distinct_sends() == 0
+
+
 def test_two_saved_wallets_that_can_take_usdt_are_asked_about_never_guessed(chain) -> None:
     node = chain
     _wallet(node)

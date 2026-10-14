@@ -146,6 +146,16 @@ def test_a_successful_call_without_the_contracts_exact_transfer_event_is_not_cal
     assert "principal_unproven" in str(transfer.get("evidence_json")), transfer.get("evidence_json")
     assert _holds(pid)[0][4] == "reserved", "an unproven principal stays counted against the caps"
 
+    # the block is final: the owner may stop waiting, which keeps the spend counted and frees the account for the next send
+    assert transfers.view_of(transfer)["offered_exit"] == "stop_waiting", transfer.get("offered_exit_json")
+    stopped = settlement.owner_stop_waiting(pid)
+    assert stopped["state"] == "stopped_waiting", stopped
+    assert [hold[4] for hold in _holds(pid)] == ["settled", "settled"], "the stopped transfer keeps counting against the caps"
+    node.token_log_mode = "ok"
+    again = _propose(destination=TOMAS, asset="USDT", amount="1", network=network)
+    assert again.ok, again.response_text
+    assert _approve(_quote(again.details["proposal"]["proposal_id"]))["transfer"]["state"] == "confirmed"
+
 
 def test_usdt_on_bnb_smart_chain_is_counted_in_6_decimals_and_sent_in_the_contracts_18(home) -> None:
     from core.wallet import evm_tokens
@@ -257,3 +267,30 @@ def test_usdt_asked_on_a_chain_that_does_not_carry_it_says_where_it_goes(home) -
     asked = _propose(destination=TOMAS, asset="USDT", amount="1", chain="base")
     assert not asked.ok and asked.status == "wallet_not_found"
     assert "This wallet does not send USDT on Base. It goes out on Ethereum, BNB Smart Chain and Arbitrum One." in asked.response_text, asked.response_text  # (a 0x address: not Solana)
+
+
+def test_usdt_on_ethereum_is_not_quoted_while_its_transfer_fee_is_switched_on(home) -> None:
+    from core.wallet import quotes
+
+    eth = home["eth"]
+    _wallet(eth, ETHEREUM, USDT_ETHEREUM)
+    asked = _propose(destination=TOMAS, asset="USDT", amount="5", network=ETHEREUM)
+    assert asked.ok, asked.response_text
+    pid = asked.details["proposal"]["proposal_id"]
+    eth.tokens[USDT_ETHEREUM.lower()].update(fee_basis_points=10, fee_ceiling=50 * 10**6)
+    with pytest.raises(WalletFault) as refused:
+        quotes.mint_quote(pid)
+    assert refused.value.context["reason"] == "token_takes_a_transfer_fee", refused.value.context
+
+    eth.tokens[USDT_ETHEREUM.lower()]["fee_switch"] = False  # the switch cannot be read: never assumed off
+    with pytest.raises(WalletFault) as unreadable:
+        quotes.mint_quote(pid)
+    assert unreadable.value.context["reason"] == "token_transfer_fee_unreadable", unreadable.value.context
+
+    # switched on between the preview and the approval: the preview expires and nothing is sent
+    eth.tokens[USDT_ETHEREUM.lower()].update(fee_switch=True, fee_basis_points=0)
+    quote = _quote(pid)
+    eth.tokens[USDT_ETHEREUM.lower()]["fee_basis_points"] = 10
+    with pytest.raises(WalletFault) as expired:
+        _approve(quote)
+    assert expired.value.context["reason"] == "token_takes_a_transfer_fee" and not eth.sent, expired.value.context

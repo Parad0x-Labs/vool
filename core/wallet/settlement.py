@@ -319,14 +319,18 @@ def _svm_fee(client: Any, tx_id: str, *, with_account_rent: bool = False) -> int
     return None
 
 
-def _opens_recipient_account(row: dict[str, Any]) -> bool:
-    """Whether the quote this transfer was approved on opened the recipient's token account (its rent is native spend)."""
+def _opens_recipient_account(row: dict[str, Any]) -> bool | None:
+    """Whether the quote this transfer was approved on opened the recipient's token account (its rent is native spend),
+    or None when that quote cannot be read (the charged fee is then unknown, never the fee alone)."""
     from core.wallet import quotes
 
+    if not str(row.get("quote_id") or ""):
+        return False
     with contextlib.suppress(Exception):
         record = quotes.get_quote(str(row.get("quote_id") or ""))
-        return bool(record and record["fields"].get("create_recipient_account"))
-    return False
+        if record is not None:
+            return bool(record["fields"].get("create_recipient_account"))
+    return None
 
 
 def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
@@ -336,7 +340,10 @@ def _charged_fee(client: Any, row: dict[str, Any], tx_id: str) -> int | None:
     own = str(row.get("payer_signature") or "")
     if own and own != str(tx_id):
         return 0
-    return _svm_fee(client, tx_id, with_account_rent=_opens_recipient_account(row))
+    opens = _opens_recipient_account(row)
+    if opens is None:
+        return None
+    return _svm_fee(client, tx_id, with_account_rent=opens)
 
 
 #: how many of the payer's latest transactions one pass reads to find a pay-kit payment whose id is still unknown
@@ -799,10 +806,17 @@ def _observe_evm(row: dict[str, Any], client: Any) -> dict[str, Any] | None:
             proven = _evm_token_principal(row, receipt)
             if proven is not None and proven is not True:
                 # a successful token call is paid only when the contract's own Transfer event shows exactly this amount
-                # moving from the payer to the recipient; until then it stays where it is and the evidence says why
+                # moving from the payer to the recipient; it never confirms without that. Once the block is final the
+                # owner is offered the stop-waiting exit: the hold settles as spent (it keeps counting against the
+                # limits) and the account's slot is free again, with the evidence kept on the receipt
+                answer = "transfer_event_disagrees" if proven is False else "no_logs"
+                columns = {"block_ref": number, "block_hash": receipt_hash, "evidence_json": appended_evidence(row, "principal_unproven", block=number, answer=answer)}
+                if finalized_number is not None and number <= finalized_number and state != transfers.STATE_STOPPED_WAITING:
+                    columns["offered_exit_json"] = json.dumps({"exit": EXIT_STOP_WAITING, "observed_at": clock(), "answer": answer, "block": number, "finalized": finalized_number}, sort_keys=True)
+                if state in (transfers.STATE_UNKNOWN, transfers.STATE_DISPATCHING):
+                    return apply_transition(proposal_id, transfers.STATE_PENDING, state, **columns)
                 with connection() as conn:
-                    transfers.update_columns(conn, proposal_id, block_ref=number, block_hash=receipt_hash, evidence_json=appended_evidence(
-                        row, "principal_unproven", block=number, answer="transfer_event_disagrees" if proven is False else "no_logs"))
+                    transfers.update_columns(conn, proposal_id, **columns)
                 return transfers.get_transfer_by_id(proposal_id)
             balance_after = _hex_int(client._call("eth_getBalance", [str(row["from_address"]), "latest"]))
             columns: dict[str, Any] = {"block_ref": number, "block_hash": receipt_hash, "finality_seen": display_tag, "evidence_json": evidence, "offered_exit_json": "{}", **fee_columns}

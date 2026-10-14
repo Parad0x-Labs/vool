@@ -166,7 +166,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         if cue == "new_recipient_account":
             warnings.append({"code": cue, "text": "The recipient account does not exist yet; this transfer creates it."})
         elif cue == "new_recipient_token_account":
-            warnings.append({"code": cue, "text": f"This wallet has no {asset} account yet, so this transfer opens one for it. That costs a small one-time amount of {gas}, shown above."})
+            warnings.append({"code": cue, "text": f"The recipient has no {asset} account yet, so this transfer opens one for them. That costs a small one-time amount of {gas}, shown above."})
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
@@ -187,7 +187,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         ["Recipient address", to_address],
     ]
     if fields.get("token_transfer") and not sdk and fields.get("token_contract"):
-        details.append(["Token contract", f"{fields.get('token_contract')} (this transfer calls its transfer function; no {gas} is sent with it)"])
+        details.append(["Token contract", f"{fields.get('token_contract')} ({asset}'s own contract; no {gas} goes with the transfer)"])
     elif fields.get("token_transfer") and not sdk:
         details.append(["Recipient token account", str(fields.get("recipient_token_account") or "")])
         details.append(["Payer token account", str(fields.get("payer_token_account") or "")])

@@ -2401,10 +2401,27 @@ var walletHome = (function(){
       }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', 'Contacts could not be read; type the address directly.')); });
     });
     form.appendChild(pickBtn); form.appendChild(list);
-    var amountLabel = el('label', null, 'Amount (' + ((row && row.native_display_symbol) || 'SOL') + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
+    // what to send: the row's own coin, or a token a Crypto Pilot account may send on this row (USDT where it is carried)
+    var nativeChoice = { symbol: (row && row.native_symbol) || 'SOL', label: (row && row.native_display_symbol) || 'SOL', decimals: (row && row.native_decimals) || 9 };
+    var choices = [nativeChoice].concat(((row && row.send_tokens) || []).map(function(t){ return { symbol: t.symbol, label: t.symbol, decimals: t.decimals }; }));
+    var chosen = nativeChoice;
+    var assetPick = null;
+    if (account.mode === 'pocket_sealed' && choices.length > 1) {
+      var assetLabel = el('label', null, 'What to send'); assetLabel.setAttribute('for', 'vwHomeSendAsset'); form.appendChild(assetLabel);
+      assetPick = el('select'); assetPick.id = 'vwHomeSendAsset';
+      choices.forEach(function(c){ var o = el('option', null, c.label); o.value = c.symbol; assetPick.appendChild(o); });
+      form.appendChild(assetPick);
+    }
+    var amountLabel = el('label', null, 'Amount (' + nativeChoice.label + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
     var amount = el('input'); amount.type = 'text'; amount.id = 'vwHomeSendAmount'; amount.autocomplete = 'off'; amount.inputMode = 'decimal';
-    amount.placeholder = '0.0'; amount.setAttribute('aria-label', 'amount in whole ' + ((row && row.native_display_symbol) || 'SOL') + ' units');
+    amount.placeholder = '0.0'; amount.setAttribute('aria-label', 'amount in whole ' + nativeChoice.label + ' units');
     form.appendChild(amount);
+    if (assetPick) assetPick.addEventListener('change', function(){
+      chosen = choices.filter(function(c){ return c.symbol === assetPick.value; })[0] || nativeChoice;
+      amountLabel.textContent = 'Amount (' + chosen.label + ')';
+      amount.setAttribute('aria-label', 'amount in whole ' + chosen.label + ' units');
+      sendKey = newSendKey();
+    });
     form.appendChild(el('div', 'vw-wh-sub', 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).'));
     var memoLabel = el('label', null, 'Note (optional, stays with your request)'); memoLabel.setAttribute('for', 'vwHomeSendMemo'); form.appendChild(memoLabel);
     var memo = el('input'); memo.type = 'text'; memo.id = 'vwHomeSendMemo'; memo.autocomplete = 'off'; form.appendChild(memo);
@@ -2417,7 +2434,6 @@ var walletHome = (function(){
     form.appendChild(go);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
-    var decimals = (row && row.native_decimals) || 9;
     // editing the intent after a refusal is a NEW intent: the idempotency key rotates, so an honest
     // retry of the unchanged request stays deduplicated while an edited one is never refused as a duplicate
     function rotate(){ sendKey = newSendKey(); }
@@ -2425,6 +2441,7 @@ var walletHome = (function(){
     go.addEventListener('click', function(){
       var dest = String(to.value || '').trim();
       if (!dest) { state.className = 'vw-wh-msg err'; state.textContent = 'Type the recipient address.'; return; }
+      var decimals = chosen.decimals;
       var minor = parseAmountToMinor(amount.value, decimals);
       if (minor === null) {
         state.className = 'vw-wh-msg err';
@@ -2438,7 +2455,7 @@ var walletHome = (function(){
         return;
       }
       go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = 'Preparing the request… (nothing is sent yet)';
-      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: (row && row.native_symbol) || 'SOL', origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
+      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: chosen.symbol, origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
       postJson('/api/wallet/propose', body).then(function(res){
         if (!res.ok) {
           go.disabled = false; state.className = 'vw-wh-msg err';
