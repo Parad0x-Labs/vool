@@ -7,13 +7,17 @@ the package it produces is marked not release-grade rather than released.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
+
+from ops.bundle_dependency_provenance import verify_record
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/macos-intel.yml"
@@ -23,6 +27,7 @@ BUILD_STEP = "Build the x86_64 app and DMG on Intel"
 CHECK_STEP = "Check the cryptography wheel (slice, no dynamic OpenSSL, imports, legacy provider)"
 BUILD_CRYPTO_STEP = "Build cryptography natively for x86_64 (static OpenSSL, no-module)"
 AUDIT_STEP = "pip-audit the lean set the bundle installs"
+WHEELHOUSE_STEP = "Wheelhouse (cryptography + proxy-tools rebuilt by its recorded recipe)"
 RELEASE_PACKAGE = "macos-x86_64-package"
 RECORD_PACKAGE = "macos-x86_64-package-NOT-RELEASE-GRADE"
 
@@ -201,6 +206,9 @@ def test_the_record_artifact_carries_the_wheel_and_its_record_entry() -> None:
     path = record[0][2]["with"]["path"]
     assert "crypto-wheel/*.whl" in path
     assert "built_wheels_entry.json" in path
+    # Both wheels the build makes itself are re-recorded, never only one of them.
+    assert "proxy-wheel/*.whl" in path
+    assert "built_wheels_proxy_tools_entry.json" in path
 
 
 def test_smoke_still_tests_the_record_package_under_its_marked_name() -> None:
@@ -247,6 +255,9 @@ def test_pip_audit_runs_the_security_audit_policy_over_the_installed_lean_set() 
     assert '-m pip_audit -r "$RUNNER_TEMP/lean-frozen.txt"' in script
     assert '--format=json -o "$RUNNER_TEMP/pip-audit-lean.json"' in script
     assert "--ignore" not in script, "no ignore is added beyond security-audit.yml's (it has none)"
+    # The frozen set is audited as written: re-resolving it through pip would prepare the
+    # Intel cryptography and proxy-tools sdists, running (or failing on) their build code.
+    assert "--no-deps --disable-pip" in script
     assert "|| true" not in script and "continue-on-error" not in script
     security = yaml.safe_load(SECURITY_AUDIT.read_text(encoding="utf-8"))
     security_step = next(
@@ -270,3 +281,69 @@ def test_pip_audit_runs_the_security_audit_policy_over_the_installed_lean_set() 
 ])
 def test_expression_model_matches_github_semantics(expression: str, inputs: dict, expected: object) -> None:
     assert evaluate(expression, inputs) == expected
+
+
+def _recipe() -> str:
+    run = _step("build", WHEELHOUSE_STEP)["run"]
+    return run.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+
+
+def _fake_sdist(root: Path) -> Path:
+    """An extracted sdist shaped like proxy_tools-0.1.0 whose setup.py would leave a mark if run."""
+    sdist = root / "proxy_tools-0.1.0"
+    (sdist / "proxy_tools").mkdir(parents=True)
+    (sdist / "proxy_tools.egg-info").mkdir()
+    pkg_info = "Metadata-Version: 1.1\nName: proxy_tools\nVersion: 0.1.0\nSummary: s\nLicense: MIT\nDescription: UNKNOWN\nPlatform: UNKNOWN\n"
+    (sdist / "PKG-INFO").write_text(pkg_info)
+    (sdist / "proxy_tools.egg-info" / "top_level.txt").write_text("proxy_tools\n")
+    (sdist / "proxy_tools" / "__init__.py").write_text("import sys\nmodule_property = object\n")
+    marker = root / "SETUP_PY_RAN"
+    (sdist / "setup.py").write_text(f"open({str(marker)!r}, 'w').write('ran')\n")
+    return sdist
+
+
+def test_proxy_tools_is_rebuilt_by_the_recorded_recipe_without_running_setup_py(tmp_path: Path) -> None:
+    """The wheelhouse step's recipe is deterministic, never executes the sdist's setup.py, and
+    yields a wheel whose RECORD the provenance audit verifies. pip wheel / pip download would
+    run setup.py and stamp build-time timestamps, so they can never reproduce the record."""
+    workflow_text = WORKFLOW.read_text(encoding="utf-8")
+    assert "proxy_tools==" not in workflow_text, "proxy-tools must not be fetched or built through pip"
+    recipe = tmp_path / "recipe.py"
+    recipe.write_text(_recipe())
+    sdist = _fake_sdist(tmp_path)
+    digests = []
+    for attempt in ("a", "b"):
+        out = tmp_path / f"out-{attempt}"
+        done = subprocess.run([sys.executable, "-I", str(recipe), str(sdist), str(out)],
+                              capture_output=True, text=True, cwd=tmp_path)
+        assert done.returncode == 0, done.stderr
+        wheel = out / "proxy_tools-0.1.0-py3-none-any.whl"
+        digests.append(hashlib.sha256(wheel.read_bytes()).hexdigest())
+        record = verify_record(wheel)
+        assert record["ok"] == 4 and not record["mismatched"] and not record["missing"], record
+    assert digests[0] == digests[1], "two runs of the recipe must be byte-identical"
+    assert not (tmp_path / "SETUP_PY_RAN").exists(), "the recipe executed the sdist's setup.py"
+
+
+def test_a_proxy_tools_wheel_that_is_not_the_record_fails_unless_record_wheel_is_true(tmp_path: Path) -> None:
+    step = _step("build", WHEELHOUSE_STEP)
+    assert "if" not in step
+    assert step["env"]["RECORD_WHEEL"] == "${{ inputs.record_wheel }}"
+    run = step["run"]
+    tail = run[run.index('PT_WHL="$PTW/') :]
+    ptw, wh = tmp_path / "proxy-wheel", tmp_path / "wheelhouse"
+    ptw.mkdir()
+    wh.mkdir()
+    (ptw / "proxy_tools-0.1.0-py3-none-any.whl").write_bytes(b"not the recorded wheel")
+
+    def run_tail(record_wheel: str) -> subprocess.CompletedProcess:
+        env = {**os.environ, "PTW": str(ptw), "WH": str(wh), "RECORD_WHEEL": record_wheel}
+        return subprocess.run(["bash", "-c", "set -euo pipefail\n" + tail], cwd=ROOT, env=env,
+                              capture_output=True, text=True)
+
+    assert run_tail("false").returncode != 0
+    assert not (wh / "proxy_tools-0.1.0-py3-none-any.whl").exists(), "a refused wheel reached the wheelhouse"
+    assert run_tail("").returncode != 0  # pull_request: no inputs context
+    record = run_tail("true")
+    assert record.returncode == 0, record.stderr
+    assert "record_wheel run" in record.stdout
