@@ -8,8 +8,9 @@ server-created import grant.
 from __future__ import annotations
 
 import hashlib
+import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -55,6 +56,104 @@ def _clean_id(value: Any, *, field: str) -> str:
     if len(cleaned) > 240 or any(ord(char) < 32 for char in cleaned):
         raise ValueError(f"invalid {field}")
     return cleaned
+
+
+# A chat whose first turn is private (core.private_chat) gets no namespace row: the row would be a
+# lasting record that the private chat existed, and the sidebar lists every namespace, so it showed
+# as an empty "New chat". Such a chat lives in this process only, keyed by chat id, holding what a
+# row and its default grants would hold (ids and times, never a word of the chat), for as long as
+# the chat stays private. The first turn that is saved creates the row as usual and drops this.
+_UNSAVED: dict[str, tuple[ContextNamespace, dict[tuple[str, str], ContextImportGrant]]] = {}
+_UNSAVED_MAX = 512
+_UNSAVED_LOCK = threading.Lock()
+
+
+def _chat_is_private_now(clean_chat: str) -> bool:
+    """True while ``clean_chat`` is private: its switch is on, or the bound request is a private turn
+    of it. An unreadable switch answers True (core.private_chat.is_private fails closed)."""
+    from core import private_chat
+
+    if private_chat.is_private(clean_chat):
+        return True
+    if not private_chat.request_is_private():
+        return False
+    owner = private_chat.private_request_session()
+    if not owner or owner == clean_chat:
+        return True
+    from core.chat_session_identity import canonical_chat_session_id
+
+    return canonical_chat_session_id(owner) == canonical_chat_session_id(clean_chat)
+
+
+def _unsaved_entry(
+    clean_chat: str,
+) -> tuple[ContextNamespace, dict[tuple[str, str], ContextImportGrant]] | None:
+    """The in-process record of a private chat that has no row, while it is still private."""
+    with _UNSAVED_LOCK:
+        entry = _UNSAVED.get(clean_chat)
+    if entry is None:
+        return None
+    if _chat_is_private_now(clean_chat):
+        return entry
+    with _UNSAVED_LOCK:
+        _UNSAVED.pop(clean_chat, None)
+    return None
+
+
+def _grant_record(
+    clean_chat: str, scope: str, source_id: str, source_project_id: str, now: str
+) -> ContextImportGrant:
+    stable = hashlib.sha256(
+        f"{clean_chat}\0{scope}\0{source_id}".encode()
+    ).hexdigest()[:24]
+    return ContextImportGrant(
+        grant_id=f"grant-{stable}",
+        chat_id=clean_chat,
+        scope=scope,  # type: ignore[arg-type]
+        source_id=source_id,
+        source_project_id=source_project_id,
+        created_at=now,
+    )
+
+
+def _ensure_unsaved_namespace(
+    clean_chat: str,
+    *,
+    project_id: str,
+    parent_chat_id: str,
+    branch_turn: int | None,
+    grant_confirmed_profile: bool,
+    grant_current_receipts: bool,
+    now: str,
+) -> ContextNamespace:
+    with _UNSAVED_LOCK:
+        previous = _UNSAVED.pop(clean_chat, None)
+        if previous is None:
+            namespace = ContextNamespace(
+                chat_id=clean_chat,
+                project_id=project_id,
+                parent_chat_id=parent_chat_id,
+                branch_turn=branch_turn,
+                created_at=now,
+                updated_at=now,
+            )
+            grants: dict[tuple[str, str], ContextImportGrant] = {}
+        else:
+            namespace, grants = previous[0], dict(previous[1])
+            if project_id and not namespace.project_id:
+                namespace = replace(namespace, project_id=project_id, updated_at=now)
+        wanted = []
+        if grant_confirmed_profile:
+            wanted.append(("user_profile", "profile:confirmed"))
+        if grant_current_receipts:
+            wanted.append(("action_receipt", f"chat:{clean_chat}"))
+        for scope, source in wanted:
+            if (scope, source) not in grants:
+                grants[(scope, source)] = _grant_record(clean_chat, scope, source, "", now)
+        _UNSAVED[clean_chat] = (namespace, grants)
+        while len(_UNSAVED) > _UNSAVED_MAX:
+            _UNSAVED.pop(next(iter(_UNSAVED)), None)
+    return namespace
 
 
 def ensure_context_namespace_schema() -> None:
@@ -165,6 +264,20 @@ def ensure_chat_namespace(
     clean_parent = str(parent_chat_id or "").strip()
     now = _utcnow()
     ensure_context_namespace_schema()
+    if _load_saved_namespace(clean_chat) is None and _chat_is_private_now(clean_chat):
+        return _ensure_unsaved_namespace(
+            clean_chat,
+            project_id=clean_project,
+            parent_chat_id=clean_parent,
+            branch_turn=branch_turn,
+            grant_confirmed_profile=grant_confirmed_profile,
+            grant_current_receipts=grant_current_receipts,
+            now=now,
+        )
+    with _UNSAVED_LOCK:
+        unsaved = _UNSAVED.pop(clean_chat, None)
+    if unsaved is not None and not clean_project:
+        clean_project = unsaved[0].project_id
     conn = get_connection()
     try:
         conn.execute(
@@ -204,6 +317,15 @@ def ensure_chat_namespace(
     namespace = load_chat_namespace(clean_chat)
     if namespace is None:
         raise RuntimeError("context namespace was not created")
+    if namespace.lifecycle_state == "active" and unsaved is not None:
+        # Imports granted while the chat was private and unsaved carry over to its row.
+        for grant in unsaved[1].values():
+            grant_context_import(
+                clean_chat,
+                scope=grant.scope,
+                source_id=grant.source_id,
+                source_project_id=grant.source_project_id,
+            )
     if namespace.lifecycle_state == "active" and grant_confirmed_profile:
         grant_context_import(
             clean_chat,
@@ -223,7 +345,19 @@ def ensure_chat_namespace(
 
 
 def load_chat_namespace(chat_id: str) -> ContextNamespace | None:
+    """The chat's namespace: its row, or, while a chat that started private stays private, the
+    in-process namespace that stands in for a row it never got."""
     clean_chat = str(chat_id or "").strip()
+    if not clean_chat:
+        return None
+    saved = _load_saved_namespace(clean_chat)
+    if saved is not None:
+        return saved
+    entry = _unsaved_entry(clean_chat)
+    return entry[0] if entry is not None else None
+
+
+def _load_saved_namespace(clean_chat: str) -> ContextNamespace | None:
     if not clean_chat:
         return None
     ensure_context_namespace_schema()
@@ -407,8 +541,14 @@ def set_chat_namespace_state(chat_id: str, state: NamespaceState) -> ContextName
     clean_state = str(state or "").strip().lower()
     if clean_state not in _NAMESPACE_STATES:
         raise ValueError("invalid namespace state")
-    namespace = load_chat_namespace(clean_chat)
+    namespace = _load_saved_namespace(clean_chat)
     if namespace is None:
+        unsaved = _unsaved_entry(clean_chat)
+        if unsaved is not None and clean_state == "deleted":
+            # Nothing of it was saved, so deleting it is forgetting it: no tombstone row either.
+            with _UNSAVED_LOCK:
+                _UNSAVED.pop(clean_chat, None)
+            return replace(unsaved[0], lifecycle_state="deleted", updated_at=_utcnow())
         raise ValueError("chat namespace does not exist")
     current_state = namespace.lifecycle_state
     if current_state == "deleted" and clean_state != "deleted":
@@ -463,7 +603,7 @@ def set_chat_namespace_project(
         ord(char) < 32 for char in clean_project
     ):
         raise ValueError("invalid project_id")
-    namespace = load_chat_namespace(clean_chat)
+    namespace = _load_saved_namespace(clean_chat)
     if namespace is None or namespace.lifecycle_state != "active":
         raise ValueError("project assignment requires an active chat")
     if namespace.project_id == clean_project:
@@ -516,10 +656,15 @@ def grant_context_import(
     if namespace.lifecycle_state != "active":
         raise ValueError("context imports require an active chat")
     now = _utcnow()
-    stable = hashlib.sha256(
-        f"{clean_chat}\0{clean_scope}\0{clean_source}".encode()
-    ).hexdigest()[:24]
-    grant_id = f"grant-{stable}"
+    if _load_saved_namespace(clean_chat) is None:
+        grant = _grant_record(clean_chat, clean_scope, clean_source, clean_project, now)
+        with _UNSAVED_LOCK:
+            entry = _UNSAVED.get(clean_chat)
+            if entry is not None:
+                entry[1][(clean_scope, clean_source)] = grant
+                return grant
+        raise ValueError("chat namespace does not exist")
+    grant_id = _grant_record(clean_chat, clean_scope, clean_source, clean_project, now).grant_id
     conn = get_connection()
     try:
         conn.execute(
@@ -579,6 +724,9 @@ def list_context_imports(chat_id: str) -> tuple[ContextImportGrant, ...]:
     clean_chat = str(chat_id or "").strip()
     if not clean_chat:
         return ()
+    if clean_chat in _UNSAVED and _load_saved_namespace(clean_chat) is None:
+        entry = _unsaved_entry(clean_chat)
+        return tuple(entry[1].values()) if entry is not None else ()
     ensure_context_namespace_schema()
     conn = get_connection()
     try:
@@ -619,7 +767,7 @@ def clone_chat_namespace(
     Tool receipts, semantic nodes, summaries, grants, and capsule state are not
     copied.  The new namespace can reference them only through a later grant.
     """
-    source = load_chat_namespace(_clean_id(source_chat_id, field="source_chat_id"))
+    source = _load_saved_namespace(_clean_id(source_chat_id, field="source_chat_id"))
     if source is None or source.lifecycle_state == "deleted":
         raise ValueError("source chat does not exist")
     clean_new = _clean_id(new_chat_id, field="new_chat_id")
