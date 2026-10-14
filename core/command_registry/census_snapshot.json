@@ -1142,6 +1142,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/goal/state": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/goal/state",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.state",
+      "surface": "http"
+    },
     "http:GET:/api/intake/quarantine/list": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/intake/quarantine/list",
@@ -2192,6 +2199,34 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/goal/pause": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/pause",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.pause",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/resume": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/resume",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.resume",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/retry": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/retry",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.retry",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/stop": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/stop",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.stop",
+      "surface": "http"
+    },
     "http:POST:/api/intake/*": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/intake/*",
@@ -3064,7 +3099,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 297,
-    "GENERATED_ADAPTER": 131,
+    "GENERATED_ADAPTER": 136,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

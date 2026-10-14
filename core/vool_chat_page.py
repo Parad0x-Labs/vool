@@ -5934,6 +5934,11 @@ function applyTaskEvent(run, ev) {
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
+  // The goal card consumes the same durable event (also before the ended-gate: a goal event
+  // that arrives after the carrying turn finished is still live goal truth).
+  if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
+    window.VoolGoalCard.consume(ev.goal || null, ev.summary);
+  }
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
   if (ev.summary) { run.action = ev.summary; run.evented = true; }
@@ -12962,6 +12967,7 @@ function showPermBar(chatId, ev) {
   // A different request means the server did not match the token still in hand: it is spent now.
   if (owner.approvalToken && owner.approvalToken !== a.approval_id) releaseApprovalTokenFor(chatId);
   owner.pendingApproval = a;
+  owner.goalApproval = null;
   // Painting the single permission bar is display work: only the chat on screen may drive it.
   if (!permBarEl || !isDisplayed(chatId)) return;
   permMsgEl.textContent = a.action || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
@@ -13055,10 +13061,21 @@ function resumeApprovedTurn(chatId) {
 async function resolvePermission(decision, scope) {
   const chatId = displayedChat;
   const owner = chatState(chatId);
+  const goalApproval = owner.goalApproval;
   const approval = owner.pendingApproval; if (!approval || !approval.approval_id) { toast(pageT('permissions.approval_gone', 'This approval is no longer available.')); return; }
   try {
     const data = await postMode({ op: 'resolve_approval', approval_id: approval.approval_id, decision: decision, scope: scope || 'once' });
-    hidePermBar(); owner.pendingApproval = null;
+    hidePermBar(); owner.pendingApproval = null; owner.goalApproval = null;
+    if (goalApproval) {
+      if (decision === 'allow') {
+        const response = await fetch('/api/goal/retry', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({session_id:chatId, goal_id:goalApproval.goal_id})});
+        const resumed = await response.json();
+        if (!response.ok || !resumed.ok) throw new Error(resumed.error || pageT('permissions.approval_gone', 'This approval is no longer available.'));
+        if (window.VoolGoalCard) window.VoolGoalCard.refresh();
+      } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
+      return;
+    }
     if (decision === 'allow') {
       setApprovalToken(chatId, approval.approval_id); owner.resumeApprovedTurn = true;
       owner.approvalResumeTurnId = (owner.run && owner.run.turnId) || approval.task_id || '';
@@ -13639,6 +13656,13 @@ window.VoolPageActions = Object.freeze({
   focusComposer: () => { if (inputEl) inputEl.focus(); },
   toast: (text) => toast(String(text == null ? '' : text)),
   displayedChat: () => displayedChat,
+  reviewGoalApproval: (goal, approval) => {
+    if (!goal || String(goal.session_id || '') !== displayedChat || goal.state !== 'waiting_approval') return;
+    const step = (goal.steps || []).find((item) => item.id === goal.current_step_id);
+    if (!step || step.turn_id !== approval.task_id) return;
+    showPermBar(displayedChat, {approval:approval});
+    chatState(displayedChat).goalApproval = {goal_id:goal.goal_id};
+  },
   chatLog: () => logEl,
   // Close EVERY composer while a council owns the machine's model pin, and hand them back
   // when it does not. The caller passes what the SERVER said; the page decides what
@@ -13767,6 +13791,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.contacts_fragment import render_contacts_fragment
     from core.council_chat_card_fragment import render_council_card_fragment
     from core.council_fragment import render_council_fragment
+    from core.goal_progress_fragment import render_goal_progress_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
@@ -13782,6 +13807,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_composer_extras_fragment(),
         render_price_safety_fragment(),
         render_notification_fragment(),
+        render_goal_progress_fragment(),
         render_model_radar_fragment(),
         render_settings_extras_fragment(),
         render_companion_drawer_fragment(),
