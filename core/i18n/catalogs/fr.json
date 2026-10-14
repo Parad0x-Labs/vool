@@ -226,7 +226,6 @@
     "addons.before_scan": "Une vérification avant l'installation",
     "addons.blocked": "Cette analyse a révélé des risques ou les conditions d'installation ne sont pas remplies.",
     "addons.browse": "Parcourir",
-    "addons.browse_intro": "Explorez Hermes, OpenClaw et d'autres bibliothèques. Vérifiez les prérequis, consultez l'analyse, puis ajoutez ce qui vous convient.",
     "addons.browse_ready_intro": "Ces compétences agissent comme des instructions dans VOOL. Consultez l'analyse Eyebrow avant d'en activer une. Les compétences incluses ne nécessitent pas de compte GitHub ; certaines exigent d'autres applications ou comptes.",
     "addons.browse_title": "Compétences de la communauté open source.",
     "addons.cancel": "Annuler",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Activez un canal de paiement dans les réglages Crypto seulement si vous voulez que des paiements passent par lui ; le plafond et votre approbation s'appliquent sur chaque canal.",
     "fault.wallet_x402_sdk_unavailable.message": "Cette version ne peut pas payer les offres x402 sur Base via le x402 Foundation SDK : l'extra optionnel x402 n'est pas installé sur cette machine. Rien n'a été signé ni envoyé. Toutes les autres fonctions du portefeuille marchent sans lui ; une fois installé, réessayez."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

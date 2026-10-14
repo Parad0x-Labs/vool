@@ -226,7 +226,6 @@
     "addons.before_scan": "安装前的一次检查",
     "addons.blocked": "此扫描发现风险，或未满足安装条件。",
     "addons.browse": "浏览",
-    "addons.browse_intro": "探索 Hermes、OpenClaw 等库。检查要求、审阅扫描结果，然后添加合适的内容。",
     "addons.browse_ready_intro": "这些技能在 VOOL 中以指令形式工作。启用前请审阅 Eyebrow 扫描。内置技能无需 GitHub 账户；部分需要其他应用或账户。",
     "addons.browse_title": "来自开源社区的技能。",
     "addons.cancel": "取消",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "只有在希望通过某个支付通道付款时，才在加密设置中打开它；上限和你的批准在每个通道上都适用。",
     "fault.wallet_x402_sdk_unavailable.message": "此构建无法通过 x402 Foundation SDK 支付 Base 上的 x402 报价：这台机器上没有安装可选的 x402 扩展。没有签名或发送任何内容。钱包的其他所有功能没有它也能工作；安装之后请重试。"
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

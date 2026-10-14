@@ -226,7 +226,6 @@
     "addons.before_scan": "Uma verificação antes de instalar",
     "addons.blocked": "Esta verificação encontrou riscos ou as condições de instalação não foram cumpridas.",
     "addons.browse": "Explorar",
-    "addons.browse_intro": "Explore Hermes, OpenClaw e outras bibliotecas. Verifique os requisitos, reveja a verificação e adicione o que servir.",
     "addons.browse_ready_intro": "Estas habilidades funcionam como instruções no VOOL. Reveja a verificação do Eyebrow antes de ativar uma. As incluídas não precisam de conta GitHub; algumas exigem outras apps ou contas.",
     "addons.browse_title": "Habilidades da comunidade de código aberto.",
     "addons.cancel": "Cancelar",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Ligue um canal de pagamento nos ajustes de Cripto só se quiser que pagamentos passem por ele; o teto e a sua aprovação valem em todos os canais.",
     "fault.wallet_x402_sdk_unavailable.message": "Esta versão não consegue pagar ofertas x402 na Base pelo x402 Foundation SDK: o extra opcional x402 não está instalado nesta máquina. Nada foi assinado ou enviado. Toda outra função da carteira funciona sem ele; com ele instalado, tente de novo."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

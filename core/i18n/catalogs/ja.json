@@ -226,7 +226,6 @@
     "addons.before_scan": "インストール前の1回のチェック",
     "addons.blocked": "このスキャンでリスクが見つかったか、インストール条件を満たしませんでした。",
     "addons.browse": "見る",
-    "addons.browse_intro": "Hermes、OpenClawほかのライブラリを探索します。要件を確認し、スキャンを確認して、合うものを追加しましょう。",
     "addons.browse_ready_intro": "これらのスキルはVOOLへの指示として機能します。有効化する前にEyebrowのスキャンを確認してください。同梱スキルにGitHubアカウントは不要です。一部には他のアプリやアカウントが必要です。",
     "addons.browse_title": "オープンソースコミュニティのスキル。",
     "addons.cancel": "キャンセル",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "支払いチャネルは、そのチャネルで支払いたい場合にだけ暗号設定でオンにしてください。上限とあなたの承認はどのチャネルでも適用されます。",
     "fault.wallet_x402_sdk_unavailable.message": "このビルドはx402 Foundation SDKを通じてBase上のx402オファーを支払えません：オプションのx402拡張がこのマシンにインストールされていません。署名も送信もされていません。他のウォレット機能はそれなしで動作します。導入後にもう一度お試しください。"
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

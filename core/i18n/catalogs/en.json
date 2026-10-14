@@ -226,7 +226,6 @@
     "addons.before_scan": "One check before you install",
     "addons.blocked": "This scan found risks or did not meet the conditions for installation.",
     "addons.browse": "Browse",
-    "addons.browse_intro": "Explore Hermes, OpenClaw and other libraries. Check requirements, review the scan, then add what fits.",
     "addons.browse_ready_intro": "These skills work as instructions in VOOL. Review the Eyebrow scan before enabling one. Included skills need no GitHub account; some need other apps or accounts.",
     "addons.browse_title": "Skills from the open-source community.",
     "addons.cancel": "Cancel",

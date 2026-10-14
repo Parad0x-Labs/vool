@@ -226,7 +226,6 @@
     "addons.before_scan": "설치 전 한 번 확인",
     "addons.blocked": "이 검사에서 위험이 발견되었거나 설치 조건이 충족되지 않았습니다.",
     "addons.browse": "탐색",
-    "addons.browse_intro": "Hermes, OpenClaw 및 기타 라이브러리를 탐색하세요. 요구 사항을 확인하고 검사를 검토한 후 맞는 것을 추가하세요.",
     "addons.browse_ready_intro": "이 스킬은 VOOL에서 지침으로 작동합니다. 활성화하기 전에 Eyebrow 검사를 검토하세요. 포함된 스킬에는 GitHub 계정이 필요 없고, 일부는 다른 앱이나 계정이 필요합니다.",
     "addons.browse_title": "오픈 소스 커뮤니티의 스킬.",
     "addons.cancel": "취소",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "그 채널로 결제하려는 경우에만 암호화폐 설정에서 결제 채널을 켜세요; 한도와 사용자 승인은 모든 채널에 적용됩니다.",
     "fault.wallet_x402_sdk_unavailable.message": "이 빌드는 x402 Foundation SDK를 통해 Base의 x402 제안을 결제할 수 없습니다: 선택적 x402 추가 요소가 이 기기에 설치되지 않았습니다. 서명되거나 보내진 것은 없습니다. 지갑의 다른 모든 기능은 없이도 작동합니다; 설치한 뒤 다시 시도하세요."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

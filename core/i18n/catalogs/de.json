@@ -226,7 +226,6 @@
     "addons.before_scan": "Eine Prüfung vor der Installation",
     "addons.blocked": "Diese Prüfung fand Risiken oder die Installationsbedingungen waren nicht erfüllt.",
     "addons.browse": "Durchsuchen",
-    "addons.browse_intro": "Erkunde Hermes, OpenClaw und weitere Bibliotheken. Prüfe die Voraussetzungen, lies den Scan und füge hinzu, was passt.",
     "addons.browse_ready_intro": "Diese Skills wirken in VOOL als Anleitungen. Prüfe den Eyebrow-Scan, bevor du einen aktivierst. Enthaltene Skills brauchen kein GitHub-Konto; manche brauchen andere Apps oder Konten.",
     "addons.browse_title": "Skills aus der Open-Source-Community.",
     "addons.cancel": "Abbrechen",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Schalte einen Zahlungskanal in den Krypto-Einstellungen nur ein, wenn Zahlungen darüber laufen sollen; die Obergrenze und deine Freigabe gelten auf jedem Kanal.",
     "fault.wallet_x402_sdk_unavailable.message": "Dieser Build kann keine x402-Angebote auf Base über das x402 Foundation SDK bezahlen: Die optionale Erweiterung x402 ist auf diesem Rechner nicht installiert. Es wurde nichts signiert oder gesendet. Jede andere Wallet-Funktion läuft ohne sie; nach der Installation versuche es erneut."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

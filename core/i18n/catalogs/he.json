@@ -226,7 +226,6 @@
     "addons.before_scan": "בדיקה אחת לפני ההתקנה",
     "addons.blocked": "הסריקה מצאה סיכונים, או שתנאי ההתקנה לא התקיימו.",
     "addons.browse": "עיון",
-    "addons.browse_intro": "חקרו את Hermes, OpenClaw וספריות נוספות. בדקו דרישות, סקרו את הבדיקה והוסיפו מה שמתאים.",
     "addons.browse_ready_intro": "מיומנויות אלה פועלות כהוראות ב-VOOL. סקרו את בדיקת Eyebrow לפני הפעלה. מיומנויות מובנות אינן דורשות חשבון GitHub; חלקן דורשות אפליקציות או חשבונות אחרים.",
     "addons.browse_title": "מיומנויות מקהילת הקוד הפתוח.",
     "addons.cancel": "ביטול",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "הפעילו ערוץ תשלום בהגדרות הקריפטו רק אם אתם רוצים שתשלומים יעברו דרכו; התקרה והאישור שלכם חלים על כל ערוץ.",
     "fault.wallet_x402_sdk_unavailable.message": "גרסה זו אינה יכולה לשלם הצעות x402 ב-Base דרך x402 Foundation SDK: התוספת האופציונלית x402 אינה מותקנת במכונה זו. לא נחתם ולא נשלח דבר. כל שאר פונקציות הארנק עובדות בלעדיה; לאחר התקנתה נסו שוב."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

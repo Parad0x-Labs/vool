@@ -226,7 +226,6 @@
     "addons.before_scan": "Một bước kiểm tra trước khi cài đặt",
     "addons.blocked": "Quét này phát hiện rủi ro hoặc điều kiện cài đặt chưa được đáp ứng.",
     "addons.browse": "Duyệt",
-    "addons.browse_intro": "Khám phá Hermes, OpenClaw và các thư viện khác. Kiểm tra yêu cầu, xem lại bản quét, rồi thêm những gì phù hợp.",
     "addons.browse_ready_intro": "Các kỹ năng này hoạt động như hướng dẫn trong VOOL. Hãy xem lại bản quét Eyebrow trước khi bật. Kỹ năng đi kèm không cần tài khoản GitHub; một số cần ứng dụng hoặc tài khoản khác.",
     "addons.browse_title": "Kỹ năng từ cộng đồng mã nguồn mở.",
     "addons.cancel": "Hủy",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Chỉ bật một kênh thanh toán trong cài đặt Tiền điện tử nếu bạn muốn thanh toán qua kênh đó; trần chi tiêu và sự chấp thuận của bạn áp dụng trên mọi kênh.",
     "fault.wallet_x402_sdk_unavailable.message": "Bản dựng này không trả được các đề nghị x402 trên Base qua x402 Foundation SDK: phần bổ sung tùy chọn x402 chưa cài trên máy này. Chưa ký hay gửi gì. Mọi chức năng ví khác chạy không cần nó; sau khi cài, thử lại."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

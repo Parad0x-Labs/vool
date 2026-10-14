@@ -226,7 +226,6 @@
     "addons.before_scan": "فحص واحد قبل التثبيت",
     "addons.blocked": "وجد هذا الفحص مخاطر أو لم تستوفَ شروط التثبيت.",
     "addons.browse": "تصفّح",
-    "addons.browse_intro": "استكشف Hermes وOpenClaw ومكتبات أخرى. تحقق من المتطلبات، راجع الفحص، ثم أضف ما يناسبك.",
     "addons.browse_ready_intro": "تعمل هذه المهارات كتعليمات في VOOL. راجع فحص Eyebrow قبل تمكين أي مهارة. المهارات المضمّنة لا تحتاج حساب GitHub؛ وبعضها يحتاج تطبيقات أو حسابات أخرى.",
     "addons.browse_title": "مهارات من مجتمع المصادر المفتوحة.",
     "addons.cancel": "إلغاء",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "شغّل قناة دفع في إعدادات العملات المشفرة فقط إن أردت أن تتم الدفعات عبرها؛ الحد الأقصى وموافقتك يسريان على كل قناة.",
     "fault.wallet_x402_sdk_unavailable.message": "لا يستطيع هذا الإصدار دفع عروض x402 على Base عبر x402 Foundation SDK: الإضافة الاختيارية x402 غير مثبتة على هذه الآلة. لم يوقَّع أو يُرسل شيء. كل وظائف المحفظة الأخرى تعمل بدونها؛ بعد تثبيتها أعد المحاولة."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

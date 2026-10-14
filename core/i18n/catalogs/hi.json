@@ -226,7 +226,6 @@
     "addons.before_scan": "इंस्टॉल से पहले एक जाँच",
     "addons.blocked": "इस स्कैन में जोखिम मिले या इंस्टॉल की शर्तें पूरी नहीं हुईं।",
     "addons.browse": "ब्राउज़",
-    "addons.browse_intro": "Hermes, OpenClaw और अन्य लाइब्रेरी देखें। आवश्यकताएँ जाँचें, स्कैन की समीक्षा करें, फिर जो उचित हो जोड़ें।",
     "addons.browse_ready_intro": "ये कौशल VOOL में निर्देशों की तरह काम करते हैं। सक्रिय करने से पहले Eyebrow स्कैन की समीक्षा करें। शामिल कौशल के लिए GitHub खाता ज़रूरी नहीं; कुछ को अन्य ऐप्स या खातों की आवश्यकता है।",
     "addons.browse_title": "ओपन-सोर्स समुदाय से कौशल।",
     "addons.cancel": "रद्द करें",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "क्रिप्टो सेटिंग्स में भुगतान चैनल तभी चालू करें जब आप उसके ज़रिए भुगतान चाहते हों; सीमा और आपकी मंज़ूरी हर चैनल पर लागू होती है।",
     "fault.wallet_x402_sdk_unavailable.message": "यह बिल्ड x402 Foundation SDK के ज़रिए Base पर x402 ऑफ़र का भुगतान नहीं कर सकता: वैकल्पिक x402 ऐड-ऑन इस मशीन पर नहीं है। कुछ हस्ताक्षरित या भेजा नहीं गया। वॉलेट की बाकी हर सुविधा इसके बिना चलती है; इसे लगाने पर दोबारा कोशिश करें।"
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

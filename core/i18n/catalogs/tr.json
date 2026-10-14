@@ -226,7 +226,6 @@
     "addons.before_scan": "Yüklemeden önce bir kontrol",
     "addons.blocked": "Bu tarama riskler buldu veya yükleme koşulları karşılanmadı.",
     "addons.browse": "Göz at",
-    "addons.browse_intro": "Hermes, OpenClaw ve diğer kitaplıkları keşfedin. Gereksinimleri kontrol edin, taramayı inceleyin ve uygun olanı ekleyin.",
     "addons.browse_ready_intro": "Bu beceriler VOOL'da talimatlar gibi çalışır. Etkinleştirmeden önce Eyebrow taramasını inceleyin. Dahil beceriler GitHub hesabı gerektirmez; bazıları diğer uygulamalar veya hesaplar gerektirir.",
     "addons.browse_title": "Açık kaynak topluluğundan beceriler.",
     "addons.cancel": "İptal",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Bir ödeme kanalını Kripto ayarlarında yalnızca ödemelerin onun üzerinden yapılmasını istiyorsanız açın; tavan ve sizin onayınız her kanalda geçerlidir.",
     "fault.wallet_x402_sdk_unavailable.message": "Bu yapı x402 Foundation SDK üzerinden Base'deki x402 tekliflerini ödeyemez: isteğe bağlı x402 eki bu makinede kurulu değil. Hiçbir şey imzalanmadı veya gönderilmedi. Cüzdanın diğer her işlevi onsuz çalışır; kurulunca tekrar deneyin."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -226,7 +226,6 @@
     "addons.before_scan": "Vienas patikrinimas prieš diegimą",
     "addons.blocked": "Šis patikrinimas rado rizikų arba diegimo sąlygos nebuvo įvykdytos.",
     "addons.browse": "Naršyti",
-    "addons.browse_intro": "Tyrinėkite Hermes, OpenClaw ir kitas bibliotekas. Patikrinkite reikalavimus, peržiūrėkite nuskaitymą ir pridėkite, kas tinka.",
     "addons.browse_ready_intro": "Šie įgūdžiai VOOL veikia kaip nurodymai. Prieš įjungdami peržiūrėkite Eyebrow nuskaitymą. Įdiegti įgūdžių GitHub paskyros nereikalauja; kai kuriems reikia kitų programų ar paskyrų.",
     "addons.browse_title": "Įgūdžiai iš atvirojo kodo bendruomenės.",
     "addons.cancel": "Atšaukti",
@@ -1877,7 +1876,7 @@
     "fault.wallet_payment_channel_off.action": "Įjunkite mokėjimo kanalą Kripto nustatymuose tik jei norite, kad mokėjimai eitų per jį; riba ir jūsų patvirtinimas galioja kiekviename kanale.",
     "fault.wallet_x402_sdk_unavailable.message": "Ši versija negali apmokėti x402 pasiūlymų Base tinkle per x402 Foundation SDK: šiame kompiuteryje neįdiegtas pasirenkamas papildinys x402. Niekas nebuvo pasirašyta ar išsiųsta. Visos kitos piniginės funkcijos veikia ir be jo; jį įdiegę bandykite dar kartą."
   },
-  "source_catalog_sha256": "6291a84066934946dfd68e44461f09bc8aa0306406cd9034a1cde4a735338e40",
+  "source_catalog_sha256": "0695f9fc87a96cd729793e2e07edc02bf8afafa0357bf26b1301eed617eaa932",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
