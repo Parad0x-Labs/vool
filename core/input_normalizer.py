@@ -5,6 +5,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 
+from core.response_language_policy import evidenced_input_language
 from core.structured_literal_input import looks_like_structured_literal_input
 
 # A word token, UNICODE-AWARE. This was `[A-Za-z0-9_'\-]+`, and the gap between that class and the
@@ -693,6 +694,110 @@ def _restore_literals(text: str, spans: list[str]) -> str:
     return text
 
 
+# Function words of the other languages VOOL ships an interface in (plus the Latin-script
+# neighbours people type next to them), as typed WITHOUT diacritics as well as with them. Used only
+# to decide that a message is NOT English, so the English rewrite tables stay off it; nothing routes
+# on these words. Chosen by hand, not swept against a dictionary: words English also uses or
+# abbreviates are left out ("was", "man", "son", "con", "per", "van", "bet", "pour", "ton", "hoe",
+# "todo", "dir", "du", "del", "os", "est", "sim", "um", "y"), and so are short codes ("de", "en",
+# "es", "eu"). Two are kept on purpose. German "im" is also the English shorthand for "I'm", which
+# is exactly the collision this guards; German "die" is the most frequent German word. Neither is
+# proof alone: two distinct pieces of evidence are required (see `reads_as_other_language`), and an
+# English sentence holding them ("the process will die and im stuck") is resolved as English by
+# its own function words before this table is read.
+_OTHER_LANGUAGE_FUNCTION_WORDS = frozenset(
+    {
+        # German
+        "ich", "nicht", "und", "ist", "mein", "meine", "meinen", "meinem", "mit", "auf", "für",
+        "fuer", "nie", "ein", "eine", "einen", "wie", "bitte", "kannst", "dich", "mich",
+        "mir", "wir", "uns", "euch", "von", "bei", "aus", "nach", "oder", "aber", "auch",
+        "noch", "schon", "jetzt", "heute", "morgen", "gestern", "dem", "des", "das", "der", "im",
+        "vom", "zum", "zur", "kein", "keine", "diese", "dieser", "dieses", "sehr", "gibt",
+        "habe", "hast", "wird", "werden", "sind", "bist", "nur", "wenn", "dass", "weil", "alles",
+        "nichts", "etwas", "doch", "nein", "danke", "warum", "wann", "welche", "kann", "muss",
+        "soll", "sie", "zu", "die",
+        # Spanish
+        "el", "los", "las", "que", "qué", "por", "para", "este", "esta", "esto", "estos",
+        "estas", "eso", "mis", "una", "unos", "pero", "muy", "más", "cuando", "donde", "dónde",
+        "porque", "puedes", "puede", "mañana", "manana", "ayer", "hoy", "también", "tambien",
+        "como", "cómo", "lo", "le", "se", "te", "tu", "un",
+        # French
+        "les", "et", "je", "nous", "vous", "ils", "elle", "elles", "pas", "une", "mon",
+        "mes", "tes", "ses", "ce", "cette", "ces", "qui", "quoi", "avec", "dans",
+        "mais", "très", "tres", "peux", "peut", "faire", "merci", "oui", "comment", "pourquoi",
+        "quand", "demain", "hier", "c'est", "j'ai", "n'est", "ça",
+        # Portuguese
+        "uma", "não", "nao", "isso", "isto", "meu", "minha", "seu", "sua",
+        "você", "voce", "ele", "ela", "muito", "aqui", "hoje", "amanhã", "amanha", "ontem",
+        "obrigado", "obrigada", "onde", "pode", "podes", "fica", "ao", "nos",
+        # Italian
+        "il", "gli", "della", "delle", "che", "sono", "mio", "questo", "questa", "perché",
+        "perche", "anche", "molto", "oggi", "domani", "ieri", "grazie", "puoi",
+        # Dutch
+        "het", "een", "niet", "ik", "jij", "wij", "zijn", "mijn", "ook", "maar", "waarom",
+        "wanneer", "waar", "kun", "kunt", "voor", "naar", "deze", "dit", "bedankt", "vandaag",
+        "gisteren",
+        # Polish
+        "jest", "się", "jak", "czy", "mój", "moj", "moja", "moje", "tylko", "już", "juz",
+        "jeszcze", "dzisiaj", "jutro", "wczoraj", "możesz", "mozesz", "proszę", "prosze", "mnie",
+        "że", "ze", "tak", "jego", "jej",
+        # Lithuanian
+        "kad", "kaip", "mano", "yra", "nėra", "nera", "taip", "tik", "jau", "gali",
+        "prašau", "prasau", "ačiū", "aciu", "šiandien", "siandien", "rytoj", "vakar",
+        # Turkish
+        "bir", "bu", "ve", "ile", "için", "icin", "nasıl", "nasil", "değil", "degil", "yok",
+        "siz", "benim", "senin", "çok", "cok", "daha", "gibi", "kadar", "lütfen", "lutfen",
+        "mı", "mu", "mü",
+        # Vietnamese
+        "không", "khong", "của", "cua", "tôi", "toi", "với", "voi", "được", "duoc", "những",
+        "nhung", "một", "mot", "các", "cac", "lưu", "luu", "chuyện", "chuyen", "giúp", "giup",
+        "mình", "minh",
+    }
+)
+_LETTER_WORD_RE = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?")
+
+
+def _is_latin_letter(char: str) -> bool:
+    return unicodedata.name(char, "").startswith("LATIN ")
+
+
+def reads_as_other_language(text: str) -> bool:
+    """Whether a message is written in a language other than English.
+
+    It is a guard, not a classifier: it decides only that the English rewrite tables must stay off
+    the message. `core.response_language_policy`'s input evidence decides first: a language it
+    resolves (kana, Hangul, "ß", "¿", two exclusive Latin letters ...) is that language, and its
+    English reading keeps "what is the weather in Bogotá" and "explain what привет means" English.
+    With no resolution there, any of these marks the message as another language:
+
+    * a letter from a non-Latin script (Cyrillic, Arabic, Hebrew, Devanagari, Han ...);
+    * two distinct pieces of Latin-script evidence: a word carrying a non-English letter
+      ("Büro", "contraseña") or a function word of another language ("mein", "este", "im").
+
+    One piece alone is not enough: an English message names "café", "Zürich" or "el niño", and
+    "pls hlp im stuck" carries the German-looking "im" -- those keep their English corrections.
+    A message too short to carry two pieces of evidence ("speichere mein passwort" does, a bare
+    "passwort" does not) stays on the English path.
+    """
+
+    letters = [char for char in text if char.isalpha()]
+    if not letters:
+        return False
+    evidenced = evidenced_input_language(text)
+    if evidenced:
+        return evidenced != "en"
+    if any(not _is_latin_letter(char) for char in letters):
+        return True
+    words = {word.casefold() for word in _LETTER_WORD_RE.findall(text)}
+    accented_words = {word for word in words if not word.isascii()}
+    function_words = words & _OTHER_LANGUAGE_FUNCTION_WORDS
+    return len(accented_words | function_words) >= 2
+
+
+def _same_text_but_spacing(left: str, right: str) -> bool:
+    return re.sub(r"\s+", "", left) == re.sub(r"\s+", "", right)
+
+
 def normalize_user_text(text: str, *, session_lexicon: dict[str, str] | None = None) -> NormalizationResult:
     raw_text = text or ""
     # NFC on the DERIVED text only; `raw_text` is returned exactly as typed. The two forms of an
@@ -720,12 +825,21 @@ def normalize_user_text(text: str, *, session_lexicon: dict[str, str] | None = N
             quality_flags=quality_flags,
         )
     value = re.sub(r"\s+", " ", value)
+    # Every table below is ENGLISH: shorthand ("im" -> "i am"), English misspellings and an English
+    # tool vocabulary. Applied to another language they do not correct, they translate a word into
+    # a different one, and the result is what the transcript stores and what the model reads as
+    # the user's message: "im Büro" became "i am Büro", "passwort" became "password", "documentos"
+    # became "documents". A message in another language keeps its words; only the user's own
+    # taught lexicon still applies, because the user wrote that mapping.
+    other_language = reads_as_other_language(value)
+    typed = value
     value, literal_spans = _protect_literals(value)
-    value = re.sub(r"[!?]{2,}", "?", value)
-    value = re.sub(r"\.{3,}", ".", value)
+    if not other_language:
+        value = re.sub(r"[!?]{2,}", "?", value)
+        value = re.sub(r"\.{3,}", ".", value)
 
-    rewrites = dict(_DEFAULT_REWRITES)
-    typo_rewrites = dict(_TYPO_REWRITES)
+    rewrites = {} if other_language else dict(_DEFAULT_REWRITES)
+    typo_rewrites = {} if other_language else dict(_TYPO_REWRITES)
     if session_lexicon:
         rewrites.update({str(k).lower(): str(v).lower() for k, v in session_lexicon.items()})
 
@@ -747,7 +861,7 @@ def normalize_user_text(text: str, *, session_lexicon: dict[str, str] | None = N
                 replacement = typo_rewrites[lower]
                 replacements[token] = replacement
                 typo_count += 1
-            else:
+            elif not other_language:
                 fuzzy = _fuzzy_domain_match(lower)
                 if fuzzy:
                     replacement = fuzzy
@@ -758,6 +872,13 @@ def normalize_user_text(text: str, *, session_lexicon: dict[str, str] | None = N
         output_tokens.extend(replacement.split(" "))
 
     normalized = _restore_literals(_join_tokens(output_tokens), literal_spans)
+    if other_language and not replacements and _same_text_but_spacing(normalized, typed):
+        # The token pass still runs (it is what proves no character was lost), but its rejoin is
+        # English spacing: "¿podemos" came back "¿ podemos", and a combining mark (not a word
+        # character) was set apart from its letter -- an Arabic shadda as "سج ّ ل", every Hindi
+        # vowel sign as "न ि ज ी".
+        # Nothing was rewritten and nothing was lost, so the text keeps the spacing it was typed with.
+        normalized = typed
     quality_flags: list[str] = []
     if shorthand_count >= 2:
         quality_flags.append("shorthand_heavy")
