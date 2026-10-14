@@ -18,8 +18,8 @@ and is not shipped (installers, checksums, signing, updates) is the
   [v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta);
   installing from source is also supported. The macOS apps are ad-hoc signed and not
   notarized, so macOS asks you to confirm the first open.
-* 0.7.1 is installed by download. In-app updates aren't switched on yet, so to update,
-  download the new release and install it over the old one.
+* 0.7.1 is installed by download. Updating from 0.7.0: download 0.7.1 and install it over
+  0.7.0. Your chats and settings live in your profile, outside the app.
 * Answer quality depends on the model you connect. A small local model will make more mistakes
   than a large cloud one. Receipts prove what ran, not that an answer is right.
 * Windows is an experimental path. Shell commands are blocked there because Windows has no

@@ -64,7 +64,7 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 **Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine.
 
-Updating from 0.7.0: in-app updates aren't switched on yet, so download 0.7.1 and install it over 0.7.0; your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
+Updating from 0.7.0: download 0.7.1 and install it over 0.7.0. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
 | Platform | Getting started |
 | --- | --- |
