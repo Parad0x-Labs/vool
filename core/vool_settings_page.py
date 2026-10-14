@@ -1165,10 +1165,16 @@ const SAVE_TIMEOUT_MS = 15000;
   const realFetch = window.fetch.bind(window);
   const setOffline = (down) => { const n = document.getElementById('offlineBanner'); if (n) n.hidden = !down; };
   window.fetch = function (input, init) {
-    return realFetch(input, init).then(r => { setOffline(false); return r; }, e => { setOffline(true); throw e; });
+    return realFetch(input, init).then(r => {
+      setOffline(false);
+      /* VOOL answers again: writes whose outcome was unknown are read back (see recheckUnsure). */
+      if (typeof window.__voolRecheckUnsure === 'function') window.__voolRecheckUnsure();
+      return r;
+    }, e => { setOffline(true); throw e; });
   };
 })();
 const NOT_ANSWERING_SHORT = "Not saved \u2014 VOOL isn\u2019t responding.";
+const MAY_NOT_HAVE_SAVED = "VOOL didn\u2019t answer in time, so this may not have saved. It is checked again when VOOL answers.";
 const $ = (sel, root) => (root || document).querySelector(sel);
 const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
 const live = (msg) => { const l = $('#live'); if (l) l.textContent = msg; };
@@ -1287,8 +1293,14 @@ async function commit(row, rawValue) {
     if (superseded()) return;
     st.pending = false;
     snapBackToggle(row, st, value);
-    setState(row.id, 'failed', NOT_ANSWERING_SHORT);
-    live(row.label + ': ' + NOT_ANSWERING_SHORT);
+    /* A refused connection never reached VOOL. A request that timed out may still be carried out
+       when a frozen VOOL wakes up, so its outcome is unknown: say so, and read the stored value
+       back as soon as VOOL answers again. Both are re-checked, the first costs nothing. */
+    UNSURE.set(row.id, value);
+    const timedOut = !!(e && e.name === 'AbortError');
+    const msg = timedOut ? MAY_NOT_HAVE_SAVED : NOT_ANSWERING_SHORT;
+    setState(row.id, 'failed', msg);
+    live(row.label + ': ' + msg);
     return;
   }
   if (timer) clearTimeout(timer);
@@ -1329,12 +1341,62 @@ async function commit(row, rawValue) {
 /* A switch whose write did not land shows the stored value again, never a state that was not saved;
    Retry resends the value that was attempted. */
 function snapBackToggle(row, st, attempted) {
-  if (row.kind !== 'toggle') return;
+  if (row.kind !== 'toggle' && row.kind !== 'select') return;
   st.retry = attempted;
   st.dirty = undefined;
+  if (row.kind === 'select') {
+    /* A list shows the stored choice again too; Retry resends the one that was picked. */
+    const sel = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] select');
+    const stored = valueOf(row);
+    if (sel && stored != null) sel.value = String(stored);
+    return;
+  }
   const b = document.querySelector('[data-row="' + CSS.escape(row.id) + '"] button.sw');
   if (b) b.setAttribute('aria-checked', valueOf(row) ? 'true' : 'false');
 }
+
+/* Writes whose outcome is unknown (VOOL did not answer), by row id -> the value that was sent.
+   When VOOL answers again the stored value is read back and the row says what actually happened. */
+const UNSURE = new Map();
+let recheckTimer = null, rechecking = false;
+function recheckUnsure(now) {
+  if (!UNSURE.size || rechecking) return;
+  if (recheckTimer) clearTimeout(recheckTimer);
+  /* A short pause lets a frozen VOOL finish the write it was holding before it is read back. */
+  recheckTimer = setTimeout(async () => {
+    recheckTimer = null; rechecking = true;
+    let changed = false;
+    try {
+      for (const [id, attempted] of [...UNSURE]) {
+        const row = ALL_ROWS.find(r => r.id === id);
+        const st = rowState(id);
+        if (!row || st.pending) { UNSURE.delete(id); continue; }
+        if (!(await readSource(row.read ? row.read.url : row.write.url))) continue;   /* still not answering */
+        UNSURE.delete(id);
+        if (same(valueOf(row), attempted)) {
+          st.retry = undefined;
+          setState(id, 'saved', 'VOOL answered again: this was saved after all.');
+        } else {
+          setState(id, 'failed', 'VOOL answered again: this was not saved. The stored value is shown.');
+          /* A write VOOL was still holding can land a moment after it wakes: look once more. */
+          setTimeout(async () => {
+            const st2 = rowState(id);
+            if (st2.pending || st2.status !== 'failed') return;
+            if (!(await readSource(row.read ? row.read.url : row.write.url))) return;
+            if (same(valueOf(row), attempted)) {
+              st2.retry = undefined;
+              setState(id, 'saved', 'VOOL answered again: this was saved after all.');
+              if (row.group === state.group) renderPane();
+            }
+          }, 5000);
+        }
+        if (row.group === state.group) changed = true;
+      }
+    } finally { rechecking = false; }
+    if (changed) renderPane();
+  }, now ? 0 : 1500);
+}
+window.__voolRecheckUnsure = () => recheckUnsure(false);
 
 /* ------------------------------------------------------------------ search */
 /* Search matches every typed word, in any order, and a word also matches its everyday synonyms
@@ -1343,10 +1405,30 @@ const SEARCH_SYNONYMS = {
   delete: ['forget', 'remove'], erase: ['forget', 'remove'], wipe: ['forget', 'remove'], remove: ['forget', 'delete'],
   password: ['passphrase', 'key', 'pin'], pin: ['passphrase'], name: ['call you', 'called'],
   bitcoin: ['crypto', 'wallet'], money: ['spend', 'budget', 'wallet'], cost: ['spend', 'budget', 'price'],
-  backup: ['export'], restore: ['import'],
+  backup: ['export'], restore: ['import'], data: ['memory', 'remember', 'privacy'],
+};
+/* Small words carry no meaning in a settings search: "delete my data" is searched as "delete data". */
+const SEARCH_STOPWORDS = new Set(['my', 'the', 'a', 'an', 'to', 'of', 'for', 'i', 'me', 'how', 'do', 'can', 'all', 'and']);
+/* Where an everyday request belongs when several rows match it. */
+const SEARCH_PREFER = { delete: 'profile_items', erase: 'profile_items', wipe: 'profile_items', forget: 'profile_items', data: 'profile_items' };
+/* Words for something Settings does not have: said plainly instead of a wrong section. */
+const SEARCH_ABSENT = {
+  dark: 'VOOL has one colour scheme, so there is no light or dark setting.',
+  light: 'VOOL has one colour scheme, so there is no light or dark setting.',
+  theme: 'VOOL has one colour scheme, so there is no theme setting.',
 };
 function rowText(r) { return [r.label, r.help, r.keywords, r.groupTitle].filter(Boolean).join(' ').toLowerCase(); }
-function queryWords(q) { return String(q || '').split(/\s+/).filter(Boolean); }
+function queryWords(q) {
+  const words = String(q || '').split(/\s+/).filter(Boolean);
+  const meaningful = words.filter(w => !SEARCH_STOPWORDS.has(w));
+  return meaningful.length ? meaningful : words;
+}
+function preferredRow(q) {
+  const id = queryWords(q).map(w => SEARCH_PREFER[w]).find(Boolean);
+  const r = id && ALL_ROWS.find(x => x.id === id);
+  return r && matches(r, q) ? r : null;
+}
+function absentNote(q) { return queryWords(q).map(w => SEARCH_ABSENT[w]).find(Boolean) || ''; }
 function wordHit(text, w) { return text.includes(w) || (SEARCH_SYNONYMS[w] || []).some(x => text.includes(x)); }
 function matches(r, q) { if (!q) return true; const t = rowText(r); return queryWords(q).every(w => wordHit(t, w)); }
 function labelMatches(r, q) { const t = String(r.label || '').toLowerCase(); return !!q && queryWords(q).every(w => wordHit(t, w)); }
@@ -1387,8 +1469,14 @@ function renderNav() {
     const current = currentItem || nav.querySelector('.nav-item');
     if (current) current.focus();
   }
-  /* In a short or narrow window the list scrolls; the section you are in stays in view. */
-  if (currentItem && currentItem.scrollIntoView) currentItem.scrollIntoView({ block: 'nearest' });
+  /* In a short or narrow window the list scrolls; the section you are in stays in view. Only the
+     list's own scroll position is moved: scrollIntoView would also move the browser's Tab starting
+     point to the nav item, so the first Tab would skip the skip link, language, Back and Search. */
+  if (currentItem && nav.scrollHeight > nav.clientHeight) {
+    const top = currentItem.offsetTop - nav.offsetTop, bottom = top + currentItem.offsetHeight;
+    if (top < nav.scrollTop) nav.scrollTop = top;
+    else if (bottom > nav.scrollTop + nav.clientHeight) nav.scrollTop = bottom - nav.clientHeight;
+  }
 }
 
 /* When a change takes hold is said ONCE per section when every control in it agrees (groupEffect),
@@ -1551,7 +1639,8 @@ function renderPane() {
     /* Nothing anywhere matches: say so in the pane too, with places to try, instead of leaving the
        previous section on screen with an empty card under it. */
     $('#paneTitle').textContent = 'No setting matches \u201c' + state.query + '\u201d';
-    $('#paneBlurb').textContent = 'Try other words, or one of these:';
+    const absent = absentNote(q);
+    $('#paneBlurb').textContent = absent ? absent + ' Try other words, or one of these:' : 'Try other words, or one of these:';
     const tries = el('div', 'row wide');
     const bar = el('div', 'inline');
     [['memory', 'Memory & Personalisation'], ['permissions', 'Privacy & Permissions'], ['backup', 'Backup & restore']].forEach(([gid, label]) => {
@@ -1757,11 +1846,17 @@ function widgetBundleExport(stack) {
       const d = await bundlePost('/api/session/bundle/export', { session_id: sid, passphrase: passphrase });
       if (!d.ok) { say(d.error || 'Export refused.', true); exportBtn.disabled = false; return; }
       pass.value = ''; pass2.value = '';
-      const a = document.createElement('a');
-      a.href = '/api/session/bundle/download?path=' + encodeURIComponent(d.path);
+      /* The file is fetched and handed to the browser as a blob, so the name said below is the name
+         it is saved under (a plain link would take the server's internal file name instead). */
       const picked = chatSel.selectedOptions && chatSel.selectedOptions[0];
-      a.download = fileStem(picked && picked.dataset.title, 'chat') + '-' + new Date().toISOString().slice(0, 10) + '.voolsession';
+      const name = fileStem(picked && picked.dataset.title, 'chat') + '-' + new Date().toISOString().slice(0, 10) + '.voolsession';
+      const got = await fetch('/api/session/bundle/download?path=' + encodeURIComponent(d.path));
+      if (!got.ok) { say('The bundle was made but could not be downloaded. Try Export again.', true); exportBtn.disabled = false; return; }
+      const blobUrl = URL.createObjectURL(await got.blob());
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = name; a.dataset.bundlePath = d.path;
       document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
       say(d.encrypted ? 'Saved as ' + a.download + ': a signed, encrypted bundle (' + countWords(d.counts.turns, 'turn', 'turns') + ').' : 'Saved as ' + a.download + ': signed but NOT encrypted (' + countWords(d.counts.turns, 'turn', 'turns') + ').', !d.encrypted);
       renderPreview();
     } catch (e) { say('Export failed: ' + (e && e.message ? e.message : e), true); }
@@ -4818,6 +4913,9 @@ function widgetProfile(stack) {
     try { p = await getJSON('/api/profile'); }
     catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
     current = p;
+    /* The answer-language row in General reads the same profile from the page cache: keep it current,
+       so a pause or an edit made here is seen there without a reload. */
+    state.sources['/api/profile'] = p; delete state.sourceErr['/api/profile'];
     body.textContent = '';
     /* Store-wide: Pause/Resume (POST /api/profile/pause) and Export (GET /api/profile/export). */
     const bar = el('div', 'inline');
@@ -5003,7 +5101,7 @@ async function reconcile() {
 /* ------------------------------------------------------------------ search + keys */
 function onSearch(value) {
   state.query = String(value || '').trim().toLowerCase();
-  const labelHit = ALL_ROWS.find(r => labelMatches(r, state.query));
+  const labelHit = preferredRow(state.query) || ALL_ROWS.find(r => labelMatches(r, state.query));
   const first = labelHit ? MODEL.find(g => g.id === labelHit.group) : MODEL.find(g => hitsFor(g.id, state.query) > 0);
   if (state.query && first) {
     const firstRow = labelHit || ALL_ROWS.find(r => r.group === first.id && matches(r, state.query));
@@ -5104,7 +5202,7 @@ function sectionFromHash() {
 
 async function boot() {
   $('#back').addEventListener('click', closeSettingsWindow);
-  $('#offlineRetry').addEventListener('click', () => { reconcile(); });
+  $('#offlineRetry').addEventListener('click', () => { reconcile(); recheckUnsure(true); });
   $('#skipToPane').addEventListener('click', e => { e.preventDefault(); $('#pane').focus(); });
   installKeys();
   // Registered BEFORE the first read: an already-open window that is re-pointed at a section
@@ -5235,10 +5333,18 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
     catalog = catalog_for(ui_locale)
     if catalog.locale == "en":
         return groups
-    en_keys = set(catalog_for("en").keys)
+    english = catalog_for("en")
+    en_keys = set(english.keys)
 
     def resolved(key: str, fallback: str) -> str:
         if key not in en_keys:
+            return fallback
+        # Per-key form of the catalog's staleness law: a translation is only as current as the
+        # English it was made from. When the English text in the model has changed since the
+        # catalog's source, the old translation may say something no longer true (a removed
+        # file path, an old option name), so the current English is shown until the catalog
+        # is refreshed.
+        if english.text(key) != fallback:
             return fallback
         return catalog.text(key)
 
@@ -5250,10 +5356,17 @@ def _localized_settings_groups(ui_locale: str) -> list[dict]:
         for row in group.get("rows", []):
             rid = row["id"]
             row["label"] = resolved(f"settings.row.{rid}.label", row["label"])
+            if rid == "autonomy_mode" and "setup.step.permissions.title" in en_keys:
+                row["label"] = catalog.text("setup.step.permissions.title")
             for field in ("help", "placeholder", "effect"):
                 if row.get(field):
                     row[field] = resolved(f"settings.row.{rid}.{field}", row[field])
             for option in row.get("options") or []:
+                if rid == "autonomy_mode" and f"setup.autonomy.{option['value']}_title" in en_keys:
+                    # One set of words for "how much VOOL may do alone": the setup screen's own
+                    # translated titles, so setup and Settings name the same choice the same way.
+                    option["label"] = catalog.text(f"setup.autonomy.{option['value']}_title")
+                    continue
                 option["label"] = resolved(
                     f"settings.row.{rid}.option.{option['value']}", option["label"]
                 )
@@ -5305,5 +5418,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
         # English: the help names the real place of the answer-language control, as a link. The keyed
         # catalog text ("…in the operator profile") points at a place that does not exist; other
         # locales keep their translation until the catalog carries the corrected sentence.
-        .replace(_LOCALE_HELP_KEYED, _LOCALE_HELP_EN if tag == "en" else _LOCALE_HELP_KEYED, 1)
+        # The keyed translation still points to an "operator profile" that is no longer there; the
+        # current English is used in every language until settings.language_help is refreshed.
+        .replace(_LOCALE_HELP_KEYED, _LOCALE_HELP_EN, 1)
     )
