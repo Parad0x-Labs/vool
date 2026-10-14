@@ -589,7 +589,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
     results_path = arm_dir / "results.jsonl"
     done = _done_keys(_read_jsonl(results_path))
     tasks = load_tasks(args.tasks)
-    claude = shutil.which(args.claude_bin) or args.claude_bin
+    claude = shutil.which(args.claude_bin)
+    if not claude:
+        raise HarnessError(f"Claude Code CLI not found: {args.claude_bin}")
     version = subprocess.run([claude, "--version"], capture_output=True, text=True, timeout=60).stdout.strip()
     attempt = f"attempt-{int(_now())}"
     env = dict(os.environ)
