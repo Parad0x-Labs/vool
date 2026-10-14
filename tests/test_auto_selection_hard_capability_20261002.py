@@ -154,11 +154,34 @@ def test_media_review_goes_to_the_model_that_declares_image_input() -> None:
             _http_local("vision-local", "seer:8b", VISION_CAPS, provider.base_url),
         )
 
-        result = MediaAnalysisPipeline(registry).analyze(
-            task_id="hard-cap-media-2",
-            task_summary="What does this picture show?",
-            evidence_items=[item.to_dict()],
-        )
+        # The adapter's local-load gate reads the REAL machine's free RAM; a scripted loopback
+        # stub loads nothing, so pin the governor snapshot the way the governor's own tests do
+        # and the proof stays about SELECTION, not about whoever else is using the Mac tonight.
+        from unittest import mock
+
+        import core.resource_governor as _gov
+
+        def _roomy(available: float = 24.0, total: float = 32.0):
+            snap = mock.Mock()
+            snap.total_ram_gb = total
+            snap.available_ram_gb = available
+            snap.memory_pressure = "normal"
+            snap.swap_used_gb = 1.0
+            snap.load_per_core = 0.5
+            snap.comfyui_running = False
+            snap.ollama_loaded_gb = 0.0
+            snap.usable_gb = max(0.0, available - total * 0.2)
+            return snap
+
+        with (
+            mock.patch.object(_gov.sr, "snapshot", return_value=_roomy()),
+            mock.patch.object(_gov, "resident_models", return_value=[]),
+        ):
+            result = MediaAnalysisPipeline(registry).analyze(
+                task_id="hard-cap-media-2",
+                task_summary="What does this picture show?",
+                evidence_items=[item.to_dict()],
+            )
 
         assert result.used_provider is True
         assert result.provider_id == "vision-local:seer:8b"
