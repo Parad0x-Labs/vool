@@ -52,6 +52,8 @@ _LIGHT_FIXED_RULES = (
     (".pop-prov .pp-free", "color:var(--success);"),
     (".pop-prov .pp-unknown, :LIGHT .council-live .cl-state, :LIGHT .council-cell .cv.none", "color:var(--accent);"),
     ("#input::placeholder", "color:var(--muted);"),
+    # Setup's "Saved" mark: the light palette's green is just under 4.5:1 on the cream page.
+    (".mk-saved", "color:#166534;"),
     # The browser's own blue clear button in Settings search, in the page's muted ink instead.
     ("#search::-webkit-search-cancel-button", "filter:grayscale(1) opacity(.65);"),
     # The model menu's provider box is tinted blue for a dark backdrop; on light, the accent.

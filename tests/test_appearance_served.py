@@ -234,6 +234,30 @@ def test_setup_follows_the_same_choice_as_the_chat(tmp_path):
                 assert seen[("system.100", "light")] > 180, seen
                 assert seen[("system.100", "dark")] < 60, seen
                 assert seen[(None, "light")] < 60, seen
+
+                # An open setup follows a change made in Settings at once, like the chat window.
+                context = browser.new_context(viewport={"width": 1280, "height": 800}, color_scheme="light")
+                context.add_cookies([{"name": "vool_appearance", "value": "dark.100", "domain": host, "path": "/"}])
+                setup = context.new_page()
+                setup_errors = _guard(setup, daemon.base_url)
+                setup.goto(daemon.base_url + "/setup", wait_until="domcontentloaded")
+                assert _luma(setup.evaluate(BG)) < 60
+                settings = context.new_page()
+                _guard(settings, daemon.base_url)
+                settings.goto(daemon.base_url + "/settings#companion", wait_until="domcontentloaded")
+                settings.wait_for_function("!!window.VoolAppearance", timeout=10000)
+                settings.evaluate("VoolAppearance.set({theme: 'system'})")
+                setup.wait_for_function("document.documentElement.getAttribute('data-theme') === 'system'", timeout=5000)
+                assert _luma(setup.evaluate(BG)) > 180
+                settings.evaluate("VoolAppearance.set({theme: 'dark'})")
+                setup.wait_for_function("document.documentElement.getAttribute('data-theme') === null", timeout=5000)
+                # A host's ?theme=light keeps its own choice.
+                setup.goto(daemon.base_url + "/setup?theme=light", wait_until="domcontentloaded")
+                settings.evaluate("VoolAppearance.set({theme: 'dark'})")
+                setup.wait_for_timeout(300)
+                assert setup.evaluate("document.documentElement.getAttribute('data-theme')") == "light"
+                assert not setup_errors, setup_errors
+                context.close()
             finally:
                 browser.close()
                 manager.stop()

@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 
 from core.setup_progress import STEPS
-from core.ui_palette import DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 COPY = {
     "title": "Set up VOOL",
@@ -263,6 +263,11 @@ const BUILD_COMMIT = "__PAGE_BUILD_COMMIT__";
 """
 
 _SETUP_JS = r"""<script>
+/* An open setup (its own tab or framed in the chat) follows a theme change made in Settings at once,
+   like the chat window. A host that asked for ?theme=light keeps its own choice. */
+if (!/[?&]theme=light\b/.test(String(location.search || ''))) {
+/*__VOOL_APPEARANCE_JS__*/
+}
 /* ------------------------------------------------------------------ state: read, never owned */
 const view = { snap: null, index: 0, motion: 'auto' };
 const $ = (sel, root) => (root || document).querySelector(sel);
@@ -726,6 +731,7 @@ def render_vool_setup_html(*, build_commit: str = "", ui_locale: str = "en", app
     # Light on the person's choice: Settings > Appearance > Light (or the host's ?theme=light), or
     # "Same as this computer" with a light operating system -- the same choice the chat follows.
     page = (_SETUP_HTML + _SETUP_JS).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS)
+    page = page.replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1)
     return (
         page.replace("__SETUP_STEPS__", json.dumps(setup_steps_model(ui_locale), separators=(",", ":"), ensure_ascii=False))
         .replace("__SETUP_COPY__", json.dumps(_localized_copy(ui_locale), separators=(",", ":"), ensure_ascii=False))
