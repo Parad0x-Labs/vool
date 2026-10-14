@@ -1865,6 +1865,7 @@
     "addons.registry_report": "Report this skill",
     "addons.registry_report_note": "Opens the Skill Codex website in your browser. Sign in there, pick a reason and press Send report. VOOL doesn't send anything itself.",
     "addons.registry_paused": "Downloads of this skill are paused while a person looks into it. Please check back later.",
+    "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so it can't be installed.",
     "addons.publish_button": "Publish to Skill Codex",
     "addons.publish_ready": "Ready to send to the Skill Codex",
     "addons.publish_goes_along": "Only this skill goes along: its name, description and text. No chats, memory or keys.",

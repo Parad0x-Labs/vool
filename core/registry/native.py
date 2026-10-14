@@ -12,11 +12,14 @@ from pathlib import Path
 
 from core.plugin_package import capture_package, execution_directory
 from core.registry.artifact import inspect, materialize
-from core.registry.codec import RegistryError, canonical, decode, require
+from core.registry.codec import FAILED_SAFETY_CHECKS, RegistryError, canonical, decode, require
 from core.registry.trust import verify
 
 _INSTALL_LOCK = threading.RLock()
 STATE_NAME = "registry_trust.sqlite"
+# The Skill Codex checks VOOL runs again on this device. Wording and licence rules stay the Skill Codex's own, and
+# install() validates the native format itself.
+SAFETY_CHECKS = ("archive", "secrets", "code", "dependencies", "instructions-primary", "native-boundaries")
 
 
 def home() -> Path:
@@ -146,6 +149,23 @@ def recover(plugin_id: str, root: Path) -> None:
     plugin_catalog.invalidate_storage_listing()
 
 
+def safety_check(artifact: dict, raw: bytes) -> None:
+    """A signature alone never installs a skill: VOOL runs the Skill Codex's safety checks again itself.
+
+    If whoever signs the list were ever taken over, a skill that asks for keys, installs software or
+    tries to get around VOOL's own rules still stops here. Plugins are reviewed another way.
+    """
+    if artifact["metadata"]["kind"] != "skill":
+        return
+    from core.registry import checks
+
+    with tempfile.TemporaryDirectory(prefix="vool-registry-check-") as scratch:
+        outcome = checks.run(raw, Path(scratch), targets=[])
+    # No results means the checks stopped early (a skill too long to read in full): unchecked never installs.
+    if not outcome["results"] or any(outcome["findings"].get(name) for name in SAFETY_CHECKS):
+        raise RegistryError(FAILED_SAFETY_CHECKS)
+
+
 def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             accepted: bool, enable: bool, now: int) -> dict:
     """Explicit owner consent. Public review cannot grant a runtime permission."""
@@ -181,6 +201,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         findings = native_format_findings(snapshot, artifact)
         require(not findings, "native skill validation failed: " + "; ".join(
             item["path"] + ": " + item["reason"] for item in findings))
+        safety_check(artifact, raw)  # after the format check, so a malformed package keeps its exact reason
         recover(plugin_id, root)
         for dependency, pin in entry["dependencies"].items():
             child = plugin_lifecycle.record_for(dependency)
@@ -257,6 +278,7 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     boundaries["native_control_overlaps"] = notices(
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
+    safety_check(value, raw)
     return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
             **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},

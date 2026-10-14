@@ -1865,6 +1865,7 @@
     "addons.registry_report": "דיווח על המיומנות הזו",
     "addons.registry_report_note": "פותח את אתר קודקס המיומנויות בדפדפן. שם מתחברים, בוחרים סיבה ושולחים את הדיווח. VOOL לא שולח דבר בעצמו.",
     "addons.registry_paused": "ההורדות של המיומנות הזו מושהות בזמן שאדם בודק אותה. נסו שוב מאוחר יותר.",
+    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL, ולכן אי אפשר להתקין אותה.",
     "addons.publish_button": "פרסום בקודקס המיומנויות",
     "addons.publish_ready": "מוכנה לשליחה לקודקס המיומנויות",
     "addons.publish_goes_along": "רק המיומנות הזו עוברת: השם, התיאור והטקסט שלה. בלי צ׳אטים, זיכרון או מפתחות.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "דפדפן",
     "addons.registry_need_files": "הקבצים שלך"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

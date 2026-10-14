@@ -1865,6 +1865,7 @@
     "addons.registry_report": "Сообщить о проблеме с навыком",
     "addons.registry_report_note": "Открывает сайт кодекса навыков в браузере. Войдите там, выберите причину и отправьте сообщение. VOOL сам ничего не отправляет.",
     "addons.registry_paused": "Загрузка этого навыка приостановлена, пока его проверяет человек. Загляните позже.",
+    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому его нельзя установить.",
     "addons.publish_button": "Опубликовать в кодексе навыков",
     "addons.publish_ready": "Готов к отправке в кодекс навыков",
     "addons.publish_goes_along": "Передаётся только этот навык: его название, описание и текст. Никаких чатов, памяти или ключей.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "Браузер",
     "addons.registry_need_files": "Ваши файлы"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

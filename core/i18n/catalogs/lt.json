@@ -1865,6 +1865,7 @@
     "addons.registry_report": "Pranešti apie šį įgūdį",
     "addons.registry_report_note": "Naršyklėje atidaro įgūdžių kodekso svetainę. Ten prisijunkite, pasirinkite priežastį ir išsiųskite pranešimą. VOOL pats nieko nesiunčia.",
     "addons.registry_paused": "Šio įgūdžio atsisiuntimai sustabdyti, kol žmogus jį peržiūri. Užsukite vėliau.",
+    "addons.registry_unsafe": "Šis įgūdis neišlaikė VOOL saugumo patikrų, todėl jo įdiegti negalima.",
     "addons.publish_button": "Paskelbti įgūdžių kodekse",
     "addons.publish_ready": "Paruoštas siųsti į įgūdžių kodeksą",
     "addons.publish_goes_along": "Perduodamas tik šis įgūdis: jo pavadinimas, aprašymas ir tekstas. Jokių pokalbių, atminties ar raktų.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "Naršyklė",
     "addons.registry_need_files": "Jūsų failai"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

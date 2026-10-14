@@ -1865,6 +1865,7 @@
     "addons.registry_report": "举报此技能",
     "addons.registry_report_note": "在浏览器中打开技能宝典网站。请在那里登录、选择原因并发送举报。VOOL 本身不会发送任何内容。",
     "addons.registry_paused": "此技能的下载已暂停，正在由人工查看。请稍后再来。",
+    "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此无法安装。",
     "addons.publish_button": "发布到技能宝典",
     "addons.publish_ready": "可以发送到技能宝典了",
     "addons.publish_goes_along": "只会带上这个技能:它的名称、描述和文本。不含聊天记录、记忆或密钥。",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "浏览器",
     "addons.registry_need_files": "你的文件"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

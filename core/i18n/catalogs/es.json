@@ -1865,6 +1865,7 @@
     "addons.registry_report": "Reportar esta habilidad",
     "addons.registry_report_note": "Abre el sitio web del códice de habilidades en tu navegador. Inicia sesión allí, elige un motivo y envía el reporte. VOOL no envía nada por sí mismo.",
     "addons.registry_paused": "Las descargas de esta habilidad están en pausa mientras una persona la revisa. Vuelve a intentarlo más tarde.",
+    "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que no se puede instalar.",
     "addons.publish_button": "Publicar en el códice de habilidades",
     "addons.publish_ready": "Lista para enviar al códice de habilidades",
     "addons.publish_goes_along": "Solo va esta habilidad: su nombre, su descripción y su texto. Ni chats, ni memoria, ni claves.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "Navegador",
     "addons.registry_need_files": "Tus archivos"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

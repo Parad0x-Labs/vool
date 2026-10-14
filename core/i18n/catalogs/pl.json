@@ -1865,6 +1865,7 @@
     "addons.registry_report": "Zgłoś tę umiejętność",
     "addons.registry_report_note": "Otwiera stronę kodeksu umiejętności w przeglądarce. Zaloguj się tam, wybierz powód i wyślij zgłoszenie. VOOL sam niczego nie wysyła.",
     "addons.registry_paused": "Pobieranie tej umiejętności jest wstrzymane, dopóki ktoś jej nie sprawdzi. Zajrzyj później.",
+    "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc nie można jej zainstalować.",
     "addons.publish_button": "Opublikuj w kodeksie umiejętności",
     "addons.publish_ready": "Gotowa do wysłania do kodeksu umiejętności",
     "addons.publish_goes_along": "Przekazywana jest tylko ta umiejętność: jej nazwa, opis i tekst. Bez czatów, pamięci i kluczy.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "Przeglądarka",
     "addons.registry_need_files": "Twoje pliki"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

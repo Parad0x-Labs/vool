@@ -1865,6 +1865,7 @@
     "addons.registry_report": "الإبلاغ عن هذه المهارة",
     "addons.registry_report_note": "يفتح موقع دليل المهارات في متصفحك. سجّل الدخول هناك، واختر سببًا، ثم أرسل البلاغ. لا يرسل VOOL أي شيء بنفسه.",
     "addons.registry_paused": "تنزيلات هذه المهارة متوقفة مؤقتًا بينما يراجعها شخص ما. يُرجى العودة لاحقًا.",
+    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذا لا يمكن تثبيتها.",
     "addons.publish_button": "النشر في دليل المهارات",
     "addons.publish_ready": "جاهزة للإرسال إلى دليل المهارات",
     "addons.publish_goes_along": "لا ينتقل سوى هذه المهارة: اسمها ووصفها ونصها. لا محادثات ولا ذاكرة ولا مفاتيح.",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "المتصفح",
     "addons.registry_need_files": "ملفاتك"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

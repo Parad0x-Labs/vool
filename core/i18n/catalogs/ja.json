@@ -1865,6 +1865,7 @@
     "addons.registry_report": "このスキルを報告",
     "addons.registry_report_note": "ブラウザでスキルコーデックスのウェブサイトを開きます。そこでサインインし、理由を選んで報告を送信してください。VOOL からは何も送信されません。",
     "addons.registry_paused": "担当者が確認しているため、このスキルのダウンロードは一時停止中です。しばらくしてからもう一度ご確認ください。",
+    "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、インストールできません。",
     "addons.publish_button": "スキルコーデックスに公開",
     "addons.publish_ready": "スキルコーデックスに送る準備ができました",
     "addons.publish_goes_along": "渡されるのはこのスキルの名前、説明、テキストだけです。チャット、メモリー、キーは含まれません。",
@@ -1992,7 +1993,7 @@
     "addons.registry_need_browser": "ブラウザー",
     "addons.registry_need_files": "あなたのファイル"
   },
-  "source_catalog_sha256": "d58c366aa2fc930f92ca950b39145f993b755f14a1a019249b6280c1b0844372",
+  "source_catalog_sha256": "8973abcf1db3fd797ceb4318579047cc8f756bcae021f640f7fa13edf4765775",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

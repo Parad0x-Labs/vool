@@ -22,6 +22,8 @@ def version_key(value: str) -> tuple:
 
 # The registry refusal VOOL shows as it is, because a person can understand and act on it.
 DOWNLOADS_PAUSED = "downloads of this skill are paused while a person looks into it"
+# A signed skill that failed VOOL's own safety checks on this device (core.registry.native.safety_check).
+FAILED_SAFETY_CHECKS = "this skill did not pass VOOL's own safety checks, so it can't be installed"
 
 
 class RegistryError(ValueError):
