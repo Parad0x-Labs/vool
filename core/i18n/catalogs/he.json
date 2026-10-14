@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "ההוראות קצרות מכדי להועיל. כתבו שלב אחר שלב מה המיומנות עושה.",
     "addons.publish_reason_check_endorsed": "כאן כתוב שקודקס המיומנויות או VOOL ערבים למיומנות. רק קודקס המיומנויות יכול לומר זאת, אז הסירו את זה.",
     "addons.publish_line": "בשורה {line}",
-    "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי."
+    "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
+    "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

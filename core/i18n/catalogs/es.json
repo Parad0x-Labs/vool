@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Las instrucciones son demasiado cortas para ser útiles. Explica paso a paso qué hace la habilidad.",
     "addons.publish_reason_check_endorsed": "Esto dice que el códice de habilidades o VOOL respalda la habilidad. Solo el códice de habilidades puede decir eso, así que quítalo.",
     "addons.publish_line": "En la línea {line}",
-    "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está."
+    "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está.",
+    "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

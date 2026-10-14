@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "指令太短,没有用处。请一步一步说明这个技能做什么。",
     "addons.publish_reason_check_endorsed": "这里说技能宝典或 VOOL 为这个技能作担保。只有技能宝典能这样说,请删除。",
     "addons.publish_line": "第 {line} 行",
-    "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。"
+    "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。",
+    "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。"
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

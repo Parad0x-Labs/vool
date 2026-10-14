@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "निर्देश उपयोगी होने के लिए बहुत छोटे हैं। कदम-दर-कदम बताएँ कि कौशल क्या करता है।",
     "addons.publish_reason_check_endorsed": "यह कहता है कि कौशल कोडेक्स या VOOL इस कौशल की ज़मानत देता है। यह सिर्फ़ कौशल कोडेक्स कह सकता है, इसलिए इसे हटा दें।",
     "addons.publish_line": "पंक्ति {line} में",
-    "addons.publish_reason_codex_check": "कौशल कोडेक्स की जाँचें इस कौशल को इसके मौजूदा रूप में अस्वीकार कर देंगी।"
+    "addons.publish_reason_codex_check": "कौशल कोडेक्स की जाँचें इस कौशल को इसके मौजूदा रूप में अस्वीकार कर देंगी।",
+    "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।"
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

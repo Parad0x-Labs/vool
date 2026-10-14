@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "التعليمات أقصر من أن تكون مفيدة. قل ما تفعله المهارة خطوة بخطوة.",
     "addons.publish_reason_check_endorsed": "يقول هذا إن دليل المهارات أو VOOL يضمن المهارة. لا يقول ذلك إلا دليل المهارات، فاحذفه.",
     "addons.publish_line": "في السطر {line}",
-    "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية."
+    "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
+    "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

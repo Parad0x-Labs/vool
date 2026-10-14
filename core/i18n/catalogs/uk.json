@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Інструкції надто короткі, щоб бути корисними. Опишіть крок за кроком, що робить навичка.",
     "addons.publish_reason_check_endorsed": "Тут сказано, що кодекс навичок або VOOL ручається за навичку. Так може казати лише кодекс навичок, тож приберіть це.",
     "addons.publish_line": "У рядку {line}",
-    "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді."
+    "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді.",
+    "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

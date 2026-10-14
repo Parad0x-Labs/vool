@@ -2597,7 +2597,8 @@
     "addons.publish_reason_check_short": "The instructions are too short to be useful. Say what the skill does, step by step.",
     "addons.publish_reason_check_endorsed": "This says the Skill Codex or VOOL vouches for the skill. Only the Skill Codex can say that, so take it out.",
     "addons.publish_line": "In line {line}",
-    "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is."
+    "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
+    "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex."
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Nurodymai per trumpi, kad būtų naudingi. Žingsnis po žingsnio parašykite, ką daro įgūdis.",
     "addons.publish_reason_check_endorsed": "Čia teigiama, kad įgūdžių kodeksas ar VOOL laiduoja už šį įgūdį. Tai gali sakyti tik įgūdžių kodeksas, todėl pašalinkite tai.",
     "addons.publish_line": "{line} eilutėje",
-    "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų."
+    "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
+    "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

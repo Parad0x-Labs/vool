@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "지시가 너무 짧아 쓸모가 없습니다. 스킬이 하는 일을 단계별로 쓰세요.",
     "addons.publish_reason_check_endorsed": "스킬 코덱스나 VOOL이 이 스킬을 보증한다고 쓰여 있습니다. 그렇게 말할 수 있는 것은 스킬 코덱스뿐이니 빼세요.",
     "addons.publish_line": "{line}번째 줄",
-    "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다."
+    "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
+    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

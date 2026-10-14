@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Die Anweisungen sind zu kurz, um nützlich zu sein. Beschreiben Sie Schritt für Schritt, was die Fertigkeit tut.",
     "addons.publish_reason_check_endorsed": "Hier steht, dass der Fertigkeiten-Codex oder VOOL für die Fertigkeit bürgt. Das darf nur der Fertigkeiten-Codex sagen, also entfernen Sie es.",
     "addons.publish_line": "In Zeile {line}",
-    "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen."
+    "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
+    "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

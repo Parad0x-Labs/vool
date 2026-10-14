@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Les instructions sont trop courtes pour être utiles. Dites étape par étape ce que fait la compétence.",
     "addons.publish_reason_check_endorsed": "Ceci affirme que le codex des compétences ou VOOL se porte garant de la compétence. Seul le codex des compétences peut le dire, retirez-le donc.",
     "addons.publish_line": "À la ligne {line}",
-    "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état."
+    "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
+    "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

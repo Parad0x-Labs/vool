@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "指示が短すぎて役に立ちません。スキルが何をするかを手順ごとに書いてください。",
     "addons.publish_reason_check_endorsed": "スキルコーデックスや VOOL がこのスキルを保証していると書かれています。それを言えるのはスキルコーデックスだけなので、削除してください。",
     "addons.publish_line": "{line} 行目",
-    "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。"
+    "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
+    "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。"
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

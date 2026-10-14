@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Инструкции слишком короткие, чтобы быть полезными. Опишите по шагам, что делает навык.",
     "addons.publish_reason_check_endorsed": "Здесь сказано, что кодекс навыков или VOOL ручается за навык. Так может говорить только кодекс навыков, поэтому уберите это.",
     "addons.publish_line": "В строке {line}",
-    "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде."
+    "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде.",
+    "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

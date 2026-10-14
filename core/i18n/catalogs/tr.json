@@ -2597,9 +2597,10 @@
     "addons.publish_reason_check_short": "Talimatlar işe yarayamayacak kadar kısa. Becerinin ne yaptığını adım adım anlatın.",
     "addons.publish_reason_check_endorsed": "Burada Beceri Kodeksinin veya VOOL'un bu beceriye kefil olduğu yazıyor. Bunu yalnızca Beceri Kodeksi söyleyebilir, bu yüzden kaldırın.",
     "addons.publish_line": "{line}. satırda",
-    "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder."
+    "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
+    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz."
   },
-  "source_catalog_sha256": "9bd119ce77ea299612bd8555777182ab748233d4b6122b8e77893419d6a45a51",
+  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
