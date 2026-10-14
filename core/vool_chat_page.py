@@ -13113,6 +13113,16 @@ function resumeApprovedTurn(chatId) {
 }
 // The permission bar only ever shows the DISPLAYED chat's request (showPermBar enforces that), so
 // resolving it resolves that chat's grant -- recorded in that chat's bucket, never a global one.
+// The goal card hands a waiting step's approval to the one permission bar, only for the chat on
+// screen and only when the approval belongs to that goal's current step.
+function reviewGoalApproval(goal, approval) {
+  if (!goal || !approval || String(goal.session_id || '') !== displayedChat || goal.state !== 'waiting_approval') return;
+  const step = (goal.steps || []).find((item) => item.id === goal.current_step_id);
+  if (!step || step.turn_id !== approval.task_id) return;
+  showPermBar(displayedChat, {approval:approval});
+  chatState(displayedChat).goalApproval = {goal_id:goal.goal_id};
+}
+
 async function resolvePermission(decision, scope) {
   const chatId = displayedChat;
   const owner = chatState(chatId);
@@ -13716,13 +13726,7 @@ window.VoolPageActions = Object.freeze({
   focusComposer: () => { if (inputEl) inputEl.focus(); },
   toast: (text) => toast(String(text == null ? '' : text)),
   displayedChat: () => displayedChat,
-  reviewGoalApproval: (goal, approval) => {
-    if (!goal || String(goal.session_id || '') !== displayedChat || goal.state !== 'waiting_approval') return;
-    const step = (goal.steps || []).find((item) => item.id === goal.current_step_id);
-    if (!step || step.turn_id !== approval.task_id) return;
-    showPermBar(displayedChat, {approval:approval});
-    chatState(displayedChat).goalApproval = {goal_id:goal.goal_id};
-  },
+  reviewGoalApproval: (goal, approval) => reviewGoalApproval(goal, approval),
   chatLog: () => logEl,
   // Close EVERY composer while a council owns the machine's model pin, and hand them back
   // when it does not. The caller passes what the SERVER said; the page decides what
