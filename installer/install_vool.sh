@@ -1211,7 +1211,7 @@ export PATH="${SCRIPT_DIR}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/
 VENV_RESOLVER="${PROJECT_ROOT}/scripts/ensure_workspace_runtime.sh"
 VENV_PY="$(bash "${VENV_RESOLVER}")"
 cd "${PROJECT_ROOT}"
-echo "Stopping all VOOL processes (API, gateway, agent, auto-restart)..."
+echo "Stopping all VOOL processes (API, agent, auto-restart)..."
 exec "${VENV_PY}" -m installer.vool_stop --project-root "${PROJECT_ROOT}"
 LAUNCHER_HEAD
   chmod +x "${target_path}"

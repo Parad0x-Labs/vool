@@ -1,4 +1,7 @@
-"""The hard-stop sequence: disable the watchdog first, then kill gateway + API, write the marker.
+"""The hard-stop sequence: disable the watchdog first, then kill the API, write the marker.
+
+A listener on 18789 (the retired integration's gateway port) belongs to another app and must
+survive the stop.
 
 Every process action goes through an injected runner, so these assert the exact command sequence
 without killing anything real.
@@ -38,7 +41,7 @@ class _FakeRun:
         return [" ".join(c) for c in self.calls]
 
 
-def test_hard_stop_disables_watchdog_then_kills_gateway_and_api(tmp_path) -> None:
+def test_hard_stop_disables_watchdog_then_kills_api_and_leaves_18789_alone(tmp_path) -> None:
     run = _FakeRun(port_pids={11435: 4321, 18789: 8765})
     result = hard_stop(tmp_path, None, run=run)
     cmds = run.joined()
@@ -46,7 +49,8 @@ def test_hard_stop_disables_watchdog_then_kills_gateway_and_api(tmp_path) -> Non
     assert any("schtasks /end /tn VOOL_Daemon" in c for c in cmds)
     assert any("schtasks /change /tn VOOL_Daemon /disable" in c for c in cmds)
     assert any("vool_background" in c for c in cmds)  # watchdog process kill
-    assert any("taskkill /PID 8765 /T /F" in c for c in cmds)  # gateway
+    assert not any("-LocalPort 18789 " in c for c in cmds)  # not even looked up
+    assert not any("taskkill /PID 8765" in c for c in cmds)  # another app's listener survives
     assert any("taskkill /PID 4321 /T /F" in c for c in cmds)  # api
 
     # Ordering: the watchdog is disabled before the API is killed, so nothing respawns mid-stop.
@@ -54,7 +58,7 @@ def test_hard_stop_disables_watchdog_then_kills_gateway_and_api(tmp_path) -> Non
     api_idx = next(i for i, c in enumerate(cmds) if "taskkill /PID 4321" in c)
     assert disable_idx < api_idx
 
-    assert result["gateway_pid"] == 8765 and result["api_pid"] == 4321
+    assert "gateway_pid" not in result and result["api_pid"] == 4321
     assert (tmp_path / STOPPED_MARKER).read_text(encoding="utf-8").strip() == "stopped"
 
 
@@ -142,7 +146,8 @@ def test_hard_stop_posix_boots_out_agent_then_kills_ports(tmp_path, monkeypatch)
     cmds = run.joined()
 
     assert any(f"launchctl bootout gui/{fake_uid} {plist}" in c for c in cmds)
-    assert any("kill -TERM 8765" in c for c in cmds)  # gateway
+    assert not any("tcp:18789" in c for c in cmds)  # not even looked up
+    assert not any("kill -TERM 8765" in c for c in cmds)  # another app's listener survives
     assert any("kill -TERM 4321" in c for c in cmds)  # api
 
     # The KeepAlive agent is booted out before the API is killed, so nothing respawns mid-stop.
@@ -151,7 +156,7 @@ def test_hard_stop_posix_boots_out_agent_then_kills_ports(tmp_path, monkeypatch)
     assert bootout_idx < api_idx
 
     assert result["watchdog_disabled"] is True
-    assert result["gateway_pid"] == 8765 and result["api_pid"] == 4321
+    assert "gateway_pid" not in result and result["api_pid"] == 4321
     assert (tmp_path / STOPPED_MARKER).read_text(encoding="utf-8").strip() == "stopped"
 
 
