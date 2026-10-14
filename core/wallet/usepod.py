@@ -246,7 +246,7 @@ def _mint_operation(requirement: TopUpRequirement, *, payment_kind: str, accept_
     native = chains.native_asset(spec.network)
     if requirement.asset in {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}:
         paid = native
-    elif accept_tokens and svm_tokens.is_token_transfer(spec.network, requirement.asset):
+    elif accept_tokens and svm_tokens.is_lane_token(spec.network, requirement.asset):
         paid = svm_tokens.token_asset(spec.network, requirement.asset, source_context=source_context)
     else:
         reason = "x402_asset_not_registered_on_row" if accept_tokens else "usepod_asset_not_native"

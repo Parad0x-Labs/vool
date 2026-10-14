@@ -215,7 +215,7 @@ def select_offer(offer: V2Offer, *, wallet_id: str, source_context: dict[str, An
                 continue
             if entry.asset_transfer_method != evm.TRANSFER_METHOD_EIP3009:
                 continue
-            if not asset.address:
+            if not asset.address or asset.symbol not in chains.PAYMENT_LANE_TOKENS:
                 continue
             if not (entry.eip712_name and entry.eip712_version) and not (asset.eip712_name and asset.eip712_version):
                 continue  # an unpinned EIP-712 domain is not an offer we can sign honestly

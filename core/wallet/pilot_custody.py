@@ -643,8 +643,12 @@ class PilotSigner:
         return signature
 
     def sign_evm_type2(self, params: dict[str, Any]) -> tuple[bytes, str]:
-        """Sign one EIP-1559 native transfer from the quote's parameters. The signed bytes are decoded again and every
-        field compared with the parameters, and the sender is recovered from the bytes, before anything is returned."""
+        """Sign one EIP-1559 transfer from the quote's parameters: a native transfer (no calldata), or -- with
+        ``token_transfer`` naming the recipient and the amount -- the owner's ERC-20 transfer, whose call this signer
+        builds itself (``transfer(recipient, amount)``, no value) and sends only to a contract the registry declares for
+        the owner's transfers on this chain. Calldata is never signed as given: a quoted ``data`` must equal what is
+        built here. The signed bytes are decoded again and every field compared with the parameters, and the sender is
+        recovered from the bytes, before anything is returned."""
         if self.closed or self.family != chains.FAMILY_EVM:
             raise _fault("wallet_signing_unavailable", wallet_id=self.wallet_id, reason="signing_session_closed" if self.closed else "not_an_evm_key")
         from eth_account import Account
@@ -658,7 +662,22 @@ class PilotSigner:
             "maxFeePerGas": int(params["max_fee_per_gas"]), "gas": int(params["gas_limit"]), "value": int(params["value"]),
         }
         to_address = to_checksum_address(str(params["to"]))
-        signed = Account.sign_transaction({**expected, "type": 2, "to": to_address, "data": b"", "accessList": []}, self._secret)
+        data = b""
+        token_transfer = params.get("token_transfer")
+        if token_transfer is not None:
+            from core.wallet import evm_tokens
+
+            network = next((spec.network for spec in chains.all_networks() if spec.is_evm and str(spec.chain_id) == str(expected["chainId"])), "")
+            declared = {token.address.lower(): token for token in chains.user_transfer_tokens(network)} if network else {}
+            token = declared.get(to_address.lower())
+            if token is None or expected["value"] != 0:
+                raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="token_call_not_to_a_declared_contract")
+            data = evm_tokens.transfer_calldata(str(token_transfer["recipient"]), evm_tokens.chain_amount(token, int(token_transfer["amount_minor"])))
+            if str(params.get("data") or "").lower() != "0x" + data.hex():
+                raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="quoted_calldata_differs")
+        elif params.get("data"):
+            raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="calldata_without_a_token_transfer")
+        signed = Account.sign_transaction({**expected, "type": 2, "to": to_address, "data": data, "accessList": []}, self._secret)
         raw = bytes(signed.raw_transaction)
         if Account.recover_transaction(raw).lower() != self.public_key.lower():
             raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="pilot_signer_mismatch")
@@ -666,7 +685,7 @@ class PilotSigner:
         decoded_to = decoded.get("to")
         decoded_to_text = ("0x" + bytes(decoded_to).hex()) if isinstance(decoded_to, (bytes, bytearray)) else str(decoded_to or "")
         seen = {name: int(decoded[name]) for name in expected}
-        if seen != expected or decoded_to_text.lower() != to_address.lower() or bytes(decoded.get("data") or b"") != b"" or int(decoded.get("type") or 0) != 2:
+        if seen != expected or decoded_to_text.lower() != to_address.lower() or bytes(decoded.get("data") or b"") != data or int(decoded.get("type") or 0) != 2:
             raise _fault("wallet_signature_invalid", wallet_id=self.wallet_id, reason="signed_fields_mismatch")
         return raw, "0x" + keccak(raw).hex()
 

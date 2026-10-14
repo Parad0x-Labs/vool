@@ -25,7 +25,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run"})
+SOURCE_KINDS = frozenset({"calendar_alert", "calendar_catch_up", "reminder", "test", "model_offer", "model_market", "background_run", "market_watch"})
 CHANNELS = frozenset({"in_app", "session_log", "macos", "audio"})
 DELIVERY_STATES = frozenset({
     "recorded", "queued", "submitted", "listed", "acknowledged", "suppressed", "failed", "uncertain",

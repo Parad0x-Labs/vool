@@ -193,7 +193,10 @@ def _quoted(name: str) -> str:
 
 def _derivative_tables(tables: Sequence[str]) -> set[str]:
     """The database carrier inventory shared by erasure and final verification."""
-    return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions"}
+    # chat_import_messages: the inert history of chats brought in from other apps
+    # (core.chat_import.store). It is no memory, but a forget in that chat must reach it.
+    return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions",
+             "chat_import_messages"}
             | {name for name in tables if name.startswith("dialogue_")
                or any(part in name for part in ("packet", "cache", "snapshot"))}) & set(tables)
 
