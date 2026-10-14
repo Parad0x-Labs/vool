@@ -26,6 +26,10 @@ ROW_IDENTITIES = frozenset({
     "turn_id", "parent_turn_id", "archive_id", "topic_id", "previous_version_id",
     "version_id", "payload_hash", "record_hash", "transcript_head_hash", "page_hash",
     "content_ref", "admission_id", "principal", "pin_id", "_erasure_rowid",
+    # Bookkeeping: a page's byte size and task id, an admission's generation, a page's erased flag, a writer's
+    # confidence. Measured on the 0.7.1 Mac smoke: a turn page of 114 bytes failed "Forget 14." as if it
+    # still held the forgotten words.
+    "bytes", "generation", "erased", "confidence", "task_id",
 })
 NODE_IDENTITIES = ROW_IDENTITIES | frozenset({
     "timestamp", "embedding", "linked_node_ids", "base_importance", "access_count",

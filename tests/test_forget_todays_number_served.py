@@ -54,3 +54,38 @@ def test_forgetting_todays_day_number_keeps_every_other_memory(tmp_path):
             sent = "\n".join(f"{c.get('system', '')}\n{c.get('full_prompt', '')}" for c in provider.calls[-3:])
             assert "teal" in recalled.lower() or "teal" in sent, (recalled, sent[-2000:])
             assert f"locker is {locker}" not in sent
+
+
+def test_forgetting_a_number_equal_to_a_stored_page_size_keeps_every_other_memory(tmp_path):
+    """Measured on the 0.7.1 Mac smoke: "Forget 14." still failed to verify when a stored turn page happened to
+    be 114 bytes long. The forgotten number here is exactly the byte size of the turn page that holds the
+    other memory, so the bookkeeping number and the user's number always collide."""
+    import sqlite3
+
+    home = tmp_path / "home"
+    provider = _Provider({MODEL: "Got it."})
+    with provider:
+        run_in_home(home, SEED.format(root=REPO, base_url=provider.base_url, models=[(MODEL, {})]))
+        with ServedDaemon(home, env_extra={"VOOL_MODEL_LOAD_FLOOR_GB": "0"}) as daemon:
+            assert _certify(daemon).get("state") == "verified"
+            chat = "openclaw:" + "6f" * 10
+
+            kept, _ = _stream(daemon, "Remember that my favourite colour is teal.", chat)
+            assert "Locked in" in kept, kept
+            conn = sqlite3.connect(home / "data" / "vool_web0_v2.db")
+            try:
+                sizes = [int(size) for (size,) in conn.execute(
+                    "SELECT bytes FROM context_pages WHERE session_id = ? AND erased = 0", (chat,))]
+            finally:
+                conn.close()
+            assert sizes, "the turn page this test is about was not stored"
+            number = str(max(sizes))
+
+            saved, _ = _stream(daemon, f"Remember that my locker is {number}.", chat)
+            assert "Locked in" in saved, saved
+            forgot, _ = _stream(daemon, f"Forget {number}.", chat)
+            assert "could not be verified" not in forgot and "retry" not in forgot.lower(), forgot
+
+            facts = [str(e.get("fact") or "") for e in _entries(daemon)]
+            assert any("teal" in f for f in facts), f"the unrelated memory was dropped: {facts}"
+            assert not any(f"locker is {number}" in f for f in facts), facts
