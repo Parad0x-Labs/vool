@@ -126,6 +126,8 @@ img.chat-img:hover { border-color:var(--accent); }
 .proof-chip { margin:10px 0 0; max-width:100%; font-size:12px; }
 .proof-chip-head { display:inline-flex; align-items:center; gap:7px; max-width:100%; background:var(--bg); color:var(--muted);
   border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:11.5px; cursor:pointer; }
+.proof-chip-head { flex-wrap:wrap; row-gap:2px; text-align:left; }
+.proof-chip-head > span { white-space:nowrap; }   /* narrow windows wrap whole items, never mid-word */
 .proof-chip-head:hover { color:var(--ink); border-color:var(--accent); }
 .proof-chip .pc-state { font-weight:700; letter-spacing:.4px; }
 .proof-chip .pc-state-verified { color:var(--muted); }
@@ -290,7 +292,10 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 #sessions .s-title:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
 #sessions .session { cursor:pointer; }
 /* Touch screens have no hover: the row actions are always there. */
-@media (hover: none) { #sessions .s-actions, .proj-head .proj-actions { display:flex; } }
+@media (hover: none) {   /* touch: a tap never reveals buttons under the finger; only the open chat and its project show theirs */
+  #sessions .session .s-actions, .proj-head .proj-actions { display:none !important; }
+  #sessions .session.active .s-actions, .proj-head.active .proj-actions { display:flex !important; }
+}
 #sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
@@ -470,6 +475,11 @@ footer { background:linear-gradient(transparent,var(--chat) 24%); padding:10px 2
 .qchip-act:hover { border-color:var(--accent); }
 #queueWaiting { display:none; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--muted); margin-bottom:6px; }
 #queueWaiting.show { display:flex; }
+.br-cand { display:block; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin:4px 0; cursor:pointer; }
+.br-cand.on { border-color:var(--accent); }
+.br-cand b, .br-cand small { display:block; }
+.br-cand b { font-weight:600; color:var(--ink); }
+.br-cand small { color:var(--muted); margin-top:2px; }
 .msg.pin-flash { outline:2px solid var(--accent); outline-offset:4px; border-radius:10px; transition:outline-color .6s; }
 .pin-text p { margin:0 0 6px; } .pin-text pre { white-space:pre-wrap; }
 .load-failed { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
@@ -2236,6 +2246,43 @@ const _queuedSessionPatches = new Map();
 // overtaken by that turn persisting the chat afterwards; the tombstone keeps the row out of the
 // list (and out of every badge) and re-sends the delete when the server reports it again.
 const _deletedChats = new Map();   // id -> re-delete attempts made
+// One held change per chat, sent once that chat's answer has finished. The server can list a
+// chat before it accepts changes to it, so a 404 is retried a few times with a growing pause
+// instead of on every sidebar refresh (which turned one rename into dozens of failing requests).
+const _patchRetry = new Map();     // id -> { tries, next, inflight, timer }
+function flushQueuedPatch(id) {
+  const patch = _queuedSessionPatches.get(id);
+  if (!patch) return;
+  const st = _patchRetry.get(id) || { tries: 0, next: 0, inflight: false, timer: null };
+  _patchRetry.set(id, st);
+  const cs = chatStates[String(id)];
+  const answering = !!(cs && cs.run && !cs.run.ended);
+  if (st.inflight) return;
+  if (answering || Date.now() < st.next) {
+    // Look again later (a local check, no request) so the change goes out soon after the answer ends.
+    if (!st.timer) st.timer = setTimeout(() => { st.timer = null; flushQueuedPatch(id); }, answering ? 2000 : Math.max(500, st.next - Date.now()));
+    return;
+  }
+  st.inflight = true;
+  _queuedSessionPatches.delete(id);
+  postSessionNow(id, patch).then((res) => {
+    st.inflight = false;
+    if (res.ok) { _patchRetry.delete(id); loadSessions(); return; }
+    if ((res.status === 404 || res.status === 0) && st.tries < 5) {
+      st.tries += 1;
+      const wait = Math.min(30000, 1500 * Math.pow(2, st.tries));
+      st.next = Date.now() + wait;
+      _queuedSessionPatches.set(id, Object.assign({}, patch, _queuedSessionPatches.get(id) || {}));
+      if (st.timer) clearTimeout(st.timer);
+      st.timer = setTimeout(() => { st.timer = null; flushQueuedPatch(id); }, wait);
+      return;
+    }
+    _patchRetry.delete(id);
+    toast(res.status === 0 ? "VOOL couldn't be reached, so the new chat name wasn't saved. Try renaming it again."
+      : "Couldn't save the new chat name. Try renaming it again.");
+    loadSessions();
+  });
+}
 function mergePendingSessions(sessions) {
   let server = (sessions || []).filter((s) => !s.pending);
   server.forEach((row) => {
@@ -2248,20 +2295,12 @@ function mergePendingSessions(sessions) {
   server = server.filter((row) => !_deletedChats.has(row.session_id));
   const known = new Set(server.map((s) => s.session_id));
   _pendingSessions.forEach((_row, id) => { if (known.has(id) || _deletedChats.has(id)) _pendingSessions.delete(id); });
-  const flushes = [];
   server = server.map((row) => {
     const patch = _queuedSessionPatches.get(row.session_id);
     if (!patch) return row;
-    _queuedSessionPatches.delete(row.session_id);
-    flushes.push(postSession(row.session_id, patch));
+    flushQueuedPatch(row.session_id);
     return Object.assign({}, row, patch.title != null && String(patch.title).trim() ? { title: String(patch.title).trim() } : {});
   });
-  if (flushes.length) {
-    Promise.all(flushes).then((results) => {
-      if (results.some((res) => !res.ok)) toast("Couldn't save the new chat name. Try renaming it again.");
-      loadSessions();
-    });
-  }
   return [..._pendingSessions.values()].concat(server);
 }
 function splitAssistantDisplayContent(text, metadata) {
@@ -2935,7 +2974,7 @@ async function createProjectFlow(assignSid) {
   let root = await nativePickFolder();
   if (root === null) return null;
   const typed = !root;
-  let folderLabel = 'Project folder — full path to a folder on this machine:';
+  let folderLabel = 'Project folder: type its location, for example ~/Documents/Garden';
   let name = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     if (typed) {
@@ -2964,13 +3003,16 @@ async function createProjectFlow(assignSid) {
       d = await r.json();
     } catch (e) { projectNotice("VOOL couldn't be reached, so the project wasn't added. Try again in a moment."); return null; }
     if (!r.ok || !d || !d.project) {
-      const why = String((d && d.error) || '');
-      if (typed && /does not exist|must be a folder|folder is required/.test(why)) {
-        folderLabel = 'Project folder — we couldn\u2019t find that folder. Paste its full location, for example /home/you/Documents/Garden:';
+      // The server says why in a plain sentence (it starts in lower case so it can follow a
+      // lead-in). A refusal of the folder itself is asked again here, keeping the typed name and
+      // folder, instead of closing the dialog; anything else is shown as it is.
+      const why = String((d && d.error) || '').trim().replace(/\.$/, '');
+      const folderRefusal = r && (r.status === 400 || r.status === 422) && why;
+      if (typed && folderRefusal) {
+        folderLabel = 'Project folder: we couldn\u2019t use that one \u2014 ' + why + '.' + (/for example|like /i.test(why) ? ' Type another location.' : ' Type another location, for example ~/Documents/Garden');
         continue;
       }
-      projectNotice(/whole filesystem/.test(why) ? 'That folder is too broad for a project. Pick a folder inside it.'
-        : "Couldn't add this project. Pick another folder and try again.");
+      projectNotice(why ? "Couldn't add this project: " + why + '.' : "Couldn't add this project. Pick another folder and try again.");
       return null;
     }
     // Same folder under another spelling (a link, a trailing slash): the server returned the
@@ -3662,8 +3704,12 @@ function startRename(item, titleEl, id) {
     if (done) return; done = true;
     if (save && input.value.trim()) {
       const res = await postSession(id, { title: input.value });
-      if (!res.ok) toast(res.status === 0 ? "VOOL couldn't be reached, so the new name wasn't saved." : "Couldn't rename this chat. Try again.");
-    }
+      if (!res.ok) {
+        toast(res.status === 0 ? "VOOL couldn't be reached, so the new name wasn't saved." : "Couldn't rename this chat. Try again.");
+        if (input.parentNode) input.parentNode.replaceChild(titleEl, input);   // the old name stays
+        return;
+      }
+    } else if (input.parentNode) input.parentNode.replaceChild(titleEl, input);
     loadSessions();
   };
   input.addEventListener('keydown', (e) => {
@@ -3678,8 +3724,22 @@ function startRename(item, titleEl, id) {
 // Returns what the server said ({ok, status}; status 0 = unreachable) so no caller can treat a
 // refused or lost change as saved. A rename/archive of a chat whose first answer is still being
 // written is held (see _queuedSessionPatches) rather than lost to the server's 404.
+// The plain request, with no holding: used when a held change is finally sent.
+async function postSessionNow(id, patch) {
+  try {
+    const r = await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: id }, patch)) });
+    return { ok: r.ok, status: r.status };
+  } catch (e) { return { ok: false, status: 0 }; }
+}
 async function postSession(id, patch) {
   const firstTurnRunning = !patch.delete && (_pendingSessions.has(id) || isChatBusy(id));
+  // A change already held for this chat: add to it rather than asking the server again now.
+  if (firstTurnRunning && _queuedSessionPatches.has(id)) {
+    _queuedSessionPatches.set(id, Object.assign({}, _queuedSessionPatches.get(id), patch));
+    const row = _pendingSessions.get(id);
+    if (row && patch.title != null && String(patch.title).trim()) row.title = String(patch.title).trim();
+    return { ok: true, status: 0, queued: true };
+  }
   let status = 0;
   try {
     const r = await fetch('/api/chat/session', {
@@ -3700,7 +3760,12 @@ async function postSession(id, patch) {
 }
 
 async function archiveSession(id, archived) {
-  await postSession(id, { archived: archived });   // persist the state change immediately
+  const res = await postSession(id, { archived: archived });   // persist the state change immediately
+  if (!res.ok) {
+    toast(res.status === 0 ? (archived ? "VOOL couldn't be reached, so the chat wasn't archived." : "VOOL couldn't be reached, so the chat wasn't brought back.")
+      : (archived ? "Couldn't archive this chat. Try again in a moment." : "Couldn't bring this chat back. Try again in a moment."));
+    return;
+  }
   // Archiving the ACTIVE thread mid-stream: leave the live output + currentSessionId untouched and
   // let send()'s completion reload the sidebar (moving it after the stream finishes). Active + idle:
   // start a fresh chat so the archived thread leaves the active list. Any other thread: just refresh.
@@ -7598,7 +7663,10 @@ let queueWaitingTimer = null;
 function queueWaitingState(chatId) {
   const items = lastQueueItemsByChat.get(chatId) || [];
   const live = items.some(function (i) { return i.status === 'in_flight' && !queueItemStale(i); });
-  const waiting = items.filter(function (i) { return i.status === 'pending' && !(i.payload && i.payload.price_wait); });
+  // Interrupted messages count too, in their original order, so one answer covers them all.
+  const waiting = items.filter(function (i) {
+    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+  });
   const owner = chatState(chatId);
   if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold) return [];
   return waiting;
@@ -7614,12 +7682,15 @@ function paintQueueWaiting(chatId) {
   msg.textContent = waiting.length === 1 ? '1 message is waiting to send.' : waiting.length + ' messages are waiting to send.';
   const go = document.createElement('button');
   go.type = 'button'; go.className = 'qchip-act'; go.textContent = 'Send now';
-  go.addEventListener('click', function () { bar.classList.remove('show'); pumpQueue(chatId); });
+  go.addEventListener('click', function () { bar.classList.remove('show'); resendWaiting(chatId); });
   const drop = document.createElement('button');
   drop.type = 'button'; drop.className = 'qchip-act'; drop.textContent = 'Discard';
   drop.addEventListener('click', async function () {
     bar.classList.remove('show');
-    for (const i of waiting) await queueOp('cancel', chatId, { queue_item_id: i.queue_item_id });
+    for (const i of waiting) {
+      if (i.status === 'in_flight') await queueOp('complete', chatId, { queue_item_id: i.queue_item_id, status: 'cancelled' });
+      else await queueOp('cancel', chatId, { queue_item_id: i.queue_item_id });
+    }
     refreshQueue();
   });
   bar.appendChild(msg); bar.appendChild(go); bar.appendChild(drop);
@@ -7629,29 +7700,44 @@ function scheduleQueueWaitingNotice(chatId) {
   if (!queueWaitingState(chatId).length) { paintQueueWaiting(chatId); return; }
   queueWaitingTimer = setTimeout(function () { queueWaitingTimer = null; paintQueueWaiting(chatId); }, 1500);
 }
-// Send again: the cut-off claim is closed as cancelled and the same words (and files, when the
-// server still holds them) go back in the queue, then the queue is sent.
-async function resendStaleQueueItem(item) {
-  const chatId = String(item.session_id || displayedChat);
-  const payload = item.payload || {};
-  await queueOp('complete', chatId, { queue_item_id: item.queue_item_id, status: 'cancelled' });
-  const extra = { text: payload.text || '', idempotency_key: 'idem-again-' + item.queue_item_id };
-  if (Array.isArray(payload.attachments) && payload.attachments.length) extra.attachments = payload.attachments;
-  let res = await queueOp('enqueue', chatId, extra);
-  if ((!res || !res.item) && extra.attachments) {
-    delete extra.attachments;
-    res = await queueOp('enqueue', chatId, extra);
-    if (res && res.item) toast('Sent again without its files. Attach them again if you still need them.');
+// Send again / Send now: messages are sent in the order they were written. When an interrupted
+// message is among them, it and every message queued after it are taken off the queue and put
+// back in their original order (the queue only appends), so "and dogs" never answers before
+// "what about cats". With nothing interrupted, the queue is simply sent.
+async function resendWaiting(chatId) {
+  chatId = String(chatId || displayedChat);
+  const items = (lastQueueItemsByChat.get(chatId) || []).filter(function (i) {
+    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+  });
+  const firstStale = items.findIndex(queueItemStale);
+  if (firstStale < 0) { pumpQueue(chatId); return; }
+  const redo = items.slice(firstStale);
+  for (const i of redo) {
+    if (i.status === 'in_flight') await queueOp('complete', chatId, { queue_item_id: i.queue_item_id, status: 'cancelled' });
+    else await queueOp('cancel', chatId, { queue_item_id: i.queue_item_id });
   }
-  if (!res || !res.item) {
+  let lostFiles = false, failed = null;
+  for (const i of redo) {
+    const payload = i.payload || {};
+    const extra = { text: payload.text || '', idempotency_key: 'idem-again-' + i.queue_item_id };
+    if (Array.isArray(payload.attachments) && payload.attachments.length) extra.attachments = payload.attachments;
+    let res = await queueOp('enqueue', chatId, extra);
+    if ((!res || !res.item) && extra.attachments) {
+      delete extra.attachments;
+      res = await queueOp('enqueue', chatId, extra);
+      if (res && res.item) lostFiles = true;
+    }
+    if (!res || !res.item) { failed = payload.text || ''; break; }
+  }
+  if (lostFiles) toast('Sent again without its files. Attach them again if you still need them.');
+  if (failed !== null) {
     toast("Couldn't send it again. The words are in the message box.");
-    try { if (isDisplayed(chatId) && !String(inputEl.value || '').trim()) { inputEl.value = payload.text || ''; inputEl.focus(); } } catch (e) {}
-    refreshQueue();
-    return;
+    try { if (isDisplayed(chatId) && !String(inputEl.value || '').trim()) { inputEl.value = failed; inputEl.focus(); } } catch (e) {}
   }
-  refreshQueue();
+  await refreshQueue();
   if (!isChatBusy(chatId)) pumpQueue(chatId);
 }
+function resendStaleQueueItem(item) { return resendWaiting(String(item.session_id || displayedChat)); }
 
 let priceQueuePumpActive = false;
 async function pumpPriceWaitQueues() {
@@ -9720,7 +9806,7 @@ function renderSelectionProvenance(sel) {
   }
   if (!sel || !sel.ok) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(document.body.classList.contains('vool-offline') ? "unknown \u2014 VOOL isn\u2019t running right now" : pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
     return;
   }
   const pin = String(sel.model || '').trim();
@@ -10491,19 +10577,22 @@ function renderBugReportPick(selectedIdx) {
   if (!brFlow.candidates.length) {
     candHtml = '<p class="br-status">No failed turns recorded for this chat. You can still describe the problem manually.</p>';
   } else {
-    candHtml = '<div class="br-field"><label>Affected turn</label>' + brFlow.candidates.map((c, i) =>
-      '<div class="br-cand' + (i === selectedIdx ? ' on' : '') + '" data-br-idx="' + i + '" role="radio" aria-checked="' + (i === selectedIdx) + '" tabindex="0">' +
-      '<b>' + esc((c.failure_types || []).join(', ') || 'failure') + '</b>' +
-      '<small>' + esc(c.ts || '') + ' &middot; ' + esc(c.client_turn_id ? String(c.client_turn_id).slice(0, 8) : '') + '</small>' +
-      '<small>' + esc(c.summary || '') + '</small></div>').join('') + '</div>';
+    // Each failed answer reads as what went wrong and when; the internal failure codes and the
+    // turn id stay on the tooltip for whoever reads the report.
+    const whenOf = (ts) => { try { const d = new Date(ts); return isNaN(d.getTime()) ? '' : d.toLocaleString(appLocale()); } catch (e) { return ''; } };
+    candHtml = '<div class="br-field"><label>Which answer went wrong?</label>' + brFlow.candidates.map((c, i) =>
+      '<div class="br-cand' + (i === selectedIdx ? ' on' : '') + '" data-br-idx="' + i + '" role="radio" aria-checked="' + (i === selectedIdx) + '" tabindex="0"'
+      + ' title="' + esc(((c.failure_types || []).join(', ') || 'failure') + (c.client_turn_id ? ' \u00b7 ' + String(c.client_turn_id).slice(0, 8) : '')) + '">' +
+      '<b class="br-cand-what">' + esc(c.summary || 'An answer that did not finish') + '</b>' +
+      '<small class="br-cand-when">' + esc(whenOf(c.ts) || '') + '</small></div>').join('') + '</div>';
   }
   bugReportBody.innerHTML =
     '<div id="brTurnList">' + candHtml + '</div>' +
     (brFlow.candidates.length ? (
       '<div class="br-field"><label>Include technical details from VOOL (private parts are removed first)</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeError"' + (f.includeError ? ' checked' : '') + '> Error / stack</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeLogs"' + (f.includeLogs ? ' checked' : '') + '> Runtime event log for the turn</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeComponents"' + (f.includeComponents ? ' checked' : '') + '> Lanes / tools / models involved</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeError"' + (f.includeError ? ' checked' : '') + '> The error VOOL saw</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeLogs"' + (f.includeLogs ? ' checked' : '') + '> What VOOL did during that answer</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeComponents"' + (f.includeComponents ? ' checked' : '') + '> Which models and tools were used</label>' +
       '</div>') : '') +
     '<div class="br-grid">' +
     '<div class="br-field"><label for="brTitle">In a few words, what went wrong?</label><input id="brTitle" type="text" value="' + esc(f.title) + '" placeholder="For example: the answer never arrived"></div>' +
@@ -11595,8 +11684,15 @@ async function openFiles() {
   const search = document.getElementById('filesSearch');
   if (search) search.value = '';
   if (body) body.textContent = 'Loading…';
-  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); if (search) search.focus(); }
-  catch (e) { if (body) body.textContent = 'Could not read your files.'; }
+  // Focus goes to the first control that is showing: the search box, or the close button when
+  // there is nothing to search yet (the search bar is hidden while there are no files).
+  const focusFirst = () => {
+    const controls = document.getElementById('filesControls');
+    if (search && !(controls && controls.hidden)) search.focus();
+    else { const x = document.getElementById('filesClose'); if (x) x.focus(); }
+  };
+  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); focusFirst(); }
+  catch (e) { if (body) body.textContent = isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so your files can\u2019t be listed." : 'Could not read your files.'; focusFirst(); }
 }
 function _fmtBytes(n) {
   n = Number(n || 0);
@@ -12440,7 +12536,7 @@ panelBtnEl.addEventListener('click', togglePanel);
       exportAborter = null;
       if (closed) return;
       if (!r.ok) {
-        let msg = 'Export failed (' + r.status + ').';
+        let msg = "Couldn\u2019t export this chat. Try again.";
         try { const j = await r.json(); if (j && j.message) msg = j.message; } catch (e) {}
         statusEl.textContent = msg;
         return;
@@ -12457,7 +12553,8 @@ panelBtnEl.addEventListener('click', togglePanel);
       overlay.hidden = true;
     } catch (e) {
       exportAborter = null;
-      statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.' : (e && e.message ? e.message : 'Export failed.');
+      statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
+        : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;
     }

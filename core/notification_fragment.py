@@ -54,6 +54,8 @@ _NOTIFY_CSS = """
 #vfEventCard{position:fixed;top:56px;right:16px;z-index:1160;width:min(360px,calc(100vw - 32px));max-height:80vh;overflow:auto;
   background:var(--panel,#16191f);border:1px solid var(--border,#262b35);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
 #vfEventCard[hidden]{display:none}
+#vfEventCard .vf-back{background:none;border:0;color:var(--muted,#9aa1af);font:inherit;font-size:12px;cursor:pointer;padding:0 14px 10px}
+#vfEventCard .vf-back:hover{color:var(--ink,#e8eaf0)}
 .vf-card{padding:12px 14px;display:grid;gap:8px;font-size:13px;color:var(--ink,#e8eaf0)}
 .vf-card-head{display:flex;align-items:flex-start;gap:8px}
 .vf-card-head strong{flex:1;min-width:0;overflow-wrap:anywhere}
@@ -402,6 +404,13 @@ function openCard(item){
   } else if (p.due_local) {
     rows.push([NTF('notif.row.due', 'Due'), p.due_local]);
   }
+  // A chat item carries what the row showed: which chat, and what happened.
+  if (item.source_kind !== 'calendar_alert' && item.source_kind !== 'calendar_catch_up' && item.source_kind !== 'reminder') {
+    var acts0 = pageActions();
+    var meta0 = item.session_id && acts0 && acts0.sessionMeta ? acts0.sessionMeta(item.session_id) : null;
+    if (meta0 && meta0.title) rows.push(['Chat', meta0.title]);
+    if (item.body) rows.push(['What happened', String(item.body)]);
+  }
   var mac = (item.channels || {}).macos;
   if (mac && mac.state) rows.push([NTF('notif.row.macos', 'macOS'), (MAC_STATE_TEXT[mac.state] || mac.state) + (mac.detail ? ' \\u00b7 ' + mac.detail : '')]);
   var html = '<div class="vf-card"><div class="vf-card-head"><strong>' + esc(item.title) + '</strong>' +
@@ -427,7 +436,13 @@ function openCard(item){
       '<small>' + NTF('notif.policy_help', 'Separate several lead times with commas, for example 30, 5. VOOL does not change the alarms saved in your calendar.') + '</small></form>';
   }
   html += '</div>';
+  html += '<button type="button" class="vf-back" data-vcard="back">\u2039 All notifications</button>';
   card.innerHTML = html;
+  // The card takes the list's place instead of covering it.
+  if (!pop.hidden) {
+    card.style.top = pop.style.top || ''; card.style.left = pop.style.left || ''; card.style.right = pop.style.left ? 'auto' : '';
+    pop.hidden = true;
+  }
   card.hidden = false;
 }
 function closeCard(){ card.hidden = true; cardItem = null; }
@@ -469,6 +484,7 @@ card.addEventListener('click', function(ev){
   var what = control.getAttribute('data-vcard');
   var current = cardItem;
   if (what === 'close') closeCard();
+  else if (what === 'back') { closeCard(); openPop(); }
   else if (what === 'snooze') { closeCard(); centreAction(current, 'snooze', Number(control.getAttribute('data-min')) || 10); }
   else if (what === 'dismiss') { closeCard(); centreAction(current, 'dismiss'); }
   else if (what === 'policy-off') { savePolicy(current, []); }

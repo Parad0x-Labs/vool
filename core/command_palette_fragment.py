@@ -93,8 +93,16 @@ function loadRegistry(){
   fetchJson('/api/commands/schema').then(function(data){ SCHEMA = data || null; });
 }
 function companion(){ return window.VoolCompanion || null; }
-function register(id, label, run, kbd){
-  ACTIONS.push({ id: String(id), label: String(label), run: run, kbd: kbd || '' });
+function register(id, label, run, kbd, keywords){
+  ACTIONS.push({ id: String(id), label: String(label), run: run, kbd: kbd || '', keywords: String(keywords || '') });
+}
+// "setup" finds "Set up VOOL": spaces and dots are ignored, and a row may carry other words for itself.
+function squash(t){ return String(t || '').toLowerCase().replace(/[\\s.\u2026]+/g, ''); }
+function actionMatches(action, query){
+  if (!query) return true;
+  if (action.label.toLowerCase().indexOf(query) !== -1) return true;
+  var q = squash(query);
+  return !!q && squash(action.label + ' ' + (action.keywords || '')).indexOf(q) !== -1;
 }
 
 function clickId(id){ var el = document.getElementById(id); if (el && !el.disabled) el.click(); }
@@ -106,7 +114,7 @@ register('pinned', 'Pinned messages', function(){ clickId('pinBtn'); });
 register('toggle-activity', 'Show or hide activity', function(){ var p = pageActions(); if (p) p.togglePanel(); }, MOD + 'J');
 register('model-menu', 'Choose a model\\…', function(){ var p = pageActions(); if (p) p.openModelMenu(); }, MOD + 'M');
 register('mode-menu', 'How much VOOL may do alone\\…', function(){ var p = pageActions(); if (p) p.openModeMenu(); });
-register('setup', 'Set up VOOL\\…', function(){ var p = pageActions(); if (p && p.openSetup) p.openSetup(''); });
+register('setup', 'Set up VOOL\\…', function(){ var p = pageActions(); if (p && p.openSetup) p.openSetup(''); }, '', 'setup getting started finish setup');
 register('settings', 'Open settings', function(){ var p = pageActions(); if (p) p.openSettings(); }, MOD + ',');
 register('council', 'Council\\…', function(){ var p = pageActions(); if (p) p.openCouncil(); });
 register('plugins', 'Skills & plugins\\…', function(){ var p = pageActions(); if (p) p.openPlugins(); });
@@ -169,7 +177,7 @@ function registryRow(command, index){
 }
 function renderList(){
   var query = inputEl.value.trim().toLowerCase();
-  var pageMatches = ACTIONS.filter(function(action){ return !query || action.label.toLowerCase().indexOf(query) !== -1; });
+  var pageMatches = ACTIONS.filter(function(action){ return actionMatches(action, query); });
   pageMatches = pageMatches.concat(chatRows(query));
   var devRow = devToggleRow();
   if (!query || devRow.label.toLowerCase().indexOf(query) !== -1 || 'developer'.indexOf(query) === 0) pageMatches.push(devRow);
