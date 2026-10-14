@@ -8,14 +8,58 @@ Use the existing VPS for the static website, API and private account/quarantine 
 
 1. Create the two community repositories from the reviewed blueprints, protect main and require independent review plus an authenticated admission check from its expected external GitHub App (or an independently protected workflow with verified workload identity). Candidate-run blueprint checks are advisory. Follow [ADMISSION-SERVICE.md](ADMISSION-SERVICE.md) and inspect the applied required-check source. Protect workflows, policies, roots and CODEOWNERS. A PR's own modified workflow is not trustworthy admission evidence. Published content must retain its original author and licence.
 2. Configure a pinned scanner policy for the actual latest released VOOL build and supported platforms. Supply all eleven required reports from trusted workers. Unsupported coverage remains held. Bind workload identity to protected workflow/code revisions; never expose review/signing credentials to candidate execution.
-3. Establish separate root, admission, review and online-catalog key custody. Root/admission/review thresholds are at least two. Publish only public keys in a reviewed trust anchor. Use encrypted offline keys/hardware custody; the web process holds no admission or review private key.
+3. Establish root, admission, review and online-catalog key custody. With automatic checks, the signing Mac holds the root, admission and review keys and the server holds only the online catalog key (see [Automatic checks with the signing Mac](#automatic-checks-with-the-signing-mac)). A deployment can require two or more signers per role instead. Publish only public keys in a reviewed trust anchor. The web process holds no admission or review private key.
 4. Private upload → signed archive/secret prepublication reports → author consent to the exact checksum → isolated publisher export → GitHub PR → final exact-commit reports → protected merge → offline admission signatures → offline catalog authorization → short-lived online catalog signature → canonical catalog PR/merge. Rejects remain visible only to the author. Direct GitHub PRs were public before scanning.
 5. Register GitHub login with minimal public identity scope, Google with OpenID only, and Apple with a Services ID associated with a configured Sign in with Apple app. Configure exact callback URLs. The provider login token has no publication authority. Use a separate GitHub App with narrowly scoped, short-lived publisher credentials in the isolated publisher process.
 6. Configure the service origin and immutable catalog/artifact inputs. Run `vool-registry check-config --config CONFIG` before starting it. The command fails if root, catalog, artifacts or requested provider registrations are missing/stale. Never use test fixtures as a production root or report.
 7. Reverse proxy only `/registry/api/` to the localhost service. Preserve the existing relay/routes. Disable access, error, proxy, journal and backup request logging that could retain addresses or callback codes. Audit hosting/provider retention separately; do not claim no party ever processes an IP.
 8. Use private directory mode 0700 and database mode 0600. Encrypt off-host backups, restrict operators, expire private quarantine after seven days and verify an actual restore. The restored catalog must meet signature/freshness/rollback rules; old account backups must respect the deletion retention policy.
-9. Before the site opens, sign in with the team's own GitHub account and choose the team's publisher name (`vool-team`) on its profile so nobody else can hold it. Then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
+9. The team's publisher name `vool-team` is reserved. With automatic checks, the signing Mac's `team` command names its members by GitHub account number; members publish under it and its profile shows as official. Without them, sign in with the team's own GitHub account, choose the name on its profile, then list it in `official_namespaces` in `registry_service/curation.json` through a reviewed pull request.
 10. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
+
+## Automatic checks with the signing Mac
+
+The owner's Mac is the signing authority. It checks every upload made with the creator's MIT agreement, signs what passes, and sends the signed list to the service. No person approves uploads; a person only adds the "Tested by Parad0x Labs" mark, the Highlighted spot, suspensions, team members and removals, each behind a code from an authenticator app.
+
+1. On the server, create the online catalog key once: `vool-registry catalog-key --config CONFIG`. It writes `catalog.key` (mode 0600) in the private directory and prints the public key. An existing key is kept.
+2. On the Mac, write the released VOOL builds to a file such as `targets.json` (`[{"version", "commit", "platform"}, ...]`), then run `python -m registry_service.mac_authority setup --dir FOLDER --server https://SITE --catalog-key PUBLIC_KEY --targets targets.json --provider openrouter --model MODEL --cap 20`. `FOLDER` must not exist yet; it is created with mode 0700. Choose a passphrase of at least 12 characters for the main (root) key. Add the printed `otpauth://` line to the authenticator app (as a QR code or by typing the key), then type the code it shows to confirm. `--provider ollama` uses a local model at `127.0.0.1:11434` instead, with no spend.
+3. Keep a copy of `FOLDER/root.pem` and its passphrase offline. Copy `FOLDER/trusted-root.json` to the server's `trusted_root` path, and into the app release as `core/registry/trusted-root.json`. A build without it keeps the Skill Codex closed.
+4. Add `"authority": true` to the service configuration and restart it. Until the Mac's first run there is no list, and Browse says the catalog is not configured. The service re-stamps the list with the online key every six hours.
+5. Keep `python -m registry_service.mac_authority run --dir FOLDER --every 300` running on the Mac, with the review key in `VOOL_AUTHORITY_OPENROUTER_KEY` for the paid model. Each run takes waiting uploads, checks them again on the exact bytes and asks the review model; it renews entries 5 days before they expire (after 30 days) and the signed list 3 days before it expires (after 7 days). `--once` runs a single pass, for a scheduler.
+6. After each VOOL release, `python -m registry_service.mac_authority targets --dir FOLDER --file targets.json`. The next run re-checks and re-signs every skill for the new builds; a skill today's rules refuse leaves the list.
+
+Hand actions ask for the authenticator code, and a code works once:
+
+```sh
+python -m registry_service.mac_authority mark PUBLISHER/NAME --dir FOLDER        # "Tested by Parad0x Labs" on the version listed now
+python -m registry_service.mac_authority unmark PUBLISHER/NAME --dir FOLDER
+python -m registry_service.mac_authority highlight PUBLISHER/NAME --dir FOLDER   # the Highlighted spot
+python -m registry_service.mac_authority unhighlight PUBLISHER/NAME --dir FOLDER
+python -m registry_service.mac_authority suspend PUBLISHER --dir FOLDER          # refuses their uploads and waiting submissions
+python -m registry_service.mac_authority unsuspend PUBLISHER --dir FOLDER
+python -m registry_service.mac_authority team vool-team --github-id ID --github-id ID --dir FOLDER
+python -m registry_service.mac_authority remove PUBLISHER/NAME --dir FOLDER      # takes every version out of the list and revokes it
+python -m registry_service.mac_authority status --dir FOLDER                     # no code needed
+```
+
+What happens when something stops:
+
+- The Mac is off for more than seven days: the signed list expires, and browsing, downloads and installs stop with "catalog freshness expired" until the next run. Nothing unsigned is served.
+- The review model is unreachable: the upload keeps waiting, and the outage never counts against it. A model that answers in the wrong shape gets three tries, then the upload is refused with a plain reason. The monthly cap (`monthly_cap` in `FOLDER/config.json`) stops paid calls; uploads then wait for the next month.
+- One publisher name sends many uploads: each name gets 30 model reviews a month (`REVIEWS_PER_CREATOR` in `registry_service/mac_authority.py`; the team's name has no limit), then its uploads are refused until the next month. The same refused bytes sent again reuse the first answer.
+- A suspended creator's waiting uploads are refused at the next run, and new ones at once.
+- A package makes the checks fail in a way nobody planned for: that upload is refused with "Our checks couldn't read this skill", the run goes on with the others, and the Mac's log shows `Refused <checksum> after an unexpected <error>`. Send that line to whoever maintains the checks.
+
+The authenticator code protects the hand-action commands. The admission and review keys are files readable only by the Mac account that runs the signer; the root key is encrypted with its passphrase. Anyone who controls that Mac account can sign, so keep it for this job, with FileVault and a login password. Removing a skill revokes its versions in every VOOL at the next Browse; downloads already made are not taken back.
+
+Limits the owner chose, so say nothing stronger:
+
+- One signature per role is enough, and the admission and review keys have no passphrase so the signer runs unattended. Whoever controls the Mac account can sign.
+- The Mac's signed list lasts 7 days. Someone who took over the server could keep serving the last list the Mac signed, without later removals, until those 7 days run out.
+- The signed record names the check suite and its major version, not the exact rule text. Tightening a rule does not mark older entries by itself; each renewal checks them again under today's rules.
+- One review model reads each skill, and its refusal reasons go back to the creator word for word, as the automatic checks' do. A skill written to fool that one model can pass the model step; the automatic checks still apply to it, and reports and removal are the backstop.
+
+The signed list keeps every version of every skill. VOOL reads a list of at most 4 MB, and one short skill's entry is about 1.3 KB, so plan to take older versions out of the list before it reaches a few thousand versions.
 
 ## Service configuration
 

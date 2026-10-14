@@ -21,6 +21,7 @@ from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode,
 from core.registry.intake import secret_findings
 from core.registry.media import KINDS
 from core.registry.requirements import package_requirements, require_for_new_version, undeclared_needs
+from registry_service.authority import ACCOUNT_AGE, AGREEMENT, marks_document, mit_license
 
 
 def owned_by(db, account: str) -> tuple[set[str], set[str]]:
@@ -96,6 +97,9 @@ class Store:
                 CREATE INDEX IF NOT EXISTS submissions_account ON submissions(account,created);
                 CREATE TABLE IF NOT EXISTS paused_packages (package_id TEXT PRIMARY KEY, created INTEGER NOT NULL,
                     cause TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS authority_nonces (nonce TEXT PRIMARY KEY, expires INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS authority_marks (id INTEGER PRIMARY KEY CHECK(id=1), sequence INTEGER NOT NULL,
+                    document BLOB NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
@@ -109,6 +113,13 @@ class Store:
                 db.execute("ALTER TABLE submissions ADD COLUMN needs_notices BLOB NOT NULL DEFAULT X'5B5D'")  # []
             if "via" not in columns:
                 db.execute("ALTER TABLE submissions ADD COLUMN via TEXT")  # NULL: stored before it was recorded
+            if "agreement" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN agreement TEXT")  # NULL: no automatic publishing
+            if "admission" not in columns:
+                db.execute("ALTER TABLE submissions ADD COLUMN admission BLOB")
+            if "since" not in {row[1] for row in db.execute("PRAGMA table_info(identities)")}:
+                # When the provider account was created (GitHub only), for the publishing age rule. Nothing else.
+                db.execute("ALTER TABLE identities ADD COLUMN since INTEGER")
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
@@ -148,21 +159,25 @@ class Store:
         finally:
             db.close()
 
-    def identity(self, provider: str, subject: str, *, now: int, link_account: str = "") -> str:
+    def identity(self, provider: str, subject: str, *, now: int, link_account: str = "", since: int | None = None) -> str:
         require(provider in {"github", "google", "apple"} and isinstance(subject, str) and
                 0 < len(subject) <= 255, "invalid verified identity")
+        require(since is None or (type(since) is int and 0 < since <= now), "invalid provider account date")
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT account FROM identities WHERE provider=? AND subject=?", (provider, subject)).fetchone()
             if row:
                 require(not link_account or row[0] == link_account, "identity belongs to another account")
+                if since is not None:
+                    db.execute("UPDATE identities SET since=? WHERE provider=? AND subject=?", (since, provider, subject))
                 return row[0]
             account = link_account or secrets.token_hex(16)
             if link_account:
                 require(db.execute("SELECT 1 FROM accounts WHERE id=?", (account,)).fetchone(), "account disappeared")
             else:
                 db.execute("INSERT INTO accounts VALUES (?, NULL, ?, ?)", (account, canonical({"handles": {}, "bio": ""}), now))
-            db.execute("INSERT INTO identities VALUES (?,?,?)", (provider, subject, account))
+            db.execute("INSERT INTO identities (provider,subject,account,since) VALUES (?,?,?,?)",
+                       (provider, subject, account, since))
             return account
 
     def profile(self, account: str, value: dict | None = None) -> dict:
@@ -175,7 +190,7 @@ class Store:
                 require(isinstance(value, dict) and set(value) == {"namespace", "bio", "handles"}, "invalid profile fields")
                 namespace = value["namespace"]
                 require(isinstance(namespace, str) and bool(IDENTITY.fullmatch(namespace)) and
-                        namespace not in {"vool", "parad0x-labs", "official", "native"}, "invalid or reserved namespace")
+                        namespace not in {"vool", "vool-team", "parad0x-labs", "official", "native"}, "invalid or reserved namespace")
                 require(row["namespace"] in (None, namespace), "published namespace is stable; transfer requires maintainer review")
                 require(isinstance(value["bio"], str) and len(value["bio"]) <= 500, "bio exceeds limit")
                 handles = value["handles"]
@@ -351,37 +366,215 @@ class Store:
         require(row and row[0] == namespace, "upload reservation expired or ownership changed")
         return namespace
 
-    def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None, _via: str = "upload") -> dict:
-        """`_via` says how the bytes arrived: "upload", or "draft" and "import" for bytes this service built."""
+    @staticmethod
+    def _marks(db) -> dict:
+        row = db.execute("SELECT document FROM authority_marks WHERE id=1").fetchone()
+        return decode(row[0])["signed"] if row else {"tested": [], "highlighted": [], "suspended": [], "teams": {}}
+
+    def marks(self) -> dict:
+        """The signing Mac's latest hand-made marks: tested, highlighted, suspended creators and teams."""
+        with self.connection() as db:
+            return self._marks(db)
+
+    def set_marks(self, envelope: dict, root: dict, *, now: int) -> dict:
+        from core.registry.trust import verify
+
+        value = marks_document(verify(envelope, root, "admission"), now=now)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT sequence FROM authority_marks WHERE id=1").fetchone()
+            require(not row or value["sequence"] > row[0], "these marks are older than the ones in place")
+            for name in value["teams"]:
+                # A team name someone else already holds is a squat for a maintainer, never silently shared.
+                require(not db.execute("SELECT 1 FROM accounts WHERE namespace=?", (name,)).fetchone(),
+                        f"an account outside the team holds the name {name}")
+            db.execute("INSERT OR REPLACE INTO authority_marks VALUES (1,?,?)", (value["sequence"], canonical(envelope)))
+            # A team's name is the team's: nobody else can choose it.
+            db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
+        return value
+
+    def _team_member(self, db, account: str, namespace: str) -> bool:
+        members = set(self._marks(db)["teams"].get(namespace, []))
+        return bool(members) and bool(db.execute(
+            "SELECT 1 FROM identities WHERE account=? AND provider='github' AND subject IN (%s)" %
+            ",".join("?" * len(members)), (account, *sorted(members))).fetchone())
+
+    @staticmethod
+    def _old_enough(db, account: str, now: int) -> None:
+        """Publishing waits until the GitHub account, or else the Skill Codex account, is 14 days old."""
+        since = db.execute("SELECT min(since) FROM identities WHERE account=? AND provider='github'", (account,)).fetchone()[0]
+        created = db.execute("SELECT created FROM accounts WHERE id=?", (account,)).fetchone()[0]
+        start = min(item for item in (since, created) if item is not None)
+        if start > now - ACCOUNT_AGE:
+            day = time.strftime("%Y-%m-%d", time.gmtime(start + ACCOUNT_AGE))
+            require(False, f"new accounts can publish 14 days after they start; yours can from {day}")
+
+    def remember_nonce(self, nonce: str, expires: int, *, now: int) -> None:
+        with self.connection() as db:
+            db.execute("DELETE FROM authority_nonces WHERE expires<=?", (now,))
+            try:
+                db.execute("INSERT INTO authority_nonces VALUES (?,?)", (nonce, expires))
+            except sqlite3.IntegrityError:
+                raise RegistryError("this authority request was already used") from None
+
+    def queue(self, *, limit: int = 20) -> list[dict]:
+        """Uploads waiting for the signing Mac, oldest first. A suspended creator's uploads are refused here."""
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            marks = self._marks(db)
+            suspended = set(marks["suspended"])
+            rows = db.execute("""SELECT submissions.id, submissions.package_id, submissions.version, submissions.sha256,
+                submissions.created, accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account
+                WHERE submissions.state='checking' AND submissions.agreement IS NOT NULL AND submissions.artifact IS NOT NULL
+                ORDER BY submissions.created, submissions.rowid""").fetchall()
+            waiting = []
+            for row in rows:
+                if {row["namespace"], row["package_id"].split("/")[0]} & suspended:
+                    db.execute("UPDATE submissions SET state='refused', artifact=NULL, findings=? WHERE id=?", (canonical([
+                        {"check": "creator", "path": "package", "reason": "This creator can't publish right now."}]), row["id"]))
+                    continue
+                if len(waiting) < limit:
+                    waiting.append({key: row[key] for key in ("id", "package_id", "version", "sha256", "created")} |
+                                   {"official": row["package_id"].split("/")[0] in marks["teams"]})
+        return waiting
+
+    def queued_artifact(self, identifier: str) -> bytes:
+        with self.connection() as db:
+            row = db.execute("SELECT artifact FROM submissions WHERE id=? AND state='checking' AND artifact IS NOT NULL",
+                             (identifier,)).fetchone()
+        require(row, "this upload is not waiting for checks")
+        return row[0]
+
+    def refuse(self, identifier: str, sha256: str, findings: list) -> None:
+        """The signing Mac's reasons, shown to the creator. The uploaded bytes are discarded."""
+        require(isinstance(findings, list) and 0 < len(findings) <= 200 and all(
+            isinstance(item, dict) and set(item) <= {"check", "path", "reason", "line", "quote"} and
+            {"check", "path", "reason"} <= set(item) and
+            all(isinstance(item[key], str) and 0 < len(item[key]) <= 600 for key in ("check", "path", "reason")) and
+            (type(item.get("line", 1)) is int and 0 < item.get("line", 1) <= 10 ** 7) and
+            isinstance(item.get("quote", ""), str) and len(item.get("quote", "")) <= 200 for item in findings),
+            "invalid refusal reasons")
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            changed = db.execute("UPDATE submissions SET state='refused', artifact=NULL, findings=? "
+                                 "WHERE id=? AND sha256=? AND state='checking'", (canonical(findings), identifier, sha256)).rowcount
+        require(changed == 1, "this upload is not waiting for checks")
+
+    def admit(self, identifier: str, sha256: str, envelope: dict, root: dict, *, now: int) -> dict:
+        """Record the Mac's signed admission for these exact bytes. Publishing follows its signed list."""
+        from core.registry.trust import validate_entry, verify
+
+        value = verify(envelope, root, "admission")
+        validate_entry(value, root, now)
+        refusal = None
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT artifact, state FROM submissions WHERE id=? AND sha256=? AND artifact IS NOT NULL AND "
+                             "state IN ('checking','admitted','published')", (identifier, sha256)).fetchone()
+            require(row, "this upload is not waiting for checks")
+            if row[1] != "checking":
+                return value  # the Mac sent it again after a lost answer; the first admission stands
+            info = value["metadata"]
+            creator = db.execute("SELECT accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account "
+                                 "WHERE submissions.id=?", (identifier,)).fetchone()
+            check = "source"
+            if {creator[0] if creator else None, info["id"].split("/")[0]} & set(self._marks(db)["suspended"]):
+                check, refusal = "creator", "This creator can't publish right now."  # suspended while the Mac checked
+            elif db.execute("SELECT 1 FROM submissions WHERE package_id=? AND version=? AND sha256<>? AND state IN "
+                            "('admitted','published') UNION SELECT 1 FROM public_versions WHERE package_id=? AND version=? "
+                            "AND sha256<>?", (info["id"], info["version"], sha256, info["id"], info["version"], sha256)).fetchone():
+                refusal = "Version " + info["version"] + " is already used. Use a higher version number."
+            if refusal:
+                # Refused here, so the Mac leaves it out of its list; one version number never names two packages.
+                db.execute("UPDATE submissions SET state='refused', artifact=NULL, findings=? WHERE id=?", (canonical([
+                    {"check": check, "path": "package", "reason": refusal}]), identifier))
+            else:
+                artifact = inspect(row[0])
+                require(value["artifact_sha256"] == sha256 and value["artifact_length"] == len(row[0]) and
+                        value["native_digest"] == artifact["native_digest"] and value["metadata"] == artifact["metadata"] and
+                        value["publication"] == {"service": "skill-codex", "artifact_sha256": sha256},
+                        "the admission describes different bytes")
+                db.execute("UPDATE submissions SET state='admitted', admission=? WHERE id=?", (canonical(envelope), identifier))
+        require(refusal is None, "this upload is not waiting for checks")
+        return value
+
+    def admitted_artifact(self, sha256: str) -> bytes | None:
+        """Bytes the Mac admitted; once published they live on in public_versions, even if the account is deleted."""
+        with self.connection() as db:
+            row = db.execute("SELECT artifact FROM submissions WHERE sha256=? AND state IN ('admitted','published') "
+                             "AND artifact IS NOT NULL ORDER BY created LIMIT 1", (sha256,)).fetchone() or \
+                db.execute("SELECT artifact FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
+        return row[0] if row else None
+
+    def upload(self, account: str, raw: bytes, *, now: int, _slot: str | None = None, _via: str = "upload",
+               agreement: str | None = None) -> dict:
+        """`_via` says how the bytes arrived: "upload", or "draft" and "import" for bytes this service built.
+
+        With the creator's `agreement`, the automatic checks run at once and a clean upload waits for the
+        signing Mac; without it the submission follows the older reviewed route and is never auto-published.
+        """
         if _slot is None:
             with self.upload_slot(account, now=now) as slot:
-                return self.upload(account, raw, now=now, _slot=slot, _via=_via)
+                return self.upload(account, raw, now=now, _slot=slot, _via=_via, agreement=agreement)
         started = time.monotonic()
+        require(agreement in (None, AGREEMENT), "accept the Skill Codex agreement to publish")
+        artifact = inspect(raw)
+        publisher = artifact["metadata"]["id"].split("/")[0]
         with self.connection() as db:
             namespace = self._check_upload_slot(db, account, _slot, now)
-        artifact = inspect(raw)
-        require(namespace == artifact["metadata"]["id"].split("/")[0], "package publisher must match your namespace")
+            require(namespace == publisher or self._team_member(db, account, publisher),
+                    "package publisher must match your namespace")
+            require(not {namespace, publisher} & set(self._marks(db)["suspended"]), "this creator can't publish right now")
+            if agreement:
+                self._old_enough(db, account, now)
+            official = publisher in self._marks(db)["teams"]
+        if agreement and _via == "upload":
+            # Published under the creator's own name as uploaded here; a GitHub source must prove its owner by import.
+            require(set(artifact["metadata"]["source"]) == {"upload_id", "namespace"},
+                    "this package names a GitHub source; publish it with GitHub import instead")
         require_for_new_version(artifact["metadata"])
         with self.connection() as db:
             published = [row[0] for row in db.execute("SELECT version FROM public_versions WHERE package_id=?",
                                                       (artifact["metadata"]["id"],))]
         require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in published),
                 "this version is already published; use a higher version number for the update")
+        if agreement:
+            with self.connection() as db:
+                waiting = [row[0] for row in db.execute(
+                    "SELECT version FROM submissions WHERE package_id=? AND state IN ('checking','admitted')",
+                    (artifact["metadata"]["id"],))]
+            # Two different packages under one version number would stop the signed list for everyone.
+            require(all(version_key(artifact["metadata"]["version"]) > version_key(version) for version in waiting),
+                    "this version is already waiting for checks; use a higher version number")
         findings = secret_findings(artifact["files"])
         # Advisory, as in the command-line check: the instructions look like they use something "needs" leaves out.
         notices = undeclared_needs(artifact["metadata"], artifact["files"])
         identifier = secrets.token_hex(16)
+        checked = []
+        if agreement and not findings:
+            # The same checks the signing Mac runs, so the creator hears about a problem at once.
+            from core.registry.checks import run
+
+            outcome = run(raw, self.path.parent / "scratch", targets=[], official=official)
+            checked = [item for items in outcome["findings"].values() for item in items]
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             completed = now + int(time.monotonic() - started)
             self._check_upload_slot(db, account, _slot, completed)
             count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
             require(count < 10, "daily submission quota reached")
-            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings,needs_notices,via) "
-                       "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            if findings:
+                state = "rejected"
+            elif agreement:
+                state = "refused" if checked else "checking"
+            else:
+                state = "quarantined"
+            # With the agreement, these bytes are the creator's own publication under their name.
+            db.execute("INSERT INTO submissions (id,account,created,package_id,version,sha256,artifact,state,findings,needs_notices,via,"
+                       "agreement,consent,publisher_bound) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (identifier, account, completed, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
-                        None if findings else raw, "rejected" if findings else "quarantined", canonical(findings), canonical(notices),
-                        _via))
+                        raw if state in {"quarantined", "checking"} else None, state, canonical(findings or checked),
+                        canonical(notices), _via, agreement, int(bool(agreement)), int(bool(agreement))))
         return self.submission(account, identifier)
 
     def draft(self, account: str, value: dict, *, now: int, _slot: str | None = None) -> dict:
@@ -396,11 +589,23 @@ class Store:
         from core.registry.artifact import pack
         from tools.community_skills import initialize, preflight
 
-        require(isinstance(value, dict) and set(value) == {"metadata", "skill_markdown", "license_text"}, "invalid skill draft")
-        info = dict(value["metadata"])
+        require(isinstance(value, dict) and set(value) in ({"metadata", "skill_markdown", "license_text"},
+                                                           {"metadata", "skill_markdown", "agreement"}), "invalid skill draft")
+        agreement = value.get("agreement")
+        require(agreement in (None, AGREEMENT), "accept the Skill Codex agreement to publish")
+        info = dict(value["metadata"]) if isinstance(value["metadata"], dict) else {}
         require("source" not in info and info.get("kind") == "skill", "draft source is assigned by the server")
         require("icon" not in info and "banner" not in info,
                 "a written skill has no picture files; add pictures through GitHub import or an uploaded package")
+        publisher = str(info.get("id", "")).split("/")[0]
+        if agreement:
+            # Every Skill Codex skill is MIT; the service writes the licence in the creator's name.
+            require(info.get("license") == "MIT", "Skill Codex skills use the MIT licence")
+            value = dict(value, license_text=mit_license(publisher, now=now))
+        if publisher != namespace:
+            with self.connection() as db:
+                require(self._team_member(db, account, publisher), "package publisher must match your namespace")
+            namespace = publisher
         info["source"] = {"upload_id": secrets.token_hex(16), "namespace": namespace}
         require(all(isinstance(value[field], str) and 0 < len(value[field]) <= 32768
                     for field in ("skill_markdown", "license_text")), "draft text exceeds limit")
@@ -412,8 +617,9 @@ class Store:
             (source / "skills" / name / "SKILL.md").write_text(value["skill_markdown"], encoding="utf-8")
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
-        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="draft")
-        if local["findings"] and result["state"] != "rejected":
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="draft",
+                             agreement=agreement)
+        if local["findings"] and result["state"] not in {"rejected", "refused", "checking"}:
             with self.connection() as db:
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
         # This marker is assigned only to bytes constructed by this service,
@@ -438,8 +644,10 @@ class Store:
         from tools.community_skills import initialize, preflight
 
         started = time.monotonic()
-        require(isinstance(value, dict) and set(value) == {"repository", "ref", "path", "metadata",
+        require(isinstance(value, dict) and set(value) - {"agreement"} == {"repository", "ref", "path", "metadata",
                 "publish_when_checks_pass"}, "invalid GitHub import")
+        agreement = value.get("agreement")
+        require(agreement in (None, AGREEMENT), "accept the Skill Codex agreement to publish")
         repository, ref = check_repository(value["repository"]), check_ref(value["ref"])
         folder = path_name(value["path"])
         require(type(value["publish_when_checks_pass"]) is bool, "publish choice must be true or false")
@@ -512,9 +720,10 @@ class Store:
             info = bind(info, lambda path: (source / path).read_bytes())
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
-        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="import")
+        result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot, _via="import",
+                             agreement=agreement)
         with self.connection() as db:
-            if local["findings"] and result["state"] != "rejected":
+            if local["findings"] and result["state"] not in {"rejected", "refused", "checking"}:
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
             # Server-built bytes from a repository owned by this account's verified GitHub identity.
             db.execute("UPDATE submissions SET publisher_bound=1, auto_consent=? WHERE id=? AND account=?",
@@ -526,7 +735,8 @@ class Store:
             row = db.execute("SELECT * FROM submissions WHERE id=? AND account=?", (identifier, account)).fetchone()
         require(row, "submission not found")
         return {key: row[key] for key in ("id", "created", "package_id", "version", "sha256", "state", "consent", "github_url")} | {
-            "findings": decode(row["findings"]), "needs_notices": decode(row["needs_notices"]), "via": row["via"]}
+            "findings": decode(row["findings"]), "needs_notices": decode(row["needs_notices"]), "via": row["via"],
+            "agreement": row["agreement"]}
 
     def submissions(self, account: str) -> list[dict]:
         with self.connection() as db:
@@ -630,7 +840,7 @@ class Store:
             db.execute("INSERT OR IGNORE INTO publisher_names VALUES (?)", (namespace,))
             bound = db.execute("""SELECT submissions.account FROM submissions JOIN accounts
                 ON accounts.id=submissions.account WHERE sha256=? AND artifact=? AND publisher_bound=1
-                AND consent=1 AND state IN ('ready_for_github','published') AND accounts.namespace=?""",
+                AND consent=1 AND state IN ('ready_for_github','admitted','published') AND accounts.namespace=?""",
                 (artifact["sha256"], raw, namespace)).fetchone()
             if bound:
                 db.execute("UPDATE namespace_owners SET verified=1 WHERE namespace=? AND account=?", (namespace, bound[0]))
@@ -735,5 +945,6 @@ class Store:
             db.execute("DELETE FROM sessions WHERE expires<=?", (now,))
             db.execute("DELETE FROM oauth WHERE expires<=?", (now,))
             db.execute("DELETE FROM download_tickets WHERE expires<=?", (now,))
-            db.execute("UPDATE submissions SET artifact=NULL, review=NULL, state='expired' WHERE created<? AND state NOT IN ('published','rejected','expired')", (now - 7 * 86400,))
+            db.execute("UPDATE submissions SET artifact=NULL, review=NULL, state='expired' WHERE created<? AND state NOT IN ('published','rejected','refused','admitted','expired')", (now - 7 * 86400,))
+            db.execute("DELETE FROM authority_nonces WHERE expires<=?", (now,))
             db.execute("DELETE FROM upload_leases WHERE expires<=?", (now,))
