@@ -197,6 +197,7 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'web.chain_lookup': ('read_only', 'none'),  # read-only chain data with the user's own provider key
     'web.search': ('read_only', 'none'),
     'token.launches': ('read_only', 'none'),
+    'token.performance': ('read_only', 'none'),
     'token.research': ('read_only', 'none'),
     'web0.add_block': ('builder_state', 'none'),
     'web0.add_gated_section': ('builder_state', 'none'),
@@ -358,7 +359,8 @@ def test_contract_map_and_list_agree():
     # 174 -> 175: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
     # 175 -> 187: the X lane with the user's own keys (nine reads, x.action.propose which only drafts)
     # plus token.research and token.launches, read-only through the user's chain-data keys.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 187
+    # 187 -> 188: token.performance, a token's price then/now/peak from public DEX data (web access on).
+    assert len(contract_map) == len(GOLDEN_TIERS) == 188
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

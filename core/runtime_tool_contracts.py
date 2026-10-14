@@ -3125,10 +3125,11 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
 def _chain_contracts() -> list[RuntimeToolContract]:
     from core.chain_data import chain_contracts
+    from core.token_performance import performance_contracts
     from core.token_research import research_contracts
 
     # token.research rides beside the chain lookup; it adds the X gate only when X is connected.
-    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available())]
+    return [*chain_contracts(), *research_contracts(x_connected=_x_reads_available()), *performance_contracts()]
 
 
 def _zcash_contracts() -> list[RuntimeToolContract]:
@@ -3195,10 +3196,14 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
             "Find who called a token on X: every account that posted its address, $CASHTAG or name, ordered by who "
             "posted first, with followers, account age, number of posts and engagement, and each one's first post. "
             "history_for=N (max 10) also reads the top N callers' recent posts and lists the other tokens each "
-            "of them called, for judging their track record.",
+            "of them called. min_followers=N keeps only accounts with N+ followers. evaluate_calls=true also prices "
+            "each call from public trading data (this token from each caller's first post, then their other "
+            "address calls): price then, now, and peak and low after, so you can judge how their calls did.",
             "x.token_callers", "find and rank the accounts that called a token on X, with their other calls",
             {"token": "string (address, $CASHTAG or name)", "max_results": "int optional (10-100 posts)",
              "history_for": "int optional (0-10 callers)", "history_posts": "int optional (5-100 posts each)",
+             "min_followers": "int optional (keep callers with at least this many followers)",
+             "evaluate_calls": "boolean optional (price each call: then, now, peak after)",
              "archive": "boolean optional", "include_reposts": "boolean optional", **window},
             {"callers": "list", "earliest_post_at": "string", "posts_found": "int"}, connected),
         _x_read_contract(

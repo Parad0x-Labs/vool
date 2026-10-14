@@ -152,6 +152,12 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"(?:\b(?:token|coin|contract|mint|this|it)\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
         r"|\bwhat\s+else\b[^.?!]{0,40}?\b(?:launch|deploy|creat|made|ma[dk]e)\w*"
         r"|\b(?:mint|freeze)\s+authority\b", re.I)),
+    # how calls did: "how did his calls do", "track record", "did that call pump"
+    ("token.performance", "web", re.compile(
+        r"\bhow\s+(?:did|has|have|do)\b[^.?!]{0,60}?\bcalls?\b[^.?!]{0,30}?\b(?:do|done|go|gone|perform\w*)\b"
+        r"|\btrack\s+record\b[^.?!]{0,60}?\b(?:calls?|tokens?|coins?|picks?)\b"
+        r"|\b(?:calls?|tokens?|coins?|picks?)\b[^.?!]{0,60}?\btrack\s+record\b"
+        r"|\b(?:win\s*rate|hit\s*rate)\b[^.?!]{0,40}?\b(?:calls?|caller|picks?)\b", re.I)),
     # new tokens: "new launches", "newest tokens", "latest memecoins on solana", "fresh mints"
     ("token.launches", "web", re.compile(
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"

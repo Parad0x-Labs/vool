@@ -68,9 +68,13 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
                                       end_time=str(args.get("end_time") or ""),
                                       history_for=args.get("history_for", 0),
                                       history_posts=args.get("history_posts", 20),
-                                      include_reposts=_bool(args.get("include_reposts")))
+                                      include_reposts=_bool(args.get("include_reposts")),
+                                      min_followers=args.get("min_followers", 0),
+                                      evaluate_calls=_bool(args.get("evaluate_calls")),
+                                      source_context=source_context)
         return _result(intent, outcome, keys=("token", "token_kind", "query", "window", "posts_found",
-                                              "earliest_post_at", "callers", "next_token"))
+                                              "earliest_post_at", "callers", "next_token", "min_followers",
+                                              "callers_below_min_followers"))
     if intent == "x.user":
         outcome = x_api.lookup_users(args.get("usernames") or args.get("username") or "")
         return _result(intent, outcome, keys=("users", "not_found"))

@@ -1,5 +1,5 @@
 {
-  "intent_count": 138,
+  "intent_count": 139,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -109,6 +109,7 @@
     "skill.rollback",
     "skill.validate",
     "token.launches",
+    "token.performance",
     "token.research",
     "web.chain_lookup",
     "web.fetch",
@@ -140,7 +141,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 138,
+  "native_definition_count": 139,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -10547,6 +10548,117 @@
         "side_effecting_command": {
           "actions": [
             "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.performance": {
+      "arguments": [
+        "at",
+        "calls",
+        "chain",
+        "token"
+      ],
+      "description": "How a token did after a moment: its price then, now, and the highest and lowest after (with when the peak came), from public DEX trading data. Give up to 15 calls, each a token contract address and a time (ISO, e.g. the time of an X post). Use it to judge past calls, e.g. after x.token_callers. Read-only. Needs web access on. Facts only: it never rates a call.",
+      "native_name": "token__performance",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "str (optional): the time for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calls": {
+            "description": "list (1-15) of {token: contract address, at: ISO time, chain?: solana|ethereum|base|bnb|arbitrum}",
+            "items": {},
+            "type": "array"
+          },
+          "chain": {
+            "description": "str (optional): the chain for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str (optional): one token address instead of calls",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "calls",
+          "token",
+          "at",
+          "chain"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
             "use_network_access"
           ],
           "effects": {

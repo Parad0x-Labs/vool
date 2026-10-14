@@ -540,11 +540,15 @@ def calls_in_posts(posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def token_callers(token: str, *, max_results: Any = 50, archive: bool = False, start_time: str = "",
                   end_time: str = "", history_for: Any = 0, history_posts: Any = 20,
-                  include_reposts: bool = False) -> XResult:
+                  include_reposts: bool = False, min_followers: Any = 0, evaluate_calls: bool = False,
+                  source_context: dict[str, Any] | None = None) -> XResult:
     """Who posted about a token, earliest first, with each caller's reach and engagement.
 
     ``history_for`` > 0 also reads that many top callers' recent posts and lists the other tokens
     each one called (costs one more request and up to ``history_posts`` post reads per caller).
+    ``min_followers`` keeps only callers with at least that many followers. ``evaluate_calls`` also
+    prices each call (this token at each caller's first post, then their other address calls) from
+    public trading data (``core.token_performance``): price then, now, peak and low after.
     """
     def run() -> XResult:
         found = search_posts(token=token, max_results=max_results, archive=archive, start_time=start_time,
@@ -558,7 +562,17 @@ def token_callers(token: str, *, max_results: Any = 50, archive: bool = False, s
                                                 "tweet_count": a["posts"]}}
                    for a in found.data.get("authors") or []}
         rows = _caller_rows(found.data.get("posts") or [], authors)
+        floor = _int(min_followers, 0, 0, 1_000_000_000)
+        dropped = 0
+        if floor:
+            kept = [r for r in rows if int(r.get("followers") or 0) >= floor]
+            dropped = len(rows) - len(kept)
+            rows = kept
+            for rank, row in enumerate(rows, 1):
+                row["rank_by_first_call"] = rank
         wanted = _int(history_for, 0, 0, 10)
+        if evaluate_calls and not wanted:
+            wanted = min(5, len(rows))
         for row in rows[:wanted]:
             history = user_posts(f"id:{row['id']}" if row["id"] else row["username"], max_results=history_posts,
                                  exclude="retweets")
@@ -570,20 +584,73 @@ def token_callers(token: str, *, max_results: Any = 50, archive: bool = False, s
                 row["history_error"] = history.message
                 if history.status in {"usage_limit_reached", "rate_limited", "exhausted"}:
                     break
+        performance_note = _price_calls(rows[:wanted] if wanted else rows[:5], token, source_context) if evaluate_calls else ""
         data = {
             "token": token, "token_kind": found.data.get("token_kind"), "query": found.data.get("query"),
+            "min_followers": floor, "callers_below_min_followers": dropped,
             "posts_found": len(found.data.get("posts") or []), "callers": rows,
             "earliest_post_at": rows[0]["first_call_at"] if rows else "",
             "next_token": found.data.get("next_token") or "",
             "window": "full archive" if archive else "last 7 days",
         }
+        floor_txt = f" with {floor:,}+ followers" if floor else ""
         if not rows:
-            return XResult(True, "no_results", f"Nobody on X posted about {token} in the {data['window']} (query {data['query']!r}).", data)
+            extra = f" ({dropped} smaller account(s) left out)" if dropped else ""
+            return XResult(True, "no_results", f"Nobody{floor_txt} on X posted about {token} in the {data['window']}{extra} "
+                           f"(query {data['query']!r}).", data)
         first = rows[0]
-        return XResult(True, "executed",
-                       f"{len(rows)} account(s) posted about {token} in the {data['window']}; earliest was "
-                       f"@{first['username']} at {first['first_call_at']}.", data)
+        text = (f"{len(rows)} account(s){floor_txt} posted about {token} in the {data['window']}; earliest was "
+                f"@{first['username']} at {first['first_call_at']}.")
+        if dropped:
+            text += f" {dropped} smaller account(s) left out."
+        if performance_note:
+            text += " " + performance_note
+        return XResult(True, "executed", text, data)
     return _guard(run)
+
+
+def _price_calls(rows: list[dict[str, Any]], token: str, source_context: dict[str, Any] | None) -> str:
+    """Attach price-after-call facts to each caller: this token from their first post, then their
+    other address calls, at most ``token_performance.MAX_CALLS`` in all."""
+    from core import token_performance
+
+    kind, value = classify_token(token)
+    wanted: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+    for row in rows:
+        if kind.endswith("address"):
+            wanted.append((row, "this_call", {"token": value, "at": row.get("first_call_at")}))
+    for row in rows:
+        for call in row.get("other_calls") or []:
+            if not str(call.get("token") or "").startswith("$"):
+                wanted.append((row, "other", {"token": call["token"], "at": call.get("first_at"), "call": call}))
+    unpriced_tickers = sum(1 for r in rows for c in r.get("other_calls") or [] if str(c.get("token") or "").startswith("$"))
+    if not wanted:
+        return ("No calls with a contract address to price" + (f" ({unpriced_tickers} ticker-only)" if unpriced_tickers else "") + ".")
+    picked = wanted[:token_performance.MAX_CALLS]
+    out = token_performance.evaluate([{"token": w[2]["token"], "at": w[2]["at"]} for w in picked], source_context=source_context)
+    if out.get("status") in {"web_off", "invalid_arguments", "too_many"}:
+        return out["text"]
+    for (row, slot, spec), result in zip(picked, out.get("calls") or [], strict=False):
+        if slot == "this_call":
+            row["this_call_performance"] = result
+        else:
+            spec["call"]["performance"] = result
+    for row in rows:
+        priced = [c["performance"] for c in row.get("other_calls") or [] if (c.get("performance") or {}).get("status") == "ok"]
+        if row.get("this_call_performance", {}).get("status") == "ok":
+            priced = [row["this_call_performance"], *priced]
+        if priced:
+            row["calls_priced"] = len(priced)
+            row["calls_up_now"] = sum(1 for p in priced if p["change_now_pct"] > 0)
+            row["calls_doubled_at_peak"] = sum(1 for p in priced if p["peak_pct"] >= 100)
+    skipped = len(wanted) - len(picked)
+    priced_n = sum(1 for c in out.get("calls") or [] if c.get("status") == "ok")
+    note = f"Priced {priced_n} of {len(picked)} call(s) from public trading data"
+    if skipped:
+        note += f"; {skipped} more not checked (ask again for those)"
+    if unpriced_tickers:
+        note += f"; {unpriced_tickers} ticker-only call(s) can't be priced without an address"
+    return note + "."
 
 
 def _same_token(name: str, token: str) -> bool:
