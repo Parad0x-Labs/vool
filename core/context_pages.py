@@ -206,6 +206,17 @@ def admit_page(page: ContextPage) -> dict[str, Any]:
                 json.dumps(page.metadata, sort_keys=True),
             ),
         )
+        if not volatile:
+            # The same words admitted again after their page was erased (a user repeating a sentence in a new chat
+            # after forgetting it in an old one): the bytes are back in the CAS, so the row says so. Left marked
+            # erased, the page could never be served, and the next forget refused to erase it a second time. The
+            # new admitter owns it now; the chat that erased it keeps nothing of it.
+            conn.execute(
+                "UPDATE context_pages SET erased = 0, content_ref = ?, metadata_json = ?, session_id = ?, "
+                "task_id = ? WHERE page_hash = ? AND erased = 1",
+                (content_ref, json.dumps(page.metadata, sort_keys=True), page.session_id, page.task_id,
+                 page.page_hash),
+            )
         if page.task_id:
             # Inside this open write transaction: the pin rides the caller's connection so the
             # page and its residency pin commit together (per-use connection contract).
@@ -528,8 +539,22 @@ def erase_page(
     if row["content_ref"]:
         _delete_cas_content(str(row["content_ref"]), require_exclusive=require_exclusive_blob)
 
+    # One chain event per erasure: a page admitted again after an erasure and erased again records a second event
+    # under its own id, never a conflicting payload under the first one.
+    event_id = f"ctx-page-erased:{page_hash}"
+    conn = get_connection()
+    try:
+        earlier = conn.execute(
+            "SELECT COUNT(*) FROM event_hash_chain WHERE event_id = ? OR event_id LIKE ?",
+            (event_id, event_id + ":%"),
+        ).fetchone()[0] if conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'event_hash_chain'").fetchone() else 0
+    finally:
+        conn.close()
+    if earlier:
+        event_id += f":{int(earlier) + 1}"
     event_hash = append_hashed_event(
-        f"ctx-page-erased:{page_hash}",
+        event_id,
         {
             "event": "context.page_erased",
             "page_hash": page_hash,
