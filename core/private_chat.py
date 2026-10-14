@@ -35,6 +35,7 @@ from typing import Any
 from storage.db import get_connection
 
 __all__ = [
+    "PRIVATE_CHAT_REF",
     "PRIVATE_TASK_SUMMARY",
     "PRIVATE_TURN_KEY",
     "REPLY_KEYS",
@@ -51,6 +52,7 @@ __all__ = [
     "private_prompt_block",
     "private_request_session",
     "private_since",
+    "record_chat_ref",
     "request_is_private",
     "session_id_from",
     "set_private",
@@ -68,6 +70,9 @@ PRIVATE_TURN_KEY = "private_chat"
 SWITCHED_ON_KEY = "private_chat_switched_on"
 #: What a task row stores for a private turn instead of the turn's words.
 PRIVATE_TASK_SUMMARY = "private chat"
+#: What a record that can never be deleted (a signed, append-only manifest) names instead of the
+#: chat, when it is written for a private turn.
+PRIVATE_CHAT_REF = "private-chat"
 
 # ── storage ──────────────────────────────────────────────────────────────────
 
@@ -216,17 +221,51 @@ def private_request_session(request_id: str | None = None) -> str:
     return entry[1] if entry else ""
 
 
+# Chat-door requests still running, by request id: a private chat's records are erased only when no
+# other request of the same chat is still in flight (a second tab, a queued send, a saved turn after
+# "turn recording back on"), so a running turn never loses rows it is writing.
+_DOOR_REQUESTS: dict[str, str] = {}
+_DOOR_REQUESTS_MAX = 2048
+
+
+def _note_door_request(session_id: str) -> None:
+    rid = _current_request_id()
+    if not rid or not session_id:
+        return
+    with _LOCK:
+        _DOOR_REQUESTS[rid] = session_id
+        while len(_DOOR_REQUESTS) > _DOOR_REQUESTS_MAX:
+            _DOOR_REQUESTS.pop(next(iter(_DOOR_REQUESTS)), None)
+
+
+def chat_has_request_in_flight(session_id: str, *, besides: str = "") -> bool:
+    sid = _clean(session_id)
+    with _LOCK:
+        return any(owner == sid and rid != besides for rid, owner in _DOOR_REQUESTS.items())
+
+
 def end_private_request(request_id: str) -> int:
-    """Request end for a private turn: blank the words its working ledgers held while it ran.
+    """Request end for a private turn: blank the words its working ledgers held while it ran, and
+    erase the run records of a chat that has nothing saved.
 
     No-op for an ordinary request. Returns how many records were scrubbed.
     """
     rid = _clean(request_id)
+    with _LOCK:
+        _DOOR_REQUESTS.pop(rid, None)
     if not rid or not request_is_private(rid):
         return 0
     from core.conductor.obligation_ledger import scrub_request_texts
 
-    return scrub_request_texts(rid)
+    scrubbed = scrub_request_texts(rid)
+    # A chat with nothing saved leaves no run record that it existed (core.private_chat_traces),
+    # once none of its requests is still running.
+    from core.private_chat_traces import erase_if_unsaved
+
+    sid = private_request_session(rid)
+    if sid and not chat_has_request_in_flight(sid):
+        erase_if_unsaved(sid)
+    return scrubbed
 
 
 def turn_is_private(source_context: Mapping[str, Any] | None, session_id: str | None = None) -> bool:
@@ -239,6 +278,19 @@ def turn_is_private(source_context: Mapping[str, Any] | None, session_id: str | 
         return True
     sid = session_id_from(context, session_id)
     return bool(sid) and is_private(sid)
+
+
+def record_chat_ref(chat_id: Any) -> str:
+    """The chat id a permanent record may keep: :data:`PRIVATE_CHAT_REF` on a private turn of that
+    chat (or when the switch cannot be read), else the id itself."""
+    sid = _clean(chat_id)
+    if not sid or sid == PRIVATE_CHAT_REF:
+        return sid
+    try:
+        private = turn_is_private(None, sid)
+    except Exception:
+        private = True
+    return PRIVATE_CHAT_REF if private else sid
 
 
 #: Event detail keys a private turn's stored runtime events may keep: identities and states only.
@@ -599,6 +651,17 @@ def not_on_prompt_block(locale: str | None = None) -> str:
     )
 
 
+def _release_unused_row(session_id: str) -> None:
+    """A chat that turns private before anything of it was saved (one opened inside a project
+    already has its row) keeps no row (core.context_namespace.release_unused_chat_row)."""
+    try:
+        from core.context_namespace import release_unused_chat_row
+
+        release_unused_chat_row(session_id)
+    except Exception:
+        _log.warning("private chat could not release an unused chat row", exc_info=True)
+
+
 def observe_private_door(
     user_text: str,
     *,
@@ -618,6 +681,7 @@ def observe_private_door(
     """
     context = source_context if isinstance(source_context, dict) else None
     sid = _clean(session_id)
+    _note_door_request(sid)
     currently = is_private(sid) if sid else False
     try:
         command = parse_private_command(user_text, currently_private=currently)
@@ -631,6 +695,7 @@ def observe_private_door(
                 set_private(sid, True)
                 if context is not None:
                     context[SWITCHED_ON_KEY] = True
+                _release_unused_row(sid)
             except Exception:
                 _log.warning("private chat switch failed at the chat door", exc_info=True)
     if private:
@@ -680,6 +745,8 @@ def observe_private_turn(
                 elif command.bare:
                     reply = REPLY_FAILED
             else:
+                if want_on and now_on and not currently:
+                    _release_unused_row(sid)
                 if command.bare and reply is None:
                     if want_on:
                         reply = REPLY_ALREADY_ON if currently else REPLY_ON

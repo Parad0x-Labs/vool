@@ -8,6 +8,7 @@ server-created import grant.
 from __future__ import annotations
 
 import hashlib
+import logging
 import threading
 import uuid
 from dataclasses import dataclass, replace
@@ -18,6 +19,8 @@ from storage.db import get_connection
 
 NamespaceState = Literal["active", "archived", "deleted"]
 GrantScope = Literal["chat", "project", "user_profile", "action_receipt"]
+
+_log = logging.getLogger(__name__)
 
 _NAMESPACE_STATES = frozenset({"active", "archived", "deleted"})
 _GRANT_SCOPES = frozenset({"chat", "project", "user_profile", "action_receipt"})
@@ -593,6 +596,67 @@ def set_chat_namespace_state(chat_id: str, state: NamespaceState) -> ContextName
     if namespace is None:
         raise RuntimeError("context namespace disappeared")
     return namespace
+
+
+#: Session-meta fields a chat can have before its first message is saved without the person having
+#: done anything to it beyond opening it in a project.
+_UNUSED_META_KEYS = frozenset({"project_id"})
+
+
+def release_unused_chat_row(chat_id: str) -> bool:
+    """A chat that turns private before anything of it was saved gives up its row.
+
+    A chat opened inside a project gets its row (and the project binding in the session meta) before
+    its first message. If that message turns private chat on (core.private_chat), the row would list
+    it as an empty chat under the project and keep its id for good. When the row is all there is (an
+    active row with no parent, no transcript row, nothing set in the session meta but the project,
+    not pinned), the chat moves to this process, as a chat that started private does: the same
+    project and imports, nothing on disk. The rows are deleted (zeroed: ``secure_delete``) and the
+    meta entry is dropped. The first saved turn creates the row again, in the same project.
+
+    Must be called once the chat is private. Returns whether the row was released. Never raises.
+    """
+    clean_chat = str(chat_id or "").strip()
+    try:
+        if not clean_chat or not _chat_is_private_now(clean_chat):
+            return False
+        namespace = _load_saved_namespace(clean_chat)
+        if namespace is None or namespace.lifecycle_state != "active" or namespace.parent_chat_id:
+            return False
+        from core.chat_housekeeping import pinned_chat_ids
+        from core.memory.entries import _drop_session_meta, _load_session_meta_raw, recent_conversation_events
+
+        meta = _load_session_meta_raw().get(clean_chat)
+        if meta is not None and not set(meta) <= _UNUSED_META_KEYS:
+            return False
+        if recent_conversation_events(clean_chat, limit=1, include_artifacts=True) or clean_chat in pinned_chat_ids():
+            return False
+        grants = {(g.scope, g.source_id): replace(g) for g in list_context_imports(clean_chat)}
+        # Only what opening the chat gave it: the defaults and its own project. An import the person
+        # granted would not survive a restart in this process, so such a chat keeps its row.
+        own = {("user_profile", "profile:confirmed"), ("action_receipt", f"chat:{clean_chat}")}
+        if namespace.project_id:
+            own.add(("project", f"project:{namespace.project_id}"))
+        if not set(grants) <= own:
+            return False
+        with _UNSAVED_LOCK:
+            _UNSAVED.pop(clean_chat, None)
+            _UNSAVED[clean_chat] = (namespace, grants)
+            while len(_UNSAVED) > _UNSAVED_MAX:
+                _UNSAVED.pop(next(iter(_UNSAVED)), None)
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM context_import_grants WHERE chat_id = ?", (clean_chat,))
+            conn.execute("DELETE FROM context_namespaces WHERE chat_id = ?", (clean_chat,))
+            conn.commit()
+        finally:
+            conn.close()
+        if meta is not None:
+            _drop_session_meta(clean_chat)
+        return True
+    except Exception:
+        _log.warning("a private chat's unused row could not be released", exc_info=True)
+        return False
 
 
 def set_chat_namespace_project(
