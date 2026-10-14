@@ -168,6 +168,37 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("token.launches", "web", re.compile(
         r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
         r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
+    # -- market data collection (core/market_data; trades collected locally, then analyzed in code) --
+    # collect: a collecting verb near trade words, trades asked for a token, or a buy/sell-pressure
+    # question -- the collected rows answer it, never the model's memory
+    ("market.collect", "web", re.compile(
+        r"\b(?:collect|pull|gather|grab|download|fetch)\b[^.?!]{0,60}?"
+        r"\b(?:trades?|swaps?|trading\s+(?:data|history|activity)|market\s+data|candles?)\b"
+        r"|\b(?:trades?|swaps?|transactions?)\b[^.?!]{0,40}?\b(?:for|of|on)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|mint|ca|contract)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\blast\s+(?:\d+\s*)?(?:hours?|days?|weeks?)\s+of\s+(?:\w+\s+){0,2}?trades?\b"
+        r"|\b(?:being\s+)?bought\s+or\s+sold\b|\b(?:buy|sell)\s+pressure\b", re.I)),
+    # the stored datasets themselves: "list the datasets", "what datasets do you have"
+    ("market.datasets", "web", re.compile(
+        r"\b(?:list|show)\b[^.?!]{0,40}?\b(?:market\s+)?datasets?\b"
+        r"|\b(?:market\s+)?datasets?\b[^.?!]{0,40}?\b(?:do\s+you\s+(?:have|know)|are\s+(?:there|stored|saved)|have\s+you\s+collected)\b"
+        r"|\bmy\s+(?:collected\s+)?(?:market\s+)?datasets?\b", re.I)),
+    # deleting a stored dataset or its collected data
+    ("market.dataset_delete", "web", re.compile(
+        r"\b(?:delete|remove|drop|clear|forget)\b[^.?!]{0,50}?\b(?:the\s+)?(?:market\s+)?datasets?\b"
+        r"|\b(?:delete|remove|drop|clear)\b[^.?!]{0,50}?\bcollected\s+(?:market\s+)?(?:data|trades?)\b"
+        r"|\b(?:market\s+)?datasets?\b[^.?!]{0,30}?\b(?:deleted|removed|dropped)\b", re.I)),
+    # "what patterns do you see", "analyze the dataset", "patterns in the trades"
+    ("market.analyze", "web", re.compile(
+        r"\b(?:what|any)\s+patterns?\b[^.?!]{0,60}?\b(?:do|did|can)\s+you\s+see\b"
+        r"|\b(?:analy[sz]e|find\s+patterns?\s+in|look\s+for\s+patterns?\s+in)\b[^.?!]{0,60}?"
+        r"\b(?:the\s+)?(?:dataset|collected\s+(?:data|trades?)|market\s+data|trades?)\b"
+        r"|\bpatterns?\s+in\s+the\s+(?:data|trades?|dataset|numbers?)\b", re.I)),
+    # "check my thesis: ...", "test the idea that ..."
+    ("market.thesis_check", "web", re.compile(
+        r"\b(?:check|test|verify|validate)\b[^.?!]{0,40}?\b(?:my|the|this|that|a)\s+thesis\b"
+        r"|\bthesis\b[^.?!]{0,40}?\b(?:is|holds?|true|right|correct|wrong|supported|contradicted)\b"
+        r"|\bmy\s+(?:theory|hypothesis|idea)\b[^.?!]{0,60}?\b(?:is|that)\b", re.I)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",

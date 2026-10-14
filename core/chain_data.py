@@ -61,6 +61,7 @@ _OP_WORDS = {
 _OP_PHRASES = {
     cp.OP_BALANCE: "native balances", cp.OP_TOKENS: "token balances", cp.OP_HISTORY: "transaction history",
     cp.OP_TOKEN_INFO: "token info", cp.OP_HOLDERS: "token holders", cp.OP_TRANSACTION: "transaction lookups",
+    cp.OP_TOKEN_TRANSFERS: "token transfer history",
 }
 
 
@@ -800,6 +801,186 @@ def _etherscan_read(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: s
     return _evm_tx_text(chain, subject, tx, receipt)
 
 
+# --------------------------------------------------------------------------- market data sources
+
+
+def token_transfers(token: str, chain: str, since_ts: int, *, until_ts: int, provider: str = "",
+                    max_rows: int = 200_000, max_requests: int = 100) -> dict[str, Any]:
+    """One token's transfer history, newest first, for ``market.collect`` (core/market_data.py).
+
+    Reads through exactly the same door and key rules as the chat lookup: one provider (the one
+    named, else the first stored one in table order that serves the chain and this operation),
+    the operator's own key, no fallback behind the operator's back. A provider failure is
+    returned, never raised, so the caller keeps the sources that did answer; ``rows`` is then
+    empty. Each row: ``{ts, wallet, kind in|out, amount (token units), tx}`` -- one row per
+    wallet side of a transfer, because a net-flow question is asked per wallet.
+    """
+    try:
+        cfg, _others = _choose_provider({"provider": provider} if provider else {}, chain, cp.OP_TOKEN_TRANSFERS)
+    except ChainDataError as exc:
+        return {"status": exc.code, "message": exc.message, "provider": str(provider or ""), "rows": [], "stopped_reason": ""}
+    try:
+        if chain == cp.CHAIN_SOLANA:
+            rows, stopped = _solana_token_transfers(cfg, token, since_ts, until_ts, max_rows, max_requests)
+        elif cfg.provider_id == "etherscan":
+            rows, stopped = _etherscan_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows)
+        else:
+            rows, stopped = _alchemy_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows)
+    except ChainDataError as exc:
+        return {"status": exc.code, "message": exc.message, "provider": cfg.provider_id, "rows": [], "stopped_reason": ""}
+    except (ValueError, KeyError, TypeError, AttributeError, IndexError, InvalidOperation):
+        raise _shape_error(cfg) from None
+    return {"status": "ok", "provider": cfg.provider_id, "rows": rows, "stopped_reason": stopped}
+
+
+def _sides(frm: object, to: object, ts: int, amount: object, tx: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    value = float(amount) if amount is not None else None
+    for wallet, kind in ((str(frm or ""), "out"), (str(to or ""), "in")):
+        if wallet and value is not None and value != 0:
+            rows.append({"ts": ts, "wallet": wallet, "kind": kind, "amount": value, "tx": tx})
+    return rows
+
+
+def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: int, until_ts: int,
+                            max_rows: int, max_requests: int) -> tuple[list[dict[str, Any]], str]:
+    """Solana transfer history: the mint's signatures, then each transaction's pre/post token
+    balances, whose per-owner difference is the transfer. Skips failed transactions and names
+    how many were skipped."""
+    chain = cp.CHAIN_SOLANA
+    signatures: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    before = None
+    for _page in range(3):
+        options: dict[str, Any] = {"limit": 1000, "commitment": "confirmed"}
+        if before:
+            options["before"] = before
+        page = [r for r in _rpc(cfg, chain, "getSignaturesForAddress", [token, options])
+                if isinstance(r, dict) and r.get("signature")]
+        if not page:
+            break
+        added = 0
+        for r in page:
+            signature = str(r["signature"])
+            ts = r.get("blockTime")
+            if signature not in seen and isinstance(ts, int) and since_ts <= ts <= until_ts:
+                signatures.append((signature, ts))
+                seen.add(signature)
+                added += 1
+        last = page[-1]
+        before = str(last["signature"])
+        last_ts = last.get("blockTime")
+        # a page that adds nothing (a provider echoing the same page) or reaches past the window ends paging
+        if added == 0 or (isinstance(last_ts, int) and last_ts < since_ts):
+            break
+    stopped = ""
+    if len(signatures) > max_requests:
+        stopped = f"stopped after the newest {max_requests} transactions of {len(signatures)} found: read budget"
+        signatures = signatures[:max_requests]
+    rows: list[dict[str, Any]] = []
+    skipped_failed = 0
+    for signature, ts in signatures:
+        if len(rows) >= max_rows:
+            stopped = stopped or f"stopped at {len(rows)} rows: row cap"
+            break
+        result = _rpc(cfg, chain, "getTransaction",
+                      [signature, {"encoding": "json", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}])
+        if not isinstance(result, dict) or not isinstance(result.get("meta"), dict):
+            raise _shape_error(cfg)
+        meta = result["meta"]
+        if meta.get("err") is not None:
+            skipped_failed += 1
+            continue
+        pre: dict[int, tuple[str, float]] = {}
+        post: dict[int, tuple[str, float]] = {}
+        for entries, into in ((meta.get("preTokenBalances") or [], pre), (meta.get("postTokenBalances") or [], post)):
+            for entry in entries:
+                if entry.get("mint") != token:
+                    continue
+                owner = str(entry.get("owner") or "")
+                ui = (entry.get("uiTokenAmount") or {}).get("uiAmount")
+                if owner and isinstance(ui, (int, float)):
+                    into[int(entry["accountIndex"])] = (owner, float(ui))
+        moved: dict[str, float] = {}
+        for index in set(pre) | set(post):
+            owner = (post.get(index) or pre.get(index) or ("", 0.0))[0]
+            delta = (post.get(index) or (owner, 0.0))[1] - (pre.get(index) or (owner, 0.0))[1]
+            if owner and delta:
+                moved[owner] = moved.get(owner, 0.0) + delta
+        for owner, delta in moved.items():
+            rows.append({"ts": ts, "wallet": owner, "kind": "in" if delta > 0 else "out", "amount": abs(delta),
+                         "tx": signature})
+    if skipped_failed:
+        stopped = stopped or f"{skipped_failed} failed transaction(s) skipped"
+    return rows, stopped
+
+
+def _etherscan_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
+                               until_ts: int, max_rows: int) -> tuple[list[dict[str, Any]], str]:
+    """ERC-20 transfer history from Etherscan's token-transfer listing, newest pages first."""
+    rows: list[dict[str, Any]] = []
+    stopped = ""
+    for page_no in range(1, 6):
+        result = _etherscan(cfg, chain, {"module": "account", "action": "tokentx", "contractaddress": token,
+                                          "page": str(page_no), "offset": "1000", "sort": "desc"}, empty_ok=True)
+        page = result if isinstance(result, list) else []
+        if not page:
+            break
+        oldest: int | None = None
+        for t in page:
+            ts = int(str(t.get("timeStamp") or 0))
+            oldest = ts if oldest is None else min(oldest, ts)
+            if not since_ts <= ts <= until_ts:
+                continue
+            decimals = int(str(t.get("tokenDecimal") or 0))
+            amount = Decimal(str(t.get("value") or 0)).scaleb(-decimals) if decimals >= 0 else None
+            rows.extend(_sides(t.get("from"), t.get("to"), ts, float(amount) if amount is not None else None,
+                               str(t.get("hash") or "")))
+        if len(rows) >= max_rows:
+            stopped = f"stopped at {len(rows)} rows: row cap"
+            break
+        if oldest is not None and oldest < since_ts:
+            break
+    return rows, stopped
+
+
+def _alchemy_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
+                             until_ts: int, max_rows: int) -> tuple[list[dict[str, Any]], str]:
+    """ERC-20 transfer history from Alchemy's transfer listing, newest pages first."""
+    from datetime import datetime
+
+    params: dict[str, Any] = {"fromBlock": "0x0", "toBlock": "latest", "contractAddresses": [token],
+                              "category": ["erc20"], "withMetadata": True, "maxCount": hex(1000), "order": "desc"}
+    rows: list[dict[str, Any]] = []
+    stopped = ""
+    for _page in range(5):
+        result = _rpc(cfg, chain, "alchemy_getAssetTransfers", [params])
+        if not isinstance(result, dict):
+            raise _shape_error(cfg)
+        transfers = [t for t in result.get("transfers") or [] if isinstance(t, dict)]
+        if not transfers:
+            break
+        oldest: int | None = None
+        for t in transfers:
+            stamp = str((t.get("metadata") or {}).get("blockTimestamp") or "").replace("Z", "+00:00")
+            try:
+                ts = int(datetime.fromisoformat(stamp).timestamp()) if stamp else 0
+            except ValueError:
+                ts = 0
+            oldest = ts if oldest is None else min(oldest, ts)
+            if not since_ts <= ts <= until_ts:
+                continue
+            rows.extend(_sides(t.get("from"), t.get("to"), ts, t.get("value"), str(t.get("hash") or "")))
+        if len(rows) >= max_rows:
+            stopped = f"stopped at {len(rows)} rows: row cap"
+            break
+        page_key = result.get("pageKey")
+        if not page_key or (oldest is not None and oldest < since_ts):
+            break
+        params["pageKey"] = page_key
+    return rows, stopped
+
+
 # --------------------------------------------------------------------------- Settings "Test"
 
 _TEST_STATES = {
@@ -835,4 +1016,5 @@ def probe_chain_provider(provider_id: str) -> dict[str, Any]:
             "http_status": outcome.http_status}
 
 
-__all__ = ["INTENT", "SURFACE", "ChainDataError", "chain_contracts", "lookup", "probe_chain_provider", "run_tool"]
+__all__ = ["INTENT", "SURFACE", "ChainDataError", "chain_contracts", "lookup", "probe_chain_provider", "run_tool",
+           "token_transfers"]
