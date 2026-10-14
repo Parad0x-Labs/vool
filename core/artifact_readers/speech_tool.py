@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import platform
 import shutil
@@ -35,6 +36,8 @@ from typing import Any
 from ._limits import SUBPROCESS_TIMEOUT_S
 from ._sandbox import run_confined
 from ._types import ReaderFailed, ReaderUnavailable
+
+_LOG = logging.getLogger(__name__)
 
 SWIFTC = "/usr/bin/swiftc"
 TOOL_NAME = "vool_speech_tool"
@@ -223,6 +226,14 @@ def _toolchain_unavailable_words() -> tuple[str, str]:
     return "Voice typing can't run safely on this Mac yet.", ""
 
 
+def _build_failed_words() -> tuple[str, str]:
+    """A failed one-time build of the recogniser, in words; the compiler's own output goes to the log."""
+    return (
+        "Voice typing couldn't be set up on this Mac.",
+        "Restart VOOL and try again. If it keeps happening, reinstall Apple's free Command Line Tools.",
+    )
+
+
 def _binary_path() -> Path:
     return tools_dir() / f"{TOOL_NAME}-{TOOL_VERSION}-{_source_digest()}"
 
@@ -249,18 +260,13 @@ def ensure_tool() -> Path:
                 check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ReaderUnavailable(
-                f"The built-in speech helper could not be compiled ({exc}).",
-                code="speech_build_failed",
-                remediation="Check that the Xcode Command Line Tools are installed and working.",
-            ) from exc
+            _LOG.warning("speech helper build failed: %s", exc)
+            raise ReaderUnavailable(*_build_failed_words(), code="speech_build_failed") from exc
         if completed.returncode != 0 or not staged.exists():
+            # Compiler output is for the log, not for the person reading the chat.
             detail = (completed.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-            raise ReaderUnavailable(
-                "The built-in speech helper could not be compiled: " + ("; ".join(detail[-3:]) or "unknown compiler error"),
-                code="speech_build_failed",
-                remediation="Check that the Xcode Command Line Tools are installed and working.",
-            )
+            _LOG.warning("speech helper build failed: %s", "; ".join(detail[-3:]) or "unknown compiler error")
+            raise ReaderUnavailable(*_build_failed_words(), code="speech_build_failed")
         # Atomic publish: a half-written binary is never visible to a concurrent extraction.
         pending = binary.with_name(binary.name + f".{os.getpid()}.tmp")
         shutil.copy2(staged, pending)
@@ -381,21 +387,19 @@ def transcribe_unavailable(locale: str = DEFAULT_LOCALE) -> ReaderUnavailable | 
     except ReaderUnavailable:
         raise
     except Exception as exc:
-        return ReaderUnavailable(
-            f"The speech recogniser could not be probed on this machine ({exc}).",
-            code="speech_probe_failed",
-            remediation="Check that the Xcode Command Line Tools are installed and working.",
-            fmt="audio",
-        )
+        _LOG.warning("speech recogniser probe failed: %s", exc)
+        message, remediation = _build_failed_words()
+        return ReaderUnavailable(message, code="speech_probe_failed", remediation=remediation, fmt="audio")
     authorization = str(facts.get("authorization") or "")
     if authorization != "authorized":
+        # The macOS state ("notDetermined", "denied", "restricted") is a code, not words: the same
+        # message as the transcription path, so dictation and audio files say one thing.
         return ReaderUnavailable(
-            f"This machine has not granted Speech Recognition access (status: {authorization}), so audio was not transcribed.",
+            "Voice typing needs your permission to use speech recognition on this Mac.",
             code="speech_recognizer_unauthorized",
             remediation=(
-                "Enable Speech Recognition for this app in System Settings → Privacy & Security → "
-                "Speech Recognition. Until then audio attachments are refused with this reason and "
-                "dictation is unavailable."
+                "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "
+                "Until then voice typing and audio files stay off."
             ),
             fmt="audio",
         )
