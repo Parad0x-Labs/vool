@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "主题和文字大小",
     "run.refused_reason": "VOOL 未运行本轮：{reason}",
     "run.refused_status": "VOOL 未运行本轮（HTTP {status}）。",
+    "run.queue_returned": "排队中 — 正在等待此对话的当前这一轮结束。",
+    "run.queue_returned_summary": "已放回队列，排在对话正在进行的这一轮之后",
+    "run.queue_claim_stuck": "这条消息已被取出，但未能开始，也未能放回队列。它仍有记录；重新启动 VOOL 即可恢复。",
+    "run.queue_claim_stuck_summary": "已取出的消息既未能开始，也未能放回队列",
+    "run.queue_rerouted": "排队中 — 此对话正在另一个窗口中结束一轮。",
+    "run.queue_rerouted_summary": "排在对话正在进行的这一轮之后",
+    "run.queue_reroute_failed": "对话正在结束一轮，消息未能加入队列。其文本已放回此对话的草稿。",
+    "run.queue_reroute_failed_summary": "此对话正在结束一轮，消息未能加入队列",
     "own_tools.reply.on": "完成。你选择的云端模型现在会使用自己的工具而不是 VOOL 的工具，因此大多数不会联网搜索就直接回答。少数付费模型可以自己上网搜索：这类搜索在模型的提供方进行，所以你的问题会发给那家公司，费用计入你的支出上限。付款仍然需要你的批准。Auto 和本地模型保留 VOOL 的工具。要切换回来，请说 \"use VOOL's tools\"。",
     "own_tools.reply.off": "完成。所有模型已重新使用 VOOL 的工具。",
     "own_tools.reply.already_on": "模型自带工具已经开启。要切换回来，请说 \"use VOOL's tools\"。",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。",
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。"
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

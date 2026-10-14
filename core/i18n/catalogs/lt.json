@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Tema ir teksto dydis",
     "run.refused_reason": "VOOL šio ėjimo nevykdė: {reason}",
     "run.refused_status": "VOOL šio ėjimo nevykdė (HTTP {status}).",
+    "run.queue_returned": "Eilėje — laukiama, kol baigsis dabartinis šio pokalbio ėjimas.",
+    "run.queue_returned_summary": "Grąžinta į eilę už vykstančio pokalbio ėjimo",
+    "run.queue_claim_stuck": "Šis pranešimas buvo paimtas, bet nepavyko jo pradėti ir nepavyko grąžinti į eilę. Jis lieka įrašytas; paleiskite VOOL iš naujo, kad jį atkurtumėte.",
+    "run.queue_claim_stuck_summary": "Paimto pranešimo nepavyko nei pradėti, nei grąžinti į eilę",
+    "run.queue_rerouted": "Eilėje — šis pokalbis baigia ėjimą kitame lange.",
+    "run.queue_rerouted_summary": "Eilėje už vykstančio pokalbio ėjimo",
+    "run.queue_reroute_failed": "Pokalbis baigia ėjimą, o pranešimo nepavyko įdėti į eilę. Jo tekstas grąžintas į šio pokalbio juodraštį.",
+    "run.queue_reroute_failed_summary": "Šis pokalbis baigia ėjimą, o pranešimo nepavyko įdėti į eilę",
     "own_tools.reply.on": "Atlikta. Jūsų pasirinkti debesies modeliai dabar naudoja savo įrankius vietoj VOOL įrankių, todėl dauguma atsakys neieškodami. Kai kurie mokami modeliai patys gali ieškoti internete: ta paieška vyksta pas modelio teikėją, todėl jūsų klausimas nueina tai įmonei, o mokestis įskaičiuojamas į jūsų išlaidų ribą. Mokėjimams vis dar reikia jūsų patvirtinimo. Auto ir vietiniai modeliai pasilieka VOOL įrankius. Norėdami grįžti, pasakykite \"use VOOL's tools\".",
     "own_tools.reply.off": "Atlikta. Vėl naudoju VOOL įrankius visiems modeliams.",
     "own_tools.reply.already_on": "Paties modelio įrankiai jau įjungti. Norėdami grįžti, pasakykite \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

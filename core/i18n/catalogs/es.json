@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Tema y tamaño del texto",
     "run.refused_reason": "VOOL no ejecutó este turno: {reason}",
     "run.refused_status": "VOOL no ejecutó este turno (HTTP {status}).",
+    "run.queue_returned": "En cola — esperando a que termine el turno actual de este chat.",
+    "run.queue_returned_summary": "Devuelto a la cola detrás del turno activo del chat",
+    "run.queue_claim_stuck": "Este mensaje se tomó pero no pudo empezar, y no se pudo devolver a la cola. Sigue guardado; reinicia VOOL para recuperarlo.",
+    "run.queue_claim_stuck_summary": "El mensaje tomado no pudo empezar ni volver a la cola",
+    "run.queue_rerouted": "En cola — este chat está terminando un turno en otra ventana.",
+    "run.queue_rerouted_summary": "En cola detrás del turno activo del chat",
+    "run.queue_reroute_failed": "El chat está terminando un turno y el mensaje no se pudo poner en cola. Su texto se restauró en el borrador de este chat.",
+    "run.queue_reroute_failed_summary": "Este chat está terminando un turno y el mensaje no se pudo poner en cola",
     "own_tools.reply.on": "Hecho. Los modelos en la nube que elijas ahora usan sus propias herramientas en lugar de las de VOOL, así que la mayoría responderá sin buscar. Algunos de pago buscan en la web por sí mismos: esa búsqueda se hace en el proveedor del modelo, así que tu pregunta llega a esa empresa, y la tarifa cuenta para tu límite de gasto. Los pagos siguen necesitando tu aprobación. Auto y los modelos locales mantienen las herramientas de VOOL. Para volver, di \"use VOOL's tools\".",
     "own_tools.reply.off": "Hecho. Estoy usando las herramientas de VOOL de nuevo para todos los modelos.",
     "own_tools.reply.already_on": "Las herramientas propias del modelo ya están activadas. Para volver, di \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está.",
     "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

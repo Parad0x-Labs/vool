@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Tema e tamanho do texto",
     "run.refused_reason": "O VOOL não executou este turno: {reason}",
     "run.refused_status": "O VOOL não executou este turno (HTTP {status}).",
+    "run.queue_returned": "Na fila — aguardando o fim do turno atual desta conversa.",
+    "run.queue_returned_summary": "Devolvida à fila atrás do turno ativo da conversa",
+    "run.queue_claim_stuck": "Esta mensagem foi retirada da fila mas não pôde começar, e não pôde voltar para a fila. Ela continua registrada; reinicie o VOOL para recuperá-la.",
+    "run.queue_claim_stuck_summary": "A mensagem retirada não pôde começar nem voltar para a fila",
+    "run.queue_rerouted": "Na fila — esta conversa está terminando um turno em outra janela.",
+    "run.queue_rerouted_summary": "Na fila atrás do turno ativo da conversa",
+    "run.queue_reroute_failed": "A conversa está terminando um turno e a mensagem não pôde entrar na fila. O texto dela voltou para o rascunho desta conversa.",
+    "run.queue_reroute_failed_summary": "Esta conversa está terminando um turno e a mensagem não pôde entrar na fila",
     "own_tools.reply.on": "Pronto. Os modelos na nuvem que você escolher agora usam as ferramentas próprias deles em vez das do VOOL, então a maioria vai responder sem pesquisar. Alguns modelos pagos pesquisam na web sozinhos: essa pesquisa acontece no provedor do modelo, então a sua pergunta vai para essa empresa, e a taxa conta no seu limite de gastos. Pagamentos ainda precisam da sua aprovação. Auto e os modelos locais mantêm as ferramentas do VOOL. Para voltar, diga \"use VOOL's tools\".",
     "own_tools.reply.off": "Pronto. Estou usando as ferramentas do VOOL de novo para todos os modelos.",
     "own_tools.reply.already_on": "As ferramentas próprias do modelo já estão ativadas. Para voltar, diga \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

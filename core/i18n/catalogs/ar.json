@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "المظهر وحجم النص",
     "run.refused_reason": "لم يشغّل VOOL هذا الدور: {reason}",
     "run.refused_status": "لم يشغّل VOOL هذا الدور (HTTP {status}).",
+    "run.queue_returned": "في قائمة الانتظار — بانتظار انتهاء الدور الحالي في هذه المحادثة.",
+    "run.queue_returned_summary": "أُعيدت إلى قائمة الانتظار خلف الدور الجاري في المحادثة",
+    "run.queue_claim_stuck": "تم حجز هذه الرسالة لكنها لم تبدأ، ولم يمكن إعادتها إلى قائمة الانتظار. تبقى محفوظة؛ أعد تشغيل VOOL لاستعادتها.",
+    "run.queue_claim_stuck_summary": "لم تبدأ الرسالة المحجوزة ولم تعد إلى قائمة الانتظار",
+    "run.queue_rerouted": "في قائمة الانتظار — هذه المحادثة تُنهي دورًا في نافذة أخرى.",
+    "run.queue_rerouted_summary": "في قائمة الانتظار خلف الدور الجاري في المحادثة",
+    "run.queue_reroute_failed": "المحادثة تُنهي دورًا ولم يمكن وضع الرسالة في قائمة الانتظار. أُعيد نصها إلى مسودة هذه المحادثة.",
+    "run.queue_reroute_failed_summary": "هذه المحادثة تُنهي دورًا ولم يمكن وضع الرسالة في قائمة الانتظار",
     "own_tools.reply.on": "تم. النماذج السحابية التي تختارها تستخدم الآن أدواتها الخاصة بدلًا من أدوات VOOL، لذا ستُجيب معظمها دون بحث. بعض النماذج المدفوعة تبحث على الويب بنفسها: يجري ذلك البحث لدى مزوّد النموذج، فيصل سؤالك إلى تلك الشركة، ويُحتسب ضمن حد إنفاقك. ما زالت المدفوعات تحتاج موافقتك. يحتفظ Auto والنماذج المحلية بأدوات VOOL. للعودة قل \"use VOOL's tools\".",
     "own_tools.reply.off": "تم. أستخدم أدوات VOOL مجددًا لكل النماذج.",
     "own_tools.reply.already_on": "أدوات النموذج الخاصة مفعّلة بالفعل. للعودة قل \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

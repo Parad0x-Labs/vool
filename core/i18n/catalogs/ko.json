@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "테마와 글자 크기",
     "run.refused_reason": "VOOL이 이번 턴을 실행하지 않았습니다: {reason}",
     "run.refused_status": "VOOL이 이번 턴을 실행하지 않았습니다 (HTTP {status}).",
+    "run.queue_returned": "대기 중 — 이 채팅의 현재 턴이 끝나기를 기다리는 중입니다.",
+    "run.queue_returned_summary": "채팅에서 진행 중인 턴 뒤로 대기열에 다시 넣었습니다",
+    "run.queue_claim_stuck": "이 메시지는 가져왔지만 시작하지 못했고 대기열로 되돌리지도 못했습니다. 기록은 남아 있습니다. 복구하려면 VOOL을 다시 시작하세요.",
+    "run.queue_claim_stuck_summary": "가져온 메시지를 시작하지도, 대기열로 되돌리지도 못했습니다",
+    "run.queue_rerouted": "대기 중 — 이 채팅이 다른 창에서 턴을 마무리하는 중입니다.",
+    "run.queue_rerouted_summary": "채팅에서 진행 중인 턴 뒤에서 대기 중",
+    "run.queue_reroute_failed": "채팅이 턴을 마무리하는 중이라 메시지를 대기열에 넣지 못했습니다. 메시지 내용은 이 채팅의 초안으로 되돌렸습니다.",
+    "run.queue_reroute_failed_summary": "이 채팅이 턴을 마무리하는 중이라 메시지를 대기열에 넣지 못했습니다",
     "own_tools.reply.on": "완료했습니다. 직접 고른 클라우드 모델은 이제 VOOL의 도구 대신 자체 도구를 사용하므로, 대부분은 검색하지 않고 답합니다. 일부 유료 모델은 스스로 웹을 검색할 수 있습니다. 그 검색은 모델 제공업체에서 이루어지므로 질문이 그 회사로 전달되고, 요금은 지출 한도에 포함됩니다. 결제에는 여전히 승인이 필요합니다. Auto와 로컬 모델은 VOOL의 도구를 그대로 씁니다. 되돌리려면 \"use VOOL's tools\"라고 말하세요.",
     "own_tools.reply.off": "완료했습니다. 모든 모델에 다시 VOOL 도구를 사용합니다.",
     "own_tools.reply.already_on": "모델 자체 도구가 이미 켜져 있습니다. 되돌리려면 \"use VOOL's tools\"라고 말하세요.",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
     "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

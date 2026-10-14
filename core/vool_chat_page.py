@@ -8655,10 +8655,10 @@ async function runTurn(text, queueItemId, opts) {
           // once the chat's current turn frees the slot.
           const released = await queueOp('release', chatId, { queue_item_id: run.queueItemId });
           if (released && released.released) {
-            run.text = 'Queued \u2014 waiting for this chat\u2019s current turn to finish.';
+            run.text = pageT('run.queue_returned', 'Queued \u2014 waiting for this chat\u2019s current turn to finish.');
             if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
             if (run.textEl) run.textEl.textContent = run.text;
-            finishRun(run, 'cancelled', 'Returned to the queue behind the chat\u2019s active turn');
+            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Returned to the queue behind the chat\u2019s active turn'));
             releaseComposer(run);
             refreshQueue(chatId);
             return;
@@ -8666,10 +8666,10 @@ async function runTurn(text, queueItemId, opts) {
           // The release was refused (another dispatch consumed this claim) or the door
           // failed. The row keeps its in_flight record -- restart recovery's owner -- and
           // the turn ends failed with the honest state. Never a duplicate, never a loss.
-          run.text = 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.';
+          run.text = pageT('run.queue_claim_stuck', 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.');
           if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
           if (run.textEl) run.textEl.textContent = run.text;
-          finishRun(run, 'failed', 'The claimed message could not start or return to the queue');
+          finishRun(run, 'failed', pageT('run.queue_claim_stuck_summary', 'The claimed message could not start or return to the queue'));
           releaseComposer(run);
           return;
         }
@@ -8686,10 +8686,10 @@ async function runTurn(text, queueItemId, opts) {
         const queued = await queueOp('enqueue', chatId, extra);
         if (queued && queued.item) {
           owner.queueArrivals++;
-          run.text = 'Queued \u2014 this chat is finishing a turn in another window.';
+          run.text = pageT('run.queue_rerouted', 'Queued \u2014 this chat is finishing a turn in another window.');
           if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
           if (run.textEl) run.textEl.textContent = run.text;
-          finishRun(run, 'cancelled', 'Queued behind the chat\'s active turn');
+          finishRun(run, 'cancelled', pageT('run.queue_rerouted_summary', 'Queued behind the chat\u2019s active turn'));
           releaseComposer(run);
           refreshQueue(chatId);
           return;
@@ -8698,10 +8698,10 @@ async function runTurn(text, queueItemId, opts) {
         // -- the text goes back to this chat's draft and the turn ends failed, never lost
         // silently behind a bubble claiming it was queued.
         if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, text);
-        run.text = 'The chat is finishing a turn and the message could not be queued. Its text was restored to this chat\u2019s draft.';
+        run.text = pageT('run.queue_reroute_failed', 'The chat is finishing a turn and the message could not be queued. Its text was restored to this chat\u2019s draft.');
         if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
         if (run.textEl) run.textEl.textContent = run.text;
-        finishRun(run, 'failed', 'This chat is finishing a turn and the message could not be queued');
+        finishRun(run, 'failed', pageT('run.queue_reroute_failed_summary', 'This chat is finishing a turn and the message could not be queued'));
         releaseComposer(run);
         return;
       }

@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Motyw i rozmiar tekstu",
     "run.refused_reason": "VOOL nie wykonał tej tury: {reason}",
     "run.refused_status": "VOOL nie wykonał tej tury (HTTP {status}).",
+    "run.queue_returned": "W kolejce — czeka na zakończenie bieżącej tury tego czatu.",
+    "run.queue_returned_summary": "Wróciło do kolejki za trwającą turą czatu",
+    "run.queue_claim_stuck": "Ta wiadomość została pobrana, ale nie mogła się rozpocząć ani wrócić do kolejki. Pozostaje zapisana; uruchom ponownie VOOL, aby ją odzyskać.",
+    "run.queue_claim_stuck_summary": "Pobrana wiadomość nie mogła się rozpocząć ani wrócić do kolejki",
+    "run.queue_rerouted": "W kolejce — ten czat kończy turę w innym oknie.",
+    "run.queue_rerouted_summary": "W kolejce za trwającą turą czatu",
+    "run.queue_reroute_failed": "Czat kończy turę i nie udało się dodać wiadomości do kolejki. Jej tekst wrócił do szkicu tego czatu.",
+    "run.queue_reroute_failed_summary": "Ten czat kończy turę i nie udało się dodać wiadomości do kolejki",
     "own_tools.reply.on": "Gotowe. Wybrane przez ciebie modele w chmurze używają teraz własnych narzędzi zamiast narzędzi VOOL, więc większość odpowie bez wyszukiwania. Niektóre płatne modele same szukają w sieci: to wyszukiwanie odbywa się u dostawcy modelu, więc twoje pytanie trafia do tej firmy, a opłata wlicza się do twojego limitu wydatków. Płatności nadal wymagają twojej zgody. Auto i modele lokalne zachowują narzędzia VOOL. Żeby wrócić, powiedz \"use VOOL's tools\".",
     "own_tools.reply.off": "Gotowe. Znowu używam narzędzi VOOL dla każdego modelu.",
     "own_tools.reply.already_on": "Własne narzędzia modelu są już włączone. Żeby wrócić, powiedz \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

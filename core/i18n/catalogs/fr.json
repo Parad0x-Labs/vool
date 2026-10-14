@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Thème et taille du texte",
     "run.refused_reason": "VOOL n'a pas exécuté ce tour : {reason}",
     "run.refused_status": "VOOL n'a pas exécuté ce tour (HTTP {status}).",
+    "run.queue_returned": "En file d’attente — en attente de la fin du tour en cours dans cette conversation.",
+    "run.queue_returned_summary": "Remis dans la file d’attente derrière le tour en cours de la conversation",
+    "run.queue_claim_stuck": "Ce message a été pris en charge mais n’a pas pu démarrer, ni être remis dans la file d’attente. Il reste enregistré ; redémarrez VOOL pour le récupérer.",
+    "run.queue_claim_stuck_summary": "Le message pris en charge n’a pas pu démarrer ni revenir dans la file d’attente",
+    "run.queue_rerouted": "En file d’attente — cette conversation termine un tour dans une autre fenêtre.",
+    "run.queue_rerouted_summary": "En file d’attente derrière le tour en cours de la conversation",
+    "run.queue_reroute_failed": "La conversation termine un tour et le message n’a pas pu être mis en file d’attente. Son texte a été remis dans le brouillon de cette conversation.",
+    "run.queue_reroute_failed_summary": "Cette conversation termine un tour et le message n’a pas pu être mis en file d’attente",
     "own_tools.reply.on": "C'est fait. Les modèles cloud que vous choisissez utilisent maintenant leurs propres outils au lieu de ceux de VOOL, donc la plupart répondront sans faire de recherche. Quelques modèles payants cherchent sur le web eux-mêmes : cette recherche a lieu chez le fournisseur du modèle, votre question est donc transmise à cette entreprise, et les frais comptent dans votre limite de dépenses. Les paiements demandent toujours votre approbation. Auto et les modèles locaux gardent les outils de VOOL. Dites \"use VOOL's tools\" pour revenir.",
     "own_tools.reply.off": "C'est fait. J'utilise de nouveau les outils de VOOL pour tous les modèles.",
     "own_tools.reply.already_on": "Les outils propres au modèle sont déjà activés. Dites \"use VOOL's tools\" pour revenir.",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
     "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

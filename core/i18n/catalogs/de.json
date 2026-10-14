@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Design und Textgröße",
     "run.refused_reason": "VOOL hat diesen Zug nicht ausgeführt: {reason}",
     "run.refused_status": "VOOL hat diesen Zug nicht ausgeführt (HTTP {status}).",
+    "run.queue_returned": "In der Warteschlange — wartet, bis der aktuelle Zug in diesem Chat fertig ist.",
+    "run.queue_returned_summary": "Zurück in die Warteschlange hinter den laufenden Zug des Chats",
+    "run.queue_claim_stuck": "Diese Nachricht wurde übernommen, konnte aber nicht starten und nicht in die Warteschlange zurückgelegt werden. Sie bleibt gespeichert; starte VOOL neu, um sie wiederherzustellen.",
+    "run.queue_claim_stuck_summary": "Die übernommene Nachricht konnte weder starten noch in die Warteschlange zurück",
+    "run.queue_rerouted": "In der Warteschlange — dieser Chat beendet gerade einen Zug in einem anderen Fenster.",
+    "run.queue_rerouted_summary": "In der Warteschlange hinter dem laufenden Zug des Chats",
+    "run.queue_reroute_failed": "Der Chat beendet gerade einen Zug, und die Nachricht konnte nicht in die Warteschlange gestellt werden. Ihr Text steht wieder im Entwurf dieses Chats.",
+    "run.queue_reroute_failed_summary": "Dieser Chat beendet gerade einen Zug, und die Nachricht konnte nicht in die Warteschlange gestellt werden",
     "own_tools.reply.on": "Erledigt. Cloud-Modelle, die du wählst, nutzen jetzt ihre eigenen Werkzeuge statt der von VOOL, die meisten antworten also ohne Suche. Einige kostenpflichtige Modelle durchsuchen das Web selbst: diese Suche läuft beim Anbieter des Modells, deine Frage geht also an dieses Unternehmen, und die Gebühr zählt gegen dein Ausgabenlimit. Zahlungen brauchen weiterhin deine Freigabe. Auto und lokale Modelle behalten die Werkzeuge von VOOL. Sag \"use VOOL's tools\", um zurückzuwechseln.",
     "own_tools.reply.off": "Erledigt. Ich benutze wieder die Werkzeuge von VOOL für jedes Modell.",
     "own_tools.reply.already_on": "Die eigenen Werkzeuge des Modells sind schon an. Sag \"use VOOL's tools\", um zurückzuwechseln.",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

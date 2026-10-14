@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Giao diện và cỡ chữ",
     "run.refused_reason": "VOOL không chạy lượt này: {reason}",
     "run.refused_status": "VOOL không chạy lượt này (HTTP {status}).",
+    "run.queue_returned": "Trong hàng đợi — đang chờ lượt hiện tại của cuộc trò chuyện này kết thúc.",
+    "run.queue_returned_summary": "Đã trả lại hàng đợi, sau lượt đang chạy của cuộc trò chuyện",
+    "run.queue_claim_stuck": "Tin nhắn này đã được lấy ra nhưng không thể bắt đầu, và không thể trả lại hàng đợi. Nó vẫn được lưu lại; hãy khởi động lại VOOL để khôi phục.",
+    "run.queue_claim_stuck_summary": "Tin nhắn đã lấy ra không thể bắt đầu hay trở lại hàng đợi",
+    "run.queue_rerouted": "Trong hàng đợi — cuộc trò chuyện này đang kết thúc một lượt ở cửa sổ khác.",
+    "run.queue_rerouted_summary": "Trong hàng đợi, sau lượt đang chạy của cuộc trò chuyện",
+    "run.queue_reroute_failed": "Cuộc trò chuyện đang kết thúc một lượt và không thể đưa tin nhắn vào hàng đợi. Nội dung đã được trả lại bản nháp của cuộc trò chuyện này.",
+    "run.queue_reroute_failed_summary": "Cuộc trò chuyện này đang kết thúc một lượt và không thể đưa tin nhắn vào hàng đợi",
     "own_tools.reply.on": "Xong rồi. Các mô hình đám mây bạn chọn giờ dùng công cụ riêng của chúng thay vì công cụ của VOOL, nên đa số sẽ trả lời mà không tìm kiếm. Một vài mô hình trả phí có thể tự tìm trên web: việc tìm kiếm diễn ra ở nhà cung cấp mô hình, nên câu hỏi của bạn được gửi tới công ty đó, và phí được tính vào giới hạn chi tiêu của bạn. Thanh toán vẫn cần sự phê duyệt của bạn. Auto và mô hình cục bộ vẫn giữ công cụ của VOOL. Để quay lại, hãy nói \"use VOOL's tools\".",
     "own_tools.reply.off": "Xong rồi. Tôi lại dùng công cụ của VOOL cho mọi mô hình.",
     "own_tools.reply.already_on": "Công cụ riêng của mô hình đã bật rồi. Để quay lại, hãy nói \"use VOOL's tools\".",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

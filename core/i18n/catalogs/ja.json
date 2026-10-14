@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "テーマと文字サイズ",
     "run.refused_reason": "VOOL はこのターンを実行しませんでした: {reason}",
     "run.refused_status": "VOOL はこのターンを実行しませんでした (HTTP {status})。",
+    "run.queue_returned": "待機中 — このチャットの現在のターンが終わるのを待っています。",
+    "run.queue_returned_summary": "チャットの実行中のターンの後ろで待機列に戻しました",
+    "run.queue_claim_stuck": "このメッセージは取り出されましたが開始できず、待機列にも戻せませんでした。記録は残っています。復旧するには VOOL を再起動してください。",
+    "run.queue_claim_stuck_summary": "取り出したメッセージを開始することも待機列に戻すこともできませんでした",
+    "run.queue_rerouted": "待機中 — このチャットは別のウィンドウでターンを終えようとしています。",
+    "run.queue_rerouted_summary": "チャットの実行中のターンの後ろで待機中",
+    "run.queue_reroute_failed": "チャットがターンを終えようとしているため、メッセージを待機列に入れられませんでした。本文はこのチャットの下書きに戻しました。",
+    "run.queue_reroute_failed_summary": "このチャットがターンを終えようとしているため、メッセージを待機列に入れられませんでした",
     "own_tools.reply.on": "完了しました。選んだクラウドモデルは VOOL のツールの代わりに自分のツールを使うようになったので、ほとんどは検索せずに答えます。一部の有料モデルは自分でウェブを検索できます。その検索はモデルの提供元で行われるため、質問はその会社に送られ、料金は支出上限に含まれます。支払いには引き続きあなたの承認が必要です。Auto とローカルモデルは VOOL のツールを使い続けます。戻すには\"use VOOL's tools\"と言ってください。",
     "own_tools.reply.off": "完了しました。すべてのモデルで再び VOOL のツールを使っています。",
     "own_tools.reply.already_on": "モデル自身のツールはすでにオンです。戻すには\"use VOOL's tools\"と言ってください。",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。"
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

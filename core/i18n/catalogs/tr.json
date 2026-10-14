@@ -2377,6 +2377,14 @@
     "settings.row.appearance_theme.label": "Tema ve metin boyutu",
     "run.refused_reason": "VOOL bu turu çalıştırmadı: {reason}",
     "run.refused_status": "VOOL bu turu çalıştırmadı (HTTP {status}).",
+    "run.queue_returned": "Sırada — bu sohbetteki mevcut turun bitmesi bekleniyor.",
+    "run.queue_returned_summary": "Sohbetin süren turunun arkasına, sıraya geri alındı",
+    "run.queue_claim_stuck": "Bu mesaj alındı ama başlayamadı ve sıraya geri konamadı. Kayıtlı kalıyor; kurtarmak için VOOL’u yeniden başlat.",
+    "run.queue_claim_stuck_summary": "Alınan mesaj ne başlayabildi ne de sıraya dönebildi",
+    "run.queue_rerouted": "Sırada — bu sohbet başka bir pencerede bir turu bitiriyor.",
+    "run.queue_rerouted_summary": "Sohbetin süren turunun arkasında sırada",
+    "run.queue_reroute_failed": "Sohbet bir turu bitiriyor ve mesaj sıraya alınamadı. Metni bu sohbetin taslağına geri kondu.",
+    "run.queue_reroute_failed_summary": "Bu sohbet bir turu bitiriyor ve mesaj sıraya alınamadı",
     "own_tools.reply.on": "Tamam. Seçtiğin bulut modelleri artık VOOL'un araçları yerine kendi araçlarını kullanıyor, bu yüzden çoğu aramadan yanıt verir. Bazı ücretli modeller web'de kendileri arama yapar: bu arama modelin sağlayıcısında yapılır, yani sorun o şirkete gider ve ücret harcama sınırına sayılır. Ödemeler yine onayını gerektirir. Auto ve yerel modeller VOOL'un araçlarını korur. Geri dönmek için \"use VOOL's tools\" de.",
     "own_tools.reply.off": "Tamam. Her model için yeniden VOOL araçlarını kullanıyorum.",
     "own_tools.reply.already_on": "Modelin kendi araçları zaten açık. Geri dönmek için \"use VOOL's tools\" de.",
@@ -2600,7 +2608,7 @@
     "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "536df4abb0b799191ba47078a26ab37e356d4d1da4a5303205cf03e07ed8171f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
