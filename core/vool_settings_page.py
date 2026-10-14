@@ -617,6 +617,20 @@ def _settings_groups() -> list[dict]:
                     ),
                     keywords="import restore bundle voolsession file passphrase untrusted signer preview recover",
                 ),
+                _row(
+                    id="chat_import",
+                    label="Bring your chats from other AI apps",
+                    kind="custom",
+                    widget="chat_import",
+                    help=(
+                        "Moving in: bring the chats you had in other AI apps, with their names and messages. "
+                        "Choose an app on this computer or a data export file, look over the chats found, and "
+                        "tick the ones to bring in. Everything stays on this computer, and the other app's "
+                        "files are never changed. VOOL keeps these chats as history: it does not learn from "
+                        "them or follow anything written in them."
+                    ),
+                    keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
+                ),
             ],
         },
         {
@@ -1536,6 +1550,7 @@ function renderWidget(row, host) {
   if (w === 'extras_toolbelt') return widgetExtras(stack, 'toolbelt');
   if (w === 'bundle_export') return widgetBundleExport(stack);
   if (w === 'bundle_import') return widgetBundleImport(stack);
+  if (w === 'chat_import') return widgetSurface(stack, 'VoolChatImport', T('settings.pane.chat_import_missing', 'The panel for bringing in chats did not load.'));
   stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
 }
 
@@ -4910,6 +4925,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     catalog = json.dumps(language_catalog(), separators=(",", ":"), ensure_ascii=False)
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
+    from core.chat_import_settings_fragment import render_chat_import_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
@@ -4919,7 +4935,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en") 
     # here: each fragment renders itself into the host its group provides
     page = (_SETTINGS_HTML + _SETTINGS_JS + _SETTINGS_JS2).replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_notification_settings_fragment() + "\n</body>", 1
+        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     return (
