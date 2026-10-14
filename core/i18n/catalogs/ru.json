@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Веб-поиск",
     "settings.row.web_lookups.local_only_note": "Включён режим «только локально». Сначала выключите его.",
     "settings.row.web_lookups.retry_note": "VOOL не смог изменить это сейчас. Попробуйте ещё раз чуть позже.",
+    "settings.row.automatic_checks.label": "Выходить в интернет самостоятельно",
+    "settings.row.automatic_checks.help": "Позволяет VOOL самому выходить в интернет, без вашей просьбы. Когда это включено, VOOL может при запуске скачать недостающую локальную модель и проверить, какие облачные модели доступны. Если этот компьютер настроен для публичной сети VOOL, VOOL также сообщает этой сети, когда он онлайн. На ваши вопросы это не влияет: у веб-поиска свой переключатель. По умолчанию выключено.",
     "settings.row.automatic_checks.local_only_note": "Включён режим «только локально». Сначала выключите его.",
     "settings.row.automatic_checks.retry_note": "VOOL не смог изменить это сейчас. Попробуйте ещё раз чуть позже.",
-    "settings.row.automatic_checks.label": "Автоматические сетевые проверки",
-    "settings.row.automatic_checks.help": "Позволяет VOOL самому выходить в интернет — например искать обновления моделей, обновлять свой список моделей, синхронизировать своё присутствие с узлами сети или исследовать собственные темы, пока компьютер простаивает. На ваши вопросы это не влияет. Пока вы это не включите, ничего не выходит в сеть само по себе."
+    "settings.row.automatic_checks.read_failed": "VOOL не смог прочитать эту настройку. Откройте Настройки заново, чтобы попробовать ещё раз.",
+    "settings.row.automatic_checks.saving": "Сохранение…",
+    "settings.row.automatic_checks.saved": "Сохранено",
+    "settings.row.automatic_checks.not_saved": "Не сохранено — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Отправлено, но VOOL не смог это подтвердить. Откройте Настройки заново, чтобы проверить.",
+    "settings.row.automatic_checks.no_answer": "Не сохранено — VOOL не ответил."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

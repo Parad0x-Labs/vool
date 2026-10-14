@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Pesquisas na web",
     "settings.row.web_lookups.local_only_note": "O modo apenas local está ligado. Desligue-o primeiro.",
     "settings.row.web_lookups.retry_note": "O VOOL não conseguiu alterar isto agora. Tente novamente daqui a pouco.",
+    "settings.row.automatic_checks.label": "Ligar-se à internet por conta própria",
+    "settings.row.automatic_checks.help": "Permite que o VOOL se ligue à internet por conta própria, sem que peça. Quando está ativado, o VOOL pode transferir um modelo local em falta ao iniciar e verificar que modelos na nuvem estão disponíveis. Se este computador estiver configurado para a rede pública do VOOL, o VOOL também informa essa rede quando está online. As perguntas que faz não são afetadas: as pesquisas na web têm o seu próprio interruptor. Desligado por predefinição.",
     "settings.row.automatic_checks.local_only_note": "O modo apenas local está ligado. Desligue-o primeiro.",
     "settings.row.automatic_checks.retry_note": "O VOOL não conseguiu alterar isto agora. Tente novamente daqui a pouco.",
-    "settings.row.automatic_checks.label": "Verificações online automáticas",
-    "settings.row.automatic_checks.help": "Deixa o VOOL ligar-se à internet por iniciativa própria — por exemplo, para procurar atualizações de modelos, renovar a sua lista de modelos, sincronizar a sua presença com os pares ou pesquisar temas seus enquanto a máquina está parada. As perguntas que faz não são afetadas. Nada se liga à internet por si até ativar esta opção."
+    "settings.row.automatic_checks.read_failed": "O VOOL não conseguiu ler esta definição. Abra novamente as Configurações para tentar outra vez.",
+    "settings.row.automatic_checks.saving": "Salvando…",
+    "settings.row.automatic_checks.saved": "Salvo",
+    "settings.row.automatic_checks.not_saved": "Não salvo — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Enviado, mas o VOOL não conseguiu confirmar. Abra novamente as Configurações para verificar.",
+    "settings.row.automatic_checks.no_answer": "Não salvo — o VOOL não respondeu."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

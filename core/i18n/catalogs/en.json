@@ -1903,10 +1903,16 @@
     "private.banner_short": "Private",
     "private.end_short": "Save again",
     "private.reload_note": "This chat is private. Private messages are not saved, so they don't show here after a reload.",
-    "settings.row.automatic_checks.label": "Automatic online checks",
-    "settings.row.automatic_checks.help": "Lets VOOL go online by itself — for example to look for model updates, refresh its model list, sync its presence with peers, or research topics of its own while the machine is idle. Questions you ask are not affected. Nothing goes online by itself until you switch this on.",
+    "settings.row.automatic_checks.label": "Go online on its own",
+    "settings.row.automatic_checks.help": "Lets VOOL go online on its own, without you asking. When this is on, VOOL may download a missing local model when it starts and check which cloud models are available. If this computer is set up for the public VOOL network, VOOL also tells that network when it is online. Questions you ask are not affected: Web lookups has its own switch. Off by default.",
     "settings.row.automatic_checks.local_only_note": "Local-only mode is on. Turn it off first.",
-    "settings.row.automatic_checks.retry_note": "VOOL could not change this right now. Try again in a moment."
+    "settings.row.automatic_checks.retry_note": "VOOL could not change this right now. Try again in a moment.",
+    "settings.row.automatic_checks.read_failed": "VOOL could not read this setting. Reopen Settings to try again.",
+    "settings.row.automatic_checks.saving": "Saving…",
+    "settings.row.automatic_checks.saved": "Saved",
+    "settings.row.automatic_checks.not_saved": "Not saved — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Sent, but VOOL could not confirm it. Reopen Settings to check.",
+    "settings.row.automatic_checks.no_answer": "Not saved — VOOL did not answer."
   },
   "html_keys": [
     "bypass.modal_limits",

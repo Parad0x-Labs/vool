@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "عمليات البحث في الويب",
     "settings.row.web_lookups.local_only_note": "وضع المحلي فقط مفعّل. أوقفه أولًا.",
     "settings.row.web_lookups.retry_note": "تعذّر على VOOL تغيير هذا الآن. حاول مرة أخرى بعد قليل.",
+    "settings.row.automatic_checks.label": "الاتصال بالإنترنت تلقائيًا",
+    "settings.row.automatic_checks.help": "يتيح لـ VOOL الاتصال بالإنترنت من تلقاء نفسه، دون أن تطلب ذلك. عند تشغيل هذا الخيار، قد ينزّل VOOL عند بدء تشغيله نموذجًا محليًا ناقصًا، ويتحقق من نماذج السحابة المتاحة. وإذا كان هذا الكمبيوتر مُعدًّا لشبكة VOOL العامة، فإن VOOL يُعلم تلك الشبكة أيضًا عندما يكون متصلًا. الأسئلة التي تطرحها لا تتأثر بذلك: لعمليات البحث في الويب مفتاحها الخاص. مُعطّل افتراضيًا.",
     "settings.row.automatic_checks.local_only_note": "وضع المحلي فقط مفعّل. أوقفه أولًا.",
     "settings.row.automatic_checks.retry_note": "تعذّر على VOOL تغيير هذا الآن. حاول مرة أخرى بعد قليل.",
-    "settings.row.automatic_checks.label": "الفحوصات التلقائية عبر الإنترنت",
-    "settings.row.automatic_checks.help": "يتيح لـ VOOL الاتصال بالإنترنت من تلقاء نفسه — مثلًا للبحث عن تحديثات النماذج أو تحديث قائمة نماذجه أو مزامنة حضوره مع الأقران أو بحث مواضيع من اختياره أثناء خمول الجهاز. الأسئلة التي تطرحها لا تتأثر بذلك. لا يتصل أي شيء بالإنترنت من تلقاء نفسه حتى تشغّل هذا الخيار."
+    "settings.row.automatic_checks.read_failed": "تعذّر على VOOL قراءة هذا الإعداد. أعد فتح الإعدادات للمحاولة مرة أخرى.",
+    "settings.row.automatic_checks.saving": "جارٍ الحفظ…",
+    "settings.row.automatic_checks.saved": "تم الحفظ",
+    "settings.row.automatic_checks.not_saved": "لم يُحفظ — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "تم الإرسال، لكن تعذّر على VOOL تأكيده. أعد فتح الإعدادات للتحقق.",
+    "settings.row.automatic_checks.no_answer": "لم يُحفظ — لم يجب VOOL."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

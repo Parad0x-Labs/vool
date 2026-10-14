@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Tra cứu web",
     "settings.row.web_lookups.local_only_note": "Chế độ chỉ cục bộ đang bật. Hãy tắt nó trước.",
     "settings.row.web_lookups.retry_note": "VOOL chưa thể thay đổi mục này lúc này. Hãy thử lại sau giây lát.",
+    "settings.row.automatic_checks.label": "Tự lên mạng",
+    "settings.row.automatic_checks.help": "Cho phép VOOL tự lên mạng mà không cần bạn yêu cầu. Khi bật, VOOL có thể tải về một mô hình cục bộ còn thiếu lúc khởi động và kiểm tra những mô hình đám mây nào đang có. Nếu máy tính này được thiết lập cho mạng VOOL công khai, VOOL cũng báo cho mạng đó biết khi mình đang trực tuyến. Những câu hỏi của bạn không bị ảnh hưởng: Tra cứu web có công tắc riêng. Mặc định tắt.",
     "settings.row.automatic_checks.local_only_note": "Chế độ chỉ cục bộ đang bật. Hãy tắt nó trước.",
     "settings.row.automatic_checks.retry_note": "VOOL chưa thể thay đổi mục này lúc này. Hãy thử lại sau giây lát.",
-    "settings.row.automatic_checks.label": "Kiểm tra trực tuyến tự động",
-    "settings.row.automatic_checks.help": "Cho phép VOOL tự lên mạng — chẳng hạn để tìm bản cập nhật mô hình, làm mới danh sách mô hình của mình, đồng bộ sự hiện diện với các máy ngang hàng, hoặc tự nghiên cứu chủ đề khi máy đang rảnh. Những câu hỏi của bạn không bị ảnh hưởng. Không có gì tự lên mạng cho đến khi bạn bật tính năng này."
+    "settings.row.automatic_checks.read_failed": "VOOL không đọc được cài đặt này. Hãy mở lại Cài đặt để thử lại.",
+    "settings.row.automatic_checks.saving": "Đang lưu…",
+    "settings.row.automatic_checks.saved": "Đã lưu",
+    "settings.row.automatic_checks.not_saved": "Chưa lưu — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Đã gửi, nhưng VOOL không xác nhận được. Hãy mở lại Cài đặt để kiểm tra.",
+    "settings.row.automatic_checks.no_answer": "Chưa lưu — VOOL không trả lời."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

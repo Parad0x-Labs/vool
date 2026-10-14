@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Web aramaları",
     "settings.row.web_lookups.local_only_note": "Yalnızca yerel mod açık. Önce onu kapatın.",
     "settings.row.web_lookups.retry_note": "VOOL bunu şu anda değiştiremedi. Birazdan tekrar deneyin.",
+    "settings.row.automatic_checks.label": "Kendi başına çevrimiçi olma",
+    "settings.row.automatic_checks.help": "VOOL'un siz istemeden kendi başına çevrimiçi olmasını sağlar. Bu açıkken VOOL başlarken eksik bir yerel modeli indirebilir ve hangi bulut modellerinin kullanılabildiğini kontrol edebilir. Bu bilgisayar herkese açık VOOL ağı için ayarlanmışsa, VOOL çevrimiçi olduğunda bunu o ağa da bildirir. Sorduğunuz sorular bundan etkilenmez: Web aramalarının kendi anahtarı vardır. Varsayılan olarak kapalı.",
     "settings.row.automatic_checks.local_only_note": "Yalnızca yerel mod açık. Önce onu kapatın.",
     "settings.row.automatic_checks.retry_note": "VOOL bunu şu anda değiştiremedi. Birazdan tekrar deneyin.",
-    "settings.row.automatic_checks.label": "Otomatik çevrimiçi kontroller",
-    "settings.row.automatic_checks.help": "VOOL'un kendi başına çevrimiçi olmasını sağlar — örneğin model güncellemelerine bakmak, model listesini yenilemek, varlığını eşlerle eşitlemek veya bilgisayar boştayken kendi seçtiği konuları araştırmak için. Sorduğunuz sorular bundan etkilenmez. Bunu siz açana kadar hiçbir şey kendi başına çevrimiçi olmaz."
+    "settings.row.automatic_checks.read_failed": "VOOL bu ayarı okuyamadı. Yeniden denemek için Ayarlar'ı tekrar açın.",
+    "settings.row.automatic_checks.saving": "Kaydediliyor…",
+    "settings.row.automatic_checks.saved": "Kaydedildi",
+    "settings.row.automatic_checks.not_saved": "Kaydedilmedi — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Gönderildi, ancak VOOL bunu doğrulayamadı. Kontrol etmek için Ayarlar'ı tekrar açın.",
+    "settings.row.automatic_checks.no_answer": "Kaydedilmedi — VOOL yanıt vermedi."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

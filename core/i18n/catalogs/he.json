@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "חיפושים באינטרנט",
     "settings.row.web_lookups.local_only_note": "מצב מקומי בלבד מופעל. כבו אותו קודם.",
     "settings.row.web_lookups.retry_note": "VOOL לא הצליח לשנות את זה כרגע. נסו שוב בעוד רגע.",
+    "settings.row.automatic_checks.label": "יציאה לאינטרנט באופן עצמאי",
+    "settings.row.automatic_checks.help": "מאפשר ל-VOOL לצאת לאינטרנט מעצמו, בלי שתבקשו. כשזה מופעל, VOOL עשוי להוריד בעת ההפעלה מודל מקומי חסר ולבדוק אילו מודלי ענן זמינים. אם המחשב הזה מוגדר לרשת VOOL הציבורית, VOOL גם מודיע לרשת הזו כשהוא מחובר. השאלות שאתם שואלים אינן מושפעות מכך: לחיפושים באינטרנט יש מתג משלהם. כבוי כברירת מחדל.",
     "settings.row.automatic_checks.local_only_note": "מצב מקומי בלבד מופעל. כבו אותו קודם.",
     "settings.row.automatic_checks.retry_note": "VOOL לא הצליח לשנות את זה כרגע. נסו שוב בעוד רגע.",
-    "settings.row.automatic_checks.label": "בדיקות מקוונות אוטומטיות",
-    "settings.row.automatic_checks.help": "מאפשר ל-VOOL לצאת לאינטרנט מעצמו — למשל כדי לחפש עדכוני מודלים, לרענן את רשימת המודלים שלו, לסנכרן את נוכחותו עם עמיתים או לחקור נושאים מטעם עצמו כשהמחשב במנוחה. השאלות שאתם שואלים אינן מושפעות מכך. שום דבר לא יוצא לאינטרנט מעצמו עד שתפעילו זאת."
+    "settings.row.automatic_checks.read_failed": "VOOL לא הצליח לקרוא את ההגדרה הזו. פתחו את ההגדרות מחדש כדי לנסות שוב.",
+    "settings.row.automatic_checks.saving": "שומר…",
+    "settings.row.automatic_checks.saved": "נשמר",
+    "settings.row.automatic_checks.not_saved": "לא נשמר — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "נשלח, אבל VOOL לא הצליח לאשר זאת. פתחו את ההגדרות מחדש כדי לבדוק.",
+    "settings.row.automatic_checks.no_answer": "לא נשמר — VOOL לא ענה."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

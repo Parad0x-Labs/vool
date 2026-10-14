@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Interneto paieška",
     "settings.row.web_lookups.local_only_note": "Įjungtas režimas „Tik lokaliai“. Pirmiausia jį išjunkite.",
     "settings.row.web_lookups.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą.",
+    "settings.row.automatic_checks.label": "Prisijungti prie interneto savarankiškai",
+    "settings.row.automatic_checks.help": "Leidžia VOOL pačiam prisijungti prie interneto, jums neprašant. Kai tai įjungta, VOOL paleidimo metu gali atsisiųsti trūkstamą vietinį modelį ir patikrinti, kokie debesijos modeliai pasiekiami. Jei šis kompiuteris nustatytas viešajam VOOL tinklui, VOOL taip pat praneša tam tinklui, kai yra prisijungęs. Jūsų užduodami klausimai nuo to nepasikeičia: interneto paieška turi savo jungiklį. Pagal numatytuosius nustatymus išjungta.",
     "settings.row.automatic_checks.local_only_note": "Įjungtas režimas „Tik lokaliai“. Pirmiausia jį išjunkite.",
     "settings.row.automatic_checks.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą.",
-    "settings.row.automatic_checks.label": "Automatiniai interneto patikrinimai",
-    "settings.row.automatic_checks.help": "Leidžia VOOL pačiam eiti į internetą — pavyzdžiui, ieškoti modelių atnaujinimų, atnaujinti savo modelių sąrašą, sinchronizuoti savo būseną su lygiarangiais arba tirti pačio pasirinktas temas, kai kompiuteris nenaudojamas. Jūsų užduodami klausimai nuo to nepasikeičia. Kol to neįjungsite, niekas iš savęs neina į internetą."
+    "settings.row.automatic_checks.read_failed": "VOOL nepavyko perskaityti šio nustatymo. Atidarykite Nustatymus iš naujo ir bandykite dar kartą.",
+    "settings.row.automatic_checks.saving": "Įrašoma…",
+    "settings.row.automatic_checks.saved": "Įrašyta",
+    "settings.row.automatic_checks.not_saved": "Neįrašyta — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Išsiųsta, bet VOOL nepavyko to patvirtinti. Atidarykite Nustatymus iš naujo ir patikrinkite.",
+    "settings.row.automatic_checks.no_answer": "Neįrašyta — VOOL neatsakė."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

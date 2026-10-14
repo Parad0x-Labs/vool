@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "ウェブ検索",
     "settings.row.web_lookups.local_only_note": "ローカルのみモードが有効です。先にオフにしてください。",
     "settings.row.web_lookups.retry_note": "VOOL は今これを変更できませんでした。少し待ってからもう一度お試しください。",
+    "settings.row.automatic_checks.label": "自動でオンラインに接続",
+    "settings.row.automatic_checks.help": "あなたが頼まなくても、VOOL が自らオンラインに接続できるようにします。オンにすると、VOOL は起動時に足りないローカルモデルをダウンロードしたり、利用できるクラウドモデルを確認したりすることがあります。このコンピューターが公開 VOOL ネットワーク用に設定されている場合は、オンラインになったことをそのネットワークにも伝えます。あなたが尋ねる質問には影響しません。ウェブ検索には専用のスイッチがあります。既定ではオフです。",
     "settings.row.automatic_checks.local_only_note": "ローカルのみモードが有効です。先にオフにしてください。",
     "settings.row.automatic_checks.retry_note": "VOOL は今これを変更できませんでした。少し待ってからもう一度お試しください。",
-    "settings.row.automatic_checks.label": "自動オンライン確認",
-    "settings.row.automatic_checks.help": "VOOL が自らオンラインに接続できるようになります。たとえばモデルの更新確認、モデル一覧の更新、ピアとのプレゼンス同期、マシンが暇なときの自主的なテーマの調査などです。あなたが尋ねた質問には影響しません。これをオンにするまで、何も自らオンラインに接続することはありません。"
+    "settings.row.automatic_checks.read_failed": "VOOL はこの設定を読み取れませんでした。設定を開き直して、もう一度お試しください。",
+    "settings.row.automatic_checks.saving": "保存中…",
+    "settings.row.automatic_checks.saved": "保存しました",
+    "settings.row.automatic_checks.not_saved": "保存されませんでした — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "送信しましたが、VOOL は確認できませんでした。設定を開き直して確認してください。",
+    "settings.row.automatic_checks.no_answer": "保存されませんでした — VOOL が応答しませんでした。"
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

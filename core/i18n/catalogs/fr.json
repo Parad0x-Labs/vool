@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Recherches web",
     "settings.row.web_lookups.local_only_note": "Le mode local uniquement est activé. Désactivez-le d'abord.",
     "settings.row.web_lookups.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
+    "settings.row.automatic_checks.label": "Se connecter de lui-même",
+    "settings.row.automatic_checks.help": "Permet à VOOL de se connecter à internet de lui-même, sans que vous le demandiez. Quand c'est activé, VOOL peut télécharger au démarrage un modèle local manquant et vérifier quels modèles cloud sont disponibles. Si cet ordinateur est configuré pour le réseau public VOOL, VOOL signale aussi à ce réseau quand il est en ligne. Les questions que vous posez ne sont pas concernées : les recherches web ont leur propre interrupteur. Désactivé par défaut.",
     "settings.row.automatic_checks.local_only_note": "Le mode local uniquement est activé. Désactivez-le d'abord.",
     "settings.row.automatic_checks.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
-    "settings.row.automatic_checks.label": "Vérifications en ligne automatiques",
-    "settings.row.automatic_checks.help": "Laisse VOOL se connecter seul à internet — par exemple pour chercher des mises à jour de modèles, actualiser sa liste de modèles, synchroniser sa présence avec ses pairs ou faire ses propres recherches pendant que la machine est inactive. Les questions que vous posez ne sont pas concernées. Rien ne se connecte en ligne de lui-même tant que vous n'activez pas cette option."
+    "settings.row.automatic_checks.read_failed": "VOOL n'a pas pu lire ce réglage. Rouvrez les Réglages pour réessayer.",
+    "settings.row.automatic_checks.saving": "Enregistrement…",
+    "settings.row.automatic_checks.saved": "Enregistré",
+    "settings.row.automatic_checks.not_saved": "Non enregistré — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Envoyé, mais VOOL n'a pas pu le confirmer. Rouvrez les Réglages pour vérifier.",
+    "settings.row.automatic_checks.no_answer": "Non enregistré — VOOL n'a pas répondu."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

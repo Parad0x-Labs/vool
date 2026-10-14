@@ -1903,12 +1903,18 @@
     "settings.row.web_lookups.label": "Wyszukiwanie w sieci",
     "settings.row.web_lookups.local_only_note": "Tryb tylko lokalny jest włączony. Najpierw go wyłącz.",
     "settings.row.web_lookups.retry_note": "VOOL nie mógł teraz tego zmienić. Spróbuj ponownie za chwilę.",
+    "settings.row.automatic_checks.label": "Samodzielne łączenie z internetem",
+    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem, bez twojej prośby. Gdy to jest włączone, VOOL może przy starcie pobrać brakujący model lokalny i sprawdzić, jakie modele w chmurze są dostępne. Jeśli ten komputer jest skonfigurowany do publicznej sieci VOOL, VOOL informuje też tę sieć, kiedy jest online. Twoje pytania nie są tym objęte: wyszukiwanie w sieci ma własny przełącznik. Domyślnie wyłączone.",
     "settings.row.automatic_checks.local_only_note": "Tryb tylko lokalny jest włączony. Najpierw go wyłącz.",
     "settings.row.automatic_checks.retry_note": "VOOL nie mógł teraz tego zmienić. Spróbuj ponownie za chwilę.",
-    "settings.row.automatic_checks.label": "Automatyczne sprawdzanie online",
-    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem — na przykład szukać aktualizacji modeli, odświeżać listę modeli, synchronizować swoją obecność z partnerami albo badać własne tematy, gdy komputer jest bezczynny. Twoje pytania nie są tym objęte. Nic nie łączy się z internetem samodzielnie, dopóki tego nie włączysz."
+    "settings.row.automatic_checks.read_failed": "VOOL nie mógł odczytać tego ustawienia. Otwórz Ustawienia ponownie, aby spróbować jeszcze raz.",
+    "settings.row.automatic_checks.saving": "Zapisywanie…",
+    "settings.row.automatic_checks.saved": "Zapisano",
+    "settings.row.automatic_checks.not_saved": "Nie zapisano — {reason}",
+    "settings.row.automatic_checks.unconfirmed": "Wysłano, ale VOOL nie mógł tego potwierdzić. Otwórz Ustawienia ponownie, aby sprawdzić.",
+    "settings.row.automatic_checks.no_answer": "Nie zapisano — VOOL nie odpowiedział."
   },
-  "source_catalog_sha256": "c72f87ba5273cd7a5e15c99a5f5f4402d16d0fdaab4c938716ccdec57b6d7442",
+  "source_catalog_sha256": "15ba1ebcb84e06c985cb923cbe4ba41f63db1e3adb748d826bb0d664a3b5e5ee",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

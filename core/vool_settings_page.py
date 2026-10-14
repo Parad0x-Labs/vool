@@ -63,7 +63,7 @@ CREDENTIALS = "/api/settings/credentials"
 SETUP_STATE = "/api/setup/state"
 VERSION = "/api/runtime/version"
 PROFILE = "/api/profile"
-# The Web lookups and Automatic online checks rows read the live boundary truth through the
+# The Web lookups and "Go online on its own" rows read the live boundary truth through the
 # pact GET projection (view=boundary: the owning policy's values, no tour state) and write
 # through the existing boundary command POST /api/onboarding/pact/boundary from their own
 # widgets.
@@ -365,17 +365,18 @@ def _settings_groups() -> list[dict]:
                 ),
                 _row(
                     id="automatic_checks",
-                    label="Automatic online checks",
+                    label="Go online on its own",
                     kind="custom",
                     widget="automatic_checks",
                     help=(
-                        "Lets VOOL go online by itself — for example to look for model updates, "
-                        "refresh its model list, sync its presence with peers, or research topics "
-                        "of its own while the machine is idle. Questions you ask are not affected. "
-                        "Nothing goes online by itself until you switch this on."
+                        "Lets VOOL go online on its own, without you asking. When this is on, VOOL may "
+                        "download a missing local model when it starts and check which cloud models are "
+                        "available. If this computer is set up for the public VOOL network, VOOL also "
+                        "tells that network when it is online. Questions you ask are not affected: Web "
+                        "lookups has its own switch. Off by default."
                     ),
                     read={"url": WEB_LOOKUPS_READ},
-                    keywords="automatic online checks outbound background network updates presence idle research telemetry",
+                    keywords="online on its own automatic outbound background network model download cloud models public network",
                 ),
                 _row(
                     id="mode_note",
@@ -4384,41 +4385,61 @@ function widgetWebLookups(stack) {
   });
 }
 
-/* --- Automatic online checks. Same shape as Web lookups, one policy key away: the switch owns
-   network.outbound_enabled (VOOL's own unattended network work) and nothing else. Local-only mode
-   vetoes turning it on exactly as it vetoes web lookups; turning it off is always allowed, and the
-   row never changes local-only mode itself. */
+/* --- Go online on its own (network.outbound_enabled). Same shape as Web lookups, one policy key
+   away: the switch owns network.outbound_enabled (VOOL's own unattended network work) and nothing
+   else. Local-only mode vetoes turning it on exactly as it vetoes web lookups; turning it off is
+   always allowed, and the row never changes local-only mode itself. A consent control fails
+   closed: when the answer cannot be read, or does not carry both booleans, no switch is drawn --
+   the row never shows "off" for a value it does not know. */
+function automaticChecksReading(src) {
+  if (!src || src.ok === false) return null;
+  if (typeof src.outbound_enabled !== 'boolean' || typeof src.local_only_mode !== 'boolean') return null;
+  return { localOnly: src.local_only_mode, on: src.outbound_enabled && !src.local_only_mode };
+}
 function widgetAutomaticChecks(stack) {
-  const err = state.sourceErr[WEB_LOOKUPS_URL];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
+  const readFailed = () => T('settings.row.automatic_checks.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
+  if (state.sourceErr[WEB_LOOKUPS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
   const src = state.sources[WEB_LOOKUPS_URL];
   if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  const first = automaticChecksReading(src);
+  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
 
-  const localOnly = !!src.local_only_mode;
-  const on = !!src.outbound_enabled && !localOnly;
   const st = el('div', 'state idle');
+  st.setAttribute('role', 'status');
   const line = el('div', 'inline');
   const sw = el('button', 'sw');
   sw.type = 'button';
   sw.setAttribute('role', 'switch');
-  sw.setAttribute('aria-checked', on ? 'true' : 'false');
-  sw.setAttribute('aria-label', T('settings.row.automatic_checks.label', 'Automatic online checks'));
-  if (localOnly) sw.disabled = true;
+  sw.setAttribute('aria-label', T('settings.row.automatic_checks.label', 'Go online on its own'));
+  const note = el('div', 'subtle',
+    T('settings.row.automatic_checks.local_only_note', 'Local-only mode is on. Turn it off first.'));
   line.appendChild(sw);
   stack.appendChild(line);
-  if (localOnly) {
-    stack.appendChild(el('div', 'subtle',
-      tfmt('settings.row.automatic_checks.local_only_note', 'Local-only mode is on. Turn it off first.')));
-  }
+  stack.appendChild(note);
   stack.appendChild(st);
+  /* Paint one reading; an unreadable one leaves the switch unusable rather than guessing. */
+  const paint = (reading) => {
+    if (!reading) {
+      sw.disabled = true;
+      sw.setAttribute('aria-checked', 'false');
+      note.style.display = 'none';
+      return;
+    }
+    sw.setAttribute('aria-checked', reading.on ? 'true' : 'false');
+    sw.disabled = reading.localOnly;
+    note.style.display = reading.localOnly ? '' : 'none';
+  };
+  paint(first);
 
   sw.addEventListener('click', async () => {
     if (sw.disabled) return;
     /* The target is decided from the authority's last read, not from the value at render time. */
-    const now = state.sources[WEB_LOOKUPS_URL] || {};
-    const want = !(!!now.outbound_enabled && !now.local_only_mode);
+    const now = automaticChecksReading(state.sources[WEB_LOOKUPS_URL]);
+    if (!now || now.localOnly) { paint(now); return; }
+    const want = !now.on;
     sw.disabled = true;
-    st.className = 'state saving'; st.textContent = 'Saving…';
+    st.className = 'state saving'; st.textContent = T('settings.row.automatic_checks.saving', 'Saving…');
+    const notSaved = (reason) => tfmt('settings.row.automatic_checks.not_saved', 'Not saved — {reason}', { reason });
     try {
       const r = await fetch('/api/onboarding/pact/boundary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4433,33 +4454,28 @@ function widgetAutomaticChecks(stack) {
         const why = code === 'invalid_transition'
           ? T('settings.row.automatic_checks.local_only_note', 'Local-only mode is on. Turn it off first.')
           : T('settings.row.automatic_checks.retry_note', 'VOOL could not change this right now. Try again in a moment.');
-        if (await readSource(WEB_LOOKUPS_URL)) {
-          const live = state.sources[WEB_LOOKUPS_URL] || {};
-          sw.setAttribute('aria-checked', (!!live.outbound_enabled && !live.local_only_mode) ? 'true' : 'false');
-          sw.disabled = !!live.local_only_mode;
-        } else {
-          sw.disabled = false;
-        }
-        st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
+        const reread = await readSource(WEB_LOOKUPS_URL);
+        paint(reread ? automaticChecksReading(state.sources[WEB_LOOKUPS_URL]) : null);
+        st.className = 'state failed'; st.textContent = notSaved(why);
         return;
       }
       /* Read back from the authority rather than trusting the 200. */
       const ok = await readSource(WEB_LOOKUPS_URL);
-      const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
-      if (!back || !!back.outbound_enabled !== want) {
-        if (back) sw.setAttribute('aria-checked', (!!back.outbound_enabled && !back.local_only_mode) ? 'true' : 'false');
-        sw.disabled = !!(back && back.local_only_mode);
+      const back = ok ? automaticChecksReading(state.sources[WEB_LOOKUPS_URL]) : null;
+      paint(back);
+      if (!back || back.on !== want) {
         st.className = 'state stale';
-        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
+        st.textContent = T('settings.row.automatic_checks.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
         return;
       }
-      sw.setAttribute('aria-checked', want ? 'true' : 'false');
-      sw.disabled = false;
-      st.className = 'state saved'; st.textContent = 'Saved';
+      st.className = 'state saved'; st.textContent = T('settings.row.automatic_checks.saved', 'Saved');
       setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
     } catch (e) {
-      sw.disabled = false;
-      st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
+      /* No answer: re-read; if that fails too, the switch is not trusted to show the old value. */
+      const reread = await readSource(WEB_LOOKUPS_URL);
+      paint(reread ? automaticChecksReading(state.sources[WEB_LOOKUPS_URL]) : null);
+      st.className = 'state failed';
+      st.textContent = T('settings.row.automatic_checks.no_answer', 'Not saved — VOOL did not answer.');
     }
   });
 }
