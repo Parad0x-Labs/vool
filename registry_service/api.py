@@ -16,10 +16,11 @@ from starlette.routing import Route
 from core.registry.artifact import native_identity
 from core.registry.categories import TAXONOMY, public_taxonomy
 from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
+from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
 from registry_service import community
 from registry_service.auth import Auth
-from registry_service.curation import labels, load_curation
+from registry_service.curation import labels, load_curation, picture_approvals
 from registry_service.store import Store
 
 PREFIX = "/registry/api"
@@ -43,6 +44,7 @@ def _search_text(row: dict) -> str:
 def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.time, discovery=None,
                curation: dict | None = None, github=None) -> Starlette:
     curation = load_curation() if curation is None else curation
+    approvals = picture_approvals(curation)
 
     def now():
         return int(clock())
@@ -141,7 +143,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             stats = await run_in_threadpool(store.stats, info["id"])
             creator = await run_in_threadpool(store.public_profile, info["id"].split("/")[0])
             requirements = boundaries["requirements"]
-            rows.append({**info, **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
+            rows.append({**{key: val for key, val in info.items() if key not in KINDS},
+                         **shown_pictures(info["id"], boundaries["pictures"]), **stats, "sha256": approved["artifact_sha256"], "reviewed": True,
                          "creator": creator, "publication": approved["publication"],
                          "requirements": {**requirements, "dependencies": sorted(
                              packages.get(item, item) for item in requirements["dependencies"])},
@@ -167,6 +170,39 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
             row["published_at"] = first[row["id"]]
             row.update(labels(curation, row["id"], row["version"]))
         return rows
+
+    def shown_pictures(package_id: str, pictures: dict) -> dict:
+        """Pictures approved for this skill as a page shows them; the rest are named as waiting for a person's look."""
+        shown = {kind: {"sha256": item["sha256"], "type": item["type"], "width": item["width"], "height": item["height"],
+                        "url": PREFIX + "/pictures/" + package_id + "/" + item["sha256"]}
+                 for kind, item in pictures.items() if (package_id, item["sha256"]) in approvals}
+        pending = [kind for kind in KINDS if kind in pictures and kind not in shown]
+        return shown | ({"pictures_pending": pending} if pending else {})
+
+    async def picture(request):
+        package_id = request.path_params["publisher"] + "/" + request.path_params["name"]
+        sha256 = request.path_params["sha256"]
+        require((package_id, sha256) in approvals, "picture not found")
+        # Only a picture this skill's currently listed versions carry, never any other stored file.
+        require(catalog.current is not None and now() < catalog.current["expires"], "picture not found")
+        listed = False
+        for envelope in catalog.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if info["id"] != package_id or not any(info.get(kind, {}).get("sha256") == sha256 for kind in KINDS):
+                continue
+            try:
+                approved = entry(info["id"], info["version"])
+                # Also stores pictures of versions published before pictures were recorded.
+                await run_in_threadpool(store.public_inspection, approved["artifact_sha256"])
+            except RegistryError:
+                continue
+            listed = True
+            break
+        require(listed, "picture not found")
+        media, data = await run_in_threadpool(store.picture, sha256)
+        # Short public caching, so taking an approval away reaches browsers within minutes.
+        return Response(data, media_type=media, headers={"Cache-Control": "public, max-age=300",
+                        "Cross-Origin-Resource-Policy": "same-origin", "Content-Disposition": "inline"})
 
     async def profile_page(request):
         namespace = request.path_params["namespace"]
@@ -352,6 +388,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         Route(PREFIX + "/submissions/{identifier}/consent", consent, methods=["POST"]),
         Route(PREFIX + "/stars", star, methods=["PUT"]), Route(PREFIX + "/download", ticket),
         Route(PREFIX + "/artifacts/{sha256}", download),
+        Route(PREFIX + "/pictures/{publisher}/{name}/{sha256}", picture),
         Route(PREFIX + "/auth/{provider}/start", auth_begin, methods=["GET", "POST"]),
         Route(PREFIX + "/auth/{provider}/callback", auth_callback, methods=["GET", "POST"]),
         Route(PREFIX + "/session", logout, methods=["POST", "DELETE"]),
@@ -361,7 +398,8 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         if request.headers.get("host") != urllib.parse.urlsplit(auth.origin).netloc:
             return JSONResponse({"error": "unexpected host"}, status_code=400)
         response = await call_next(request)
-        response.headers.update({"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        response.headers.setdefault("Cache-Control", "no-store")  # approved pictures may be cached briefly
+        response.headers.update({"X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'"})
         return response
 

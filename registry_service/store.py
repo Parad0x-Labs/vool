@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 from core.registry.artifact import inspect
 from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, require, version_key
 from core.registry.intake import secret_findings
+from core.registry.media import KINDS
 from core.registry.requirements import package_requirements, require_for_new_version
 
 
@@ -67,6 +68,8 @@ class Store:
                     PRIMARY KEY(comment,account));
                 CREATE TABLE IF NOT EXISTS muted_accounts (account TEXT PRIMARY KEY REFERENCES accounts(id)
                     ON DELETE CASCADE, created INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS public_pictures (sha256 TEXT PRIMARY KEY, type TEXT NOT NULL,
+                    data BLOB NOT NULL);
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(public_versions)")}
             if "inspection" not in columns:
@@ -356,6 +359,8 @@ class Store:
         require(isinstance(value, dict) and set(value) == {"metadata", "skill_markdown", "license_text"}, "invalid skill draft")
         info = dict(value["metadata"])
         require("source" not in info and info.get("kind") == "skill", "draft source is assigned by the server")
+        require("icon" not in info and "banner" not in info,
+                "a written skill has no picture files; add pictures through GitHub import or an uploaded package")
         info["source"] = {"upload_id": secrets.token_hex(16), "namespace": namespace}
         require(all(isinstance(value[field], str) and 0 < len(value[field]) <= 32768
                     for field in ("skill_markdown", "license_text")), "draft text exceeds limit")
@@ -388,6 +393,7 @@ class Store:
 
         from core.plugin_package import execution_directory
         from core.registry.artifact import pack, path_name
+        from core.registry.media import bind
         from registry_service.github_source import check_ref, check_repository
         from tools.community_skills import initialize, preflight
 
@@ -399,6 +405,9 @@ class Store:
         require(type(value["publish_when_checks_pass"]) is bool, "publish choice must be true or false")
         info = dict(value["metadata"]) if isinstance(value["metadata"], dict) else {}
         require("source" not in info and info.get("kind") == "skill", "import source is assigned by the server")
+        # Pictures are named by their path inside the imported folder.
+        pictures = {kind: info.pop(kind) for kind in ("icon", "banner") if kind in info}
+        require(all(isinstance(item, str) for item in pictures.values()), "name each picture by its path in the folder")
         with self.connection() as db:
             namespace = self._check_upload_slot(db, account, _slot, now)
             row = db.execute("SELECT subject FROM identities WHERE account=? AND provider='github'", (account,)).fetchone()
@@ -456,6 +465,11 @@ class Store:
                     shutil.copytree(item, destination)
                 else:
                     shutil.copy2(item, destination)
+            for kind, relative in pictures.items():
+                inside = skill.relative_to(source).as_posix() + "/" + path_name(relative)
+                require((source / inside).is_file(), f"{kind} file is not in the imported folder")
+                info[kind] = inside
+            info = bind(info, lambda path: (source / path).read_bytes())
             raw = pack(source, info, scratch)
             local = preflight(raw, scratch)
         result = self.upload(account, raw, now=now + int(time.monotonic() - started), _slot=_slot)
@@ -565,8 +579,10 @@ class Store:
             set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in inspection["native_control_overlaps"]})
         require(not inspection["conflicts"], "native control override instructions block publication")
         inspection["requirements"] = package_requirements(artifact["manifest"], entry["dependencies"])
+        inspection["pictures"] = artifact["pictures"]
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            self._store_pictures(db, artifact)
             previous = db.execute("SELECT sha256 FROM public_versions WHERE package_id=? AND version=?", (package_id, version)).fetchone()
             require(not previous or previous[0] == artifact["sha256"], "published versions are immutable")
             db.execute("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", (package_id.split("/")[0],))
@@ -598,12 +614,39 @@ class Store:
             row = db.execute("SELECT inspection,artifact,entry FROM public_versions WHERE sha256=?", (sha256,)).fetchone()
         require(row and row[0], "approved artifact inspection not found")
         inspection = decode(row[0])
-        if "requirements" not in inspection:
-            # Versions published before requirements were recorded: read them from the stored package once.
-            inspection["requirements"] = package_requirements(inspect(row[1])["manifest"], decode(row[2])["dependencies"])
+        if "requirements" not in inspection or "pictures" not in inspection:
+            # Versions published before these were recorded: read them from the stored package once.
+            artifact = inspect(row[1])
+            inspection["requirements"] = package_requirements(artifact["manifest"], decode(row[2])["dependencies"])
+            inspection["pictures"] = artifact["pictures"]
             with self.connection() as db:
+                self._store_pictures(db, artifact)
                 db.execute("UPDATE public_versions SET inspection=? WHERE sha256=?", (canonical(inspection), sha256))
         return inspection
+
+    def published_pictures(self) -> list[dict]:
+        """Every picture of every published version, for the operator's review list."""
+        with self.connection() as db:
+            rows = db.execute("SELECT package_id, version, sha256 FROM public_versions ORDER BY package_id, version").fetchall()
+        listed = []
+        for package_id, version, sha256 in rows:
+            pictures = self.public_inspection(sha256)["pictures"]
+            listed += [{"id": package_id, "version": version, "kind": kind,
+                        **{key: pictures[kind][key] for key in ("sha256", "width", "height", "bytes")}}
+                       for kind in KINDS if kind in pictures]
+        return listed
+
+    @staticmethod
+    def _store_pictures(db, artifact: dict) -> None:
+        for kind, picture in artifact["pictures"].items():
+            db.execute("INSERT OR IGNORE INTO public_pictures VALUES (?,?,?)", (
+                picture["sha256"], picture["type"], artifact["files"][artifact["metadata"][kind]["path"]]))
+
+    def picture(self, sha256: str) -> tuple[str, bytes]:
+        with self.connection() as db:
+            row = db.execute("SELECT type,data FROM public_pictures WHERE sha256=?", (sha256,)).fetchone()
+        require(row, "picture not found")
+        return row[0], row[1]
 
     def star(self, account: str, package_id: str, enabled: bool, *, now: int) -> dict:
         require(type(enabled) is bool, "star value must be boolean")

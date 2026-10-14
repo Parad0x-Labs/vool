@@ -48,11 +48,11 @@ def load_service(config: dict, *, now: int):
     return store, trust, auth
 
 
-MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute")
+MODERATION = ("comments-held", "comment-publish", "comment-remove", "mute", "unmute", "pictures-pending")
 
 
 def moderate(args) -> int:
-    """Operator-only comment moderation against the private store. There is no HTTP route for this."""
+    """Operator-only moderation against the private store. There is no HTTP route for this."""
     import json
 
     from registry_service import community
@@ -63,7 +63,21 @@ def moderate(args) -> int:
         path = Path(config["private_dir"]).resolve() / "accounts.sqlite"
         require(path.is_file(), "private store not found")
         store = Store(path)
-        if args.command == "comments-held":
+        if args.command == "pictures-pending":
+            from registry_service.curation import load_curation, picture_approvals
+
+            approvals = picture_approvals(load_curation())
+            pending = [item for item in store.published_pictures() if (item["id"], item["sha256"]) not in approvals]
+            if args.target:
+                # Write each waiting picture into a new folder so a person can look at the exact file.
+                folder = Path(args.target)
+                require(not folder.exists(), "choose a new folder for the waiting pictures")
+                folder.mkdir(mode=0o700)
+                for sha256 in dict.fromkeys(item["sha256"] for item in pending):
+                    with (folder / (sha256 + ".png")).open("xb") as handle:
+                        handle.write(store.picture(sha256)[1])
+            print(json.dumps(pending, indent=2))
+        elif args.command == "comments-held":
             print(json.dumps(community.held(store), indent=2))
         elif args.command in {"comment-publish", "comment-remove"}:
             community.moderate(store, args.target, args.command.split("-")[1])
@@ -82,7 +96,8 @@ def main(argv=None) -> int:
     parser.add_argument("command", choices=["check-config", "serve", *MODERATION])
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--port", type=int, default=8791)
-    parser.add_argument("--target", default="", help="comment id or account namespace for moderation commands")
+    parser.add_argument("--target", default="", help="comment id or account namespace for moderation commands; "
+                        "for pictures-pending, a new folder to write the waiting pictures into")
     args = parser.parse_args(argv)
     trust = None
     if args.command in MODERATION:
@@ -90,8 +105,11 @@ def main(argv=None) -> int:
     try:
         config = decode(args.config.read_bytes(), 65536)
         store, trust, auth = load_service(config, now=int(time.time()))
+        from registry_service.curation import load_curation
+
+        curation = load_curation()  # a bad curation file stops the service here, not at serve time
         if args.command == "check-config":
-            print("Configuration, signed catalog and artifact cache verified.")
+            print("Configuration, signed catalog, artifact cache and curation verified.")
             return 0
         import uvicorn
 
@@ -108,7 +126,7 @@ def main(argv=None) -> int:
             from registry_service.github_source import GitHubSource
 
             github = GitHubSource()
-        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery, github=github),
+        uvicorn.run(create_app(store, auth, trust, config["target"], discovery=discovery, github=github, curation=curation),
                     host="127.0.0.1", port=args.port,
                     access_log=False, log_config=log_config, proxy_headers=False)
         return 0

@@ -1,20 +1,31 @@
 """Explicit, anonymous registry reads. The website cannot select URLs or local paths."""
 from __future__ import annotations
 
+import base64
+import hashlib
 import os
 import platform
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import COMMIT, RegistryError, decode, require
+from core.registry.codec import COMMIT, HEX, RegistryError, decode, require
+from core.registry.media import LIMITS, describe
 from core.registry.native import STATE_NAME, _write, home, install, preview
 from core.registry.trust import TrustedCatalog
 
 ORIGIN = "https://vool.dev"
 PREFIX = "/registry/api"
+# Skill icons the verified listing named at the last Browse in this run of VOOL: (id, sha256) -> (path, expires).
+# Nothing here survives a restart, so pictures are fetched only after the person pressed Browse.
+_LISTED: dict[tuple[str, str], tuple[str, int]] = {}
+# Icons already checked since that Browse, kept in memory only (never written to disk).
+_PICTURES: dict[tuple[str, str], bytes] = {}
+_PICTURE_STATE = {"browsed": False}
+_PICTURE_LOCK = threading.Lock()
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -76,10 +87,40 @@ class Client:
                 continue
             rows.append({**info, "reviewed": True, "import_ready": True, "discovery_only": False,
                          "sha256": entry["artifact_sha256"], "targets": entry["targets"]})
+        with _PICTURE_LOCK:
+            # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
+            _PICTURES.clear()
+            _LISTED.clear()
+            _LISTED.update({(row["id"], row["icon"]["sha256"]): (row["icon"]["path"], value["expires"])
+                            for row in rows if "icon" in row})
+            _PICTURE_STATE["browsed"] = True
         from core.registry.requirements import public_requirements
 
         return {"status": "ok", "entries": rows, "expires": value["expires"], "target": self.target,
                 "requirements": public_requirements()}
+
+    def picture(self, package_id: str, sha256: str, *, approved: bool, now: int) -> dict:
+        """A listed skill's approved icon, checked against the signed listing from this run's Browse."""
+        require(approved is True, "explicit registry network consent required")
+        require(bool(HEX.fullmatch(sha256)), "invalid picture")
+        with _PICTURE_LOCK:
+            browsed, listed, cached = _PICTURE_STATE["browsed"], _LISTED.get((package_id, sha256)), _PICTURES.get((package_id, sha256))
+        require(browsed, "browse Skill Codex first")
+        require(listed is not None, "picture is not part of a listed skill")
+        path, expires = listed
+        require(now < expires, "the Skill Codex listing is out of date; browse again")
+        if cached is None:
+            # The server checks that a person approved this picture for this skill.
+            data = self.request(self.origin + PREFIX + "/pictures/" + package_id + "/" + sha256, limit=LIMITS["icon"][0])
+            require(hashlib.sha256(data).hexdigest() == sha256, "picture differs from the signed listing")
+            describe("icon", path, data)
+            cached = data
+            with _PICTURE_LOCK:
+                _PICTURES[(package_id, sha256)] = data
+                while len(_PICTURES) > 64:
+                    _PICTURES.pop(next(iter(_PICTURES)))
+        return {"status": "ok", "id": package_id, "sha256": sha256, "type": "image/png",
+                "data": base64.b64encode(cached).decode("ascii")}
 
     def prepare(self, package_id: str, version: str, *, approved: bool, now: int) -> dict:
         require(approved is True, "explicit package download consent required")
@@ -133,6 +174,9 @@ def handle(action: str, body: dict) -> dict:
         now = int(time.time())
         if action == "registry_refresh":
             return client.refresh(approved=body.get("approved") is True, now=now)
+        if action == "registry_picture":
+            return client.picture(str(body.get("id", "")), str(body.get("sha256", "")),
+                                  approved=body.get("approved") is True, now=now)
         if action == "registry_prepare":
             return client.prepare(str(body.get("id", "")), str(body.get("version", "")),
                                   approved=body.get("approved") is True, now=now)

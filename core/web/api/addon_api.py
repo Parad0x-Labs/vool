@@ -29,6 +29,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "github_repository": {"action", "repository"},
         "github_inspect": {"action", "repository", "ref", "path"},
         "registry_refresh": {"action", "approved"},
+        "registry_picture": {"action", "id", "sha256", "approved"},
         "registry_prepare": {"action", "id", "version", "approved"},
         "registry_install": {"action", "id", "version", "review_id", "accepted", "enable"},
     }

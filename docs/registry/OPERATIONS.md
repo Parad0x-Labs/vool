@@ -70,6 +70,41 @@ Review and run `nginx -t` on the complete server configuration before applying i
 - Stars are one per authenticated account/package, not one per person. Throwaway accounts can inflate stars; ranking is not a trust or admission signal.
 - The website account-link POST returns a 303 redirect to the provider. A `fetch()` call may not navigate the page. Before website handover, test complete browser navigation through linking, callback, cancellation and return to the account screen with real provider registrations.
 
+## Picture review
+
+A skill picture shows only after an operator approves that exact file for that skill: add `{"id": "<publisher>/<name>", "sha256": "<checksum>"}` to `approved_pictures` in `registry_service/curation.json` through a reviewed pull request. `check-config` validates the curation file, and the service reads it at start, so restart the service after the change.
+
+To see what is waiting, run `vool-registry pictures-pending --config CONFIG --target NEWDIR`. It prints every picture of every published version that has no approval for its skill (id, version, kind, checksum, size) and writes each file into the new folder as `<sha256>.png`. It refuses a folder that already exists; without `--target` it only prints the list. Look at each file at full size and at about 52 pixels. Approve it only when:
+
+- it claims no VOOL approval, verification, safety or official status, and has no badge, tick or shield that reads that way;
+- it has no QR code, wallet address, URL, handle or phone number, and does not ask for a wallet recovery phrase or key;
+- it uses no other brand's logo or trademark and impersonates no person, project or the VOOL team;
+- it has no adult, violent, hateful or shocking content, and nothing styled as VOOL's own interface (buttons, warnings, prices);
+- any text in it is short and fits the skill.
+
+An approval covers one skill. The same file in another skill needs its own look, because a picture that is fine for one skill can mislead in another. Taking an entry out of `approved_pictures` hides that picture after the next start; browsers may keep a copy for up to five minutes, and a running VOOL drops it at its next Browse. Approving a picture admits nothing: packages still come only from the signed catalog.
+
+A results page asks for many pictures at once, so give `/registry/api/pictures/` its own limiter zone instead of the general one:
+
+```nginx
+# http context
+limit_req_zone $binary_remote_addr zone=registry_pictures:10m rate=20r/s;
+
+# Inside the TLS server, next to location /registry/api/:
+location /registry/api/pictures/ {
+    access_log off;
+    error_log /dev/null crit;
+    client_max_body_size 1k;
+    limit_req zone=registry_pictures burst=60 nodelay;
+    limit_req_status 429;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For "";
+    proxy_pass http://127.0.0.1:8791;
+}
+```
+
+A VOOL build that predates the `icon`, `banner`, `languages` or `needs` metadata fields refuses a whole catalog in which any entry carries one, including builds whose owner installed a trust anchor through `VOOL_REGISTRY_ROOT_FILE`. Ship the first registry trust anchor only in a build that knows every field the catalog will carry. Upgrade the registry service before signing any entry with pictures, because an older service refuses that catalog too. Builds without a trust anchor never read the catalog, so they are unaffected.
+
 ## Native activation and release limits
 
 Ship the reviewed public trust anchor as `core/registry/trusted-root.json` in the actual v0.7.1 release, or install an operator-controlled anchor explicitly through local configuration. The native client verifies the existing packaged `BUILD_MANIFEST.json`: exact SHA/version, clean/release verdict, native verification and architecture. It does not accept a target, trust root or fetch URL from website input. Current released-manifest discovery covers macOS; other platform identity formats require their own real release integration before claiming support.

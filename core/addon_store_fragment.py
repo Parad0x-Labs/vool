@@ -27,7 +27,7 @@ def render_addon_store_fragment() -> str:
 .addon-card{border:1px solid var(--border,#38414b);border-radius:6px;padding:20px;background:var(--panel,#171b22);min-width:0;display:flex;flex-direction:column;gap:12px}
 .addon-card:hover{border-color:var(--muted)}.addon-card h3{margin:0;font-size:16px;letter-spacing:-.2px}.addon-card p{margin:0;line-height:1.55;font-size:13px;color:var(--muted)}
 .addon-card-head{display:flex;align-items:center;gap:13px}.addon-icon{width:52px;height:52px;flex:none;display:grid;place-items:center;border-radius:6px;background:#303d4b;color:#dce6f2;font-size:22px;font-weight:650;letter-spacing:-1px}
-.addon-icon.design{background:#483a33;color:#f4d5bf}.addon-icon.security{background:#353d35;color:#d0dfbe}.addon-card-head small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.addon-icon.skill-pic{position:relative;overflow:hidden;background:var(--field,#1d2129);color:var(--muted)}.addon-icon.skill-pic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px var(--border,#38414b);pointer-events:none}.addon-icon.skill-pic img{width:100%;height:100%;object-fit:cover;display:block;animation:skill-pic-in .2s ease-out}@keyframes skill-pic-in{from{opacity:0}}@media (prefers-reduced-motion:reduce){.addon-icon.skill-pic img{animation:none}}.addon-icon.skill-missing svg{width:50%;height:50%;opacity:.7}.addon-card-head h3{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}.addon-icon.design{background:#483a33;color:#f4d5bf}.addon-icon.security{background:#353d35;color:#d0dfbe}.addon-card-head small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
 .addon-card-footer{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;font-size:11px;color:var(--muted)}
 .addon-state{font-size:11px;color:var(--muted)}.addon-state.good{color:var(--accent,#48d6be)}
 .addon-risk-note{font-size:12px;line-height:1.6;padding:12px;border:1px solid #76563d}.addon-risk-note button{margin:0 0 0 10px}.addon-override{padding-top:16px;border-top:1px solid var(--border)}.addon-override summary{font-weight:650;color:var(--ink)}.addon-override label{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:var(--ink);margin:18px 0}.addon-override input{margin-top:4px;flex:none}.addon-override .addon-risk-button{border-color:#9d7043;color:var(--warning,#ffbd67)}
@@ -139,6 +139,27 @@ function nativeControlNotice(host,value){
  host.append(node('p',value.authority_notice||tr('native_authority','Skills contribute instructions. VOOL native rules, owner settings, spending limits, currency handling, permissions and approvals always take precedence.'),'addon-risk-note'));
  (value.native_control_overlaps||[]).forEach(item=>host.append(node('p',item.message,'addon-meta')));
 }
+// A creator's icon appears only after VOOL checks it against the signed listing and a person approved it for that skill; otherwise our own tile.
+const MISSING_PICTURE='<svg viewBox="0 0 48 48" aria-hidden="true" focusable="false"><rect x="8" y="10" width="32" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="20" r="3" fill="currentColor"/><path d="M12 33l8-8 5 5 4-4 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const pictures=new Map(),pictureQueue=[];let picturesRunning=0;
+function pumpPictures(){while(picturesRunning<4&&pictureQueue.length){picturesRunning++;pictureQueue.shift()();}}
+function iconSha(e){return e.icon&&typeof e.icon.sha256==='string'&&/^[a-f0-9]{64}$/.test(e.icon.sha256)?e.icon.sha256:'';}
+// Only the Browse button calls this, so typing a search never sends a request: each listed icon is asked for once.
+function loadPictures(entries){
+ pictures.clear();pictureQueue.length=0;
+ entries.forEach(e=>{const sha=iconSha(e),k=e.id+' '+sha;if(!sha||pictures.has(k))return;
+  pictures.set(k,new Promise(resolve=>{pictureQueue.push(()=>post({action:'registry_picture',id:e.id,sha256:sha,approved:true}).then(r=>'data:image/png;base64,'+r.data).catch(()=>'').then(url=>{picturesRunning--;pumpPictures();resolve(url);}));}));});
+ pumpPictures();
+}
+function skillPicture(e){
+ const tile=node('span',undefined,'addon-icon skill-pic'),missing=()=>{tile.classList.remove('skill-loading');tile.classList.add('skill-missing');tile.innerHTML=MISSING_PICTURE;};
+ const loading=iconSha(e)&&pictures.get(e.id+' '+iconSha(e));
+ if(!loading){missing();return tile;}
+ tile.classList.add('skill-loading');  // an empty tile while the picture is checked, never "no picture" first
+ loading.then(url=>{if(!url)return missing();const img=document.createElement('img');img.alt='';img.decoding='async';
+  img.addEventListener('error',missing);img.src=url;tile.classList.remove('skill-loading');tile.append(img);});
+ return tile;
+}
 function registryFacts(e){
  // Author-declared languages and needs, and the builds the signed entry was tested on.
  const needs={search_web:tr('registry_need_search_web','Web search'),llm_cloud:tr('registry_need_llm_cloud','Cloud AI model'),chain_data:tr('registry_need_chain_data','Chain data'),solana_rpc:tr('registry_need_solana_rpc','Solana connection'),wallet:tr('registry_need_wallet','VOOL wallet'),browser:tr('registry_need_browser','Browser'),files:tr('registry_need_files','Your files')};
@@ -155,7 +176,7 @@ function renderRegistry(host,query){
  hero(host,tr('registry_title','Skills and plugins from their creators'),tr('registry_intro','Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.'));
  if(registryReview){
   const r=registryReview,info=r.metadata;
-  host.append(node('h3',info.id+' · '+info.version),node('p',info.summary),registryFacts({...info,targets:r.targets}));nativeControlNotice(host,r);
+  host.append(node('h3',(info.title?info.title+' · ':'')+info.id+' · '+info.version),node('p',info.summary),registryFacts({...info,targets:r.targets}));nativeControlNotice(host,r);
   const details=node('details');details.append(node('summary',tr('registry_evidence','Exact files, permissions and source')),
    node('pre',JSON.stringify({sha256:r.sha256,source:info.source,permissions:r.permissions,tools:r.tools,credential_bindings:r.credential_bindings,dependencies:r.dependencies,files:r.files},null,2)));host.append(details);
   Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));host.append(item);});
@@ -163,13 +184,13 @@ function renderRegistry(host,query){
   const accept=enabled=>action(async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:enabled});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();});
   acts.append(button(tr('registry_install_only','Install without enabling'),()=>accept(false)),button(tr('registry_enable','Install and enable'),()=>accept(true),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));return;
  }
- host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
+ host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});loadPictures(registryData.entries);_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));
  host.append(node('p',tr('registry_network','This button requests the public registry. No account, chats, local files or provider keys are sent.'),'addon-meta'));
  if(!registryData)return;
  const rows=registryData.entries.filter(e=>key([e.id,e.summary,e.category,e.subcategory,catLabel(e)].join(' ')).includes(key(query)));
  if(!rows.length)host.append(node('p',tr('registry_empty','No listed versions match this exact VOOL build and search.')));
  const grid=node('div',undefined,'addon-grid');host.append(grid);
- rows.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.title||e.id),node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
+ rows.forEach((e,i)=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head'),name=node('h3',e.title||e.id);name.id='registry-skill-'+i;card.setAttribute('aria-labelledby',name.id);head.append(skillPicture(e),name);card.append(head,node('p',e.summary),node('small',(e.title?e.id+' · ':'')+catLabel(e)+' · '+e.version+' · '+e.license),registryFacts(e),button(tr('registry_inspect','Download for inspection'),()=>action(async()=>{registryReview=await post({action:'registry_prepare',id:e.id,version:e.version,approved:true});}),'addon-primary'));grid.append(card);});
 }
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.
