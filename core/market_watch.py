@@ -37,7 +37,7 @@ from typing import Any
 
 INTENTS = ("watch.add", "watch.list", "watch.remove", "watch.pause", "watch.resume")
 SURFACE = "market"
-CAPABILITY_ID = "market.watch"
+CAPABILITY_ID = "web.market_watch"
 CAPABILITY_CLAIM = "watch wallets and token prices and post a notification when they move"
 
 MAX_WATCHES = 50
