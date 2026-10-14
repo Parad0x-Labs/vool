@@ -903,22 +903,7 @@ def dispatch_get(
         separate from the model answer language (its own Settings widget) and from dictation
         recognition (its own composer control).
         """
-        from http.cookies import SimpleCookie
-
-        from core.i18n.catalog import resolve_render_locale
-
-        cookie_locale = ""
-        raw = _header_value(page_headers, "cookie")
-        if raw:
-            jar = SimpleCookie()
-            try:
-                jar.load(raw)
-            except Exception:
-                jar = {}
-            morsel = jar.get("vool_ui_locale")
-            cookie_locale = morsel.value if morsel else ""
-        query_locale = (page_query.get("ui_locale") or [""])[0]
-        return resolve_render_locale(query_locale, cookie_locale, "en")
+        return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -3446,6 +3431,30 @@ def _header_value(headers: dict[str, Any] | None, name: str) -> str:
         if str(key).lower() == name:
             return str(value or "")
     return ""
+
+
+def request_ui_locale(headers: dict[str, Any] | None, query_locale: str = "") -> str:
+    """The app's UI language for one request: ?ui_locale= > the vool_ui_locale cookie > en.
+
+    The cookie is what the page's language picker persists (core.i18n.page_bundle), and every
+    same-origin request the page makes carries it, a chat turn included. Unknown values are skipped,
+    never guessed (core.i18n.catalog.resolve_render_locale).
+    """
+    from http.cookies import SimpleCookie
+
+    from core.i18n.catalog import resolve_render_locale
+
+    cookie_locale = ""
+    raw = _header_value(headers, "cookie")
+    if raw:
+        jar = SimpleCookie()
+        try:
+            jar.load(raw)
+        except Exception:
+            jar = SimpleCookie()
+        morsel = jar.get("vool_ui_locale")
+        cookie_locale = morsel.value if morsel else ""
+    return resolve_render_locale(query_locale, cookie_locale, "en")
 
 
 # ---- Chat attachments: the ONE raw-body door, and the receipts every step leaves --------------
@@ -7517,6 +7526,11 @@ def _dispatch_post_inner(
 
         source_context[TURN_AUTHOR_KEY] = turn_author_from_request(body, inbound_source_context)
         source_context["chat_id"] = context_namespace.chat_id
+        # The page's app language, server-read from its cookie (never a body field): a reply VOOL
+        # writes itself, such as a private chat switch, answers in it (core.private_chat_languages).
+        from core.private_chat_languages import UI_LOCALE_KEY
+
+        source_context[UI_LOCALE_KEY] = request_ui_locale(headers)
         if context_namespace.project_id:
             source_context["_trusted_project_id"] = context_namespace.project_id
         requested_model = str(model or "").strip()

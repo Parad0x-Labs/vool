@@ -1833,10 +1833,10 @@ def maybe_handle_memory_command(
     if capture_match or _CORRECTION_RE.match(text):
         # Private chat (core.private_chat): nothing from a private chat is saved, an explicit
         # "remember" included. Said plainly instead of claiming a save that never happens.
-        from core.private_chat import REPLY_REMEMBER_REFUSED, turn_is_private
+        from core.private_chat import REPLY_REMEMBER_REFUSED, localized_reply, turn_is_private
 
         if turn_is_private(source_context, session_id):
-            return True, REPLY_REMEMBER_REFUSED
+            return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
     independent_operations = []
     parsed_forget = _FORGET_RE.match(text)
     if parsed_forget:
