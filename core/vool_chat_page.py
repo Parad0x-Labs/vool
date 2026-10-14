@@ -2186,7 +2186,9 @@ function splitAssistantDisplayContent(text, metadata) {
   return { content: content, display_metadata: displayMetadata };
 }
 function canonicalMessagesForModel(history) {
-  return (history || []).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
+  // Messages brought in from another app are history to read, never model input: they are
+  // left out here, so continuing such a chat sends only what was said in VOOL.
+  return (history || []).filter((m) => !(m && m.imported)).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
 }
 function applyResponseCommit(run, commit) {
   if (!run || !commit || commit.type !== 'response.commit' || Number(commit.version) < 1) return false;
@@ -7971,6 +7973,7 @@ function attachmentMeta(a) {
 // A transcript row from the server, with the attachment receipt the runtime persisted with it.
 function historyEntryFromServer(m) {
   const entry = { role: m.role, content: m.content, ts: m.ts, request_id: m.request_id || '' };
+  if (m.imported === true) entry.imported = true;
   if (m.artifact && typeof m.artifact === 'object') entry.artifact = { ...m.artifact };
   if (m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length) {
     entry.attachments = m.attachments.map((a) => Object.assign(attachmentMeta(a), { previewUrl: '' }));
