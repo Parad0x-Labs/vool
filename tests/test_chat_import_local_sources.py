@@ -303,7 +303,7 @@ def test_legacy_transcript_files_and_reset(tmp_path, work_dir):
 
 
 def test_a_session_in_both_the_database_and_an_old_file_is_read_once(tmp_path, work_dir):
-    agent = tmp_path / "state" / "agents" / "main"
+    agent = tmp_path / "home" / ".openclaw" / "agents" / "main"
     writer = _assistant_db(agent / "agent" / "openclaw-agent.sqlite")
     _insert_events(writer, "same", _event_rows("same"))
     writer.close()
@@ -311,8 +311,7 @@ def test_a_session_in_both_the_database_and_an_old_file_is_read_once(tmp_path, w
     (agent / "sessions" / "same.jsonl").write_text(
         "\n".join(json.dumps(e) for e in _event_rows("same")), encoding="utf-8"
     )
-    env = {"OPENCLAW_STATE_DIR": str(tmp_path / "state")}
-    result = local_sources.read("local_assistant", home=tmp_path / "home", env=env, platform="linux", work_dir=str(work_dir))
+    result = local_sources.read("local_assistant", home=tmp_path / "home", env={}, platform="linux", work_dir=str(work_dir))
     assert [chat.source_chat_id for chat in result.chats] == ["main/same"]
     assert result.chats[0].source_format == transcript_tree.FORMAT_DB
 
@@ -427,3 +426,13 @@ def test_a_store_that_is_not_a_database_reads_as_a_plain_problem(tmp_path, work_
     (home / ".hermes" / "state.db").write_bytes(b"garbage" * 64)
     result = local_sources.read("local_agent", home=home, env={}, platform="linux", work_dir=str(work_dir))
     assert result.chats == () and result.problems == ("store_unreadable",)
+
+
+def test_a_third_party_state_setting_does_not_move_where_transcripts_are_read(tmp_path, work_dir):
+    elsewhere = tmp_path / "state" / "agents" / "main"
+    writer = _assistant_db(elsewhere / "agent" / "openclaw-agent.sqlite")
+    _insert_events(writer, "elsewhere", _event_rows("elsewhere"))
+    writer.close()
+    env = {"OPENCLAW_STATE_DIR": str(tmp_path / "state")}
+    result = local_sources.read("local_assistant", home=tmp_path / "home", env=env, platform="linux", work_dir=str(work_dir))
+    assert list(result.chats) == []
