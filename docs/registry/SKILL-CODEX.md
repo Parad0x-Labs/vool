@@ -85,6 +85,17 @@ vool-registry skill-resume --config CONFIG --target PUBLISHER/NAME   # ends any 
 vool-registry reporter-mute --config CONFIG --target REPORT_ID       # the account behind that report stops counting
 ```
 
+## Publishing from VOOL
+
+In the VOOL app, My add-ons > Skills shows a quiet "Publish to Skill Codex" button on each skill the person made. Skills that ship with VOOL, skills from someone else's package and skills marked `local-only: true` get no button. The button runs the written-skill form's own instant check (`initialize`, `pack`, `preflight`, as `POST /drafts` does) on the device, in a temporary folder it removes, with placeholder package details. A skill folder holding other files besides SKILL.md is refused, because the form carries one SKILL.md. VOOL's own version history next to SKILL.md is not counted. When the check passes, VOOL opens this link in the browser and sends nothing itself:
+
+```
+https://vool.dev/codex/skills/publish#skill=<base64url of UTF-8 JSON, no padding>
+JSON: {"v":1,"name":"<skill folder name>","title":"<display name>","summary":"<description>","skill_markdown":"<SKILL.md text>"}
+```
+
+The fragment never reaches a server. The publish page decodes it, fills the written-skill form (stable name from `name`, `title`, `summary`, SKILL.md from `skill_markdown`), and the person signs in, chooses a category and licence and sends it as an ordinary `POST /drafts`. The page must not send the fragment anywhere else, log it or keep it in browser storage, and must ignore an unknown `v`. VOOL limits `skill_markdown` to 32,768 characters, but the whole `POST /drafts` body, licence text included, must still fit in 32,768 bytes, so the page counts it as for any draft. VOOL's check uses no account, so the website's later checks (publisher name, moderation, review) still apply.
+
 ## Updates
 
 An update keeps the stable package ID and must use a higher version than every published one. The server refuses a reused or lower version before scanning. Stars, download requests and comments stay with the stable ID.

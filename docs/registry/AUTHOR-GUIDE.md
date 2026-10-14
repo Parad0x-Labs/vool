@@ -63,6 +63,8 @@ Place the **complete MIT licence text** in a file named `LICENSE` and replace it
 
 ## Private website skill form
 
+A skill you made in VOOL can start here from the app: in My add-ons > Skills, press "Publish to Skill Codex" on it. VOOL runs this form's instant check on your device. When the check passes, "Open Skill Codex" opens this form in your browser with the skill's name, description and SKILL.md filled in, and VOOL sends nothing itself. Skills with extra files, or marked `local-only: true`, stay in VOOL (see [Publishing from VOOL](SKILL-CODEX.md#publishing-from-vool)).
+
 Sign in through an available identity provider. Choose a stable public namespace before submitting. The namespace must belong to your authenticated account; public social handles are author-supplied and are not verification badges. The profile API refuses namespace changes once one is chosen. The name remains reserved after account deletion. Direct public publications also reserve their publisher; linking a reserved name later requires a separate verified maintainer process.
 
 Supply these metadata fields, with **no `source` field**:
