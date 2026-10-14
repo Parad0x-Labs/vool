@@ -5537,15 +5537,21 @@ function paintStreamingText(run) {
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
-  run.streamPaintTimer = setTimeout(() => {
+  // Leading edge: a piece that arrives after a quiet spell paints at once; pieces that follow
+  // close behind are batched into one paint every streamPaintDelay.
+  const paint = () => {
     run.streamPaintTimer = null;
     if (run.ended) return;
     withRunDom(run, () => {
       if (!run.textEl) return;
       paintStreamingText(run);
+      run.lastStreamPaint = Date.now();
       followLog();   // only while the reader is at the bottom
     });
-  }, streamPaintDelay(run));
+  };
+  const wait = (run.lastStreamPaint || 0) + streamPaintDelay(run) - Date.now();
+  if (wait <= 0) { paint(); return; }
+  run.streamPaintTimer = setTimeout(paint, wait);
 }
 function endStreamPaint(run) {
   if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
@@ -5558,7 +5564,14 @@ function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else paintStreamingText(run);
+      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata);
+      else {
+        // The fresh node now shows everything so far: a batched paint still waiting is moot, and
+        // the next piece paints straight into this node.
+        if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+        paintStreamingText(run);
+        run.lastStreamPaint = 0;
+      }
     } else if (run.assistantMsgEl) {
       run.assistantMsgEl.classList.add('pending');
       run.textEl.textContent = '…';
