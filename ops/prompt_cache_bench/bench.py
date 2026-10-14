@@ -224,6 +224,10 @@ def key_usage_usd(key: str) -> float | None:
         return None
 
 
+KEY_NAME = "llm.cloud.openrouter"  # where VOOL saves the OpenRouter key (core.cloud_model_control)
+_KEY_CACHE: dict[tuple[str, str], str] = {}
+
+
 def installed_profile_home(explicit: str = "") -> Path:
     """The profile the installed VOOL app uses: the one place ``vool-store`` reads the key from.
 
@@ -240,36 +244,100 @@ def installed_profile_home(explicit: str = "") -> Path:
         clean = {k: v for k, v in os.environ.items() if k not in {"VOOL_HOME", "NULLA_HOME"}}
         home = native_runtime_home(clean)
     if not (home / "data").is_dir():
-        raise HarnessError(f"no installed VOOL profile at {home} (pass --key-home to name it)")
+        raise HarnessError(f"no installed VOOL profile at {home} (open VOOL once, or set KEY_HOME)")
     return home
 
 
+def profile_key_store(home: Path) -> str:
+    """Where this profile keeps saved keys, from file names only (no secret is read).
+
+    ``keychain``: VOOL moved its keys to the macOS Keychain (marker or name index present).
+    ``vault``: VOOL's encrypted file, which needs the profile's own node key record to open.
+    A profile with neither has no saved key; reading it would only make VOOL create new key
+    files in the user's profile, so it is refused before anything is opened.
+    """
+    data = home / "data"
+    if (data / "credentials.keychain_migrated").exists() or (data / "credentials.meta.json").exists():
+        return "keychain"
+    keys = data / "keys"
+    node_key = any((keys / name).exists() for name in ("node_signing_key.json", "node_signing_key.keyring.json", "node_signing_key.b64"))
+    if (data / "credentials.enc.json").exists() and node_key:
+        return "vault"
+    raise HarnessError(f"the VOOL profile at {home} has no saved keys (add the OpenRouter key in VOOL Settings)")
+
+
 def resolve_key(source: str, key_home: str = "") -> str:
-    """The OpenRouter key, held in memory only. Never printed, logged or written."""
+    """The OpenRouter key, held in memory only. Never printed, logged or written.
+
+    Read once per process: a Keychain read may need one click on macOS, and an unattended run
+    must never need a second one.
+    """
+    cached = _KEY_CACHE.get((source, key_home))
+    if cached:
+        return cached
     if source == "env":
         key = str(os.environ.get("OPENROUTER_API_KEY") or "").strip()
         if not key:
             raise HarnessError("OPENROUTER_API_KEY is not set (or use --key-source vool-store)")
-        return key
-    if source == "vool-store":
-        # VOOL's own saved key, read through VOOL's own credential store, pointed at the installed
-        # app's profile for this one read only. A VOOL_HOME in the shell would be ambiguous.
-        if os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME"):
-            raise HarnessError("--key-source vool-store needs VOOL_HOME unset (use --key-home to name a profile)")
-        home = installed_profile_home(key_home)
-        sys.path.insert(0, str(REPO))
-        from core import credential_store
-        from core.runtime_paths import configure_runtime_home
+    elif source == "vool-store":
+        key = _read_profile_key(key_home)
+    else:
+        raise HarnessError(f"unknown key source {source!r}")
+    _KEY_CACHE[(source, key_home)] = key
+    return key
 
-        configure_runtime_home(home)
-        try:
-            key = str(credential_store.get_credential("llm.cloud.openrouter") or "").strip()
-        finally:
-            configure_runtime_home(None)
-        if not key:
-            raise HarnessError(f"the VOOL profile at {home} has no saved OpenRouter key")
-        return key
-    raise HarnessError(f"unknown key source {source!r}")
+
+KEYCHAIN_CLICK_TIMEOUT_S = 120.0  # VOOL's own bound is 10 s; a person may need longer to click Allow
+
+
+def _read_profile_key(key_home: str) -> str:
+    """VOOL's own saved key, read through VOOL's own credential store in the installed profile.
+
+    The read runs in a fresh child process with ``VOOL_HOME`` set to that profile, exactly the way
+    the app opens it, so no path or key cache from this process can point it elsewhere. The key
+    comes back over a pipe and is held in memory only. Read-only on the user's profile: Keychain
+    writes (VOOL's one-time vault-to-Keychain move) are switched off, and a profile without saved
+    keys is refused before VOOL could create key files in it. A denied or unanswered Keychain
+    question is reported in words, never read as "no key".
+    """
+    if os.environ.get("VOOL_HOME") or os.environ.get("NULLA_HOME"):
+        raise HarnessError("VOOL_HOME is set in this shell; unset it (or set KEY_HOME to the profile to read)")
+    home = installed_profile_home(key_home)
+    store = profile_key_store(home)
+    if store == "keychain" or (home / "data" / "keys" / "node_signing_key.keyring.json").exists():
+        print("VOOL keeps this key in the macOS Keychain: if macOS asks to allow access, click Always Allow.", flush=True)
+    env = {k: v for k, v in os.environ.items() if k not in {"NULLA_HOME", "VOOL_CREDENTIAL_STORE"}}
+    env.update({"VOOL_HOME": str(home), "VOOL_KEYCHAIN_ALLOWED": "0", "PYTHONDONTWRITEBYTECODE": "1"})
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]);"
+        "from ops.prompt_cache_bench.bench import _child_read_key; sys.exit(_child_read_key(sys.argv[2], float(sys.argv[3])))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code, str(REPO), KEY_NAME, str(KEYCHAIN_CLICK_TIMEOUT_S)],
+        env=env, cwd=str(home), capture_output=True, text=True, timeout=KEYCHAIN_CLICK_TIMEOUT_S + 60,
+    )
+    key = proc.stdout.strip()
+    if proc.returncode:
+        said = [line for line in proc.stderr.strip().splitlines() if line.strip()]
+        raise HarnessError(f"VOOL could not open its saved key in {home}: {(said[-1] if said else f'exit {proc.returncode}')[:240]}")
+    if not key:
+        raise HarnessError(f"the VOOL profile at {home} has no saved OpenRouter key (add it in VOOL Settings)")
+    return key
+
+
+def _child_read_key(name: str, timeout_s: float) -> int:
+    """Child side of :func:`_read_profile_key`: VOOL_HOME already names the profile."""
+    from core import bounded_keyring, credential_store
+
+    bounded_keyring.DEFAULT_TIMEOUT_S = timeout_s
+    try:
+        with credential_store.strict_reads():
+            value = credential_store.get_credential(name) or ""
+    except Exception as exc:
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return 4
+    sys.stdout.write(value)
+    return 0
 
 
 def cmd_preflight(args: argparse.Namespace) -> int:
@@ -639,6 +707,16 @@ def _scrub_key_from_logs(directory: Path, key: str) -> None:
 # Claude Code CLI arm
 
 
+def _cli_env(route: str) -> dict[str, str]:
+    """The CLI's environment. On a login route no API key or endpoint from the shell may redirect
+    the turns to a different account or bill."""
+    env = dict(os.environ)
+    if route == "login":
+        for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX"):
+            env.pop(name, None)
+    return env
+
+
 def cmd_cli(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     arm_dir = root / args.label
@@ -652,7 +730,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
         raise HarnessError(f"Claude Code CLI not found: {args.claude_bin}")
     version = subprocess.run([claude, "--version"], capture_output=True, text=True, timeout=60).stdout.strip()
     attempt = f"attempt-{int(_now())}"
-    env = dict(os.environ)
+    env = _cli_env(args.route)
     if args.route == "openrouter":
         key = resolve_key(args.key_source, args.key_home)
         env.update({"ANTHROPIC_BASE_URL": "https://openrouter.ai/api", "ANTHROPIC_AUTH_TOKEN": key, "ANTHROPIC_API_KEY": ""})
@@ -973,6 +1051,240 @@ def cmd_report(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------------------------
 
 
+# --------------------------------------------------------------------------------------------
+# one-paste orchestration: check everything first, then every arm, then always the report
+
+
+PHASES = {
+    "baseline": ("cli-claude", "vool-base-claude", "vool-base-gpt", "vool-base-k3"),
+    "after": ("vool-after-claude-system", "vool-after-claude-history"),
+    "grade": ("grade",),
+}
+PHASES["after_grade"] = PHASES["after"] + PHASES["grade"]
+PHASES["all"] = PHASES["baseline"] + PHASES["after"] + PHASES["grade"]
+MIN_FREE_DISK_GB = 3.0
+
+
+def _arm_specs(args: argparse.Namespace, k3: str) -> list[tuple[str, str, dict[str, Any]]]:
+    """(label, kind, options) for the phase, in order, after the ARMS filter."""
+    head = "HEAD"
+    table = {
+        "cli-claude": ("cli", {"cli_model": args.claude_cli, "route": "login"}),
+        "vool-base-claude": ("vool", {"sha": args.base_sha, "model": args.claude_or, "cache": "off"}),
+        "vool-base-gpt": ("vool", {"sha": args.base_sha, "model": args.gpt_or, "cache": "off"}),
+        "vool-base-k3": ("vool", {"sha": args.base_sha, "model": k3, "cache": "off"}),
+        "vool-after-claude-system": ("vool", {"sha": head, "model": args.claude_or, "cache": "system"}),
+        "vool-after-claude-history": ("vool", {"sha": head, "model": args.claude_or, "cache": "system_history"}),
+        "grade": ("grade", {"judge_model": args.judge_model}),
+    }
+    wanted = {a.strip() for a in args.arms.split(",") if a.strip()}
+    unknown = wanted - set(table)
+    if unknown:
+        raise HarnessError(f"unknown ARMS label(s): {', '.join(sorted(unknown))}; known: {', '.join(table)}")
+    return [(label, *table[label]) for label in PHASES[args.phase] if not wanted or label in wanted]
+
+
+def _find_k3(catalog: list[dict[str, Any]], wanted: str) -> str:
+    ids = [str(row.get("id") or "") for row in catalog]
+    if wanted and wanted != "auto":
+        return wanted if wanted in ids else ""
+    matches = sorted((i for i in ids if "kimi-k3" in i.lower()), key=lambda i: (len(i), i))
+    return matches[0] if matches else ""
+
+
+def _check_claude_login(claude_bin: str, model: str, root: Path, ledger: SpendLedger) -> str:
+    """One real print-mode turn, the way the arm will run it. Returns '' or the plain reason."""
+    claude = shutil.which(claude_bin)
+    if not claude:
+        return f"Claude Code is not installed or not on PATH ({claude_bin})"
+    probe_dir = root / "check" / "claude-probe"
+    probe_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        proc = subprocess.run(
+            [claude, "-p", "Reply with the single word OK.", "--output-format", "json", "--model", model,
+             "--allowedTools", "Read", "--strict-mcp-config", "--mcp-config", '{"mcpServers": {}}'],
+            cwd=probe_dir, env=_cli_env("login"), capture_output=True, text=True, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return "Claude Code did not answer within 3 minutes"
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)
+    data: dict[str, Any] = {}
+    with contextlib.suppress(ValueError, IndexError):
+        parsed = json.loads(proc.stdout.strip().splitlines()[-1])
+        data = parsed if isinstance(parsed, dict) else {}
+    cost = data.get("total_cost_usd")
+    ledger.record(billed=None, notional=float(cost) if isinstance(cost, (int, float)) else None, unknown=False)
+    if proc.returncode or data.get("is_error") or not str(data.get("result") or "").strip():
+        said = str(data.get("result") or proc.stderr or proc.stdout or "").strip().splitlines()
+        return f"Claude Code is not ready: {(said[0] if said else f'exit {proc.returncode}')[:200]} (run claude, then /login)"
+    return ""
+
+
+def _check_boot(sha: str, key: str, model: str, root: Path, python_bin: str) -> str:
+    """Stage the exact commit and boot an isolated daemon to healthz, then stop it. No chat is sent."""
+    sys.path.insert(0, str(REPO))
+    from ops.served_reality.appstage import _make_writable, stage_app
+    from ops.served_reality.daemon import launch_daemon
+    from ops.served_reality.wire import WireLog
+
+    run_dir = root / "check" / f"boot-{sha[:9]}"
+    shutil.rmtree(run_dir, ignore_errors=True)
+    run_dir.mkdir(parents=True)
+    daemon = None
+    try:
+        staged = stage_app(REPO, sha, run_dir)
+        (run_dir / "user-home").mkdir()
+        wire_log = WireLog(run_dir, "daemon")
+        daemon = launch_daemon(
+            app_dir=staged.path, home=run_dir / "home", workspace=run_dir / "workspace-root",
+            python_bin=python_bin, run_dir=run_dir, wire_log=wire_log, expected_sha=staged.sha,
+            extra_env={"OPENROUTER_API_KEY": key, "OPENROUTER_MODEL": model, "VOOL_LOCAL_MODELS_ENABLED": "0",
+                       "VOOL_INTENT_ARBITER": "0", "HOME": str(run_dir / "user-home")},
+            boot_timeout_s=240.0,
+        )
+        return ""
+    except Exception as exc:
+        tail = ""
+        with contextlib.suppress(OSError):
+            tail = (run_dir / "daemon.stderr.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1]
+        _scrub_key_from_logs(run_dir, key)
+        return f"VOOL {sha[:9]} did not start with this python: {type(exc).__name__}: {str(exc)[:160]} {tail[:160]}".strip()
+    finally:
+        if daemon is not None:
+            daemon.terminate()
+        with contextlib.suppress(Exception):
+            _make_writable(run_dir)
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def run_checks(args: argparse.Namespace, root: Path, ledger: SpendLedger) -> tuple[list[str], str]:
+    """Every outside dependency, before any arm: returns (problems, k3 id). Prints one line each."""
+    sys.path.insert(0, str(REPO))
+    problems: list[str] = []
+
+    def line(ok: bool, text: str) -> None:
+        print(f"{'ok  ' if ok else 'FAIL'} {text}", flush=True)
+        if not ok:
+            problems.append(text)
+
+    specs_kinds = {label: kind for label, kind, _ in _arm_specs(args, "auto")}
+    need_vool = any(kind == "vool" for kind in specs_kinds.values())
+    need_key = need_vool or "grade" in specs_kinds
+    line(sys.version_info[:2] == (3, 12), f"python {sys.version.split()[0]} at {sys.executable}")
+    try:
+        from ops.served_reality.appstage import check_clean_tree, resolve_sha
+        from ops.served_reality.bench import discover_python
+
+        python_bin = args.python or discover_python()
+        line(True, f"VOOL can run with {python_bin}")
+    except Exception as exc:
+        line(False, f"this python cannot run VOOL: {type(exc).__name__}: {exc}")
+        return problems, ""
+    clean, offending = check_clean_tree(REPO)
+    line(clean, "this clone is clean" if clean else f"this clone has changes: {'; '.join(offending[:3])}")
+    shas: dict[str, str] = {}
+    for _label, kind, opts in _arm_specs(args, "auto"):
+        if kind == "vool" and opts["sha"] not in shas:
+            try:
+                shas[opts["sha"]] = resolve_sha(REPO, opts["sha"])[1]
+                line(True, f"commit {opts['sha']} = {shas[opts['sha']][:12]}")
+            except Exception:
+                line(False, f"commit {opts['sha']} is not in this clone")
+    if root == REPO or REPO in root.parents:
+        line(False, "RUN_ROOT must be outside the clone")
+    free_gb = shutil.disk_usage(root).free / 1e9
+    line(free_gb >= MIN_FREE_DISK_GB, f"{free_gb:.1f} GB free under RUN_ROOT (need {MIN_FREE_DISK_GB:.0f})")
+    k3 = ""
+    try:
+        catalog = openrouter_catalog()
+        ids = {str(row.get("id") or "") for row in catalog}
+        for model in {o["model"] for _, kind, o in _arm_specs(args, "auto") if kind == "vool" and o["model"] != "auto"}:
+            line(model in ids, f"OpenRouter lists {model}")
+        if "vool-base-k3" in specs_kinds:
+            k3 = _find_k3(catalog, args.k3)
+            line(bool(k3), f"OpenRouter lists K3 as {k3}" if k3 else "OpenRouter lists no K3 model")
+    except Exception as exc:
+        line(False, f"OpenRouter model list unreachable: {type(exc).__name__}: {exc}")
+    key = ""
+    if need_key:
+        try:
+            key = resolve_key(args.key_source, args.key_home)
+            info = _http_json(f"{OPENROUTER}/key", key=key, timeout=30.0).get("data") or {}
+            remaining = info.get("limit_remaining")
+            enough = not isinstance(remaining, (int, float)) or remaining >= 1.0
+            line(enough, "OpenRouter accepts VOOL's saved key" + (f" (${remaining:.2f} left on it)" if isinstance(remaining, (int, float)) else ""))
+        except HarnessError as exc:
+            line(False, str(exc))
+        except urllib.error.HTTPError as exc:
+            line(False, f"OpenRouter refused VOOL's saved key (HTTP {exc.code})")
+        except Exception as exc:
+            line(False, f"OpenRouter key check failed: {type(exc).__name__}")
+    if "cli-claude" in specs_kinds:
+        reason = _check_claude_login(args.claude_bin, args.claude_cli, root, ledger)
+        line(not reason, reason or f"Claude Code is signed in and answers on {args.claude_cli}")
+    if need_vool and key and clean:
+        for sha in shas.values():
+            reason = _check_boot(sha, key, args.claude_or, root, python_bin)
+            line(not reason, reason or f"VOOL {sha[:9]} starts in a throwaway profile")
+    shutil.rmtree(root / "check", ignore_errors=True)
+    return problems, k3
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    root = Path(args.run_root).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    ledger = SpendLedger(root, args.cap_usd, count_notional=not args.cap_excludes_notional)
+    ledger.save()
+    failures: list[str] = []
+    exit_code = EXIT_OK
+    try:
+        problems, k3 = run_checks(args, root, ledger)
+        ledger.save()
+        if problems:
+            print(f"STOPPED before any arm: {len(problems)} check(s) failed. Nothing else was run.", flush=True)
+            return EXIT_USAGE
+        if args.check_only:
+            print("all checks passed; --check-only, so no arm was run.", flush=True)
+            return EXIT_OK
+        print(f"all checks passed; running {args.phase}: " + ", ".join(label for label, _, _ in _arm_specs(args, k3)), flush=True)
+        capped = False
+        for label, kind, opts in _arm_specs(args, k3):
+            if capped:
+                print(f"skipped (cap reached): {label}", flush=True)
+                failures.append(f"{label}: skipped after cap")
+                continue
+            base = {k: getattr(args, k) for k in ("run_root", "cap_usd", "cap_excludes_notional", "key_source", "key_home", "tasks", "repeats")}
+            if kind == "vool":
+                ns = argparse.Namespace(**base, label=label, per_call_usd=0.60, per_task_usd=2.00, python=args.python, clean_scratch=True, mode="auto", **opts)
+                func = cmd_vool
+            elif kind == "cli":
+                ns = argparse.Namespace(**base, label=label, claude_bin=args.claude_bin, clean_scratch=True, **opts)
+                func = cmd_cli
+            else:
+                ns = argparse.Namespace(**base, **opts)
+                func = cmd_grade
+            print(f"--- {label}", flush=True)
+            try:
+                rc = int(func(ns))
+            except HarnessError as exc:
+                rc = EXIT_HARNESS
+                print(f"{label} stopped: {exc}", flush=True)
+            except Exception as exc:
+                rc = EXIT_HARNESS
+                print(f"{label} crashed: {type(exc).__name__}: {str(exc)[:300]}", flush=True)
+            if rc == EXIT_CAP:
+                capped = True
+            if rc != EXIT_OK:
+                failures.append(f"{label}: exit {rc}")
+        if failures:
+            exit_code = 1
+        return exit_code
+    finally:
+        cmd_report(argparse.Namespace(run_root=str(root), cap_usd=args.cap_usd))
+        print("PHASE " + args.phase + (" FINISHED WITH FAILURES: " + "; ".join(failures) if failures else " FINISHED"), flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m ops.prompt_cache_bench.bench")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -1017,6 +1329,21 @@ def main(argv: list[str] | None = None) -> int:
     common(grade)
     grade.add_argument("--judge-model", default="openai/gpt-4.1-mini")
     grade.set_defaults(func=cmd_grade)
+
+    run = sub.add_parser("run", help="check every dependency, then run a phase's arms, then always the report")
+    common(run)
+    run.add_argument("--phase", choices=sorted(PHASES), required=True)
+    run.add_argument("--arms", default="", help="comma list of arm labels to run (default: every arm of the phase)")
+    run.add_argument("--base-sha", default="06ff4dd5")
+    run.add_argument("--claude-or", default="anthropic/claude-sonnet-4.5")
+    run.add_argument("--claude-cli", default="claude-sonnet-4-5")
+    run.add_argument("--gpt-or", default="openai/gpt-4.1-mini")
+    run.add_argument("--k3", default="auto", help="OpenRouter id for K3, or auto (search the catalog)")
+    run.add_argument("--judge-model", default="openai/gpt-4.1-mini")
+    run.add_argument("--claude-bin", default="claude")
+    run.add_argument("--python", default="")
+    run.add_argument("--check-only", action="store_true", help="run the checks for the phase, then stop")
+    run.set_defaults(func=cmd_run)
 
     report = sub.add_parser("report")
     report.add_argument("--run-root", required=True)
