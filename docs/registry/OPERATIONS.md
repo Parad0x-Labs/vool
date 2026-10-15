@@ -55,6 +55,7 @@ highlighted PUBLISHER/NAME       the Highlighted spot
 suspended PUBLISHER              refuses their uploads and waiting submissions
 removed PUBLISHER/NAME           takes every version out of the list and revokes it; new uploads of it are refused
 team vool-team ID ID             a team name and its members' GitHub account numbers
+build 0.7.2-beta COMMIT          also sign for this VOOL build (version and full commit id) before it is released, to test it
 ```
 
 If a line can't be read, nothing in the file is applied until it is fixed, and the removals already in force keep holding. A `tested` line for a version that isn't listed, or a `highlighted` line for a skill that isn't listed, waits, and the run log names it.

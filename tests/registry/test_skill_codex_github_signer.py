@@ -69,7 +69,8 @@ class World:
 
 
 @pytest.fixture
-def world(tmp_path):
+def world(tmp_path, monkeypatch):
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path / "app-home"))  # the app's own trust state, per test
     w = World()
     w.tmp, w.clock, w.model = tmp_path, Clock(), Model()
     server = tmp_path / "server"
@@ -157,13 +158,13 @@ def team_steps(world, text):
     git(world.owner, "push", "-q", "origin", "main")
 
 
-def app_rows(world):
+def app_rows(world, target=TARGET):
     def request(url, *, limit):
         response = world.http.get(url)
         assert response.status_code == 200, response.text
         return response.content[:limit + 1]
 
-    app = Client(world.root, TARGET, origin=ORIGIN, request=request, now=world.clock.t)
+    app = Client(world.root, target, origin=ORIGIN, request=request, now=world.clock.t)
     try:
         return {row["id"]: row for row in app.refresh(approved=True, now=world.clock.t)["entries"]}
     finally:
@@ -400,11 +401,13 @@ def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_not
 
 
 def test_team_steps_file_rules():
-    assert parse_steps("TESTED a/b 1.0.0-beta.2\nsuspended mallory\nteam vool-team 1 2 2\n") == {
+    assert parse_steps("TESTED a/b 1.0.0-beta.2\nsuspended mallory\nteam vool-team 1 2 2\n"
+                       "build 0.7.2-beta " + "e" * 40 + "\n") == {
         "tested": [("a/b", "1.0.0-beta.2")], "highlighted": [], "suspended": ["mallory"], "removed": [],
-        "teams": {"vool-team": ["1", "2"]}}
+        "teams": {"vool-team": ["1", "2"]}, "builds": [["0.7.2-beta", "e" * 40]]}
     for line, problem in (("tested a/b", "line 1: write it as"), ("highlight a/b", "is not a step"),
-                          ("team vool-team ١٢", "line 1"), ("removed ../b", "line 1"), ("suspended A", "line 1")):
+                          ("team vool-team ١٢", "line 1"), ("removed ../b", "line 1"), ("suspended A", "line 1"),
+                          ("build 0.7.2-beta " + "e" * 12, "line 1"), ("build v0.7.2 " + "e" * 40, "line 1")):
         with pytest.raises(RegistryError, match=problem):
             parse_steps(line)
 
@@ -467,6 +470,23 @@ def test_the_signed_builds_follow_vools_published_releases(world):
     report = run(world, releases=down)
     world.online.refresh(now=world.clock.t)  # the service's own stamp, every ten minutes
     assert report["releases_waiting"].startswith("GitHub could not") and "alice/notes" in rows(world)
+
+
+def test_a_build_the_team_names_is_signed_for_before_its_release_and_leaves_with_its_line(world):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    run(world, releases=lambda: [TARGET])
+    candidate = {"version": "0.7.2-beta", "commit": "5" * 40, "platform": "macos-x86_64"}
+    assert app_rows(world, candidate) == {}  # a build nobody released or named sees nothing
+
+    team_steps(world, "build 0.7.2-beta " + "5" * 40 + "\n")
+    report = run(world, releases=lambda: [TARGET])  # the releases were already read today; the line applies at once
+    assert report["releases_changed"] is True and "catalog" in report
+    assert list(app_rows(world, candidate)) == ["alice/notes"] and list(app_rows(world)) == ["alice/notes"]
+
+    team_steps(world, "")
+    assert run(world, releases=lambda: [TARGET])["releases_changed"] is True
+    assert app_rows(world, candidate) == {} and list(app_rows(world)) == ["alice/notes"]
 
 
 def test_a_down_service_is_quiet_while_the_list_has_days_left(world):

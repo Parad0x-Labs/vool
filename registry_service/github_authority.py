@@ -84,7 +84,8 @@ QUIET_WHILE = 2 * 86400
 REMOVED = "This skill was taken off the Skill Codex. Ask the team before you publish it again."
 _STEP_FORMS = {"tested": "tested publisher/name version", "highlighted": "highlighted publisher/name",
                "suspended": "suspended publisher", "removed": "removed publisher/name",
-               "team": "team name github-account-number [github-account-number ...]"}
+               "team": "team name github-account-number [github-account-number ...]",
+               "build": "build version full-commit-id"}
 
 
 # ---- the sealed part of the state ----
@@ -197,7 +198,7 @@ def _skill(value: str) -> bool:
 def parse_steps(text: str) -> dict:
     """team-steps.txt line by line. A line that doesn't read cleanly stops every step, so nothing half-applies."""
     require(len(text) <= 512 * 1024, STEPS + " is too long")
-    wanted = {"tested": [], "highlighted": [], "suspended": [], "removed": [], "teams": {}}
+    wanted = {"tested": [], "highlighted": [], "suspended": [], "removed": [], "teams": {}, "builds": []}
     for number, line in enumerate(text.splitlines(), 1):
         words = line.split("#", 1)[0].split()
         if not words:
@@ -215,11 +216,16 @@ def parse_steps(text: str) -> dict:
         elif step == "suspended":
             require(len(args) == 1 and bool(IDENTITY.fullmatch(args[0])), form)
             wanted["suspended"].append(args[0])
+        elif step == "build":
+            require(len(args) == 2 and bool(VERSION.fullmatch(args[0])) and bool(COMMIT.fullmatch(args[1])), form)
+            if [args[0], args[1]] not in wanted["builds"]:
+                wanted["builds"].append([args[0], args[1]])
         else:
             require(len(args) >= 2 and bool(IDENTITY.fullmatch(args[0])) and args[0] not in wanted["teams"] and
                     len(args) <= 65 and all(re.fullmatch(r"[0-9]{1,20}", member) for member in args[1:]), form)
             wanted["teams"][args[0]] = sorted(set(args[1:]))
     require(len(wanted["teams"]) <= 16, STEPS + ": at most 16 teams")
+    require(len(wanted["builds"]) <= 8, STEPS + ": at most 8 builds")
     return wanted
 
 
@@ -393,6 +399,7 @@ class RepoAuthority(Authority):
             self._removed = set(self.state.get("removed", []))
             return {"applied": False, "problems": [str(exc) if isinstance(exc, RegistryError) else STEPS + " is not plain text"]}
         problems = []
+        self.state["builds"] = wanted["builds"]  # signed for from this run on, with the releases
         self._removed = set(wanted["removed"])
         self.state["removed"] = sorted(self._removed)
         gone = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] in self._removed]
@@ -437,15 +444,27 @@ class RepoAuthority(Authority):
 
     def follow_releases(self) -> bool:
         """Once a day: sign for the newest published VOOL releases. True when the builds changed."""
-        if self._releases is None or self.state.get("releases_checked") == self._today():
+        if self._releases is not None and self.state.get("releases_checked") != self._today():
+            released = self._releases()
+            require(validate_policy(checks.policy(released)) in self.root["policies"],
+                    "the release list does not fit the trust root")
+            self.state["released"] = released
+            self.state["releases_checked"] = self._today()
+            self.save()
+        return self._sign_for()
+
+    def _sign_for(self) -> bool:
+        """The builds the list is signed for: the followed releases, and any the team named to test before release."""
+        released = self.state.get("released", self.state["targets"])
+        named = [{"version": version, "commit": commit, "platform": platform}
+                 for version, commit in self.state.get("builds", []) for platform in PLATFORMS]
+        targets = released + [target for target in named if target not in released]
+        if targets == self.state["targets"]:
             return False
-        targets = self._releases()
-        require(validate_policy(checks.policy(targets)) in self.root["policies"], "the release list does not fit the trust root")
-        self.state["releases_checked"] = self._today()
-        changed = targets != self.state["targets"]
+        require(validate_policy(checks.policy(targets)) in self.root["policies"], "these builds do not fit the trust root")
         self.state["targets"] = targets  # _renew signs every listed skill again for these builds
         self.save()
-        return changed
+        return True
 
     def recheck(self) -> list[str]:
         """Once a day: today's checks on every listed skill. One that fails them leaves the list."""
@@ -485,6 +504,7 @@ class RepoAuthority(Authority):
             report["releases_changed"] = self.follow_releases()
         except RegistryError as exc:
             report["releases_waiting"] = str(exc)  # GitHub is down: the next run asks again
+            report["releases_changed"] = self._sign_for()  # a build the team named still applies
         try:
             report["dropped"] = self.recheck()
         except RegistryError as exc:
@@ -555,7 +575,7 @@ def setup(repo: Path, *, github: str, catalog_key: str, targets: list[dict], rev
     (folder / "config.json").write_bytes(_public_json({"review": review}))
     (folder / "vool-commit").write_text(vool_commit + "\n")
     (folder / "state.json").write_bytes(_public_json({
-        "epoch": 0, "entries": [], "revoked": [], "targets": targets, "authorized_until": 0,
+        "epoch": 0, "entries": [], "revoked": [], "targets": targets, "released": targets, "authorized_until": 0,
         "marks": {"sequence": 0, "tested": [], "highlighted": [], "suspended": [], "teams": {}}}))
     (folder / "private.bin").write_bytes(seal(state_key, {"verdicts": {}, "attempts": {}, "reviews": {}, "spend": {}}))
     (repo / ".gitattributes").write_text(FOLDER + "/private.bin binary\n")

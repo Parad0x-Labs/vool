@@ -8,5 +8,6 @@
 #   suspended publisher              this creator can't publish; their uploads are refused
 #   removed publisher/name           off the Skill Codex, and installed copies stop working
 #   team vool-team 12345 67890       a team name and its members' GitHub account numbers
+#   build 0.7.2-beta <commit id>     also sign for this VOOL build before it is released, to test it
 #
 # If a line can't be read, nothing in this file is applied until it is fixed; the run log says which line.
