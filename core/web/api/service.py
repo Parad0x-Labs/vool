@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import hashlib
 import json
 import logging
@@ -3058,6 +3059,16 @@ def _credential_page_refusal(headers: dict[str, Any] | None, client_host: str) -
     return ""
 
 
+# The chat's one-turn slot a /api/chat request holds and has not yet handed to a turn worker,
+# as (session_id, token). Set by the chat door when it takes the slot; cleared when the slot is
+# handed to a worker (whose end releases it) or released by the door itself. Whatever is still
+# set when the request leaves the door -- an exception between the two, or a return path that
+# forgot -- is released there, so a failed request can never hold a chat until its lease runs out.
+_CHAT_SLOT_HELD: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
+    "vool_chat_slot_held", default=None
+)
+
+
 def dispatch_post(
     *,
     path: str,
@@ -3399,24 +3410,33 @@ def dispatch_post(
         except Exception:
             _transcript_request_id = ""
 
-        _response = _dispatch_post_inner(
-            path=path,
-            body=body,
-            headers=headers,
-            runtime=runtime,
-            model_name=model_name,
-            normalized_path=normalized_path,
-            workspace_root_provider=workspace_root_provider,
-            normalize_chat_history_provider=normalize_chat_history_provider,
-            extract_user_message_provider=extract_user_message_provider,
-            stable_openclaw_session_id_provider=stable_openclaw_session_id_provider,
-            run_agent_provider=run_agent_provider,
-            stream_agent_with_events_provider=stream_agent_with_events_provider,
-            resolve_null_domain_provider=resolve_null_domain_provider,
-            try_dial_provider=try_dial_provider,
-            client_host=client_host,
-            request_id=_r2_request_id,
-        )
+        _chat_slot_scope = _CHAT_SLOT_HELD.set(None)
+        try:
+            _response = _dispatch_post_inner(
+                path=path,
+                body=body,
+                headers=headers,
+                runtime=runtime,
+                model_name=model_name,
+                normalized_path=normalized_path,
+                workspace_root_provider=workspace_root_provider,
+                normalize_chat_history_provider=normalize_chat_history_provider,
+                extract_user_message_provider=extract_user_message_provider,
+                stable_openclaw_session_id_provider=stable_openclaw_session_id_provider,
+                run_agent_provider=run_agent_provider,
+                stream_agent_with_events_provider=stream_agent_with_events_provider,
+                resolve_null_domain_provider=resolve_null_domain_provider,
+                try_dial_provider=try_dial_provider,
+                client_host=client_host,
+                request_id=_r2_request_id,
+            )
+        finally:
+            _held_slot = _CHAT_SLOT_HELD.get()
+            _CHAT_SLOT_HELD.reset(_chat_slot_scope)
+            if _held_slot is not None:
+                from core.runtime_continuity import release_chat_turn_admission as _release_held_slot
+
+                _release_held_slot(*_held_slot)
         # A streamed turn is not over when this function returns: the model is still
         # being read. The admission has to live as long as the turn actually does, or a
         # council could take the pin mid-stream — which is the same defect one layer
@@ -7933,7 +7953,11 @@ def _dispatch_post_inner(
         from core.runtime_continuity import release_chat_turn_admission as _release_admission
 
         def _release_turn_admission() -> None:
+            _CHAT_SLOT_HELD.set(None)
             _release_admission(session_id, _admit_turn_id)
+
+        if _admission.get("admitted") and _admit_turn_id:
+            _CHAT_SLOT_HELD.set((session_id, _admit_turn_id))
 
         source_context.pop("attachment_turn_id", None)
         source_context.pop("attachment_delivery", None)
@@ -8195,6 +8219,8 @@ def _dispatch_post_inner(
                 # Outermost on purpose: the turn's attachments are released only once every
                 # byte has left (or the client has), never while a frame is still being built.
                 stream_iter = _release_attachments_after(stream_iter, session_id=session_id, turn_id=_attachment_turn)
+            # Handed over: the streaming worker's end releases the slot from here on.
+            _CHAT_SLOT_HELD.set(None)
             if normalized_path.startswith("/v1/"):
                 return apply_runtime_headers(
                     stream_response(
@@ -8220,6 +8246,8 @@ def _dispatch_post_inner(
         from core.live_turns import unregister_turn as _buf_unregister_turn
 
         _buf_cancel_turn = str(source_context.get("cancel_turn_id") or "").strip()
+        # Handed over: the buffered lane's own finally below releases the slot from here on.
+        _CHAT_SLOT_HELD.set(None)
         _buf_task_turn = bool(_buf_cancel_turn) and not source_context.get(_buf_followups.SIDE_ANSWER_CONTEXT_KEY)
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
