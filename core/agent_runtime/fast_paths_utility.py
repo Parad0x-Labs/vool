@@ -830,6 +830,7 @@ def _emit_workspace_tool_events(
     intent: str,
     execution: Any,
     path: str = "",
+    observation: dict[str, Any] | None = None,
 ) -> None:
     """Record a workspace tool run as real, typed Activity steps.
 
@@ -859,7 +860,8 @@ def _emit_workspace_tool_events(
         # read. Measured: `workspace.search_text` and `workspace.read_file` were 100% empty while
         # `web.search`, which does pass them, was 0% empty.
         arguments={"path": path} if path else {},
-        observation=dict(getattr(execution, "details", {}) or {}).get("observation", {}),
+        observation=(observation if observation is not None else
+                     dict(getattr(execution, "details", {}) or {}).get("observation", {})),
     )
 
 
@@ -1024,6 +1026,12 @@ def maybe_handle_direct_workspace_runtime_request(
     payload = dict(decision.next_payload or {})
     intent = str(payload.get("intent") or "").strip()
     if intent not in {"workspace.git_summary", "workspace.git_status", "workspace.search_text"}:
+        # A question can refer to project material without spelling a filename.
+        # Evidence informs the model; collecting it never completes the question.
+        if isinstance(source_context, dict):
+            from core.agent_runtime.workspace_question_evidence import collect_subject_evidence
+
+            collect_subject_evidence(agent, user_input, source_context)
         return None
     arguments = dict(payload.get("arguments") or {})
     execution = execute_runtime_tool(

@@ -3539,7 +3539,10 @@ def _dispatch_runtime_tool(
         if intent == "workspace.symbol_search":
             return _symbol_search(arguments, workspace_root=workspace_root)
         if intent == "workspace.read_file":
-            return _read_file(arguments, workspace_root=workspace_root)
+            return _read_file(
+                arguments, workspace_root=workspace_root,
+                byte_budget=(source_context or {}).get("_workspace_context_read_byte_budget"),
+            )
         if intent == "workspace.ensure_directory":
             return _dispatch_with_mutation_activity(
                 intent, workspace_root=workspace_root, source_context=source_context, arguments=arguments,
@@ -6117,7 +6120,9 @@ def _nearby_workspace_matches(name: str, *, workspace_root: Path, limit: int = 5
     return found
 
 
-def _read_file(arguments: dict[str, Any], *, workspace_root: Path) -> RuntimeExecutionResult:
+def _read_file(
+    arguments: dict[str, Any], *, workspace_root: Path, byte_budget: int | None = None,
+) -> RuntimeExecutionResult:
     try:
         target = _resolve_workspace_path(arguments.get("path"), workspace_root=workspace_root)
     except ValueError as exc:
@@ -6199,7 +6204,30 @@ def _read_file(arguments: dict[str, Any], *, workspace_root: Path) -> RuntimeExe
                 ),
             },
         )
-    if not _is_probably_text(target):
+    # Automatic context reads supply a byte budget. Enforce it on the actual
+    # read, before the text probe, which otherwise reads the entire file.
+    raw_bytes = None
+    if byte_budget is not None:
+        byte_budget = max(1, int(byte_budget))
+        with target.open("rb") as stream:
+            raw_bytes = stream.read(byte_budget + 1)
+        if len(raw_bytes) > byte_budget:
+            from core.i18n.turn_locale import turn_text
+
+            shown = _relative_path(target, workspace_root=workspace_root)
+            return RuntimeExecutionResult(
+                handled=True, ok=False, status="too_large",
+                response_text=turn_text("chatimport.problem.too_large", "This is too large to read safely."),
+                details={
+                    "path": shown, "max_bytes": byte_budget,
+                    "observation": _tool_observation(
+                        intent="workspace.read_file", tool_surface="workspace", ok=False,
+                        status="too_large", path=shown, max_bytes=byte_budget,
+                    ),
+                },
+            )
+    readable = b"\x00" not in raw_bytes[:4096] if raw_bytes is not None else _is_probably_text(target)
+    if not readable:
         return RuntimeExecutionResult(
             handled=True,
             ok=False,
@@ -6219,7 +6247,8 @@ def _read_file(arguments: dict[str, Any], *, workspace_root: Path) -> RuntimeExe
     start_line = max(1, int(arguments.get("start_line") or 1))
     max_lines = max(1, min(int(arguments.get("max_lines") or _READ_FILE_DEFAULT_LINES), _READ_FILE_CEILING))
     verbatim = bool(arguments.get("verbatim", False))
-    raw_bytes = target.read_bytes()
+    if raw_bytes is None:
+        raw_bytes = target.read_bytes()
     try:
         full_text = raw_bytes.decode("utf-8")
         decode_lossy = False
