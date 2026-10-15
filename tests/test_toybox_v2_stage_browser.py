@@ -23,6 +23,10 @@ def test_layout_and_truth_follow_real_companion_reducer(served, layout):
         assert response.status == 200, response.text()
         page.goto(served + "/chat")
         page.wait_for_function("window.VoolStage && window.VoolCompanion")
+        # The rail-drag listeners bind only when the async skin state arrives
+        # (VoolStage.selection -> ensureLayout); wait for its data-vool-layout
+        # stamp so the grip drag below can never race the binding.
+        page.wait_for_function("document.documentElement.dataset.voolLayout!==undefined")
         assert page.locator("#log").bounding_box()["width"] >= 640
         def toggle_dock():
             page.locator('#tbDockChats').click()
