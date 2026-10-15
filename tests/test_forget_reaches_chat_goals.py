@@ -239,3 +239,91 @@ def test_a_forget_that_finds_nothing_leaves_the_chats_goal_alone(isolated_pages)
 
     assert handled and reply.startswith("Nothing was removed"), reply
     assert _row(goal["goal_id"]) == before
+
+
+def test_a_finished_goal_keeps_no_forgotten_words_in_its_step_pointer(isolated_pages):
+    """The planner's step id is kept as the model wrote it, and a failed goal keeps pointing at the step
+    that failed: the pointer column is erased with the step it names."""
+    chat = "goals-forget-step-pointer"
+    _remember(isolated_pages, chat, FACT)
+    goal = _goal(chat, "Write a note about harbor lanterns",
+                 [{"id": "visit-flourstone-bakehouse", "title": "Ask about lantern oil"}], state="failed")
+    assert _row(goal["goal_id"])["current_step_id"] == "visit-flourstone-bakehouse"
+
+    handled, reply = command(isolated_pages, chat, f"Forget {CANARY}.")
+
+    assert handled and reply.startswith("Forget applied"), reply
+    row = _row(goal["goal_id"])
+    assert not _carries(row), row
+    assert row["state"] == "failed", row
+
+
+def test_a_stop_refused_by_an_unreadable_ledger_still_stops_the_live_worker(isolated_pages):
+    """An unreadable forget ledger refuses the stop's record, but the running worker and its in-flight step
+    turn are stopped anyway: a refused write is no reason to let a step keep acting."""
+    from core.goal_workflow import GoalWriteRefused, request_stop
+    from core.memory import revocation
+
+    chat = "goals-forget-stop-ledger"
+    _remember(isolated_pages, chat, FACT)
+    goal = _goal(chat, "Write a note about harbor lanterns", [{"id": "step-1", "title": "Write the note"}])
+    handled, reply = command(isolated_pages, chat, f"Forget {CANARY}.")
+    assert handled and reply.startswith("Forget applied"), reply
+    worker, cancel = _live_worker(goal, "step-turn-1")
+    ledger = revocation._directory() / "ledger.json"
+    good = ledger.read_bytes()
+    ledger.write_text("{not json", encoding="utf-8")
+    try:
+        with pytest.raises(GoalWriteRefused):
+            request_stop(goal["goal_id"])
+        assert worker.stop_requested.is_set() and cancel.is_set()
+    finally:
+        ledger.write_bytes(good)
+        _release(worker, "step-turn-1")
+
+
+def test_a_worker_save_landing_inside_the_sweep_is_not_overwritten_by_the_older_row(isolated_pages, monkeypatch):
+    """The sweep rewrites a goal row whole from what it read. A worker's save that commits between that read
+    and the rewrite (here: the goal completing) was lost: the row went back to running."""
+    import threading
+
+    import core.goal_workflow as goal_workflow
+    from core.goal_workflow import load_goal, save_goal
+
+    chat = "goals-forget-race"
+    _remember(isolated_pages, chat, FACT)
+    goal = _goal(chat, "Write a note about harbor lanterns", [
+        {"id": "step-1", "title": "Collect lantern colours"},
+        {"id": "step-2", "title": "Write the note", "depends_on": ["step-1"]}],
+        answer="Colours collected; the Flourstone Bakehouse sells lantern oil.")
+    held = load_goal(goal["goal_id"])
+    held["plan"]["steps"][1]["state"] = "completed"
+    held["state"] = "completed"
+    held["current_step_id"] = ""
+    errors: list[BaseException] = []
+
+    def worker_save() -> None:
+        try:
+            save_goal(held)
+        except BaseException as exc:  # reported below
+            errors.append(exc)
+
+    original = goal_workflow.forget_goal_row
+    saver = threading.Thread(target=worker_save)
+
+    def forget_goal_row(conn, row, token):
+        if not saver.is_alive() and saver.ident is None:
+            saver.start()
+            saver.join(1.0)  # an unfenced save commits at once; one held off by the sweep's lock waits
+        return original(conn, row, token)
+
+    monkeypatch.setattr(goal_workflow, "forget_goal_row", forget_goal_row)
+    handled, reply = command(isolated_pages, chat, f"Forget {CANARY}.")
+    saver.join(30)
+
+    assert handled and reply.startswith("Forget applied"), reply
+    assert saver.ident is not None and not saver.is_alive() and not errors, errors
+    row = _row(goal["goal_id"])
+    assert not _carries(row), row
+    assert row["state"] == "completed", row
+    assert [step["state"] for step in json.loads(row["plan_json"])["steps"]] == ["completed", "completed"], row

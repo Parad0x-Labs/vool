@@ -706,6 +706,18 @@ def claim_worker_epoch(goal_id: str) -> int:
         conn.close()
 
 
+def _halt_worker(worker: _GoalWorker | None, goal: dict[str, Any], *, stop: bool) -> None:
+    """Pause or stop a live worker and cancel its in-flight step turn."""
+    if worker is None:
+        return
+    (worker.stop_requested if stop else worker.pause_requested).set()
+    turn_id = worker.current_step_turn()
+    if turn_id:
+        from core.live_turns import request_cancel
+
+        request_cancel(goal.get("session_id") or "", turn_id)
+
+
 def request_pause(goal_id: str) -> dict[str, Any]:
     """Pause: no NEW goal step begins after acknowledgement; the in-flight step turn is
     cancelled through the existing live-turn owner and is ACCOUNTED until it settles — the
@@ -724,7 +736,12 @@ def request_pause(goal_id: str) -> dict[str, Any]:
     goal["state"] = "paused"
     goal["updated_at"] = now
     goal["last_reason"] = "paused by operator"
-    save_goal(goal)
+    try:
+        save_goal(goal)
+    except GoalWriteRefused:
+        # The record cannot be written, but the live worker still stops starting new steps.
+        _halt_worker(worker, goal, stop=False)
+        raise
     if worker is not None:
         worker.pause_requested.set()
         turn_id = worker.current_step_turn()
@@ -762,7 +779,13 @@ def request_stop(goal_id: str) -> dict[str, Any]:
         # No live worker will settle an in-flight turn: freeze any recorded running step as
         # cancelled so nothing is left claiming to run.
         _freeze_running_steps(goal, "cancelled", "goal stopped by operator")
-    save_goal(goal)
+    try:
+        save_goal(goal)
+    except GoalWriteRefused:
+        # A refused record (an unreadable forget ledger) does not keep a live worker running: it is
+        # stopped and its step turn cancelled, and the refusal is answered.
+        _halt_worker(worker, goal, stop=True)
+        raise
     if worker is not None:
         worker.stop_requested.set()
         turn_id = worker.current_step_turn()
@@ -1052,6 +1075,10 @@ def forget_words_in_goal(goal: dict[str, Any], tokens: Any) -> bool:
         worked_on = goal_words_carry(_goal_work(goal), token) or worked_on
         for key in ("objective", "acceptance", "last_reason"):
             goal[key] = goal_words_redacted(str(goal.get(key) or ""), token)
+        # The step pointer is the planner's own step id (``build_plan`` keeps it as written): a finished
+        # goal keeps it, so it is blanked with the step it names.
+        if goal_words_carry(str(goal.get("current_step_id") or ""), token):
+            goal["current_step_id"] = ""
         for key in ("plan", "exec_context"):
             value = goal.get(key)
             goal[key] = goal_words_redacted(value if isinstance(value, dict) else {}, token)

@@ -603,6 +603,10 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str, command: 
     elif spec.action == "goal":
         from core.goal_workflow import forget_goal_row, stop_goals_after_forget
 
+        # A goal row is rewritten whole from what was read, so it is read again under the write lock: a
+        # worker's save that committed after the first read is erased, not overwritten by the older row.
+        conn.execute("BEGIN IMMEDIATE")
+        matched, _ = _carrying(conn, spec, owners, token)
         stopped = [forget_goal_row(conn, row, token) for row in matched]
         conn.commit()
         stop_goals_after_forget([goal for goal in stopped if goal is not None])
