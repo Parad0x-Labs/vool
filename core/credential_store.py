@@ -219,8 +219,10 @@ def _load_raw(*, strict: bool | None = None) -> dict[str, dict[str, str]]:
 
 
 def _save_raw(raw: dict[str, dict[str, str]]) -> None:
+    global _INDEX_WRITES
     path = _store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    _INDEX_WRITES += 1
     path.write_text(json.dumps(raw, sort_keys=True), encoding="utf-8")
     _chmod600(path)
 
@@ -313,8 +315,10 @@ def _meta_load() -> dict[str, dict[str, str]]:
 
 
 def _meta_save(meta: dict[str, dict[str, str]]) -> None:
+    global _INDEX_WRITES
     path = _meta_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    _INDEX_WRITES += 1
     path.write_text(json.dumps(meta, sort_keys=True), encoding="utf-8")
     _chmod600(path)
 
@@ -532,12 +536,47 @@ def get_credential(name: str) -> str | None:
     return _vault_get(name)
 
 
+# The indexed names as last read, with the state of both index files they were read from. The
+# tool catalog asks whether a key is indexed many times a turn; re-reading both files (and making
+# sure the runtime folders exist) each time was a measurable share of every turn.
+_INDEX_WRITES = 0
+_INDEX_MEMO: tuple[tuple, frozenset[str]] | None = None
+
+
+def _index_files_state() -> tuple | None:
+    """Both index files as they are on disk now, or None when that cannot be told."""
+    try:
+        from core.runtime_paths import active_data_dir
+
+        data_dir = active_data_dir()
+        state: list[object] = [str(data_dir), _INDEX_WRITES, bool(_STRICT_READS.get())]
+        for file_name in (_META_FILE, _STORE_FILE):
+            try:
+                st = (data_dir / file_name).stat()
+            except FileNotFoundError:
+                state.append(None)
+                continue
+            state.append((st.st_ino, st.st_size, st.st_mtime_ns))
+        return tuple(state)
+    except Exception:
+        return None
+
+
 def credential_is_indexed(name: str) -> bool:
     """Disk-index presence only; no secret reads, migration, or Keychain prompts.
 
     This is UI inventory evidence, not authentication. Explicit actions use strict reads.
+    The names are read again whenever either index file changed on disk or was written here.
     """
-    return name in _meta_load() or name in _load_raw()
+    global _INDEX_MEMO
+    state = _index_files_state()
+    memo = _INDEX_MEMO
+    if state is not None and memo is not None and memo[0] == state:
+        return name in memo[1]
+    names = frozenset(_meta_load()) | frozenset(_load_raw())
+    if state is not None and state == _index_files_state():
+        _INDEX_MEMO = (state, names)
+    return name in names
 
 
 def has_credential(name: str) -> bool:
