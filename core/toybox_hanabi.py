@@ -22,7 +22,7 @@ def _palette(light):
         return dict(background="#ffeede", panel="#fff8ef", field="#ffefdf", ink="#33244d",
                     muted="#5d4a78", accent="#ff4f7d", accentInk="#4d0f26", border="#8a5f9e")
     return dict(background="#151a38", panel="#20265a", field="#1a2044", ink="#f6f2ff",
-                muted="#bcb8e6", accent="#ff5f8f", accentInk="#2b0a18", border="#8f8ac2")
+                muted="#d5d3f5", accent="#ff5f8f", accentInk="#2b0a18", border="#8f8ac2")
 
 
 def _rgba(hex_color: str, alpha: float) -> str:
@@ -115,11 +115,12 @@ def chrome(identifier, p: dict) -> str:
     line = "var(--tb-line)"
     shadow_line = "var(--tb-shadow)"
     out = (":root{--tb-wall:" + _wallpaper(False) + ";--tb-wall-light:" + _wallpaper(True)
-           + ";--tb-line:#f6f2ff;--tb-shadow:#0a0b1e;--tb-glass:" + _rgba(dark["panel"], 0.93)
-           + ";--tb-log-art:" + _log_art() + "}\n")
-    out += (':root[data-theme="light"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:' + _rgba(light["panel"], 0.94) + "}\n")
+           + ";--tb-line:#f6f2ff;--tb-shadow:#0a0b1e;--tb-glass:" + _rgba(dark["panel"], 0.85)
+           + ";--tb-log-art:" + _log_art() + ";--tb-empty:" + _rgba(dark["panel"], 0.8) + "}\n")
+    out += (':root[data-theme="light"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:' + _rgba(light["panel"], 0.88)
+            + ";--tb-empty:" + _rgba(light["panel"], 0.85) + "}\n")
     out += ('@media(prefers-color-scheme:light){:root[data-theme="system"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:'
-            + _rgba(light["panel"], 0.94) + "}}\n")
+            + _rgba(light["panel"], 0.88) + ";--tb-empty:" + _rgba(light["panel"], 0.85) + "}}\n")
     out += "body{background:transparent!important}\n"
     out += ("#log" + GUARD + "{position:relative}\n")
     out += ("#log::before{content:'';position:absolute;inset:0;background-image:var(--tb-log-art);"
@@ -168,14 +169,15 @@ def chrome(identifier, p: dict) -> str:
     out += ("#main" + GUARD + "{margin:16px 18px;border:3px solid " + line + ";border-radius:20px;"
             "box-shadow:0 10px 0 " + shadow_line + ",0 24px 60px rgba(6,6,20,.55);overflow:hidden}\n")
     out += (":is(#sidebar,#side,#xpanel,#pane)" + GUARD +
-            "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";margin-block:10px}\n")
+            "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";margin-block:12px}\n")
+    out += (":is(#sidebar,#xpanel)" + GUARD + "{margin-inline:12px}\n")
     out += ("#main > header" + GUARD + "{background-image:var(--tb-stage-header);background-repeat:repeat-x;"
             "background-size:auto 44px;background-position:center;border-block-end:3px solid " + line + ";padding-block-start:48px}\n")
     out += ("#main > footer" + GUARD + "{border-block-start:3px solid " + line + ";background-color:var(--panel)}\n")
     out += ("#sessions .session.active" + GUARD + "{border:2px solid var(--accent);border-radius:10px;"
             "box-shadow:0 3px 0 " + shadow_line + ";background-color:var(--panel)}\n")
     out += ("#newChat" + GUARD + "{background-color:var(--accent);color:var(--accent-ink)}\n")
-    out += ".empty" + GUARD + "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";background-color:" + glass + "}\n"
+    out += ".empty" + GUARD + "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";background-color:var(--tb-empty)}\n"
     out += ":root[data-vool-motion='off'] " + subject + "{transition:none}\n"
     out += "@media(prefers-reduced-motion:reduce){" + subject + "{transition:none!important}}\n"
     return out
