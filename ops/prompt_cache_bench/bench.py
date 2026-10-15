@@ -805,6 +805,21 @@ def _cli_env(route: str, key: str = "", model: str = "") -> dict[str, str]:
     return env
 
 
+def cli_turn_usd(reported: float | None, session_reported_before: float | None) -> float | None:
+    """This turn's cost from Claude Code's ``total_cost_usd``, which is the SESSION's running total.
+
+    A ``--resume`` turn reports what the whole session has cost so far (run4: 0.177, 0.193, 0.208 ...
+    for turns that each cost about $0.016), so the turn's own cost is the step from the previous
+    turn of the same session. The first turn of a session is its own total. A total that went down
+    is not a running total: it is taken as this turn's cost rather than guessed at.
+    """
+    if reported is None:
+        return None
+    if session_reported_before is None or reported < session_reported_before:
+        return reported
+    return round(reported - session_reported_before, 8)
+
+
 def cmd_cli(args: argparse.Namespace) -> int:
     root = Path(args.run_root).resolve()
     arm_dir = root / args.label
@@ -836,6 +851,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     continue
                 workspace = _fresh_workspace(arm_dir / "ws" / f"{task['id']}-r{repeat}-{uuid.uuid4().hex[:6]}")
                 session_id = ""
+                session_reported: float | None = None  # Claude Code's running session total so far
                 failure = ""
                 for index, turn in enumerate(task["turns"]):
                     ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
@@ -862,15 +878,18 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
                     cost = data.get("total_cost_usd")
                     cost = float(cost) if isinstance(cost, (int, float)) else None
-                    # On OpenRouter the key's own usage counter is the charge; Claude Code's figure is
-                    # its price-table estimate. The cap holds the larger of the two, so it never lags.
+                    turn_cost = cli_turn_usd(cost, session_reported)
+                    session_reported = cost if cost is not None else session_reported
+                    # The cap holds the larger of this turn's own cost and the key meter's step. The
+                    # meter can lag and then catch up in one step, so it is a cap guard only: the row's
+                    # USD is the turn's own cost.
                     key_delta = None
                     if key:
                         now = key_usage_usd(key)
                         if now is not None and usage_mark is not None:
                             key_delta = max(0.0, now - usage_mark)
                         usage_mark = now if now is not None else usage_mark
-                    held = max([v for v in (cost, key_delta) if v is not None], default=None)
+                    held = max([v for v in (turn_cost, key_delta) if v is not None], default=None)
                     ledger.record(billed=held, notional=None, unknown=held is None)
                     input_tokens = int(usage.get("input_tokens") or 0)
                     cached = usage.get("cache_read_input_tokens")
@@ -898,8 +917,9 @@ def cmd_cli(args: argparse.Namespace) -> int:
                         "cached_tokens": int(cached) if isinstance(cached, int) else None,
                         "cache_write_tokens": int(written) if isinstance(written, int) else None,
                         "output_tokens": int(usage.get("output_tokens") or 0),
-                        "usd": round(key_delta if key_delta else cost, 8) if (key_delta or cost is not None) else None,
-                        "claude_code_reported_usd": cost,
+                        "usd": turn_cost,
+                        "claude_code_turn_usd": turn_cost,
+                        "claude_code_reported_usd": cost,  # the session's running total, as reported
                         "key_usage_delta_usd": key_delta,
                         "usd_kind": "billed_openrouter" if args.route == "openrouter" else "claude_code_reported",
                         "model_usage": data.get("modelUsage"),
@@ -909,7 +929,7 @@ def cmd_cli(args: argparse.Namespace) -> int:
                     print(
                         f"{args.label} {task['id']} r{repeat} t{index}: {wall}s in={row['prompt_tokens']} "
                         f"cached={row['cached_tokens']} write={row['cache_write_tokens']} out={row['output_tokens']} "
-                        f"${cost if cost is not None else float('nan'):.5f} exit={proc.returncode} | {_spend_line(ledger, results_path)}",
+                        f"${turn_cost if turn_cost is not None else float('nan'):.5f} exit={proc.returncode} | {_spend_line(ledger, results_path)}",
                         flush=True,
                     )
                     wrong_model = _wrong_cli_model(data, args.cli_model)
@@ -962,11 +982,31 @@ Score it: 2 = correct and complete on the reference facts, 1 = partly correct or
 Reply with JSON only: {{"score": 0|1|2, "reason": "<one short sentence>"}}"""
 
 
+def _with_cli_turn_costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Claude Code rows written before ``cli_turn_usd`` existed carry the session's running total as
+    their USD. Re-derive each turn's own cost from those totals, in turn order within each chat, and
+    mark the row, so a report over an older run root is right and says it was corrected."""
+    chats: dict[tuple[Any, Any, Any], list[dict[str, Any]]] = {}
+    for row in rows:
+        if row.get("kind") == "turn" and row.get("arm") == "cli" and "claude_code_turn_usd" not in row:
+            chats.setdefault((row.get("attempt"), row.get("task"), row.get("repeat")), []).append(row)
+    for chat in chats.values():
+        before: float | None = None
+        for row in sorted(chat, key=lambda r: int(r["turn"])):
+            reported = row.get("claude_code_reported_usd")
+            reported = float(reported) if isinstance(reported, (int, float)) else None
+            row["usd"] = cli_turn_usd(reported, before)
+            row["claude_code_turn_usd"] = row["usd"]
+            row["usd_from_running_total"] = True
+            before = reported if reported is not None else before
+    return rows
+
+
 def _final_rows(root: Path) -> list[tuple[Path, dict[str, Any]]]:
     """Every turn row from attempts whose (task, repeat) completed, one per (label, task, repeat, turn)."""
     out: list[tuple[Path, dict[str, Any]]] = []
     for results in sorted(root.glob("*/results.jsonl")):
-        rows = _read_jsonl(results)
+        rows = _with_cli_turn_costs(_read_jsonl(results))
         complete_attempt = {(r["task"], int(r["repeat"])): r["attempt"] for r in rows if r.get("kind") == "chat_complete"}
         for row in rows:
             if row.get("kind") != "turn":
@@ -1096,6 +1136,7 @@ def summarize(root: Path) -> dict[str, Any]:
             "usd_total": round(usd, 6) if usd is not None else None,
             "usd_unknown_turns": sum(1 for r in rows if not isinstance(r.get("usd"), (int, float)) or r.get("usd_unknown_calls")),
             "usd_per_turn": round(usd / len(rows), 6) if usd is not None and rows else None,
+            "usd_corrected_turns": sum(1 for r in rows if r.get("usd_from_running_total")),
             "calls": _sum([r.get("calls") for r in rows]) if rows[0].get("arm") == "vool" else None,
             "off_model_calls": _sum([r.get("off_model_calls") for r in rows]) if rows[0].get("arm") == "vool" else None,
             "quality_points": sum(known_scores),
@@ -1114,7 +1155,7 @@ def summarize(root: Path) -> dict[str, Any]:
     # What the table leaves out: chats that failed or never finished still spent money and time.
     summary["not_counted"] = {}
     for results in sorted(root.glob("*/results.jsonl")):
-        rows = _read_jsonl(results)
+        rows = _with_cli_turn_costs(_read_jsonl(results))
         counted = {(r["task"], int(r["repeat"]), r["attempt"]) for r in rows if r.get("kind") == "chat_complete"}
         dropped = [r for r in rows if r.get("kind") == "turn" and (r["task"], int(r["repeat"]), r.get("attempt")) not in counted]
         failed = [r for r in rows if r.get("kind") == "chat_failed"]
@@ -1140,7 +1181,9 @@ def cmd_report(args: argparse.Namespace) -> int:
         *(["**DRY RUN: stand-in provider and stand-in Claude Code. No number here is evidence.**", ""] if (root / DRYRUN_MARKER).exists() else []),
         f"Run root: `{root.name}`. Money counted against the cap: billed ${summary['ledger'].get('billed_usd', 0):.4f}, "
         f"(Claude Code turns are in billed, at Claude Code's own reported cost), "
-        f"cap ${summary['ledger'].get('cap_usd', 0):.2f}.",
+        f"cap ${summary['ledger'].get('cap_usd', 0):.2f}. OpenRouter key meter over the run: "
+        + (f"${summary['ledger']['key_meter_usd']:.4f}" if isinstance(summary["ledger"].get("key_meter_usd"), (int, float)) else "unknown")
+        + " (it can lag; read it again after the run for the final figure).",
         "",
         "| Label | Arm | Model | Cache | Turns (failed) | Wall s total | Median turn s | Prompt tok | Cached tok | Cached share | Cache-write tok | Output tok | Out tok/s | USD total | USD/turn | Quality |",
         "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
@@ -1174,10 +1217,20 @@ def cmd_report(args: argparse.Namespace) -> int:
         for label, row in summary["not_counted"].items():
             reasons = "; ".join(row["reasons"]) or "unfinished"
             lines.append(f"- {label}: {row['turns']} turns, {row['failed_chats']} failed chats, USD {fmt(row['usd'])}. {reasons}")
+    corrected = {label: row["usd_corrected_turns"] for label, row in summary["labels"].items() if row.get("usd_corrected_turns")}
+    if corrected:
+        lines += [
+            "",
+            "Corrected: Claude Code reports the running total of its session on every resumed turn. These rows were",
+            "recorded with that total; each turn's own cost is re-derived here as the step from the previous turn: "
+            + ", ".join(f"{label} {n} turns" for label, n in corrected.items()) + ".",
+            "The run's spend.json and live cap counted the running totals, so they are higher than the table.",
+        ]
     lines += [
         "",
         "Notes: USD for VOOL rows is what OpenRouter reported per call (usage.cost). USD for a Claude Code row is",
-        "Claude Code's own total_cost_usd (a charge on API usage billing). Unknown means nothing was reported.",
+        "the step in Claude Code's own total_cost_usd for its session (priced by Claude Code from its token counts).",
+        "Unknown means nothing was reported.",
         "Cached share is cached tokens over the prompt tokens of the calls that reported a cache figure.",
     ]
     (root / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -1443,7 +1496,11 @@ def _start_dryrun(args: argparse.Namespace, root: Path) -> subprocess.Popen:
     args.key_source = "env"
     shim = root / "dryrun-bin" / "claude"
     shim.parent.mkdir(parents=True, exist_ok=True)
-    shim.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{DRYRUN_DIR / "standin_claude.py"}" "$@"\n', encoding="utf-8")
+    state = root / "dryrun-bin" / "sessions.json"  # the stand-in's session totals, outside the clone
+    shim.write_text(
+        f'#!/bin/sh\nSTANDIN_SESSIONS="{state}" exec "{sys.executable}" "{DRYRUN_DIR / "standin_claude.py"}" "$@"\n',
+        encoding="utf-8",
+    )
     shim.chmod(0o755)
     real = shutil.which(args.claude_bin)
     print(f"dry run: stand-in provider on 127.0.0.1:{port}, stand-in Claude Code; no key is read and no model is called", flush=True)

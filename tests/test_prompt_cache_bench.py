@@ -213,3 +213,25 @@ def test_the_report_counts_a_no_call_turn_as_failed_and_keeps_partial_cache_figu
     assert row["failed_turns"] == 1
     assert row["cached_tokens"] == 600 and row["cached_share"] == pytest.approx(0.6)
     assert row["cache_unreported_calls"] == 2
+
+
+def test_claude_code_turn_cost_is_the_step_in_its_session_total(tmp_path) -> None:
+    """A resumed Claude Code turn reports the session's running total, not the turn (run4)."""
+    import json
+
+    assert bench.cli_turn_usd(0.161, None) == 0.161
+    assert bench.cli_turn_usd(0.177, 0.161) == pytest.approx(0.016)
+    assert bench.cli_turn_usd(0.05, 0.177) == 0.05  # a total that went down is not a running total
+    assert bench.cli_turn_usd(None, 0.177) is None
+
+    totals = [0.161, 0.177, 0.193, 0.208]  # what run4's cli arm recorded as each turn's USD
+    rows = [{"kind": "turn", "arm": "cli", "label": "cli-claude", "model": "m", "task": "t", "repeat": 0, "turn": n,
+             "attempt": "a1", "answer": "ok", "wall_seconds": 1.0, "prompt_tokens": 42000, "output_tokens": 100,
+             "usd": total, "claude_code_reported_usd": total, "cached_tokens": 41000, "cache_write_tokens": 200}
+            for n, total in enumerate(totals)]
+    rows.append({"kind": "chat_complete", "task": "t", "repeat": 0, "attempt": "a1"})
+    (tmp_path / "cli-claude").mkdir()
+    (tmp_path / "cli-claude" / "results.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    row = bench.summarize(tmp_path)["labels"]["cli-claude"]
+    assert row["usd_total"] == pytest.approx(0.208)  # the session cost, not 0.739
+    assert row["usd_corrected_turns"] == 4
