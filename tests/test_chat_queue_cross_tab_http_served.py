@@ -315,6 +315,34 @@ def test_an_instant_answer_frees_the_chat_at_once(http_rig):
     assert len(_calls_for(provider, M2)) == 1
 
 
+def test_a_page_never_reads_its_own_turn_as_another_tabs(http_rig):
+    """The queue read tells a page whether ANOTHER holder has the slot: the page names its own
+    turn ids, so its own turn (still finalizing after its answer arrived) never makes it queue its
+    next message behind itself, while a turn it does not own still reads as taken."""
+    provider, daemon = http_rig
+    session_id = _sid("http-own-turn")
+
+    def read(mine: str = "") -> dict:
+        url = daemon.base_url + "/api/chat/queue?session=" + session_id + (("&mine=" + mine) if mine else "")
+        with urlopen(url, timeout=5) as response:
+            return json.load(response)
+
+    thread, box = _hold_turn(daemon, M1, session_id, turn_id="t-own-1")
+    try:
+        _wait_for(lambda: len(_calls_for(provider, M1)) >= 1, 45, "the held turn never reached the provider")
+        own = read("t-earlier,t-own-1")
+        assert own["turn_active"] is True and own["turn_active_other"] is False, own
+        other = read("t-someone-else")
+        assert other["turn_active"] is True and other["turn_active_other"] is True, other
+        assert read()["turn_active_other"] is True
+        assert "t-own-1" not in json.dumps(other), "the read leaked the holder's turn id"
+    finally:
+        provider.release(M1)
+        thread.join(timeout=90)
+    assert box["result"][0] == 200, box["result"]
+    _wait_for(lambda: read()["turn_active_other"] is False, 30, "the slot never freed")
+
+
 def test_a_refused_claim_comes_back_as_its_original_row(http_rig_short_lease):
     provider, daemon = http_rig_short_lease
     session_id = _sid("http-refused-claim")

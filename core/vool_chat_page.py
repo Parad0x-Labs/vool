@@ -5928,6 +5928,8 @@ function applyResultSummary(run) {
 // background chat therefore lands in full, and touches nothing the displayed chat owns.
 function finishRun(run, kind, summaryText, tsIso) {
   if (run.ended) return; run.ended = true; run.status = kind;
+  // A run that was not refused held the chat's slot itself: no other holder is known now.
+  if (!run.slotRefused) serverSlotBusyByChat.set(run.chatId, false);
   // The bubble's real completion time: the server's own ts on the terminal event when the stream
   // carried one, else the instant this client-detected end (stream close, abort, fetch error) is
   // actually happening right now -- never a re-guess for a message that finished earlier.
@@ -8271,9 +8273,10 @@ async function queueOp(op, chatId, extra) {
 async function refreshQueue(forChatId) {
   const chatId = String(forChatId || displayedChat);   // bind the chat before any await
   try {
-    const res = await fetch('/api/chat/queue?session=' + encodeURIComponent(chatId));
+    const res = await fetch(queueReadUrl(chatId));
     const data = await res.json();
     const items = (data && data.queue) || [];
+    noteServerSlot(chatId, data);
     // The displayed chat's strip repaints; a background chat's record is kept for the pump
     // heartbeat, so its chips stay truthful without painting another chat's footer.
     if (isDisplayed(chatId)) renderQueue(items);
@@ -8290,6 +8293,26 @@ async function refreshQueue(forChatId) {
 const QUEUE_VISIBLE_LIMIT = 2;
 const queueExpandedByChat = new Map();
 const lastQueueItemsByChat = new Map();
+// Whether ANOTHER holder (another tab's turn or claim) has the chat's slot, as the server last
+// reported it. The page tells the server which holders are its own (`mine`: its recent turn ids
+// and claimed item ids), so its own turn finalizing after the answer never reads as another tab.
+const serverSlotBusyByChat = new Map();
+const ownSlotTokensByChat = new Map();
+function noteOwnSlotToken(chatId, token) {
+  if (!chatId || !token) return;
+  const list = (ownSlotTokensByChat.get(chatId) || []).filter((t) => t !== token);
+  list.push(String(token));
+  ownSlotTokensByChat.set(chatId, list.slice(-16));
+}
+function queueReadUrl(chatId) {
+  const mine = ownSlotTokensByChat.get(chatId) || [];
+  return '/api/chat/queue?session=' + encodeURIComponent(chatId) + (mine.length ? '&mine=' + encodeURIComponent(mine.join(',')) : '');
+}
+function noteServerSlot(chatId, data) {
+  if (!chatId || !data) return;
+  if (typeof data.turn_active_other === 'boolean') serverSlotBusyByChat.set(chatId, data.turn_active_other);
+  else if (data.turn_active === false) serverSlotBusyByChat.set(chatId, false);
+}
 
 function renderQueue(items) {
   lastQueueItemsByChat.set(displayedChat, items || []);
@@ -8468,6 +8491,7 @@ async function pumpQueue(forChatId) {
     const arrivals = owner.queueArrivals;
     const res = await queueOp('claim', chatId, { lease_owner: PAGE_LEASE });
     const claimed = res && res.item ? res.item : null;
+    if (claimed) noteOwnSlotToken(chatId, claimed.queue_item_id);
     if (!claimed) {
       // A send() can enqueue while this empty claim was on the wire, and its own pumpQueue() call
       // returns early against this hold -- so THIS pump is that item's only wakeup. Claim once
@@ -8556,6 +8580,8 @@ async function runTurn(text, queueItemId, opts) {
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
   if (opts.turnId) run.turnId = opts.turnId;
   run.queueItemId = queueItemId || null;
+  noteOwnSlotToken(chatId, run.turnId);
+  if (run.queueItemId) noteOwnSlotToken(chatId, run.queueItemId);
   run.aborter = new AbortController();
   // Timers belong to the run for its whole life -- navigation never starts or stops them.
   startRunTimers(run);
@@ -8647,6 +8673,9 @@ async function runTurn(text, queueItemId, opts) {
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
       if (refusal && refusal.error === 'chat_turn_active') {
         const owner = ownerOf(run);
+        // Another holder has the slot: later sends from this page go straight to the queue.
+        run.slotRefused = true;
+        serverSlotBusyByChat.set(chatId, true);
         if (run.queueItemId) {
           // A CLAIMED message refused before execution: the item is already the queue's row.
           // Return the ORIGINAL to its pending FIFO position through the queue's
@@ -8697,7 +8726,8 @@ async function runTurn(text, queueItemId, opts) {
         // The queue door itself failed: recover exactly like the busy-branch's failed enqueue
         // -- the text goes back to this chat's draft and the turn ends failed, never lost
         // silently behind a bubble claiming it was queued.
-        if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, text);
+        // The ORIGINAL draft, exactly as typed -- never the text rebuilt from what was sent.
+        if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, typeof opts.draftText === 'string' ? opts.draftText : text);
         run.text = pageT('run.queue_reroute_failed', 'The chat is finishing a turn and the message could not be queued. Its text was restored to this chat\u2019s draft.');
         if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
         if (run.textEl) run.textEl.textContent = run.text;
@@ -8971,14 +9001,21 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   return false;
 }
 
-// The chat's slot, read from the ONE place that knows it across tabs: the server's live-turn
-// registry, served on the queue door's read. A page that sees its own state as idle still
-// enqueues when ANOTHER tab is executing this chat's turn. A failed read is not a busy signal
-// -- the server's typed 409 refuses a raced turn anyway, so the check only steers the common
-// case into the queue instead of into that refusal.
+// The chat's slot, from the ONE place that knows it across tabs: the server's live-turn registry.
+// send() never waits on it: pressing Send must paint at once, never after a round trip with the
+// draft already cleared. It reads what the page already knows -- its own run, and the server's
+// last report of ANOTHER holder (a queue read, a refused send). A send the page believed free
+// is refused by the server's typed 409 when another tab holds the slot, and is rerouted into this
+// chat's queue with the original draft. This fresh read refreshes that knowledge; a failed read
+// is not a busy signal.
+function chatSlotBusyKnown(chatId) {
+  return serverSlotBusyByChat.get(chatId) === true;
+}
 async function chatSlotBusyOnServer(chatId) {
+  if (!chatId) return false;
   try {
-    const res = await fetchJsonWithin('/api/chat/queue?session=' + encodeURIComponent(chatId), null, 5000);
+    const res = await fetchJsonWithin(queueReadUrl(chatId), null, 5000);
+    noteServerSlot(chatId, res);
     return !!(res && res.turn_active);
   } catch (e) { return false; }
 }
@@ -9033,8 +9070,7 @@ async function send() {
   // Busy is a property of THE CHAT, not of this page: this page's own run or claim window, or a
   // turn another tab is executing right now (the server's slot truth -- the only cross-tab
   // witness). Either way the message is stored durably and runs once the slot frees.
-  let slotBusy = isChatBusy(chatId);
-  if (!slotBusy) slotBusy = await chatSlotBusyOnServer(chatId);
+  const slotBusy = isChatBusy(chatId) || chatSlotBusyKnown(chatId);
   if (slotBusy) {
     // Do not drop it -- persist it in THIS chat's queue and show a chip. Another chat being busy
     // is irrelevant here; only this chat's own slot decides run-now vs enqueue. The staged
@@ -9059,7 +9095,7 @@ async function send() {
     }
     return;
   }
-  await runTurn(text, null, { chatId: chatId, attachments: attachments });
+  await runTurn(text, null, { chatId: chatId, attachments: attachments, draftText: draftText });
 }
 
 // =========================== Attachments: files and photos in the composer ===========================

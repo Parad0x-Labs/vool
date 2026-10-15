@@ -2732,13 +2732,21 @@ def dispatch_get(
         # the slot.
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        from core.runtime_continuity import chat_turn_active, list_queued_messages
+        from core.runtime_continuity import chat_slot_held_by_other, chat_turn_active, list_queued_messages
 
         session_id = str((query.get("session") or [""])[0] or "").strip()
         items = list_queued_messages(session_id) if session_id else []
         payload: dict[str, Any] = {"session_id": session_id, "queue": items}
         if session_id:
             payload["turn_active"] = chat_turn_active(session_id)
+            # `mine`: the asking page's own turn ids / claimed item ids. `turn_active_other` says
+            # whether something ELSE holds the slot, so a page never queues behind its own turn.
+            mine = frozenset(
+                token.strip()[:200]
+                for token in str((query.get("mine") or [""])[0] or "").split(",")[:32]
+                if token.strip()
+            )
+            payload["turn_active_other"] = chat_slot_held_by_other(session_id, mine)
         return apply_runtime_headers(json_response(200, payload), runtime)
 
     if normalized_path == "/api/bug-report/status":

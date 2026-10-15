@@ -3103,6 +3103,26 @@ def chat_turn_active(session_id: str) -> bool:
         return _chat_turn_active_locked(clean)
 
 
+def chat_slot_held_by_other(session_id: str, mine: frozenset[str] | set[str]) -> bool:
+    """True while the chat's slot is held by something the asking page does not own.
+
+    ``mine`` is the asking page's own recent turn ids and claimed queue_item_ids. A page that
+    reads its OWN turn (a worker still finalizing after the answer arrived, or its own claim's
+    reservation) must not mistake it for another tab's turn and queue its next message behind
+    itself. Answers only a yes/no: no other holder's id or words leave the server."""
+    clean = str(session_id or "").strip()
+    if not clean:
+        return False
+    own = {str(t or "").strip() for t in (mine or ()) if str(t or "").strip()}
+    from core.live_turns import live_turn_ids
+
+    with _LOCK:
+        if any(turn_id not in own for turn_id in live_turn_ids(clean)):
+            return True
+        record = _admission_record_locked(clean, time.monotonic())
+        return record is not None and str(record["token"]) not in own
+
+
 def admitted_chat_turn_token(session_id: str) -> str:
     """The token (queue_item_id or turn_id) currently holding the session's admission, or ''.
     Diagnostics and tests: the state itself is only changed through the owning operations."""
