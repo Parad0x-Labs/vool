@@ -262,14 +262,23 @@ def _hard_exclusion_reason(
         return SELECTION_EXCLUSION_REASON
     if not request.allow_paid_fallback and charges_the_user(manifest, cost_class=cost_class):
         return "paid_not_permitted"
+    # An explicit pin is the user's choice of model for this turn, so a tool step attempts it even
+    # when the manifest does not declare tool_intent (a bundle reasoning role, a BYOK lane). The
+    # adapter's final guard still refuses a call whose payload carries no tool carrier, and the
+    # output contract still rejects a reply that is not a tool call. Only an exact pin match on a
+    # paid or local lane qualifies: Auto, a sticky preference and an unknown-cost lane keep the
+    # declared-capability filter, and every other hard capability stays hard.
     pinned_tool_attempt = (
         request.explicit_model_pin
         and request.preferred_provider == manifest.provider_name
         and request.preferred_model == manifest.model_name
-        and cost_class == "paid_cloud"
+        and cost_class in {"paid_cloud", "free_local"}
         and "tool_intent" in required
     )
-    if not pinned_tool_attempt and required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
+    # A local pin keeps the train's coverage check: a lane declaring none of the step's tags is not
+    # attempted. The paid pin has no such check (its BYOK manifest carries no local profile).
+    skip_coverage = pinned_tool_attempt and cost_class == "paid_cloud"
+    if not skip_coverage and required and capability_score(manifest, task_kind=request.task_kind, output_mode=request.output_mode) <= 0.0:
         return "no_required_capability"
     missing_contract = missing_hard_capabilities(manifest, required, output_mode=request.output_mode)
     if pinned_tool_attempt:
@@ -372,7 +381,8 @@ def rank_providers(
     cloud lane — it only degrades the model-tag preference.
 
     Neither pass relaxes a hard capability (``HARD_REQUIRED_CAPABILITIES``): a pinned model that
-    does not declare one is excluded from that step, and an empty result goes to the caller's
+    does not declare one is excluded from that step (the one exception: an explicit, exact pin on
+    a paid or local lane is attempted on a tool step without a tool_intent declaration), and an empty result goes to the caller's
     existing refusal (selected model blocked / no provider) instead of a model that cannot do it.
     """
     strict = _rank_once(manifests, request, relax_model_preference=False)
@@ -438,7 +448,7 @@ def explain_provider_exclusions(
                 # Completeness against every required tag, preferences included: "" when the turn
                 # requires nothing, else whether all of them are declared. A missing HARD tag is
                 # already the status itself (`missing_required_capability:<tags>`); a "0" on an
-                # eligible row means a preference tag is absent, or the explicit paid pin is
+                # eligible row means a preference tag is absent, or the explicit pin is
                 # attempting its own tool round without a static tool_intent declaration.
                 "required_capability_complete": complete,
             }

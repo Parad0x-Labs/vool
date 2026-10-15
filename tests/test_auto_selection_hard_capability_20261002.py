@@ -233,7 +233,7 @@ def test_a_preference_tag_ranks_candidates_but_never_removes_one() -> None:
 # --------------------------------------------------------------------------------------------
 
 
-def test_a_pin_on_a_model_missing_a_hard_capability_is_not_kept_for_that_step() -> None:
+def test_a_preference_on_a_model_missing_a_hard_capability_is_not_kept_for_that_step() -> None:
     registry = _registry(
         _local("reason-local", "reasonix:8b", REASONING_CAPS),
         _local("general-local", "generalist:8b", GENERAL_CAPS),
@@ -247,6 +247,34 @@ def test_a_pin_on_a_model_missing_a_hard_capability_is_not_kept_for_that_step() 
 
     assert "reasonix:8b" not in _models(tool)
     assert _models(chat) == ["reasonix:8b"]
+
+
+def test_an_explicit_local_pin_is_attempted_on_a_tool_step_and_given_no_other_hard_capability() -> None:
+    registry = _registry(
+        _local("reason-local", "reasonix:8b", REASONING_CAPS),
+        _local("general-local", "generalist:8b", GENERAL_CAPS),
+    )
+    pin = {"preferred_provider": "reason-local", "preferred_model": "reasonix:8b", "explicit_model_pin": True}
+
+    tool = registry.rank_manifests(ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent", **pin))
+    auto = registry.rank_manifests(ModelSelectionRequest(task_kind="tool_intent", output_mode="tool_intent"))
+    media = registry.rank_manifests(
+        ModelSelectionRequest(task_kind="multimodal_review", output_mode="summary_block", **pin)
+    )
+    other = registry.rank_manifests(
+        ModelSelectionRequest(
+            task_kind="tool_intent", output_mode="tool_intent", preferred_provider="reason-local",
+            preferred_model="reasonix:14b", explicit_model_pin=True,
+        )
+    )
+
+    # The user's pin is the model this step attempts, as before the hard-capability law.
+    assert _models(tool)[0] == "reasonix:8b"
+    # Auto still requires the declaration; a pin never supplies a modality the model lacks; a pin
+    # naming a model that is not this one makes nothing tool-eligible that was not already.
+    assert _models(auto) == ["generalist:8b"]
+    assert _models(media) == []
+    assert "reasonix:8b" not in _models(other)
 
 
 # --------------------------------------------------------------------------------------------

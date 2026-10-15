@@ -100,13 +100,47 @@ def test_paid_tool_pin_preserves_other_hard_gates(updates, request_updates, reas
     [
         (_paid(), {"preferred_model": "other-model"}),
         (_paid(), {"preferred_provider": "other-provider"}),
-        (_paid(metadata={"cost_class": "free_local"}), {}),
+        (_paid(metadata={"cost_class": "free_local"}), {"preferred_model": "other-model"}),
+        (_paid(metadata={"cost_class": "free_local"}), {"preferred_provider": "other-provider"}),
+        (_paid(metadata={"cost_class": "remote_unknown"}), {}),
     ],
 )
-def test_the_exception_never_makes_an_unmatched_or_local_model_eligible(manifest, updates) -> None:
+def test_the_exception_never_makes_an_unmatched_or_unknown_cost_model_eligible(manifest, updates) -> None:
     registry = ModelRegistry()
     registry.register_manifest(manifest)
     assert registry.rank_manifests(_request(manifest, **updates)) == []
+
+
+def test_an_explicit_local_pin_attempts_its_tool_round_while_auto_still_requires_the_declaration() -> None:
+    manifest = _paid(metadata={"cost_class": "free_local"})
+    registry = ModelRegistry()
+    registry.register_manifest(manifest)
+    assert "tool_intent" not in manifest.capabilities
+    # The user's explicit pin is attempted, as it was before the hard-capability law.
+    assert registry.rank_manifests(_request(manifest)) == [manifest]
+    # A preferred or sticky identity, and Auto, keep the declared-capability filter.
+    assert registry.rank_manifests(_request(manifest, explicit_model_pin=False)) == []
+    assert registry.rank_manifests(
+        _request(manifest, explicit_model_pin=False, preferred_provider=None, preferred_model=None)
+    ) == []
+    rows = explain_provider_exclusions([manifest], _request(manifest, explicit_model_pin=False))
+    assert rows[0]["status"] == "missing_required_capability:tool_intent"
+
+
+@pytest.mark.parametrize(
+    "updates,request_updates,reason",
+    [
+        ({"capabilities": ["summarize", "tool_intent"]}, {"output_mode": "json_object"}, "missing_required_capability:structured_json"),
+        ({}, {"task_kind": "multimodal_review"}, "missing_required_capability:multimodal"),
+        ({"capabilities": ["summarize"]}, {}, "no_required_capability"),
+        ({"enabled": False}, {}, "disabled"),
+        ({}, {"min_trust": 1.1}, "below_min_trust"),
+    ],
+)
+def test_an_explicit_local_pin_is_never_given_any_other_hard_capability(updates, request_updates, reason) -> None:
+    manifest = _paid(metadata={"cost_class": "free_local"}, **updates)
+    rows = explain_provider_exclusions([manifest], _request(manifest, **request_updates))
+    assert rows[0]["status"] == reason
 
 
 def _tool_turn(manifest, monkeypatch):
@@ -175,3 +209,36 @@ def test_a_paid_pin_with_no_tool_carrier_reports_its_adapter_failure_without_sub
         assert decision.details["model_was_attempted"] is True
         assert "REQUIRED_TOOLS_NOT_OFFERED" in str(decision.details)
         assert provider.calls == []
+
+
+def test_an_explicit_local_pin_of_a_bundle_reasoning_model_reaches_dispatch_on_a_tool_turn(monkeypatch) -> None:
+    from core.local_model_bundles import manifest_profile_for_model
+
+    profile = manifest_profile_for_model(model_name="qwen3:14b", bundle_role="reasoning")
+    assert "tool_intent" not in profile["capabilities"]
+    call = {"function": {"name": "workspace__read_file", "arguments": {"path": "project-note.txt"}}}
+    with ScriptedProvider({"qwen3:14b": call}) as provider:
+        manifest = ModelProviderManifest(
+            provider_name="ollama-local",
+            model_name="qwen3:14b",
+            source_type="http",
+            adapter_type="openai_compatible",
+            license_name="Apache-2.0",
+            license_reference="https://example.com/license",
+            weight_location="external",
+            runtime_dependency="ollama",
+            capabilities=profile["capabilities"],
+            runtime_config={"base_url": provider.base_url, "timeout_seconds": 30},
+            metadata={"runtime_family": "ollama", "cost_class": "free_local", "bundle_role": "reasoning"},
+        )
+        upsert_provider_manifest(manifest)
+        # Selection is the subject, not whoever's machine runs it: fit a 14B model on a 64 GB host.
+        monkeypatch.setattr(
+            "core.provider_routing._device_probe",
+            lambda: SimpleNamespace(ram_gb=64.0, vram_gb=0.0, accelerator="cpu", vram_free_gb=None),
+        )
+        decision = _tool_turn(manifest, monkeypatch)
+    assert decision.used_model, decision.details
+    assert decision.provider_id == manifest.provider_id
+    assert provider.calls and {c["model"] for c in provider.calls} == {"qwen3:14b"}
+    assert decision.tool_calls and decision.tool_calls[0].intent == "workspace.read_file"
