@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "Ein Pixeltraum aus Mondtoren, Wolkenbändern und ausdrucksstarken kleinen Begleitern.",
     "toybox.skin_ink-tide_name": "Tintenflut",
     "toybox.skin_ink-tide_description": "Ein Ufer in Holzdruck-Optik: gerissene Papierränder wie eine Flut, ein Schriftrollen-Rahmen mit Holzstäben, und jeder Knopf, jeder Schieberegler und jedes Feld ist als gepresstes Papier, Pinselstrich und zinnoberrotes Siegel gezeichnet. Originalgrafik.",
+    "toybox.skin_hanabi-sky_name": "Hanabi-Himmel",
+    "toybox.skin_hanabi-sky_description": "Ein Festwochenende hinter der ganzen App: Feuerwerk über beleuchteter Skyline und Fluss, cel-shaded Knöpfe mit geschnittenen Ecken, umrandete schwebende Panels und ein Live-Feuerwerk in der Kopfzeile, das bei verifiziertem Abschluss zündet. Originalgrafik.",
     "yard.approval": "Freigabe nötig",
     "yard.ascended": "Aufgestiegen",
     "yard.asset_error": "Nicht verfügbar. Gespeicherte Daten bleiben erhalten.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "Diese Welt verwenden",
     "yard.worlds": "Welten"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

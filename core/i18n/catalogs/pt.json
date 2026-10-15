@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "Um sonho em píxeis com portais lunares, nuvens em fita e pequenos companheiros expressivos.",
     "toybox.skin_ink-tide_name": "Maré de tinta",
     "toybox.skin_ink-tide_description": "Uma costa em impressão em madeira: bordas de papel rasgado como a maré, uma moldura de pergaminho com varetas de madeira, e cada botão, controle e campo desenhado como papel prensado, traços de pincel e selos vermelhos. Arte original.",
+    "toybox.skin_hanabi-sky_name": "Céu Hanabi",
+    "toybox.skin_hanabi-sky_description": "Uma noite de festival atrás de todo o app: fogos sobre um horizonte iluminado e um rio, botões cel-shaded com cantos cortados, painéis flutuantes contornados e um fogo de artifício vivo no cabeçalho que estoura na conclusão verificada. Arte original.",
     "yard.approval": "Requer aprovação",
     "yard.ascended": "Ascendida",
     "yard.asset_error": "Indisponível. Os seus dados são mantidos.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "Usar este mundo",
     "yard.worlds": "Mundos"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

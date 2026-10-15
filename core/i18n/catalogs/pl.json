@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "Pikselowy sen z księżycowymi bramami, wstęgami chmur i małymi pełnymi wyrazu towarzyszami.",
     "toybox.skin_ink-tide_name": "Atramentowa fala",
     "toybox.skin_ink-tide_description": "Brzeg w stylu drzeworytu: podarte brzegi papieru jak przypływ, rama zwój z drewnianymi prętami, a każdy przycisk, suwak i pole narysowane jak tłoczony papier, pociągnięcia pędzla i cynobrowe pieczęcie. Oryginalna grafika.",
+    "toybox.skin_hanabi-sky_name": "Niebo Hanabi",
+    "toybox.skin_hanabi-sky_description": "Święto za całą aplikacją: fajerwerki nad rozświetloną panoramą i rzeką, przyciski w stylu cel-shading ze ściętymi narożnikami, obramowane unoszące się panele i żywy fajerwerk w nagłówku, który wybucha przy zweryfikowanym ukończeniu. Oryginalna grafika.",
     "yard.approval": "Wymaga zgody",
     "yard.ascended": "Wywyższona",
     "yard.asset_error": "Niedostępne. Dane zachowano.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "Użyj tego świata",
     "yard.worlds": "Światy"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "चाँद के द्वार, रिबन बादल और भावपूर्ण छोटे साथियों का पिक्सेल सपना।",
     "toybox.skin_ink-tide_name": "स्याही की लहर",
     "toybox.skin_ink-tide_description": "लकड़ी की छपाई वाला तट: मानो ज्वार जैसे फटे कागज़ किनारे, लकड़ी की छड़ियों वाला स्क्रॉल-फ्रेम, और हर बटन, स्लाइडर और फ़ील्ड दबाए गए कागज़, ब्रश स्ट्रोक और सिंदूरी मुहरों जैसा चित्रित। मौलिक कला。",
+    "toybox.skin_hanabi-sky_name": "आतिशबाज़ी आसमान",
+    "toybox.skin_hanabi-sky_description": "पूरे ऐप के पीछे त्योहार की रात: जगमगाते शहर और नदी के ऊपर आतिशबाज़ी, कटे कोनों वाले सेल-छायांकित बटन, रेखांकित तैरते पैनल, और हेडर में जीवंत आतिशबाज़ी जो सत्यापित पूर्णता पर फूटती है। मौलिक कला।",
     "yard.approval": "अनुमति चाहिए",
     "yard.ascended": "उन्नत",
     "yard.asset_error": "उपलब्ध नहीं। सहेजा डेटा रखा गया है।",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "यह दुनिया इस्तेमाल करें",
     "yard.worlds": "दुनियाएँ"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

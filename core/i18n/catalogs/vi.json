@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm.",
     "toybox.skin_ink-tide_name": "Thủy triều mực",
     "toybox.skin_ink-tide_description": "Bờ biển phong cách khắc gỗ: những mép giấy xé như thủy triều, khung trục gỗ kiểu cuộn thư, và mọi nút, thanh trượt, ô nhập đều được vẽ như giấy ép, nét cọ và con dấu đỏ son. Nghệ thuật gốc.",
+    "toybox.skin_hanabi-sky_name": "Bầu trời Hanabi",
+    "toybox.skin_hanabi-sky_description": "Một đêm lễ hội phía sau toàn bộ ứng dụng: pháo hoa trên đường chân trời rực sáng và dòng sông, nút cel-shaded có góc vát, bảng nổi viền rõ và pháo hoa sống trên đầu trang bùng nút khi hoàn thành được xác minh. Nghệ thuật gốc.",
     "yard.approval": "Cần phê duyệt",
     "yard.ascended": "Thăng hoa",
     "yard.asset_error": "Không khả dụng. Dữ liệu đã lưu vẫn được giữ.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "Dùng thế giới này",
     "yard.worlds": "Thế giới"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

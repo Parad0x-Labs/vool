@@ -369,7 +369,15 @@ function paintEffect(){
  const cadence=Math.max(0,Math.min(1,Number(root.style.getPropertyValue('--vool-cadence'))||0));
  g.clearRect(0,0,104,24);g.fillStyle=muted?effectMuted:effectAccent;g.strokeStyle=g.fillStyle;g.lineWidth=2;
  g.globalAlpha=muted?.35:state==='success'?.9:moving?.55+(tick%4)*.1:.5;
- if(root.dataset.skin==='ink-tide'){
+ if(root.dataset.skin==='hanabi-sky'){
+  const burst=state==='success',rise=moving&&!burst;
+  const spark=(x,y,r,a)=>{g.globalAlpha=a;for(let i=0;i<8;i++){const t=i/8*6.28;
+   g.fillRect(x+Math.cos(t)*r,y+Math.sin(t)*r*.6,2,2);}g.fillRect(x-1,y-1,3,3);};
+  if(burst){const r=6+(tick%12);spark(30,12,r,.95);spark(52,12,r*.7,.8);spark(74,12,r*.5,.6);}
+  else if(rise){spark(52,20-Math.min(12,tick*.3),3,.7);g.globalAlpha=.8;g.fillRect(50,20,4,3);}
+  else{spark(52,14,5,.45);}
+  g.globalAlpha=1;
+ }else if(root.dataset.skin==='ink-tide'){
   const phase=moving?tick%24:0,crest=state==='success';
   for(let i=0;i<3;i++){const y=6+i*6,shift=moving?Math.sin((phase/24)*6.28+i)*3:0;
    g.globalAlpha=muted?.3:crest?.95:.5+i*.12;g.beginPath();g.moveTo(4+shift,y);

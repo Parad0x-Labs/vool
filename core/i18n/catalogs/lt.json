@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais.",
     "toybox.skin_ink-tide_name": "Rašalo banga",
     "toybox.skin_ink-tide_description": "Medienos rašto krantas: kaip potvynio plėšyti popieriaus kraštai, medinių kartelių ritinio rėmas, o kiekvienas mygtukas, slankiklis ir laukas nupiešti kaip presuotas popierius, teptuko brūkšniai ir vermijono antspaudai. Originalus menas.",
+    "toybox.skin_hanabi-sky_name": "Hanabi dangus",
+    "toybox.skin_hanabi-sky_description": "Visas programos fone — šventės naktis: fejerverkai virš apšviesto horizonto ir upės, cel stiliumi šešėliuoti mygtukai su nupjautais kampais, apvadu plaukiojantys skydai ir gyvas fejerverkas antraštėje, sprogstantis patvirtintame darbe. Originalus menas.",
     "yard.approval": "Reikia patvirtinimo",
     "yard.ascended": "Pakylėta",
     "yard.asset_error": "Nepasiekiama. Duomenys išsaugoti.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "Naudoti šį pasaulį",
     "yard.worlds": "Pasauliai"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

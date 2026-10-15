@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "חלום פיקסלים של שערי ירח, ענני סרט ושותפים קטנים ומלאי הבעה.",
     "toybox.skin_ink-tide_name": "גאות הדיו",
     "toybox.skin_ink-tide_description": "חוף בסגנון הדפס עץ: שולי נייר קרועים כמו גאות, מסגרת מגילה עם מוטות עץ, וכל כפתור, מחוון ושדה מצוירים כנייר לחוץ, משיכות מכחול וחותמות אדומות. אמנות מקורית.",
+    "toybox.skin_hanabi-sky_name": "שמי חנבי",
+    "toybox.skin_hanabi-sky_description": "ליל פסטיבל מאחורי כל האפליקציה: זיקוקים מעל קו רקיע מואר ונהר, כפתורים בצלליות צבעוניות עם פינות חתוכות, לוחות מרחפים עם מסגרת וזיקוק חי בכותרת שמתפוצץ בהשלמה מאומתת. אמנות מקורית.",
     "yard.approval": "נדרש אישור",
     "yard.ascended": "מרוממת",
     "yard.asset_error": "לא זמין. הנתונים השמורים נשמרו.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "שימוש בעולם הזה",
     "yard.worlds": "עולמות"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

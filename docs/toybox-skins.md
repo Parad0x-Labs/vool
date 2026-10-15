@@ -97,6 +97,19 @@ aged paper. Its CSS budget is higher than the other flagships (96 KiB) because
 the whole control set ships its own art; every other skin keeps the 60 KiB
 budget.
 
+## Hanabi Sky
+
+Hanabi Sky is the wallpaper tier: the whole app floats as outlined cel-shaded
+cards over a full-viewport festival-night illustration (fireworks over a lit
+skyline and river, drawn as code, one image per theme shipped once as a
+variable). Buttons are cel-drawn - thick outlines, hard offset shadows, cut
+corners, bold type - checkboxes stamp a ring on check, sliders carry a
+firework-star thumb, scrollbar thumbs take the accent with an outline, and the
+live header draws a rising spark that bursts into a firework on verified
+completion. Because a whole-app wallpaper is heavier than a recolour, this
+skin's stated CSS budget is 128 KiB; whole-control skins without a wallpaper
+stay at 96 KiB (Ink Tide) and every other skin at 60 KiB.
+
 ## Pet Yard and personal companions
 
 Open **Pet Yard** from the chat's Home menu or Settings → Toybox. The Yard is a built-in local page: the native skill loader carries instructions and tool contracts, and does not host application pages.

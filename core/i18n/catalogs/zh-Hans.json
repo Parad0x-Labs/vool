@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。",
     "toybox.skin_ink-tide_name": "墨潮",
     "toybox.skin_ink-tide_description": "木刻版画风的海岸：如潮水般撕开的纸边、带木轴的卷轴框架，每个按钮、滑杆和输入框都画成压纸、笔触与朱红印章的模样。原创艺术。",
+    "toybox.skin_hanabi-sky_name": "花火天空",
+    "toybox.skin_hanabi-sky_description": "整个应用背后的祭典之夜：灯火天际线与河流上空的烟花、切角赛璐璐风按钮、描边悬浮面板，以及在验证完成时绽放的页眉实时烟花。原创艺术。",
     "yard.approval": "需要批准",
     "yard.ascended": "升华",
     "yard.asset_error": "暂不可用，保存的数据已保留。",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "使用此世界",
     "yard.worlds": "世界"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

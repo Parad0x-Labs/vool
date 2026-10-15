@@ -3236,6 +3236,8 @@
     "toybox.skin_dawn-circuit_description": "حلم بكسلي ببوابات قمرية وسحب شريطية ورفاق صغار معبّرين.",
     "toybox.skin_ink-tide_name": "مدّ الحبر",
     "toybox.skin_ink-tide_description": "شاطئ بطباعة خشبية: حواف ورقية ممزقة كالمدّ، إطار درف مع قضبان خشبية، وكل زر ومنزلق وحقل مرسوم كورق مضغوط وضربات فرشاة وأختام قرمزية. رسم أصلي.",
+    "toybox.skin_hanabi-sky_name": "سماء الألعاب النارية",
+    "toybox.skin_hanabi-sky_description": "ليلة مهرجان خلف التطبيق كله: ألعاب نارية فوق أفق مضيء ونهر، أزرار بظلال سيل وزوايا مقطوعة، لوحات عائمة محددة وإطار يحتفل بانفجار ناري عند الإنجاز الموثق. رسم أصلي.",
     "yard.approval": "يحتاج موافقة",
     "yard.ascended": "مرتقٍ",
     "yard.asset_error": "غير متاح. بياناتك المحفوظة باقية.",
@@ -3448,7 +3450,7 @@
     "yard.world_use": "استخدام هذا العالم",
     "yard.worlds": "العوالم"
   },
-  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
+  "source_catalog_sha256": "b09b20ab6d33d8bc6457fd9ebe4946a727c3fa233329186a02ad09b7ad76066a",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
