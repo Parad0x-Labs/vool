@@ -2209,6 +2209,12 @@ function newChatState(chatId) {
     // while an enqueue was still on the wire re-reads it and claims again (see pumpQueue), so a
     // message sent inside the claim window is never left without a wakeup.
     queueArrivals: 0,
+    // Whether ANOTHER holder (another tab's turn or claim) has this chat's server slot, as the
+    // server last reported it -- what send() decides from without waiting on a round trip -- and
+    // the turn and claim ids this page itself holds or held, which the queue read sends as `mine`
+    // so the page's own turn finishing on the server never reads as another tab's.
+    slotHeldElsewhere: false,
+    ownSlotTokens: [],
     mode: 'manual',
     projectId: '',
     pins: [],
@@ -5929,7 +5935,7 @@ function applyResultSummary(run) {
 function finishRun(run, kind, summaryText, tsIso) {
   if (run.ended) return; run.ended = true; run.status = kind;
   // A run that was not refused held the chat's slot itself: no other holder is known now.
-  if (!run.slotRefused) serverSlotBusyByChat.set(run.chatId, false);
+  if (!run.slotRefused) ownerOf(run).slotHeldElsewhere = false;
   // The bubble's real completion time: the server's own ts on the terminal event when the stream
   // carried one, else the instant this client-detected end (stream close, abort, fetch error) is
   // actually happening right now -- never a re-guess for a message that finished earlier.
@@ -8293,25 +8299,24 @@ async function refreshQueue(forChatId) {
 const QUEUE_VISIBLE_LIMIT = 2;
 const queueExpandedByChat = new Map();
 const lastQueueItemsByChat = new Map();
-// Whether ANOTHER holder (another tab's turn or claim) has the chat's slot, as the server last
-// reported it. The page tells the server which holders are its own (`mine`: its recent turn ids
+// The chat's slot as this page knows it lives in the chat's own state (slotHeldElsewhere,
+// ownSlotTokens). The page tells the server which holders are its own (`mine`: its recent turn ids
 // and claimed item ids), so its own turn finalizing after the answer never reads as another tab.
-const serverSlotBusyByChat = new Map();
-const ownSlotTokensByChat = new Map();
 function noteOwnSlotToken(chatId, token) {
   if (!chatId || !token) return;
-  const list = (ownSlotTokensByChat.get(chatId) || []).filter((t) => t !== token);
+  const state = chatState(chatId);
+  const list = state.ownSlotTokens.filter((t) => t !== String(token));
   list.push(String(token));
-  ownSlotTokensByChat.set(chatId, list.slice(-16));
+  state.ownSlotTokens = list.slice(-16);
 }
 function queueReadUrl(chatId) {
-  const mine = ownSlotTokensByChat.get(chatId) || [];
+  const mine = chatId ? chatState(chatId).ownSlotTokens : [];
   return '/api/chat/queue?session=' + encodeURIComponent(chatId) + (mine.length ? '&mine=' + encodeURIComponent(mine.join(',')) : '');
 }
 function noteServerSlot(chatId, data) {
   if (!chatId || !data) return;
-  if (typeof data.turn_active_other === 'boolean') serverSlotBusyByChat.set(chatId, data.turn_active_other);
-  else if (data.turn_active === false) serverSlotBusyByChat.set(chatId, false);
+  if (typeof data.turn_active_other === 'boolean') chatState(chatId).slotHeldElsewhere = data.turn_active_other;
+  else if (data.turn_active === false) chatState(chatId).slotHeldElsewhere = false;
 }
 
 function renderQueue(items) {
@@ -8675,7 +8680,7 @@ async function runTurn(text, queueItemId, opts) {
         const owner = ownerOf(run);
         // Another holder has the slot: later sends from this page go straight to the queue.
         run.slotRefused = true;
-        serverSlotBusyByChat.set(chatId, true);
+        owner.slotHeldElsewhere = true;
         if (run.queueItemId) {
           // A CLAIMED message refused before execution: the item is already the queue's row.
           // Return the ORIGINAL to its pending FIFO position through the queue's
@@ -9009,7 +9014,7 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
 // chat's queue with the original draft. This fresh read refreshes that knowledge; a failed read
 // is not a busy signal.
 function chatSlotBusyKnown(chatId) {
-  return serverSlotBusyByChat.get(chatId) === true;
+  return !!chatId && chatState(chatId).slotHeldElsewhere === true;
 }
 async function chatSlotBusyOnServer(chatId) {
   if (!chatId) return false;
