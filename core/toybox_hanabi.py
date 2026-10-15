@@ -92,6 +92,14 @@ def _star(size: int, color: str, ink: str) -> str:
                 f"<path d='M{half} {half - 4}v8M{half - 4} {half}h8' stroke='{ink}' stroke-width='2'/></svg>")
 
 
+def _log_art() -> str:
+    art = (_burst(160, 120, 60, "#ff5f8f", 12) + _burst(480, 200, 46, "#56e0ff", 10)
+          + _burst(320, 60, 34, "#ffd76b", 8)
+          + "".join(f"<circle cx='{(index * 173 + 60) % 640}' cy='{(index * 97 + 30) % 260}' r='1.5' fill='#ffffff' fill-opacity='.5'/>"
+                    for index in range(24)))
+    return _uri(f"<svg xmlns='http://www.w3.org/2000/svg' width='640' height='260'>{art}</svg>")
+
+
 def chrome(identifier, p: dict) -> str:
     from core.toybox_fragment import GUARD
 
@@ -107,11 +115,16 @@ def chrome(identifier, p: dict) -> str:
     line = "var(--tb-line)"
     shadow_line = "var(--tb-shadow)"
     out = (":root{--tb-wall:" + _wallpaper(False) + ";--tb-wall-light:" + _wallpaper(True)
-           + ";--tb-line:#f6f2ff;--tb-shadow:#0a0b1e;--tb-glass:" + _rgba(dark["panel"], 0.93) + "}\n")
+           + ";--tb-line:#f6f2ff;--tb-shadow:#0a0b1e;--tb-glass:" + _rgba(dark["panel"], 0.93)
+           + ";--tb-log-art:" + _log_art() + "}\n")
     out += (':root[data-theme="light"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:' + _rgba(light["panel"], 0.94) + "}\n")
     out += ('@media(prefers-color-scheme:light){:root[data-theme="system"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:'
             + _rgba(light["panel"], 0.94) + "}}\n")
     out += "body{background:transparent!important}\n"
+    out += ("#log" + GUARD + "{position:relative}\n")
+    out += ("#log::before{content:'';position:absolute;inset:0;background-image:var(--tb-log-art);"
+            "background-repeat:repeat-y;background-size:640px 260px;opacity:.5;pointer-events:none}\n")
+    out += ".empty" + GUARD + "::before{height:250px!important}\n"
     glass = "var(--tb-glass)"
     out += (":is(#main,#log,#sidebar,#side,#pane,#xpanel,.set-section,.tb-root,#main > header,#main > footer)" + GUARD
             + "{background-color:" + glass + "!important}\n")
@@ -123,7 +136,7 @@ def chrome(identifier, p: dict) -> str:
     out += (subject + "{appearance:none;-webkit-appearance:none;background-color:var(--panel);border:3px solid " + line
             + ";border-radius:10px;box-shadow:0 4px 0 " + line + ",inset 0 2px 0 rgba(255,255,255,.35);"
             "min-height:36px;color:var(--ink);font-weight:700;"
-            "clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));border-width:3px;"
+            "clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));border-width:3px;"
             "transition:transform .12s ease,box-shadow .12s ease}\n")
     out += subject + ":hover{transform:translateY(-2px);box-shadow:0 6px 0 " + shadow_line + "}\n"
     out += subject + ":active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 " + shadow_line + "}\n"
@@ -179,7 +192,8 @@ def artwork(identifier, p):
                                                (250, 30, 26), (300, 50, 20), (360, 28, 24), (410, 46, 18),
                                                (470, 32, 26), (520, 50, 20), (580, 40, 24)))
     header = (f"<svg xmlns='http://www.w3.org/2000/svg' width='640' height='64' shape-rendering='crispEdges'>"
-              f"<rect width='640' height='64' fill='{p['panel']}'/>"
+              f"<rect width='640' height='64' fill='{p['background']}'/>"
+              f"<path d='M0 0h640v14H0Z' fill='{p['panel']}'/>"
               + _burst(110, 18, 20, accent, 12) + _burst(330, 14, 14, p["muted"], 8) + _burst(530, 20, 22, accent, 12)
               + skyline + "</svg>")
     bridge = (f"<path d='M60 196q260 -70 520 0v10q-260 -60 -520 0Z' fill='{edge}'/>"

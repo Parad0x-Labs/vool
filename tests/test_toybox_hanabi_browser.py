@@ -16,7 +16,7 @@ def test_hanabi_validates_with_wallpaper_chrome_and_budgets():
     css = skin_css(skin)
     # A whole-app wallpaper is the heaviest skin class; its stated budget is its own.
     assert len(css.encode()) <= 128_000
-    for marker in ("body::before", "--tb-wall:", "clip-path:polygon(0 0,calc(100% - 12px)",
+    for marker in ("body::before", "--tb-wall:", "clip-path:polygon(0 0,calc(100% - 16px)",
                    "box-shadow:0 4px 0", "input[type=checkbox]:checked", "scrollbar-thumb"):
         assert marker in css, marker
     for palette in skin["palettes"].values():
