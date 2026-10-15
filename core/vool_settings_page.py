@@ -64,9 +64,10 @@ CREDENTIALS = "/api/settings/credentials"
 SETUP_STATE = "/api/setup/state"
 VERSION = "/api/runtime/version"
 PROFILE = "/api/profile"
-# The Web lookups row reads the live boundary truth through the pact GET projection
-# (view=boundary: the owning policy's values, no tour state) and writes through the existing
-# boundary command POST /api/onboarding/pact/boundary from its own widget.
+# The Web lookups and "Go online on its own" rows read the live boundary truth through the
+# pact GET projection (view=boundary: the owning policy's values, no tour state) and write
+# through the existing boundary command POST /api/onboarding/pact/boundary from their own
+# widgets.
 WEB_LOOKUPS_READ = "/api/onboarding/pact?view=boundary"
 # Email: the account authority's listing (credential NAMES and identities, never a secret) and the
 # draft store's recovery hold. Both are owner-local reads served by this runtime (core/web/api/service.py).
@@ -358,6 +359,21 @@ def _settings_groups() -> list[dict]:
                     keywords="web search lookups online internet browse network access fallback allow",
                 ),
                 _row(
+                    id="automatic_checks",
+                    label="Go online on its own",
+                    kind="custom",
+                    widget="automatic_checks",
+                    help=(
+                        "Lets VOOL go online on its own, without you asking. When this is on, VOOL may "
+                        "download a missing local model when it starts and check which cloud models are "
+                        "available. If this computer is set up for the public VOOL network, VOOL also "
+                        "tells that network when it is online. Questions you ask are not affected: Web "
+                        "lookups has its own switch. Off by default."
+                    ),
+                    read={"url": WEB_LOOKUPS_READ},
+                    keywords="online on its own automatic outbound background network model download cloud models public network",
+                ),
+                _row(
                     id="mode_note",
                     label="Approval mode for a single chat",
                     kind="note",
@@ -408,7 +424,12 @@ def _settings_groups() -> list[dict]:
                     label="Your keys",
                     kind="custom",
                     widget="cloud_keys",
-                    help="Add, test or remove your provider keys. Saving verifies one selected service; search checks may use credits.",
+                    help=(
+                        "Add, test or remove your keys. One store on this machine holds them all — "
+                        "model providers, web search and security scans — so they live together here, "
+                        "not in the sections that use them. VOOL runs locally without any of them. "
+                        "Saving verifies a key with that one service; search checks may use credits."
+                    ),
                     read={"url": CREDENTIALS},
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_IMMEDIATE,
@@ -641,6 +662,20 @@ def _settings_groups() -> list[dict]:
                         "fields, never in history, logs or receipts."
                     ),
                     keywords="import restore bundle voolsession file passphrase untrusted signer preview recover",
+                ),
+                _row(
+                    id="chat_import",
+                    label="Bring your chats from other AI apps",
+                    kind="custom",
+                    widget="chat_import",
+                    help=(
+                        "Moving in: bring the chats you had in other AI apps, with their names and messages. "
+                        "Choose an app on this computer or a data export file, look over the chats found, and "
+                        "tick the ones to bring in. Everything stays on this computer, and the other app's "
+                        "files are never changed. VOOL keeps these chats as history: it does not learn from "
+                        "them or follow anything written in them."
+                    ),
+                    keywords="bring chats other apps move moving in import history conversations export zip transfer migrate switch",
                 ),
             ],
         },
@@ -1841,6 +1876,7 @@ function renderWidget(row, host) {
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
+  if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -1855,6 +1891,7 @@ function renderWidget(row, host) {
   if (w === 'extras_toolbelt') return widgetExtras(stack, 'toolbelt');
   if (w === 'bundle_export') return widgetBundleExport(stack);
   if (w === 'bundle_import') return widgetBundleImport(stack);
+  if (w === 'chat_import') return widgetSurface(stack, 'VoolChatImport', T('settings.pane.chat_import_missing', 'The panel for bringing in chats did not load.'));
   stack.appendChild(el('div', 'empty', T('settings.pane.empty', 'This section has nothing to show.')));
 }
 
@@ -2973,6 +3010,8 @@ function widgetKeys(stack) {
     const reason = state === 'failed' ? String(j.detail || '') : state;
     const http = j.http_status ? ' (HTTP ' + j.http_status + ')' : '';
     const p = { label: label, http: http };
+    // A 401 is the provider saying it did not accept the key; only a plain 403 leaves the key unjudged.
+    if (reason === 'unauthorized' && Number(j.http_status) === 401) return tfmt('keys.test.invalid', '{label} rejected the key{http}. Check it again, or replace it.', p);
     if (reason === 'unauthorized') return tfmt('keys.test.unauthorized', '{label} refused this request{http}. The key may lack permission for it, or may not be valid.', p);
     if (reason === 'gateway_blocked') return tfmt('keys.test.gateway_blocked', '{label} blocked this check before looking at the key{http}. The key was not judged.', p);
     if (reason === 'no_key') return tfmt('keys.test.no_key', 'No key is stored for {label}.', p);
@@ -4922,41 +4961,66 @@ function usepodModelRow(m, d, say, draw) {
    picker cannot offer something the policy would then fail to read. */
 const WEB_LOOKUPS_URL = '/api/onboarding/pact?view=boundary';
 
-function widgetWebLookups(stack) {
-  const err = state.sourceErr[WEB_LOOKUPS_URL];
-  if (err) { stack.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
-  const src = state.sources[WEB_LOOKUPS_URL];
-  if (!src) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+/* --- The two boundary switches on Privacy & Permissions: Web lookups (system.allow_web_fallback)
+   and Go online on its own (network.outbound_enabled). Both read the live boundary truth from
+   WEB_LOOKUPS_URL and write ONE key through the existing boundary command. Local-only mode vetoes
+   turning either on (the server refuses it too); turning off is always allowed, and neither row
+   ever changes local-only mode itself. These are consent controls, so they fail closed: when the
+   answer cannot be read, or does not carry both booleans, no switch is drawn -- a row never shows
+   "off" (or "on") for a value it does not know, and never shows a raw error code. */
+function boundarySwitchReading(src, field) {
+  if (!src || src.ok === false) return null;
+  if (typeof src[field] !== 'boolean' || typeof src.local_only_mode !== 'boolean') return null;
+  return { localOnly: src.local_only_mode, on: src[field] && !src.local_only_mode };
+}
+function boundarySwitchWidget(stack, cfg) {
+  const readFailed = () => T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
+  const localOnlyNote = () => T(cfg.noteKey, LOCAL_ONLY_NOTE_EN);
+  const reading = () => boundarySwitchReading(state.sources[WEB_LOOKUPS_URL], cfg.field);
+  if (state.sourceErr[WEB_LOOKUPS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+  if (!state.sources[WEB_LOOKUPS_URL]) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  const first = reading();
+  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
 
-  const localOnly = !!src.local_only_mode;
-  const on = !!src.allow_web_fallback && !localOnly;
   const st = el('div', 'state idle');
+  st.setAttribute('role', 'status');
   const line = el('div', 'inline');
   const sw = el('button', 'sw');
   sw.type = 'button';
   sw.setAttribute('role', 'switch');
-  sw.setAttribute('aria-checked', on ? 'true' : 'false');
-  sw.setAttribute('aria-label', T('settings.row.web_lookups.label', 'Web lookups'));
-  if (localOnly) sw.disabled = true;
+  sw.setAttribute('aria-label', T(cfg.labelKey, cfg.labelEn));
+  const note = el('div', 'subtle', localOnlyNote());
   line.appendChild(sw);
   stack.appendChild(line);
-  if (localOnly) {
-    stack.appendChild(el('div', 'subtle',
-      tfmt('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')));
-  }
+  stack.appendChild(note);
   stack.appendChild(st);
+  /* Paint one reading; an unreadable one leaves the switch unusable rather than guessing. */
+  const paint = (r) => {
+    if (!r) {
+      sw.disabled = true;
+      sw.setAttribute('aria-checked', 'false');
+      note.style.display = 'none';
+      return;
+    }
+    sw.setAttribute('aria-checked', r.on ? 'true' : 'false');
+    sw.disabled = r.localOnly;
+    note.style.display = r.localOnly ? '' : 'none';
+  };
+  paint(first);
+  const reread = async () => paint((await readSource(WEB_LOOKUPS_URL)) ? reading() : null);
 
   sw.addEventListener('click', async () => {
     if (sw.disabled) return;
     /* The target is decided from the authority's last read, not from the value at render time. */
-    const now = state.sources[WEB_LOOKUPS_URL] || {};
-    const want = !(!!now.allow_web_fallback && !now.local_only_mode);
+    const now = reading();
+    if (!now || now.localOnly) { paint(now); return; }
+    const want = !now.on;
     sw.disabled = true;
-    st.className = 'state saving'; st.textContent = 'Saving…';
+    st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
     try {
       const r = await fetch('/api/onboarding/pact/boundary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: 'web_lookups', value: want }),
+        body: JSON.stringify({ key: cfg.key, value: want }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j || j.ok === false) {
@@ -4965,36 +5029,46 @@ function widgetWebLookups(stack) {
            must not leave the switch claiming a state VOOL is not in. */
         const code = String((j && j.error) || '');
         const why = code === 'invalid_transition'
-          ? T('settings.row.web_lookups.local_only_note', 'Local-only mode is on. Turn it off first.')
-          : T('settings.row.web_lookups.retry_note', 'VOOL could not change this right now. Try again in a moment.');
-        if (await readSource(WEB_LOOKUPS_URL)) {
-          const live = state.sources[WEB_LOOKUPS_URL] || {};
-          sw.setAttribute('aria-checked', (!!live.allow_web_fallback && !live.local_only_mode) ? 'true' : 'false');
-          sw.disabled = !!live.local_only_mode;
-        } else {
-          sw.disabled = false;
-        }
-        st.className = 'state failed'; st.textContent = 'Not saved — ' + why;
+          ? localOnlyNote()
+          : T(cfg.retryKey, 'VOOL could not change this right now. Try again in a moment.');
+        await reread();
+        st.className = 'state failed';
+        st.textContent = tfmt('settings.switch.not_saved', 'Not saved — {reason}', { reason: why });
         return;
       }
       /* Read back from the authority rather than trusting the 200. */
-      const ok = await readSource(WEB_LOOKUPS_URL);
-      const back = ok ? state.sources[WEB_LOOKUPS_URL] : null;
-      if (!back || !!back.allow_web_fallback !== want) {
-        if (back) sw.setAttribute('aria-checked', (!!back.allow_web_fallback && !back.local_only_mode) ? 'true' : 'false');
-        sw.disabled = !!(back && back.local_only_mode);
+      await reread();
+      const back = state.sourceErr[WEB_LOOKUPS_URL] ? null : reading();
+      if (!back || back.on !== want) {
         st.className = 'state stale';
-        st.textContent = 'Sent, but VOOL could not confirm it. Reopen Settings to check.';
+        st.textContent = T('settings.switch.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
         return;
       }
-      sw.setAttribute('aria-checked', want ? 'true' : 'false');
-      sw.disabled = false;
-      st.className = 'state saved'; st.textContent = 'Saved';
+      st.className = 'state saved'; st.textContent = T('settings.switch.saved', 'Saved');
       setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
     } catch (e) {
-      sw.disabled = false;
-      st.className = 'state failed'; st.textContent = 'Not saved — VOOL did not answer.';
+      /* No answer: re-read; if that fails too, the switch is not trusted to show the old value. */
+      await reread();
+      st.className = 'state failed';
+      st.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
     }
+  });
+}
+const LOCAL_ONLY_NOTE_EN = 'Local-only mode is on for this whole computer, so this stays off. Settings has no switch to turn local-only mode off.';
+function widgetWebLookups(stack) {
+  return boundarySwitchWidget(stack, {
+    key: 'web_lookups', field: 'allow_web_fallback',
+    labelKey: 'settings.row.web_lookups.label', labelEn: 'Web lookups',
+    noteKey: 'settings.row.web_lookups.local_only_note',
+    retryKey: 'settings.row.web_lookups.retry_note',
+  });
+}
+function widgetAutomaticChecks(stack) {
+  return boundarySwitchWidget(stack, {
+    key: 'automatic_checks', field: 'outbound_enabled',
+    labelKey: 'settings.row.automatic_checks.label', labelEn: 'Go online on its own',
+    noteKey: 'settings.row.automatic_checks.local_only_note',
+    retryKey: 'settings.row.automatic_checks.retry_note',
   });
 }
 
@@ -5095,6 +5169,153 @@ function widgetAnswerLanguage(stack) {
     'what your message asks for comes first, then this, then the language you wrote in.')));
 }
 
+/* Add a password email account (core/email_setup.py, POST /api/email/accounts/add). The server signs in to
+   the incoming server and, when one is given, the outgoing server once each, with certificates verified,
+   and saves the account only after both accept; Local Only and an existing account are refused before any
+   connection. The password field is never prefilled, it is cleared after every attempt, and no answer from
+   the server carries it. Removal (POST /api/email/accounts/remove) deletes the stored entries, clears a
+   default that named the account, and changes nothing on the mail server. */
+const EMAIL_SETUP_FIELDS = {
+  address: () => T('emailadd.address', 'Email address'),
+  username: () => T('emailadd.username', 'Username (leave empty to use the email address)'),
+  password: () => T('emailadd.password', 'Password'),
+  imap_host: () => T('emailadd.imap_host', 'Incoming mail server (IMAP)'),
+  imap_port: () => T('emailadd.imap_port', 'Incoming server port'),
+  imap_security: () => T('emailadd.imap_security', 'Incoming connection security'),
+  smtp_host: () => T('emailadd.smtp_host', 'Outgoing mail server (SMTP), optional'),
+  smtp_port: () => T('emailadd.smtp_port', 'Outgoing server port'),
+  smtp_security: () => T('emailadd.smtp_security', 'Outgoing connection security'),
+  replace: () => T('emailadd.replace', 'Replace the saved details for this address'),
+};
+const EMAIL_SETUP_ERRORS = {
+  invalid: () => T('emailadd.err.invalid', 'Some details are missing or not valid. Nothing was saved.'),
+  password_charset: () => T('emailadd.err.password_charset', 'This password has characters a mail server sign-in cannot carry. If your provider offers app passwords, create one and use it here. Nothing was saved.'),
+  local_only: () => T('emailadd.err.local_only', 'Local Only is on, so VOOL did not contact this mail server. Nothing was saved.'),
+  exists: () => T('emailadd.err.exists', 'This email account is already set up. Tick replace to save the new details.'),
+  conflict: () => T('emailadd.err.conflict', 'Another mailbox is already saved under this account name, so nothing was changed.'),
+  managed_elsewhere: () => T('emailadd.err.managed_elsewhere', "This account was connected through its provider's sign-in, so it is changed there, not here."),
+  auth_failed: () => T('emailadd.err.auth_failed', 'The incoming mail server did not accept this username and password. Some providers need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
+  cannot_reach: () => T('emailadd.err.cannot_reach', 'VOOL could not reach the incoming mail server. Check the server name and port. Nothing was saved.'),
+  tls_failed: () => T('emailadd.err.tls_failed', "The incoming mail server's secure connection could not be verified, so VOOL did not send the password. Nothing was saved."),
+  timeout: () => T('emailadd.err.timeout', 'The incoming mail server did not answer in time. Nothing was saved.'),
+  smtp_auth_failed: () => T('emailadd.err.smtp_auth_failed', 'The outgoing mail server did not accept this username and password. Some providers need an app password, and some do not allow password sign-in for other apps at all. Nothing was saved.'),
+  smtp_cannot_reach: () => T('emailadd.err.smtp_cannot_reach', 'VOOL could not reach the outgoing mail server. Check the server name and port. Nothing was saved.'),
+  smtp_tls_failed: () => T('emailadd.err.smtp_tls_failed', "The outgoing mail server's secure connection could not be verified, so VOOL did not send the password. Nothing was saved."),
+  smtp_timeout: () => T('emailadd.err.smtp_timeout', 'The outgoing mail server did not answer in time. Nothing was saved.'),
+  store_failed: () => T('emailadd.err.store_failed', 'VOOL could not save the change securely on this machine. Check local storage and try again.'),
+  not_found: () => T('emailadd.err.not_found', 'There is no such email account.'),
+  owner_local_required: () => T('emailadd.err.forbidden', 'Email accounts can only be changed inside the VOOL app on this machine.'),
+};
+async function emailSetupCall(action, payload) {
+  try {
+    const r = await fetch('/api/email/accounts/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const j = await r.json().catch(() => ({}));
+    return { ok: r.ok && !!j && j.ok === true, http: r.status, j: j || {} };
+  } catch (e) { return { ok: false, http: 0, j: {} }; }
+}
+function emailSetupError(res) {
+  const kind = String((res && res.j && res.j.error) || '');
+  if (kind === 'invalid' && EMAIL_SETUP_FIELDS[res.j.field]) {
+    return tfmt('emailadd.err.invalid_field', 'Check “{field}”. Nothing was saved.', { field: EMAIL_SETUP_FIELDS[res.j.field]() });
+  }
+  if (EMAIL_SETUP_ERRORS[kind]) return EMAIL_SETUP_ERRORS[kind]();
+  if (res && res.http === 403) return EMAIL_SETUP_ERRORS.owner_local_required();
+  return T('emailadd.err.failed', 'Something went wrong. Nothing was saved.');
+}
+/* The ports whose usual security is STARTTLS; any other port suggests SSL/TLS. Only a suggestion: a
+   choice the person makes in the menu is kept. Mirrors core/email_setup.py default_security. */
+const EMAIL_STARTTLS_PORTS = { imap: [143], smtp: [25, 587] };
+function openEmailAddDialog(onSaved) {
+  document.querySelector('dialog.email-add-dialog')?.remove();
+  const dlg = document.createElement('dialog'); dlg.className = 'key-setup-dialog email-add-dialog';
+  dlg.setAttribute('aria-label', T('emailadd.dialog_title', 'Add an email account'));
+  dlg.appendChild(el('h3', null, T('emailadd.dialog_title', 'Add an email account')));
+  dlg.appendChild(el('p', 'subtle', T('emailadd.intro', 'VOOL signs in to your mail server once to check these details. They are saved on this machine only after the server accepts them.')));
+  dlg.appendChild(el('p', 'subtle', T('emailadd.app_password_hint', "Some providers need an app password, and some do not allow password sign-in for other apps at all. Your provider's security settings say which.")));
+  const form = document.createElement('form'); form.className = 'stack email-add-form'; form.noValidate = true;
+  const labelled = (name, control) => {
+    const wrap = el('label', 'stack');
+    wrap.appendChild(el('span', null, EMAIL_SETUP_FIELDS[name]()));
+    control.name = name; control.setAttribute('aria-label', EMAIL_SETUP_FIELDS[name]());
+    wrap.appendChild(control); form.appendChild(wrap);
+    return control;
+  };
+  const field = (name, type, value, placeholder) => {
+    const input = el('input', 'inp'); input.type = type; input.spellcheck = false;
+    input.autocomplete = type === 'password' ? 'new-password' : 'off';
+    if (value) input.value = value;
+    if (placeholder) input.placeholder = placeholder;
+    if (type === 'number') { input.min = '1'; input.max = '65535'; }
+    return labelled(name, input);
+  };
+  const securityMenu = (name) => {
+    const select = el('select', 'inp');
+    [['ssl', T('emailadd.security_ssl', 'Encrypted from the start (SSL/TLS)')],
+     ['starttls', T('emailadd.security_starttls', 'Upgraded to encryption after connecting (STARTTLS)')]].forEach(([value, text]) => {
+      const option = document.createElement('option'); option.value = value; option.textContent = text; select.appendChild(option);
+    });
+    return labelled(name, select);
+  };
+  const address = field('address', 'email', '', 'name@example.com');
+  const username = field('username', 'text');
+  const password = field('password', 'password');
+  const imapHost = field('imap_host', 'text', '', 'imap.example.com');
+  const imapPort = field('imap_port', 'number', '993');
+  const imapSecurity = securityMenu('imap_security');
+  const smtpHost = field('smtp_host', 'text', '', 'smtp.example.com');
+  const smtpPort = field('smtp_port', 'number', '465');
+  const smtpSecurity = securityMenu('smtp_security');
+  const followPort = (kind, port, menu) => {
+    const suggest = () => { if (!menu.dataset.chosen) menu.value = EMAIL_STARTTLS_PORTS[kind].includes(Number(port.value)) ? 'starttls' : 'ssl'; };
+    menu.addEventListener('change', () => { menu.dataset.chosen = '1'; });
+    port.addEventListener('input', suggest); suggest();
+  };
+  followPort('imap', imapPort, imapSecurity);
+  followPort('smtp', smtpPort, smtpSecurity);
+  form.appendChild(el('p', 'subtle', T('emailadd.smtp_note', 'Without an outgoing server, VOOL can read this mailbox but not send from it.')));
+  const replaceWrap = el('label', 'inline');
+  const replace = el('input'); replace.type = 'checkbox'; replace.name = 'replace';
+  replaceWrap.appendChild(replace); replaceWrap.appendChild(el('span', null, EMAIL_SETUP_FIELDS.replace()));
+  form.appendChild(replaceWrap);
+  const note = el('p', 'subtle email-add-state'); note.setAttribute('role', 'status');
+  const save = el('button', 'btn primary email-add-save', T('emailadd.save', 'Check and save')); save.type = 'submit';
+  const close = el('button', 'btn', T('keyguide.setup_close', 'Close')); close.type = 'button';
+  const actions = el('div', 'inline'); actions.appendChild(save); actions.appendChild(close);
+  form.appendChild(note); form.appendChild(actions);
+  let busy = false;
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    if (busy) return;
+    busy = true; save.disabled = true; close.disabled = true;
+    note.textContent = T('emailadd.checking', 'Signing in to the mail server once…');
+    const payload = { address: address.value.trim(), password: password.value, imap_host: imapHost.value.trim(),
+                      imap_port: Number(imapPort.value) || 993, imap_security: imapSecurity.value, replace: replace.checked };
+    password.value = '';
+    if (username.value.trim()) payload.username = username.value.trim();
+    if (smtpHost.value.trim()) {
+      payload.smtp_host = smtpHost.value.trim(); payload.smtp_port = Number(smtpPort.value) || 465; payload.smtp_security = smtpSecurity.value;
+    }
+    const res = await emailSetupCall('add', payload);
+    payload.password = '';
+    busy = false; save.disabled = false; close.disabled = false;
+    if (res.ok) {
+      const done = tfmt('emailadd.saved', 'Saved. VOOL can now use {address}.', { address: res.j.address || payload.address });
+      dlg.close();
+      if (onSaved) await onSaved(done);
+      return;
+    }
+    note.textContent = emailSetupError(res);
+    password.focus();
+  });
+  close.addEventListener('click', () => { if (!busy) dlg.close(); });
+  /* Escape would close the dialog in the middle of a check and lose its answer: wait for it. */
+  dlg.addEventListener('cancel', (ev) => { if (busy) ev.preventDefault(); });
+  dlg.appendChild(form);
+  dlg.addEventListener('close', () => { password.value = ''; dlg.remove(); });
+  document.body.appendChild(dlg);
+  if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  address.focus();
+}
 /* --- Email accounts: every configured mailbox as the account authority sees it (core/email_accounts.py,
    GET /api/email/accounts): its identity, what it can do, its state, and which one is the default. The
    default is ONE Operator Profile item (default_account.email, an opaque credential NAME), written through
@@ -5120,7 +5341,17 @@ function widgetEmailAccounts(stack) {
   const err = state.sourceErr['/api/email/accounts'];
   const body = el('div', 'stack'); body.id = 'emailAccounts';
   const status = el('div', 'state idle'); status.id = 'emailAccountsStatus'; status.setAttribute('role', 'status');
+  /* The list is redrawn after every change, so a message is written to the status line that is live then. */
+  const sayNow = (msg, bad) => { const s = document.getElementById('emailAccountsStatus'); if (s) { s.className = 'state ' + (bad ? 'failed' : 'saved'); s.textContent = msg; } };
+  const addRow = el('div', 'inline email-add-entry');
+  const addBtn = el('button', 'btn email-add-open', T('emailadd.open', 'Add email account')); addBtn.type = 'button';
+  addBtn.addEventListener('click', () => openEmailAddDialog(async (msg) => {
+    await readSource('/api/email/accounts'); renderPane(); sayNow(msg);
+    document.querySelector('button.email-add-open')?.focus();
+  }));
+  addRow.appendChild(addBtn);
   stack.appendChild(body);
+  stack.appendChild(addRow);
   stack.appendChild(status);
   if (err) { body.appendChild(el('div', 'empty', tfmt('settings.widget.unavailable', 'Unavailable — {error}', { error: err }))); return; }
   if (!src) { body.appendChild(el('div', 'empty', 'Loading…')); return; }
@@ -5140,15 +5371,17 @@ function widgetEmailAccounts(stack) {
   const sel = src.selection || {};
   if (!accounts.length) {
     /* No account: say so once, plainly, and nothing else -- no "Reading uses / Sending uses" lines that
-       would name a mailbox that does not exist. Adding a mailbox is not a control on this page yet. */
-    body.appendChild(el('div', 'empty', T('settings.email.none', 'No email account yet, so VOOL cannot read or send email. Adding an email account from Settings is not available in this version. Settings never asks for an email password.')));
+       would name a mailbox that does not exist. The Add email account button above is the way in. */
+    body.appendChild(el('div', 'empty', T('emailadd.empty', 'No email account is set up yet. Use Add email account to connect one.')));
     return;
   }
   accounts.forEach(a => {
     const rowEl = el('div', 'inline email-account'); rowEl.dataset.emailAccount = a.account;
     const pill = el('span', 'pill' + (a.state === 'configured' ? ' on' : ''));
     pill.appendChild(el('span', 'dot'));
-    pill.appendChild(el('span', 'email-account-name', a.account + (a.address ? ' · ' + a.address : '')));
+    /* An account added from Settings is named by its address plus a hash; the address alone says it. */
+    const derived = !!a.address && /-[0-9a-f]{10}$/.test(a.account);
+    pill.appendChild(el('span', 'email-account-name', derived ? a.address : a.account + (a.address ? ' · ' + a.address : '')));
     rowEl.appendChild(pill);
     rowEl.appendChild(el('span', 'subtle mono', a.provider));
     rowEl.appendChild(el('span', 'subtle', (a.read ? 'reads' : 'cannot read') + ' · ' + (a.send ? 'sends' : 'cannot send')));
@@ -5169,6 +5402,21 @@ function widgetEmailAccounts(stack) {
         else say('VOOL stored ' + JSON.stringify(back) + ' as the default instead.', true);
       });
       rowEl.appendChild(use);
+    }
+    /* A password account can be removed here; an account connected by its provider's sign-in cannot. */
+    if (a.provider !== 'gmail' && a.provider !== 'graph') {
+      const shown = a.address || a.account;
+      const rm = el('button', 'btn danger email-remove', T('keys.remove', 'Remove')); rm.type = 'button'; rm.dataset.account = a.account;
+      rm.addEventListener('click', async () => {
+        if (!confirm(tfmt('emailadd.remove_confirm', 'Remove the email account “{account}” from this machine?\n\nIts saved password is deleted, and if it is your default account the default is cleared. Nothing changes on the mail server.', { account: shown }))) return;
+        rm.disabled = true; say(T('emailadd.removing', 'Removing…'));
+        const res = await emailSetupCall('remove', { account: a.account });
+        if (!res.ok) { rm.disabled = false; say(tfmt('emailadd.not_removed', 'Not removed. {reason}', { reason: emailSetupError(res) }), true); return; }
+        await refresh();
+        if (res.j.default_error) sayNow(tfmt('emailadd.removed_default_kept', 'Removed {account}, but its default choice could not be cleared. Clear it below.', { account: shown }), true);
+        else sayNow(tfmt('emailadd.removed', 'Removed {account}.', { account: shown }));
+      });
+      rowEl.appendChild(rm);
     }
     body.appendChild(rowEl);
   });
@@ -5801,6 +6049,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     catalog = json.dumps(language_catalog(), separators=(",", ":"), ensure_ascii=False)
     from core.addon_store_fragment import render_addon_store_fragment
     from core.calendar_settings_fragment import render_calendar_settings_fragment
+    from core.chat_import_settings_fragment import render_chat_import_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
     from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
@@ -5812,7 +6061,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_notification_settings_fragment() + "\n</body>", 1
+        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the

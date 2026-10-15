@@ -363,9 +363,13 @@ def _log_transcript_assembled(source: str, transcript: list[dict[str, str]], ses
     try:
         import logging
 
+        from core.private_chat import turn_is_private
+
+        # A private chat's id stays out of the log: the log outlives the chat.
+        shown = "<private>" if session_id and turn_is_private(None, session_id) else (session_id or "<none>")
         logging.getLogger("vool.api").info(
             "transcript assembled: session=%s source=%s messages=%d",
-            session_id or "<none>", source, len(transcript or []),
+            shown, source, len(transcript or []),
         )
     except Exception:
         pass

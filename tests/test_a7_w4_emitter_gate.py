@@ -39,7 +39,8 @@ def test_buffered_envelope_serves_exact_committed_bytes_leading_whitespace():
     assert raw.startswith("   YES")
 
 
-def test_footer_travels_in_metadata_never_in_body():
+def test_footer_travels_in_metadata_never_in_body(monkeypatch):
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     decorated = "BANANA\n\n`local | test-model | 2 tok`"
     ollama = runtime_api.ollama_chat_response(_result(decorated), "vool-local-only", None)
     body = ollama["message"]["content"]

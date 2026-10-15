@@ -13,7 +13,13 @@ from __future__ import annotations
 from typing import Any
 
 from core.contacts import resolver, store
-from core.contacts.endpoints import KIND_LABELS, KINDS, MESSAGING_CHANNELS
+from core.contacts.endpoints import (
+    KIND_LABELS,
+    KINDS,
+    MESSAGING_CHANNELS,
+    active_wallet_environment,
+    contact_chain_rank,
+)
 
 _SECRET_FIELDS = ("secret", "current_secret", "new_secret", "recovery_code")
 
@@ -68,7 +74,9 @@ def _options() -> dict[str, Any]:
         "channels": [{"id": key, "label": spec["label"], "account_required": bool(spec["account_required"]), "hint": spec["hint"]}
                      for key, spec in MESSAGING_CHANNELS.items()],
         "networks": [{"network": spec.network, "display_name": spec.display_name, "environment": spec.environment, "family": spec.family,
-                      "chain_key": spec.chain_key} for spec in chains.all_networks()],
+                      "chain_key": spec.chain_key} for spec in sorted(chains.all_networks(), key=lambda spec: contact_chain_rank(spec.chain_key))],
+        # the editor lists this environment's chains first and fills it in for a Solana address
+        "active_environment": active_wallet_environment(),
     }
 
 

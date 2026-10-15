@@ -1229,7 +1229,7 @@ PROJECT_ROOT="${SCRIPT_DIR}"
 WEB0_URL="http://127.0.0.1:11435/web0"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
-open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+open_url() { if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
@@ -1280,7 +1280,7 @@ PROJECT_ROOT="${SCRIPT_DIR}"
 CHAT_URL="http://127.0.0.1:11435/chat"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
-open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+open_url() { if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."

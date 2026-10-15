@@ -50,7 +50,10 @@ _DEFAULT_CONCURRENCY = 4
 
 # How long a call may wait for a slot before the lane is declared saturated. Sized well above the
 # 60s ordinary-lane budget on purpose: the point of waiting here is that the wait does NOT consume
-# the request's own timeout, so a long queue drains instead of failing all at once.
+# the request's own timeout, so a long queue drains instead of failing all at once. On a CPU-only
+# machine this default is scaled once (core.local_compute_budget): generations, and therefore
+# slot releases, run several times slower there. An explicit VOOL_LOCAL_MODEL_QUEUE_WAIT wins over
+# the scaling and is used exactly as set.
 _DEFAULT_QUEUE_WAIT_SECONDS = 240.0
 
 
@@ -75,20 +78,30 @@ def _positive_int(name: str, default: int) -> int:
     return value if value > 0 else default
 
 
-def _positive_float(name: str, default: float) -> float:
-    try:
-        value = float(str(os.environ.get(name) or "").strip())
-    except (TypeError, ValueError):
-        return default
-    return value if value > 0 else default
-
-
 def configured_concurrency() -> int:
     return _positive_int("VOOL_LOCAL_MODEL_CONCURRENCY", _DEFAULT_CONCURRENCY)
 
 
 def configured_queue_wait_seconds() -> float:
-    return _positive_float("VOOL_LOCAL_MODEL_QUEUE_WAIT", _DEFAULT_QUEUE_WAIT_SECONDS)
+    """The queue-wait ceiling: CPU-scaled by default, verbatim when the operator set it.
+
+    ``VOOL_LOCAL_MODEL_QUEUE_WAIT`` is an explicit operator override and is used exactly as set,
+    never scaled: it names a wait the operator chose, not one measured on a GPU host. The default
+    ceiling was sized on GPU hosts, where queue slots free as fast as generations finish; on a
+    CPU-only machine every local generation runs several times slower
+    (``core.local_compute_budget``), so slots free that much slower and the default wait scales
+    with them. Unreadable, empty, or non-positive values keep falling back to the scaled default,
+    the same classification the env readers here have always applied.
+    """
+    from core.local_compute_budget import local_compute_seconds
+
+    try:
+        value = float(str(os.environ.get("VOOL_LOCAL_MODEL_QUEUE_WAIT") or "").strip())
+    except (TypeError, ValueError):
+        return local_compute_seconds(_DEFAULT_QUEUE_WAIT_SECONDS)
+    if value > 0:
+        return value
+    return local_compute_seconds(_DEFAULT_QUEUE_WAIT_SECONDS)
 
 
 class _Gate:

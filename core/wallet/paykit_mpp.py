@@ -140,7 +140,7 @@ def _terms_from_challenge(challenge: Any, *, wallet_network: str, source_context
             asset = chains.asset_for(spec.network, mint)
         except Exception:
             raise refuse("offer_asset_not_registered", asset=currency[:48]) from None
-        if asset.native or asset.address != mint:
+        if asset.native or asset.address != mint or asset.symbol not in chains.PAYMENT_LANE_TOKENS:
             raise refuse("offer_asset_not_registered", asset=currency[:48])
         if details.decimals is None or int(details.decimals) != int(asset.decimals):
             raise refuse("mpp_decimals_differ_from_registry")

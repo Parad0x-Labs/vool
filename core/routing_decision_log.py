@@ -155,6 +155,19 @@ def _fold_session_ref(session_id: str) -> str:
     return canonical_chat_session_id(str(session_id or ""))
 
 
+def _turn_is_private(folded_ref: str) -> bool:
+    """A private turn (core.private_chat) keeps no routing telemetry: the row names the chat, and
+    the shadow record's digest of the message would let a guess at the private words be confirmed.
+    The bound request answers for any handle; the switch is read under the folded handle, which is
+    the chat id itself for a page-minted chat. An unreadable switch answers private (fail closed)."""
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(None, str(folded_ref or "").strip())
+    except Exception:
+        return True
+
+
 def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
     """True when this chat is deleted and must not grow or keep routing telemetry.
 
@@ -174,7 +187,6 @@ def _session_telemetry_suppressed(folded_ref: str, raw_handle: str) -> bool:
     """
     try:
         from core.context_namespace import chat_namespace_deleted_for_identity
-
         for handle in dict.fromkeys((folded_ref, str(raw_handle or "").strip())):
             if not handle:
                 continue
@@ -338,6 +350,8 @@ def record_decision(
     redacted_message = ""
     try:
         folded_session_ref = _fold_session_ref(session_id)
+        if _turn_is_private(folded_session_ref):
+            return
         if _session_telemetry_suppressed(folded_session_ref, session_id):
             return
         redacted_message = _clean_message(user_input)

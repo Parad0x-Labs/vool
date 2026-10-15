@@ -16,6 +16,7 @@ it well. Model execution on this machine is cloud-only, and a stub is not a mode
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -509,6 +510,50 @@ class ServedDaemon:
             return "\n".join(self.log_path.read_text("utf-8", "replace").splitlines()[-lines:])
         except Exception:
             return "<no daemon log>"
+
+    def assert_running(self, *, context: str = "") -> None:
+        """Fail AS an exited daemon, with its evidence, before the test depends on it.
+
+        After start() nothing checks this process again until stop(), so a daemon whose
+        process has exited surfaces as whatever the next HTTP or browser call happens to
+        raise -- a bare transport error carrying no exit status and no server-side evidence
+        (the server routes its logging into the disposable home's own file). The same
+        capture law ``certify()`` already applies to transport loss applies here: name the
+        exit status and the redacted log tail at the boundary. Reports the measured
+        process state; classifies nothing. Never a retry, never a pass.
+        """
+        if self.process is None:
+            raise AssertionError(f"served daemon was never started ({context})")
+        code = self.process.poll()
+        if code is not None:
+            raise AssertionError(
+                f"served daemon exited rc={code} before {context or 'this step'}; "
+                f"server evidence:\n{self.await_failure_log_tail()}"
+            )
+
+    @contextlib.contextmanager
+    def evidence_on_failure(self, context: str):
+        """Carry this daemon's process status and redacted server evidence on a failed step.
+
+        Wraps one navigation or request step. The step's OWN exception propagates unchanged
+        -- same type, same traceback -- with one note attached recording what the daemon's
+        process was at failure time (``alive`` / ``exited rc=N`` / ``never started``) plus
+        the redacted server log tail, captured before any teardown can dispose of the home.
+        Evidence capture only: no retry, no swallow, no state change.
+        """
+        try:
+            yield
+        except BaseException as exc:
+            if self.process is None:
+                state = "never started"
+            else:
+                code = self.process.poll()
+                state = "alive" if code is None else f"exited rc={code}"
+            exc.add_note(
+                f"[served-daemon] {context}: process {state}; server evidence:\n"
+                f"{self.await_failure_log_tail()}"
+            )
+            raise
 
     # --- the doors under test -----------------------------------------------------------------
 

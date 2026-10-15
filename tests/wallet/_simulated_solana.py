@@ -2,9 +2,10 @@
 
 Not a validator and not a public cluster. It holds lamports, SPL mints and token accounts in memory, answers as
 one cluster (the genesis hash it is built with), verifies every ed25519 signature of a submitted transaction,
-checks the blockhash, simulates before accepting (the preflight a real node runs), and applies exactly two
-instruction kinds atomically: a System Program transfer and an SPL Token ``TransferChecked``. Everything else
-fails the transaction. The fee is ``lamports_per_signature`` per required signature, charged to the fee payer.
+checks the blockhash, simulates before accepting (the preflight a real node runs), and applies exactly three
+instruction kinds atomically: a System Program transfer, an SPL Token ``TransferChecked`` and the Associated Token
+Account program's ``CreateIdempotent`` (the funder pays the new account's rent; an existing account of the same owner
+and mint is left as it is, any other account at that address fails). Everything else fails the transaction. The fee is ``lamports_per_signature`` per required signature, charged to the fee payer.
 
 What it exists for: composition proofs where the wallet's real custody signs real bytes, the chain role is played
 locally, and the provider stand-in verifies a payment by reading what this node actually executed. Fault knobs
@@ -28,6 +29,7 @@ SYSTEM_PROGRAM = "11111111111111111111111111111111"
 TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111"
 MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+ASSOCIATED_TOKEN_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d"
 #: the documented USDC mint on Solana mainnet; in this node it is just a synthetic mint with the same address
 USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -419,6 +421,29 @@ class SimulatedSolanaNode:
                 source_account["amount"] -= amount
                 destination_account["amount"] += amount
                 payments.append({"asset": "SPL:" + mint, "amount_atomic": amount, "to_owner": destination_account["owner"], "from_owner": owner, "mint": mint})
+            elif program == ASSOCIATED_TOKEN_PROGRAM:
+                if data != bytes([1]) or len(accounts) != 6:
+                    raise _Failure({"InstructionError": [index, "InvalidInstructionData"]}, "only the associated account CreateIdempotent is executed")
+                funder, address, owner, mint, system, token_program = accounts
+                if funder not in signers:
+                    raise _Failure({"InstructionError": [index, "MissingRequiredSignature"]}, "the funder did not sign")
+                if system != SYSTEM_PROGRAM or token_program != TOKEN_PROGRAM or mint not in self.mints:
+                    raise _Failure({"InstructionError": [index, "IncorrectProgramId"]}, "wrong program or unknown mint")
+                if address != self.token_account_address(owner, mint):
+                    raise _Failure({"InstructionError": [index, "InvalidSeeds"]}, "not the associated account of this owner and mint")
+                existing = tokens.get(address)
+                if existing is not None:
+                    if existing["owner"] != owner or existing["mint"] != mint:
+                        raise _Failure({"InstructionError": [index, "IllegalOwner"]}, "another account already lives at that address")
+                    continue  # idempotent: the account exists for this owner and mint
+                if lamports.get(address, 0):
+                    raise _Failure({"InstructionError": [index, "AccountAlreadyInUse"]}, "the address already holds lamports")
+                rent = rent_minimum(TOKEN_ACCOUNT_SIZE)
+                if lamports.get(funder, 0) < rent:
+                    raise _Failure({"InstructionError": [index, {"Custom": 1}]}, "the funder cannot pay the new account's rent")
+                lamports[funder] -= rent
+                lamports[address] = rent
+                tokens[address] = {"mint": mint, "owner": owner, "amount": 0, "frozen": False}
             else:
                 raise _Failure({"InstructionError": [index, "UnsupportedProgramId"]}, f"program {program} is not executed by this simulation")
         if lamports.get(fee_payer, 0) and lamports[fee_payer] < rent_minimum(0):
@@ -459,4 +484,4 @@ def _token_balances(keys: list[str], tokens: dict[str, dict[str, Any]], mints: d
     return rows
 
 
-__all__ = ["MAINNET_GENESIS", "SYSTEM_PROGRAM", "TOKEN_PROGRAM", "USDC_MAINNET_MINT", "SimulatedSolanaNode", "rent_minimum"]
+__all__ = ["ASSOCIATED_TOKEN_PROGRAM", "MAINNET_GENESIS", "SYSTEM_PROGRAM", "TOKEN_PROGRAM", "USDC_MAINNET_MINT", "SimulatedSolanaNode", "rent_minimum"]

@@ -463,11 +463,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             structured_fallback_in_envelope=bool(payload.get("response_format")),
             lane_name=self.manifest.provider_id,
         )
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         # Same gate as _build_openai_payload: only a request that actually carries tool definitions
         # takes the native tool-calling path. A tool_intent turn with no tools is a structured-output
@@ -707,11 +713,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             structured_fallback_in_envelope=bool(payload.get("format")),
             lane_name=self.manifest.provider_id,
         )
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers()
         permit = seal_provider_invocation(
@@ -811,11 +823,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         api_path = str(self.manifest.runtime_config.get("api_path") or "/v1/chat/completions")
         payload = self._build_openai_payload(request, force_json=False, stream=True)
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers(base_url=base_url, api_key=dispatch_key)
         permit = seal_provider_invocation(
@@ -923,11 +941,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         self._gate_local_model_load()
         payload = self._build_ollama_payload(request, force_json=False, stream=True)
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers()
         permit = seal_provider_invocation(

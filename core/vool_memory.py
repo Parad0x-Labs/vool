@@ -2847,9 +2847,6 @@ def _session_scopes(*, tags: list[str] | None = None, context_description: str =
     return scopes
 
 
-_FORGET_SEPARATOR_RE = re.compile(r"[\s\-_]+")
-
-
 _FORGET_SALVAGE_SUBJECT_START_RE = re.compile(
     r"^(?:the|a|an|my|our|their|his|her|its|this|that|these|those|each|"
     r"every|some|any|all|no)\b",
@@ -2980,17 +2977,22 @@ def _normalize_forget_token(token: str) -> str:
     Separators (whitespace, hyphen, underscore) and case are not meaning:
     a hyphenated copy of a forgotten token is the same token (measured:
     F14-07's "thermal-pool" survived every plain-substring layer and the
-    neural evidence leg re-served the deleted value).
+    neural evidence leg re-served the deleted value). Neither is the script
+    of a digit (``core.memory.carriers.normalized_forget_text``).
     """
-    return " ".join(_FORGET_SEPARATOR_RE.split(str(token or "").casefold())).strip()
+    from core.memory.carriers import normalized_forget_text
+
+    return normalized_forget_text(token)
 
 
 def text_carries_forget_token(text: str, needle: str) -> bool:
     """Separator/case-insensitive carry test for one forget-law needle."""
+    from core.memory.carriers import forget_needle_in
+
     normalized = _normalize_forget_token(needle)
     if not normalized:
         return False
-    return normalized in _normalize_forget_token(text)
+    return forget_needle_in(text, normalized)
 
 
 def _requested_session_scope(session_id: str | None) -> str | None:

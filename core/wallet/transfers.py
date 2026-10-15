@@ -108,6 +108,12 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
             continue
         native = chains.native_asset(spec.network)
         row_symbols = {native.symbol.upper(), (spec.native_display_symbol or native.symbol).upper()}
+        sent, sent_decimals = native.symbol, native.decimals
+        if symbol and symbol not in row_symbols and custody.seal_policy(str(entry.get("wallet_id") or "")) == custody.PILOT_SEAL_POLICY:
+            # a token the owner's own transfers may move on this row (USDT on Solana), from a Crypto Pilot account only
+            token = next((t for t in chains.user_transfer_tokens(spec.network) if t.symbol.upper() == symbol), None)
+            if token is not None:
+                row_symbols, sent, sent_decimals = {token.symbol.upper()}, token.symbol, token.decimals
         if wanted_wallet and str(entry.get("wallet_id")) != wanted_wallet:
             continue
         if explicit_network and chains.resolve_network(explicit_network).network != spec.network:
@@ -119,21 +125,48 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
         if family_hint and spec.family != family_hint:
             continue
         candidates.append({"wallet_id": str(entry.get("wallet_id")), "label": str(entry.get("label") or ""), "network": spec.network,
-                           "display_name": spec.display_name, "chain_key": spec.chain_key, "asset": native.symbol, "decimals": native.decimals, "mode": str(entry.get("mode") or "")})
+                           "display_name": spec.display_name, "chain_key": spec.chain_key, "asset": sent, "decimals": sent_decimals, "mode": str(entry.get("mode") or ""),
+                           "token": sent != native.symbol})
     if not candidates:
-        raise wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context={
-            "reason": "no_signing_account_for_request", "active_environment": active, "chain": chain_key, "network": explicit_network, "asset": symbol,
-        }, source_context=source_context)
-    if len(candidates) > 1 and not wanted_wallet:
+        context = {"reason": "no_signing_account_for_request", "active_environment": active, "chain": chain_key, "network": explicit_network, "asset": symbol}
+        def in_chain_order(specs: list[Any]) -> list[str]:
+            order = {key: index for index, key in enumerate(chains.CHAIN_KEY_ORDER)}
+            return list(dict.fromkeys(spec.display_name for spec in sorted(specs, key=lambda spec: (order.get(spec.chain_key, 99), spec.display_name))))
+
+        carried_by = in_chain_order([spec for spec in chains.all_networks() if any(t.symbol.upper() == symbol for t in chains.user_transfer_tokens(spec.network))])
+        if not carried_by:
+            raise wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
+        # a token this wallet sends only on certain rows: the refusal says where it can go
+        context.update({"reason": "token_not_sendable_here", "token_networks": carried_by})
+        fault = wallet_fault("wallet_not_found", authority=AUTHORITY_REQUESTS, context=context, source_context=source_context)
+        here = in_chain_order([spec for spec in rows if any(t.symbol.upper() == symbol for t in chains.user_transfer_tokens(spec.network))
+                               and (not family_hint or spec.family == family_hint)])
+        where, where_or = _names(here or carried_by), _names(here or carried_by, joiner="or")
+        named = [spec for spec in rows if (explicit_network and spec.network == chains.resolve_network(explicit_network).network) or (chain_key and spec.chain_key == chain_key)]
+        if named and not any(t.symbol.upper() == symbol for spec in named for t in chains.user_transfer_tokens(spec.network)):
+            fault.user_message = (f"This wallet can't send {symbol} on {_names([spec.display_name for spec in named], joiner='or')}. Nothing was sent. "
+                                  f"You can send {symbol} on {where_or}.")
+        elif here:
+            fault.user_message = (f"{symbol} can be sent only from a Crypto Pilot account on {where_or}, and you don't have one there yet. Nothing was sent. "
+                                  "You can create one in Settings, Crypto.")
+        else:
+            fault.user_message = (f"{symbol} can be sent only on Mainnet ({where}), and the wallet is set to test networks. Nothing was sent. "
+                                  f"To send real {symbol}, switch to Mainnet in Settings, Crypto, Developer options.")
+        raise fault
+    if len(candidates) > 1 and not wanted_wallet and not any(c["token"] for c in candidates):
+        # (a token request on several chains is never settled by the default account: the owner says which chain)
         # the owner's designated account settles a request that several accounts fit; a default on another row does not
         default = custody.default_wallet()
         preferred = [c for c in candidates if default is not None and c["wallet_id"] == default.wallet_id]
         if preferred:
             candidates = preferred
     if len(candidates) > 1:
-        raise wallet_fault("wallet_request_ambiguous", authority=AUTHORITY_REQUESTS, context={
+        fault = wallet_fault("wallet_request_ambiguous", authority=AUTHORITY_REQUESTS, context={
             "reason": "several_accounts_fit", "candidates": [{k: c[k] for k in ("wallet_id", "label", "network", "display_name", "asset")} for c in candidates[:8]],
         }, source_context=source_context)
+        if any(c["token"] for c in candidates):
+            fault.user_message = f"{candidates[0]['asset']} can be sent on {_names([c['display_name'] for c in candidates], joiner='or')}. Which network should I use? Nothing has been sent yet."
+        raise fault
     chosen = candidates[0]
     decimals = int(chosen["decimals"])
     minor: int | None = None
@@ -154,6 +187,11 @@ def resolve_request(*, destination: str, asset: str = "", amount: Any = None, am
 
 
 AUTHORITY_REQUESTS = "core.wallet.transfers"
+
+
+def _names(names: list[str], *, joiner: str = "and") -> str:
+    unique = list(dict.fromkeys(names))
+    return unique[0] if len(unique) == 1 else f"{', '.join(unique[:-1])} {joiner} {unique[-1]}"
 
 
 # --- the transfer store (design v5 §2) -----------------------------------------------------------------
@@ -341,6 +379,12 @@ EXIT_TERMS: dict[str, dict[str, str]] = {
         "door": "/api/wallet/transfers/stop-waiting",
         "risk": "VOOL could not confirm this transfer. It keeps counting against today's limits, because it may still be included; if it is, it pays the recipient you approved. Other transfers from this account can continue.",
     },
+    "stop_waiting_unproven": {
+        "title": "Stop waiting on this transfer",
+        "action": "Stop waiting",
+        "door": "/api/wallet/transfers/stop-waiting",
+        "risk": "This transfer is final on the network, but VOOL could not confirm that the {asset} moved. It keeps counting against today's limits. Check it with the explorer link before sending again, so you don't pay twice. Other transfers from this account can continue.",
+    },
     "stop_waiting_slot_used": {
         "title": "Stop waiting: this account's transaction slot was used",
         "action": "Stop waiting",
@@ -405,6 +449,11 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
         detail = "The network accepted this transfer; waiting for it to appear in a block."
     elif state == STATE_UNKNOWN:
         detail = "The outcome is not known yet. The transfer stays counted until the network answers."
+    unproven = chains.is_user_transfer_token(spec.network, principal.symbol) and state in (STATE_PENDING, STATE_STOPPED_WAITING) and '"principal_unproven"' in str(row.get("evidence_json") or "")
+    if unproven:
+        label = "Not confirmed"
+        detail = (f"The network processed this transfer, but VOOL could not confirm that the {principal.symbol} reached the recipient. The network fee was paid. "
+                  "Check it with the explorer link before sending again.")
     if state == STATE_FAILED_ON_CHAIN and row.get("authorization_json"):
         label, detail = "Expired unused", "The site did not use this payment before its time window closed, and the network can no longer use it. Nothing moved and no fee was charged."
     tx_id = str(row.get("tx_id") or "")
@@ -467,7 +516,7 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
         "balance_after_minor": None if balance_after is None else str(int(balance_after)), "balance_after_human": _human(balance_after, native.decimals),
         "balance_after_label": "observed after confirmation" if state == STATE_CONFIRMED and balance_after is not None else "projected",
         "offered_exit": str(offered.get("exit") or "") if isinstance(offered, dict) else "",
-        "exit_terms": dict(EXIT_TERMS.get(str(offered.get("exit") or "") if isinstance(offered, dict) else "", {})),
+        "exit_terms": {key: value.replace("{asset}", principal_symbol) for key, value in EXIT_TERMS.get(str(offered.get("exit") or "") if isinstance(offered, dict) else "", {}).items()},
         "cancel_requested": bool(row.get("cancel_requested_at")), "in_flight": state in IN_FLIGHT_STATES, "terminal": state in TERMINAL_STATES,
         "attempts_sent": int(row.get("attempts_sent") or 0), "a6_outcome": row.get("a6_outcome") or "",
         "created_at": row["created_at"], "updated_at": row["updated_at"],
