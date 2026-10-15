@@ -46,7 +46,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 from core.registry import checks
 from core.registry.admission import validate_policy
-from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, digest, require, version_key
+from core.registry.codec import HEX, IDENTITY, VERSION, RegistryError, canonical, decode, digest, require, version_key
 from core.registry.publisher import add_signature, admission, authorize_catalog
 from core.registry.trust import AUTHORIZATION_SECONDS, root_document, verify
 from registry_service.authority import HEADER, MARKS_SCHEMA, keyid, marks_document, sign_request
@@ -399,8 +399,19 @@ class Authority:
     @_exclusive
     def run_once(self) -> dict:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        queue = self.call("GET", "/authority/queue")
+        require(isinstance(queue, dict) and set(queue) == {"submissions"} and isinstance(queue["submissions"], list) and
+                len(queue["submissions"]) <= 20, "the service returned an invalid upload queue")
+        for item in queue["submissions"]:
+            require(isinstance(item, dict) and set(item) == {"id", "package_id", "version", "sha256", "created", "official"} and
+                    isinstance(item["id"], str) and len(item["id"]) == 32 and all(char in "0123456789abcdef" for char in item["id"]) and
+                    isinstance(item["package_id"], str) and len(item["package_id"].split("/")) == 2 and
+                    all(IDENTITY.fullmatch(part) for part in item["package_id"].split("/")) and
+                    isinstance(item["version"], str) and VERSION.fullmatch(item["version"]) and
+                    isinstance(item["sha256"], str) and HEX.fullmatch(item["sha256"]) and
+                    type(item["created"]) is int and type(item["official"]) is bool, "the service returned an invalid upload queue")
         self._deliver(report)
-        for item in self.call("GET", "/authority/queue")["submissions"]:
+        for item in queue["submissions"]:
             label = item["package_id"] + " " + item["version"]
             try:
                 raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)

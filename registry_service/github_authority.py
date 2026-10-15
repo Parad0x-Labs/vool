@@ -75,7 +75,7 @@ SERVER = "SKILL_CODEX_SERVER"
 PRIVATE = ("verdicts", "attempts", "reviews", "pending")
 _SEALED = b"SCP1"
 _AAD = b"skill-codex private state v1"
-BOT = ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com")
+BOT = ("sls_0x", "240776969+Parad0x-Labs@users.noreply.github.com")
 VOOL = "Parad0x-Labs/vool"
 # The builds VOOL reports for itself (core.registry.client.runtime_target); installing needs a released Mac build.
 PLATFORMS = ("macos-arm64", "macos-x86_64")
@@ -343,23 +343,52 @@ class RepoAuthority(Authority):
         return contextlib.nullcontext()
 
     def _load_state(self) -> dict:
-        public = json.loads((self.repo / FOLDER / "state.json").read_text())
+        require(self.repository._git("diff", "--quiet", "HEAD", "--", FOLDER + "/state.json",
+                                     check=False).returncode == 0, "the signer's public state was edited by hand")
+        public = decode((self.repo / FOLDER / "state.json").read_bytes())
         private = unseal(self._state_key, (self.repo / FOLDER / "private.bin").read_bytes())
         self._sealed = json.dumps(private, sort_keys=True)
+        binding = private.pop("public_sha256", None)
+        require(binding is None or binding == digest(public), "the signer's public state differs from its sealed state")
         spend = private.pop("spend", {})
         require(isinstance(public, dict) and set(private) <= set(PRIVATE) and not set(public) & set(PRIVATE),
                 "the signer's state files are mixed up")
+        self._validate_state(public)
+        require(isinstance(spend, dict) and all(isinstance(key, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}", key) and
+                type(value) in {float, int} and 0 <= value < float("inf") for key, value in spend.items()),
+                "invalid sealed spend state")
         _write(self.dir / "spend.json", json.dumps(spend, sort_keys=True).encode())
         return {**public, **private}
+
+    def _validate_state(self, value: dict) -> None:
+        from core.registry.trust import validate_entry, verify
+
+        required = {"epoch", "entries", "revoked", "targets", "authorized_until", "marks"}
+        optional = {"released", "builds", "removed", "unpublished", "marks_unsent", "releases_checked", "rechecked", "moderation"}
+        require(required <= set(value) <= required | optional and type(value["epoch"]) is int and value["epoch"] >= 0 and
+                type(value["authorized_until"]) is int and value["authorized_until"] >= 0 and
+                isinstance(value["entries"], list) and len(value["entries"]) <= 4096 and
+                isinstance(value["revoked"], list) and len(value["revoked"]) <= 4096 and
+                all(isinstance(item, str) and HEX.fullmatch(item) for item in value["revoked"]), "invalid public signer state")
+        require(validate_policy(checks.policy(value["targets"])) in self.root["policies"], "invalid signer target state")
+        for envelope in value["entries"]:
+            entry = verify(envelope, self.root, "admission")
+            validate_entry(entry, self.root, min(self.now(), entry["expires"] - 1))
+        marks = value["marks"]
+        require(isinstance(marks, dict) and type(marks.get("sequence")) is int and marks["sequence"] >= 0,
+                "invalid signer marks state")
+        marks_document({**marks, "schema": MARKS_SCHEMA, "sequence": max(1, marks["sequence"]), "issued_at": self.now()},
+                       now=self.now())
 
     def save(self) -> None:
         private = {key: self.state[key] for key in PRIVATE if key in self.state}
         try:
             private["spend"] = json.loads((self.dir / "spend.json").read_text())
         except (OSError, ValueError):
-            private["spend"] = {}
-        _put(self.repo / FOLDER / "state.json", _public_json({key: value for key, value in self.state.items()
-                                                              if key not in PRIVATE}))
+            raise RegistryError("the review spend state cannot be read") from None
+        public = {key: value for key, value in self.state.items() if key not in PRIVATE}
+        private["public_sha256"] = digest(public)
+        _put(self.repo / FOLDER / "state.json", _public_json(public))
         plain = json.dumps(private, sort_keys=True)
         if plain != self._sealed:  # sealing again only on a change keeps the history quiet
             _write(self.repo / FOLDER / "private.bin", seal(self._state_key, private))
@@ -438,23 +467,10 @@ class RepoAuthority(Authority):
             self._removed = set(self.state.get("removed", []))
             return {"applied": False, "problems": [str(exc) if isinstance(exc, RegistryError) else STEPS + " is not plain text"]}
         problems = []
-        self.state["builds"] = wanted["builds"]  # signed for from this run on, with the releases
         self._removed = set(wanted["removed"])
-        self.state["removed"] = sorted(self._removed)
         gone = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] in self._removed]
-        if gone:
-            self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in gone]
-            self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in gone})
-            self.state["unpublished"] = True
-            self.save()
-        for sha, item in sorted(self.state.get("pending", {}).items()):
-            if item["admission"]["signed"]["metadata"]["id"] in self._removed:
-                del self.state["pending"][sha]
-                with contextlib.suppress(RegistryError):  # gone from the service already: it is not listed either way
-                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": sha, "refused": [
-                        {"check": "source", "path": "package", "reason": REMOVED}]})
         listed: dict[str, dict[str, str]] = {}
-        for envelope in self.state["entries"]:
+        for envelope in (item for item in self.state["entries"] if item not in gone):
             entry = envelope["signed"]
             listed.setdefault(entry["metadata"]["id"], {})[entry["metadata"]["version"]] = entry["artifact_sha256"]
         tested, highlighted, suspended = [], [], []
@@ -484,6 +500,21 @@ class RepoAuthority(Authority):
         if self.state.get("marks_unsent") or any(marks.get(key) != value for key, value in new.items()):
             marks.update(new)
             self._marks()
+        # A bad operator target rolls back the service transaction above. It must not first remove
+        # entries or revoke versions in the signer's durable state either.
+        self.state["builds"] = wanted["builds"]
+        self.state["removed"] = sorted(self._removed)
+        if gone:
+            self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in gone]
+            self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in gone})
+            self.state["unpublished"] = True
+            self.save()
+        for sha, item in sorted(self.state.get("pending", {}).items()):
+            if item["admission"]["signed"]["metadata"]["id"] in self._removed:
+                del self.state["pending"][sha]
+                with contextlib.suppress(RegistryError):
+                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": sha, "refused": [
+                        {"check": "source", "path": "package", "reason": REMOVED}]})
         return {"applied": True, "problems": problems}
 
     def follow_releases(self) -> bool:
@@ -578,7 +609,8 @@ def quiet(report: dict) -> dict:
             "waiting": len(report.get("waiting", [])), "errors": len(report.get("errors", [])),
             "dropped": len(report.get("dropped", [])), "list_published": "catalog" in report,
             "team_steps": report["steps"]["problems"] + ([] if report["steps"]["applied"] else ["nothing applied"]),
-            **{key: report[key] for key in ("releases_waiting", "recheck_waiting") if key in report}}
+            **{key: "The source could not be checked; the next run tries again."
+               for key in ("releases_waiting", "recheck_waiting") if key in report}}
 
 
 # ---- setup ----
@@ -621,10 +653,12 @@ def setup(repo: Path, *, github: str, catalog_key: str, targets: list[dict], rev
     (folder / "trusted-root.json").write_bytes(canonical(envelope))
     (folder / "config.json").write_bytes(_public_json({"review": review}))
     (folder / "vool-commit").write_text(vool_commit + "\n")
-    (folder / "state.json").write_bytes(_public_json({
+    state = {
         "epoch": 0, "entries": [], "revoked": [], "targets": targets, "released": targets, "authorized_until": 0,
-        "marks": {"sequence": 0, "tested": [], "highlighted": [], "suspended": [], "teams": {}}}))
-    (folder / "private.bin").write_bytes(seal(state_key, {"verdicts": {}, "attempts": {}, "reviews": {}, "spend": {}}))
+        "marks": {"sequence": 0, "tested": [], "highlighted": [], "suspended": [], "teams": {}}}
+    (folder / "state.json").write_bytes(_public_json(state))
+    (folder / "private.bin").write_bytes(seal(state_key, {"verdicts": {}, "attempts": {}, "reviews": {}, "spend": {},
+                                                         "public_sha256": digest(state)}))
     (repo / ".gitattributes").write_text(FOLDER + "/private.bin binary\n")
     (repo / STEPS).write_bytes((TEMPLATES / STEPS).read_bytes())
     (repo / WORKFLOW).parent.mkdir(parents=True, exist_ok=True)
@@ -689,7 +723,10 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
             print("The service didn't answer; the next run tries again.")
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
-        print("Stopped: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__))
+        message = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
+        if message.startswith("the server refused:"):
+            message = "the service refused a signed request; check the private operator log"
+        print("Stopped: " + message)
         return 1
 
 

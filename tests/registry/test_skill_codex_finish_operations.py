@@ -77,6 +77,15 @@ def test_semantic_failure_rolls_back_every_action_and_the_marks(world):
     assert canonical(world.store.marks()) == before and community.held(world.store)[0]["id"] == comment
 
 
+def test_invalid_operator_target_does_not_remove_a_skill_from_signer_state(world):
+    prepared(world)
+    team_steps(world, "removed alice/notes\ncomment-remove " + "0" * 32 + "\n")
+    with pytest.raises(RegistryError, match="comment not found"):
+        run(world)
+    state = decode(on_github(world, FOLDER + "/state.json"))
+    assert [item["signed"]["metadata"]["id"] for item in state["entries"]] == ["alice/notes"]
+
+
 def test_report_closure_and_reporter_mute_from_steps_keep_private_text_out_of_state(world):
     _, bob, _ = prepared(world)
     reports.file_report(world.store, bob, {"id": "alice/notes", "reason": "broken", "note": "PRIVATE_REPORT_TEXT"}, now=world.clock.t)

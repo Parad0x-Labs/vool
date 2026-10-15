@@ -167,6 +167,11 @@ def test_publish_browse_inspect_install_restart_update_and_remove_on_served_stac
             assert len(served.outbound) == before  # opening a fresh app/page sends no registry traffic
             listed = browse(page)
             assert listed.ok
+            page.locator("#pluginsSearch").fill("a-missing-skill")
+            expect(page.locator("#pluginsBody .addon-card")).to_have_count(0)
+            page.locator("#pluginsSearch").fill("meetings")
+            expect(page.locator("#pluginsBody .addon-card")).to_have_count(1)
+            page.locator("#pluginsSearch").fill("")
             card = page.locator("#pluginsBody .addon-card").filter(has_text="alice/notes")
             card.get_by_role("button", name="Download for inspection", exact=True).click()
             page.get_by_role("button", name="Install and enable", exact=True).wait_for()
