@@ -182,6 +182,8 @@ def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_ori
             response = exc
         with response:
             status = response.status
+            if download and not 200 <= status < 300:
+                raise BrowserFault("page_failed")
             result_headers = dict(response.headers)
             result_headers["_cookies"] = response.headers.get_all("Set-Cookie", [])
             if 300 <= status < 400:
@@ -242,6 +244,7 @@ class LiveSession:
         self.result: dict[str, Any] = {}
         self.frame = ""
         self.url = ""
+        self._document_origin = ""
         self.nodes: list[dict] = []
         self.revision = 0
         self.last_activity = time.monotonic()
@@ -251,6 +254,9 @@ class LiveSession:
         self._thread.start()
         self._context = None
         self._driver = None
+        self._driver_manager = None
+        self._driver_start = None
+        self._opening = None
         self._page = None
         self._task = None
         self._permit: dict[str, Any] | None = None
@@ -274,6 +280,13 @@ class LiveSession:
         self._loop.close()
 
     async def _open(self) -> None:
+        # Takeover can cancel an operation while the engine is starting. One
+        # shielded initializer prevents a partial context or duplicate driver.
+        if self._opening is None:
+            self._opening = asyncio.create_task(self._initialize())
+        await asyncio.shield(self._opening)
+
+    async def _initialize(self) -> None:
         if self._context is not None:
             return
         from playwright.async_api import async_playwright
@@ -284,7 +297,12 @@ class LiveSession:
         if not self.profile.resolve().is_relative_to(active_data_dir().resolve()) or refuse_real_profile_target(str(self.profile.resolve())):
             raise BrowserFault("invalid_profile")
         self.profile.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self._driver = await async_playwright().start()
+        if self._driver_start is None:
+            self._driver_manager = async_playwright()
+            self._driver_start = asyncio.create_task(self._driver_manager.start())
+        self._driver = await asyncio.shield(self._driver_start)
+        if self.closed:
+            raise BrowserFault("stopped")
         # The driver's actual subprocess handle, never a process-name search.
         proc = self._driver._impl_obj._connection._transport._proc
         self._driver_pid = proc.pid
@@ -325,7 +343,7 @@ class LiveSession:
                 await route.abort()
                 return
             permit["used"] = True
-            status, headers, raw = await asyncio.to_thread(_fetch, request.url, request.method, await request.all_headers(), request.post_data_buffer, self.fixture_origin, (self._stopped, permit["cancelled"]), {"session_id": self.chat, "private_chat": self.private}, permit["op"] == "download")
+            status, headers, raw = await asyncio.to_thread(_fetch, request.url, request.method, await request.all_headers(), request.post_data_buffer, self.fixture_origin, (self._stopped, permit["cancelled"]), {"session_id": self.chat, "private_chat": self.private}, False)
             if self.closed or self._permit is not permit or not available():
                 await route.abort()
                 return
@@ -336,16 +354,14 @@ class LiveSession:
                 self.result = {"redirect": Untrusted.wrap(urljoin(request.url, low.get("location", "")), url=request.url, origin="")}
                 await route.abort()
                 return
-            if permit["op"] == "download":
-                self._download = ("download.bin", raw)
-                await route.abort()
-                return
             # No remote scripts, frames, forms that target another browsing context,
             # refresh navigation or subresources can escape the request gate.
             clean = {k: v for k, v in headers.items() if k.lower() == "content-type"}
             clean["X-DNS-Prefetch-Control"] = "off"
             clean["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-src 'none'; base-uri 'none'"
             await route.fulfill(status=status, headers=clean, body=raw)
+            parts = urlsplit(request.url)
+            self._document_origin = (parts.scheme, parts.netloc)
         except asyncio.CancelledError:
             with contextlib.suppress(Exception):
                 await route.abort()
@@ -416,8 +432,10 @@ class LiveSession:
             if op in {"navigate", "download"}:
                 url = _canonical_url(args.get("url"))
                 safe["url"] = url
-                if op == "download" and urlsplit(url).netloc != urlsplit(self.url).netloc:
-                    raise BrowserFault("destination_refused")
+                if op == "download":
+                    parts = urlsplit(url)
+                    if (parts.scheme, parts.netloc) != self._document_origin:
+                        raise BrowserFault("destination_refused")
             if op in {"click", "type", "upload"}:
                 selector = str(args.get("selector") or "")
                 # Only a currently visible, observed node is actionable. Model CSS,
@@ -512,7 +530,27 @@ class LiveSession:
             self._blocked = ""
             self.result = {}
             self._download = None
-            if op in {"navigate", "download"}:
+            if op == "download":
+                # Fetching an approved attachment must not navigate the live
+                # document to an aborted/error page and lose its origin.
+                self._permit = {"url": args["url"], "method": "GET", "used": True, "op": op, "cancelled": threading.Event()}
+                cookies = await self._context.cookies(args["url"])
+                headers = {"Cookie": "; ".join(c["name"] + "=" + c["value"] for c in cookies)}
+                status, response_headers, raw = await asyncio.to_thread(
+                    _fetch, args["url"], "GET", headers, None, self.fixture_origin,
+                    (self._stopped, self._permit["cancelled"]),
+                    {"session_id": self.chat, "private_chat": self.private}, True,
+                )
+                if self.closed:
+                    raise BrowserFault("stopped")
+                await self._accept_cookies(args["url"], response_headers.get("_cookies", []))
+                if 300 <= status < 400:
+                    self._blocked = "redirect_refused"
+                    low = {k.lower(): v for k, v in response_headers.items()}
+                    self.result = {"redirect": Untrusted.wrap(urljoin(args["url"], low.get("location", "")), url=args["url"], origin="")}
+                else:
+                    self._download = ("download.bin", raw)
+            elif op == "navigate":
                 self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event()}
                 await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
             elif op in {"click", "type", "upload"}:
@@ -544,7 +582,7 @@ class LiveSession:
             outcome = "ready" if not self._blocked else self._blocked
         except asyncio.CancelledError:
             observe = False
-            outcome = "stopped"
+            outcome = "stopped" if self.closed else "ready"
         except Exception as exc:
             outcome = "ready" if self._download else (self._blocked or (str(exc) if isinstance(exc, BrowserFault) else "page_failed"))
         finally:
@@ -605,9 +643,29 @@ class LiveSession:
         with self._mutex:
             self.takeover = value
             self.pending = None
-            if self._task and not self._task.done():
+            if value and self._task and not self._task.done():
+                if self._permit:
+                    self._permit["cancelled"].set()
                 self._task.cancel()
+                settling = asyncio.run_coroutine_threadsafe(self._settle_takeover(), self._loop)
+                try:
+                    settling.result(timeout=3)
+                except Exception as exc:
+                    raise BrowserFault("busy") from exc
+            elif self.state == "approval_required":
+                self.state = "ready"
             return self.snapshot()
+
+    async def _settle_takeover(self) -> None:
+        # Let cancellation reach the asyncio task even if the outer future was
+        # cancelled before its coroutine began. No new operation overlaps it.
+        await asyncio.sleep(0)
+        task = self._execution_task
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if not self.closed:
+            self.state = "ready"
 
     def stop(self) -> None:
         with self._mutex:
@@ -620,12 +678,14 @@ class LiveSession:
             self.result = {}
             self._download = None
             self.url = ""
+            self._document_origin = ""
             self.state = "stopping"
             self._stopped.set()
         future = asyncio.run_coroutine_threadsafe(self._close(), self._loop)
         try:
             future.result(timeout=12)
         except Exception as exc:
+            self.cleanup_metrics["failure"] = type(exc).__name__
             self.state = "cleanup_failed"
             raise BrowserFault("cleanup_failed") from exc
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -645,7 +705,9 @@ class LiveSession:
 
         # IDs originate only from our launch handle and our own browser's CDP
         # session. Creation times fence PID reuse. No names or global scans.
-        for pid, created in list(self._owned_processes.items())[::-1]:
+        owned = list(self._owned_processes.items())
+        owned.sort(key=lambda entry: entry[0] == self._driver_pid)
+        for pid, created in owned:
             if pid == self._driver_pid and not include_driver:
                 continue
             try:
@@ -661,13 +723,61 @@ class LiveSession:
             except psutil.NoSuchProcess:
                 pass
 
+    def _record_driver_tree(self) -> None:
+        import psutil
+
+        # A cancelled launch may not yet have returned its browser handle. The
+        # exact transport subprocess still owns that launch and its descendants.
+        manager = self._driver_manager
+        transport = getattr(getattr(manager, "_connection", None), "_transport", None)
+        proc = getattr(transport, "_proc", None)
+        if proc is None:
+            return
+        self._driver_pid = proc.pid
+        try:
+            if proc.pid not in self._owned_processes:
+                self._record_process(proc.pid)
+            parent = psutil.Process(proc.pid)
+            if parent.create_time() != self._owned_processes[proc.pid]:
+                return
+            for child in parent.children(recursive=True):
+                self._owned_processes[child.pid] = child.create_time()
+        except psutil.NoSuchProcess:
+            pass
+
     async def _close(self) -> None:
         started = time.monotonic()
         task = self._execution_task
-        if self._driver is None and task and not task.done():
-            done, _ = await asyncio.wait({task}, timeout=3)
-            if not done:
-                raise BrowserFault("cleanup_failed")
+        self.cleanup_metrics["phase"] = "driver_start"
+        opening = self._opening
+        starting = self._driver_start
+        if opening and not starting:
+            opening.cancel()
+            await asyncio.gather(opening, return_exceptions=True)
+        if starting and not starting.done():
+            # Wait only for the owned subprocess handle, never for the page
+            # operation (which may itself be hung). Shield keeps it recoverable.
+            until = time.monotonic() + 1
+            while not starting.done() and not self._driver_pid and time.monotonic() < until:
+                self._record_driver_tree()
+                await asyncio.sleep(.01)
+            self._record_driver_tree()
+            if not starting.done():
+                await asyncio.to_thread(self._stop_owned_processes, True)
+                done, _ = await asyncio.wait({starting}, timeout=1)
+                if not done:
+                    raise BrowserFault("cleanup_failed")
+        if starting and starting.done() and not starting.cancelled():
+            with contextlib.suppress(Exception):
+                self._driver = starting.result()
+        self._record_driver_tree()
+        if task and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if opening and not opening.done():
+            opening.cancel()
+            await asyncio.gather(opening, return_exceptions=True)
+        self.cleanup_metrics["phase"] = "engine_close"
         routes = list(self._routes)
         for route_task in routes:
             route_task.cancel()
@@ -676,14 +786,16 @@ class LiveSession:
         closing = []
         if self._context:
             closing.append(asyncio.create_task(self._context.close()))
-            await asyncio.wait(closing, timeout=1)
         if getattr(self, "_browser", None):
             closing.append(asyncio.create_task(self._browser.close()))
+        if closing:
             await asyncio.wait(closing, timeout=1)
+        self._record_driver_tree()
         await asyncio.to_thread(self._stop_owned_processes)
         if closing:
             await asyncio.gather(*closing, return_exceptions=True)
         if self._driver:
+            self.cleanup_metrics["phase"] = "driver_close"
             stopping = asyncio.create_task(self._driver.stop())
             done, _ = await asyncio.wait({stopping}, timeout=1)
             if not done:
@@ -693,6 +805,7 @@ class LiveSession:
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         self.cleanup_metrics["total"] = time.monotonic() - started
+        self.cleanup_metrics["phase"] = "closed"
 
     def download(self) -> tuple[str, bytes] | None:
         result = self._download

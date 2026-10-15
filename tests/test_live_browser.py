@@ -55,7 +55,7 @@ def world(pact_rig, request):
             if path in {'/gzip','/bomb'}:
                 import gzip
                 content=gzip.compress(b'<h1>Early service 06:05</h1>' if path=='/gzip' else b'x'*2_000_001)
-            self.send_response(200)
+            self.send_response(404 if path=='/missing-download' else 200)
             if path in {'/gzip','/bomb'}: self.send_header('Content-Encoding','gzip')
             self.send_header('Content-Type','text/html' if path != '/file' else 'application/octet-stream')
             if path == '/file': self.send_header('Content-Disposition','attachment; filename="timetable.txt"');content=b'Timetable download'
@@ -145,6 +145,8 @@ def test_real_page_injection_refusal_form_download_and_private_cleanup(world):
     assert snap['download_ready']
     snap=finish(world,'navigate',{'url':origin+'/huge'})
     assert snap['state']=='page_too_large' and not snap['download_ready']
+    snap=finish(world,'download',{'url':origin+'/missing-download'})
+    assert snap['state']=='page_failed' and not snap['download_ready']
     # Normal and private sessions use in-memory browser contexts. No browser
     # content survives closing the view; no history or cookie export exists.
     from core.private_chat import set_private
@@ -157,6 +159,14 @@ def test_real_page_injection_refusal_form_download_and_private_cleanup(world):
 
 def test_links_takeover_scroll_stop_and_policy_veto(world):
     rig,item,origin,requests=world
+    token=propose(world,'navigate',{'url':origin+'/'})
+    rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
+    rig.post('/api/browser/takeover',{'chat':'live-test','value':True})
+    deadline=time.monotonic()+5
+    while item.state=='running' and time.monotonic()<deadline: time.sleep(.02)
+    assert item.state!='running'
+    # Owner navigation must recover through the same initializer after a cold
+    # takeover, while agent proposals remain paused.
     snap=finish(world,'navigate',{'url':origin+'/'})
     snap=finish(world,'click',{'selector':snap['nodes'][0]['selector']})
     assert '22:14' in snap['result']['page']['text'],snap
@@ -385,5 +395,5 @@ def test_privacy_transition_invalidates_old_approval_and_cold_stop(world):
     rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
     start=time.monotonic()
     status,data=rig.post('/api/browser/stop',{'chat':'live-test'})
-    assert status==200 and fresh.state=='stopped',data
+    assert status==200 and fresh.state=='stopped',(data,fresh.cleanup_metrics)
     assert time.monotonic()-start<5 and not fresh.profile.exists()
