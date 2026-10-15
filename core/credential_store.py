@@ -222,8 +222,10 @@ def _save_raw(raw: dict[str, dict[str, str]]) -> None:
     global _INDEX_WRITES
     path = _store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Counted before and after the write, so names read while it is in flight are never kept.
     _INDEX_WRITES += 1
     path.write_text(json.dumps(raw, sort_keys=True), encoding="utf-8")
+    _INDEX_WRITES += 1
     _chmod600(path)
 
 
@@ -320,6 +322,7 @@ def _meta_save(meta: dict[str, dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     _INDEX_WRITES += 1
     path.write_text(json.dumps(meta, sort_keys=True), encoding="utf-8")
+    _INDEX_WRITES += 1
     _chmod600(path)
 
 
@@ -556,7 +559,7 @@ def _index_files_state() -> tuple | None:
             except FileNotFoundError:
                 state.append(None)
                 continue
-            state.append((st.st_ino, st.st_size, st.st_mtime_ns))
+            state.append((st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns))
         return tuple(state)
     except Exception:
         return None
