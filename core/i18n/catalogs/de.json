@@ -1852,7 +1852,7 @@
     "xsetup.open": "X verbinden",
     "addons.registry_tab": "Fertigkeiten-Codex",
     "addons.registry_title": "Fertigkeiten und Plug-ins von ihren Erstellern",
-    "addons.registry_intro": "Von ihren Erstellern gemacht. VOOL schreibt keine Community-Fertigkeiten und bürgt nicht für sie, und automatische Prüfungen können etwas übersehen. Laden Sie das Paket zur Prüfung herunter und entscheiden Sie dann, ob Sie es installieren und aktivieren.",
+    "addons.registry_intro": "Automatische Prüfungen prüfen die Paketkompatibilität und bekannte Bedrohungsmuster für die aufgeführten VOOL-Versionen. Sie garantieren nicht, dass ein Skill frei von schädlichem Verhalten ist. Community-Skills werden ohne Gewähr bereitgestellt. Prüfe die Dateien und nutze sie auf eigenes Risiko.",
     "addons.native_authority": "Skills liefern Anweisungen. Native VOOL-Regeln, Einstellungen des Eigentümers, Ausgabenlimits, Währungshandhabung, Berechtigungen und Freigaben haben immer Vorrang.",
     "addons.registry_evidence": "Genaue Dateien, Berechtigungen und Quelle",
     "addons.registry_install_only": "Installieren, ohne zu aktivieren",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Jede Sprache",
     "addons.registry_needs": "Benötigt",
     "addons.registry_needs_none": "Nichts außerhalb von VOOL",
-    "addons.registry_tested": "Getestet mit",
+    "addons.registry_tested": "Geprüft für",
     "addons.registry_need_search_web": "Websuche",
     "addons.registry_need_llm_cloud": "Cloud-KI-Modell",
     "addons.registry_need_chain_data": "Blockchain-Daten",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn.",
-    "addons.registry_newer": "Wähle eine höhere Versionsnummer, um diesen Skill zu aktualisieren."
+    "addons.registry_newer": "Wähle eine höhere Versionsnummer, um diesen Skill zu aktualisieren.",
+    "addons.registry_editors_pick": "Auswahl der Redaktion",
+    "addons.registry_featured": "Empfohlen",
+    "addons.registry_release_notes": "Versionshinweise",
+    "addons.registry_metrics": "{stars} Website-Sterne · {downloads} Downloadanfragen"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

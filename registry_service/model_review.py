@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
+import re
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import require
+from core.registry.codec import RegistryError, decode, require
 
 OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 OLLAMA = "http://127.0.0.1:11434/v1/chat/completions"
@@ -57,12 +59,29 @@ class NoAnswer(ReviewUnavailable):
     """The review service could not be reached; an outage never counts against a skill."""
 
 
-def month_spent(ledger: Path, now: float) -> float:
-    """What the paid review spent this month, read from its ledger; needs no key."""
+def _amount(value) -> bool:
     try:
-        return float(json.loads(ledger.read_text()).get(time.strftime("%Y-%m", time.gmtime(now)), 0.0))
-    except (OSError, ValueError, AttributeError):
-        return 0.0
+        return type(value) in {int, float} and math.isfinite(value) and value >= 0
+    except OverflowError:
+        return False
+
+
+def _book(ledger: Path) -> dict:
+    try:
+        value = decode(ledger.read_bytes(), 65536)
+    except FileNotFoundError:
+        return {}
+    except (OSError, RegistryError):
+        raise OSError("the review spend ledger cannot be read") from None
+    if not (isinstance(value, dict) and all(isinstance(key, str) and re.fullmatch(r"[0-9]{4}-(?:0[1-9]|1[0-2])", key) and
+            _amount(amount) for key, amount in value.items())):
+        raise OSError("the review spend ledger is invalid")
+    return value
+
+
+def month_spent(ledger: Path, now: float) -> float:
+    """Missing initial ledger is zero; corrupt existing state stops before a paid request."""
+    return float(_book(ledger).get(time.strftime("%Y-%m", time.gmtime(now)), 0.0))
 
 
 class ModelReview:
@@ -72,6 +91,7 @@ class ModelReview:
                 "unknown review model")
         require(provider == "ollama" or key, "the paid review needs its key in VOOL_AUTHORITY_OPENROUTER_KEY")
         self.provider, self.model, self.ledger, self.cap, self.key = provider, model, ledger, float(monthly_cap), key
+        require(math.isfinite(self.cap) and self.cap >= 0, "review cap must be a finite nonnegative amount")
         self.request, self.clock = request or self._post, clock
 
     @property
@@ -85,10 +105,7 @@ class ModelReview:
         return month_spent(self.ledger, self.clock())
 
     def _charge(self, cost: float) -> None:
-        try:
-            book = json.loads(self.ledger.read_text())
-        except (OSError, ValueError):
-            book = {}
+        book = _book(self.ledger)
         book[self._month()] = round(float(book.get(self._month(), 0.0)) + cost, 6)
         temporary = self.ledger.with_suffix(".new")
         temporary.write_text(json.dumps(book, sort_keys=True))
@@ -120,8 +137,9 @@ class ModelReview:
             headers["Authorization"] = "Bearer " + self.key
         answer = self.request(OPENROUTER if self.provider == "openrouter" else OLLAMA, payload, headers)
         if self.provider == "openrouter":
-            cost = (answer.get("usage") or {}).get("cost") if isinstance(answer, dict) else None
-            self._charge(float(cost) if isinstance(cost, (int, float)) and cost >= 0 else UNKNOWN_COST)
+            usage = answer.get("usage") if isinstance(answer, dict) else None
+            cost = usage.get("cost") if isinstance(usage, dict) else None
+            self._charge(float(cost) if _amount(cost) else UNKNOWN_COST)
         return parse(answer, set(texts))
 
 

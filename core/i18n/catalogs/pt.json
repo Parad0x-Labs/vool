@@ -1852,7 +1852,7 @@
     "xsetup.open": "Conectar X",
     "addons.registry_tab": "Códice de habilidades",
     "addons.registry_title": "Habilidades e extensões dos seus criadores",
-    "addons.registry_intro": "Feitas pelos seus criadores. O VOOL não escreve nem garante as habilidades da comunidade, e as verificações automáticas podem deixar passar coisas. Baixe o pacote para inspecionar e depois decida se deseja instalá-lo e ativá-lo.",
+    "addons.registry_intro": "As verificações automáticas examinam a compatibilidade dos pacotes e padrões de ameaças conhecidos para as versões do VOOL indicadas. Não garantem a ausência de comportamento malicioso. As habilidades da comunidade são fornecidas como estão, sem garantia. Examine os arquivos e use por sua conta e risco.",
     "addons.native_authority": "Habilidades fornecem instruções. As regras nativas do VOOL, as configurações do proprietário, os limites de gastos, o tratamento de moedas, as permissões e as aprovações sempre prevalecem.",
     "addons.registry_evidence": "Arquivos exatos, permissões e origem",
     "addons.registry_install_only": "Instalar sem ativar",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Qualquer idioma",
     "addons.registry_needs": "Precisa de",
     "addons.registry_needs_none": "Nada fora do VOOL",
-    "addons.registry_tested": "Testado com",
+    "addons.registry_tested": "Verificado para",
     "addons.registry_need_search_web": "Pesquisa na web",
     "addons.registry_need_llm_cloud": "Modelo de IA na nuvem",
     "addons.registry_need_chain_data": "Dados de blockchain",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
     "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
-    "addons.registry_newer": "Escolha um número de versão superior para atualizar esta habilidade."
+    "addons.registry_newer": "Escolha um número de versão superior para atualizar esta habilidade.",
+    "addons.registry_editors_pick": "Escolha editorial",
+    "addons.registry_featured": "Em destaque",
+    "addons.registry_release_notes": "Notas da versão",
+    "addons.registry_metrics": "{stars} estrelas no site · {downloads} pedidos de download"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

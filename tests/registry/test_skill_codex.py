@@ -370,12 +370,15 @@ def test_github_import_pins_the_commit_binds_the_owner_and_can_publish_when_chec
     with store.connection() as db:
         row = db.execute("SELECT artifact, publisher_bound, auto_consent FROM submissions WHERE id=?", (result["id"],)).fetchone()
     artifact = inspect(row[0])
-    assert row[1] == 1 and row[2] == 1
+    assert row[1] == 1 and row[2] == 0
     assert artifact["metadata"]["source"]["commit"] == commit
     assert set(artifact["files"]) >= {"skills/notes/SKILL.md", "skills/notes/references/example.md", "LICENSE"}
     assert not any(name.endswith("README.md") for name in artifact["files"])
-    # Checks passing moves a pre-consented import straight to publishing.
+    # The legacy choice stays accepted; publishing requires the returned exact checksum.
     store.review(result["id"], signed(prepublication_fixture(row[0], policy), keys["review"]), policy, root["signed"], now=NOW)
+    assert store.submission(alice, result["id"])["state"] == "preflighted"
+    assert store.submission(alice, result["id"])["consent"] == 0
+    store.consent(alice, result["id"], result["sha256"], public=True)
     assert store.submission(alice, result["id"])["state"] == "ready_for_github"
     catalog.close()
 

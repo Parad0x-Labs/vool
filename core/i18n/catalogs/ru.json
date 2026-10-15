@@ -1852,7 +1852,7 @@
     "xsetup.open": "Подключить X",
     "addons.registry_tab": "Кодекс навыков",
     "addons.registry_title": "Навыки и плагины от их авторов",
-    "addons.registry_intro": "Созданы их авторами. VOOL не пишет навыки сообщества и не ручается за них, а автоматические проверки могут что-то пропустить. Скачайте пакет для просмотра, затем решите, устанавливать и включать ли его.",
+    "addons.registry_intro": "Автоматические проверки оценивают совместимость пакетов и известные признаки угроз для указанных версий VOOL. Они не гарантируют отсутствия вредоносного поведения. Навыки сообщества предоставляются как есть, без гарантий. Проверьте файлы и используйте их на свой риск.",
     "addons.native_authority": "Навыки добавляют инструкции. Встроенные правила VOOL, настройки владельца, лимиты расходов, обработка валют, разрешения и подтверждения всегда имеют приоритет.",
     "addons.registry_evidence": "Точные файлы, разрешения и источник",
     "addons.registry_install_only": "Установить без включения",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Любой язык",
     "addons.registry_needs": "Требуется",
     "addons.registry_needs_none": "Ничего вне VOOL",
-    "addons.registry_tested": "Проверено с",
+    "addons.registry_tested": "Проверено для",
     "addons.registry_need_search_web": "Веб-поиск",
     "addons.registry_need_llm_cloud": "Облачная модель ИИ",
     "addons.registry_need_chain_data": "Данные блокчейна",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Проверки кодекса навыков не пропустят этот навык в нынешнем виде.",
     "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex.",
     "keys.test.invalid": "{label} отклонил ключ{http}. Проверьте его заново или замените.",
-    "addons.registry_newer": "Выберите больший номер версии для обновления этого навыка."
+    "addons.registry_newer": "Выберите больший номер версии для обновления этого навыка.",
+    "addons.registry_editors_pick": "Выбор редакции",
+    "addons.registry_featured": "Рекомендуемое",
+    "addons.registry_release_notes": "Примечания к версии",
+    "addons.registry_metrics": "{stars} звёзд на сайте · {downloads} запросов скачивания"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

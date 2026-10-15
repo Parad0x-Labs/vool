@@ -118,6 +118,12 @@ def upload(world, token, csrf, package_id, text=SKILL, *, version):
                          "category": "productivity", "subcategory": "meetings", "license": "MIT", "languages": ["en"]},
             "skill_markdown": text, "agreement": AGREEMENT}
     response = world.http.post(PREFIX + "/drafts", json=body, headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+    if response.status_code == 201 and response.json()["state"] == "checking":
+        item = response.json()
+        consent = world.http.post(PREFIX + "/submissions/" + item["id"] + "/consent",
+                                  json={"sha256": item["sha256"], "public": True},
+                                  headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+        assert consent.status_code == 200, consent.text
     world.http.cookies.clear()
     assert response.status_code == 201, response.text
     return response.json()

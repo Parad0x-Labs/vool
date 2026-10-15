@@ -1852,7 +1852,7 @@
     "xsetup.open": "Connecter X",
     "addons.registry_tab": "Codex des compétences",
     "addons.registry_title": "Compétences et extensions de leurs créateurs",
-    "addons.registry_intro": "Créées par leurs auteurs. VOOL n'écrit pas les compétences de la communauté et ne s'en porte pas garant, et les vérifications automatiques peuvent manquer des choses. Téléchargez le paquet pour l'inspecter, puis décidez de l'installer et de l'activer.",
+    "addons.registry_intro": "Les contrôles automatiques vérifient la compatibilité des paquets et les menaces connues pour les versions de VOOL indiquées. Ils ne garantissent pas l’absence de comportement malveillant. Les compétences communautaires sont fournies en l’état, sans garantie. Examinez les fichiers et utilisez-les à vos risques.",
     "addons.native_authority": "Les compétences apportent des instructions. Les règles natives de VOOL, les paramètres du propriétaire, les plafonds de dépenses, la gestion des devises, les autorisations et les approbations prévalent toujours.",
     "addons.registry_evidence": "Fichiers exacts, autorisations et source",
     "addons.registry_install_only": "Installer sans activer",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Toutes les langues",
     "addons.registry_needs": "Nécessite",
     "addons.registry_needs_none": "Rien en dehors de VOOL",
-    "addons.registry_tested": "Testé avec",
+    "addons.registry_tested": "Vérifié pour",
     "addons.registry_need_search_web": "Recherche web",
     "addons.registry_need_llm_cloud": "Modèle d'IA dans le cloud",
     "addons.registry_need_chain_data": "Données blockchain",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
     "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
     "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
-    "addons.registry_newer": "Choisissez un numéro de version supérieur pour mettre à jour cette compétence."
+    "addons.registry_newer": "Choisissez un numéro de version supérieur pour mettre à jour cette compétence.",
+    "addons.registry_editors_pick": "Choix de la rédaction",
+    "addons.registry_featured": "À la une",
+    "addons.registry_release_notes": "Notes de version",
+    "addons.registry_metrics": "{stars} étoiles sur le site · {downloads} demandes de téléchargement"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

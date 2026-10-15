@@ -246,8 +246,8 @@ def parse_steps(text: str) -> dict:
             require(len(args) == 1 and _skill(args[0]), form)
             wanted[step].append(args[0])
         elif step == "suspended":
-            require(len(args) == 1 and bool(IDENTITY.fullmatch(args[0])), form)
-            wanted["suspended"].append(args[0])
+            require(len(args) == 1 and (bool(IDENTITY.fullmatch(args[0])) or _skill(args[0])), form)
+            wanted["removed" if _skill(args[0]) else "suspended"].append(args[0])
         elif step == "build":
             require(len(args) == 2 and bool(VERSION.fullmatch(args[0])) and bool(COMMIT.fullmatch(args[1])), form)
             if [args[0], args[1]] not in wanted["builds"]:
@@ -264,6 +264,7 @@ def parse_steps(text: str) -> dict:
         from registry_service.curation import validate_curation
 
         validate_curation(wanted["curation"])
+    require(len(canonical(wanted)) <= 40000, STEPS + ": too many steps for one signed update")
     return wanted
 
 
@@ -435,13 +436,15 @@ class RepoAuthority(Authority):
         # The number is used up before sending, as the list's epoch is: after a lost answer the next try
         # sends a higher one, which the service accepts, instead of the same one, which it refuses forever.
         marks = self.state["marks"]
-        marks["sequence"] += 1
-        self.state["marks_unsent"] = True
-        value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"], "issued_at": self.now(),
+        value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"] + 1, "issued_at": self.now(),
                                 **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
                                 **{key: marks[key] for key in ("operations", "curation") if key in marks}},
                                now=self.now())
-        self.call("POST", "/authority/marks", add_signature({"signed": value, "signatures": []}, self.admission_key))
+        envelope = add_signature({"signed": value, "signatures": []}, self.admission_key)
+        require(len(canonical(envelope)) <= 65536, "signed marks update exceeds byte limit; reduce the steps")
+        marks["sequence"] = value["sequence"]
+        self.state["marks_unsent"] = True
+        self.call("POST", "/authority/marks", envelope)
         self.state.pop("marks_unsent")
         self.save()
         return value
@@ -467,7 +470,9 @@ class RepoAuthority(Authority):
             self._removed = set(self.state.get("removed", []))
             return {"applied": False, "problems": [str(exc) if isinstance(exc, RegistryError) else STEPS + " is not plain text"]}
         problems = []
-        self._removed = set(wanted["removed"])
+        self._removed = set(wanted["removed"]) | {
+            item["signed"]["metadata"]["id"] for item in self.state["entries"]
+            if item["signed"]["metadata"]["id"].split("/")[0] in set(wanted["suspended"]) - set(wanted["teams"])}
         gone = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] in self._removed]
         listed: dict[str, dict[str, str]] = {}
         for envelope in (item for item in self.state["entries"] if item not in gone):
@@ -593,6 +598,17 @@ class RepoAuthority(Authority):
             with contextlib.suppress(Exception):
                 self.checkpoint("Skill Codex: state after a stopped run")  # keep what was spent and decided
             raise
+        from registry_service.publication import publish
+
+        try:
+            presentation = self.call("GET", "/presentation")
+        except RegistryError as exc:
+            if str(exc) != "the server refused: catalog freshness expired":
+                raise
+            presentation = {"marks": None, "metrics": []}
+            report["presentation_waiting"] = True
+        publish(self.repo / FOLDER, self.state["entries"], self.state["revoked"], self.state["marks"],
+                artifact=self._artifact, presentation=presentation)
         self.checkpoint(self._summary())
         return report
 
@@ -725,7 +741,7 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
         message = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
         if message.startswith("the server refused:"):
-            message = "the service refused a signed request; check the private operator log"
+            message = "the service refused a signed request; check its configuration and operator steps"
         print("Stopped: " + message)
         return 1
 

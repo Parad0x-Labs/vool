@@ -108,3 +108,32 @@ def test_public_command_output_redacts_a_service_refusal(world, monkeypatch, cap
     output = capsys.readouterr()
     assert "PRIVATE_SERVER_TEXT" not in output.out + output.err
     assert "service refused" in output.out
+
+
+@pytest.mark.parametrize("content", ['broken', '{"2027-02":-1}', '{"2027-02":NaN}', '[]', json.dumps({"2027-02": 10**1000})])
+def test_corrupt_review_spend_never_becomes_zero_or_starts_another_paid_request(tmp_path, content):
+    from registry_service.model_review import ModelReview
+    from tests.registry.helpers import NOW
+
+    ledger = tmp_path / "spend.json"
+    ledger.write_text(content)
+    calls = []
+    review = ModelReview("openrouter", "test/model", ledger=ledger, key="not-a-real-key",
+                        request=lambda *args: calls.append(args), clock=lambda: NOW)
+    with pytest.raises(OSError, match="spend"):
+        review.review({"metadata": {"id": "alice/notes", "summary": "Summarize notes"}}, {"notes.txt": "Read supplied notes."})
+    assert calls == [] and ledger.read_text() == content
+
+
+@pytest.mark.parametrize("usage", [["cost"], {"cost": 10**1000}, {"cost": float("nan")}, {"cost": True}])
+def test_malformed_provider_cost_is_charged_conservatively_before_reading_the_verdict(tmp_path, usage):
+    from registry_service.model_review import UNKNOWN_COST, ModelReview
+    from tests.registry.helpers import NOW
+
+    ledger = tmp_path / "spend.json"
+    answer = {"usage": usage, "choices": [{"message": {"content": '{"verdict":"pass","findings":[]}'}}]}
+    review = ModelReview("openrouter", "test/model", ledger=ledger, key="not-a-real-key",
+                        request=lambda *args: answer, clock=lambda: NOW)
+    assert review.review({"metadata": {"id": "alice/notes", "summary": "Summarize notes"}},
+                         {"notes.txt": "Read supplied notes."})["verdict"] == "pass"
+    assert review.spent() == UNKNOWN_COST

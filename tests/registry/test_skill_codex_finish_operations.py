@@ -86,6 +86,18 @@ def test_invalid_operator_target_does_not_remove_a_skill_from_signer_state(world
     assert [item["signed"]["metadata"]["id"] for item in state["entries"]] == ["alice/notes"]
 
 
+def test_oversized_resolved_marks_stop_before_checkpoint_or_request(world):
+    path = checkout(world)
+    authority = signer(world, path)
+    state = path / FOLDER / "state.json"
+    before, sent, sequence = state.read_bytes(), len(world.sent), authority.state["marks"]["sequence"]
+    authority.state["marks"]["tested"] = ["alice/item-" + str(index) + "@" + "a" * 64 for index in range(1000)]
+    with pytest.raises(RegistryError, match="byte limit"):
+        authority._marks()
+    assert authority.state["marks"]["sequence"] == sequence
+    assert state.read_bytes() == before and len(world.sent) == sent
+
+
 def test_report_closure_and_reporter_mute_from_steps_keep_private_text_out_of_state(world):
     _, bob, _ = prepared(world)
     reports.file_report(world.store, bob, {"id": "alice/notes", "reason": "broken", "note": "PRIVATE_REPORT_TEXT"}, now=world.clock.t)

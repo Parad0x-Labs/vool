@@ -1852,7 +1852,7 @@
     "xsetup.open": "Kết nối X",
     "addons.registry_tab": "Bộ sưu tập kỹ năng",
     "addons.registry_title": "Kỹ năng và plugin từ người tạo",
-    "addons.registry_intro": "Do người tạo làm ra. VOOL không viết hay bảo đảm cho các kỹ năng cộng đồng, và việc kiểm tra tự động có thể bỏ sót. Tải gói để kiểm tra rồi quyết định có cài đặt và bật hay không.",
+    "addons.registry_intro": "Kiểm tra tự động xem xét khả năng tương thích của gói và các dấu hiệu đe dọa đã biết cho những bản VOOL được liệt kê. Chúng không bảo đảm kỹ năng không có hành vi độc hại. Kỹ năng cộng đồng được cung cấp nguyên trạng, không bảo hành. Hãy kiểm tra tệp và tự chịu rủi ro khi sử dụng.",
     "addons.native_authority": "Kỹ năng cung cấp hướng dẫn. Quy tắc gốc của VOOL, cài đặt của chủ sở hữu, giới hạn chi tiêu, xử lý tiền tệ, quyền truy cập và yêu cầu phê duyệt luôn được ưu tiên.",
     "addons.registry_evidence": "Tệp chính xác, quyền và nguồn",
     "addons.registry_install_only": "Cài đặt nhưng chưa bật",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Mọi ngôn ngữ",
     "addons.registry_needs": "Cần",
     "addons.registry_needs_none": "Không cần gì ngoài VOOL",
-    "addons.registry_tested": "Đã thử với",
+    "addons.registry_tested": "Đã kiểm tra cho",
     "addons.registry_need_search_web": "Tìm kiếm web",
     "addons.registry_need_llm_cloud": "Mô hình AI đám mây",
     "addons.registry_need_chain_data": "Dữ liệu blockchain",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
-    "addons.registry_newer": "Chọn số phiên bản cao hơn để cập nhật kỹ năng này."
+    "addons.registry_newer": "Chọn số phiên bản cao hơn để cập nhật kỹ năng này.",
+    "addons.registry_editors_pick": "Lựa chọn của biên tập viên",
+    "addons.registry_featured": "Nổi bật",
+    "addons.registry_release_notes": "Ghi chú phiên bản",
+    "addons.registry_metrics": "{stars} sao trên trang web · {downloads} yêu cầu tải xuống"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

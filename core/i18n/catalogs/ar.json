@@ -1852,7 +1852,7 @@
     "xsetup.open": "ربط X",
     "addons.registry_tab": "دليل المهارات",
     "addons.registry_title": "مهارات وإضافات من صانعيها",
-    "addons.registry_intro": "من صنع أصحابها. لا تكتب VOOL مهارات المجتمع ولا تضمنها، وقد تفوت الفحوص الآلية بعض الأمور. نزّل الحزمة لفحصها، ثم قرر ما إذا كنت تريد تثبيتها وتفعيلها.",
+    "addons.registry_intro": "تفحص الاختبارات الآلية توافق الحزم وأنماط التهديدات المعروفة لإصدارات VOOL المدرجة. ولا تضمن خلو المهارة من السلوك الضار. تُقدَّم مهارات المجتمع كما هي، دون ضمان. افحص الملفات واستخدمها على مسؤوليتك.",
     "addons.native_authority": "تقدم المهارات تعليمات. قواعد VOOL الأصلية وإعدادات المالك وحدود الإنفاق ومعالجة العملات والأذونات ومتطلبات الموافقة لها الأولوية دائماً.",
     "addons.registry_evidence": "الملفات الدقيقة والأذونات والمصدر",
     "addons.registry_install_only": "تثبيت دون تفعيل",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "أي لغة",
     "addons.registry_needs": "يتطلب",
     "addons.registry_needs_none": "لا شيء خارج VOOL",
-    "addons.registry_tested": "تم اختباره مع",
+    "addons.registry_tested": "تم الفحص من أجل",
     "addons.registry_need_search_web": "البحث على الويب",
     "addons.registry_need_llm_cloud": "نموذج ذكاء اصطناعي سحابي",
     "addons.registry_need_chain_data": "بيانات سلسلة الكتل",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
     "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله.",
-    "addons.registry_newer": "اختر رقم إصدار أعلى لتحديث هذه المهارة."
+    "addons.registry_newer": "اختر رقم إصدار أعلى لتحديث هذه المهارة.",
+    "addons.registry_editors_pick": "اختيار المحررين",
+    "addons.registry_featured": "مميز",
+    "addons.registry_release_notes": "ملاحظات الإصدار",
+    "addons.registry_metrics": "{stars} نجوم على الموقع · {downloads} طلبات تنزيل"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

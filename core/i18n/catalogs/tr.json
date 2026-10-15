@@ -1852,7 +1852,7 @@
     "xsetup.open": "X’i bağla",
     "addons.registry_tab": "Beceri Kodeksi",
     "addons.registry_title": "Yapımcılarından beceriler ve eklentiler",
-    "addons.registry_intro": "Yapımcıları tarafından hazırlanır. VOOL topluluk becerilerini yazmaz ve onlara kefil olmaz; otomatik denetimler bazı şeyleri kaçırabilir. Paketi incelemek için indirin, ardından yükleyip etkinleştirmeye karar verin.",
+    "addons.registry_intro": "Otomatik kontroller, listelenen VOOL sürümleri için paket uyumluluğunu ve bilinen tehdit örüntülerini inceler. Bir becerinin kötü amaçlı davranış içermediğini garanti etmez. Topluluk becerileri olduğu gibi, garantisiz sunulur. Dosyaları inceleyin ve riski üstlenerek kullanın.",
     "addons.native_authority": "Beceriler talimat sağlar. VOOL'un yerel kuralları, sahibinin ayarları, harcama limitleri, para birimi işlemleri, izinleri ve onay gereksinimleri her zaman önceliklidir.",
     "addons.registry_evidence": "Tam dosyalar, izinler ve kaynak",
     "addons.registry_install_only": "Etkinleştirmeden yükle",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Her dil",
     "addons.registry_needs": "Gerekenler",
     "addons.registry_needs_none": "VOOL dışında hiçbir şey",
-    "addons.registry_tested": "Test edildiği sürüm",
+    "addons.registry_tested": "Şunun için kontrol edildi",
     "addons.registry_need_search_web": "Web araması",
     "addons.registry_need_llm_cloud": "Bulut yapay zekâ modeli",
     "addons.registry_need_chain_data": "Blokzincir verileri",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin.",
-    "addons.registry_newer": "Bu beceriyi güncellemek için daha yüksek bir sürüm numarası seçin."
+    "addons.registry_newer": "Bu beceriyi güncellemek için daha yüksek bir sürüm numarası seçin.",
+    "addons.registry_editors_pick": "Editörün seçimi",
+    "addons.registry_featured": "Öne çıkan",
+    "addons.registry_release_notes": "Sürüm notları",
+    "addons.registry_metrics": "{stars} site yıldızı · {downloads} indirme isteği"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

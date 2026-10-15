@@ -1852,7 +1852,7 @@
     "xsetup.open": "Prijungti X",
     "addons.registry_tab": "Įgūdžių kodeksas",
     "addons.registry_title": "Kūrėjų įgūdžiai ir papildiniai",
-    "addons.registry_intro": "Sukurta jų kūrėjų. VOOL nerašo bendruomenės įgūdžių ir už juos neatsako, o automatinės patikros gali ką nors praleisti. Atsisiųskite paketą peržiūrai, tada nuspręskite, ar jį įdiegti ir įjungti.",
+    "addons.registry_intro": "Automatinės patikros tikrina paketų suderinamumą ir žinomų grėsmių požymius nurodytoms VOOL versijoms. Jos negarantuoja, kad įgūdyje nėra kenkėjiško elgesio. Bendruomenės įgūdžiai pateikiami tokie, kokie yra, be garantijos. Peržiūrėkite failus ir naudokite savo rizika.",
     "addons.native_authority": "Įgūdžiai pateikia nurodymus. VOOL vietinės taisyklės, savininko nustatymai, išlaidų ribos, valiutų tvarkymas, leidimai ir patvirtinimai visada turi pirmenybę.",
     "addons.registry_evidence": "Tikslūs failai, leidimai ir šaltinis",
     "addons.registry_install_only": "Įdiegti neįjungiant",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Bet kuri kalba",
     "addons.registry_needs": "Reikia",
     "addons.registry_needs_none": "Nieko už VOOL ribų",
-    "addons.registry_tested": "Išbandyta su",
+    "addons.registry_tested": "Patikrinta dėl",
     "addons.registry_need_search_web": "Paieška internete",
     "addons.registry_need_llm_cloud": "Debesijos DI modelis",
     "addons.registry_need_chain_data": "Blokų grandinės duomenys",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį.",
-    "addons.registry_newer": "Norėdami atnaujinti šį įgūdį, pasirinkite didesnį versijos numerį."
+    "addons.registry_newer": "Norėdami atnaujinti šį įgūdį, pasirinkite didesnį versijos numerį.",
+    "addons.registry_editors_pick": "Redakcijos pasirinkimas",
+    "addons.registry_featured": "Rekomenduojama",
+    "addons.registry_release_notes": "Versijos pastabos",
+    "addons.registry_metrics": "{stars} svetainės žvaigždučių · {downloads} atsisiuntimo užklausų"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

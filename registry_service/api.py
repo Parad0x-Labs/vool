@@ -319,6 +319,14 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         require(catalog.current and now() < catalog.current["expires"], "catalog freshness expired")
         return JSONResponse(decode(row[0]))
 
+    async def public_presentation(request):
+        require(not request.query_params, "unknown presentation query")
+        with store.connection() as db:
+            row = db.execute("SELECT document FROM authority_marks WHERE id=1").fetchone()
+        return JSONResponse({"marks": decode(row[0]) if row else None, "metrics": [
+            {key: item[key] for key in ("id", "stars", "download_requests")}
+            for item in await approved_rows()]})
+
     async def own_profile(who, value=None):
         profile = await run_in_threadpool(store.profile, who, value)
         return profile | {"providers": await run_in_threadpool(store.providers, who)}
@@ -495,6 +503,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
 
     app = Starlette(routes=[
         Route(PREFIX + "/catalog", public_catalog), Route(PREFIX + "/snapshot", signed_catalog),
+        Route(PREFIX + "/presentation", public_presentation),
         Route(PREFIX + "/categories", categories), Route(PREFIX + "/requirements", requirements),
         Route(PREFIX + "/profiles/{namespace}", profile_page),
         Route(PREFIX + "/comments", comment_list, methods=["GET", "POST"]),

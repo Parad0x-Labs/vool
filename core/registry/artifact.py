@@ -51,7 +51,7 @@ def path_name(value: str) -> str:
 
 
 def metadata(value: dict) -> dict:
-    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs", "icon", "banner"} == {
+    require(isinstance(value, dict) and set(value) - {"title", "languages", "needs", "icon", "banner", "release_notes"} == {
         "id", "kind", "version", "summary", "category", "subcategory", "license", "source"},
         "invalid package metadata fields")
     # Optional in signed entries so earlier packages stay valid; new uploads must
@@ -60,6 +60,10 @@ def metadata(value: dict) -> dict:
         check_languages(value["languages"])
     if "needs" in value:
         check_needs(value["needs"])
+    if "release_notes" in value:
+        text = value["release_notes"]
+        require(isinstance(text, str) and text == text.strip() and 0 < len(text) <= 2000 and
+                all(ord(char) >= 32 and char not in "<>" for char in text), "invalid release notes")
     from core.registry.media import KINDS, reference
 
     for kind in KINDS:

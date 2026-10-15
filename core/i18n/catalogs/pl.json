@@ -1852,7 +1852,7 @@
     "xsetup.open": "Połącz X",
     "addons.registry_tab": "Kodeks umiejętności",
     "addons.registry_title": "Umiejętności i wtyczki od ich twórców",
-    "addons.registry_intro": "Tworzone przez ich autorów. VOOL nie pisze umiejętności społeczności i za nie nie ręczy, a automatyczne kontrole mogą coś przeoczyć. Pobierz pakiet do sprawdzenia, a potem zdecyduj, czy go zainstalować i włączyć.",
+    "addons.registry_intro": "Automatyczne kontrole sprawdzają zgodność pakietów i znane wzorce zagrożeń dla wskazanych wersji VOOL. Nie gwarantują braku złośliwego działania. Umiejętności społeczności są udostępniane w obecnej postaci, bez gwarancji. Sprawdź pliki i używaj ich na własne ryzyko.",
     "addons.native_authority": "Umiejętności dostarczają instrukcji. Natywne zasady VOOL, ustawienia właściciela, limity wydatków, obsługa walut, uprawnienia i zgody zawsze mają pierwszeństwo.",
     "addons.registry_evidence": "Dokładne pliki, uprawnienia i źródło",
     "addons.registry_install_only": "Zainstaluj bez włączania",
@@ -1952,7 +1952,7 @@
     "addons.registry_any_language": "Dowolny język",
     "addons.registry_needs": "Wymaga",
     "addons.registry_needs_none": "Nic poza VOOL",
-    "addons.registry_tested": "Testowano z",
+    "addons.registry_tested": "Sprawdzono dla",
     "addons.registry_need_search_web": "Wyszukiwanie w sieci",
     "addons.registry_need_llm_cloud": "Model AI w chmurze",
     "addons.registry_need_chain_data": "Dane blockchain",
@@ -2600,9 +2600,13 @@
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
-    "addons.registry_newer": "Wybierz wyższy numer wersji, aby zaktualizować tę umiejętność."
+    "addons.registry_newer": "Wybierz wyższy numer wersji, aby zaktualizować tę umiejętność.",
+    "addons.registry_editors_pick": "Wybór redakcji",
+    "addons.registry_featured": "Polecane",
+    "addons.registry_release_notes": "Informacje o wersji",
+    "addons.registry_metrics": "{stars} gwiazdek w witrynie · {downloads} żądań pobrania"
   },
-  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
+  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2005,7 +2005,7 @@
     "xsetup.open": "Connect X",
     "addons.registry_tab": "Skill Codex",
     "addons.registry_title": "Skills and plugins from their creators",
-    "addons.registry_intro": "Made by their creators. VOOL does not write or vouch for community skills, and automated checks can miss things. Download for inspection, then choose whether to install and enable it.",
+    "addons.registry_intro": "Automated checks cover package compatibility and known threat patterns for the listed VOOL builds. They do not guarantee that a skill is free of malicious behavior. Community skills are provided as is, without warranty. Inspect the files and use them at your own risk.",
     "addons.native_authority": "Skills contribute instructions. VOOL native rules, owner settings, spending limits, currency handling, permissions and approvals always take precedence.",
     "addons.registry_evidence": "Exact files, permissions and source",
     "addons.registry_install_only": "Install without enabling",
@@ -2093,7 +2093,7 @@
     "addons.registry_any_language": "Any language",
     "addons.registry_needs": "Needs",
     "addons.registry_needs_none": "Nothing outside VOOL",
-    "addons.registry_tested": "Tested with",
+    "addons.registry_tested": "Checked for",
     "addons.registry_need_search_web": "Web search",
     "addons.registry_need_llm_cloud": "Cloud AI model",
     "addons.registry_need_chain_data": "Chain data",
@@ -2600,7 +2600,11 @@
     "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex.",
     "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it.",
-    "addons.registry_newer": "Choose a higher version number to update this skill."
+    "addons.registry_newer": "Choose a higher version number to update this skill.",
+    "addons.registry_editors_pick": "Editor's pick",
+    "addons.registry_featured": "Featured",
+    "addons.registry_release_notes": "Release notes",
+    "addons.registry_metrics": "{stars} website stars · {downloads} download requests"
   },
   "html_keys": [
     "bypass.modal_limits",
