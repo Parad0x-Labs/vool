@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="300" viewBox="0 0 760 300" role="img" aria-labelledby="title desc">
+<title id="title">Caching: Claude charges a tenth of the price for text it has already seen</title><desc id="desc">First message: setup and rules at full price plus 25% to save them, then the new question at full price. Next message: the saved setup at a tenth of the price, then the chat so far and the new question at full price.</desc>
+<style>svg{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s-vool:#2a78d6;--s-hermes:#eb6834;--s-openclaw:#1baf7a;--s-full-transcript:#a3a29b;}@media (prefers-color-scheme: dark){svg{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s-vool:#3987e5;--s-hermes:#d95926;--s-openclaw:#199e70;--s-full-transcript:#6f6e69;}}text{font-family:system-ui, -apple-system, "Segoe UI", sans-serif;fill:var(--ink)}.t{font-size:17px;font-weight:600}.st{font-size:12.5px;fill:var(--ink2)}.lb{font-size:13px}.v{font-size:12.5px;font-variant-numeric:tabular-nums}.ax{font-size:11.5px;fill:var(--muted);font-variant-numeric:tabular-nums}.g{stroke:var(--grid);stroke-width:1}.b{stroke:var(--axis);stroke-width:1}</style>
+<style>svg{--acc:#2a78d6;--acc-soft:#b8d3f3;--box:#fcfcfb;--grey:#c3c2b7}@media (prefers-color-scheme: dark){svg{--acc:#3987e5;--acc-soft:#2b4a70;--box:#1a1a19;--grey:#55544f}}.n{font-size:13px;font-weight:600}.q{font-size:11.5px;fill:var(--ink2)}</style>
+<rect width="760" height="300" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="34">Caching: Claude charges a tenth of the price for text it has already seen</text>
+<text class="st" x="24" y="54">What VOOL sends to Claude with each message.</text>
+<text class="n" x="24" y="108">First message</text>
+<text class="n" x="24" y="208">Next message</text>
+<rect x="180" y="76" width="220" height="56" rx="8" fill="var(--box)" stroke="var(--axis)" stroke-width="1.25"/>
+<text class="n" x="192" y="100">Setup and rules</text>
+<text class="q" x="192" y="118">full price, plus 25% to save it</text>
+<rect x="416" y="76" width="160" height="56" rx="8" fill="var(--box)" stroke="var(--axis)" stroke-width="1.25"/>
+<text class="n" x="428" y="100">New question</text>
+<text class="q" x="428" y="118">full price</text>
+<path d="M290 134V170" stroke="var(--acc)" stroke-width="1.25" stroke-dasharray="4 4" fill="none"/>
+<path d="M285 166l5 8l5 -8z" fill="var(--acc)"/>
+<text class="q" x="302" y="160">Claude keeps a copy for about 5 minutes</text>
+<rect x="180" y="176" width="220" height="56" rx="8" fill="var(--acc-soft)" stroke="var(--acc)" stroke-width="2"/>
+<text class="n" x="192" y="200">Setup and rules</text>
+<text class="q" x="192" y="218">saved copy: a tenth of the price</text>
+<rect x="416" y="176" width="152" height="56" rx="8" fill="var(--box)" stroke="var(--axis)" stroke-width="1.25"/>
+<text class="n" x="428" y="200">Chat so far</text>
+<text class="q" x="428" y="218">full price</text>
+<rect x="584" y="176" width="152" height="56" rx="8" fill="var(--box)" stroke="var(--axis)" stroke-width="1.25"/>
+<text class="n" x="596" y="200">New question</text>
+<text class="q" x="596" y="218">full price</text>
+<text class="q" x="24" y="268">Claude only saves a start of 1,024 tokens or more (roughly 750 words). Many VOOL messages are shorter,</text>
+<text class="q" x="24" y="286">so the saving was about 10%. Long chats and big documents save more.</text>
+</svg>

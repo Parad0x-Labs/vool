@@ -1,5 +1,5 @@
 {
-  "about": "Numbers behind docs/benchmarks/README.md and its charts. Every value is copied from the run reports named under each run's source; make_charts.py draws the SVG charts from this file.",
+  "about": "Numbers behind docs/benchmarks/v0.7-memory-locomo.md and its charts. Every value is copied from the run reports named under each run's source; make_charts.py draws the SVG charts from this file.",
   "official_150": {
     "title": "Official round: 150 never-used LoCoMo questions",
     "date": "2026-10-06",
