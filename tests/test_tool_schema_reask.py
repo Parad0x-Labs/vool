@@ -300,6 +300,9 @@ def test_paid_correction_admission_failure_sends_only_the_first_call(wire, paid_
     assert context["last_tool_call_rejection"]["error_kind"] == "malformed_tool_arguments"
     held = get_spend_reservation(authorization.model_call_id)
     assert held.status in {"reserved", "billing_ambiguous"} and held.reserved_usd > 0
+    if price_case != "ledger_failure":
+        # With the ledger reachable the refused first attempt is closed, not left reserved.
+        assert held.status == "billing_ambiguous"
 
 
 def _drive_real_loop(wire, monkeypatch, workspace, *, write=False, always_bad=False, outcomes=None):

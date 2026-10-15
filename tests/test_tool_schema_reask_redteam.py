@@ -146,6 +146,8 @@ def test_paid_correction_that_is_refused_again_still_closes_with_one_spend_recei
     assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
     assert receipts[0][1]["spend_status"] == "billing_ambiguous"
     assert str(run["state"]) != "paid_running", run
+    # The enum value is upper case; the line above alone cannot see a run left open.
+    assert run is not None and str(run["state"]) == "FAILED_SAFE", run
 
 
 def test_paid_correction_that_succeeds_closes_with_one_spend_receipt(wire, paid_home):
@@ -157,6 +159,27 @@ def test_paid_correction_that_succeeds_closes_with_one_spend_receipt(wire, paid_
     assert held.status == "billing_ambiguous" and held.reserved_usd > 0
     assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
     assert str(run["state"]) != "paid_running", run
+    assert run is not None and str(run["state"]) == "COMPLETED", run
+
+
+def _duplicate_body():
+    body = _body({"archive_id": "sample"})
+    body["choices"][0]["message"]["tool_calls"] *= 2
+    return body
+
+
+@pytest.mark.parametrize(("outcome", "kind"), [
+    (lambda: _body({"archive_id": "sample"}, name="not_offered"), "unknown_tool_name"),
+    (_duplicate_body, "duplicate_tool_call"),
+])
+def test_paid_typed_refusal_without_correction_holds_the_charge_with_one_receipt(wire, paid_home, outcome, kind):
+    # The provider answered, so the refused call may be billed: it must never be released to zero.
+    response, error, receipts, held, run = _paid_terminal_evidence(wire, paid_home, [outcome()])
+    assert response is None and error.startswith(f"{kind}:")
+    assert len(wire.bodies) == 1
+    assert held.status == "billing_ambiguous" and held.reserved_usd > 0
+    assert [event for event, _ in receipts] == ["paid_call.billing_ambiguous"], receipts
+    assert run is not None and str(run["state"]) == "FAILED_SAFE", run
 
 
 def test_free_lane_keeps_its_one_resend_for_an_unoffered_tool_name(wire):
