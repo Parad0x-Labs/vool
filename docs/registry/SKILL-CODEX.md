@@ -4,7 +4,7 @@ The website's Skill Codex pages use these routes in addition to [WEBSITE-HANDOVE
 
 ## Publishing with automatic checks
 
-When the service runs with the signing Mac (see [OPERATIONS.md](OPERATIONS.md#automatic-checks-with-the-signing-mac)), a creator publishes without waiting for a person. Before the first upload the page shows this agreement with an unticked box, and sends nothing until the creator ticks it:
+When the service runs with the automatic signer (on GitHub or on the signing Mac; see [OPERATIONS.md](OPERATIONS.md#automatic-checks-on-github)), a creator publishes without waiting for a person. Before the first upload the page shows this agreement with an unticked box, and sends nothing until the creator ticks it:
 
 > I made this skill, or have the right to share it, and I release it under the MIT licence. Anyone may use, copy, change and share it.
 
@@ -15,7 +15,7 @@ The ticked box becomes `"agreement": "mit-own-work-v1"`:
 
 Without the agreement both routes keep the older reviewed flow, and nothing is published automatically.
 
-The server checks every upload at once. A clean one has state `checking` while the signing Mac checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?, rule?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. `rule` is a stable code for the reason, for a page that shows it in the reader's language: `install`, `download`, `address`, `secret-ask`, `wallet`, `injection`, `hidden`, `letters`, `invisible`, `escapes`, `secret`, `reserved-name`, `reserved-summary`, `summary`, `short`, `endorsed` and `too-long`. A finding without `rule` is shown by its `reason` alone. A line that looks like a key, password or recovery phrase is never quoted back, whichever check names it. Skill Codex skills:
+The server checks every upload at once. A clean one has state `checking` while the signer checks it again and asks a review model to read it. Then it becomes `refused` with reasons, or `admitted` and soon `published` in the category the creator chose. A refusal's `findings` are `{check, path, reason, line?, quote?, rule?}`. Show `reason` as written, with the file and line, and `quote` as plain monospace text so the creator sees the words that tripped the check. `rule` is a stable code for the reason, for a page that shows it in the reader's language: `install`, `download`, `address`, `secret-ask`, `wallet`, `injection`, `hidden`, `letters`, `invisible`, `escapes`, `secret`, `reserved-name`, `reserved-summary`, `summary`, `short`, `endorsed` and `too-long`. A finding without `rule` is shown by its `reason` alone. A line that looks like a key, password or recovery phrase is never quoted back, whichever check names it. Skill Codex skills:
 
 - hold Markdown or plain-text files under `skills/`, the licence, `registry.json`, the manifest and optional pictures, and nothing that runs: no scripts, programs, executable files, manifest commands, permissions or credential bindings, and no `vool` section in the manifest (VOOL writes that itself to mark a pack as its owner's own, and refuses to install a download that carries one);
 - never ask anyone to install, download or run software, paste commands into a terminal, or open a short link, raw address or paste site;

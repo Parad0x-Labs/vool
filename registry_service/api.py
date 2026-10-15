@@ -15,7 +15,7 @@ from starlette.routing import Route
 
 from core.registry.artifact import native_identity
 from core.registry.categories import TAXONOMY, public_taxonomy
-from core.registry.codec import MAX_DOCUMENT, RegistryError, decode, require, version_key
+from core.registry.codec import HEX, MAX_DOCUMENT, RegistryError, decode, require, version_key
 from core.registry.media import KINDS
 from core.registry.requirements import public_requirements
 from registry_service import community, reports
@@ -457,6 +457,15 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
         await run_in_threadpool(store.admit, identifier, value["sha256"], value["admission"], catalog.root, now=now())
         return JSONResponse({"state": "admitted"})
 
+    async def authority_artifact(request):
+        # The signer re-checks and re-signs listed skills from these exact bytes; it keeps no copy of its own.
+        await signed(request)
+        sha256 = request.path_params["sha256"]
+        require(bool(HEX.fullmatch(sha256)), "invalid checksum")
+        raw = await run_in_threadpool(store.admitted_artifact, sha256)
+        require(raw is not None, "that skill is not stored here")
+        return Response(raw, media_type="application/vnd.vool.registry+json")
+
     async def authority_catalog(request):
         value = decode(await signed(request, limit=8 * 1024 * 1024), 8 * 1024 * 1024)
         return JSONResponse(await run_in_threadpool(authority.ingest, value, now=now()))
@@ -492,6 +501,7 @@ def create_app(store: Store, auth: Auth, catalog, target: dict, *, clock=time.ti
     ] + ([
         Route(PREFIX + "/authority/queue", authority_queue),
         Route(PREFIX + "/authority/submissions/{identifier}", authority_submission, methods=["GET", "POST"]),
+        Route(PREFIX + "/authority/artifacts/{sha256}", authority_artifact),
         Route(PREFIX + "/authority/catalog", authority_catalog, methods=["POST"]),
         Route(PREFIX + "/authority/marks", authority_marks, methods=["POST"]),
     ] if authority is not None else []), exception_handlers={RegistryError: failure, ValueError: failure, TypeError: failure, KeyError: failure})
