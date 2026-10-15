@@ -391,6 +391,9 @@ class Store:
                 # A team name someone else already holds is a squat for a maintainer, never silently shared.
                 require(not db.execute("SELECT 1 FROM accounts WHERE namespace=?", (name,)).fetchone(),
                         f"an account outside the team holds the name {name}")
+            from registry_service.operations import apply
+
+            apply(db, value.get("operations", []), now=now)
             db.execute("INSERT OR REPLACE INTO authority_marks VALUES (1,?,?)", (value["sequence"], canonical(envelope)))
             # A team's name is the team's: nobody else can choose it.
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
@@ -824,9 +827,10 @@ class Store:
                     "submission changed during export; recheck review and consent")
             return current["artifact"], review
 
-    def publish(self, catalog, package_id: str, version: str, target: dict, raw: bytes, *, now: int) -> None:
+    def publish(self, catalog, package_id: str, version: str, target: dict | None, raw: bytes, *, now: int) -> None:
         """Called only after TrustedCatalog verifies the signed GitHub catalog snapshot."""
-        entry = catalog.resolve(package_id, version, target=target, now=now)
+        entry = catalog.resolve_any(package_id, version, now=now) if target is None else catalog.resolve(
+            package_id, version, target=target, now=now)
         artifact = inspect(raw)
         require(artifact["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"] and
                 artifact["native_digest"] == entry["native_digest"] and artifact["metadata"] == entry["metadata"], "published artifact differs from admission")

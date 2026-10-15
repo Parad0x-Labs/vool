@@ -179,6 +179,25 @@ class TrustedCatalog:
         return value
 
     @serialized
+    def resolve_any(self, package_id: str, version: str, *, now: int) -> dict:
+        """Public distribution accepts any target in the current signed admission.
+
+        Native installation still calls resolve with the actual local release identity.
+        Stored artifacts and the service's legacy target setting confer no compatibility.
+        """
+        if self.current is None:
+            from core.registry.codec import decode
+
+            row = self.db.execute("SELECT snapshot FROM trust WHERE id=1").fetchone()
+            require(row and row[0], "no verified catalog")
+            self.accept(decode(row[0]), now=now)
+        for envelope in self.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if (info["id"], info["version"]) == (package_id, version):
+                return self.resolve(package_id, version, target=envelope["signed"]["targets"][0], now=now)
+        raise RegistryError("package version is not in the approved catalog")
+
+    @serialized
     def resolve(self, package_id: str, version: str, *, target: dict, now: int) -> dict:
         if self.current is None:
             from core.registry.codec import decode

@@ -62,6 +62,7 @@ from registry_service.mac_authority import (
     _raw_key,
     _write,
 )
+from registry_service.operations import ACTIONS as OPERATOR_ACTIONS
 
 FOLDER = "authority"
 STEPS = "team-steps.txt"
@@ -86,6 +87,11 @@ _STEP_FORMS = {"tested": "tested publisher/name version", "highlighted": "highli
                "suspended": "suspended publisher", "removed": "removed publisher/name",
                "team": "team name github-account-number [github-account-number ...]",
                "build": "build version full-commit-id"}
+_STEP_FORMS.update({name: name + " target" for name in OPERATOR_ACTIONS})
+_STEP_FORMS.update({"picture": "picture publisher/name sha256", "official": "official publisher",
+                    "featured": "featured publisher/name", "editors-pick": "editors-pick publisher/name",
+                    "reviewer": "reviewer publisher team|community",
+                    "review": "review publisher/name version reviewer YYYY-MM-DD"})
 
 
 # ---- the sealed part of the state ----
@@ -204,10 +210,36 @@ def parse_steps(text: str) -> dict:
         if not words:
             continue
         step, args = words[0].lower(), words[1:]
-        require(step in _STEP_FORMS, f"{STEPS} line {number}: \"{words[0][:40]}\" is not a step; use tested, "
-                                     "highlighted, suspended, removed or team")
+        require(step in _STEP_FORMS, f"{STEPS} line {number}: this is not a step; use a form listed in the file")
         form = f"{STEPS} line {number}: write it as \"{_STEP_FORMS[step]}\""
-        if step == "tested":
+        if step in OPERATOR_ACTIONS:
+            from registry_service.operations import validate
+
+            require(len(args) == 1, form)
+            operation = {"action": step, "target": args[0]}
+            try:
+                validate([*wanted.get("operations", []), operation])
+            except RegistryError:
+                raise RegistryError(form) from None
+            wanted.setdefault("operations", []).append(operation)
+        elif step in {"picture", "official", "featured", "editors-pick", "reviewer", "review"}:
+            curation = wanted.setdefault("curation", {"schema": "vool.registry.curation.v1", "official_namespaces": [],
+                "featured": [], "editors_picks": [], "reviewers": {}, "reviews": [], "approved_pictures": []})
+            if step == "picture":
+                require(len(args) == 2 and _skill(args[0]) and HEX.fullmatch(args[1]), form)
+                curation["approved_pictures"].append({"id": args[0], "sha256": args[1]})
+            elif step in {"official", "featured", "editors-pick"}:
+                require(len(args) == 1 and (IDENTITY.fullmatch(args[0]) if step == "official" else _skill(args[0])), form)
+                curation[{"official": "official_namespaces", "featured": "featured", "editors-pick": "editors_picks"}[step]].append(args[0])
+            elif step == "reviewer":
+                require(len(args) == 2 and IDENTITY.fullmatch(args[0]) and args[1] in {"team", "community"} and
+                        args[0] not in curation["reviewers"], form)
+                curation["reviewers"][args[0]] = args[1]
+            else:
+                require(len(args) == 4 and _skill(args[0]) and VERSION.fullmatch(args[1]) and
+                        IDENTITY.fullmatch(args[2]) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", args[3]), form)
+                curation["reviews"].append(dict(zip(("id", "version", "reviewer", "date"), args, strict=True)))
+        elif step == "tested":
             require(len(args) == 2 and _skill(args[0]) and bool(VERSION.fullmatch(args[1])), form)
             wanted["tested"].append((args[0], args[1]))
         elif step in {"highlighted", "removed"}:
@@ -226,6 +258,12 @@ def parse_steps(text: str) -> dict:
             wanted["teams"][args[0]] = sorted(set(args[1:]))
     require(len(wanted["teams"]) <= 16, STEPS + ": at most 16 teams")
     require(len(wanted["builds"]) <= 8, STEPS + ": at most 8 builds")
+    require(all(len(wanted[field]) <= 4096 for field in ("tested", "highlighted", "suspended", "removed")),
+            STEPS + ": too many steps")
+    if "curation" in wanted:
+        from registry_service.curation import validate_curation
+
+        validate_curation(wanted["curation"])
     return wanted
 
 
@@ -371,7 +409,8 @@ class RepoAuthority(Authority):
         marks["sequence"] += 1
         self.state["marks_unsent"] = True
         value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"], "issued_at": self.now(),
-                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")}},
+                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
+                                **{key: marks[key] for key in ("operations", "curation") if key in marks}},
                                now=self.now())
         self.call("POST", "/authority/marks", add_signature({"signed": value, "signatures": []}, self.admission_key))
         self.state.pop("marks_unsent")
@@ -437,7 +476,12 @@ class RepoAuthority(Authority):
         new = {"tested": sorted(set(tested)), "highlighted": sorted(set(highlighted)), "suspended": sorted(set(suspended)),
                "teams": wanted["teams"]}
         marks = self.state["marks"]
-        if self.state.get("marks_unsent") or any(marks[key] != value for key, value in new.items()):
+        if "operations" in wanted or "operations" in marks:
+            new["operations"] = wanted.get("operations", [])
+        if "curation" in wanted or "curation" in marks:
+            new["curation"] = wanted.get("curation", {"schema": "vool.registry.curation.v1", "official_namespaces": [],
+                "featured": [], "editors_picks": [], "reviewers": {}, "reviews": [], "approved_pictures": []})
+        if self.state.get("marks_unsent") or any(marks.get(key) != value for key, value in new.items()):
             marks.update(new)
             self._marks()
         return {"applied": True, "problems": problems}
@@ -500,6 +544,9 @@ class RepoAuthority(Authority):
     @_exclusive
     def run_once(self) -> dict:
         report = {"steps": self.team_steps(), "dropped": []}
+        from registry_service.operations import summary
+
+        self.state["moderation"] = summary(self.call("GET", "/authority/moderation"))
         try:
             report["releases_changed"] = self.follow_releases()
         except RegistryError as exc:
