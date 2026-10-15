@@ -55,9 +55,10 @@ def set_prefs_authority(body: dict, headers: dict, runtime, client_host: str = '
     #                 Operator Profile item. Exposing this field would be a control over a value
     #                 nothing consults.
     _BOOL_PREFS = {
-        "deep_reasoning", "show_workflow", "hive_followups",
+        "deep_reasoning", "show_answer_details", "show_workflow", "hive_followups",
         "idle_research_assist", "accept_hive_tasks", "social_commons",
         "wallet_enabled", "setup_dismissed", "speech_notice_dismissed",
+        "model_own_tools",
     }
     _INT_PREFS = {"humor_percent", "ram_reserve_pct", "daily_token_budget", "profanity_level"}
     # Normalized by save_preferences (_normalize_* / _clamp_pct), so an out-of-vocabulary value

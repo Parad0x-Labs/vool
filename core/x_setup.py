@@ -158,8 +158,8 @@ def _http_failure(status: int) -> XSetupError:
     if status == 429:
         return XSetupError("rate_limited", "X is limiting requests for this app right now. Try again later. Nothing was saved.", http_status=status)
     if status >= 500 or status == 408:
-        return XSetupError("provider_unavailable", f"X is having trouble right now (HTTP {status}). Try again later. Nothing was saved.", http_status=status)
-    return XSetupError("unconfirmed", f"X gave an unexpected answer (HTTP {status}). Nothing was saved.", http_status=status)
+        return XSetupError("provider_unavailable", "X is having trouble right now. Try again later. Nothing was saved.", http_status=status)
+    return XSetupError("unconfirmed", "X gave an answer VOOL didn't expect. Nothing was saved.", http_status=status)
 
 
 def _account_of(data: dict[str, Any]) -> dict[str, str]:
@@ -252,7 +252,7 @@ def finish_account(session_id: object) -> dict[str, Any]:
     saved["account"] = entry["account"]
     _write_saved(saved)
     return {"ok": True, "account": entry["account"]["username"],
-            "message": f"Connected as @{entry['account']['username']}. VOOL only reads with these keys; it does not post."}
+            "message": f"Connected as @{entry['account']['username']}. VOOL reads with these keys; anything it would post, like or follow waits for your approval first."}
 
 
 def cancel_account(session_id: object) -> dict[str, Any]:

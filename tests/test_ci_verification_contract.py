@@ -77,6 +77,16 @@ EXPECTED_COLLECTION_COMMAND = (
 )
 SHARD_FILE_LIST_REF = "shard-${{ matrix.shard }}-files.txt"
 EXPECTED_SHARDS = [str(index) for index in range(10)]
+#: The one condition the full-suite jobs (shards, macOS) may carry: a DRAFT pull request stops
+#: after `verify`. Every push, manual run and ready pull request runs them, and drafts cannot be
+#: merged, so every mergeable head still runs every shard. Pinned exactly: any other condition
+#: (an event filter, a path filter, a label) would let a mergeable head skip the suite.
+EXPECTED_DRAFT_GATE = "github.event_name != 'pull_request' || !github.event.pull_request.draft"
+#: The pull_request types that make the draft gate safe: the defaults (opened, synchronize,
+#: reopened) plus `ready_for_review`, without which a draft marked ready would reach review with
+#: no full round on its head, and `converted_to_draft`, which cancels a full round when a PR is
+#: put on hold (same concurrency group).
+EXPECTED_PR_TYPES = ["opened", "synchronize", "reopened", "ready_for_review", "converted_to_draft"]
 
 
 def _load_workflow() -> dict[str, Any]:
@@ -104,6 +114,7 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
     for event in ("push", "pull_request"):
         assert event in triggers
         assert "paths-ignore" not in triggers[event]
+    assert triggers["pull_request"]["types"] == EXPECTED_PR_TYPES
 
     verify = workflow["jobs"]["verify"]
     assert verify["if"] == "github.event_name != 'workflow_dispatch' || !inputs.focused_ci"
@@ -122,7 +133,7 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
 
     tests = workflow["jobs"]["tests"]
     assert tests["needs"] == "verify" or tests["needs"] == ["verify"]
-    assert "if" not in tests
+    assert tests.get("if") == EXPECTED_DRAFT_GATE
     matrix_shards = tests["strategy"]["matrix"]["shard"]
     assert matrix_shards == EXPECTED_SHARDS, "every shard must stay in the matrix: none may be dropped"
 
@@ -155,12 +166,13 @@ def _assert_authoritative_contract(workflow: dict[str, Any]) -> None:
 
     macos = workflow["jobs"]["macos"]
     assert macos["needs"] == "verify" or macos["needs"] == ["verify"]
-    assert "if" not in macos
+    assert macos.get("if") == EXPECTED_DRAFT_GATE
     macos_run = _named_step(macos, "Run the macOS-only suites")
     assert "if" not in macos_run
     _assert_upload_step(macos, "Upload macos job log")
 
     assert workflow["jobs"]["build"]["needs"] == ["verify", "tests", "macos"]
+    assert "if" not in workflow["jobs"]["build"]
 
     for job in workflow["jobs"].values():
         assert not job.get("continue-on-error", False)
@@ -178,7 +190,18 @@ def test_push_and_pr_ci_use_the_exact_authoritative_gate() -> None:
 
 @pytest.mark.parametrize(
     "mutation",
-    ("floating_python", "collect_only", "step_disabled", "job_disabled", "watchdog_removed", "watchdog_unbounded"),
+    (
+        "floating_python",
+        "collect_only",
+        "step_disabled",
+        "job_disabled",
+        "watchdog_removed",
+        "watchdog_unbounded",
+        "shard_gate_widened",
+        "macos_gate_widened",
+        "ready_trigger_dropped",
+        "build_gated",
+    ),
 )
 def test_contract_mutations_are_rejected(mutation: str) -> None:
     workflow = copy.deepcopy(_load_workflow())
@@ -197,6 +220,15 @@ def test_contract_mutations_are_rejected(mutation: str) -> None:
     elif mutation == "watchdog_unbounded":
         gate = _named_step(workflow["jobs"]["tests"], "Run shard ${{ matrix.shard }}")
         gate["run"] = gate["run"].replace("--phase-timeout 600", "--phase-timeout 0")
+    elif mutation == "shard_gate_widened":
+        workflow["jobs"]["tests"]["if"] = "github.event_name == 'push'"
+    elif mutation == "macos_gate_widened":
+        workflow["jobs"]["macos"]["if"] = "github.event_name != 'pull_request'"
+    elif mutation == "ready_trigger_dropped":
+        triggers = workflow.get("on", workflow.get(True))
+        triggers["pull_request"]["types"] = ["opened", "synchronize", "reopened"]
+    elif mutation == "build_gated":
+        workflow["jobs"]["build"]["if"] = "github.event_name == 'push'"
     else:
         verify["if"] = False
 

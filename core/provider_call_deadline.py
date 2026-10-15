@@ -25,6 +25,12 @@ PROVIDER_DEADLINE_REASON_KEY = "_provider_call_deadline_reason"
 #: by the transfer watchdog while the enclosing deadline still had room). Still clamped by the
 #: enclosing absolute deadline -- an override may widen transport, never turn authority.
 PROVIDER_TRANSPORT_TIMEOUT_KEY = "_provider_transport_timeout_seconds"
+#: Marks a manifest copy whose ``runtime_config.timeout_seconds`` a caller already resolved against
+#: its own wall-clock budget (the router's fallback-budget cap writes the remaining window there).
+#: That value is real seconds left, not a ceiling measured on a GPU host, so
+#: :func:`local_manifest_call_timeout_seconds` must not scale it a second time. Process-local
+#: control state on a transient copy, like the keys above; never read from a stored manifest.
+BOUND_CALL_TIMEOUT_KEY = "_timeout_seconds_bound"
 
 # Leave enough room for requests to raise, the router to classify and emit ``model.call_failed``,
 # the conductor worker to publish its node outcome, and the API to emit the terminal turn trace.
@@ -111,6 +117,44 @@ def effective_timeout_seconds(request: Any, configured_seconds: float) -> float:
     return max(0.001, min(configured, remaining))
 
 
+def local_manifest_call_timeout_seconds(manifest: Any, configured_seconds: float) -> float:
+    """A provider manifest's per-call transport ceiling, scaled once on a CPU-only machine.
+
+    The manifests' ``timeout_seconds`` (180 s throughout ``core/runtime_provider_defaults.py``,
+    30 s in the adapter when a manifest carries none) was sized on GPU hosts. On a machine with
+    no usable GPU the same local model runs several times slower (``core.local_compute_budget``
+    holds the Intel measurement), and the enclosing turn deadlines are already scaled at their
+    call sites -- but this per-call ceiling stayed unscaled, so a local call was cut at 180 s
+    while its enclosing CPU-only turn still had 117 s of room: the reported "local recall can
+    time out" while the turn budget was never spent. Only a manifest that runs on this machine
+    is scaled, decided by the routing layer's own locality rule
+    (``core.local_model_policy.manifest_is_local``: local source type, loopback endpoint, or
+    ``deployment_class: local``) -- never by a provider-name list, and never a cloud provider.
+    A locality that cannot be read keeps the configured value, the same fail-soft direction
+    ``core.local_compute_budget`` itself takes. An explicit transport override on the request
+    (:data:`PROVIDER_TRANSPORT_TIMEOUT_KEY`) still wins inside :func:`effective_timeout_seconds`,
+    and the bound absolute deadline still clamps the result: scaling may spend a turn's own
+    budget, never extend it. A value a caller already bounded to its own budget
+    (:data:`BOUND_CALL_TIMEOUT_KEY`) is returned unscaled.
+    """
+    value = max(0.001, float(configured_seconds or 0.001))
+    runtime_config = getattr(manifest, "runtime_config", None)
+    if isinstance(runtime_config, Mapping) and runtime_config.get(BOUND_CALL_TIMEOUT_KEY):
+        # Already the caller's remaining budget in real seconds: scaling it again would let the
+        # call outlive the budget that bounded it (4 x the router's cap on a CPU-only machine).
+        return value
+    try:
+        from core.local_model_policy import manifest_is_local
+
+        if manifest_is_local(manifest):
+            from core.local_compute_budget import local_compute_seconds
+
+            return local_compute_seconds(value)
+    except Exception:
+        pass
+    return value
+
+
 def _deadline_from(source: Mapping[str, Any] | Any | None) -> float:
     if isinstance(source, Mapping):
         return _float_or_zero(source.get(PROVIDER_DEADLINE_KEY))
@@ -146,6 +190,7 @@ def _float_or_zero(value: Any) -> float:
 
 
 __all__ = [
+    "BOUND_CALL_TIMEOUT_KEY",
     "DEFAULT_CLEANUP_MARGIN_SECONDS",
     "PROVIDER_DEADLINE_KEY",
     "PROVIDER_DEADLINE_REASON_KEY",
@@ -156,4 +201,5 @@ __all__ = [
     "copy_deadline_to_request_metadata",
     "deadline_expired",
     "effective_timeout_seconds",
+    "local_manifest_call_timeout_seconds",
 ]

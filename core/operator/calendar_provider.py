@@ -222,22 +222,90 @@ def parse_availability_window(
 def parse_duration_minutes(text: str) -> int | None:
     """The requested duration in minutes, exactly as asked. No minimum is imposed.
 
-    Matches "30-minute", "free30-minute" (no space), "15 mins", "for 45m", "a half-hour"
-    wherever they appear; a bare date/time never matches (no unit word follows it).
+    Matches "30-minute", "free30-minute" (no space), "15 mins", "for 45m", "a half-hour",
+    "1.5 hours", "1h30", "1 hour 30 minutes" wherever they appear; a bare date/time never
+    matches (no unit word follows it).
     """
     raw = str(text or "")
+    compound = re.search(
+        r"(?<![\d.])(\d+)\s*(?:hours?|hrs?|h)\s*(?:and\s+)?(\d{1,2})\s*(?:minutes?|mins?|m)\b"
+        r"|(?<![\d.:])(\d+)h(\d{2})\b",
+        raw, re.IGNORECASE,
+    )
+    if compound:
+        hours, minutes = (compound.group(1), compound.group(2)) if compound.group(1) else (compound.group(3), compound.group(4))
+        return int(hours) * 60 + int(minutes)
     match = re.search(
-        r"(\d+)\s*[-\s]?\s*(minutes?|mins?|hours?|hrs?|h\b|m\b)"
+        r"(?<![\d.])(\d+(?:\.\d+)?)\s*[-\s]?\s*(minutes?|mins?|hours?|hrs?|h\b|m\b)"
         r"|\b(?:a|an)\s+half(?:-|\s)?hour\b",
         raw, re.IGNORECASE,
     )
-    if not match:
+    if match:
+        if not match.group(1):
+            return 30
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+        return round(value * 60) if unit.startswith("h") else round(value)
+    return None
+
+
+_RANGE_END_RE = re.compile(r"\s*(?:to|until|till|til|-|–|—)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b(?![:.]?\d)", re.IGNORECASE)
+
+
+def parse_event_length_minutes(text: str) -> int | None:
+    """An event's length as asked: an explicit duration or the clock range it names.
+
+    None when it names neither, or when the two disagree (`event_length_conflict` says so).
+    The availability check keeps `parse_duration_minutes`: there a range is a window, not a length.
+    """
+    duration, ranged = parse_duration_minutes(text), _clock_range_minutes(text)
+    if duration is not None and ranged is not None and duration != ranged:
         return None
-    if not match.group(1):
-        return 30
-    value = int(match.group(1))
-    unit = match.group(2).lower()
-    return value * 60 if unit.startswith("h") else value
+    return duration if duration is not None else ranged
+
+
+def event_length_conflict(text: str) -> str:
+    """The question to ask when a request's clock range and its stated duration disagree, or ''."""
+    duration, ranged = parse_duration_minutes(text), _clock_range_minutes(text)
+    if duration is None or ranged is None or duration == ranged:
+        return ""
+    return (
+        f"The time range you gave lasts {_minutes_words(ranged)}, but you also said {_minutes_words(duration)}. "
+        "Which length should the event have?"
+    )
+
+
+def _minutes_words(minutes: int) -> str:
+    hours, rest = divmod(int(minutes), 60)
+    parts = ([f"{hours} hour" + ("s" if hours != 1 else "")] if hours else []) + ([f"{rest} minute" + ("s" if rest != 1 else "")] if rest else [])
+    return " ".join(parts) or "0 minutes"
+
+
+def _clock_range_minutes(text: str) -> int | None:
+    """Minutes from the start clock to the end clock of a range ("18:30 to 20:00", "from 6pm
+    until 8pm", "18:30-20:00"); an end at or before the start runs past midnight. A range end
+    that is not a clock time (no minutes and no am/pm, e.g. "18:30 to 5 people") is not one."""
+    from core.operator.when import _TIME_RE, _clock_from_match
+
+    raw = str(text or "")
+    for start in _TIME_RE.finditer(raw):
+        end = _RANGE_END_RE.match(raw, start.end())
+        if end is None or (end.group(2) is None and end.group(3) is None):
+            continue
+        end_hour, end_minute, meridiem = int(end.group(1)), int(end.group(2) or 0), str(end.group(3) or "").lower()
+        if meridiem:
+            if not 1 <= end_hour <= 12:
+                return None
+            end_hour = (end_hour % 12) + (12 if meridiem == "pm" else 0)
+        if not (0 <= end_hour <= 23 and 0 <= end_minute <= 59):
+            return None
+        try:
+            start_hour, start_minute = _clock_from_match(start)
+        except ValueError:
+            return None
+        minutes = (end_hour * 60 + end_minute) - (start_hour * 60 + start_minute)
+        return minutes if minutes > 0 else minutes + 24 * 60
+    return None
 
 
 def _event_interval(event: CalEvent) -> tuple[datetime, datetime]:
@@ -899,7 +967,10 @@ def propose_event(
             details={},
         )
     start = datetime.fromisoformat(when.due_at_utc)
-    duration = parse_duration_minutes(intent.raw_text) or slot_duration_minutes or 30
+    conflict = event_length_conflict(intent.raw_text)
+    if conflict:
+        return OperatorActionResult(ok=False, status="invalid_request", response_text=conflict, details={"reason": "length_conflict"})
+    duration = parse_event_length_minutes(intent.raw_text) or slot_duration_minutes or 30
     end = start + timedelta(minutes=duration)
     try:
         calendar_id, calendar_name = resolve_calendar(config, adapter, named=intent.target_label)

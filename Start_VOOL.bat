@@ -72,7 +72,7 @@ if not errorlevel 1 (
   if not errorlevel 1 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_ROOT%\scripts\xsearch_up.ps1" >"%VOOL_LOG_DIR%\xsearch.log" 2>&1
 )
 
-echo Starting VOOL (API + mesh daemon)...
+echo Starting VOOL...
 echo VOOL API serves http://127.0.0.1:11435
 echo.
 REM Run the API server windowless. The watchdog launches this detached (no inherited console),

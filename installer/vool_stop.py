@@ -6,12 +6,11 @@ Both the in-chat ``/stopall`` brake and the desktop "Stop VOOL" button run this.
      on its restart loop nor relaunch it at the next logon,
   2. signal any bundle supervisor to stop before its children are killed,
   3. kill the watchdog processes already running (wscript/cmd on vool_background),
-  4. kill the OpenClaw gateway (whatever listens on 18789),
-  5. kill the VOOL API server on 11435 with a tree-kill so its child workers/agents die too
+  4. kill the VOOL API server on 11435 with a tree-kill so its child workers/agents die too
      (with the pidfile as a fallback if the port lookup fails),
-  6. write a .vool_stopped marker.
+  5. write a .vool_stopped marker.
 
-Relaunching VOOL (desktop shortcut -> OpenClaw_VOOL.bat) re-enables the task and clears the marker.
+Only VOOL's own API port is freed; no other app's port is touched.
 
 Every process action goes through an injected ``run`` callable, so the exact command sequence is
 unit-testable without touching real processes. Ollama (the shared model server on 11434) is left
@@ -19,9 +18,15 @@ running on purpose -- it is not VOOL-specific and idles harmlessly.
 
 On macOS/Linux the same entrypoint takes the POSIX path (``hard_stop_posix``): it boots the
 ``ai.vool.runtime`` launchd KeepAlive agent out of the GUI domain first (so launchd stops
-respawning the API), then frees ports 18789 and 11435 with ``lsof`` + ``kill`` (SIGTERM, then
+respawning the API), then frees port 11435 with ``lsof`` + ``kill`` (SIGTERM, then
 SIGKILL for any survivor), with the pidfile as a fallback. ``main`` dispatches by platform, so
 the Windows ``hard_stop`` sequence above is unchanged.
+
+The opposite direction is ``rearm_after_open`` (``--rearm``): the Open_Chat/Open_Web0
+launchers call it when the ``.vool_stopped`` marker is present, so opening VOOL on purpose
+re-arms the supervisor a Stop disarmed (Windows VOOL_Daemon task, macOS KeepAlive agent,
+Linux systemd unit) and clears the marker. A Stop with no later open leaves everything
+disarmed: the watchdog's own restart loop and logon runs never call it.
 """
 from __future__ import annotations
 
@@ -38,7 +43,6 @@ from typing import Any
 
 WATCHDOG_TASK = "VOOL_Daemon"
 API_PORT = 11435
-GATEWAY_PORT = 18789
 STOPPED_MARKER = ".vool_stopped"
 
 Runner = Callable[..., Any]
@@ -141,8 +145,7 @@ def hard_stop(project_root: Path, vool_home: Path | None = None, *, run: Runner 
     bundle_supervisor_signaled = signal_bundle_supervisor(vool_home)
     kill_watchdog_processes(run)
 
-    # 2) gateway, then the API (tree-kill takes child agent workers with it).
-    gateway_pid = kill_listener(run, GATEWAY_PORT)
+    # 2) the API (tree-kill takes child agent workers with it).
     api_pid = kill_listener(run, API_PORT)
     if api_pid is None:
         api_pid = kill_api_by_pidfile(run, _pidfile(project_root, vool_home))
@@ -155,7 +158,6 @@ def hard_stop(project_root: Path, vool_home: Path | None = None, *, run: Runner 
     return {
         "watchdog_disabled": True,
         "bundle_supervisor_signaled": bundle_supervisor_signaled,
-        "gateway_pid": gateway_pid,
         "api_pid": api_pid,
         "marker": str(marker),
     }
@@ -181,8 +183,7 @@ def disable_systemd_service(run: Runner) -> bool:
     The installer registers vool-runtime.service with Restart=always (install_vool.sh
     install_linux_keepalive_service), so a bare port-kill is respawned within ~5s. Stopping the
     unit (and disabling it, so it stays down across logins) is the Linux analog of the macOS
-    launchctl bootout and the Windows schtasks disable -- OpenClaw_VOOL.sh re-enables it on the
-    next launch. No-op off Linux, without systemctl, or when the unit isn't installed (False).
+    launchctl bootout and the Windows schtasks disable. No-op off Linux, without systemctl, or when the unit isn't installed (False).
     """
     if not sys.platform.startswith("linux"):
         return False
@@ -200,9 +201,9 @@ def disable_launch_agent(run: Runner) -> bool:
     """macOS: boot the KeepAlive LaunchAgent out of the GUI domain so launchd stops respawning.
 
     Booting the job out unloads it now and drops KeepAlive supervision, so a manual port-kill
-    sticks. The plist stays on disk, so RunAtLoad reloads it at the next login -- matching the
-    Windows onlogon task, which also re-arms at logon. No-op off macOS or when the agent was
-    never installed (returns False).
+    sticks. The plist stays on disk, so RunAtLoad reloads it at the next login and auto-restart
+    returns by itself there; in the current session only rearm_after_open (a user open) brings
+    the agent back. No-op off macOS or when the agent was never installed (returns False).
     """
     if sys.platform != "darwin":
         return False
@@ -273,8 +274,7 @@ def hard_stop_posix(
     #    launchd (macOS) or the systemd --user Restart=always unit (Linux).
     watchdog_disabled = disable_launch_agent(run) or disable_systemd_service(run)
 
-    # 2) gateway, then the API -- frees the ports whether launchd- or nohup-spawned.
-    gateway_pid = kill_listener_posix(run, GATEWAY_PORT, sleep=sleep)
+    # 2) the API -- frees its port whether launchd- or nohup-spawned.
     api_pid = kill_listener_posix(run, API_PORT, sleep=sleep)
     if api_pid is None:
         api_pid = kill_api_by_pidfile_posix(run, _pidfile(project_root, vool_home))
@@ -286,9 +286,86 @@ def hard_stop_posix(
 
     return {
         "watchdog_disabled": watchdog_disabled,
-        "gateway_pid": gateway_pid,
         "api_pid": api_pid,
         "marker": str(marker),
+    }
+
+
+def _ok(res: Any) -> bool:
+    return res is not None and getattr(res, "returncode", 1) == 0
+
+
+def rearm_after_open(project_root: Path, *, run: Runner = subprocess.run) -> dict[str, Any]:
+    """Re-arm auto-restart after a Stop, for a launch the user made on purpose.
+
+    A Stop disarmed the keep-alive supervisor (Windows VOOL_Daemon task, macOS KeepAlive
+    agent, Linux systemd unit) and wrote the ``.vool_stopped`` marker. The Open_Chat /
+    Open_Web0 launchers call this while the marker shows a Stop is in effect, and it undoes
+    what the Stop did on this platform:
+
+      * Windows enables the task again (it is an onlogon task; the launcher's own
+        ``schtasks /run`` then starts it for this session),
+      * macOS bootstraps the agent back into ``gui/<uid>`` (RunAtLoad starts it now),
+      * Linux enables the unit again and starts it now (``enable --now``).
+
+    ``supervisor_started`` is True only when the supervisor itself now owns starting the
+    API (macOS, Linux), so the launcher waits for it instead of starting a second API.
+
+    Fails safe: the marker is cleared only when the re-arm worked or there was nothing to
+    re-arm (no task, agent or unit installed). If a command fails the marker stays, nothing
+    is reported as started, the launcher falls back to its plain start, and the next open
+    tries again. Nothing else may call this: the watchdog's restart loop and logon runs must
+    leave a Stop in place. Without an earlier Stop there is no marker and no command runs.
+    """
+    project_root = Path(project_root)
+    marker = project_root / STOPPED_MARKER
+    if not marker.exists():
+        return {
+            "stopped": False,
+            "watchdog_rearmed": False,
+            "supervisor_started": False,
+            "marker_cleared": False,
+        }
+
+    rearmed = False
+    supervisor_started = False
+    nothing_to_rearm = False
+    if sys.platform == "win32":
+        if not _ok(_run(run, ["schtasks", "/query", "/tn", WATCHDOG_TASK])):
+            nothing_to_rearm = True  # no watchdog task on this install
+        else:
+            rearmed = _ok(_run(run, ["schtasks", "/change", "/tn", WATCHDOG_TASK, "/enable"]))
+    elif sys.platform == "darwin":
+        plist = launch_agent_plist_path()
+        if not plist.exists():
+            nothing_to_rearm = True
+        else:
+            domain = f"gui/{os.getuid()}"
+            if _ok(_run(run, ["launchctl", "bootstrap", domain, str(plist)])):
+                rearmed = True
+            else:
+                # Older launchctl, or the agent is already loaded (RunAtLoad at a later
+                # login): try the legacy load, then trust only what launchd reports.
+                _run(run, ["launchctl", "load", "-w", str(plist)])
+                rearmed = _ok(_run(run, ["launchctl", "print", f"{domain}/{LAUNCH_AGENT_LABEL}"]))
+            supervisor_started = rearmed
+    elif sys.platform.startswith("linux") and shutil.which("systemctl") is not None:
+        res = _run(run, ["systemctl", "--user", "list-unit-files", SYSTEMD_UNIT])
+        if SYSTEMD_UNIT not in _stdout(res):
+            nothing_to_rearm = True
+        else:
+            rearmed = _ok(_run(run, ["systemctl", "--user", "enable", "--now", SYSTEMD_UNIT]))
+            supervisor_started = rearmed
+    else:
+        nothing_to_rearm = True  # no supervisor that a Stop disarms on this platform
+
+    if rearmed or nothing_to_rearm:
+        clear_stopped_marker(project_root)
+    return {
+        "stopped": True,
+        "watchdog_rearmed": rearmed,
+        "supervisor_started": supervisor_started,
+        "marker_cleared": not marker.exists(),
     }
 
 
@@ -339,9 +416,18 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Hard-stop all VOOL processes.")
     ap.add_argument("--project-root", required=True)
     ap.add_argument("--vool-home", default="")
+    ap.add_argument(
+        "--rearm",
+        action="store_true",
+        help="opposite of a stop: re-arm auto-restart and clear the stop marker (launcher open path)",
+    )
     args = ap.parse_args(argv)
     project_root = Path(args.project_root)
     vool_home = _resolve_vool_home(args.vool_home)
+    if args.rearm:
+        result = rearm_after_open(project_root, run=subprocess.run)
+        print("supervisor_started=" + ("yes" if result["supervisor_started"] else "no"))
+        return 0
     if sys.platform == "win32":
         result = hard_stop(project_root, vool_home)
     else:

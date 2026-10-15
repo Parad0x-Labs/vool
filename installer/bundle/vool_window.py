@@ -1049,6 +1049,10 @@ class _WindowApi:
             )
             if opened is not True:
                 return {"ok": False, "error": "appearance_unavailable"}
+            # The drawer lives in the chat window: close Settings (its only caller) so the drawer is
+            # in front instead of opening unseen behind it, as the in-browser Settings frame does.
+            if self._settings_window is not None:
+                self.close_settings()
             _focus_window(self._window)
             return {"ok": True}
         except Exception as exc:

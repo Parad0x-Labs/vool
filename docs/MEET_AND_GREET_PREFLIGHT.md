@@ -55,7 +55,7 @@ Before meet-and-greet, VOOL must be able to handle messy humans well enough that
 
 The required baseline is:
 
-- obvious shorthand and common typo normalization,
+- obvious shorthand and common typo normalization (English only: a message in another language keeps the words it was typed with),
 - session-aware reference handling,
 - confidence-aware interpretation instead of fake certainty,
 - natural response framing when the input is ambiguous,

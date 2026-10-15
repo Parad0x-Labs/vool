@@ -193,7 +193,7 @@ class WalletX402PaymentAuthority:
         fee_max = _fee_for_message_shape(rpc, spec, payer, clean_asset)
         if clean_asset == native.symbol:
             principal = fee_balance
-        elif svm_tokens.is_token_transfer(spec.network, clean_asset):
+        elif svm_tokens.is_lane_token(spec.network, clean_asset):
             token = svm_tokens.token_asset(spec.network, clean_asset)
             svm_tokens.require_mint(rpc, token)
             principal = svm_tokens.token_balance_minor(rpc, owner=payer, asset=token) - quotes._held_elsewhere(wallet_id, spec.network, "", asset=token.symbol)

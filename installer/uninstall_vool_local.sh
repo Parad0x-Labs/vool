@@ -116,8 +116,6 @@ remove_empty_tree() {
 stop_runtime_processes() {
   pkill -f "apps.vool_api_server" >/dev/null 2>&1 || true
   pkill -f "llama_cpp.server" >/dev/null 2>&1 || true
-  pkill -f "openclaw gateway run" >/dev/null 2>&1 || true
-  pkill -f "ollama launch openclaw" >/dev/null 2>&1 || true
 }
 
 

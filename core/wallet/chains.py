@@ -74,9 +74,22 @@ class AssetSpec:
     #: (an EIP-3009 capable FiatToken). Empty where not applicable.
     eip712_name: str = ""
     eip712_version: str = ""
+    #: the contract's own decimals when they are finer than the unit the wallet counts in (``decimals``): USDT on BNB
+    #: Smart Chain has 18, the wallet counts it in 6, so every amount, cap and stored figure stays in 6-decimal units and
+    #: only the call, the balance read and the Transfer-event proof are scaled. 0 means the same as ``decimals``.
+    chain_decimals: int = 0
 
     def key(self) -> tuple[str, str]:
         return (self.chain, self.address.lower())
+
+    @property
+    def onchain_decimals(self) -> int:
+        return int(self.chain_decimals or self.decimals)
+
+    @property
+    def onchain_scale(self) -> int:
+        """Chain units per wallet unit (10**12 for USDT on BNB Smart Chain, 1 everywhere else)."""
+        return 10 ** (self.onchain_decimals - int(self.decimals))
 
 
 @dataclass(frozen=True)
@@ -145,7 +158,8 @@ def _devnet_assets() -> Mapping[str, AssetSpec]:
 #: tokens are USDC on Solana, for the UsePod x402 payment lane and the Solana pay-kit lanes only, and USDC on Base, for
 #: the x402 SDK lane only (proposals refuse them for every other origin); the pilot's own transfers move native coins only.
 #: Arbitrum rows added after the pilot were verified on 2026-10-13 against docs.arbitrum.io/chain-info and live RPC
-#: reads; native ETH only.
+#: reads; native ETH only. USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One (2026-10-14) is a token the owner
+#: may send from a Crypto Pilot wallet (USER_TRANSFER_TOKENS); the payment lanes keep to PAYMENT_LANE_TOKENS.
 _REGISTRY: dict[str, ChainIdentity] = {
     SOLANA_DEVNET: ChainIdentity(
         network=SOLANA_DEVNET, family=FAMILY_SVM, testnet=True,
@@ -235,6 +249,10 @@ _REGISTRY: dict[str, ChainIdentity] = {
             # Circle's USDC mint on Solana (docs.usepod.ai/api/x402-payments names USDC on this network); the
             # mint's program and decimals are re-read from the chain before any transfer is built.
             "USDC": AssetSpec(chain=SOLANA_MAINNET, symbol="USDC", address="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals=6),
+            # Tether's USDT mint on Solana (SPL Token program, 6 decimals; tether.to lists it under supported protocols).
+            # The owner's own transfers only (USER_TRANSFER_TOKENS); the mint's program and decimals are re-read from the
+            # chain before any transfer is built.
+            "USDT": AssetSpec(chain=SOLANA_MAINNET, symbol="USDT", address="Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals=6),
         }),
         environment=ENVIRONMENT_MAINNET, chain_key="solana", explorer_label="Solscan",
         explorer_address_template="https://solscan.io/account/{address}", fee_model=FEE_SVM, finality=FINALITY_SVM_CONFIRMED,
@@ -272,7 +290,12 @@ _REGISTRY: dict[str, ChainIdentity] = {
         # ethereum.org publishes no official public RPC; one third-party origin, stated as such in the matrix
         rpc_origins=("https://ethereum-rpc.publicnode.com",), schemes=(),
         explorer_tx_template="https://etherscan.io/tx/{id}",
-        assets=MappingProxyType({"ETH": _native("eip155:1", "ETH", 18)}),
+        assets=MappingProxyType({
+            "ETH": _native("eip155:1", "ETH", 18),
+            # Tether's USDT on Ethereum (6 decimals; tether.to lists the contract), the owner's own transfers only
+            # (USER_TRANSFER_TOKENS). Its transfer() returns nothing, so a payment is proven by its Transfer event.
+            "USDT": AssetSpec(chain="eip155:1", symbol="USDT", address="0xdac17f958d2ee523a2206206994597c13d831ec7", decimals=6),
+        }),
         environment=ENVIRONMENT_MAINNET, chain_key="ethereum", explorer_label="Etherscan",
         explorer_address_template="https://etherscan.io/address/{address}", fee_model=FEE_EIP1559, finality=FINALITY_FINALIZED_TAG,
     ),
@@ -281,7 +304,13 @@ _REGISTRY: dict[str, ChainIdentity] = {
         display_name="BNB Smart Chain", legacy_names=(),
         rpc_origins=("https://bsc-dataseed.bnbchain.org", "https://bsc-dataseed-public.bnbchain.org"), schemes=(),
         explorer_tx_template="https://bscscan.com/tx/{id}",
-        assets=MappingProxyType({"BNB": _native("eip155:56", "BNB", 18)}),
+        assets=MappingProxyType({
+            "BNB": _native("eip155:56", "BNB", 18),
+            # Tether's USDT on BNB Smart Chain (the contract has 18 decimals), the owner's own transfers only
+            # (USER_TRANSFER_TOKENS). The wallet counts it in 6 decimals like USDT everywhere else (chain_decimals): one
+            # millionth of a USDT is the smallest amount it sends, and every stored figure fits the 64-bit columns.
+            "USDT": AssetSpec(chain="eip155:56", symbol="USDT", address="0x55d398326f99059ff775485246999027b3197955", decimals=6, chain_decimals=18),
+        }),
         environment=ENVIRONMENT_MAINNET, chain_key="bnb", explorer_label="BscScan",
         explorer_address_template="https://bscscan.com/address/{address}", fee_model=FEE_BSC, finality=FINALITY_FINALIZED_TAG,
     ),
@@ -290,7 +319,12 @@ _REGISTRY: dict[str, ChainIdentity] = {
         display_name="Arbitrum One", legacy_names=(),
         rpc_origins=("https://arb1.arbitrum.io/rpc",), schemes=(),
         explorer_tx_template="https://arbiscan.io/tx/{id}",
-        assets=MappingProxyType({"ETH": _native("eip155:42161", "ETH", 18)}),
+        assets=MappingProxyType({
+            "ETH": _native("eip155:42161", "ETH", 18),
+            # USDT on Arbitrum One: Tether's USDT0 (6 decimals, an upgradeable proxy), the owner's own transfers only
+            # (USER_TRANSFER_TOKENS)
+            "USDT": AssetSpec(chain="eip155:42161", symbol="USDT", address="0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9", decimals=6),
+        }),
         environment=ENVIRONMENT_MAINNET, chain_key="arbitrum", explorer_label="Arbiscan",
         explorer_address_template="https://arbiscan.io/address/{address}", fee_model=FEE_ARBITRUM_NITRO, finality=FINALITY_SAFE_TAG,
     ),
@@ -309,6 +343,31 @@ EVM_TX_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
 
 
 # --- resolution --------------------------------------------------------------------------------------
+
+#: Tokens the owner's own transfers (a chat or Crypto request, approved with the wallet's PIN or password) may move,
+#: per row. Every other registered token moves only for the lane that registered it.
+USER_TRANSFER_TOKENS: frozenset[tuple[str, str]] = frozenset({(SOLANA_MAINNET, "USDT"), ("eip155:1", "USDT"), ("eip155:56", "USDT"), ("eip155:42161", "USDT")})
+#: Token symbols a service payment lane (UsePod x402, the pay-kit lanes, the DNA fee collection) may pay with.
+PAYMENT_LANE_TOKENS: frozenset[str] = frozenset({"USDC"})
+
+
+def is_user_transfer_token(network: Any, asset: Any) -> bool:
+    """True when ``asset`` (a symbol or exact mint/contract) is a token the owner's own transfers may move on this row."""
+    try:
+        spec = resolve_network(network)
+        registered = asset_for(spec.network, str(asset or ""))
+    except Exception:
+        return False
+    return not registered.native and (spec.network, registered.symbol) in USER_TRANSFER_TOKENS
+
+
+def user_transfer_tokens(network: Any) -> tuple[AssetSpec, ...]:
+    try:
+        spec = resolve_network(network)
+    except Exception:
+        return ()
+    return tuple(asset for symbol, asset in spec.assets.items() if (spec.network, symbol) in USER_TRANSFER_TOKENS)
+
 
 def resolve_network(value: Any) -> ChainIdentity:
     """The ONLY door from a caller-supplied name to a network. Fail closed, typed."""
@@ -627,10 +686,12 @@ __all__ = [
     "FEE_OP_STACK",
     "FEE_SVM",
     "IDENTITY_POLICY_VERSION",
+    "PAYMENT_LANE_TOKENS",
     "REGISTRY",
     "SCHEME_EXACT",
     "SOLANA_DEVNET",
     "SOLANA_MAINNET",
+    "USER_TRANSFER_TOKENS",
     "AssetSpec",
     "ChainIdentity",
     "VerifiedChainIdentity",
@@ -643,6 +704,7 @@ __all__ = [
     "explorer_tx_url",
     "invalidate_chain_identity",
     "is_declared",
+    "is_user_transfer_token",
     "native_asset",
     "native_display_symbol",
     "network_rpc_url",
@@ -652,5 +714,6 @@ __all__ = [
     "rpc_origin_allowed_or_refuse",
     "rpc_origin_excluded",
     "select_declared_offer",
+    "user_transfer_tokens",
     "verify_chain_identity",
 ]

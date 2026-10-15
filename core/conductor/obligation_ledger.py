@@ -114,6 +114,33 @@ def _without_words(snapshot: dict[str, Any]) -> dict[str, Any]:
     return bare
 
 
+def _secrets_masked(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """The snapshot with any PIN, card number or password in its words masked: ids and states stay.
+
+    Intake already told the user the value was not saved; the plan record keeps the request's
+    words for the closure sweep, so it keeps them with the value masked, as memory does."""
+    from core.secret_redaction import redacted_copy
+
+    masked = dict(snapshot)
+    for key in ("request_text", "request_graph"):
+        if key in masked:
+            masked[key] = redacted_copy(masked[key])
+    for key in ("obligations", "consumption", "dispatches"):
+        items = masked.get(key)
+        if isinstance(items, list):
+            masked[key] = [
+                {k: (redacted_copy(v) if k not in _ID_KEYS else v) for k, v in item.items()}
+                if isinstance(item, dict) else item
+                for item in items
+            ]
+    return masked
+
+
+_ID_KEYS = frozenset({
+    "unit_id", "slice_id", "obligation_id", "lane", "state", "kind", "subtask_id", "recorded_at",
+})
+
+
 def _decode(set_id: str, version: str, stored: str) -> dict[str, Any]:
     with _PRIVATE_LOCK:
         held = _PRIVATE_SNAPSHOTS.get((str(set_id), str(version)))
@@ -128,7 +155,7 @@ def _encode(set_id: str, version: str, snapshot: dict[str, Any]) -> str:
         if key in _PRIVATE_SNAPSHOTS:
             _PRIVATE_SNAPSHOTS[key] = copy.deepcopy(snapshot)
             return json.dumps(_without_words(snapshot))
-    return json.dumps(snapshot)
+    return json.dumps(_secrets_masked(snapshot))
 
 
 def bind_active_set(set_id: str, version: str) -> Any:

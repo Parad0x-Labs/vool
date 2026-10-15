@@ -115,7 +115,9 @@ To find which CI shard holds a file, run `ops/shard_resolver.py` the way `ci.yml
 Then run the affected test files plus the previously working affected scope (rule 9). Run a
 full shard or the whole suite only when a cross-cutting dependency or a required gate calls
 for it. CI (verify, ten test shards, macOS, build, CodeQL) remains the merge gate; a local pass
-never replaces it, and an old head's green never covers a new head.
+never replaces it, and an old head's green never covers a new head. A draft pull request runs
+`verify` only: mark it ready to start the full gate, and convert it back to draft to hold it
+(that cancels the full round in flight). A draft's green `verify` is not merge evidence.
 
 ## Evidence
 

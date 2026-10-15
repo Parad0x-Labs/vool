@@ -42,7 +42,7 @@ datasets>=3.2
 huggingface_hub>=0.28
 playwright>=1.52,<2.0
 
-# Liquefy companion deps (liquefy-openclaw itself is cloned+patched by the installer)
+# Liquefy companion deps (Liquefy itself is cloned+patched by the installer)
 zstandard>=0.22.0
 xxhash>=3.4.0
 

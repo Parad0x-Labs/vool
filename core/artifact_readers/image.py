@@ -26,7 +26,7 @@ from typing import Any
 from ._limits import MAX_IMAGE_PIXELS, OCR_MAX_EDGE
 from ._sandbox import Scratch, extraction_budget
 from ._types import UNIT_SECTION, ReaderRefused, ReaderResult, ReaderUnavailable, ReaderUnit
-from .vision_tool import TOOL_VERSION, ocr_available, ocr_text_with_confidence
+from .vision_tool import TOOL_VERSION, ocr_available, ocr_text_with_confidence, toolchain_unavailable_words
 
 #: Below this mean confidence the recognised text is reported as unreliable rather than as content.
 _UNRELIABLE_MEAN = 0.45
@@ -107,10 +107,11 @@ def read(data: bytes, *, name: str = "image.png", media_type: str = "image/png")
     digest = hashlib.sha256(data).hexdigest()
     width, height = dimensions(data)
     if not ocr_available():
+        why, remediation = toolchain_unavailable_words()
         raise ReaderUnavailable(
-            f"No text-recognition engine is available on this machine, so the words in {name} were not read.",
+            f"The words in {name} were not read. {why}",
             code="ocr_unavailable",
-            remediation="Install the Xcode Command Line Tools to enable reading text out of images.",
+            remediation=remediation,
             fmt="image",
         )
     with Scratch("vool-image-") as scratch, extraction_budget(scratch=scratch.path):

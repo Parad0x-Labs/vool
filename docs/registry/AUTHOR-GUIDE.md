@@ -63,6 +63,8 @@ Place the **complete MIT licence text** in a file named `LICENSE` and replace it
 
 ## Private website skill form
 
+A skill you made in VOOL can start here from the app: in My add-ons > Skills, press "Publish to Skill Codex" on it. VOOL runs this form's checks on your device, including the automatic checks. When the check passes, "Open Skill Codex" opens this form in your browser with the skill's name, description and SKILL.md filled in, and VOOL sends nothing itself. Skills you imported from someone's file, skills with extra files, or marked `local-only: true`, stay in VOOL (see [Publishing from VOOL](SKILL-CODEX.md#publishing-from-vool)).
+
 Sign in through an available identity provider. Choose a stable public namespace before submitting. The namespace must belong to your authenticated account; public social handles are author-supplied and are not verification badges. The profile API refuses namespace changes once one is chosen. The name remains reserved after account deletion. Direct public publications also reserve their publisher; linking a reserved name later requires a separate verified maintainer process.
 
 Supply these metadata fields, with **no `source` field**:
@@ -75,11 +77,13 @@ Supply these metadata fields, with **no `source` field**:
   "summary": "Summarize supplied meeting notes with decisions and action owners.",
   "category": "productivity",
   "subcategory": "meetings",
-  "license": "MIT"
+  "license": "MIT",
+  "languages": ["en"],
+  "needs": []
 }
 ```
 
-Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
+Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. `languages` is required for every new upload: 1 to 30 language codes the skill works in, such as `en`, `lt` or `pt-BR`, or exactly `["any"]` when the skill does not depend on the user's language. Versions signed before this field existed show no languages. `needs` is optional: ids from the fixed list in `core/registry/requirements.py` (served at `GET /registry/api/requirements`), naming what outside the package the skill relies on: `search_web`, `llm_cloud`, `chain_data` (a Helius, Alchemy, Solscan or Etherscan key), `solana_rpc` (VOOL's Solana connection setting), `wallet`, `browser` or `files`. `lint` and `pack` print a notice when SKILL.md clearly uses one of these and `needs` leaves it out, and the website shows a similar notice after a draft, upload or GitHub import; the notice does not block. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): eleven main categories, each with its own subcategories, for example `productivity` / `meetings` or `privacy-security` / `scams-phishing`. Any other value is refused. Slugs are never renamed or removed; new ones may be added in later versions, so read the list rather than copying it. A skill written in this form has no picture files; add an icon or banner through GitHub import or an uploaded package (see [Optional picture and banner](#optional-picture-and-banner)).
 
 The form sends a same-origin JSON request to `POST /registry/api/drafts`:
 
@@ -132,6 +136,7 @@ info = {
     'kind': 'skill', 'version': '1.0.0',
     'summary': 'Summarize supplied meeting notes with decisions and action owners.',
     'category': 'productivity', 'subcategory': 'meetings', 'license': 'MIT',
+    'languages': ['en'],
     'source': {'repository': os.environ['SOURCE_REPOSITORY'],
                'commit': commit, 'path': 'meeting-brief'}
 }
@@ -164,6 +169,30 @@ package-draft/
 Keep the SDK output, scratch, metadata input and `.git` checkout outside this directory; `lint` and `pack` refuse a scratch or output path inside the package. Packaging includes every file, empty directory and executable bit. `.git`, credential filenames, `.env*`, symlinks, path ambiguity and case collisions are refused. Do not silently drop a file to make packaging pass; stage a complete, explicitly chosen distribution and review its inventory. Extra source references or assets must be deliberately copied into the distribution and licensed.
 
 For private upload, the website sends the artifact's **unaltered bytes** to `POST /registry/api/submissions` with `Content-Type: application/vnd.vool.registry+json`, same-origin session and `X-Vool-CSRF`. Do not parse and pretty-print the artifact: canonical transport bytes determine its checksum.
+
+## Optional picture and banner
+
+A skill can show a square icon in search results and in VOOL, and a wide banner on its website page. Both are optional. Put the files inside the package directory, then name them in `registry.json` after `init`:
+
+```json
+  "icon": "assets/icon.png",
+  "banner": "assets/banner.png"
+```
+
+`lint` and `pack` record each file's checksum in the signed metadata as `{"path": ..., "sha256": ...}` and report what they read under `pictures`. `init` refuses these fields because the files are not there yet.
+
+- PNG only. SVG, GIF, WebP, animation and links to other sites are refused. JPEG photos must be saved again as PNG.
+- Icon: square, 128 to 1024 pixels, at most 256 KB. 512 x 512 works well. It is shown at about 52 pixels with rounded corners on light and dark backgrounds, so give it a solid background of its own, a simple shape and no small text.
+- Banner: 960 to 3000 pixels wide, 240 to 1200 tall, 2.5 to 4 times as wide as tall, at most 1 MB. 1500 x 500 works well.
+- Export without metadata. Hidden notes saved inside the file (camera details, location, editor notes) and colour profiles are refused; most editors call this "Export for web" or "Remove metadata".
+
+A person looks at every new picture before it shows on the website or in VOOL; until then the skill shows the standard placeholder. A picture is not approved when it claims VOOL approval, verification or safety, shows a QR code, wallet address or link, asks for a wallet recovery phrase, uses another brand's logo, impersonates someone, or has adult content. A changed picture is a new file and is reviewed again.
+
+With GitHub import, name the pictures by their path inside the imported folder.
+
+## When someone reports your skill
+
+People can report a skill on the website as a scam, harmful, copied, a misleading picture, broken or something else. Reports are private, and nobody sees how many a skill has or who sent them. When three accounts older than a day report a skill as a scam, harmful or copied, its downloads pause until a person on our side looks. People who try to download it meanwhile see that downloads are paused. A pause is not a verdict: if the reports don't hold up, downloads continue and the notes are deleted; if they do, that version is removed from the next signed catalog. You cannot report your own skill.
 
 ## Private states, failed review and public consent
 

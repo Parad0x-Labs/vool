@@ -5,6 +5,7 @@ import base64
 import hashlib
 import re
 import secrets
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -48,6 +49,17 @@ def unurl64(value: str) -> bytes:
         return base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
     except ValueError:
         raise RegistryError("invalid JWT encoding") from None
+
+
+def github_since(value, *, now: int) -> int | None:
+    """GitHub's account creation time, or None when it is missing or not a sane date."""
+    import calendar
+
+    try:
+        since = calendar.timegm(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+    except (TypeError, ValueError):
+        return None
+    return since if 0 < since <= now else None
 
 
 def oidc_subject(token: str, jwks: dict, provider: Provider, nonce: str, *, now: int) -> str:
@@ -167,7 +179,10 @@ class Auth:
             user = self.request("https://api.github.com/user", token=tokens["access_token"])
             require(type(user.get("id")) is int and user["id"] > 0, "GitHub identity unavailable")
             subject = str(user["id"])
+            # Only when the GitHub account was made, for the 14-day publishing rule; nothing else is kept.
+            since = github_since(user.get("created_at"), now=now)
         else:
             subject = oidc_subject(tokens.get("id_token"), self.request(endpoints["keys"]), provider, row["nonce"], now=now)
-        account = self.store.identity(name, subject, now=now, link_account=row["link_account"])
+            since = None
+        account = self.store.identity(name, subject, now=now, link_account=row["link_account"], since=since)
         return self.store.session(account, now=now)

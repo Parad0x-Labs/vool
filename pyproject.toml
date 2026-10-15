@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.1"
+version = "0.7.2"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -175,6 +175,7 @@ vool-registry = "registry_service.cli:main"
 # secret redaction cannot see a recovery phrase.
 "core.wallet" = ["bip39_english.txt"]
 "core.registry" = ["trusted-root.json"]
+"registry_service" = ["curation.json"]
 
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*", "registry_service*"]

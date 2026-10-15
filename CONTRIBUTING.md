@@ -100,6 +100,12 @@ unexpectedly skipped required work is not successful verification, and a diagnos
 subset does not replace the merge requirements. A scanner running successfully and a
 finding being resolved are separate facts.
 
+Draft pull requests run only the fast `verify` leg (lint and canonical collection). The
+full suite (every test shard, the macOS job and the build) starts when the pull request is
+marked ready for review and runs again on every push while it stays ready. Converting a
+pull request back to draft cancels the full round in flight. A draft's result is never
+merge evidence.
+
 Preserve failed results and investigate before retrying. A passing standalone test does
 not establish that a suite failure is harmless. Retry only when the evidence supports a
 transient cause, limit the retry to the failed work where that is supported, and record

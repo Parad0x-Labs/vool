@@ -1,10 +1,11 @@
-"""Settings panel: alerts and macOS notifications (the Notifications group).
+"""Settings panel: alerts, macOS notifications and the watch list (the Notifications group).
 
 Turn the macOS channel on or off, see what macOS reported (permission, the bridge's last contact, recent requests with
 their separate states), ask macOS for permission, send a test notification, and set quiet hours, sound, what a macOS
-notification may show and how late an alert may still be shown. The panel calls only
-``/api/notifications/preferences`` and the ``/api/notifications/native/*`` routes (core/operator/native_notifications.py)
-and never claims a banner was shown: macOS does not report that.
+notification may show and how late an alert may still be shown. The Watching card lists the wallet and price watches
+(Pause, Resume, Remove). The panel calls only ``/api/notifications/preferences``, the ``/api/notifications/native/*``
+routes (core/operator/native_notifications.py) and ``/api/market/watches`` (core/market_watch.py), and never claims a
+banner was shown: macOS does not report that.
 
 Namespace ``window.VoolNotificationSettings``; prefix ``vns-``.
 """
@@ -23,6 +24,12 @@ _CSS = """
 .vns-toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px}
 .vns-list{display:flex;flex-direction:column;gap:2px}
 .vns-input{font-size:13px}
+.vmw-watch{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--border,#262b35)}
+.vmw-watch:last-child{border-bottom:none}
+.vmw-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:13px}
+.vmw-name{font-weight:600}
+.vmw-state{font-size:12px;color:var(--muted,#9aa1af)}
+.vmw-state.vmw-attention{color:var(--bad,#f2545b)}
 """
 
 _JS = r"""
@@ -62,6 +69,15 @@ function lockOptions(){
           ['full', NT('vns.lock.full', LOCK[1][1])],
           ['hidden', NT('vns.lock.hidden', LOCK[2][1])]];
 }
+// English pages show corrected English for keys whose catalog text names one platform for everyone; other
+// locales keep their translation through NT until the catalog carries the corrected source.
+function pageIsEnglish(){
+  /* English only when the page says so; an unknown language keeps the catalog text. */
+  var lang = String((document.documentElement && document.documentElement.lang)
+    || (window.VOOL_I18N && window.VOOL_I18N.locale) || '').toLowerCase();
+  return lang === 'en' || lang.indexOf('en-') === 0;
+}
+function NE(key, english){ return pageIsEnglish() ? english : NT(key, english); }
 function h(tag, cls, text){ var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 function request(method, url, body){
   var options = {method: method, headers: {'Accept': 'application/json'}};
@@ -83,14 +99,16 @@ function mountInto(host){
   var status = h('div', 'vns-status', NT('vns.status.loading', 'Loading…'));
   var macBox = h('div', 'vns-box');
   var prefBox = h('div', 'vns-box');
+  var watchBox = h('div', 'vns-box');
   var why = h('div', 'vns-note');
-  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(why);
-  var prefs = null, native = null;
+  root.appendChild(status); root.appendChild(macBox); root.appendChild(prefBox); root.appendChild(watchBox); root.appendChild(why);
+  var prefs = null, native = null, watches = null;
   function say(text, bad){ status.textContent = text || ''; status.className = 'vns-status' + (bad ? ' vns-bad' : ''); }
   function load(){
-    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};})]).then(function(r){
+    return Promise.all([request('GET', '/api/notifications/preferences'), request('GET', '/api/notifications/native/status').catch(function(){return {ok:false};}), request('GET', '/api/market/watches').catch(function(){return {ok:false};})]).then(function(r){
       if (!r[0].ok) { say(NT('vns.status.unavailable', 'Notification settings are unavailable right now.'), true); return; }
-      prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; paint();
+      prefs = r[0].preferences; native = r[1].ok ? r[1] : {supported:false}; watches = r[2].ok ? (r[2].watches || []) : null; paint();
+      if (status.textContent === NT('vns.status.loading', 'Loading…')) say('');   /* loaded: no "Loading…" above a drawn panel */
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
   function save(patch, done){
@@ -105,10 +123,17 @@ function mountInto(host){
       return load().then(function(){ if (!j.ok) say(j.detail || j.reason || NT('vns.status.failed', 'That did not work.'), true); else say(done); });
     }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
-  function paint(){ paintMac(); paintPrefs(); why.textContent = native.explanation || ''; }
+  /* The macOS paragraph and channel belong to a Mac; elsewhere one plain line says where alerts go, instead
+     of an empty bordered box and a promised test button that is not there. */
+  function paint(){ paintMac(); paintPrefs(); paintWatches(); why.textContent = native.supported === false ? '' : (native.explanation || ''); }
   function paintMac(){
     macBox.textContent = '';
-    if (native.supported === false) return;
+    if (native.supported === false) {
+      macBox.className = 'vns-note';
+      macBox.textContent = NE('vns.unsupported', 'System notifications are available in the VOOL app on a Mac. Here, every alert appears in the bell.');
+      return;
+    }
+    macBox.className = 'vns-box';
     macBox.appendChild(h('div', 'vns-title', NT('vns.title.mac', 'macOS notifications')));
     macBox.appendChild(toggle(NT('vns.toggle.native', 'Also send VOOL alerts to macOS notifications'), prefs.native_notifications, function(on){
       save({native_notifications: on}, on ? NT('vns.saved.native_on', 'On. VOOL asks macOS for permission if macOS has not given it.')
@@ -144,16 +169,22 @@ function mountInto(host){
   function paintPrefs(){
     prefBox.textContent = '';
     prefBox.appendChild(h('div', 'vns-title', NT('vns.title.prefs', 'Quiet hours, sound and what notifications show')));
+    prefBox.appendChild(h('div', 'vns-note', NE('vns.prefs.instant', 'Changes here are saved as soon as you make them.')));
     var quiet = prefs.quiet_hours || {};
     var quietRow = h('div', 'vns-row');
-    var quietToggle = toggle(NT('vns.quiet.label', 'Quiet hours from'), quiet.enabled, null);
     var start = h('input', 'vns-input'); start.type = 'time'; start.value = quiet.start || '22:00'; start.setAttribute('aria-label', NT('vns.quiet.start_aria', 'Quiet hours start'));
     var end = h('input', 'vns-input'); end.type = 'time'; end.value = quiet.end || '07:00'; end.setAttribute('aria-label', NT('vns.quiet.end_aria', 'Quiet hours end'));
+    /* Quiet hours save the moment they change, like every other control in this panel (a ticked box used to
+       do nothing until a separate Save, and a reload dropped it). A period that starts when it ends is refused. */
+    function saveQuiet(){
+      var on = quietToggle.querySelector('input').checked;
+      if (on && start.value && start.value === end.value) { say(NE('vns.quiet.same', 'Start and end are the same time. Choose two different times.'), true); return; }
+      save({quiet_hours: {enabled: on, start: start.value, end: end.value}},
+           on ? NE('vns.saved.quiet', 'Quiet hours saved. During them no system notification is sent; the bell still records every alert.') : NE('vns.saved.quiet_off', 'Quiet hours are off.'));
+    }
+    var quietToggle = toggle(NT('vns.quiet.label', 'Quiet hours from'), quiet.enabled, saveQuiet);
+    [start, end].forEach(function(i){ i.addEventListener('change', function(){ if (quietToggle.querySelector('input').checked) saveQuiet(); }); });
     quietRow.appendChild(quietToggle); quietRow.appendChild(start); quietRow.appendChild(h('span', null, NT('vns.quiet.to', 'to'))); quietRow.appendChild(end);
-    quietRow.appendChild(button(NT('vns.btn.save', 'Save'), function(){
-      save({quiet_hours: {enabled: quietToggle.querySelector('input').checked, start: start.value, end: end.value}},
-           NT('vns.saved.quiet', 'Quiet hours saved. During them macOS is not asked; the bell still records every alert.'));
-    }));
     prefBox.appendChild(quietRow);
     prefBox.appendChild(toggle(NT('vns.toggle.sound', 'Notification sound'), prefs.sound, function(on){
       if (!on && window.VoolNotificationAudio) window.VoolNotificationAudio.mute();
@@ -165,8 +196,8 @@ function mountInto(host){
         if (!played) say(NT('vns.sound.blocked', 'Sound playback is unavailable. Notifications remain in the bell.'), true);
       });
     }));
-    var lockRow = h('label', 'vns-row'); lockRow.appendChild(h('span', null, NT('vns.lock.label', 'A macOS notification may show')));
-    var lock = h('select', 'vns-input'); lock.setAttribute('aria-label', NT('vns.lock.aria', 'What a macOS notification may show'));
+    var lockRow = h('label', 'vns-row'); lockRow.appendChild(h('span', null, NE('vns.lock.label', 'A system notification may show')));
+    var lock = h('select', 'vns-input'); lock.setAttribute('aria-label', NE('vns.lock.aria', 'What a system notification may show'));
     lockOptions().forEach(function(pair){ var option = h('option', null, pair[1]); option.value = pair[0]; lock.appendChild(option); });
     lock.value = prefs.lock_screen; lock.addEventListener('change', function(){ save({lock_screen: lock.value}); });
     lockRow.appendChild(lock); prefBox.appendChild(lockRow);
@@ -174,12 +205,97 @@ function mountInto(host){
     var late = h('input', 'vns-input'); late.type = 'number'; late.min = '0'; late.max = '60'; late.value = String(prefs.late_grace_minutes);
     late.setAttribute('aria-label', NT('vns.late.aria', 'Minutes after an event started'));
     lateRow.appendChild(late); lateRow.appendChild(h('span', null, NT('vns.late.after', 'minutes after its event started')));
-    lateRow.appendChild(button(NT('vns.btn.save', 'Save'), function(){
-      var value = Number(late.value);
-      if (!isFinite(value) || value < 0 || value > 60 || Math.floor(value) !== value) { say(NT('vns.late.invalid', 'Enter whole minutes from 0 to 60.'), true); return; }
+    /* Saved on change like every other control here ("saved as soon as you make them").
+       An empty box is not 0, and "1e1" is not a number of minutes anyone typed on purpose. */
+    late.addEventListener('change', function(){
+      var raw = String(late.value || '').trim();
+      var value = Number(raw);
+      if (!/^\d+$/.test(raw) || value > 60) { say(NT('vns.late.invalid', 'Enter whole minutes from 0 to 60.'), true); return; }
       save({late_grace_minutes: value});
-    }));
+    });
     prefBox.appendChild(lateRow);
+  }
+  /* The Watching card: every wallet and price watch, in words, with Pause/Resume and Remove.
+     The rule is data from the server; the words are composed here so each locale says them its own way. */
+  function watchRuleText(watch){
+    var rule = watch.rule || {};
+    var text;
+    if (watch.kind === 'wallet') text = NT('vmw.rule.tx', 'new transactions');
+    else if (rule.above !== undefined) text = NTF('vmw.rule.above', 'goes above {price}', {price: String(rule.above)});
+    else if (rule.below !== undefined) text = NTF('vmw.rule.below', 'drops below {price}', {price: String(rule.below)});
+    else if (rule.move_pct !== undefined) {
+      var key = Number(rule.move_pct) >= 0 ? 'vmw.rule.rise' : 'vmw.rule.drop';
+      text = NTF(key, key === 'vmw.rule.rise' ? 'rises {pct}% within {window}' : 'drops {pct}% within {window}',
+                 {pct: String(Math.abs(Number(rule.move_pct))), window: String(rule.window || '')});
+    } else text = '';
+    if (rule.repeat) text += NT('vmw.rule.repeat', ' (every time)');
+    return text;
+  }
+  /* Why the last check did not work: the server sends a reason code only, never provider text.
+     An unknown code says the generic line, so nothing unworded reaches the card. */
+  var WATCH_ERRORS = {
+    rate_limited: 'The price or history source is limiting requests. VOOL waits, then checks again.',
+    provider_down: 'The source could not answer. VOOL waits, then checks again.',
+    unreachable: 'The source could not be reached. VOOL checks again later.',
+    bad_answer: 'The source answered with something VOOL could not use. Nothing was alerted.',
+    no_pool: 'No trading pool was found for this token.',
+    budget: 'The hourly limit of checks is used up. The next check waits.',
+    resting: 'The source refused requests, so checks are resting for a few minutes.',
+    history_gap: 'The price history does not reach back far enough to compare yet.',
+    key_missing: 'No saved key serves this chain. Add one in Settings → API Keys.',
+    key_unreadable: 'The saved key could not be read from this computer. Check Settings → API Keys, then Resume.',
+    key_rejected: 'The saved key was refused. Replace it in Settings → API Keys, then Resume.',
+    quota_exhausted: 'The saved key has no quota left. Check its plan, then Resume.',
+    plan_refused: 'The saved key\'s plan does not include this. Check the plan or add another key, then Resume.',
+    local_only: 'VOOL may not go online right now (for example Local Only is on). Resume when it may.',
+    web_off: 'Web access is off. Turn it on in Settings to check prices.',
+    unknown: 'The last check did not work. VOOL checks again later.'
+  };
+  function watchErrorText(code){
+    var known = Object.prototype.hasOwnProperty.call(WATCH_ERRORS, code) ? code : 'unknown';
+    return NT('vmw.err.' + known, WATCH_ERRORS[known]);
+  }
+  function watchStateText(state){
+    var map = {active: ['vmw.state.active', 'Watching'], paused: ['vmw.state.paused', 'Paused'], needs_setup: ['vmw.state.needs_setup', 'Needs attention']};
+    var pair = map[state] || [null, state];
+    return NT(pair[0], pair[1]);
+  }
+  function watchAct(watch, action, done){
+    say(NT('vns.status.working', 'Working…'));
+    return request('POST', '/api/market/watches/' + action, {id: watch.id}).then(function(j){
+      return load().then(function(){
+        if (!j.ok) say(j.detail || j.reason || NT('vns.status.failed', 'That did not work.'), true);
+        else say(done);
+      });
+    }).catch(function(){ say(NT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
+  }
+  function paintWatches(){
+    watchBox.textContent = '';
+    watchBox.appendChild(h('div', 'vns-title', NT('vmw.title', 'Watching')));
+    if (watches === null) { watchBox.appendChild(h('div', 'vns-note', NT('vmw.unavailable', 'The watch list is unavailable right now.'))); return; }
+    if (!watches.length) { watchBox.appendChild(h('div', 'vns-line', NT('vmw.empty', 'Nothing watched yet. Ask in any chat, for example: watch this wallet.'))); return; }
+    watches.forEach(function(watch){
+      var row = h('div', 'vmw-watch');
+      var head = h('div', 'vmw-head');
+      head.appendChild(h('span', 'vmw-name', watch.label));
+      head.appendChild(h('span', 'vmw-state' + (watch.state === 'needs_setup' ? ' vmw-attention' : ''), watchStateText(watch.state)));
+      row.appendChild(head);
+      var line = h('div', 'vns-line');
+      line.textContent = watch.chain + ' · ' + watchRuleText(watch);
+      row.appendChild(line);
+      var when = watch.last_checked ? new Date(watch.last_checked) : null;
+      row.appendChild(h('div', 'vns-note', NTF('vmw.last_check', 'Last checked {when}', {when: when ? when.toLocaleString() : NT('vmw.never', 'not yet')})));
+      if (watch.last_error) row.appendChild(h('div', 'vns-note', watchErrorText(watch.last_error)));
+      var actions = h('div', 'vns-row');
+      if (watch.state === 'paused') {
+        actions.appendChild(button(NT('vmw.btn.resume', 'Resume'), function(){ watchAct(watch, 'resume', NT('vmw.resumed', 'Resumed.')); }));
+      } else {
+        actions.appendChild(button(NT('vmw.btn.pause', 'Pause'), function(){ watchAct(watch, 'pause', NT('vmw.paused', 'Paused.')); }));
+      }
+      actions.appendChild(button(NT('vmw.btn.remove', 'Remove'), function(){ watchAct(watch, 'remove', NT('vmw.removed', 'Removed.')); }));
+      row.appendChild(actions);
+      watchBox.appendChild(row);
+    });
   }
   var timer = setInterval(function(){
     if (!document.body.contains(host)) { clearInterval(timer); return; }

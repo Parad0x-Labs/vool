@@ -12,9 +12,9 @@ RUNTIME_TASK_RAIL_SHELL_HTML = """
                 <div class="status-pill" id="pollStatus">polling</div>
               </div>
               <div class="subtitle">
-                Runtime causality rail for sessions, claims, retries, artifacts, and stop reasons.
+                What VOOL did, step by step: each chat, each retry, and why it stopped.
               </div>
-              <div class="link-line">Live URL: <code>http://127.0.0.1:11435/trace</code></div>
+              <div class="link-line">This page: <code id="railLiveUrl">http://127.0.0.1:11435/trace</code><script>(function(){var el=document.getElementById('railLiveUrl');if(el)el.textContent=location.origin+'/trace';})();</script></div>
             </div>
             <div class="session-list" id="sessionList">
               <div class="empty-state">Waiting for recent sessions...</div>
@@ -45,7 +45,7 @@ RUNTIME_TASK_RAIL_SHELL_HTML = """
         </section>
         <section class="detail-block detail-main" id="sessionDetail">
           <h2>No session selected</h2>
-          <p>Run a task through OpenClaw. Recent sessions and their causal rails will appear here.</p>
+          <p>Send a message in a chat. Its steps will appear here.</p>
         </section>
         <section class="detail-block trace-selected-step">
           <div class="wk-panel-eyebrow">Selected step</div>

@@ -70,7 +70,9 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
         monkeypatch.setattr(rig.sys, "executable", str(app.parent / "python/bin/python3"))
     with rig.CapturingProvider(default=PROVIDER_REPLY) as provider:
         daemon = rig.ServedDaemon(tmp_path / "home", provider=provider,
-                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback"})
+                                  env_extra={"VOOL_INSTALL_PROFILE": "hybrid-fallback",
+                                             # The answer-details line is opt-in; it proves the fast path ran.
+                                             "VOOL_SHOW_USAGE_FOOTER": "1"})
         try:
             daemon.start(timeout=60)
             _seed_history(daemon.home)
@@ -96,10 +98,17 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
                            else route.abort())
                 for generation in range(2):
+                    # Boundary check plus failure-time capture: an exited daemon fails as
+                    # its exit status with server evidence, and a failed navigation carries
+                    # the daemon's status and redacted server evidence on its own exception.
                     if generation:
-                        page.reload(wait_until="domcontentloaded")
+                        daemon.assert_running(context=f"reload generation {generation}")
+                        with daemon.evidence_on_failure(f"reload generation {generation}"):
+                            page.reload(wait_until="domcontentloaded")
                     else:
-                        page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                        daemon.assert_running(context="initial browser navigation")
+                        with daemon.evidence_on_failure("initial browser navigation"):
+                            page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                     page.wait_for_selector("#input", timeout=5000)
                     provider.reset()
                     page.locator("#input").fill("Hi")
@@ -115,7 +124,9 @@ def test_cold_page_with_history_delivers_hi_and_survives_reload(tmp_path, monkey
                     greeting = page.locator(".msg.assistant .msg-text").last.inner_text()
                     body = greeting.split("\n\n", 1)[0].strip()
                     assert any(body.startswith(prefix) for prefix in opener_prefixes), greeting
-                    assert "smalltalk_fast_path" in greeting, greeting
+                    # The raw details line now sits behind a "details" button; it is still in the message.
+                    raw = page.locator(".msg.assistant").last.text_content() or ""
+                    assert "smalltalk_fast_path" in raw, raw
                     timings[f"hi_{generation}"] = round(time.monotonic() - started, 3)
                     assert timings[f"hi_{generation}"] < 15, timings
                     # Hi uses the production deterministic greeting. A separate
@@ -214,7 +225,12 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(daemon.base_url)
                            else route.abort())
-                page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
+                # Boundary check plus failure-time capture: an exited daemon fails as its
+                # exit status with server evidence; a failed navigation carries the daemon's
+                # status and redacted server evidence on its own exception.
+                daemon.assert_running(context="initial browser navigation")
+                with daemon.evidence_on_failure("initial browser navigation"):
+                    page.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
                 page.wait_for_selector("#input", timeout=5000)
                 # Instrument the queue door at its seam: claim #1 (the greeting turn's
                 # post-release pump) is answered empty only AFTER the next enqueue has been
@@ -271,12 +287,13 @@ def test_a_send_inside_the_post_turn_claim_window_is_still_run(tmp_path, monkeyp
                 page.wait_for_function("view.run && view.run.released", timeout=5000)
                 session_id = page.evaluate("displayedChat")
                 deadline = time.monotonic() + 5
-                while True:
-                    with urlopen(daemon.base_url + "/api/chat/queue?session=" + session_id, timeout=3) as response:
-                        queue_state = json.load(response)
-                    if not queue_state.get("queue") or time.monotonic() >= deadline:
-                        break
-                    time.sleep(0.1)
+                with daemon.evidence_on_failure("drained-queue read"):
+                    while True:
+                        with urlopen(daemon.base_url + "/api/chat/queue?session=" + session_id, timeout=3) as response:
+                            queue_state = json.load(response)
+                        if not queue_state.get("queue") or time.monotonic() >= deadline:
+                            break
+                        time.sleep(0.1)
                 assert queue_state.get("queue") == [], queue_state
                 assert not errors, errors
             finally:

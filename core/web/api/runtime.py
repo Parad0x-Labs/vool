@@ -2633,7 +2633,19 @@ def _messages_for_memory_extraction(
 
 
 def _usage_footer_enabled() -> bool:
-    return os.environ.get("VOOL_SHOW_USAGE_FOOTER", "1").strip().lower() not in {"0", "false", "no", "off", ""}
+    # An explicit VOOL_SHOW_USAGE_FOOTER wins BOTH ways: it is the developer override, so "0"
+    # keeps the line off even where the user turned details on, and "1" shows it under the
+    # default. Unset, the operator's Settings preference decides -- and the product rule is no
+    # dev/debug text by default, so a preference that cannot be read counts as off.
+    raw = os.environ.get("VOOL_SHOW_USAGE_FOOTER")
+    if raw is not None:
+        return raw.strip().lower() not in {"0", "false", "no", "off", ""}
+    try:
+        from core.user_preferences import load_preferences
+
+        return bool(getattr(load_preferences(), "show_answer_details", False))
+    except Exception:
+        return False
 
 
 def _format_usage_footer(usage: dict[str, Any] | None) -> str:

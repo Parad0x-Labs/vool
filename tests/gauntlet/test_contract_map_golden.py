@@ -200,6 +200,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'web.research': ('read_only', 'none'),
     'web.chain_lookup': ('read_only', 'none'),  # read-only chain data with the user's own provider key
     'web.search': ('read_only', 'none'),
+    'token.launches': ('read_only', 'none'),
+    'token.performance': ('read_only', 'none'),
+    'token.research': ('read_only', 'none'),
     'web0.add_block': ('builder_state', 'none'),
     'web0.add_gated_section': ('builder_state', 'none'),
     'web0.compile_preview': ('builder_state', 'none'),
@@ -225,8 +228,40 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'workspace.search_text': ('read_only', 'none'),
     'workspace.symbol_search': ('read_only', 'none'),
     'workspace.write_file': ('workspace_write', 'runtime_policy'),
+    'x.action.propose': ('creative_state', 'none'),  # drafts only; the user's approval in Settings sends
+    'x.account': ('read_only', 'none'),
+    'x.action.status': ('read_only', 'none'),
+    'x.dms': ('read_only', 'none'),
+    'x.follows': ('read_only', 'none'),
+    'x.lists': ('read_only', 'none'),
+    'x.post': ('read_only', 'none'),
+    'x.search': ('read_only', 'none'),
+    'x.spaces': ('read_only', 'none'),
+    'x.token_callers': ('read_only', 'none'),
     'x.trending': ('read_only', 'none'),
+    'x.usage': ('read_only', 'none'),
+    'x.user': ('read_only', 'none'),
+    'x.user_posts': ('read_only', 'none'),
     'x402.propose': ('creative_state', 'none'),
+    # 0.7.2 trader tools. ai.paid_ask parks one x402 payment for the user's approval, the same
+    # tier as x402.propose; nothing is paid without that approval.
+    'ai.paid_ask': ('creative_state', 'none'),
+    # Watch alerts: one shared contract for the family (core/market_watch.py) -- rows in this
+    # runtime's own database, so even watch.list carries the family's creative_state tier; nothing
+    # leaves the machine.
+    'watch.add': ('creative_state', 'none'),
+    'watch.list': ('creative_state', 'none'),
+    'watch.pause': ('creative_state', 'none'),
+    'watch.remove': ('creative_state', 'none'),
+    'watch.resume': ('creative_state', 'none'),
+    # Trade data: collected datasets are local files; analysis and thesis checks only read them.
+    'market.analyze': ('read_only', 'none'),
+    'market.collect': ('creative_state', 'none'),
+    'market.dataset_delete': ('creative_state', 'none'),
+    'market.datasets': ('read_only', 'none'),
+    'market.thesis_check': ('read_only', 'none'),
+    # Flow and holders: public chain data through the user's own keys.
+    'token.flow': ('read_only', 'none'),
 }
 
 # The tools allowed to move real bytes / bits outside the sandbox at the highest
@@ -349,7 +384,12 @@ def test_contract_map_and_list_agree():
     # writes) and skill.remove (activation-class, explicit opt-in).
     # 174 -> 175: web.chain_lookup, the read-only chain-data lookup (Helius/Alchemy/Solscan/Etherscan).
     # 175 -> 176: file.deliver (downloadable files built from text), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 176
+    # 176 -> 188: the X lane with the user's own keys (nine reads, x.action.propose which only drafts)
+    # plus token.research and token.launches, read-only through the user's chain-data keys.
+    # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
+    # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
+    # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 204
 
 
 def test_only_expected_tools_hold_explicit_opt_in():

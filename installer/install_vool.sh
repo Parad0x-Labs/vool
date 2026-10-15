@@ -376,7 +376,7 @@ install_dependencies() {
     liquefy_dir="${PROJECT_ROOT}/../liquefy-openclaw-integration"
   elif command -v git >/dev/null 2>&1; then
     liquefy_dir="${PROJECT_ROOT}/../liquefy-openclaw-integration"
-    say "Cloning Liquefy into OpenClaw folder..."
+    say "Cloning Liquefy next to the VOOL folder..."
     git clone --depth 1 https://github.com/Parad0x-Labs/liquefy-openclaw-integration.git "${liquefy_dir}" 2>/dev/null || true
   else
     say "WARNING: git is not available and no bundled Liquefy payload was found. Continuing without Liquefy."
@@ -385,7 +385,7 @@ install_dependencies() {
   if [[ -n "${liquefy_dir}" && -f "${liquefy_dir}/pyproject.toml" ]]; then
     sed -i.bak 's/setuptools\.backends\._legacy:_Backend/setuptools.build_meta/' "${liquefy_dir}/pyproject.toml" 2>/dev/null || true
     "${VENV_DIR}/bin/python" -m pip install "${liquefy_dir}" 2>/dev/null && \
-      say "Liquefy installed into VOOL venv from OpenClaw folder." || \
+      say "Liquefy installed into VOOL venv from the folder next to VOOL." || \
       say "WARNING: Liquefy installation failed. Continuing without it."
   else
     say "WARNING: Could not locate Liquefy payload. Continuing without it."
@@ -1111,7 +1111,7 @@ for _ in \$(seq 1 200); do
 done
 ensure_ollama_server
 ensure_llamacpp_server
-echo "Starting VOOL (API + mesh daemon)..."
+echo "Starting VOOL..."
 echo "VOOL API serves \${VOOL_OPENCLAW_API_URL:-http://127.0.0.1:11435}"
 # The interactive start honors the exported port exactly as the supervised loop does: without
 # this, VOOL_OPENCLAW_API_PORT was read at the top of the script and then silently dropped
@@ -1173,7 +1173,7 @@ This launcher no longer starts, registers, or configures OpenClaw, and it never
 modifies an existing OpenClaw installation.
 
 Start VOOL natively instead:
-  Start_VOOL.sh    start the VOOL API + mesh daemon
+  Start_VOOL.sh    start the VOOL API
   Open_Chat.sh     open the VOOL chat page (primary surface)
   Talk_To_VOOL.sh  terminal chat
   Open_Web0.sh     open the local .null browser
@@ -1211,7 +1211,7 @@ export PATH="${SCRIPT_DIR}/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/
 VENV_RESOLVER="${PROJECT_ROOT}/scripts/ensure_workspace_runtime.sh"
 VENV_PY="$(bash "${VENV_RESOLVER}")"
 cd "${PROJECT_ROOT}"
-echo "Stopping all VOOL processes (API, gateway, agent, auto-restart)..."
+echo "Stopping all VOOL processes (API, agent, auto-restart)..."
 exec "${VENV_PY}" -m installer.vool_stop --project-root "${PROJECT_ROOT}"
 LAUNCHER_HEAD
   chmod +x "${target_path}"
@@ -1229,16 +1229,30 @@ PROJECT_ROOT="${SCRIPT_DIR}"
 WEB0_URL="http://127.0.0.1:11435/web0"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
-open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+open_url() { if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    # After "Stop VOOL", auto-restart is disarmed and the .vool_stopped marker remains
+    # (installer/vool_stop.py). This open is on purpose, so arm it again and clear the
+    # marker. Only here, while VOOL is not running: a supervisor armed next to a running
+    # API would keep starting a second one. With no earlier Stop nothing runs.
+    SUPERVISOR_STARTED=0
+    REARM_PY="${PROJECT_ROOT}/.venv/bin/python"
+    if [[ -f "${PROJECT_ROOT}/.vool_stopped" && -x "${REARM_PY}" ]]; then
+      REARM_OUT="$(cd "${PROJECT_ROOT}" && "${REARM_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+      case "${REARM_OUT}" in *supervisor_started=yes*) SUPERVISOR_STARTED=1 ;; esac
+    fi
+    # A re-armed supervisor starts the API itself; starting a second one would fight it
+    # for the port. Otherwise start VOOL here as before.
+    if [[ "${SUPERVISOR_STARTED}" != "1" ]]; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1
@@ -1266,16 +1280,30 @@ PROJECT_ROOT="${SCRIPT_DIR}"
 CHAT_URL="http://127.0.0.1:11435/chat"
 HEALTH_URL="http://127.0.0.1:11435/healthz"
 is_healthy() { curl -fsS --max-time 2 "${HEALTH_URL}" >/dev/null 2>&1; }
-open_url() { if command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
+open_url() { if [[ "$(uname -s)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then open "$1"; elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$1"; else echo "Open $1 in your browser."; fi; }
 if ! is_healthy; then
   if [[ -x "${PROJECT_ROOT}/Start_VOOL.sh" ]]; then
     echo "Starting VOOL..."
-    STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
-    [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
-    LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
-    [[ -n "${LOG_DIR}" ]] || exit 1
-    mkdir -p "${LOG_DIR}"
-    nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    # After "Stop VOOL", auto-restart is disarmed and the .vool_stopped marker remains
+    # (installer/vool_stop.py). This open is on purpose, so arm it again and clear the
+    # marker. Only here, while VOOL is not running: a supervisor armed next to a running
+    # API would keep starting a second one. With no earlier Stop nothing runs.
+    SUPERVISOR_STARTED=0
+    REARM_PY="${PROJECT_ROOT}/.venv/bin/python"
+    if [[ -f "${PROJECT_ROOT}/.vool_stopped" && -x "${REARM_PY}" ]]; then
+      REARM_OUT="$(cd "${PROJECT_ROOT}" && "${REARM_PY}" -m installer.vool_stop --rearm --project-root "${PROJECT_ROOT}" 2>/dev/null || true)"
+      case "${REARM_OUT}" in *supervisor_started=yes*) SUPERVISOR_STARTED=1 ;; esac
+    fi
+    # A re-armed supervisor starts the API itself; starting a second one would fight it
+    # for the port. Otherwise start VOOL here as before.
+    if [[ "${SUPERVISOR_STARTED}" != "1" ]]; then
+      STATE_PY="${PROJECT_ROOT}/.venv/bin/python"
+      [[ -x "${STATE_PY}" ]] || STATE_PY="python3"
+      LOG_DIR="$(cd "${PROJECT_ROOT}" && "${STATE_PY}" -c 'from core.runtime_paths import active_vool_home; print(active_vool_home() / "logs")')"
+      [[ -n "${LOG_DIR}" ]] || exit 1
+      mkdir -p "${LOG_DIR}"
+      nohup bash "${PROJECT_ROOT}/Start_VOOL.sh" >"${LOG_DIR}/api-server.log" 2>&1 &
+    fi
   else
     echo "ERROR: VOOL is not installed yet. Run Install_VOOL first." >&2
     exit 1

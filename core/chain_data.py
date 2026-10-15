@@ -2,8 +2,8 @@
 
 One model-facing tool, ``web.chain_lookup``: a wallet's native balance, its token balances, its recent
 transactions, a token's facts, a token's largest holders, or one transaction, on Solana, Ethereum,
-Base, BNB Smart Chain or Robinhood Chain, served by Helius, Alchemy, Solscan or Etherscan
-(``core/chain_providers.py``).
+Base, BNB Smart Chain, Arbitrum or Robinhood Chain, served by Helius, Alchemy, Solscan, Etherscan or
+Moralis (``core/chain_providers.py``).
 
 The tool is always offered, so a chain question is never answered from a model's memory:
 
@@ -61,6 +61,7 @@ _OP_WORDS = {
 _OP_PHRASES = {
     cp.OP_BALANCE: "native balances", cp.OP_TOKENS: "token balances", cp.OP_HISTORY: "transaction history",
     cp.OP_TOKEN_INFO: "token info", cp.OP_HOLDERS: "token holders", cp.OP_TRANSACTION: "transaction lookups",
+    cp.OP_TOKEN_TRANSFERS: "token transfer history",
 }
 
 
@@ -83,10 +84,11 @@ def chain_contracts() -> list[Any]:
             intent=INTENT,
             description=(
                 "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, "
-                "Etherscan): a wallet's native balance, its token balances, its recent transactions, a token's info, a "
-                "token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain or Robinhood "
-                "Chain. Read-only: nothing is signed or sent. Use it for any question about an on-chain address, token "
-                "or transaction instead of answering from memory; without a key it says which key to add."
+                "Etherscan, Moralis): a wallet's native balance, its token balances, its recent transactions, a token's "
+                "info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain, "
+                "Arbitrum or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an "
+                "on-chain address, token or transaction instead of answering from memory; without a key it says which "
+                "key to add."
             ),
             tool_surface=SURFACE,
             capability_id="web.chain_lookup",
@@ -95,11 +97,11 @@ def chain_contracts() -> list[Any]:
             unsupported_reason="",
             input_schema={
                 "query": "str: balance | tokens | history | token_info | holders | transaction",
-                "chain": "str: solana | ethereum | base | bnb | robinhood (optional for a Solana address)",
+                "chain": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
                 "address": "str: wallet address (balance, tokens, history)",
                 "token": "str: token mint or contract address (token_info, holders)",
                 "tx": "str: transaction signature or hash (transaction)",
-                "provider": "str (optional): helius | alchemy | solscan | etherscan",
+                "provider": "str (optional): helius | alchemy | solscan | etherscan | moralis",
                 "limit": f"int (optional, 1-{MAX_LIMIT}): how many rows for lists",
             },
             output_schema={"provider": "str", "chain": "str", "rows": "list"},
@@ -154,12 +156,12 @@ def _chain_of(args: dict[str, Any], subject: str) -> str:
     if named:
         chain = cp.resolve_chain(named)
         if not chain:
-            raise ChainDataError("unknown_chain", f"VOOL's chain lookups cover Solana, Ethereum, Base, BNB Smart Chain and Robinhood Chain; {named[:40]!r} is not one of them. Nothing was looked up.")
+            raise ChainDataError("unknown_chain", f"VOOL's chain lookups cover Solana, Ethereum, Base, BNB Smart Chain, Arbitrum and Robinhood Chain; {named[:40]!r} is not one of them. Nothing was looked up.")
         return chain
     if subject and (_SVM_ADDRESS_RE.fullmatch(subject) or _SVM_TX_RE.fullmatch(subject)) and not subject.startswith("0x"):
         return cp.CHAIN_SOLANA
     if subject.startswith("0x") and (_EVM_ADDRESS_RE.fullmatch(subject) or _EVM_TX_RE.fullmatch(subject)):
-        raise ChainDataError("chain_needed", "That address or hash could be on Ethereum, Base, BNB Smart Chain or Robinhood Chain. Which chain is it on? Nothing was looked up.")
+        raise ChainDataError("chain_needed", "That address or hash could be on Ethereum, Base, BNB Smart Chain, Arbitrum or Robinhood Chain. Which chain is it on? Nothing was looked up.")
     raise ChainDataError("bad_subject", "That is not a Solana or EVM address, token or transaction id. Check it and ask again. Nothing was looked up.")
 
 
@@ -225,7 +227,7 @@ def _choose_provider(args: dict[str, Any], chain: str, op: str) -> tuple[cp.Chai
     if named:
         cfg = cp.config_for(named)
         if cfg is None:
-            raise ChainDataError("unknown_provider", f"VOOL's chain-data providers are Helius, Alchemy, Solscan and Etherscan; {named[:40]!r} is not one of them. Nothing was looked up.")
+            raise ChainDataError("unknown_provider", f"VOOL's chain-data providers are Helius, Alchemy, Solscan, Etherscan and Moralis; {named[:40]!r} is not one of them. Nothing was looked up.")
         if not cfg.serves(chain, op):
             raise ChainDataError("not_offered", f"{cfg.label} does not offer {_OP_PHRASES[op]} on {chain_label}. {_names(serving)} can. Nothing was looked up.")
         if not _stored(cfg):
@@ -266,9 +268,17 @@ def _safe_provider_text(text: object, key: str) -> str:
     return clean[:160]
 
 
-def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int) -> ChainDataError:
+_DECIMAL_RE = re.compile(r"\d{1,60}(?:\.\d{1,60})?")
+
+
+def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int, body: str = "") -> ChainDataError:
     label = cfg.label
     chain_label = cp.CHAIN_LABELS.get(chain, chain)
+    if status == 401 and cfg.provider_id == "moralis" and "consumed" in body.lower():
+        # Moralis answers a free plan whose daily allowance is used up with a 401 whose text says the usage
+        # "has been consumed": the key is good, so it must never read as a rejected key
+        return ChainDataError("quota_exhausted", f"{label}'s free daily allowance for this key is used up (HTTP 401). It resets on its own; "
+                              "the key is fine, keep it. Nothing was looked up.")
     if status == 401:
         return ChainDataError("key_rejected", f"{label} rejected the saved key (HTTP 401). Replace it in Settings → API Keys. Nothing was looked up.")
     if status == 403:
@@ -278,6 +288,9 @@ def _http_failure(cfg: cp.ChainProviderConfig, chain: str, status: int) -> Chain
     if status == 402:
         return ChainDataError("quota_exhausted", f"{label} reports no credit or quota left for this key (HTTP 402).")
     if status == 429:
+        if cfg.provider_id == "moralis":
+            # Moralis answers a free key over its allowance with the same 429; the next step differs.
+            return ChainDataError("rate_limited", f"{label} is limiting requests right now (HTTP 429); with the free plan this is usually the daily allowance, which resets on its own. Nothing was looked up.")
         return ChainDataError("rate_limited", f"{label} is limiting requests right now (HTTP 429). Try again shortly. Nothing was looked up.")
     if status == 404:
         return ChainDataError("not_found", f"{label} found nothing for that on {chain_label} (HTTP 404).")
@@ -335,7 +348,11 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     except CredentialRedirectRefusedError:
         raise ChainDataError("redirected", f"{cfg.label} answered with a redirect to another site; VOOL did not send the key there. Nothing was looked up.") from None
     except urllib.error.HTTPError as exc:
-        raise _http_failure(cfg, chain, int(exc.code or 0)) from None
+        try:
+            body = exc.read(4096).decode("utf-8", "replace")
+        except Exception:
+            body = ""
+        raise _http_failure(cfg, chain, int(exc.code or 0), _safe_provider_text(body, key)) from None
     except Exception as exc:
         if is_timeout_error(exc):
             raise ChainDataError("timeout", f"{cfg.label} did not answer in time. Try again. Nothing was looked up.") from None
@@ -352,7 +369,7 @@ def _send(cfg: cp.ChainProviderConfig, chain: str, url: str, *, query: dict[str,
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ChainDataError("too_large", f"{cfg.label}'s answer was larger than VOOL accepts. Ask for fewer rows.")
     if not 200 <= status < 300:
-        raise _http_failure(cfg, chain, status)
+        raise _http_failure(cfg, chain, status, _safe_provider_text(raw[:4096].decode("utf-8", "replace"), key))
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
@@ -531,6 +548,8 @@ def lookup(args: dict[str, Any]) -> dict[str, Any]:
             text, rows = _solana(cfg, op, subject, limit)
         elif cfg.provider_id == "etherscan":
             text, rows = _etherscan_read(cfg, chain, op, subject, limit)
+        elif cfg.provider_id == "moralis":
+            text, rows = _moralis_holders(cfg, chain, op, subject, limit)
         else:
             text, rows = _alchemy_evm(cfg, chain, op, subject, limit)
     except ChainDataError as exc:
@@ -800,6 +819,249 @@ def _etherscan_read(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: s
     return _evm_tx_text(chain, subject, tx, receipt)
 
 
+# --------------------------------------------------------------------------- market data sources
+
+
+#: Page budgets for one collect: Etherscan and Alchemy list up to 1,000 transfers a page; Solana lists
+#: up to 1,000 signatures a page and then reads each transaction (``max_requests``).
+TRANSFER_PAGE_BUDGET = 5
+SOLANA_SIGNATURE_PAGE_BUDGET = 3
+_SHAPE_ERRORS = (ValueError, KeyError, TypeError, AttributeError, IndexError, InvalidOperation)
+
+
+class _Paging:
+    """What a paged transfer read has gathered so far, so a failure on page 3 keeps pages 1-2."""
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self.stopped = ""
+        self.where = "page 1"
+
+
+def token_transfers(token: str, chain: str, since_ts: int, *, until_ts: int, provider: str = "",
+                    max_rows: int = 200_000, max_requests: int = 100) -> dict[str, Any]:
+    """One token's transfer history, newest first, for ``market.collect`` (core/market_data.py).
+
+    Reads through exactly the same door and key rules as the chat lookup: one provider (the one
+    named, else the first stored one in table order that serves the chain and this operation),
+    the operator's own key, no fallback behind the operator's back. A provider failure is
+    returned, never raised, so the caller keeps the sources that did answer: a failure before any
+    row arrived returns its code (``rate_limited``, ``bad_answer``, ...) with no rows; a failure
+    after some pages arrived returns ``status: partial`` with those rows and ``stopped_reason``
+    naming the page and the cause. A read that ran out of its page budget says so in
+    ``stopped_reason`` too. Each row: ``{ts, wallet, kind in|out, amount (token units), tx}`` --
+    one row per wallet side of a transfer, because a net-flow question is asked per wallet.
+    """
+    try:
+        cfg, _others = _choose_provider({"provider": provider} if provider else {}, chain, cp.OP_TOKEN_TRANSFERS)
+    except ChainDataError as exc:
+        return {"status": exc.code, "message": exc.message, "provider": str(provider or ""), "rows": [], "stopped_reason": ""}
+    paging = _Paging()
+    try:
+        try:
+            if chain == cp.CHAIN_SOLANA:
+                _solana_token_transfers(cfg, token, since_ts, until_ts, max_rows, max_requests, paging)
+            elif cfg.provider_id == "etherscan":
+                _etherscan_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows, paging)
+            else:
+                _alchemy_token_transfers(cfg, chain, token, since_ts, until_ts, max_rows, paging)
+        except _SHAPE_ERRORS:
+            raise _shape_error(cfg) from None
+    except ChainDataError as exc:
+        if paging.rows:
+            return {"status": "partial", "message": exc.message, "provider": cfg.provider_id, "rows": paging.rows,
+                    "stopped_reason": f"stopped at {paging.where}: {exc.message}"}
+        return {"status": exc.code, "message": exc.message, "provider": cfg.provider_id, "rows": [], "stopped_reason": ""}
+    return {"status": "ok", "provider": cfg.provider_id, "rows": paging.rows, "stopped_reason": paging.stopped}
+
+
+def _sides(frm: object, to: object, ts: int, amount: object, tx: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    value = float(amount) if amount is not None else None
+    for wallet, kind in ((str(frm or ""), "out"), (str(to or ""), "in")):
+        if wallet and value is not None and value != 0:
+            rows.append({"ts": ts, "wallet": wallet, "kind": kind, "amount": value, "tx": tx})
+    return rows
+
+
+def _solana_token_transfers(cfg: cp.ChainProviderConfig, token: str, since_ts: int, until_ts: int,
+                            max_rows: int, max_requests: int, paging: _Paging) -> None:
+    """Solana transfer history: the mint's signatures, then each transaction's pre/post token
+    balances, whose per-owner difference is the transfer. Skips failed transactions and names
+    how many were skipped."""
+    chain = cp.CHAIN_SOLANA
+    signatures: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    before = None
+    budget_hit = False
+    for page_no in range(1, SOLANA_SIGNATURE_PAGE_BUDGET + 1):
+        paging.where = f"signature page {page_no}"
+        options: dict[str, Any] = {"limit": 1000, "commitment": "confirmed"}
+        if before:
+            options["before"] = before
+        page = [r for r in _rpc(cfg, chain, "getSignaturesForAddress", [token, options])
+                if isinstance(r, dict) and r.get("signature")]
+        if not page:
+            break
+        added = 0
+        for r in page:
+            signature = str(r["signature"])
+            ts = r.get("blockTime")
+            if signature not in seen and isinstance(ts, int) and since_ts <= ts <= until_ts:
+                signatures.append((signature, ts))
+                seen.add(signature)
+                added += 1
+        last = page[-1]
+        before = str(last["signature"])
+        last_ts = last.get("blockTime")
+        # a page that adds nothing (a provider echoing the same page) or reaches past the window ends paging
+        if added == 0 or (isinstance(last_ts, int) and last_ts < since_ts) or len(page) < 1000:
+            break
+        budget_hit = page_no == SOLANA_SIGNATURE_PAGE_BUDGET
+    stopped = (f"stopped at signature page {SOLANA_SIGNATURE_PAGE_BUDGET}: page budget (older transfers in the "
+               f"window were not read)") if budget_hit else ""
+    if len(signatures) > max_requests:
+        stopped = stopped or f"stopped after the newest {max_requests} transactions of {len(signatures)} found: read budget"
+        signatures = signatures[:max_requests]
+    skipped_failed = 0
+    for number, (signature, ts) in enumerate(signatures, start=1):
+        if len(paging.rows) >= max_rows:
+            stopped = stopped or f"stopped at {len(paging.rows)} rows: row cap"
+            break
+        paging.where = f"transaction {number} of {len(signatures)}"
+        result = _rpc(cfg, chain, "getTransaction",
+                      [signature, {"encoding": "json", "maxSupportedTransactionVersion": 0, "commitment": "confirmed"}])
+        if not isinstance(result, dict) or not isinstance(result.get("meta"), dict):
+            raise _shape_error(cfg)
+        meta = result["meta"]
+        if meta.get("err") is not None:
+            skipped_failed += 1
+            continue
+        pre: dict[int, tuple[str, float]] = {}
+        post: dict[int, tuple[str, float]] = {}
+        for entries, into in ((meta.get("preTokenBalances") or [], pre), (meta.get("postTokenBalances") or [], post)):
+            for entry in entries:
+                if entry.get("mint") != token:
+                    continue
+                owner = str(entry.get("owner") or "")
+                ui = (entry.get("uiTokenAmount") or {}).get("uiAmount")
+                if owner and isinstance(ui, (int, float)):
+                    into[int(entry["accountIndex"])] = (owner, float(ui))
+        moved: dict[str, float] = {}
+        for index in set(pre) | set(post):
+            owner = (post.get(index) or pre.get(index) or ("", 0.0))[0]
+            delta = (post.get(index) or (owner, 0.0))[1] - (pre.get(index) or (owner, 0.0))[1]
+            if owner and delta:
+                moved[owner] = moved.get(owner, 0.0) + delta
+        paging.rows.extend({"ts": ts, "wallet": owner, "kind": "in" if delta > 0 else "out", "amount": abs(delta),
+                            "tx": signature} for owner, delta in moved.items())
+    if skipped_failed:
+        stopped = stopped or f"{skipped_failed} failed transaction(s) skipped"
+    paging.stopped = stopped
+
+
+def _etherscan_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
+                               until_ts: int, max_rows: int, paging: _Paging) -> None:
+    """ERC-20 transfer history from Etherscan's token-transfer listing, newest pages first."""
+    for page_no in range(1, TRANSFER_PAGE_BUDGET + 1):
+        paging.where = f"page {page_no}"
+        result = _etherscan(cfg, chain, {"module": "account", "action": "tokentx", "contractaddress": token,
+                                          "page": str(page_no), "offset": "1000", "sort": "desc"}, empty_ok=True)
+        if not isinstance(result, list):
+            raise _shape_error(cfg)
+        if not result:
+            return
+        oldest: int | None = None
+        page_rows: list[dict[str, Any]] = []
+        for t in result:
+            ts = int(str(t.get("timeStamp") or 0))
+            oldest = ts if oldest is None else min(oldest, ts)
+            if not since_ts <= ts <= until_ts:
+                continue
+            decimals = int(str(t.get("tokenDecimal") or 0))
+            amount = Decimal(str(t.get("value") or 0)).scaleb(-decimals) if decimals >= 0 else None
+            page_rows.extend(_sides(t.get("from"), t.get("to"), ts, float(amount) if amount is not None else None,
+                                    str(t.get("hash") or "")))
+        paging.rows.extend(page_rows)
+        if len(paging.rows) >= max_rows:
+            paging.stopped = f"stopped at {len(paging.rows)} rows: row cap"
+            return
+        if (oldest is not None and oldest < since_ts) or len(result) < 1000:
+            return
+    paging.stopped = f"stopped at page {TRANSFER_PAGE_BUDGET}: page budget (older transfers in the window were not read)"
+
+
+def _alchemy_token_transfers(cfg: cp.ChainProviderConfig, chain: str, token: str, since_ts: int,
+                             until_ts: int, max_rows: int, paging: _Paging) -> None:
+    """ERC-20 transfer history from Alchemy's transfer listing, newest pages first."""
+    from datetime import datetime
+
+    params: dict[str, Any] = {"fromBlock": "0x0", "toBlock": "latest", "contractAddresses": [token],
+                              "category": ["erc20"], "withMetadata": True, "maxCount": hex(1000), "order": "desc"}
+    for page_no in range(1, TRANSFER_PAGE_BUDGET + 1):
+        paging.where = f"page {page_no}"
+        result = _rpc(cfg, chain, "alchemy_getAssetTransfers", [params])
+        if not isinstance(result, dict):
+            raise _shape_error(cfg)
+        transfers = [t for t in result.get("transfers") or [] if isinstance(t, dict)]
+        if not transfers:
+            return
+        oldest: int | None = None
+        page_rows: list[dict[str, Any]] = []
+        for t in transfers:
+            stamp = str((t.get("metadata") or {}).get("blockTimestamp") or "").replace("Z", "+00:00")
+            try:
+                ts = int(datetime.fromisoformat(stamp).timestamp()) if stamp else 0
+            except ValueError:
+                ts = 0
+            oldest = ts if oldest is None else min(oldest, ts)
+            if not since_ts <= ts <= until_ts:
+                continue
+            page_rows.extend(_sides(t.get("from"), t.get("to"), ts, t.get("value"), str(t.get("hash") or "")))
+        paging.rows.extend(page_rows)
+        if len(paging.rows) >= max_rows:
+            paging.stopped = f"stopped at {len(paging.rows)} rows: row cap"
+            return
+        page_key = result.get("pageKey")
+        if not page_key or (oldest is not None and oldest < since_ts):
+            return
+        params["pageKey"] = page_key
+    paging.stopped = f"stopped at page {TRANSFER_PAGE_BUDGET}: page budget (older transfers in the window were not read)"
+
+
+def _moralis_holders(cfg: cp.ChainProviderConfig, chain: str, op: str, subject: str, limit: int) -> tuple[str, list[dict[str, Any]]]:
+    """The EVM token holders read: Moralis' documented top-holders list, one key for every chain it serves."""
+    if op != cp.OP_HOLDERS:
+        raise ChainDataError("not_offered", f"{cfg.label} serves token holders only. Nothing was looked up.")
+    payload = _send(cfg, chain, f"{cp.MORALIS_API_ORIGIN}/erc20/{subject}/owners",
+                    query={"chain": cp.MORALIS_CHAINS[chain], "limit": str(limit)})
+    if not isinstance(payload, dict) or not isinstance(payload.get("result"), list):
+        raise _shape_error(cfg)
+    link_a = _explorer(chain, address=subject)
+    rows: list[dict[str, Any]] = []
+    for rank, item in enumerate(payload["result"][:limit], start=1):
+        if not isinstance(item, dict):
+            raise _shape_error(cfg)
+        owner = str(item.get("owner_address") or "").lower()
+        # the documented owners answer carries ``balance`` in raw base units and ``balance_formatted`` already
+        # divided by the token's decimals; only the formatted figure is shown, and without it nothing is
+        amount = item.get("balance_formatted")
+        if not _EVM_ADDRESS_RE.fullmatch(owner) or not isinstance(amount, str) or not _DECIMAL_RE.fullmatch(amount.strip()):
+            raise _shape_error(cfg)
+        amount = amount.strip()
+        row: dict[str, Any] = {"rank": rank, "address": owner, "amount": str(amount)}
+        share = item.get("percentage_relative_to_total_supply")
+        if isinstance(share, (int, float)) and not isinstance(share, bool):
+            row["percent"] = f"{float(share):.2f}"
+        rows.append(row)
+    if not rows:
+        return f"No holders found for token {subject} on {cp.CHAIN_LABELS[chain]}.\n{link_a}", []
+    _public(*[r["address"] for r in rows])
+    lines = [f"- {r['rank']}. {r['amount']}" + (f" ({r['percent']}% of supply)" if "percent" in r else "")
+             + f" held by {r['address']}" for r in rows]
+    return (f"Top {len(rows)} holder(s) of {subject} on {cp.CHAIN_LABELS[chain]}:\n" + "\n".join(lines) + f"\n{link_a}"), rows
+
+
 # --------------------------------------------------------------------------- Settings "Test"
 
 _TEST_STATES = {
@@ -835,4 +1097,5 @@ def probe_chain_provider(provider_id: str) -> dict[str, Any]:
             "http_status": outcome.http_status}
 
 
-__all__ = ["INTENT", "SURFACE", "ChainDataError", "chain_contracts", "lookup", "probe_chain_provider", "run_tool"]
+__all__ = ["INTENT", "SURFACE", "ChainDataError", "chain_contracts", "lookup", "probe_chain_provider", "run_tool",
+           "token_transfers"]

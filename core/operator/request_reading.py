@@ -118,6 +118,12 @@ def _duration(text: str, intent: OperatorActionIntent) -> Any:
     return parse_duration_minutes(text)
 
 
+def _event_length(text: str, intent: OperatorActionIntent) -> Any:
+    from .calendar_provider import parse_event_length_minutes
+
+    return parse_event_length_minutes(text)
+
+
 def _recurrence(text: str, intent: OperatorActionIntent) -> Any:
     from .calendar_provider import parse_recurrence_rule
 
@@ -207,7 +213,7 @@ _ARGUMENT_READERS: dict[str, tuple[Reader, ...]] = {
     "inspect_calendar_event": (_series_scope, _occurrence_date),
     "check_availability": (_availability_window, _duration),
     "show_agenda": (_agenda_window,),
-    "propose_calendar_event": (_offered_slot, _named_action, _event_proposal, _when, _duration, _recurrence, _attendees),
+    "propose_calendar_event": (_offered_slot, _named_action, _event_proposal, _when, _event_length, _recurrence, _attendees),
     "save_note": (_note_request, _notes_scope),
     "find_notes": (_notes_query,),
     "apple_note_list": (_notes_scope,),

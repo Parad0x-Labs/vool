@@ -227,7 +227,7 @@ function bindPhantomEvents(){
   });
 }
 function evmProvider(){ return (window.ethereum && typeof window.ethereum.request === 'function') ? window.ethereum : null; }
-var EVM_CHAIN_NAMES = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet' };
+var EVM_CHAIN_NAMES = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain' };
 function evmChainLabel(caip2){ return EVM_CHAIN_NAMES[caip2] || caip2; }
 function isEvmNetwork(network){ return String(network || '').indexOf('eip155:') === 0; }
 function answer_result(v){ return v && typeof v === 'object' ? v.result : null; }
@@ -235,7 +235,7 @@ function answer_result(v){ return v && typeof v === 'object' ? v.result : null; 
 // ---- settings section ------------------------------------------------------------------------
 var sec = null, statusEl = null, msgEl = null, lastStatus = null;
 function setMsg(text, isErr){ if (!msgEl) return; msgEl.textContent = text || ''; msgEl.className = 'vw-msg' + (isErr ? ' err' : ''); }
-var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet' };
+var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'Solana' };
 function chainLabel(caip2){ return CHAIN_LABELS[caip2] || caip2; }
 var MODE_LABELS = { watch_only: 'watch-only (observe and propose; cannot sign)', pocket_sealed: 'VOOL Wallet (key sealed on this device, approved by you at payment)', external_signer: 'external wallet (signing stays in your wallet)' };
 function maskedLine(label, value, id){
@@ -300,21 +300,21 @@ function renderStatus(){
       appendReceipts(statusEl);
       return st;
     }
-    statusEl.appendChild(el('div', 'vw-line', 'crypto is optional: turn it off any time in Settings → Crypto; nothing is deleted.'));
+    statusEl.appendChild(el('div', 'vw-line', 'Crypto is optional. Turn it off any time in Settings → Crypto; nothing is deleted.'));
     var offBtn = el('button', 'vw-toggle', 'turn off'); offBtn.type = 'button'; offBtn.id = 'vwOffBtn';
     offBtn.addEventListener('click', function(){ setWalletEnabled(false); });
     statusEl.appendChild(offBtn);
     var head = el('div', 'vw-line');
     head.appendChild(document.createTextNode('custody: ' + (MODE_LABELS[st.custody_mode] || st.custody_mode || 'none — no wallet yet (watch-only is the recommended start)')));
-    var mainnetBadge = el('span', 'vw-badge' + (st.mainnet_enabled ? '' : ' testnet'), st.mainnet_enabled ? 'MAINNET ENABLED' : 'testnet only');
+    var mainnetBadge = el('span', 'vw-badge' + (st.mainnet_enabled ? '' : ' testnet'), st.mainnet_enabled ? 'real money on' : 'testnet only');
     head.appendChild(mainnetBadge);
     statusEl.appendChild(head);
     (st.soft_warnings || []).forEach(function(w){ var note = el('div', 'vw-line vw-soft-warning', (w && w.text) || ''); note.setAttribute('role', 'note'); statusEl.appendChild(note); });
     if (st.public_key) statusEl.appendChild(maskedLine('public key', st.public_key, 'vwPubKey'));
-    statusEl.appendChild(el('div', 'vw-line', 'pending approvals: ' + (st.pending_approvals || 0) + ' · signing preference: ' + (st.signing_preference || '') + ' · x402 cap (minor): ' + (st.x402_cap_minor != null ? st.x402_cap_minor : '')));
+    statusEl.appendChild(el('div', 'vw-line', 'Waiting for your approval: ' + (st.pending_approvals || 0) + ' · Signs with: ' + (MODE_LABELS[st.signing_preference] || st.signing_preference || 'not chosen') + ' · Most one paid web request may cost: ' + (st.x402_cap_minor != null ? st.x402_cap_minor + ' (in the coin’s smallest units)' : 'not set')));
     if (st.custody_mode === 'pocket_sealed' && st.wallet_id) statusEl.appendChild(exportControls(st));
     var lim = st.limits || {};
-    if (lim.per_tx_minor) { var limLine = el('div', 'vw-line', 'limits (minor units): per tx ' + lim.per_tx_minor + ', daily ' + lim.daily_minor + ', per destination/day ' + lim.per_destination_daily_minor); limLine.id = 'vwLimitsLine'; statusEl.appendChild(limLine); }
+    if (lim.per_tx_minor) { var limLine = el('div', 'vw-line', 'Limits, in the coin’s smallest units: per payment ' + lim.per_tx_minor + ', per day ' + lim.daily_minor + ', per recipient per day ' + lim.per_destination_daily_minor); limLine.id = 'vwLimitsLine'; statusEl.appendChild(limLine); }
     var fees = st.dna_fees || null;
     if (fees && fees.policy) {
       var feeLine = el('div', 'vw-line'); feeLine.id = 'vwDnaFeesLine';
@@ -581,13 +581,13 @@ function buildSection(){
   var phrase = el('input'); phrase.type = 'text'; phrase.id = 'vwPhrase'; phrase.autocomplete = 'off'; phrase.placeholder = 'confirmation phrase'; form.appendChild(phrase);
   form.appendChild(el('label', null, 'How you approve payments'));
   var method = el('select', 'vw-chain'); method.id = 'vwApprovalMethod';
-  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'Touch ID or my Mac password']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
+  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'My computer’s own sign-in (such as Touch ID)']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; method.appendChild(opt); });
   form.appendChild(method);
   var pinLabel = el('label', null, 'PIN (4–8 digits)'); form.appendChild(pinLabel);
   var pin = el('input'); pin.type = 'password'; pin.id = 'vwPin'; pin.autocomplete = 'new-password'; pin.inputMode = 'numeric'; form.appendChild(pin);
   var pwLabel = el('label', null, 'Wallet password (10+ characters)'); pwLabel.hidden = true; form.appendChild(pwLabel);
   var pw = el('input'); pw.type = 'password'; pw.id = 'vwPassword'; pw.autocomplete = 'new-password'; pw.hidden = true; form.appendChild(pw);
-  var devNote = el('div', 'vw-line', 'Every payment and every export will ask for Touch ID or your Mac password. Nothing is stored behind a PIN.'); devNote.hidden = true; form.appendChild(devNote);
+  var devNote = el('div', 'vw-line', 'Every payment and every export will ask for your computer’s own sign-in (such as Touch ID). Nothing is stored behind a PIN.'); devNote.hidden = true; form.appendChild(devNote);
   method.addEventListener('change', function(){ var m = method.value; pinLabel.hidden = pin.hidden = (m !== 'pin'); pwLabel.hidden = pw.hidden = (m !== 'password'); devNote.hidden = (m !== 'device'); });
   var submit = el('button', 'vw-btn primary', 'Create'); submit.id = 'vwCreateSubmit'; submit.type = 'button'; form.appendChild(submit);
   sec.appendChild(form);
@@ -597,9 +597,9 @@ function buildSection(){
   var rphrase = el('input'); rphrase.type = 'password'; rphrase.id = 'vwRestorePhrase'; rphrase.autocomplete = 'off'; rform.appendChild(rphrase);
   rform.appendChild(el('label', null, 'How you approve payments'));
   var rmethod = el('select', 'vw-chain'); rmethod.id = 'vwRestoreMethod';
-  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'Touch ID or my Mac password']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; rmethod.appendChild(opt); });
+  [['pin', 'PIN (4–8 digits)'], ['password', 'Wallet password (10+ characters)'], ['device', 'My computer’s own sign-in (such as Touch ID)']].forEach(function(o){ var opt = el('option'); opt.value = o[0]; opt.textContent = o[1]; rmethod.appendChild(opt); });
   rform.appendChild(rmethod);
-  rform.appendChild(el('label', null, 'New PIN or password (none for Touch ID)'));
+  rform.appendChild(el('label', null, 'New PIN or password (none for your computer’s own sign-in)'));
   var rpin = el('input'); rpin.type = 'password'; rpin.id = 'vwRestorePin'; rpin.autocomplete = 'new-password'; rform.appendChild(rpin);
   var rsubmit = el('button', 'vw-btn primary', 'Restore'); rsubmit.id = 'vwRestoreSubmit'; rsubmit.type = 'button'; rform.appendChild(rsubmit);
   sec.appendChild(rform);
@@ -753,6 +753,7 @@ function drawCrypto(st){
     inactiveWithAccounts.sort(byOrder).forEach(function(r){ box.appendChild(rowCard(r, cp, st)); });
   }
   box.appendChild(channelControls(cp));
+  box.appendChild(paidAiControls(cp));
   box.appendChild(devOptions(cp, inactiveEmpty.sort(byOrder)));
 }
 var CHANNEL_REASONS = {
@@ -791,6 +792,72 @@ function channelControls(cp){
     });
     box.appendChild(row);
   });
+  box.appendChild(msg);
+  return box;
+}
+function paidAiControls(cp){
+  // The owner's pay-per-answer AI endpoints: a model VOOL may ask through x402, the most one answer may cost, and
+  // whether it is on. Asking happens from chat; every answer is paid only after the owner approves it in the wallet.
+  var box = el('div', 'vw-cx-row vw-cx-paid-ai'); box.id = 'vwCxPaidAi';
+  box.appendChild(el('div', 'vw-cx-title', 'Pay-per-answer AI'));
+  box.appendChild(el('div', 'vw-cx-env', 'Add an AI service that charges a small fee per answer, in USDC on Base. Then ask it from any chat, for example "ask my paid AI: …", and name it when you have more than one. Only your question is sent, never the rest of the chat. You approve each payment first. It stays under your caps and this price limit, and you get a receipt.'));
+  box.appendChild(el('div', 'vw-cx-env', 'VOOL checks that each answer comes from the model you chose. If the service names a different model, or no model, VOOL pauses it. Turn it back on here when you are ready. VOOL cannot see what really runs behind the service.'));
+  var msg = el('div', 'vw-msg');
+  var list = el('div', 'vw-cx-paid-ai-list'); list.id = 'vwPaidAiList';
+  function draw(rows){
+    list.textContent = '';
+    if (rows && rows.error) { list.appendChild(el('div', 'vw-cx-warn', 'Your services could not be shown right now. Reload this page to try again.')); return; }
+    if (!rows || !rows.length) { list.appendChild(el('div', 'vw-cx-env', 'No service added yet.')); return; }
+    rows.forEach(function(r){
+      var row = el('div', 'vw-cx-channel'); row.setAttribute('data-endpoint', r.id); row.setAttribute('data-on', r.on ? 'true' : 'false');
+      var toggle = el('input'); toggle.type = 'checkbox'; toggle.id = 'vwAi_' + r.id; toggle.checked = !!r.on;
+      var label = el('label', null, r.label); label.setAttribute('for', toggle.id);
+      row.appendChild(toggle); row.appendChild(label);
+      var price = (Number(r.max_price_minor || 0) / 1000000).toString();
+      row.appendChild(el('div', 'vw-cx-env', r.model + ' · up to ' + price + ' USDC per answer'));
+      row.appendChild(el('div', 'vw-cx-env', r.base_url));
+      if (!r.on && r.paused_reason) row.appendChild(el('div', 'vw-cx-warn', 'Paused: ' + r.paused_reason + '. Tick the box to turn it back on.'));
+      var remove = el('button', 'vw-toggle', 'Remove'); remove.type = 'button'; remove.setAttribute('aria-label', 'remove ' + r.label);
+      row.appendChild(remove);
+      toggle.addEventListener('change', function(){
+        var wanted = toggle.checked; toggle.disabled = true;
+        postJson('/api/wallet/ai-endpoints', { action: 'set_on', id: r.id, on: wanted }).then(function(res){
+          toggle.disabled = false;
+          if (!res.ok) { toggle.checked = !wanted; cxMsg(msg, faultMessage(res, 'The service was not changed.'), true); return; }
+          draw(res.data.ai_endpoints); cxMsg(msg, r.label + (wanted ? ' is on.' : ' is off: nothing is asked or paid there.'));
+        }).catch(function(){ toggle.disabled = false; toggle.checked = !wanted; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      remove.addEventListener('click', function(){
+        remove.disabled = true;
+        postJson('/api/wallet/ai-endpoints', { action: 'remove', id: r.id }).then(function(res){
+          remove.disabled = false;
+          if (!res.ok) { cxMsg(msg, faultMessage(res, 'The service was not removed.'), true); return; }
+          draw(res.data.ai_endpoints); cxMsg(msg, r.label + ' was removed.');
+        }).catch(function(){ remove.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+      });
+      list.appendChild(row);
+    });
+  }
+  draw(cp.ai_endpoints || []);
+  box.appendChild(list);
+  var form = el('div', 'vw-cx-actions'); form.id = 'vwPaidAiForm';
+  function field(id, placeholder, aria){ var i = el('input', 'vw-limit'); i.type = 'text'; i.id = id; i.autocomplete = 'off'; i.placeholder = placeholder; i.setAttribute('aria-label', aria); form.appendChild(i); return i; }
+  var name = field('vwPaidAiName', 'Name, e.g. Research', 'name for this service');
+  var url = field('vwPaidAiUrl', 'Address, starting with https://', 'service address, starting with https://');
+  var model = field('vwPaidAiModel', 'Model name, exactly as listed', 'exact model name the service lists');
+  var max = field('vwPaidAiMax', 'Most per answer, e.g. 0.05', 'most one answer may cost, in USDC');
+  var add = el('button', 'vw-btn', 'Add service'); add.type = 'button'; add.id = 'vwPaidAiAdd';
+  form.appendChild(add);
+  add.addEventListener('click', function(){
+    add.disabled = true;
+    postJson('/api/wallet/ai-endpoints', { action: 'add', label: name.value, base_url: url.value, model: model.value, max_price: max.value }).then(function(res){
+      add.disabled = false;
+      if (!res.ok) { cxMsg(msg, faultMessage(res, 'The service was not added.'), true); return; }
+      name.value = ''; url.value = ''; model.value = ''; max.value = '';
+      draw(res.data.ai_endpoints); cxMsg(msg, 'Added. Ask it from any chat; nothing is paid until you approve an answer.');
+    }).catch(function(){ add.disabled = false; cxMsg(msg, 'The request did not complete.', true); });
+  });
+  box.appendChild(form);
   box.appendChild(msg);
   return box;
 }
@@ -1430,7 +1497,7 @@ function transferLine(t){
   if (t.detail) line.appendChild(el('div', 'vw-transfer-detail', t.detail));
   if (t.purpose) line.appendChild(purposeBlock(t.purpose, ''));
   if (t.to_address) { var to = el('div', 'vw-transfer-detail'); to.appendChild(document.createTextNode('To ')); to.appendChild(el('span', 'vw-ident', t.to_address)); line.appendChild(to); }
-  if (t.charged_fee_label) line.appendChild(el('div', 'vw-transfer-detail', 'Fee ' + (t.charged_fee_display || t.charged_fee_label) + (t.charged_fee_display && t.charged_fee_human ? ' (exactly ' + t.charged_fee_human + ' ' + t.display_symbol + ')' : '')));
+  if (t.charged_fee_label) line.appendChild(el('div', 'vw-transfer-detail', 'Fee ' + (t.charged_fee_display || t.charged_fee_label) + (t.charged_fee_display && t.charged_fee_human ? ' (exactly ' + t.charged_fee_human + ' ' + (t.fee_symbol || t.display_symbol) + ')' : '')));
   if (t.tx_id) line.appendChild(el('div', 'vw-transfer-id', 'Transaction ' + t.tx_id));
   if (t.explorer_url) {
     var link = el('a', 'vw-explorer', t.explorer_link_text || 'View on the explorer');
@@ -1614,7 +1681,7 @@ function openSheet(p, cardControls, cardResult, opener){
     netValue.appendChild(el('span', 'vw-badge' + (f.environment === 'mainnet' ? '' : ' testnet'), f.badge));
     net.appendChild(netValue); net.appendChild(document.createTextNode(' · ' + (f.value_note || ''))); box.appendChild(net);
     var to = reviewLine(box, 'recipient', r.recipient_line || ('To ' + f.to_address), r.recipient_kind === 'provider_pay_to' ? 'vw-review-addr' : '');
-    if (f.token_transfer && f.recipient_token_account) to.appendChild(document.createTextNode(' · Recipient token account ' + f.recipient_token_account));
+    if (f.token_transfer && f.recipient_token_account && !('create_recipient_account' in f)) to.appendChild(document.createTextNode(' · Recipient token account ' + f.recipient_token_account));
     reviewLine(box, 'source', r.source_line || '', 'muted');
     if (r.fee_line) reviewLine(box, 'dna_fee', r.fee_line);
     if (r.collection_line) reviewLine(box, 'collection', r.collection_line, f.companion ? 'primary' : 'muted');
@@ -1757,6 +1824,13 @@ function openSheet(p, cardControls, cardResult, opener){
         if (companion && companion.collection_id) {
           var line = el('div', 'vw-transfer-detail', 'DNA fee collection with this payment: ' + companion.amount_exact + ' ' + (companion.asset || '') + ' · ' + (companion.state_label || companion.state) + (companion.tx_signature ? ' · transaction ' + companion.tx_signature : ''));
           line.setAttribute('data-companion-outcome', companion.state || ''); cardResult.appendChild(line);
+        }
+        // a pay-per-answer AI answer that could not go into the chat log (a private chat, or a save that failed) is shown here
+        var paidAi = res.data && res.data.paid_ai;
+        if (paidAi && paidAi.text && !paidAi.posted) {
+          var answerNode = el('div', 'vw-transfer-detail vw-paid-ai-answer', paidAi.text);
+          answerNode.style.whiteSpace = 'pre-wrap'; answerNode.setAttribute('data-paid-ai', paidAi.verdict || '');
+          cardResult.appendChild(answerNode);
         }
         return;
       }
@@ -1915,9 +1989,12 @@ var walletHome = (function(){
     if (!host) return;  // the Settings page carries no Home menu; its wallet surface stays Settings → Crypto
     var btn = document.getElementById('vwHomeBtn');
     if (st.enabled && !btn) {
-      btn = el('button', 'side-foot-btn'); btn.type = 'button'; btn.id = 'vwHomeBtn';
-      btn.title = 'VOOL Wallet — accounts, balance, receive, send and activity';
-      btn.appendChild(document.createTextNode('\uD83D\uDC5B Wallet'));
+      btn = el('button', 'side-foot-btn vi'); btn.type = 'button'; btn.id = 'vwHomeBtn'; btn.dataset.ico = 'wallet';
+      // The same line icon as every other Home row (core/ui_icons.py), never a colour emoji; the label
+      // goes through the page's catalog like every other Home row, so it follows the app language.
+      var tr = function(key, fallback){ return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; };
+      btn.title = tr('home.wallet.title', 'VOOL Wallet — accounts, balance, receive, send and activity');
+      btn.appendChild(document.createTextNode(tr('home.wallet', 'Wallet')));
       btn.addEventListener('click', function(){ openPanel(); });
       var anchor = document.getElementById('settingsBtn') || host.querySelector('.home-support');
       if (anchor && anchor.parentNode === host) host.insertBefore(btn, anchor); else host.appendChild(btn);
@@ -2401,11 +2478,31 @@ var walletHome = (function(){
       }).catch(function(){ list.textContent = ''; list.appendChild(el('div', 'vw-wh-sub', 'Contacts could not be read; type the address directly.')); });
     });
     form.appendChild(pickBtn); form.appendChild(list);
-    var amountLabel = el('label', null, 'Amount (' + ((row && row.native_display_symbol) || 'SOL') + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
+    // what to send: the row's own coin, or a token a Crypto Pilot account may send on this row (USDT where it is carried)
+    var nativeChoice = { symbol: (row && row.native_symbol) || 'SOL', label: (row && row.native_display_symbol) || 'SOL', decimals: (row && row.native_decimals) || 9 };
+    var choices = [nativeChoice].concat(((row && row.send_tokens) || []).map(function(t){ return { symbol: t.symbol, label: t.symbol, decimals: t.decimals }; }));
+    var chosen = nativeChoice;
+    var assetPick = null;
+    if (account.can_send_tokens === true && choices.length > 1) {
+      var assetLabel = el('label', null, 'What to send'); assetLabel.setAttribute('for', 'vwHomeSendAsset'); form.appendChild(assetLabel);
+      assetPick = el('select'); assetPick.id = 'vwHomeSendAsset';
+      choices.forEach(function(c){ var o = el('option', null, c.label); o.value = c.symbol; assetPick.appendChild(o); });
+      form.appendChild(assetPick);
+    }
+    var amountLabel = el('label', null, 'Amount (' + nativeChoice.label + ')'); amountLabel.setAttribute('for', 'vwHomeSendAmount'); form.appendChild(amountLabel);
     var amount = el('input'); amount.type = 'text'; amount.id = 'vwHomeSendAmount'; amount.autocomplete = 'off'; amount.inputMode = 'decimal';
-    amount.placeholder = '0.0'; amount.setAttribute('aria-label', 'amount in whole ' + ((row && row.native_display_symbol) || 'SOL') + ' units');
+    amount.placeholder = '0.0';
     form.appendChild(amount);
-    form.appendChild(el('div', 'vw-wh-sub', 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).'));
+    if (assetPick) assetPick.addEventListener('change', function(){
+      chosen = choices.filter(function(c){ return c.symbol === assetPick.value; })[0] || nativeChoice;
+      amountLabel.textContent = 'Amount (' + chosen.label + ')';
+      available.textContent = chosen === nativeChoice ? availableNative
+        : 'Your ' + chosen.label + ' balance is shown on the review before anything is approved. The network fee is paid in ' + nativeChoice.label + ', so keep a little ' + nativeChoice.label + ' in this account too.';
+      sendKey = newSendKey();
+    });
+    var availableNative = 'Available: the balance line above (the exact maximum debit is stated on the review before anything is approved).';
+    var available = el('div', 'vw-wh-sub', availableNative); available.setAttribute('aria-live', 'polite');
+    form.appendChild(available);
     var memoLabel = el('label', null, 'Note (optional, stays with your request)'); memoLabel.setAttribute('for', 'vwHomeSendMemo'); form.appendChild(memoLabel);
     var memo = el('input'); memo.type = 'text'; memo.id = 'vwHomeSendMemo'; memo.autocomplete = 'off'; form.appendChild(memo);
     var go = el('button', 'vw-btn primary', 'Preview send'); go.type = 'button'; go.id = 'vwHomeSendGo';
@@ -2417,7 +2514,6 @@ var walletHome = (function(){
     form.appendChild(go);
     var state = el('div', 'vw-wh-msg'); form.appendChild(state);
     bodyEl.appendChild(form);
-    var decimals = (row && row.native_decimals) || 9;
     // editing the intent after a refusal is a NEW intent: the idempotency key rotates, so an honest
     // retry of the unchanged request stays deduplicated while an edited one is never refused as a duplicate
     function rotate(){ sendKey = newSendKey(); }
@@ -2425,6 +2521,7 @@ var walletHome = (function(){
     go.addEventListener('click', function(){
       var dest = String(to.value || '').trim();
       if (!dest) { state.className = 'vw-wh-msg err'; state.textContent = 'Type the recipient address.'; return; }
+      var decimals = chosen.decimals;
       var minor = parseAmountToMinor(amount.value, decimals);
       if (minor === null) {
         state.className = 'vw-wh-msg err';
@@ -2438,7 +2535,7 @@ var walletHome = (function(){
         return;
       }
       go.disabled = true; state.className = 'vw-wh-msg'; state.textContent = 'Preparing the request… (nothing is sent yet)';
-      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: (row && row.native_symbol) || 'SOL', origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
+      var body = { wallet_id: account.wallet_id, destination: dest, amount_minor: minorJson, asset: chosen.symbol, origin: 'user', memo: String(memo.value || ''), network: selNetwork, idempotency_key: sendKey };
       postJson('/api/wallet/propose', body).then(function(res){
         if (!res.ok) {
           go.disabled = false; state.className = 'vw-wh-msg err';

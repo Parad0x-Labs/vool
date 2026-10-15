@@ -163,7 +163,7 @@ def _text_layer_pypdf(path: Path, *, max_pages: int, scratch: Path) -> dict[str,
         raise ReaderUnavailable(
             "No PDF decoder is available on this machine, so the PDF was not read.",
             code="pdf_decoder_unavailable",
-            remediation="Install the Xcode Command Line Tools, or add the `pypdf` package to this runtime.",
+            remediation="Paste the text from the PDF into your message instead.",
             fmt="pdf",
         )
     script = scratch / "pypdf_reader.py"

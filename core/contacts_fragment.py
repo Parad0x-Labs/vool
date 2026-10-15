@@ -65,6 +65,9 @@ _CSS = r"""
 .vc-ep-rows { display:flex; flex-direction:column; gap:10px; }
 .vc-ep-row { border:1px solid var(--border); border-radius:10px; padding:8px 10px 10px; }
 .vc-ep-row.vc-removed { opacity:.5; }
+.vc-ep-grid .vc-wide { grid-column:span 2; }
+.vc-form select.vc-invalid { border-color:var(--bad, #f2545b); }
+.vc-note.vc-bad { color:var(--bad, #f2545b); }
 .vc-ep-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:0 10px; }
 .vc-confirm { border:1px solid var(--bad, #f2545b); border-radius:11px; padding:12px; margin-top:12px; }
 .vc-chooser { position:fixed; left:50%; bottom:110px; transform:translateX(-50%); width:min(460px, 92vw); max-height:60vh; overflow:auto; z-index:60; background:var(--panel-solid); border:1px solid var(--border); border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,.5); padding:10px; }
@@ -96,6 +99,7 @@ _JS = r"""
   }
 
   var KIND_LABELS = {email: 'Email', phone: 'Phone', messaging: 'Messaging', wallet: 'Wallet address'};
+  var KIND_PLURALS = {email: 'emails', phone: 'phones', messaging: 'messaging identities', wallet: 'wallet addresses'};
   var VERIFICATION = {user_entered: 'Added by you', user_confirmed: 'Confirmed by you', imported_unverified: 'Imported, not verified'};
   var PROVIDERS = {apple_contacts: 'Apple Contacts', google: 'Google Contacts', microsoft: 'Microsoft Outlook'};
   var ORIGINS = {chat_unconfirmed: 'a chat request (not in your own words)', email_message: 'an email', retrieved_text: 'retrieved text', provider_profile: 'a provider profile', import: 'an import'};
@@ -130,9 +134,9 @@ _JS = r"""
     var modal = el('div', 'modal vc-modal'); modal.setAttribute('role', 'dialog'); modal.setAttribute('aria-modal', 'true'); modal.setAttribute('aria-labelledby', 'vcTitle');
     var head = el('div', 'modal-head'); var title = el('span', null, CT('contacts.title', 'Contacts')); title.id = 'vcTitle'; head.appendChild(title);
     var headActions = el('div', 'vc-head-actions');
-    var protectBtn = button(CT('contacts.protection', 'Protection'), '', function() { renderProtection(); }); protectBtn.id = 'vcProtect'; headActions.appendChild(protectBtn);
-    var importBtn = button(CT('contacts.import', 'Import'), '', function() { renderImport(); }); importBtn.id = 'vcImport'; headActions.appendChild(importBtn);
-    var add = button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { renderForm(null); }); add.id = 'vcAdd'; headActions.appendChild(add);
+    var protectBtn = button(CT('contacts.protection', 'Protection'), '', function() { say(''); renderProtection(); }); protectBtn.id = 'vcProtect'; headActions.appendChild(protectBtn);
+    var importBtn = button(CT('contacts.import', 'Import'), '', function() { say(''); renderImport(); }); importBtn.id = 'vcImport'; headActions.appendChild(importBtn);
+    var add = button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { say(''); renderForm(null); }); add.id = 'vcAdd'; headActions.appendChild(add);
     var x = el('button', 'modal-x', '×'); x.type = 'button'; x.setAttribute('aria-label', CT('contacts.close_aria', 'Close contacts')); x.addEventListener('click', close); headActions.appendChild(x);
     head.appendChild(headActions); modal.appendChild(head);
     modal.appendChild(el('p', 'set-help vc-help', CT('contacts.help', 'People and services you save once. Email drafts, payment proposals and invitations use the exact entry you pick; nothing here sends or pays. Changing a saved contact asks for your PIN or password.')));
@@ -182,17 +186,27 @@ _JS = r"""
       if (!res[0].ok) { say(why(res[0], 'Contacts could not be read.'), true); return; }
       state.contacts = res[0].body.contacts || [];
       state.suggestions = (res[1] && res[1].ok && res[1].body.suggestions) || [];
-      if (res[2] && res[2].ok) state.options = res[2].body;
+      if (res[2] && res[2].ok) applyOptions(res[2].body);
       if (res[3] && res[3].ok) { state.pending = res[3].body.operations || []; state.credential = res[3].body.credential || null; }
       renderList(); renderPending(); renderSuggestions();
       if (!state.selected && !state.view) renderEmptyDetail();
     });
   }
 
+  function applyOptions(options) {
+    state.options = options;
+    // rows opened before the chain list arrived get it now
+    if (overlay) Array.prototype.forEach.call(overlay.querySelectorAll('.vc-ep-row'), function(r) { if (r._syncChain) r._syncChain(); });
+  }
+
   function renderEmptyDetail() {
     if (!detailEl) return;
     state.view = ''; detailEl.textContent = '';
-    detailEl.appendChild(el('div', 'vc-empty', state.contacts.length ? CT('contacts.choose_hint', 'Choose a contact to see every saved entry.') : CT('contacts.empty', 'No contacts yet. Add one here, or ask VOOL in chat to save someone.')));
+    if (state.contacts.length) { detailEl.appendChild(el('div', 'vc-empty', CT('contacts.choose_hint', 'Choose a contact to see every saved entry.'))); return; }
+    // The list already says nothing is saved: this side offers the next step instead of saying it twice.
+    var start = el('div', 'vc-empty');
+    start.appendChild(button(CT('contacts.add', 'Add contact'), 'vc-primary', function() { say(''); renderForm(null); }));
+    detailEl.appendChild(start);
   }
 
   function renderList() {
@@ -203,7 +217,7 @@ _JS = r"""
       row.dataset.contactId = c.contact_id;
       row.appendChild(el('span', 'vc-name', c.display_name));
       var counts = {}; (c.endpoints || []).forEach(function(e) { counts[e.kind] = (counts[e.kind] || 0) + 1; });
-      var summary = Object.keys(counts).map(function(k) { return counts[k] + ' ' + kindLabel(k).toLowerCase(); }).join(' · ') || 'no entries';
+      var summary = Object.keys(counts).map(function(k) { return counts[k] + ' ' + (counts[k] > 1 ? (KIND_PLURALS[k] || kindLabel(k).toLowerCase()) : kindLabel(k).toLowerCase()); }).join(' · ') || 'no entries';
       row.appendChild(el('span', 'vc-meta', (c.kind === 'service' ? 'Service · ' : '') + summary));
       if (c.match === 'confusable') row.appendChild(el('span', 'vc-meta vc-note vc-warn', 'Looks like your search but is spelled with different characters'));
       row.addEventListener('click', function() { select(c.contact_id); });
@@ -303,7 +317,7 @@ _JS = r"""
     if (!(contact.endpoints || []).length) list.appendChild(el('div', 'vc-empty', CT('contacts.no_entries', 'No entries saved.')));
     detailEl.appendChild(list);
     var bar = el('div', 'vc-actions');
-    bar.appendChild(button('Edit', '', function() { renderForm(contact); }));
+    bar.appendChild(button('Edit', '', function() { say(''); renderForm(contact); }));
     bar.appendChild(button('Delete contact', 'vc-danger', function() { confirmDelete(contact); }));
     detailEl.appendChild(bar);
   }
@@ -324,8 +338,37 @@ _JS = r"""
     parent.appendChild(l); parent.appendChild(select); return select;
   }
 
+  // a Solana address can only be Solana; a 0x address is valid on every EVM chain, so the owner picks the chain
+  function addressFamily(text) {
+    var t = String(text || '').trim();
+    if (/^0x[0-9a-fA-F]{40}$/.test(t)) return 'evm';
+    if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(t) && base58Length(t) === 32) return 'svm';
+    return '';
+  }
+  function base58Length(t) {
+    // decoded byte length, so a Bitcoin-style address (25 bytes) is never called a Solana one
+    var A = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz', bytes = [0];
+    for (var i = 0; i < t.length; i++) {
+      var carry = A.indexOf(t[i]); if (carry < 0) return -1;
+      for (var j = 0; j < bytes.length; j++) { carry += bytes[j] * 58; bytes[j] = carry & 255; carry >>= 8; }
+      while (carry) { bytes.push(carry & 255); carry >>= 8; }
+    }
+    var zeros = 0; while (zeros < t.length && t[zeros] === '1') zeros++;
+    var n = bytes.length; while (n > 1 && bytes[n - 1] === 0) n--;
+    return zeros + (bytes.length === 1 && bytes[0] === 0 ? 0 : n);
+  }
+  function networkLabel(n) { return n.display_name + (n.environment === 'testnet' ? ' (test network)' : ''); }
+  function chainChoices(family, current) {
+    var options = state.options || {};
+    var active = options.active_environment || '';
+    var all = (options.networks || []).filter(function(n) { return !family || n.family === family || n.network === current; });
+    var mine = all.filter(function(n) { return n.environment === active; });
+    var other = all.filter(function(n) { return n.environment !== active; });
+    return mine.concat(other);
+  }
+
   var rowSeq = 0;
-  function endpointRow(e) {
+  function endpointRow(e, presetKind) {
     rowSeq += 1;
     var options = state.options || {kinds: [], channels: [], networks: []};
     var row = el('div', 'vc-ep-row'); if (e) row.dataset.endpointId = e.endpoint_id;
@@ -333,14 +376,56 @@ _JS = r"""
     var kinds = (options.kinds || []).map(function(k) { return [k.id, k.label]; });
     if (!kinds.length) kinds = [['email', 'Email'], ['phone', 'Phone'], ['messaging', 'Messaging'], ['wallet', 'Wallet address']];
     var cell = function() { var d = el('div'); grid.appendChild(d); return d; };
-    var kind = selectField(cell(), 'Kind', kinds, e ? e.kind : 'email', 'vcKind' + rowSeq);
+    var kind = selectField(cell(), 'Kind', kinds, e ? e.kind : (presetKind || 'email'), 'vcKind' + rowSeq);
     if (e) kind.disabled = true;
-    var value = field(cell(), 'Address or identity', 'input', e ? e.value : '', 'vcValue' + rowSeq);
+    var valueCell = cell();
+    var value = field(valueCell, 'Address or identity', 'input', e ? e.value : '', 'vcValue' + rowSeq);
     value.spellcheck = false; value.autocomplete = 'off';
+    var valueNote = el('div', 'vc-note vc-warn'); valueNote.hidden = true; value.parentNode.appendChild(valueNote);
+    var checkValue = function() {
+      var v = value.value.trim();
+      var bad = kind.value === 'email' && v && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
+      valueNote.textContent = bad ? 'That doesn’t look like an email address.' : ''; valueNote.hidden = !bad;
+    };
+    value.addEventListener('blur', checkValue); value.addEventListener('input', function() { if (!valueNote.hidden) checkValue(); });
     var label = field(cell(), 'Label (work, personal, …)', 'input', e ? e.label : '', 'vcLabel' + rowSeq);
     var networkCell = cell();
-    var networks = (options.networks || []).map(function(n) { return [n.network, n.display_name + (n.environment === 'testnet' ? ' (test network)' : '')]; });
-    var network = selectField(networkCell, 'Network', [['', 'Choose the network']].concat(networks), e ? e.chain_network : '', 'vcNetwork' + rowSeq);
+    var network = selectField(networkCell, 'Chain', [['', 'Choose the chain']], '', 'vcNetwork' + rowSeq);
+    var chainNote = el('div', 'vc-note vc-chain-note'); chainNote.id = 'vcChainNote' + rowSeq; chainNote.setAttribute('aria-live', 'polite');
+    networkCell.appendChild(chainNote); network.setAttribute('aria-describedby', chainNote.id);
+    var shownFamily = null, shownOptions = null, touched = false;
+    network.addEventListener('change', function() { touched = true; });
+    var syncChain = function() {
+      // the server checks every address against the chosen chain; this only narrows the list and fills the obvious case
+      var family = addressFamily(value.value);
+      var current = network.value || (!touched && e ? e.chain_network : '');
+      if (family !== shownFamily || state.options !== shownOptions) {
+        network.textContent = '';
+        var choices = chainChoices(family, current);
+        if (!state.options && e && e.chain_network) choices = [{network: e.chain_network, display_name: e.network_display || e.chain_network, environment: e.chain_environment}];
+        if (family !== 'svm' || !(state.options && state.options.active_environment)) { var blank = el('option', null, 'Choose the chain'); blank.value = ''; network.appendChild(blank); }
+        choices.forEach(function(n) { var o = el('option', null, networkLabel(n)); o.value = n.network; network.appendChild(o); });
+        shownFamily = family; shownOptions = state.options;
+      }
+      var known = Array.prototype.some.call(network.options, function(o) { return o.value && o.value === current; });
+      var fits = known && (!family || !state.options || chainChoices(family, '').some(function(n) { return n.network === current; }));
+      if (fits) network.value = current;
+      else if (family === 'svm' && state.options && state.options.active_environment) network.value = (chainChoices('svm', '')[0] || {}).network || '';
+      else network.value = '';
+      var picked = family === 'svm' && !!network.value;
+      chainNote.textContent = picked ? 'This is a Solana address, so the chain is set for you.'
+        : family === 'svm' ? 'Choose the Solana network.' : family === 'evm' ? 'This address works on several chains. Choose the one this person uses.' : '';
+      chainNote.classList.remove('vc-bad'); network.classList.remove('vc-invalid');
+      valueCell.classList.toggle('vc-wide', kind.value === 'wallet');
+    };
+    value.addEventListener('input', syncChain); network.addEventListener('focus', function() { if (state.options !== shownOptions) syncChain(); }); kind.addEventListener('change', syncChain); syncChain();
+    row._syncChain = syncChain;
+    row._needsChain = function() {
+      // a wallet whose address fits several chains and has none chosen: say so on that row, before anything is sent
+      var missing = kind.value === 'wallet' && !row.classList.contains('vc-removed') && addressFamily(value.value) === 'evm' && !network.value;
+      if (missing) { chainNote.textContent = 'Choose a chain for this wallet.'; chainNote.classList.add('vc-bad'); network.classList.add('vc-invalid'); }
+      return missing;
+    };
     var channelCell = cell();
     var channels = (options.channels || []).map(function(c) { return [c.id, c.label]; });
     var channel = selectField(channelCell, 'Service', [['', 'Choose the service']].concat(channels), e ? e.channel : '', 'vcChannel' + rowSeq);
@@ -350,7 +435,7 @@ _JS = r"""
       networkCell.hidden = kind.value !== 'wallet';
       channelCell.hidden = kind.value !== 'messaging'; accountCell.hidden = kind.value !== 'messaging';
     };
-    kind.addEventListener('change', sync); sync();
+    kind.addEventListener('change', function() { sync(); checkValue(); }); sync();
     row.appendChild(grid);
     var remove = button(e ? 'Remove this entry' : 'Discard', 'vc-danger', function() {
       if (!e) { row.remove(); return; }
@@ -370,6 +455,8 @@ _JS = r"""
   function renderForm(contact) {
     if (!overlay) build();
     state.view = 'form'; detailEl.textContent = '';
+    // the wallet's environment can change in Settings while Contacts is open: read the chain list again
+    request('GET', '/api/contacts/options').then(function(res) { if (res.ok) applyOptions(res.body); });
     var form = el('form', 'vc-form'); form.noValidate = true; form.id = 'vcForm';
     form.appendChild(el('h3', 'vc-title', contact ? 'Edit ' + contact.display_name : 'Add contact'));
     if (contact) form.appendChild(el('div', 'vc-note', 'Saving shows you the exact change first; it applies only after your PIN or password.'));
@@ -382,8 +469,28 @@ _JS = r"""
     var existing = contact ? (contact.endpoints || []) : [];
     existing.forEach(function(e) { rows.appendChild(endpointRow(e)); });
     if (!existing.length) rows.appendChild(endpointRow(null));
-    var addEntry = button('Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); });
-    form.appendChild(addEntry);
+    // "Discard" on the only entry would leave a form with no entries: show it only once there are two.
+    var syncDiscard = function() {
+      var only = rows.children.length <= 1;
+      Array.prototype.forEach.call(rows.children, function(r) { if (!r.dataset.endpointId) { var d = r.querySelector('.vc-danger'); if (d) d.style.display = only ? 'none' : ''; } });
+    };
+    rows.addEventListener('click', function() { setTimeout(syncDiscard, 0); });
+    syncDiscard();
+    var addBar = el('div', 'vc-ep-actions');
+    var addWallet = null;
+    var walletLabel = function() {
+      var any = Array.prototype.some.call(rows.children, function(r) { return r._read && r._read().kind === 'wallet' && !r._read().removed; });
+      addWallet.textContent = any ? '+ Add another wallet' : '+ Add a wallet';
+    };
+    var addEntry = button('+ Add an entry', '', function() { var r = endpointRow(null); rows.appendChild(r); walletLabel(); syncDiscard(); });
+    addWallet = button('+ Add a wallet', '', function() {
+      var r = endpointRow(null, 'wallet'); rows.appendChild(r); walletLabel(); syncDiscard();
+      var input = r.querySelector('input'); if (input) input.focus();
+    });
+    addWallet.id = 'vcAddWallet';
+    rows.addEventListener('change', walletLabel); rows.addEventListener('click', walletLabel);
+    addBar.appendChild(addEntry); addBar.appendChild(addWallet); form.appendChild(addBar);
+    walletLabel();
     var err = el('div', 'vc-status'); err.setAttribute('role', 'alert'); form.appendChild(err);
     var bar = el('div', 'vc-actions');
     var save = el('button', 'vc-btn vc-primary', contact ? CT('contacts.review_changes', 'Review changes') : CT('contacts.save', 'Save contact')); save.type = 'submit'; save.id = 'vcSave'; bar.appendChild(save);
@@ -391,7 +498,14 @@ _JS = r"""
     form.appendChild(bar);
     form.addEventListener('submit', function(ev) {
       ev.preventDefault();
-      save.disabled = true; err.textContent = ''; err.className = 'vc-status';
+      err.textContent = ''; err.className = 'vc-status';
+      var unchosen = Array.prototype.filter.call(rows.children, function(r) { return r._needsChain && r._needsChain(); });
+      if (unchosen.length) {
+        err.textContent = unchosen.length === 1 ? 'Choose a chain for the wallet above.' : 'Choose a chain for each wallet marked above.'; err.className = 'vc-status vc-bad';
+        var first = unchosen[0].querySelector('.vc-invalid'); if (first) first.focus();
+        return;
+      }
+      save.disabled = true;
       var entries = Array.prototype.map.call(rows.children, function(r) { return r._read ? r._read() : null; }).filter(Boolean);
       var promise;
       if (!contact) {
@@ -556,8 +670,8 @@ _JS = r"""
     var bar = el('div', 'vc-actions');
     var cancel = button('Cancel this change', 'vc-danger', function() { cancelOperation(op); }); cancel.id = 'vcCancelChange';
     if (!cred.enrolled) {
-      form.appendChild(el('div', 'vc-note vc-warn', 'Set up a PIN or password first (' + (cred.setup_path || 'Protection') + '). Until then this change waits and nothing is changed.'));
-      bar.appendChild(button('Set up protection', '', function() { renderProtection(); })); bar.appendChild(cancel); form.appendChild(bar);
+      form.appendChild(el('div', 'vc-note vc-warn', 'Set up a PIN or password first with the button below. Until then this change waits and nothing is changed.'));
+      bar.appendChild(button('Set up protection', '', function() { say(''); renderProtection(); })); bar.appendChild(cancel); form.appendChild(bar);
       return form;
     }
     var pin = secretField(form, cred.kind === 'password' ? 'Your password' : 'Your PIN', 'vcPin', cred.kind !== 'password');
@@ -646,6 +760,8 @@ _JS = r"""
     var recovery = mode === 'Reset' ? field(form, 'Recovery code', 'input', '', 'vcRecoveryInput') : null;
     if (recovery) { recovery.autocomplete = 'off'; recovery.spellcheck = false; }
     var pair = secretPair(form, mode === 'Enroll' ? 'New PIN or password' : 'New PIN or password', 'vcNewSecret' + mode, false);
+    var digits = cred.pin_digits || [6, 12], chars = cred.password_chars || [10, 128];
+    form.appendChild(el('div', 'vc-note', 'A PIN is ' + digits[0] + ' to ' + digits[1] + ' digits, and not one repeated digit or a run such as 123456. A password is ' + chars[0] + ' to ' + chars[1] + ' characters.'));
     var err = el('div', 'vc-status'); err.setAttribute('role', 'alert'); form.appendChild(err);
     var go = el('button', 'vc-btn' + (mode === 'Reset' ? '' : ' vc-primary'), mode === 'Enroll' ? 'Set up' : mode === 'Change' ? 'Change' : 'Reset'); go.type = 'submit'; go.id = 'vcProtectGo' + mode;
     var bar = el('div', 'vc-ep-actions'); bar.appendChild(go); form.appendChild(bar);
@@ -655,7 +771,7 @@ _JS = r"""
       pair[0].value = ''; pair[1].value = ''; if (current) current.value = ''; if (recovery) recovery.value = '';
       if (!first || first !== second) { err.textContent = 'The two entries are not the same; nothing changed.'; err.className = 'vc-status vc-bad'; return; }
       go.disabled = true;
-      err.textContent = 'This Mac asks you to confirm it is you in its own window.';
+      err.textContent = 'Your computer now asks you to confirm it is you, in its own window.';
       var body = {kind: kind.value};
       var url = '/api/contacts/credential/enroll';
       if (mode === 'Enroll') body.secret = first;
@@ -665,6 +781,10 @@ _JS = r"""
       first = ''; second = ''; now = ''; code = ''; body = null;
       sent.then(function(res) {
         go.disabled = false;
+        if (!res.ok && res.body && res.body.reason === 'consent_unavailable') {
+          err.textContent = 'This computer could not show its own sign-in window to confirm it is you, so a PIN or password cannot be set here. Nothing changed.';
+          err.className = 'vc-status vc-bad'; return;
+        }
         if (!res.ok) { err.textContent = why(res, 'Nothing changed.') + attemptsText(res.body); err.className = 'vc-status vc-bad'; return; }
         err.textContent = '';
         say(mode === 'Enroll' ? 'Protection is set up.' : mode === 'Change' ? 'Changed.' : 'Reset.');
@@ -680,7 +800,7 @@ _JS = r"""
     detailEl.textContent = '';
     var panel = el('div', 'vc-import'); panel.id = 'vcProtection';
     panel.appendChild(el('h3', 'vc-title', 'Protection'));
-    panel.appendChild(el('div', 'vc-note', 'A PIN or password protects every change to a saved contact, every deletion, and every new name that is the same as or looks like a saved one. Adding someone new does not need it. It never approves a payment, an email or an invitation. Setting, changing or resetting it asks this Mac to confirm it is you in its own window.'));
+    panel.appendChild(el('div', 'vc-note', 'A PIN or password protects every change to a saved contact, every deletion, and every new name that is the same as or looks like a saved one. Adding someone new does not need it. It never approves a payment, an email or an invitation. Setting, changing or resetting it asks your computer to confirm it is you, in its own window.'));
     detailEl.appendChild(panel);
     return request('GET', '/api/contacts/credential').then(function(res) {
       var cred = res.ok ? res.body : {}; state.credential = cred;

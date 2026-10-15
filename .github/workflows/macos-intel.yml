@@ -4,9 +4,20 @@ name: macOS Intel package
 # Intel hardware: launch, exact identity, a model reply through the bundled Ollama, and
 # remember / recall / forget on a fresh profile. An arm64 host can only build this target under
 # Rosetta, which proves nothing about Intel Macs.
+#
+# A default run is strict: a cryptography wheel that differs from the recorded release wheel
+# fails the job, and the dependency-provenance audit refuses anything not release-grade. A
+# record_wheel run is the explicit way out: it re-records the native wheel for
+# installer/bundle/built_wheels.json and uploads the package marked NOT-RELEASE-GRADE, never
+# under the release name.
 
 on:
   workflow_dispatch:
+    inputs:
+      record_wheel:
+        description: 'Re-record the native cryptography wheel instead of enforcing the record; the package is then uploaded as NOT-RELEASE-GRADE, never under the release name'
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'installer/bundle/build_macos_app.sh'
@@ -65,29 +76,60 @@ jobs:
         id: source
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      # A default run re-checks whatever this cache restores against the record in the check
+      # step below, so a poisoned or stale entry fails the run instead of passing. A record
+      # run never reads the cache: what it re-records must genuinely be built by this native
+      # runner, not restored from an earlier build's bytes.
       - name: Restore the Intel cryptography wheel built from the recorded recipe
         id: crypto-cache
+        if: inputs.record_wheel != true
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/crypto-wheel
-          key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v1
+          key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v2
+      # The wheel must carry no path of the machine that built it AND be byte-reproducible, so a
+      # record run can be repeated and the record re-checked. Every input path is fixed (sources
+      # unpacked at $W/src, cargo's target dir, and TMPDIR all under $W) and remapped; time is
+      # pinned (SOURCE_DATE_EPOCH for OpenSSL's "built on", ZERO_AR_DATE for ar/ld64); rustc runs
+      # with one codegen unit, no incremental state and debug info stripped; the wheel is then
+      # repacked with a fixed member order, timestamps and modes, the cargo SBOM's absolute paths,
+      # serial number and timestamp removed, and RECORD rewritten. A path that survives fails the
+      # step here, before the bundle's own gate ever sees it.
       - name: Build cryptography natively for x86_64 (static OpenSSL, no-module)
         if: steps.crypto-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           W="$RUNNER_TEMP/crypto-build"; OUT="$RUNNER_TEMP/crypto-wheel"
-          mkdir -p "$W/src" "$W/stage" "$OUT"
+          rm -rf "$W" "$OUT"; mkdir -p "$W/src" "$W/stage" "$W/raw" "$OUT"
+          # >>> deterministic build environment
+          ORIG_TMP="${TMPDIR:-/tmp}"; ORIG_TMP="${ORIG_TMP%/}"
+          export TMPDIR="$W/tmp"; mkdir -p "$TMPDIR"
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          export CARGO_TARGET_DIR="$W/target"
+          export SOURCE_DATE_EPOCH=315532800 ZERO_AR_DATE=1 CARGO_INCREMENTAL=0
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_STRIP=debuginfo
+          # rustc applies the LAST matching remap, so the general prefixes come first and the
+          # nested ones (cargo, rustup and the build dir all sit under the home) after them.
+          RUST_REMAPS=""; C_REMAPS=""
+          for map in "$HOME=/home" "$ORIG_TMP=/tmp" "/private$ORIG_TMP=/tmp" "$CARGO_HOME=/cargo" "$RUSTUP_HOME=/rustup" "$W=/build"; do
+            RUST_REMAPS="$RUST_REMAPS --remap-path-prefix=$map"; C_REMAPS="$C_REMAPS -ffile-prefix-map=$map"
+          done
+          export RUSTFLAGS="${RUST_REMAPS# }" CFLAGS="${C_REMAPS# }"
+          # <<< deterministic build environment
           cd "$W/src"
           curl -fsSLO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
           echo "${OPENSSL_SHA256}  openssl-${OPENSSL_VERSION}.tar.gz" | shasum -a 256 -c -
           tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
           cd "openssl-${OPENSSL_VERSION}"
-          ./Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs \
+          # OpenSSL keeps its own flags: its "compiler:" string would otherwise record the build
+          # dir through CFLAGS. Its sources compile by relative path, so there is nothing to remap.
+          env -u CFLAGS ./Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs \
             --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib \
             -mmacosx-version-min=14.0 > "$W/openssl-configure.log" 2>&1
-          make -j"$(sysctl -n hw.ncpu)" > "$W/openssl-make.log" 2>&1
-          make install_sw DESTDIR="$W/stage" > "$W/openssl-install.log" 2>&1
+          env -u CFLAGS make -j"$(sysctl -n hw.ncpu)" > "$W/openssl-make.log" 2>&1
+          env -u CFLAGS make install_sw DESTDIR="$W/stage" > "$W/openssl-install.log" 2>&1
           lipo -info "$W/stage/private/etc/ssl/lib/libcrypto.a"
+          shasum -a 256 "$W/stage/private/etc/ssl/lib/libcrypto.a" "$W/stage/private/etc/ssl/lib/libssl.a"
           rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal
           uv python install cpython-3.11-macos-x86_64-none
           uv venv --python cpython-3.11-macos-x86_64-none "$W/venv"
@@ -95,13 +137,107 @@ jobs:
           cd "$W/src"
           "$W/venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: "cryptography==${CRYPTO_VERSION}" -d "$W/src"
           echo "${CRYPTO_SDIST_SHA256}  cryptography-${CRYPTO_VERSION}.tar.gz" | shasum -a 256 -c -
+          # Unpacked at a FIXED path and built in place: `pip wheel <sdist>` would unpack into a
+          # random pip-req-build-* dir under TMPDIR, which no remap can name in advance.
+          "$W/venv/bin/python" -I -c "import sys,tarfile;tarfile.open(sys.argv[1]).extractall(sys.argv[2],filter='data')" \
+            "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" "$W/src"
           # maturin's PEP 517 hook runs the `maturin` CLI by name, so the venv's bin goes on PATH.
           env PATH="$W/venv/bin:$PATH" RUSTUP_TOOLCHAIN="${RUST_TOOLCHAIN}" OPENSSL_DIR="$W/stage/private/etc/ssl" OPENSSL_STATIC=1 \
             ARCHFLAGS="-arch x86_64" CARGO_BUILD_TARGET=x86_64-apple-darwin \
-            RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=$W=/build" \
-            "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" -w "$OUT"
+            "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}" -w "$W/raw"
+          RAW="$(ls "$W"/raw/cryptography-${CRYPTO_VERSION}-*.whl)"
+          "$W/venv/bin/python" -I - "$RAW" "$OUT/$(basename "$RAW")" \
+            "$HOME=/home" "$ORIG_TMP=/tmp" "/private$ORIG_TMP=/tmp" "$CARGO_HOME=/cargo" "$RUSTUP_HOME=/rustup" "$W=/build" \
+            -- "$RUNNER_TEMP" "${GITHUB_WORKSPACE:-}" <<'REPACK'
+          """Repack a wheel deterministically, scrub its SBOMs, rewrite RECORD, refuse build paths.
+
+          argv: <in.whl> <out.whl> <prefix=replacement>... -- <extra root>...
+          Every prefix and extra root is a build-machine path: none may survive in any member.
+          """
+          import base64
+          import hashlib
+          import json
+          import stat
+          import sys
+          import zipfile
+
+          args = sys.argv[1:]
+          src, dst = args[0], args[1]
+          sep = args.index("--")
+          maps = [m.split("=", 1) for m in args[2:sep]]
+          maps = [(a.rstrip("/"), b) for a, b in maps if len(a.rstrip("/")) >= 5]
+          maps.sort(key=lambda m: len(m[0]), reverse=True)  # nested prefixes first
+          roots = {a for a, _ in maps} | {r.rstrip("/") for r in args[sep + 1:] if len(r.rstrip("/")) >= 5}
+          FIXED_DATE = (1980, 1, 1, 0, 0, 0)
+
+          def remap(text):
+              for old, new in maps:
+                  text = text.replace(old, new)
+              return text
+
+          def scrub_sbom(node, top=True):
+              if isinstance(node, dict):
+                  out = {}
+                  for key, value in node.items():
+                      # A random serial number and the generation time differ on every build.
+                      if top and key == "serialNumber":
+                          continue
+                      if key == "metadata" and top and isinstance(value, dict):
+                          value = {k: v for k, v in value.items() if k != "timestamp"}
+                      out[key] = scrub_sbom(value, False)
+                  return out
+              if isinstance(node, list):
+                  return [scrub_sbom(v, False) for v in node]
+              if isinstance(node, str):
+                  return remap(node)
+              return node
+
+          with zipfile.ZipFile(src) as zin:
+              infos = [i for i in zin.infolist() if not i.is_dir()]
+              members = {}
+              modes = {}
+              for info in infos:
+                  data = zin.read(info)
+                  if "/sboms/" in info.filename and info.filename.endswith(".json"):
+                      data = (json.dumps(scrub_sbom(json.loads(data)), indent=2) + "\n").encode()
+                  members[info.filename] = data
+                  modes[info.filename] = 0o755 if (info.external_attr >> 16) & 0o111 else 0o644
+
+          records = [n for n in members if n.endswith(".dist-info/RECORD")]
+          if len(records) != 1:
+              sys.exit(f"repack: expected one RECORD, found {len(records)}")
+          record_name = records[0]
+          dist_info = record_name.rsplit("/", 1)[0] + "/"
+          payload = sorted(n for n in members if not n.startswith(dist_info))
+          meta = sorted(n for n in members if n.startswith(dist_info) and n != record_name)
+          order = payload + meta
+
+          leaks = [(n, r) for n in order for r in sorted(roots) if r.encode() in members[n]]
+          if leaks:
+              for name, root in leaks[:10]:
+                  print(f"build path under \"{root.rsplit('/', 1)[-1]}\" in {name}", file=sys.stderr)
+              sys.exit("repack: the wheel still carries build-machine paths; refusing it")
+
+          lines = []
+          for name in order:
+              digest = base64.urlsafe_b64encode(hashlib.sha256(members[name]).digest()).rstrip(b"=").decode()
+              lines.append(f"{name},sha256={digest},{len(members[name])}")
+          lines.append(f"{record_name},,")
+          members[record_name] = ("\n".join(lines) + "\n").encode()
+          modes[record_name] = 0o644
+
+          with zipfile.ZipFile(dst, "w") as zout:
+              for name in order + [record_name]:
+                  info = zipfile.ZipInfo(name, date_time=FIXED_DATE)
+                  info.create_system = 3
+                  info.external_attr = (stat.S_IFREG | modes[name]) << 16
+                  zout.writestr(info, members[name], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+          print(f"repacked {dst}: {len(order) + 1} members, sha256 {hashlib.sha256(open(dst, 'rb').read()).hexdigest()}")
+          REPACK
           ls -l "$OUT"
       - name: Check the cryptography wheel (slice, no dynamic OpenSSL, imports, legacy provider)
+        env:
+          RECORD_WHEEL: ${{ inputs.record_wheel }}
         run: |
           set -euo pipefail
           WHL="$(ls "$RUNNER_TEMP"/crypto-wheel/cryptography-${CRYPTO_VERSION}-*-macosx_14_0_x86_64.whl)"
@@ -130,19 +266,337 @@ jobs:
           built="$(shasum -a 256 "$WHL" | awk '{print $1}')"
           echo "recorded release wheel sha256: $recorded"
           echo "this native build sha256:      $built"
-          if [[ "$built" == "$recorded" ]]; then echo "BYTE-IDENTICAL to the recorded release wheel"; else echo "differs from the recorded release wheel: this CI build is NOT release-grade"; fi
+          # This comparison runs for a cache-restored wheel exactly as for a fresh build: the
+          # record is the only release authority, so cache bytes that differ from it fail here.
+          if [[ "$built" == "$recorded" ]]; then
+            echo "BYTE-IDENTICAL to the recorded release wheel"
+          else
+            echo "differs from the recorded release wheel: this CI build is NOT release-grade"
+            if [[ "$RECORD_WHEEL" != "true" ]]; then
+              echo "::error::the wheel built here is not the recorded release wheel (installer/bundle/built_wheels.json); re-record it with a record_wheel run or fix the recipe"
+              exit 1
+            fi
+            echo "record_wheel run: continuing so this native wheel can be re-recorded"
+          fi
 
-      - name: Wheelhouse (cryptography + proxy-tools from its pinned sdist)
+      - name: Write the built_wheels.json entry for this native wheel
+        if: inputs.record_wheel == true
         run: |
           set -euo pipefail
-          WH="$RUNNER_TEMP/wheelhouse"; mkdir -p "$WH" "$RUNNER_TEMP/proxy-src"
+          WHL="$(ls "$RUNNER_TEMP"/crypto-wheel/cryptography-${CRYPTO_VERSION}-*-macosx_14_0_x86_64.whl)"
+          python3 - "$WHL" <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+
+          wheel = sys.argv[1]
+          env = os.environ
+
+          def run(*cmd: str) -> str:
+              return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout.strip()
+
+          # Exactly the fields of the cryptography entry in installer/bundle/built_wheels.json,
+          # so what a record run uploads can be pasted into the record without hand-editing.
+          entry = {
+              "file": os.path.basename(wheel),
+              "package": "cryptography",
+              "version": env["CRYPTO_VERSION"],
+              "sha256": hashlib.sha256(open(wheel, "rb").read()).hexdigest(),
+              "target": "x86_64-apple-darwin",
+              "macos_min": env["MACOSX_DEPLOYMENT_TARGET"],
+              "source_sdist": f"cryptography-{env['CRYPTO_VERSION']}.tar.gz",
+              "source_sdist_sha256": env["CRYPTO_SDIST_SHA256"],
+              "openssl": f"{env['OPENSSL_VERSION']} (static, no-module: the legacy provider is built in; prefix, openssldir and libdir /private/etc/ssl)",
+              "openssl_tarball_sha256": env["OPENSSL_SHA256"],
+              "built_with": (
+                  f"CPython 3.11 x86_64 native, maturin {env['MATURIN_VERSION']}, rustc {env['RUST_TOOLCHAIN']} "
+                  "target x86_64-apple-darwin; OpenSSL Configure darwin64-x86_64-cc no-shared no-module "
+                  "no-tests no-docs --prefix=/private/etc/ssl --openssldir=/private/etc/ssl "
+                  f"--libdir=/private/etc/ssl/lib -mmacosx-version-min={env['MACOSX_DEPLOYMENT_TARGET']}; "
+                  "sources unpacked and built at fixed paths, TMPDIR inside the build dir; "
+                  "RUSTFLAGS --remap-path-prefix and CFLAGS -ffile-prefix-map for the home, the "
+                  "runner temp dir, cargo, rustup and the build dir; SOURCE_DATE_EPOCH=315532800, "
+                  "ZERO_AR_DATE=1, codegen-units=1, CARGO_INCREMENTAL=0, debug info stripped; "
+                  "wheel repacked deterministically with the cargo SBOM's paths, serial number "
+                  "and timestamp removed and RECORD rewritten"
+              ),
+              "built_on": "{} (native {}, GitHub Actions {} runner image, macOS {})".format(
+                  run("date", "-u", "+%Y-%m-%d"),
+                  run("uname", "-m"),
+                  env.get("RUNNER_IMAGE", "macos-15-intel"),
+                  run("sw_vers", "-productVersion"),
+              ),
+              "checks": (
+                  "single wheel tagged cp311-abi3-macosx_14_0_x86_64, {} bytes; _rust.abi3.so "
+                  "x86_64 only; no libssl/libcrypto dylib; imports with the legacy provider "
+                  "loaded and a Fernet round-trip on this native Intel host"
+              ).format(os.path.getsize(wheel)),
+          }
+          out = f"{env['RUNNER_TEMP']}/built_wheels_entry.json"
+          with open(out, "w", encoding="utf-8") as handle:
+              json.dump(entry, handle, indent=2)
+              handle.write("\n")
+          print(f"wrote {out}")
+          PY
+      # proxy-tools publishes only an sdist. Its wheel is the one recorded in
+      # installer/bundle/built_wheels.json, assembled by a deterministic stdlib-only recipe that
+      # never runs setup.py and never imports the package: the same recipe runs here, so a
+      # native build reproduces the recorded bytes and the strict provenance audit can vouch for
+      # them. `pip download`/`pip wheel` would execute the 2014 setup.py and produce a wheel with
+      # build-time timestamps, which can never match the record.
+      - name: Wheelhouse (cryptography + proxy-tools rebuilt by its recorded recipe)
+        env:
+          RECORD_WHEEL: ${{ inputs.record_wheel }}
+        run: |
+          set -euo pipefail
+          WH="$RUNNER_TEMP/wheelhouse"; PT="$RUNNER_TEMP/proxy-tools"; PTW="$RUNNER_TEMP/proxy-wheel"
+          rm -rf "$PT" "$PTW"; mkdir -p "$WH" "$PT/src" "$PT/extract" "$PTW"
           cp "$RUNNER_TEMP"/crypto-wheel/*.whl "$WH/"
-          uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/pt-venv"
-          uv pip install --python "$RUNNER_TEMP/pt-venv/bin/python" pip setuptools wheel
-          "$RUNNER_TEMP/pt-venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: proxy_tools==0.1.0 -d "$RUNNER_TEMP/proxy-src"
-          echo "${PROXY_TOOLS_SDIST_SHA256}  $RUNNER_TEMP/proxy-src/proxy_tools-0.1.0.tar.gz" | shasum -a 256 -c -
-          "$RUNNER_TEMP/pt-venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$RUNNER_TEMP/proxy-src/proxy_tools-0.1.0.tar.gz" -w "$WH"
+          read -r PT_URL PT_SDIST_SHA < <(python3 -I -c "import json;e=next(w for w in json.load(open('installer/bundle/built_wheels.json'))['wheels'] if w['package']=='proxy-tools');print(e['source_sdist_url'],e['source_sdist_sha256'])")
+          test "$PT_SDIST_SHA" = "$PROXY_TOOLS_SDIST_SHA256"
+          curl -fsSL -o "$PT/src/proxy_tools-0.1.0.tar.gz" "$PT_URL"
+          echo "${PROXY_TOOLS_SDIST_SHA256}  $PT/src/proxy_tools-0.1.0.tar.gz" | shasum -a 256 -c -
+          uv python install cpython-3.11-macos-x86_64-none
+          PTPY="$(uv python find --system cpython-3.11-macos-x86_64-none)"
+          # Untrusted archive: regular files and directories only, nothing outside the target.
+          "$PTPY" -I -c "import sys,tarfile;t=tarfile.open(sys.argv[1]);t.extractall(sys.argv[2],filter='data')" \
+            "$PT/src/proxy_tools-0.1.0.tar.gz" "$PT/extract"
+          "$PTPY" -I - "$PT/extract/proxy_tools-0.1.0" "$PTW" <<'PY'
+          import base64
+          import csv
+          import hashlib
+          import io
+          import os
+          import stat
+          import sys
+          import zipfile
+
+          NAME = "proxy_tools"            # distribution name as spelled in the sdist's PKG-INFO
+          VERSION = "0.1.0"
+          PACKAGES = ["proxy_tools"]      # from setup.py: packages=['proxy_tools']
+          TAG = "py3-none-any"
+          DIST_INFO = "%s-%s.dist-info" % (NAME, VERSION)
+          WHEEL_NAME = "%s-%s-%s.whl" % (NAME, VERSION, TAG)
+
+          FIXED_DATE = (1980, 1, 1, 0, 0, 0)
+          FILE_MODE = 0o644
+          COMPRESS_LEVEL = 9
+          LICENSE_CANDIDATES = ("LICENSE", "LICENSE.txt", "LICENSE.rst", "LICENSE.md",
+                                "LICENCE", "COPYING", "COPYING.txt")
+          # Placeholder values old setuptools wrote for unset fields; dropped from METADATA.
+          PLACEHOLDER = "UNKNOWN"
+
+
+          def die(msg):
+              sys.exit("build_wheel: error: " + msg)
+
+
+          def read_regular(path):
+              st = os.lstat(path)
+              if not stat.S_ISREG(st.st_mode):
+                  die("not a regular file: %s" % path)
+              with open(path, "rb") as fh:
+                  return fh.read()
+
+
+          def parse_pkg_info(data):
+              """Parse RFC 822 style PKG-INFO headers into an ordered list of (field, value)."""
+              text = data.decode("utf-8")
+              fields = []
+              for line in text.split("\n"):
+                  if line == "":
+                      continue
+                  if line[0] in " \t":
+                      if not fields:
+                          die("PKG-INFO starts with a continuation line")
+                      k, v = fields[-1]
+                      fields[-1] = (k, v + "\n" + line)
+                      continue
+                  if ": " not in line and not line.endswith(":"):
+                      die("unparseable PKG-INFO line: %r" % line)
+                  k, _, v = line.partition(":")
+                  fields.append((k.strip(), v.strip()))
+              return fields
+
+
+          def build_metadata(pkg_info_fields):
+              get = dict(pkg_info_fields)
+              if get.get("Name") != NAME or get.get("Version") != VERSION:
+                  die("PKG-INFO name/version mismatch: %r %r" % (get.get("Name"), get.get("Version")))
+              out = ["Metadata-Version: 2.1"]
+              for k, v in pkg_info_fields:
+                  if k == "Metadata-Version":
+                      continue
+                  if v == PLACEHOLDER and k in ("Description", "Platform", "Home-page",
+                                                "Author", "Author-email", "License",
+                                                "Summary", "Keywords"):
+                      continue
+                  if k == "Description":
+                      die("non-placeholder Description in PKG-INFO; handle it as a body")
+                  out.append("%s: %s" % (k, v))
+              return ("\n".join(out) + "\n").encode("utf-8")
+
+
+          def collect_package_files(root):
+              files = {}
+              for pkg in PACKAGES:
+                  pkg_dir = os.path.join(root, *pkg.split("."))
+                  if not os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
+                      die("package directory missing: %s" % pkg_dir)
+                  if not os.path.isfile(os.path.join(pkg_dir, "__init__.py")):
+                      die("package has no __init__.py: %s" % pkg_dir)
+                  for name in sorted(os.listdir(pkg_dir)):
+                      path = os.path.join(pkg_dir, name)
+                      if os.path.isdir(path):
+                          # sub-packages must be listed explicitly in PACKAGES
+                          if "%s.%s" % (pkg, name) not in PACKAGES:
+                              die("unexpected subdirectory in package: %s" % path)
+                          continue
+                      if not name.endswith(".py"):
+                          die("unexpected non-.py file in package: %s" % path)
+                      arc = "/".join(pkg.split(".") + [name])
+                      files[arc] = read_regular(path)
+              return files
+
+
+          def record_hash(data):
+              digest = hashlib.sha256(data).digest()
+              return "sha256=" + base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+          def zip_info(arcname):
+              zi = zipfile.ZipInfo(arcname, date_time=FIXED_DATE)
+              zi.compress_type = zipfile.ZIP_DEFLATED
+              zi.create_system = 3  # Unix, so external_attr carries the POSIX mode
+              zi.external_attr = (stat.S_IFREG | FILE_MODE) << 16
+              return zi
+
+
+          def main(argv):
+              if len(argv) != 3:
+                  die("usage: build_wheel.py <extracted-sdist-root> <output-dir>")
+              root, out_dir = argv[1], argv[2]
+
+              pkg_info = read_regular(os.path.join(root, "PKG-INFO"))
+              metadata = build_metadata(parse_pkg_info(pkg_info))
+
+              payload = collect_package_files(root)
+
+              top_level = ("\n".join(sorted({p.split(".")[0] for p in PACKAGES})) + "\n").encode("ascii")
+              egg_top = os.path.join(root, "%s.egg-info" % NAME, "top_level.txt")
+              if os.path.exists(egg_top) and read_regular(egg_top) != top_level:
+                  die("top_level.txt disagrees with sdist egg-info/top_level.txt")
+
+              wheel_file = (
+                  "Wheel-Version: 1.0\n"
+                  "Generator: hand-assembled from sdist\n"
+                  "Root-Is-Purelib: true\n"
+                  "Tag: %s\n" % TAG
+              ).encode("ascii")
+
+              dist_info = {
+                  DIST_INFO + "/METADATA": metadata,
+                  DIST_INFO + "/WHEEL": wheel_file,
+                  DIST_INFO + "/top_level.txt": top_level,
+              }
+              for cand in LICENSE_CANDIDATES:
+                  p = os.path.join(root, cand)
+                  if os.path.lexists(p):
+                      dist_info[DIST_INFO + "/" + cand] = read_regular(p)
+
+              ordered = [(k, payload[k]) for k in sorted(payload)]
+              ordered += [(k, dist_info[k]) for k in sorted(dist_info)]
+
+              buf = io.StringIO()
+              w = csv.writer(buf, lineterminator="\n")
+              for arc, data in ordered:
+                  w.writerow([arc, record_hash(data), str(len(data))])
+              record_name = DIST_INFO + "/RECORD"
+              w.writerow([record_name, "", ""])
+              record = buf.getvalue().encode("utf-8")
+              ordered.append((record_name, record))
+
+              os.makedirs(out_dir, exist_ok=True)
+              out_path = os.path.join(out_dir, WHEEL_NAME)
+              if os.path.lexists(out_path):
+                  die("refusing to overwrite existing %s" % out_path)
+              tmp_path = out_path + ".part"
+              with open(tmp_path, "xb") as fh:
+                  with zipfile.ZipFile(fh, "w") as zf:
+                      for arc, data in ordered:
+                          zf.writestr(zip_info(arc), data, compress_type=zipfile.ZIP_DEFLATED,
+                                      compresslevel=COMPRESS_LEVEL)
+              os.replace(tmp_path, out_path)
+
+              with open(out_path, "rb") as fh:
+                  whl = fh.read()
+              sys.stdout.write(record.decode("utf-8"))
+              print("wrote %s  size=%d  sha256=%s" % (WHEEL_NAME, len(whl), hashlib.sha256(whl).hexdigest()))
+
+
+          if __name__ == "__main__":
+              main(sys.argv)
+          PY
+          PT_WHL="$PTW/proxy_tools-0.1.0-py3-none-any.whl"
+          recorded="$(python3 -I -c "import json;print(next(w['sha256'] for w in json.load(open('installer/bundle/built_wheels.json'))['wheels'] if w['package']=='proxy-tools'))")"
+          built="$(shasum -a 256 "$PT_WHL" | awk '{print $1}')"
+          echo "recorded proxy-tools wheel sha256: $recorded"
+          echo "this native build sha256:          $built"
+          if [[ "$built" == "$recorded" ]]; then
+            echo "proxy-tools: BYTE-IDENTICAL to the recorded wheel"
+          else
+            echo "proxy-tools: differs from the recorded wheel: this CI build is NOT release-grade"
+            if [[ "$RECORD_WHEEL" != "true" ]]; then
+              echo "::error::the proxy-tools wheel built here is not the recorded wheel (installer/bundle/built_wheels.json); re-record it with a record_wheel run or fix the recipe"
+              exit 1
+            fi
+            echo "record_wheel run: continuing so this wheel can be re-recorded"
+          fi
+          cp "$PT_WHL" "$WH/"
           shasum -a 256 "$WH"/*.whl
+      - name: Write the built_wheels.json entry for the proxy-tools wheel
+        if: inputs.record_wheel == true
+        run: |
+          set -euo pipefail
+          python3 -I - "$RUNNER_TEMP/proxy-wheel/proxy_tools-0.1.0-py3-none-any.whl" "$RUNNER_TEMP/built_wheels_proxy_tools_entry.json" <<'PY'
+          import hashlib
+          import json
+          import platform
+          import subprocess
+          import sys
+
+          wheel, out = sys.argv[1], sys.argv[2]
+          # The committed entry with only what this run measured replaced: the recipe, the
+          # source and the license facts do not change with the machine that runs the recipe.
+          with open("installer/bundle/built_wheels.json", encoding="utf-8") as handle:
+              entry = dict(next(w for w in json.load(handle)["wheels"] if w["package"] == "proxy-tools"))
+          with open(wheel, "rb") as handle:
+              entry["sha256"] = hashlib.sha256(handle.read()).hexdigest()
+          entry["built_on"] = "macOS {} native {}, GitHub Actions macos-15-intel runner, the recorded recipe".format(
+              subprocess.run(["sw_vers", "-productVersion"], capture_output=True, text=True, check=True).stdout.strip(),
+              platform.machine(),
+          )
+          with open(out, "w", encoding="utf-8") as handle:
+              json.dump(entry, handle, indent=2)
+              handle.write("\n")
+          print(f"wrote {out}")
+          PY
+      - uses: actions/upload-artifact@v7
+        # Only a record run uploads this: both wheels the build makes itself and their
+        # entries. It is the input for updating
+        # installer/bundle/built_wheels.json, never a release artifact.
+        if: inputs.record_wheel == true
+        with:
+          name: intel-crypto-record
+          path: |
+            ${{ runner.temp }}/crypto-wheel/*.whl
+            ${{ runner.temp }}/built_wheels_entry.json
+            ${{ runner.temp }}/proxy-wheel/*.whl
+            ${{ runner.temp }}/built_wheels_proxy_tools_entry.json
+          if-no-files-found: error
+
       - name: Bundled Ollama (pinned release, verified)
         run: |
           set -euo pipefail
@@ -163,6 +617,41 @@ jobs:
           uv venv --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/sys-venv"
           python3 -c "from ops.bundle_dependency_provenance import lean_requirements; print('\n'.join(lean_requirements()))" > "$RUNNER_TEMP/lean.txt"
           uv pip install --python "$RUNNER_TEMP/sys-venv/bin/python" --no-build --find-links "$RUNNER_TEMP/wheelhouse" -r "$RUNNER_TEMP/lean.txt"
+      - name: pip-audit the lean set the bundle installs
+        # Same policy as .github/workflows/security-audit.yml: the auditor's own nonzero exit
+        # is the only failure authority (a crash is UNKNOWN, never a healthy zero), and no
+        # vulnerability is ignored here that security-audit.yml does not ignore. The audited
+        # requirements are the exact installed versions frozen out of the sys-venv above -- the
+        # same lean list, wheelhouse and platform pins the bundle's embedded interpreter
+        # resolves -- not the loose >= specs.
+        run: |
+          set -euo pipefail
+          uv pip freeze --python "$RUNNER_TEMP/sys-venv/bin/python" > "$RUNNER_TEMP/lean-frozen.txt"
+          cat "$RUNNER_TEMP/lean-frozen.txt"
+          uv venv --seed --python cpython-3.11-macos-x86_64-none "$RUNNER_TEMP/audit-venv"
+          "$RUNNER_TEMP/audit-venv/bin/python" -m pip install --upgrade pip pip-audit
+          # --no-deps --disable-pip: the frozen list is already the complete, exactly pinned
+          # installed set, so it is audited as written. Without them pip-audit re-resolves it
+          # through pip, which for this target means preparing sdists (cryptography has no Intel
+          # wheel; proxy-tools has none at all) -- running their build code, or failing on it.
+          "$RUNNER_TEMP/audit-venv/bin/python" -m pip_audit -r "$RUNNER_TEMP/lean-frozen.txt" \
+            --no-deps --disable-pip --format=json -o "$RUNNER_TEMP/pip-audit-lean.json"
+          "$RUNNER_TEMP/audit-venv/bin/python" - "$RUNNER_TEMP/pip-audit-lean.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          dependencies = payload.get("dependencies", [])
+          vulns = sum(len(dep.get("vulns", [])) for dep in dependencies)
+          fixable = sum(
+              1
+              for dep in dependencies
+              for vuln in dep.get("vulns", [])
+              if vuln.get("fix_versions")
+          )
+          print(f"pip-audit-lean.json: vulnerabilities={vulns} fixable={fixable}")
+          PY
       # The build script's footprint gate refuses any bundle byte that carries the builder's
       # $HOME. On a hosted runner $HOME is /Users/runner, which is also the home of the GitHub
       # runners that built many upstream PyPI wheels, so their own bytes trip the gate. The build
@@ -173,6 +662,10 @@ jobs:
         env:
           VOOL_BUNDLE_WHEELHOUSE: ${{ runner.temp }}/wheelhouse
           SYS_PY: ${{ runner.temp }}/sys-venv/bin/python
+          # A default run is a release build: the dependency-provenance audit must refuse any
+          # wheelhouse artifact that is not release-grade. A record run is explicitly not
+          # release-grade, so it keeps the audit non-strict and says so in its artifact names.
+          VOOL_REQUIRE_RELEASE_PROVENANCE: ${{ inputs.record_wheel != true && '1' || '0' }}
         run: |
           set -euo pipefail
           export HOME="$RUNNER_TEMP/vool-builder-home"
@@ -191,8 +684,20 @@ jobs:
           cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/ARCH_CENSUS.json" . || true
           cp "$RUNNER_TEMP/vool-builder-home/macos-x86_64/VOOL.app/Contents/Resources/app/config/dependency-provenance.json" . || true
       - uses: actions/upload-artifact@v7
+        if: inputs.record_wheel != true
         with:
           name: macos-x86_64-package
+          path: |
+            ${{ runner.temp }}/assets/*.dmg
+            ${{ runner.temp }}/assets/*.sha256
+            ${{ runner.temp }}/assets/*.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        # A record run built with a wheel the record does not vouch for: the package is
+        # evidence for the smoke job only and must never be mistaken for a release.
+        if: inputs.record_wheel == true
+        with:
+          name: macos-x86_64-package-NOT-RELEASE-GRADE
           path: |
             ${{ runner.temp }}/assets/*.dmg
             ${{ runner.temp }}/assets/*.sha256
@@ -206,8 +711,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
+        if: inputs.record_wheel != true
         with:
           name: macos-x86_64-package
+          path: ${{ runner.temp }}/assets
+      - uses: actions/download-artifact@v8
+        # A record run still smoke-tests the package it built, under the not-release-grade
+        # name it was uploaded with.
+        if: inputs.record_wheel == true
+        with:
+          name: macos-x86_64-package-NOT-RELEASE-GRADE
           path: ${{ runner.temp }}/assets
       - name: Install, launch, answer, remember, recall, forget, quit on real Intel
         env:

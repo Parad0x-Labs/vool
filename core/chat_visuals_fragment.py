@@ -19,7 +19,16 @@ def render_chat_visuals_fragment() -> str:
   'use strict';
   const seen = new WeakSet(), frames = new Map(), watched = new Set(), queue = [];
   let active = 0;
-  const palette = ['#3bbfa9', '#8b8cf5', '#e89a59', '#dd7393', '#74a6e8', '#a0ab72'];
+  const darkPalette = ['#3bbfa9', '#8b8cf5', '#e89a59', '#dd7393', '#74a6e8', '#a0ab72'];
+  // The same hues, deeper, for the light theme: the dark set is too bright on a cream page.
+  const lightPalette = ['#4f8f84', '#7a6fb0', '#b07a45', '#a85f75', '#5f86b0', '#7f8a52'];
+  function chartPalette() {
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(
+      getComputedStyle(document.documentElement).getPropertyValue('--chat').trim());
+    if (!m) return darkPalette;
+    const rgb = m.slice(1).map(v => parseInt(v, 16));
+    return rgb[0]*.299 + rgb[1]*.587 + rgb[2]*.114 > 150 ? lightPalette : darkPalette;
+  }
   function keys(value, allowed) {
     if (!value || typeof value !== 'object' || Array.isArray(value) ||
         Object.keys(value).some(k => !allowed.includes(k))) throw Error('Unsupported chart fields');
@@ -43,6 +52,7 @@ def render_chat_visuals_fragment() -> str:
     labels.forEach(label);
     if (!Array.isArray(spec.data.datasets) || !spec.data.datasets.length || spec.data.datasets.length > 8)
       throw Error('Invalid chart datasets');
+    const palette = chartPalette();
     const datasets = spec.data.datasets.map((d, i) => {
       keys(d, ['label','data','color']);
       if (!Array.isArray(d.data) || d.data.length !== labels.length ||
@@ -168,6 +178,9 @@ def render_chat_visuals_fragment() -> str:
     if (root.querySelectorAll) blocks.push(...root.querySelectorAll('.chat-code-wrap'));
     blocks.forEach(block => {
       if (seen.has(block)) return;
+      // An answer still streaming is repainted every few frames; its half-written chart or
+      // diagram is not a visual yet. The final render brings fresh blocks without the mark.
+      if (block.closest('[data-streaming]')) return;
       const code = block.querySelector('code[class~="lang-chart" i], code[class~="lang-mermaid" i]');
       if (!code) return;
       seen.add(block);

@@ -223,8 +223,8 @@ if !errorlevel! neq 0 (
   )
 )
 
-REM Liquefy: clone into OpenClaw folder, patch build-backend, install into VOOL venv.
-REM This keeps Liquefy scoped to the OpenClaw workspace (not global).
+REM Liquefy: clone next to the VOOL folder, patch build-backend, install into VOOL venv.
+REM This keeps Liquefy scoped to the VOOL venv (not global).
 set "LIQUEFY_DIR="
 if exist "%BUNDLED_LIQUEFY_DIR%\pyproject.toml" (
   set "LIQUEFY_DIR=%BUNDLED_LIQUEFY_DIR%"
@@ -237,7 +237,7 @@ if "%LIQUEFY_DIR%"=="" (
   if !errorlevel! equ 0 (
     set "LIQUEFY_DIR=%PROJECT_ROOT%\..\liquefy-openclaw-integration"
     if not exist "%LIQUEFY_DIR%\pyproject.toml" (
-      echo Cloning Liquefy into OpenClaw folder...
+      echo Cloning Liquefy next to the VOOL folder...
       git clone --depth 1 https://github.com/Parad0x-Labs/liquefy-openclaw-integration.git "%LIQUEFY_DIR%" >nul 2>&1
     )
     if not exist "%LIQUEFY_DIR%\pyproject.toml" set "LIQUEFY_DIR="
@@ -249,7 +249,7 @@ if not "%LIQUEFY_DIR%"=="" (
   powershell -NoProfile -Command "(Get-Content '%LIQUEFY_DIR%\pyproject.toml') -replace 'setuptools\.backends\._legacy:_Backend','setuptools.build_meta' | Set-Content '%LIQUEFY_DIR%\pyproject.toml'"
   "%VENV_DIR%\Scripts\python.exe" -m pip install "%LIQUEFY_DIR%" >nul 2>&1
   if !errorlevel! equ 0 (
-    echo Liquefy installed into VOOL venv from OpenClaw folder.
+    echo Liquefy installed into VOOL venv from the folder next to VOOL.
   ) else (
     echo WARNING: Liquefy installation failed. Continuing without it.
   )
@@ -580,8 +580,7 @@ echo Web0 browser:  %PROJECT_ROOT%\Open_Web0.bat
 echo To start headless:  %PROJECT_ROOT%\Start_VOOL.bat
 if defined DESKTOP_SHORTCUT echo Desktop:      %DESKTOP_SHORTCUT%
 echo.
-echo VOOL is the default agent, memory is automatic,
-echo mesh daemon is live, starter credits are seeded, and credits are tracked.
+echo VOOL is the default agent and memory is automatic.
 echo Install-profile truth is persisted into launchers and support receipts.
 echo Playwright browser rendering is enabled through install launchers.
 echo Local SearXNG bootstrap is attempted on install and on launcher start.

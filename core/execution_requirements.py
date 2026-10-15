@@ -279,6 +279,25 @@ def _contacts_action_demand(text: str) -> bool:
         return False
 
 
+def _x_action_demand(text: str) -> bool:
+    """Whether the text asks VOOL to read or act on X AND the user connected X.
+
+    Same law as the wallet, email and Contacts arms, read by the same typed recognizer the tool
+    offer uses (core.tool_demand_signals): "who called $WIF on X" or "show @someone's posts" is
+    served only through the X tools, which the tools-less chat lane cannot call. X not connected
+    (the default) leaves every turn exactly as it was."""
+    try:
+        from core.x_api import connected
+
+        if not connected():
+            return False
+        from core.tool_demand_signals import resolve_demand_signals
+
+        return "x" in resolve_demand_signals(str(text or "")).required_families
+    except Exception:
+        return False
+
+
 def _retrieval_prohibited_requirements(
     *,
     supplied: bool,
@@ -915,6 +934,22 @@ def _compute_requirements(
     # transfer request from its weights (measured 2026-09-03 on the served wallet proof). The demand
     # signal is the same one the tool offer reads, so the two cannot disagree; the wallet being OFF
     # (the default) leaves every turn exactly as it was, and a user's own tool prohibition still wins.
+    # An X demand ("who called $WIF first on X", "show @someone's past calls") is served only through
+    # the X tools with the user's own keys. Checked before the wallet and price arms: a cashtag or a
+    # contract address in an X question is the subject of the search, not a price or a payment.
+    if _x_action_demand(candidate_text) and not constraints.forbids_all_tools and not constraints.forbids("x"):
+        reasons.append("x_action_request")
+        return ExecutionRequirements(
+            answer_mode=str(getattr(mode, "value", str(mode))),
+            external_evidence_required=False,
+            current_information_required=False,
+            user_material_supplied=supplied,
+            tools_required=True,
+            allowed_toolsets=("x",),
+            inference_allowed=not no_guessing,
+            reason_codes=tuple(reasons),
+        )
+
     if _wallet_action_demand(candidate_text) and not constraints.forbids_all_tools and not constraints.forbids("wallet"):
         reasons.append("wallet_action_request")
         return ExecutionRequirements(
