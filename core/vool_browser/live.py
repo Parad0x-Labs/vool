@@ -99,9 +99,21 @@ def _key(chat: str) -> tuple[str, str]:
     return str(active_data_dir()), chat
 
 
+def chat_active(chat: str) -> bool:
+    from core.context_namespace import load_chat_namespace
+
+    try:
+        namespace = load_chat_namespace(chat)
+        return namespace is None or namespace.lifecycle_state == "active"
+    except Exception:
+        raise BrowserFault("chat_inactive") from None
+
+
 def session(chat: str, *, create: bool = False) -> LiveSession | None:
     key = _key(chat)
     with _LOCK:
+        if create and not chat_active(chat):
+            raise BrowserFault("chat_inactive")
         item = _SESSIONS.get(key)
         if item is not None and not item.closed:
             from core.private_chat import is_private
@@ -115,6 +127,15 @@ def session(chat: str, *, create: bool = False) -> LiveSession | None:
             item = LiveSession(chat)
             _SESSIONS[key] = item
         return item
+
+
+def stop_chat(chat: str) -> None:
+    key = _key(chat)
+    with _LOCK:
+        item = _SESSIONS.get(key)
+        if item:
+            item.stop()
+            _SESSIONS.pop(key, None)
 
 
 def stop_all() -> None:
@@ -257,6 +278,9 @@ class LiveSession:
         self._driver_manager = None
         self._driver_start = None
         self._opening = None
+        self._engine_closed = False
+        self._loop_stop_requested = False
+        self._closing_future = None
         self._page = None
         self._task = None
         self._permit: dict[str, Any] | None = None
@@ -681,17 +705,34 @@ class LiveSession:
             self._document_origin = ""
             self.state = "stopping"
             self._stopped.set()
-        future = asyncio.run_coroutine_threadsafe(self._close(), self._loop)
         try:
-            future.result(timeout=12)
+            if not self._engine_closed:
+                future = self._closing_future
+                if future is None or (future.done() and (future.cancelled() or future.exception())):
+                    future = asyncio.run_coroutine_threadsafe(self._close(), self._loop)
+                    self._closing_future = future
+                future.result(timeout=12)
+                self._engine_closed = True
+            if not self._loop_stop_requested:
+                self._loop.call_soon_threadsafe(self._loop.stop)
+                self._loop_stop_requested = True
+            self._thread.join(timeout=2)
+            if self._thread.is_alive():
+                raise BrowserFault("cleanup_failed")
+            # Closed transport proxies retain URLs and request metadata. Do not
+            # keep them in a completed private session or across a purge retry.
+            self._page = self._context = self._driver = None
+            self._driver_manager = self._driver_start = self._opening = None
+            self._task = self._execution_task = self._closing_future = None
+            self._browser = None
+            self._owned_processes.clear()
+            self._routes.clear()
+            if self.profile.exists() or self.profile.is_symlink():
+                shutil.rmtree(self.profile)
         except Exception as exc:
             self.cleanup_metrics["failure"] = type(exc).__name__
             self.state = "cleanup_failed"
             raise BrowserFault("cleanup_failed") from exc
-        self._loop.call_soon_threadsafe(self._loop.stop)
-        self._thread.join(timeout=2)
-        if self.profile.exists():
-            shutil.rmtree(self.profile)
         self.state = "stopped"
 
     def _record_process(self, pid: int) -> None:
@@ -845,6 +886,10 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
             snap.pop("frame", None)
             snap.pop("nodes", None)
             snap.pop("result", None)
+            if snap.get("pending"):
+                # The owner may have entered a password or selected a file in
+                # the pane. Model status needs approval metadata, not its bytes.
+                snap["pending"] = {key: snap["pending"][key] for key in ("id", "op", "actor", "expires")}
             snap["status"] = "executed"
             return snap
         if snap["pending"]:

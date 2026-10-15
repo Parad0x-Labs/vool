@@ -16,12 +16,27 @@ def get(path, query, *, locale="en"):
         return html_response(200, render(chat, locale), headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"})
     if path == "/api/browser/settings":
         return json_response(200, live.settings(), headers={"Cache-Control": "no-store"})
-    item = live.session(chat)
+    try:
+        item = live.session(chat)
+        active_chat = live.chat_active(chat) if item is None else True
+    except live.BrowserFault as exc:
+        return json_response(409, {"ok": False, "error": str(exc)})
     if path == "/api/browser/download" and item:
         download = item.download()
         if download:
             return ApiResponse(200, "application/octet-stream", body=download[1], headers={"Content-Disposition": 'attachment; filename="download.bin"', "Cache-Control": "no-store"})
-    return json_response(200, item.snapshot() if item else {"ok": True, "state": "ready" if live.available() else "web_off", "closed": True}, headers={"Cache-Control": "no-store"})
+    return json_response(200, item.snapshot() if item else {"ok": True, "state": "stopped" if not active_chat else "ready" if live.available() else "web_off", "closed": True}, headers={"Cache-Control": "no-store"})
+
+
+def before_chat_end(chat, *, locale="en"):
+    from core.i18n import catalog_for
+    from core.web.api.service import json_response
+
+    try:
+        live.stop_chat(chat)
+    except live.BrowserFault:
+        return json_response(409, {"error": catalog_for(locale).text("live.failed"), "code": "browser_cleanup_failed"})
+    return None
 
 
 def post(path, body, *, headers=None, client_host=""):

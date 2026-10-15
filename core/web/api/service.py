@@ -7058,6 +7058,12 @@ def _dispatch_post_inner(
                 )
 
             if operation in {"archive", "restore", "delete"}:
+                if operation != "restore":
+                    from core.web.api.browser_api import before_chat_end
+
+                    refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+                    if refusal is not None:
+                        return apply_runtime_headers(refusal, runtime)
                 state = {
                     "archive": "archived",
                     "restore": "active",
@@ -7212,6 +7218,11 @@ def _dispatch_post_inner(
         # memory, summaries, metadata, and pins. Missing sessions retain the historical idempotent
         # response rather than creating a namespace solely to delete it.
         if body.get("delete") is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
             namespace = load_chat_namespace(session_id)
             if namespace is None and has_existing_session:
                 namespace = ensure_chat_namespace(
@@ -7333,6 +7344,12 @@ def _dispatch_post_inner(
                 json_response(409, {"error": "deleted chat namespaces cannot be changed"}),
                 runtime,
             )
+        if archived_arg is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
         try:
             # Restore before assigning a project; archive after assignment. This keeps project
             # mutation restricted to active namespaces while supporting one atomic metadata POST.

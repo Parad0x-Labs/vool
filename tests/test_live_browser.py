@@ -73,6 +73,7 @@ def world(pact_rig, request):
     origin=f'http://127.0.0.1:{server.server_port}'
     policy_engine.set_operator_policy_values({'system.allow_web_fallback':True})
     status,data=pact_rig.post('/api/browser/settings',{'enabled':True});assert status==200,data
+    status,data=pact_rig.post('/api/chat/session',{'session_id':'live-test','operation':'create'});assert status==201,data
     from core.private_chat import set_private
     set_private('live-test', bool(getattr(request, 'param', False)))
     item=live.LiveSession('live-test',fixture_origin=origin)
@@ -289,6 +290,11 @@ def test_live_view_in_chromium_keyboard_takeover_and_upload(world, tmp_path):
             page.locator('#nodes').select_option(node['selector'])
             page.locator('#file').set_input_files({'name':'address.txt','mimeType':'text/plain','buffer':b'Local address'})
             page.locator('#approve').wait_for(state='visible')
+            from core.runtime_execution_tools import execute_runtime_tool
+            metadata=execute_runtime_tool('vool-browser.session.status',{'session':'ignored'},source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
+            assert metadata.ok and metadata.details['observation']['pending']['op']=='upload'
+            assert base64.b64encode(b'Local address').decode() not in json.dumps(metadata.details)
+            assert 'args' not in metadata.details['observation']['pending']
             page.locator('#approve').click()
             expect(page.locator("#status")).to_have_text("Ready", timeout=15000)
             assert not any(r[0]=='POST' for r in requests)
@@ -374,6 +380,16 @@ def test_manual_tool_proposes_without_the_legacy_approval_lane(world):
     assert not result.ok and result.status=='approval_required',result
     assert item.pending and requests==[] and not item.profile.exists()
     assert '/browser?chat=live-test' in result.response_text
+    token=item.pending['id']
+    status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
+    assert status==200,data
+    deadline=time.monotonic()+20
+    while item.state=='running' and time.monotonic()<deadline: time.sleep(.05)
+    assert item.state=='ready'
+    with override('plugin_runtime_tools',True):
+        observed=execute_tool_intent({'intent':'vool-browser.inspect','arguments':{'session':'manual'}},**executor_kwargs('live-test',runtime_session_id='live-test',surface='api',platform='web_companion',mode='manual'))
+    assert observed.ok and '14:36' in json.dumps(observed.details)
+    assert observed.details['observation']['authority']=='none'
 
 
 def test_privacy_transition_invalidates_old_approval_and_cold_stop(world):
@@ -397,3 +413,47 @@ def test_privacy_transition_invalidates_old_approval_and_cold_stop(world):
     status,data=rig.post('/api/browser/stop',{'chat':'live-test'})
     assert status==200 and fresh.state=='stopped',(data,fresh.cleanup_metrics)
     assert time.monotonic()-start<5 and not fresh.profile.exists()
+
+
+@pytest.mark.parametrize("world", [True], indirect=True)
+@pytest.mark.parametrize("action", ["archive", "delete", "legacy_delete", "legacy_archive"])
+def test_chat_lifecycle_purges_private_browser_and_cannot_reopen(world, action):
+    rig,item,origin,requests=world
+    from core.persistent_memory import set_session_meta
+    set_session_meta('live-test', archived=False)
+    snap=finish(world,'navigate',{'url':origin+'/'})
+    token=propose(world,'navigate',{'url':origin+'/other'})
+    before=list(requests)
+    body={'session_id':'live-test'}
+    body.update({'delete':True} if action=='legacy_delete' else {'archived':True} if action=='legacy_archive' else {'operation':action})
+    status,data=rig.post('/api/chat/session',body)
+    assert status==200,data
+    assert item.closed and not item.profile.exists()
+    assert item.frame=='' and item.result=={} and item.url==''
+    assert item._page is None and item._context is None and item._driver is None
+    status,_=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True})
+    assert status==409 and requests==before
+    status,_=rig.post('/api/browser/propose',{'chat':'live-test','op':'navigate','args':{'url':origin+'/'}})
+    assert status==409 and requests==before
+
+
+@pytest.mark.parametrize("world", [True], indirect=True)
+def test_chat_delete_waits_for_real_profile_cleanup_and_can_retry(world):
+    rig,item,origin,requests=world
+    finish(world,'navigate',{'url':origin+'/'})
+    profile=item.profile
+    moved=profile.with_name(profile.name+'-moved')
+    profile.rename(moved)
+    profile.symlink_to(moved, target_is_directory=True)
+    try:
+        status,data=rig.post('/api/chat/session',{'session_id':'live-test','operation':'delete'})
+        assert status==409 and data['code']=='browser_cleanup_failed',data
+        from core.context_namespace import load_chat_namespace
+        assert load_chat_namespace('live-test').lifecycle_state=='active'
+        assert item.closed and item.state=='cleanup_failed' and profile.is_symlink()
+    finally:
+        profile.unlink()
+        moved.rename(profile)
+    status,data=rig.post('/api/chat/session',{'session_id':'live-test','operation':'delete'})
+    assert status==200 and item.state=='stopped',data
+    assert not profile.exists()
