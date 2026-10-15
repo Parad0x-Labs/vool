@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "Karakter",
     "settings.row.character_mode.placeholder": "boş — VOOL kendisi olarak",
     "settings.row.cloud_keys.effect": "Hemen geçerli.",
-    "settings.row.cloud_keys.help": "Sağlayıcı anahtarlarını ekleyin, test edin veya kaldırın. Kaydetme seçilen tek bir hizmeti doğrular; arama testleri kredi kullanabilir.",
+    "settings.row.cloud_keys.help": "Anahtarlarınızı ekleyin, test edin veya kaldırın. Bu makinedeki tek bir depo hepsini tutar — model sağlayıcıları, web araması ve güvenlik taramaları — bu yüzden onları kullanan bölümlerde değil, burada bir arada dururlar. VOOL hiçbiri olmadan da yerel olarak çalışır. Kaydetme, anahtarı yalnızca kendi hizmetinde doğrular; arama testleri kredi kullanabilir.",
     "settings.row.cloud_keys.label": "Anahtarlarınız",
     "settings.row.communication_style.effect": "Bir sonraki mesajınızdan itibaren geçerlidir. Hâlihazırda yazılan bir yanıt eski ayarı korur.",
     "settings.row.communication_style.help": "VOOL'un yazdığı ton. Sözcükleri değiştirir, VOOL'un neyi yapmaya razı olduğunu değil.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "Burada Beceri Kodeksinin veya VOOL'un bu beceriye kefil olduğu yazıyor. Bunu yalnızca Beceri Kodeksi söyleyebilir, bu yüzden kaldırın.",
     "addons.publish_line": "{line}. satırda",
     "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
-    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz."
+    "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
+    "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

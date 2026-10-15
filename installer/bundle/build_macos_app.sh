@@ -291,7 +291,8 @@ esac
 # fails with "llama-server binary not found" (seen on a real Intel Mac with ollama v0.40.3).
 # This copies the runner, its libraries and their license files from the directory the ollama
 # binary came from. A Mach-O without the target slice is left out: a universal release ships
-# x86_64-only libraries an arm64 app cannot load, and the slice gate would refuse them. The MLX
+# x86_64-only libraries an arm64 app cannot load, and the slice gate would refuse them. A
+# universal Mach-O is thinned to the target slice for the same reason. The MLX
 # engine directories are left out too (Apple Silicon on macOS 26 only); VOOL's local models
 # run through llama-server. Fails closed when the ollama binary needs a runner it cannot get.
 bundle_ollama_runtime() {
@@ -301,8 +302,19 @@ bundle_ollama_runtime() {
     "${src}"/*_LICENSE "${src}"/*_NOTICE; do
     [[ -f "${f}" && ! -L "${f}" ]] || continue
     name="${f##*/}"
+    archs=""
     if archs="$(lipo -archs "${f}" 2>/dev/null)"; then
       [[ " ${archs} " == *" ${arch} "* ]] || { say "        left out ${name} (slices: ${archs})"; continue; }
+    fi
+    # A universal file keeps only the target slice. Its other slices link the other arch's
+    # libraries, which were left out above: ollama v0.40.3 ships llama-server and llama-quantize
+    # universal beside x86_64-only ggml/llama libraries, so an arm64 app kept whole failed the
+    # slice gate's closure check on their x86_64 halves.
+    if [[ -n "${archs}" && "${archs}" != "${arch}" ]]; then
+      lipo -thin "${arch}" -output "${dst}/${name}" "${f}" || die "could not thin ollama's ${name} to ${arch}"
+      if [[ -x "${f}" ]]; then chmod +x "${dst}/${name}" || die "could not bundle ollama's ${name}"; fi
+      say "        thinned ${name} to ${arch} (slices: ${archs})"
+      continue
     fi
     cp -f "${f}" "${dst}/${name}" || die "could not bundle ollama's ${name}"
   done

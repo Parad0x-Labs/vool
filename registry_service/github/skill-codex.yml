@@ -1,0 +1,74 @@
+# The Skill Codex signer. Every few minutes it checks new uploads, signs what passes, applies the
+# team's steps from team-steps.txt and keeps the signed list fresh. Uploads are never stored here.
+# Only the team can change this repository; the keys reach only the "Sign" step, and only that step
+# can push.
+name: Skill Codex signer
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  push:
+    branches: [main]
+    paths: [team-steps.txt]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: skill-codex-signer
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the signer's state
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Read the pinned VOOL commit
+        id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit="$(tr -d '[:space:]' < authority/vool-commit)"
+          if ! [[ "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "authority/vool-commit must hold one full commit id"
+            exit 1
+          fi
+          # Only a commit on VOOL's own main branch, never one GitHub serves from a fork.
+          status="$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/Parad0x-Labs/vool/compare/main...$commit" |
+            python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])')"
+          if [[ "$status" != "behind" && "$status" != "identical" ]]; then
+            echo "authority/vool-commit is not on VOOL's main branch"
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Check out VOOL's checks at that commit
+        uses: actions/checkout@v7
+        with:
+          repository: Parad0x-Labs/vool
+          ref: ${{ steps.pin.outputs.commit }}
+          path: .vool
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.13"
+          cache: pip
+          cache-dependency-path: .vool/registry_service/github/requirements.txt
+      - name: Install VOOL's own dependencies, each checked against its hash in VOOL's lock file
+        run: python -m pip install --disable-pip-version-check --quiet --require-hashes --no-deps -r .vool/registry_service/github/requirements.txt
+      - name: Sign
+        working-directory: .vool
+        env:
+          SKILL_CODEX_SERVER: ${{ secrets.SKILL_CODEX_SERVER }}
+          SKILL_CODEX_ADMISSION_KEY: ${{ secrets.SKILL_CODEX_ADMISSION_KEY }}
+          SKILL_CODEX_REVIEW_KEY: ${{ secrets.SKILL_CODEX_REVIEW_KEY }}
+          SKILL_CODEX_STATE_KEY: ${{ secrets.SKILL_CODEX_STATE_KEY }}
+          VOOL_AUTHORITY_OPENROUTER_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m registry_service.github_authority run --repo "$GITHUB_WORKSPACE"

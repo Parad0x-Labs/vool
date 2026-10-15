@@ -1020,7 +1020,7 @@
     "settings.row.character_mode.label": "캐릭터",
     "settings.row.character_mode.placeholder": "비어 있음 — VOOL 본래의 모습",
     "settings.row.cloud_keys.effect": "즉시 적용됩니다.",
-    "settings.row.cloud_keys.help": "제공업체 키를 추가, 테스트하거나 삭제합니다. 저장 시 선택한 서비스 하나를 확인하며 검색 테스트는 크레딧을 사용할 수 있습니다.",
+    "settings.row.cloud_keys.help": "키를 추가, 테스트하거나 삭제합니다. 이 기기의 저장소 하나가 모든 키(모델 공급자, 웹 검색, 보안 검사)를 보관하므로, 키를 쓰는 각 섹션이 아니라 여기에 함께 있습니다. VOOL은 키가 하나도 없어도 로컬에서 실행됩니다. 저장 시 키는 해당 서비스 하나에서만 확인되며, 검색 테스트는 크레딧을 사용할 수 있습니다.",
     "settings.row.cloud_keys.label": "당신의 키",
     "settings.row.communication_style.effect": "다음 메시지부터 적용됩니다. 이미 작성 중인 답변은 이전 설정을 유지합니다.",
     "settings.row.communication_style.help": "VOOL이 글을 쓰는 어조입니다. 표현만 바뀌고, VOOL이 하려는 일은 바뀌지 않습니다.",
@@ -2598,9 +2598,10 @@
     "addons.publish_reason_check_endorsed": "스킬 코덱스나 VOOL이 이 스킬을 보증한다고 쓰여 있습니다. 그렇게 말할 수 있는 것은 스킬 코덱스뿐이니 빼세요.",
     "addons.publish_line": "{line}번째 줄",
     "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
-    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다."
+    "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
+    "keys.test.invalid": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요."
   },
-  "source_catalog_sha256": "fc02b2f6b55f5f8d2d31103c49e8a53b21b180dc47205d14d7572ac57be3327c",
+  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

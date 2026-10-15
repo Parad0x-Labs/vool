@@ -5,7 +5,9 @@ How well VOOL remembers a long conversation, measured on [LoCoMo](https://github
 memory, Hermes Agent and OpenClaw, and against simply pasting the whole chat into the prompt.
 
 Every run below is listed, including the ones that went worse for VOOL. All runs were made in October 2026
-on research builds of VOOL's memory (named v7 to v14 here). VOOL 0.7 ships the v14 memory.
+on research builds of VOOL's memory (named v7 to v14 here). VOOL 0.7 ships the v14 memory with later
+fixes to forgetting; that shipped build was checked on the official 150 too (123 of 150, see
+[VOOL 0.7's own build](#vool-07s-own-build-on-the-official-150)).
 
 ![VOOL vs Hermes vs OpenClaw: every head-to-head round](charts/head-to-head-rounds.svg)
 
@@ -16,6 +18,7 @@ on research builds of VOOL's memory (named v7 to v14 here). VOOL 0.7 ships the v
 | [Official round](#official-round-150-never-used-questions) | 150, never used before | **124 (82.7%)** | 107 (71.3%) | 94 (62.7%) | Yes: p = 0.005 vs OpenClaw, p < 0.001 vs Hermes |
 | [Round 3](#round-3-130-unseen-questions) | 130, never used before | **102 (78.5%)** | 93 (71.5%) | 95 (73.1%) | No: p = 0.24 and 0.30 |
 | [Pilot](#pilot-200-questions-vool-was-developed-on) | 200 VOOL was tuned on | **163 (81.5%)** | 142 (71.0%) | 139 (69.5%) | Yes on paper, but the lead is inflated (see below) |
+| [VOOL 0.7's own build](#vool-07s-own-build-on-the-official-150) | the same official 150 | 123 (82.0%) | not rerun | not rerun | Level with v12's 124: 7 gained, 8 lost, p = 1.0 |
 | [Full LoCoMo](#full-locomo-all-1986-questions) | all 1,986 | 1,645 (82.8%) | not run | not run | Ties the whole-chat-in-the-prompt baseline (1,650); p = 0.82 |
 
 On the official round VOOL also used 3.5 to 5.4 times fewer tokens per question, cost a third of OpenClaw's
@@ -64,13 +67,40 @@ Matched on all 150: VOOL vs OpenClaw, only VOOL right 25, only OpenClaw right 8 
 
 **Later VOOL builds on the same 150.** v13 and v14 each answered the same 150 afterwards, alone, with the
 same reader and grader: v13 got 126 and v14 got 125. Against v12 neither change is more than noise
-(v14 vs v12: 6 vs 5 questions, p = 1.0). v14 vs OpenClaw on the same questions: 23 vs 5, p = 0.0009. No
-VOOL build answered any of the 16 questions labelled critical wrongly; Hermes answered 2 of them
+(v14 vs v12: 6 vs 5 questions, p = 1.0). v14 vs OpenClaw on the same questions: 23 vs 5, p = 0.0009. None
+of v12, v13 or v14 answered any of the 16 questions labelled critical wrongly; Hermes answered 2 of them
 confidently wrong and OpenClaw declined 1. Answer times for v13 and v14 come from solo runs, so they are
 not compared with the rivals' times.
 
 **Ingestion.** VOOL is the slowest to ingest because it embeds every turn on the machine
 (nomic-embed-text). Ingestion happens once per conversation and is not counted in answer time.
+
+### VOOL 0.7's own build on the official 150
+
+10 and 11 October 2026. Before VOOL 0.7 shipped, the release candidate of its memory (v14 plus the
+forgetting and missing-fact fixes that went into 0.7) answered the same official 150 as a ship check, with
+the same reader (GLM 5.3 flashx, temperature 0, reasoning low, output cap 2048) and grader (GPT-4o
+`gpt-4o-2024-08-06`, temperature 0, the same frozen LongMemEval prompt).
+
+| | VOOL 0.7 build | VOOL v12 (official round) |
+| --- | --- | --- |
+| Right | 123 / 150 (82.0%) | 124 / 150 (82.7%) |
+| Non-adversarial right | 92 / 115 | 92 / 115 |
+| single-hop / adversarial / temporal / multi-hop / open-domain | 54 / 31 / 22 / 11 / 5 | 54 / 32 / 23 / 10 / 5 |
+| LoCoMo F1 (mean) | 0.545 | 0.520 |
+| Reader tokens per question | 11.4k | 9.6k |
+| Time per question, median | 21.0 s (whole workflow) | 11.2 s (answer only) |
+
+Matched against v12: 7 questions gained, 8 lost, exact McNemar p = 1.0, so the shipped build is level with
+the build that beat Hermes and OpenClaw, not better or worse. The two times are measured differently and are
+not comparable. Hermes and OpenClaw were not rerun.
+
+The same check also started the full 1,986-question set and **did not finish**: one provider call failed
+with a network error and the run stopped after 1,603 questions were attempted (1,600 scored; 2 empty
+replies from the provider went unscored). There is no full-set score for the 0.7 build. On the 1,600
+questions both builds answered, it got 1,290 (80.6%) against v14's 1,323 (82.7%); non-adversarial 983 / 1,246
+against 1,011 / 1,246. An independent recheck of all 1,750 grader labels found no invalid grade. The check
+cost $7.61 (reader $7.02, grader $0.59).
 
 ### Attempts before this round
 
@@ -177,6 +207,7 @@ Memory matters most once a history no longer fits in the window, which LoCoMo's 
 | GPT-4o attempts before it (warm-up, paused first attempt, tool-use check) | $2.11 |
 | Round 3 (warm-up + scored phase) | $2.67 |
 | Pilot (billed answering for all three; judge $0.03) | $4.13 |
+| VOOL 0.7 ship check (official 150 + the stopped full-set run) | $7.61 |
 | Full LoCoMo (VOOL $7.32, baseline $4.89, warm-up and a second-template regrade $0.22) | $12.43 |
 
 ## Files

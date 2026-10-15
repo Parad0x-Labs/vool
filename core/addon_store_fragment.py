@@ -277,7 +277,7 @@ function publishControl(s){
  b.setAttribute('aria-label',label+': '+s.name);row.append(b);wrap.append(row);
  let target=b;
  if(open&&open.data){const panel=publishPanel(open.data);wrap.append(panel);if(publishFocus&&publishFocus.to==='panel')target=panel.querySelector('h4');}
- if(publishFocus&&publishFocus.slug===s.slug){publishFocus=null;setTimeout(()=>{if(target.isConnected)target.focus();},0);}
+ if(publishFocus&&publishFocus.slug===s.slug){publishFocus=null;queueMicrotask(()=>{if(target.isConnected)target.focus();});}
  return wrap;
 }
 function detailHead(host,e){const head=node('div',undefined,'addon-detail-head');const title=node('div');const byline=node('p');byline.append(brand(e.ecosystem||e.publisher),document.createTextNode(' · '+e.category));title.append(node('h2',listingTitle(e)),byline);head.append(icon(e),title);host.append(head);}

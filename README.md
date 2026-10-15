@@ -7,9 +7,9 @@
 <p align="center"><strong>Your machine. Your models. An agent that gets things done.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.1_beta-eee8d5" alt="Version 0.7.1 beta" /></a>
+  <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.1_beta-eee8d5" alt="Version 0.7.1 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
+  <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/VOOL-0.7.1-beta-macos-arm64.dmg?label=0.7.1%20macOS%20arm64%20downloads&color=eee8d5" alt="0.7.1 macOS arm64 downloads" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/VOOL-0.7.1-beta-macos-x86_64.dmg?label=0.7.1%20macOS%20x86_64%20downloads&color=eee8d5" alt="0.7.1 macOS x86_64 downloads" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/vool-0.7.1-beta-linux-x86_64.tar.gz?label=0.7.1%20Linux%20x86_64%20downloads&color=eee8d5" alt="0.7.1 Linux x86_64 downloads" /></a>
 </p>
 
 **VOOL is a local-first personal agent from Parad0x Labs.** It connects conversation to action: read a project, edit files, run tests, research the web, and carry useful context into the next session.
