@@ -1,8 +1,9 @@
 # auto_router_audit_20261002 — adversarial audit harness for the VOOL Auto routing path
 
 Mission: audit/auto-router-benchmark-20261002 at frozen public base
-`dca4679fccd777554c4ad9f9653f0a3e8406b0ef`. Adds files only; production code is untouched
-(enforced by `tests/test_auto_router_audit_20261002.py::test_harness_adds_files_only_no_production_edits`).
+`dca4679fccd777554c4ad9f9653f0a3e8406b0ef`. Adds files only; production code never imports or
+names the harness (enforced by
+`tests/test_auto_router_audit_20261002.py::test_no_production_module_reaches_the_harness`).
 
 ## What it does
 
