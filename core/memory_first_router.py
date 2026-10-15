@@ -3005,6 +3005,7 @@ class MemoryFirstRouter:
                 """
                 from core.normalized_provider_result import retry_after_hint
                 from core.provider_call_deadline import PROVIDER_DEADLINE_KEY
+                from core.runtime_active_clock import monotonic as active_monotonic
 
                 if error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE:
                     # The empty-retry law has always been immediate; the bounded pause belongs
@@ -3022,7 +3023,9 @@ class MemoryFirstRouter:
                     except (TypeError, ValueError):
                         deadline = 0.0
                 if deadline > 0:
-                    remaining = deadline - time.monotonic()
+                    # The deadline lives on the execution clock the adapter clamps against
+                    # (`effective_timeout_seconds`), so the room is measured on that clock too.
+                    remaining = deadline - active_monotonic()
                     if remaining <= delay + 0.05:
                         return None
                 wake_at = time.monotonic() + delay
@@ -3034,13 +3037,61 @@ class MemoryFirstRouter:
                         return delay
                     time.sleep(min(0.05, wake_at - now))
 
+            def _transport_retry_within_first_window(
+                task_request: ModelRequest,
+                first_started: float,
+            ) -> ModelRequest | None:
+                """The transport-fault retry request, bound to the window the FIRST attempt had.
+
+                The retry runs inside this call, below the candidate loop whose between-attempt
+                budget check and per-call cap (the fallback budget) bound every call it starts. An
+                unbound retry re-ran the same per-call ceiling from zero: a call that timed out
+                after its whole window was retried for a second whole window, outside the turn's
+                budget. The pair therefore shares ONE window: the enclosing deadline when the turn
+                bound one, and otherwise the first attempt's start plus the per-call ceiling this
+                manifest runs under. A call whose window cannot be known (no enclosing deadline and
+                no declared ceiling) is not retried: an adapter's private default is not a bound
+                this router can hold the retry to.
+                """
+                from core.provider_call_deadline import (
+                    PROVIDER_DEADLINE_KEY,
+                    PROVIDER_DEADLINE_REASON_KEY,
+                    local_manifest_call_timeout_seconds,
+                )
+
+                metadata = dict(getattr(task_request, "metadata", None) or {})
+                try:
+                    enclosing = float(metadata.get(PROVIDER_DEADLINE_KEY) or 0.0)
+                except (TypeError, ValueError):
+                    enclosing = 0.0
+                window_deadline = 0.0
+                declared = (getattr(manifest, "runtime_config", None) or {}).get("timeout_seconds")
+                try:
+                    declared_seconds = float(declared or 0.0)
+                except (TypeError, ValueError):
+                    declared_seconds = 0.0
+                if declared_seconds > 0:
+                    window_deadline = first_started + local_manifest_call_timeout_seconds(
+                        manifest, declared_seconds
+                    )
+                bounds = [value for value in (enclosing, window_deadline) if value > 0]
+                if not bounds:
+                    return None
+                bound = min(bounds)
+                if bound != enclosing:
+                    metadata[PROVIDER_DEADLINE_REASON_KEY] = "first attempt's call window"
+                metadata[PROVIDER_DEADLINE_KEY] = bound
+                return replace(task_request, metadata=metadata)
+
             def _call_adapter_task_with_empty_retry(
                 method_name: str,
                 task_request: ModelRequest,
             ) -> ModelResponse:
                 from core.output_budget_policy import manifest_declares_reasoning
+                from core.runtime_active_clock import monotonic as active_monotonic
 
                 attempt = 1
+                first_started = active_monotonic()
                 while True:
                     try:
                         return _call_adapter_task(method_name, task_request)
@@ -3093,6 +3144,11 @@ class MemoryFirstRouter:
                         ) and should_retry(attempt, _SAME_MODEL_RETRY_POLICY) and not _model_request_cancelled(task_request)
                         if not retry_allowed:
                             raise
+                        if not exhausted and error_class != ProviderErrorClass.EMPTY_PROVIDER_RESPONSE:
+                            bounded_request = _transport_retry_within_first_window(task_request, first_started)
+                            if bounded_request is None:
+                                raise
+                            task_request = bounded_request
                         wait_seconds = _same_model_retry_wait(
                             exc, task_request, attempt, error_class=error_class
                         )
@@ -3152,6 +3208,7 @@ class MemoryFirstRouter:
                 from core.output_budget_policy import manifest_declares_reasoning as _stream_declares_reasoning
 
                 stream_attempt = 1
+                stream_first_started = active_monotonic()
                 while True:
                     try:
                         response = self._stream_response(
@@ -3205,9 +3262,20 @@ class MemoryFirstRouter:
                             and should_retry(stream_attempt, _SAME_MODEL_RETRY_POLICY)
                             and not _model_request_cancelled(call_request)
                         ):
-                            _stream_wait = _same_model_retry_wait(
-                                exc, call_request, stream_attempt, error_class=_stream_error_class
+                            _bounded_stream_request = (
+                                call_request
+                                if _stream_error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
+                                else _transport_retry_within_first_window(call_request, stream_first_started)
                             )
+                            _stream_wait = (
+                                None
+                                if _bounded_stream_request is None
+                                else _same_model_retry_wait(
+                                    exc, _bounded_stream_request, stream_attempt, error_class=_stream_error_class
+                                )
+                            )
+                            if _stream_wait is not None and _bounded_stream_request is not None:
+                                call_request = _bounded_stream_request
                             if _stream_wait is not None:
                                 _emit_model_routing_event(
                                     source_context,

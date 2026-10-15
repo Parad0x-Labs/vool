@@ -243,8 +243,9 @@ class AutoTransientRecoveryTests(unittest.TestCase):
         """Driven at the same seam production planner sub-turns use (`_invoke_manifest`), with
         streaming actually selected: a request that does not defer, a live stream id, and an
         adapter that streams. The ordinary-chat guard defers real composer turns to the buffered
-        lane by design; this is the streamed arm's own contract."""
-        manifest = self._register_local()
+        lane by design; this is the streamed arm's own contract. The lane declares its per-call
+        ceiling as VOOL's local lanes do: the retry shares that one window with the first call."""
+        manifest = self._with_ceiling(self._register_local(), 30)
 
         def _failing_stream():
             yield ModelStreamChunk(delta_text="The resil")
@@ -279,6 +280,99 @@ class AutoTransientRecoveryTests(unittest.TestCase):
         self.assertIsNotNone(response)
         self.assertEqual(adapter.stream_text_task.call_count, 2, msg="the disconnect must be retried on the same model")
         self.assertIn("resilient topology", response.output_text)
+
+    # ---------------------------------------------------------------- the retry shares the first call's window
+
+    def _with_ceiling(self, manifest, seconds: float):
+        return self.registry.register_manifest(
+            {**manifest.model_dump(), "runtime_config": {**manifest.runtime_config, "timeout_seconds": seconds}}
+        )
+
+    def test_a_call_that_spent_its_whole_window_is_not_retried_for_a_second_one(self) -> None:
+        """No turn deadline is bound on an ordinary turn: the per-call ceiling is the only bound.
+
+        A timeout that used the whole ceiling leaves the pair no room, so the same model is not
+        handed a second full window below the candidate loop's budget check.
+        """
+        from core.provider_call_deadline import effective_timeout_seconds, local_manifest_call_timeout_seconds
+
+        manifest = self._with_ceiling(self._register_local(), 0.4)
+        good = _good_answer(manifest.provider_id, manifest.model_name)
+        calls: list[float] = []
+
+        def _hang_until_the_ceiling(request, *_args, **_kwargs):
+            calls.append(time.monotonic())
+            if len(calls) > 1:
+                return good
+            # What the real adapter does: wait out the ceiling it computes for this request,
+            # then raise the transport's read timeout.
+            time.sleep(effective_timeout_seconds(request, local_manifest_call_timeout_seconds(manifest, 0.4)))
+            raise requests.exceptions.ReadTimeout("Read timed out. (read timeout=0.4)")
+
+        adapter = self._adapter(manifest)
+        adapter.run_text_task.side_effect = _hang_until_the_ceiling
+        adapter.run_structured_task.side_effect = _hang_until_the_ceiling
+        result = self._resolve([manifest], [adapter], turn_id="turn-timeout-window")
+        self.assertEqual(len(calls), 1, msg="the timed-out call was re-run for a second full window")
+        self.assertFalse(result.used_model)
+
+    def test_a_fast_transport_fault_is_retried_inside_the_first_calls_window(self) -> None:
+        from core.provider_call_deadline import PROVIDER_DEADLINE_KEY, local_manifest_call_timeout_seconds
+        from core.runtime_active_clock import monotonic as active_monotonic
+
+        manifest = self._with_ceiling(self._register_local(), 30)
+        good = _good_answer(manifest.provider_id, manifest.model_name)
+        seen: list[tuple[float, float]] = []
+
+        def _refuse_then_answer(request, *_args, **_kwargs):
+            deadline = float((getattr(request, "metadata", None) or {}).get(PROVIDER_DEADLINE_KEY) or 0.0)
+            seen.append((active_monotonic(), deadline))
+            if len(seen) == 1:
+                raise requests.exceptions.ConnectionError("connection refused")
+            return good
+
+        adapter = self._adapter(manifest)
+        adapter.run_text_task.side_effect = _refuse_then_answer
+        adapter.run_structured_task.side_effect = _refuse_then_answer
+        result = self._resolve([manifest], [adapter], turn_id="turn-fast-fault-window")
+        self.assertTrue(result.used_model, msg=f"source={result.source} details={result.details}")
+        self.assertEqual(len(seen), 2)
+        (first_at, _first_deadline), (_retry_at, retry_deadline) = seen
+        self.assertGreater(retry_deadline, 0.0, msg="the retry ran with no bound at all")
+        self.assertLessEqual(
+            retry_deadline,
+            first_at + local_manifest_call_timeout_seconds(manifest, 30),
+            msg="the retry was given a window beyond the one the first attempt started",
+        )
+
+    def test_every_attempt_of_a_retried_call_reaches_the_invocation_seam(self) -> None:
+        """The seam contract: each adapter entry is recorded, the retry included."""
+        import os
+
+        from core.semantic import reach as semantic_reach
+        from core.task_router import create_task_record
+
+        manifest = self._with_ceiling(self._register_local(), 30)
+        adapter = mock.Mock()
+        adapter.health_check.return_value = {"ok": True}
+        adapter.run_structured_task.side_effect = [
+            ConnectionError("connection refused"),
+            ConnectionError("connection refused"),
+        ]
+        with mock.patch.dict(os.environ, {"VOOL_SEMANTIC_REACH": "1"}):
+            with semantic_reach.observing_turn(session_id="seam", turn_id="seam-retry") as recorder:
+                self.assertIsNotNone(recorder)
+                with mock.patch.object(self.registry, "build_adapter", return_value=adapter):
+                    self.router._invoke_manifest(
+                        manifest=manifest,
+                        request=ModelRequest(task_kind="tool_intent", prompt="hi", output_mode="tool_intent"),
+                        output_mode="tool_intent",
+                        task=create_task_record("show the current directory"),
+                        source_context={"requested_model": manifest.model_name, "_owner_local": True},
+                    )
+                attempted = recorder.provider_calls_attempted
+        self.assertEqual(adapter.run_structured_task.call_count, 2)
+        self.assertEqual(attempted, (f"{manifest.provider_id}:{manifest.model_name}",) * 2)
 
     # ---------------------------------------------------------------- honesty controls
 
