@@ -757,6 +757,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/browser/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/browser/*",
+      "note": "owner-local supervised browser view and evidence feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/bug-report/candidates": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/bug-report/candidates",
@@ -1611,6 +1618,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/browser": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /browser",
+      "note": "owner-local supervised browser view and evidence feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/chat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /chat",
@@ -1798,6 +1812,13 @@
       "name": "POST /api/auth/*",
       "note": "delegated route forwards through execute_command",
       "registry_command_id": "auth.callback.record",
+      "surface": "http"
+    },
+    "http:POST:/api/browser/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/browser/*",
+      "note": "legacy surface forwards through execute_command; typed family: browser.settings, browser.propose, browser.decide, browser.takeover, browser.stop",
+      "registry_command_id": "browser.settings",
       "surface": "http"
     },
     "http:POST:/api/bug-report/answer-draft": {
@@ -3154,8 +3175,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 309,
-    "GENERATED_ADAPTER": 132,
+    "EXTERNAL_TRANSPORT_ONLY": 311,
+    "GENERATED_ADAPTER": 133,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from core import policy_engine
 from core.effect_reconciliation import (
@@ -3223,8 +3223,23 @@ def _dispatch_runtime_tool(
     # journeys. Dispatched through its own api so receipts, budgets and the
     # per-origin permission store stay in ONE module.
     if intent.startswith("vool-browser."):
+        from core.vool_browser import live as live_browser
         from core.vool_browser.api import handle_intent as _browser_handle
 
+        if live_browser.configured():
+            try:
+                result = live_browser.tool_intent(intent, arguments, dict(source_context or {}))
+            except live_browser.BrowserFault as exc:
+                result = {"ok": False, "status": str(exc)}
+            from core.i18n import catalog_for
+
+            label = catalog_for(str((source_context or {}).get("ui_locale") or "en")).text("live.browser")
+            view_url = "/browser?chat=" + quote(str((source_context or {}).get("session_id") or (source_context or {}).get("runtime_session_id") or ""))
+            return RuntimeExecutionResult(
+                handled=True, ok=bool(result.get("ok")), status=str(result.get("status") or result.get("state") or "ready"),
+                response_text=f"[{label}]({view_url})",
+                details={"intent": intent, "observation": {"intent_observation": True, **result}},
+            )
         lane = _browser_handle(intent, arguments)
         return RuntimeExecutionResult(
             handled=True,

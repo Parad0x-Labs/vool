@@ -11,6 +11,7 @@ explicitly out-of-scope lane per the P1 goal exclusions).
 from __future__ import annotations
 
 _ADAPTERS: dict[str, str] = {
+    **{f"http:POST:/api/browser/{action}": f"browser.{action}" for action in ("settings", "propose", "decide", "takeover", "stop")},
     # module CLI (python -m core.blackbox)
     "cli-module:core.blackbox:status": "blackbox.status",
     "cli-module:core.blackbox:verify": "blackbox.verify",
@@ -102,6 +103,7 @@ _ADAPTERS: dict[str, str] = {
 }
 
 _EXTERNAL: dict[str, str] = {
+    **{f"http:GET:{path}": "owner-local supervised browser view and evidence feed" for path in ("/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download", "/api/browser/*")},
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",
     "cli-script:vool-api": "API server entry point",
@@ -399,6 +401,7 @@ _EXTERNAL: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 _ADAPTER_FAMILIES: dict[str, tuple[str, ...]] = {
+    "http:POST:/api/browser/*": tuple("browser." + action for action in ("settings", "propose", "decide", "takeover", "stop")),
     # One POST under each prefix is ONE registered command (S-P6); the table that binds
     # them lives in core/web/api/onboarding_endpoints.py (_PACT_POST_PATHS).
     "http:POST:/api/onboarding/*": (

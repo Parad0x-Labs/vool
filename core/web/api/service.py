@@ -869,6 +869,17 @@ def dispatch_get(
         """
         return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
+    if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
+        from core.vool_browser.live import BrowserFault
+        from core.web.api import browser_api
+
+        if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        try:
+            return browser_api.get(normalized_path, query, locale=resolve_page_locale(query, headers))
+        except BrowserFault as exc:
+            return json_response(409, {"ok": False, "error": str(exc)})
+
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
 
@@ -3071,6 +3082,13 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith("/api/browser/"):
+        from core.web.api import browser_api
+
+        if _credential_page_refusal(headers, client_host):
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return browser_api.post(normalized_path, body, headers=headers, client_host=client_host)
 
     if not isinstance(body, dict):
         # Every POST handler below reads body.get(...); a non-object JSON body (e.g. [], "x", 5)
