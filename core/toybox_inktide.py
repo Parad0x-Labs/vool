@@ -98,6 +98,10 @@ def chrome(identifier, p: dict) -> str:
 
     if identifier != IDENTIFIER:
         return ""
+    # one emit only: the light-palette pass would re-issue every base rule with
+    # the light art for both modes; both mode palettes ship as variables instead.
+    if p["background"] != "#1d2430":
+        return ""
 
     surface = ":is(#main,#sidebar,#side,#pane,#xpanel,.tb-root)" + GUARD
     light = _palette(True)

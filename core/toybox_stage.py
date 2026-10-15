@@ -285,7 +285,6 @@ def render(manifest):
     # V1 keeps the exact original guard and its golden output.
     from core.toybox_fragment import TRUSTED
 
-    chrome_css = views["light"].pop("_chrome", "") if "_chrome" in views.get("light", {}) else chrome_css
     exclusions = TRUSTED.replace('#bypassBanner,#bypassModal', '[id^="bypass"]')
     exclusions = exclusions.replace('[role="alertdialog"],[role="alert"]', '[role^="alert"]')
     exclusions = exclusions.replace('#vwSec,#vwCx,.vw-sheet,#vwHomeOverlay', '[id^="vw"],.vw-sheet')

@@ -20,9 +20,15 @@ IDENTIFIER = "hanabi-sky"
 def _palette(light):
     if light:
         return dict(background="#ffeede", panel="#fff8ef", field="#ffefdf", ink="#33244d",
-                    muted="#6f5a8a", accent="#ff4f7d", accentInk="#4d0f26", border="#8a5f9e")
+                    muted="#5d4a78", accent="#ff4f7d", accentInk="#4d0f26", border="#8a5f9e")
     return dict(background="#151a38", panel="#20265a", field="#1a2044", ink="#f6f2ff",
-                muted="#a9a4d6", accent="#ff5f8f", accentInk="#2b0a18", border="#8f8ac2")
+                muted="#bcb8e6", accent="#ff5f8f", accentInk="#2b0a18", border="#8f8ac2")
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    value = hex_color.lstrip("#")
+    r, g, b = int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 
 def _uri(svg: str) -> str:
@@ -48,8 +54,8 @@ def _burst(cx: float, cy: float, radius: int, color: str, rays: int = 12) -> str
 def _wallpaper(light: bool) -> str:
     """The full-viewport festival night (or dawn) behind the whole app."""
     if light:
-        sky_top, sky_mid, glow, dark = "#ffd9b0", "#ffb1c9", "#ff8f6b", "#7c4a6e"
-        water = "#f2a9c4"
+        sky_top, sky_mid, glow, dark = "#ffc98e", "#ff9ebc", "#ff7a52", "#5d3555"
+        water = "#e893b6"
     else:
         sky_top, sky_mid, glow, dark = "#0e1030", "#2a1e52", "#ff7b54", "#0a0b1e"
         water = "#1c2150"
@@ -64,7 +70,8 @@ def _wallpaper(light: bool) -> str:
     bursts = (_burst(420, 210, 95, "#ff5f8f", 14) + _burst(1150, 150, 70, "#56e0ff", 10)
               + _burst(1700, 260, 85, "#ffd76b", 12) + _burst(880, 90, 45, "#b78aff", 8))
     if light:
-        bursts = _burst(420, 210, 85, "#ff4f7d", 12) + _burst(1500, 170, 65, "#ffb54f", 10)
+        bursts = (_burst(420, 200, 95, "#e83a68", 14) + _burst(1500, 160, 75, "#ff8c1a", 12)
+                  + _burst(900, 120, 55, "#d94f9e", 10))
     river = (f"<rect x='0' y='660' width='2000' height='440' fill='{water}'/>"
              f"<path d='M0 700h2000M0 760h2000M0 830h2000' stroke='{glow}' stroke-opacity='.25' stroke-width='6'/>"
              f"<path d='M420 250v420' stroke='#ff5f8f' stroke-opacity='.18' stroke-width='26'/>"
@@ -90,10 +97,24 @@ def chrome(identifier, p: dict) -> str:
 
     if identifier != IDENTIFIER:
         return ""
-    line = "#0e1024" if p["background"] == "#151a38" else "#3a2440"
-    light_line = "#3a2440"
-    out = ":root{--tb-wall:" + _wallpaper(False) + ";--tb-wall-light:" + _wallpaper(True) + "}\n"
+    # chrome() is called once per palette (dark, light); everything ships on the
+    # dark pass and the light pass adds nothing, so base rules are never re-emitted
+    # with the other palette's colours.
+    if p["background"] != "#151a38":
+        return ""
+    dark = _palette(False)
+    light = _palette(True)
+    line = "var(--tb-line)"
+    shadow_line = "var(--tb-shadow)"
+    out = (":root{--tb-wall:" + _wallpaper(False) + ";--tb-wall-light:" + _wallpaper(True)
+           + ";--tb-line:#f6f2ff;--tb-shadow:#0a0b1e;--tb-glass:" + _rgba(dark["panel"], 0.93) + "}\n")
+    out += (':root[data-theme="light"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:' + _rgba(light["panel"], 0.94) + "}\n")
+    out += ('@media(prefers-color-scheme:light){:root[data-theme="system"]{--tb-line:#3a2440;--tb-shadow:#3a2440;--tb-glass:'
+            + _rgba(light["panel"], 0.94) + "}}\n")
     out += "body{background:transparent!important}\n"
+    glass = "var(--tb-glass)"
+    out += (":is(#main,#log,#sidebar,#side,#pane,#xpanel,.set-section,.tb-root,#main > header,#main > footer)" + GUARD
+            + "{background-color:" + glass + "!important}\n")
     out += ("body::before{content:'';position:fixed;inset:0;z-index:-1;background-image:var(--tb-wall);"
             "background-size:cover;background-position:center}\n")
     out += ':root[data-theme="light"] body::before{background-image:var(--tb-wall-light)}\n'
@@ -102,14 +123,13 @@ def chrome(identifier, p: dict) -> str:
     out += (subject + "{appearance:none;-webkit-appearance:none;background-color:var(--panel);border:3px solid " + line
             + ";border-radius:10px;box-shadow:0 4px 0 " + line + ",inset 0 2px 0 rgba(255,255,255,.35);"
             "min-height:36px;color:var(--ink);font-weight:700;"
-            "clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));"
+            "clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));border-width:3px;"
             "transition:transform .12s ease,box-shadow .12s ease}\n")
-    out += ':root[data-theme="light"] ' + subject + "{border-color:" + light_line + ";box-shadow:0 4px 0 " + light_line + ",inset 0 2px 0 rgba(255,255,255,.6)}\n"
-    out += subject + ":hover{transform:translateY(-2px);box-shadow:0 6px 0 " + line + "}\n"
-    out += subject + ":active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 " + line + "}\n"
+    out += subject + ":hover{transform:translateY(-2px);box-shadow:0 6px 0 " + shadow_line + "}\n"
+    out += subject + ":active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 " + shadow_line + "}\n"
     out += subject + ":focus-visible{outline:3px solid var(--accent);outline-offset:3px}\n"
     out += (":is(#send,.tb-primary)" + GUARD + "{background-color:var(--accent);color:var(--accent-ink);"
-            "border-color:" + line + ";box-shadow:0 5px 0 " + line + ",inset 0 2px 0 rgba(255,255,255,.4)}\n")
+            "border-color:" + line + ";box-shadow:0 5px 0 " + shadow_line + ",inset 0 2px 0 rgba(255,255,255,.4)}\n")
     out += ('@keyframes tb-pop{0%{transform:scale(.96)}100%{transform:scale(1)}}\n')
     out += ("textarea" + GUARD + ",input:not([type=checkbox]):not([type=range]):not([type=radio])" + GUARD +
             "{background-color:var(--field);border:3px solid " + line + ";border-radius:12px;"
@@ -119,30 +139,30 @@ def chrome(identifier, p: dict) -> str:
     out += ("input[type=checkbox]:checked" + GUARD + "{background-color:var(--accent);"
             "background-image:" + _star(24, "none", "x") + "}\n")
     out += ("input[type=checkbox]:checked" + GUARD + "{background-image:none;"
-            "box-shadow:0 3px 0 " + line + ",inset 0 0 0 3px var(--accent),inset 0 0 0 6px var(--accent-ink)}\n")
+            "box-shadow:0 3px 0 " + shadow_line + ",inset 0 0 0 3px var(--accent),inset 0 0 0 6px var(--accent-ink)}\n")
     out += ("input[type=range]" + GUARD + "{appearance:none;-webkit-appearance:none;height:22px;background-color:transparent;"
             "border:0;background-image:linear-gradient(" + line + "," + line + ");"
             "background-size:100% 4px;background-position:center;background-repeat:no-repeat}\n")
     for pseudo in ("::-webkit-slider-thumb", "::-moz-range-thumb"):
         out += ("input[type=range]" + GUARD + pseudo + "{appearance:none;-webkit-appearance:none;width:22px;height:22px;"
                 "background-color:var(--accent);border:3px solid " + line + ";border-radius:50%;"
-                "box-shadow:0 3px 0 " + line + ",inset 0 2px 0 rgba(255,255,255,.45);cursor:pointer}\n")
+                "box-shadow:0 3px 0 " + shadow_line + ",inset 0 2px 0 rgba(255,255,255,.45);cursor:pointer}\n")
     for scoped in ("#main", "#sidebar", "#pane"):
         out += (scoped + GUARD + "::-webkit-scrollbar{width:12px}"
                 + scoped + GUARD + "::-webkit-scrollbar-thumb{background-color:var(--accent);border:3px solid " + line + ";border-radius:8px}"
                 + scoped + GUARD + "::-webkit-scrollbar-track{background:var(--panel)}\n")
     # The whole app floats as a cel card over the wallpaper.
     out += ("#main" + GUARD + "{margin:16px 18px;border:3px solid " + line + ";border-radius:20px;"
-            "box-shadow:0 10px 0 " + line + ",0 24px 60px rgba(6,6,20,.55);overflow:hidden}\n")
+            "box-shadow:0 10px 0 " + shadow_line + ",0 24px 60px rgba(6,6,20,.55);overflow:hidden}\n")
     out += (":is(#sidebar,#side,#xpanel,#pane)" + GUARD +
-            "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + line + ";margin-block:10px}\n")
+            "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";margin-block:10px}\n")
     out += ("#main > header" + GUARD + "{background-image:var(--tb-stage-header);background-repeat:repeat-x;"
             "background-size:auto 44px;background-position:center;border-block-end:3px solid " + line + ";padding-block-start:48px}\n")
     out += ("#main > footer" + GUARD + "{border-block-start:3px solid " + line + ";background-color:var(--panel)}\n")
     out += ("#sessions .session.active" + GUARD + "{border:2px solid var(--accent);border-radius:10px;"
-            "box-shadow:0 3px 0 " + line + ";background-color:var(--panel)}\n")
+            "box-shadow:0 3px 0 " + shadow_line + ";background-color:var(--panel)}\n")
     out += ("#newChat" + GUARD + "{background-color:var(--accent);color:var(--accent-ink)}\n")
-    out += ".empty" + GUARD + "{border:3px dashed var(--border);border-radius:18px}\n"
+    out += ".empty" + GUARD + "{border:3px solid " + line + ";border-radius:18px;box-shadow:0 8px 0 " + shadow_line + ";background-color:" + glass + "}\n"
     out += ":root[data-vool-motion='off'] " + subject + "{transition:none}\n"
     out += "@media(prefers-reduced-motion:reduce){" + subject + "{transition:none!important}}\n"
     return out
@@ -153,13 +173,15 @@ def artwork(identifier, p):
         return {}
     edge, accent = p["border"], p["accent"]
 
-    def spark_line(y, count):
-        return "".join(f"<path d='M{x} {y}l4 -4l4 4l-4 4Z' fill='{accent}'/>" for x in range(10, 630, 640 // count))
-
+    skyline = "".join(f"<rect x='{x}' y='{58 - height}' width='{width}' height='{height}' fill='{edge}'/>"
+                      f"<rect x='{x + 5}' y='{60 - height}' width='3' height='4' fill='{accent}'/>"
+                      for x, width, height in ((0, 46, 16), (60, 30, 24), (100, 40, 20), (150, 26, 28), (190, 44, 18),
+                                               (250, 30, 26), (300, 50, 20), (360, 28, 24), (410, 46, 18),
+                                               (470, 32, 26), (520, 50, 20), (580, 40, 24)))
     header = (f"<svg xmlns='http://www.w3.org/2000/svg' width='640' height='64' shape-rendering='crispEdges'>"
               f"<rect width='640' height='64' fill='{p['panel']}'/>"
-              + _burst(90, 26, 22, accent, 10) + _burst(320, 20, 16, p["muted"], 8) + _burst(540, 28, 24, accent, 12)
-              + spark_line(58, 16) + "</svg>")
+              + _burst(110, 18, 20, accent, 12) + _burst(330, 14, 14, p["muted"], 8) + _burst(530, 20, 22, accent, 12)
+              + skyline + "</svg>")
     bridge = (f"<path d='M60 196q260 -70 520 0v10q-260 -60 -520 0Z' fill='{edge}'/>"
               f"<path d='M80 206v22M180 206v22M460 206v22M560 206v22' stroke='{edge}' stroke-width='6'/>")
     lanterns = "".join(f"<path d='M{40 + index * 90} 26q6 10 0 20' stroke='{edge}' stroke-width='2'/>"
