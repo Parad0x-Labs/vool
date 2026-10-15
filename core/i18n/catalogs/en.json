@@ -2599,7 +2599,8 @@
     "addons.publish_line": "In line {line}",
     "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex.",
-    "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it."
+    "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it.",
+    "addons.registry_newer": "Choose a higher version number to update this skill."
   },
   "html_keys": [
     "bypass.modal_limits",

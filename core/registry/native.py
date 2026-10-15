@@ -12,7 +12,15 @@ from pathlib import Path
 
 from core.plugin_package import capture_package, execution_directory
 from core.registry.artifact import inspect, materialize
-from core.registry.codec import FAILED_SAFETY_CHECKS, RegistryError, canonical, decode, require
+from core.registry.codec import (
+    FAILED_SAFETY_CHECKS,
+    NEWER_VERSION_REQUIRED,
+    RegistryError,
+    canonical,
+    decode,
+    require,
+    version_key,
+)
 from core.registry.trust import verify
 
 _INSTALL_LOCK = threading.RLock()
@@ -223,6 +231,9 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             require(previous and previous.source == "registry:" + package_id and old_receipt,
                     "installation would overwrite an existing local package")
             require(capture_package(destination).digest == previous.verified_digest, "existing package was edited; preserve it before updating")
+            prior = verify(old_receipt["admission"], catalog.root, "admission")
+            require(prior["metadata"]["id"] == package_id and
+                    version_key(version) > version_key(prior["metadata"]["version"]), NEWER_VERSION_REQUIRED)
         else:
             require(previous is None or previous.stage == plugin_lifecycle.STAGE_UNINSTALLED,
                     "plugin identity already belongs to another installation")

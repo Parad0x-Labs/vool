@@ -2599,9 +2599,10 @@
     "addons.publish_line": "En la línea {line}",
     "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está.",
     "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex.",
-    "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela."
+    "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela.",
+    "addons.registry_newer": "Elige un número de versión superior para actualizar esta habilidad."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "5b74c9478c6a27f2ed0aeaae9716c516056f30dad91c51d71d8f5db1a9b0884e",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -13,7 +13,16 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import COMMIT, DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, HEX, RegistryError, decode, require
+from core.registry.codec import (
+    COMMIT,
+    DOWNLOADS_PAUSED,
+    FAILED_SAFETY_CHECKS,
+    HEX,
+    RegistryError,
+    decode,
+    require,
+    version_key,
+)
 from core.registry.media import LIMITS, describe
 from core.registry.native import STATE_NAME, _write, home, install, preview
 from core.registry.trust import TrustedCatalog
@@ -99,6 +108,12 @@ class Client:
                 continue
             rows.append({**info, "reviewed": True, "import_ready": True, "discovery_only": False,
                          "sha256": entry["artifact_sha256"], "targets": entry["targets"]})
+        latest = {}
+        for row in rows:
+            prior = latest.get(row["id"])
+            if prior is None or version_key(row["version"]) > version_key(prior["version"]):
+                latest[row["id"]] = row
+        rows = [latest[package_id] for package_id in sorted(latest)]
         with _PICTURE_LOCK:
             # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
             _PICTURES.clear()
