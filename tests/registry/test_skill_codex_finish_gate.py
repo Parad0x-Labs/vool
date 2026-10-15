@@ -103,6 +103,7 @@ def test_served_fresh_profile_and_closed_registry_send_no_registry_requests(home
         page.locator("#addonNav").get_by_role("button", name="Skill Codex", exact=True).click()
         page.get_by_role("button", name="Browse Skill Codex", exact=True).click()
         page.get_by_text(CLOSED, exact=False).wait_for()
+        assert page.locator("#pluginsBody .addon-error").inner_text() == CLOSED
         assert outbound == []
         assert [item["action"] for item in actions] == ["registry_refresh"]
         assert page.get_by_role("link", name="Report this skill", exact=True).count() == 0
