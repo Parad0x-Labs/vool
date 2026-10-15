@@ -205,16 +205,19 @@ def test_baseline_report_builder_verdicts() -> None:
 
 
 # ---------------------------------------------------------------- production untouched
-def test_harness_adds_files_only_no_production_edits() -> None:
-    import subprocess
+def test_no_production_module_reaches_the_harness() -> None:
+    """The harness drives production seams; production never imports or names the harness.
 
-    status = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "status", "--porcelain"],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    changed = [line for line in status.splitlines() if line.strip()]
-    allowed_prefixes = ("?? tools/auto_router_audit_20261002", "?? tests/test_auto_router_audit_20261002.py")
-    for line in changed:
-        assert any(line.startswith(p) for p in allowed_prefixes), (
-            f"harness must not touch production files, saw: {line}"
-        )
+    Read from the source itself rather than from the checkout's working-tree state, which any
+    unrelated uncommitted edit (or a committed harness, whose files are no longer untracked)
+    would turn into a verdict about the environment instead of about the code.
+    """
+    production = [REPO_ROOT / name for name in ("core", "apps", "adapters", "storage", "network", "retrieval", "sandbox")]
+    offenders = [
+        str(path.relative_to(REPO_ROOT))
+        for root in production
+        if root.is_dir()
+        for path in root.rglob("*.py")
+        if "auto_router_audit" in path.read_text(encoding="utf-8", errors="replace")
+    ]
+    assert offenders == [], f"production code reaches the audit harness: {offenders}"
