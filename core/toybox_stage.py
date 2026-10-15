@@ -6,9 +6,9 @@ import re
 from io import BytesIO
 
 LAYOUTS = ("standard", "device", "dock", "spread", "console")
-CONTROLS = ("standard", "keys", "dials", "glass", "ink")
+CONTROLS = ("standard", "keys", "dials", "glass", "ink", "brush")
 TYPES = ("system", "rounded-display", "serif-display", "mono-readout", "pixel-display")
-FRAMES = ("bezel", "cabinet", "book", "porthole", "brass", "none")
+FRAMES = ("bezel", "cabinet", "book", "porthole", "brass", "scroll", "none")
 SCENES = ("none", "sky", "stars", "sea", "lanterns", "glasshouse", "grid")
 PROFILES = ("none", "meter", "glow", "sweep", "bloom")
 SLOTS = {"top": (1024, 64), "side": (64, 512), "corner": (96, 96), "empty": (640, 400)}
@@ -137,6 +137,7 @@ def css(manifest, has_art=False):
         "book": "border:5px solid var(--border);border-inline-start-width:14px;border-radius:8px 20px 20px 8px",
         "porthole": "border:7px double var(--border);border-radius:32px",
         "brass": "border:6px double var(--border);border-radius:18px 18px 4px 4px",
+        "scroll": "border-block:12px solid var(--border);border-inline:4px double var(--border);border-radius:3px",
     }
     band = has_art or frame != "none" or stage["scene"]["id"] != "none" or stage["reactive"]["profile"] != "none"
     out += _rule(("#main > header",), f"position:relative;background:var(--panel);padding-block-start:{50 if band else 12}px;" + rims[frame])
@@ -217,14 +218,17 @@ def render(manifest):
     from core.toybox_registry_v2 import BUILTIN_V2_MODULES
 
     def drawings(palette):
-        result = {}
+        result, chrome_css = {}, []
         for name in BUILTIN_V2_MODULES:
             try:
                 module = importlib.import_module(name)
                 if hasattr(module, "artwork"):
                     result.update(module.artwork(manifest["id"], palette))
+                if hasattr(module, "chrome"):
+                    chrome_css.append(module.chrome(manifest["id"], palette))
             except (ImportError, AttributeError, ValueError):
                 continue
+        result["_chrome"] = "".join(chrome_css)
         stage = spec(manifest)
         if "header" not in result:
             scene = scene_svg(stage["scene"]["id"], palette, stage["scene"]["density"] == "lively")
@@ -237,6 +241,7 @@ def render(manifest):
     # V2 has its own compact chrome. The five older contracts retain their exact renderer.
     palettes = manifest.get("palettes", {})
     views = {mode: drawings(palettes.get(mode, base["skin"]["palette"])) for mode in ("dark", "light")}
+    chrome_css = views["dark"].pop("_chrome", "")
     palette = base["skin"]["palette"]
     values = [f"--{name}:{palette[field]}" for field, names in ALIASES.items() for name in names]
     values += [f"--{name}:{value}" for name, value in _tokens(base["skin"]).items()]
@@ -280,13 +285,14 @@ def render(manifest):
     # V1 keeps the exact original guard and its golden output.
     from core.toybox_fragment import TRUSTED
 
+    chrome_css = views["light"].pop("_chrome", "") if "_chrome" in views.get("light", {}) else chrome_css
     exclusions = TRUSTED.replace('#bypassBanner,#bypassModal', '[id^="bypass"]')
     exclusions = exclusions.replace('[role="alertdialog"],[role="alert"]', '[role^="alert"]')
     exclusions = exclusions.replace('#vwSec,#vwCx,.vw-sheet,#vwHomeOverlay', '[id^="vw"],.vw-sheet')
     exclusions = exclusions.replace('.msg.is-private', '.is-private')
     exclusions = exclusions.replace('.private-divider,.private-note,.private-banner', '[class^="private-"],[class*=" private-"]')
     short_guard = ":not(:is(" + exclusions + ")):not(:is(" + exclusions + ") *)"
-    return (result + css(manifest, bool(views["dark"])) + reactive_css(manifest)).replace(GUARD, short_guard) + ISLAND_RESET
+    return (result + css(manifest, bool(views["dark"])) + reactive_css(manifest) + chrome_css).replace(GUARD, short_guard) + ISLAND_RESET
 
 
 
@@ -363,7 +369,15 @@ function paintEffect(){
  const cadence=Math.max(0,Math.min(1,Number(root.style.getPropertyValue('--vool-cadence'))||0));
  g.clearRect(0,0,104,24);g.fillStyle=muted?effectMuted:effectAccent;g.strokeStyle=g.fillStyle;g.lineWidth=2;
  g.globalAlpha=muted?.35:state==='success'?.9:moving?.55+(tick%4)*.1:.5;
- if(root.dataset.skin==='dawn-circuit'){
+ if(root.dataset.skin==='ink-tide'){
+  const phase=moving?tick%24:0,crest=state==='success';
+  for(let i=0;i<3;i++){const y=6+i*6,shift=moving?Math.sin((phase/24)*6.28+i)*3:0;
+   g.globalAlpha=muted?.3:crest?.95:.5+i*.12;g.beginPath();g.moveTo(4+shift,y);
+   for(let x=4+shift;x<100;x+=16)g.quadraticCurveTo(x+8,y-4-(i%2)*2,x+16,y);
+   g.stroke();}
+  if(crest){g.globalAlpha=1;g.fillRect(88,3,12,12);g.fillStyle=effectMuted;g.fillRect(91,7,6,2);}
+  g.globalAlpha=1;
+ }else if(root.dataset.skin==='dawn-circuit'){
   const blink=moving&&tick%32===15,smile=state==='success';
   for(const x of [20,72]){g.fillRect(x-11,4,22,16);g.clearRect(x-9,7,18,11);g.fillRect(x-7,7,5,blink?2:7);g.fillRect(x+2,7,5,blink?2:7);g.fillRect(x-3,16,6,smile?5:2);if(smile){g.fillRect(x-11,1,3,3);g.fillRect(x+8,1,3,3);}}
  }else if(effectProfile==='meter'){

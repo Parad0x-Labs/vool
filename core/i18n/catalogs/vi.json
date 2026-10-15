@@ -3234,6 +3234,8 @@
     "toybox.skin_glasshouse_description": "Nhà kính sắt và thủy tinh có dây leo lớn lên sau mỗi câu trả lời hoàn tất.",
     "toybox.skin_dawn-circuit_name": "Mạch bình minh",
     "toybox.skin_dawn-circuit_description": "Giấc mơ pixel với cổng trăng, mây dải lụa và những bạn nhỏ đầy biểu cảm.",
+    "toybox.skin_ink-tide_name": "Thủy triều mực",
+    "toybox.skin_ink-tide_description": "Bờ biển phong cách khắc gỗ: những mép giấy xé như thủy triều, khung trục gỗ kiểu cuộn thư, và mọi nút, thanh trượt, ô nhập đều được vẽ như giấy ép, nét cọ và con dấu đỏ son. Nghệ thuật gốc.",
     "yard.approval": "Cần phê duyệt",
     "yard.ascended": "Thăng hoa",
     "yard.asset_error": "Không khả dụng. Dữ liệu đã lưu vẫn được giữ.",
@@ -3446,7 +3448,7 @@
     "yard.world_use": "Dùng thế giới này",
     "yard.worlds": "Thế giới"
   },
-  "source_catalog_sha256": "2607681e141820e6ba41ef6b000096cfe63ea06f0a17de08ea16cd5309ef0552",
+  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

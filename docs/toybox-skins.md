@@ -82,6 +82,21 @@ also defines love, joy, surprise, sparring, working, waving and resting expressi
 Display text uses the installed monospace stack, with native fallbacks for other scripts;
 the artwork itself is authored on a 48-square grid with crisp SVG edges.
 
+## Ink Tide
+
+Ink Tide is the first whole-skin: the controls themselves are drawn, not
+recoloured. Buttons, selects, checkboxes and sliders carry their own
+pressed-paper chips, seal stamps and brush-stroke tracks (original code-drawn
+SVG, served inline as border images so text contrast stays measurable), and
+the main column hangs in a scroll frame with wooden rods. The header and
+footer take a torn-paper tide edge instead of a rectangle, and the bounded
+live header draws rippling tide lines with a vermillion seal on verified
+completion. The header shore art, the empty-state scene and both mascots are
+original woodblock-print style drawings; palettes are night-sea indigo and
+aged paper. Its CSS budget is higher than the other flagships (96 KiB) because
+the whole control set ships its own art; every other skin keeps the 60 KiB
+budget.
+
 ## Pet Yard and personal companions
 
 Open **Pet Yard** from the chat's Home menu or Settings → Toybox. The Yard is a built-in local page: the native skill loader carries instructions and tool contracts, and does not host application pages.

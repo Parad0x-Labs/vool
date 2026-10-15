@@ -3234,6 +3234,8 @@
     "toybox.skin_glasshouse_description": "Her tamamlanan yanıtla sarmaşığın büyüdüğü demir ve camdan bir sera.",
     "toybox.skin_dawn-circuit_name": "Şafak Devresi",
     "toybox.skin_dawn-circuit_description": "Ay kapıları, şerit bulutlar ve ifadeli küçük dostlarla bir piksel rüyası.",
+    "toybox.skin_ink-tide_name": "Mürekkep Dalgası",
+    "toybox.skin_ink-tide_description": "Ahşap baskı kıyısı: gelgit gibi yırtılmış kâğıt kenarlar, ahşap çubuklu tomar çerçevesi ve her düğme, kaydırıcı ve alan baskı kâğıdı, fırça darbeleri ve zinober mühürler olarak çizildi. Özgün sanat.",
     "yard.approval": "Onay gerekiyor",
     "yard.ascended": "Yükselmiş",
     "yard.asset_error": "Kullanılamıyor. Kayıtlı verilerin saklanıyor.",
@@ -3446,7 +3448,7 @@
     "yard.world_use": "Bu dünyayı kullan",
     "yard.worlds": "Dünyalar"
   },
-  "source_catalog_sha256": "2607681e141820e6ba41ef6b000096cfe63ea06f0a17de08ea16cd5309ef0552",
+  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

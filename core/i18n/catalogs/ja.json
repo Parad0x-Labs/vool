@@ -3234,6 +3234,8 @@
     "toybox.skin_glasshouse_description": "返答が完了するたびにつるが伸びる、鉄とガラスの温室。",
     "toybox.skin_dawn-circuit_name": "暁の回路",
     "toybox.skin_dawn-circuit_description": "月の門、リボン雲、表情豊かな小さな仲間たちのピクセルの夢。",
+    "toybox.skin_ink-tide_name": "墨潮",
+    "toybox.skin_ink-tide_description": "木版画の海岸。紙を裂いた潮の輪郭、木の軸を持つ巻物枠、そしてボタン・スライダー・入力欄のすべてが圧紙、筆のタッチ、朱印として描かれます。オリジナルアート。",
     "yard.approval": "承認が必要",
     "yard.ascended": "昇華",
     "yard.asset_error": "利用できません。保存データは残っています。",
@@ -3446,7 +3448,7 @@
     "yard.world_use": "このワールドを使う",
     "yard.worlds": "ワールド"
   },
-  "source_catalog_sha256": "2607681e141820e6ba41ef6b000096cfe63ea06f0a17de08ea16cd5309ef0552",
+  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

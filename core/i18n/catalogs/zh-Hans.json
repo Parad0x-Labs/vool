@@ -3234,6 +3234,8 @@
     "toybox.skin_glasshouse_description": "铁与玻璃构成的温室，每次回复完成后藤蔓都会生长。",
     "toybox.skin_dawn-circuit_name": "拂晓回路",
     "toybox.skin_dawn-circuit_description": "月门、丝带云与表情灵动的小伙伴交织成像素之梦。",
+    "toybox.skin_ink-tide_name": "墨潮",
+    "toybox.skin_ink-tide_description": "木刻版画风的海岸：如潮水般撕开的纸边、带木轴的卷轴框架，每个按钮、滑杆和输入框都画成压纸、笔触与朱红印章的模样。原创艺术。",
     "yard.approval": "需要批准",
     "yard.ascended": "升华",
     "yard.asset_error": "暂不可用，保存的数据已保留。",
@@ -3446,7 +3448,7 @@
     "yard.world_use": "使用此世界",
     "yard.worlds": "世界"
   },
-  "source_catalog_sha256": "2607681e141820e6ba41ef6b000096cfe63ea06f0a17de08ea16cd5309ef0552",
+  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3234,6 +3234,8 @@
     "toybox.skin_glasshouse_description": "Geležies ir stiklo šiltnamis, kuriame su kiekvienu baigtu atsakymu auga vijoklis.",
     "toybox.skin_dawn-circuit_name": "Aušros grandinė",
     "toybox.skin_dawn-circuit_description": "Pikselių sapnas su mėnulio vartais, juostiniais debesimis ir išraiškingais mažais draugais.",
+    "toybox.skin_ink-tide_name": "Rašalo banga",
+    "toybox.skin_ink-tide_description": "Medienos rašto krantas: kaip potvynio plėšyti popieriaus kraštai, medinių kartelių ritinio rėmas, o kiekvienas mygtukas, slankiklis ir laukas nupiešti kaip presuotas popierius, teptuko brūkšniai ir vermijono antspaudai. Originalus menas.",
     "yard.approval": "Reikia patvirtinimo",
     "yard.ascended": "Pakylėta",
     "yard.asset_error": "Nepasiekiama. Duomenys išsaugoti.",
@@ -3446,7 +3448,7 @@
     "yard.world_use": "Naudoti šį pasaulį",
     "yard.worlds": "Pasauliai"
   },
-  "source_catalog_sha256": "2607681e141820e6ba41ef6b000096cfe63ea06f0a17de08ea16cd5309ef0552",
+  "source_catalog_sha256": "72eb158cf3b39b07a4ac677b64e57c5cf022a4f2c710ac6ce528ca266e6d8f1f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

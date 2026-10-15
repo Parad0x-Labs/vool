@@ -8,6 +8,7 @@ BUILTIN_V2_MODULES: tuple[str, ...] = (
     "core.toybox_flagships_a",
     "core.toybox_flagships_b",
     "core.toybox_pixel",
+    "core.toybox_inktide",
 )
 
 
