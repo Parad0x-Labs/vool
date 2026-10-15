@@ -4,9 +4,29 @@ This repository runs the Skill Codex signer for VOOL. Every few minutes a GitHub
 skill uploads, signs the ones that pass and refuses the rest with the exact reasons, and keeps the
 signed list fresh. Once a day it runs every listed skill through the checks again.
 
-- Uploads are never stored here. Only the signed list and its history are.
+- [Browse the listed skills](authority/CATALOG.md). [Machine-readable directory](authority/registry.json).
+- Only exact consented bytes that passed checks and reached the signed list enter `authority/packages/`.
+  Private pending/refused uploads and their findings never enter public files. Removal/suspension withdraws
+  the current directory and package copy; earlier public Git history remains.
 - `authority/state.json` is the signed list, the marks and the VOOL builds it is signed for.
-- `authority/private.bin` is sealed. It holds the review's verdicts, its counts and its spending.
+- `authority/private.bin` is sealed. It holds private verdicts, counts, spending and a digest binding the
+  public state. Hand-edited state stops before requests. Existing setup state is validated and upgraded.
 - `team-steps.txt` holds the team's hand steps: the Tested mark, the Highlighted spot, suspending a
-  creator and removing a skill.
+  creator/skill, removing a skill, comment/report moderation, pauses, picture approvals and editorial picks.
+  Its comments list every form. Routine steps take effect through signed requests without a server restart.
 - The checks themselves are VOOL's own, from the commit named in `authority/vool-commit`.
+
+The service follows the builds in signed admissions without editing its old target setting. The signer
+follows the newest published releases, rechecks listed skills daily, and keeps model review capped.
+Unavailable review never admits unchecked bytes. Public logs show counts and operator-line problems;
+`authority/state.json` also contains opaque moderation IDs/counts, never private text or reporter identities.
+
+Automated checks cover package compatibility and known threat patterns; they can miss malicious behavior.
+Community skills are provided as is, without warranty. Inspect their files and licence before use. Website
+stars and download requests are popularity signals, separate from safety checks and the team's editor picks.
+
+Authors: read the [SDK and author guide](https://github.com/Parad0x-Labs/vool/blob/main/docs/registry/AUTHOR-GUIDE.md)
+for complete packages, signed release notes, private upload, GitHub import, checksum consent and immutable
+updates. Public fork PRs require the separately configured protected community-repository CI; this signer's
+website intake/mirroring does not activate that independent workflow. No skill's own code or workflow grants
+admission. VOOL's permissions and approval requirements remain authoritative after installation.

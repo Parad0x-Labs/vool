@@ -19,7 +19,7 @@ Use the existing VPS for the static website, API and private account/quarantine 
 
 ## Automatic checks on GitHub
 
-The signer can run as a GitHub Actions job instead of on a Mac, so no computer has to stay on. It is the same signer, with the same checks, review model, limits and hand steps; only where it keeps its keys and state differs. It runs in its own public repository that only the team can change. GitHub's standard runners cost nothing for a public repository.
+The signer can run as a GitHub Actions job instead of on a Mac, so no computer has to stay on. It is the same signer, with the same checks, review model, limits and hand steps; only where it keeps its keys and state differs. It runs in its own public repository that only the team can change. Runner billing and provider quotas depend on the repository's active service terms.
 
 Set it up once:
 
@@ -40,14 +40,16 @@ The job runs every five minutes (GitHub sometimes starts scheduled jobs late), r
 
 - applies `team-steps.txt`;
 - once a day, signs for VOOL's newest three releases and runs every listed skill through today's checks again; a skill that fails them leaves the list;
-- takes waiting uploads, checks the exact bytes, asks the review model, and signs or refuses them as the Mac does;
+- takes only exact-checksum-consented uploads, checks the bytes, asks the review model, and signs or refuses them;
+- mirrors listed bytes to `authority/packages/`, active discovery to `authority/registry.json` and `authority/CATALOG.md`;
+- applies signed moderation/curation and records opaque pending IDs/counts without private text;
 - renews entries and the 7-day list as the Mac does.
 
-Before anything is sent to the service, the run commits and pushes its state, so a run that stops halfway never signs the same list number twice, and what it spent before each send stays counted. Each time it saves, it looks at GitHub first: a run that finds another run's change stops before it sends anything, and the next run carries on. `authority/state.json` holds the signed list, the marks and the builds, which are public anyway. `authority/private.bin` is sealed with AES-GCM; it holds what is not public: signed uploads not listed yet, the review model's verdicts, the counts per creator and the spending. The run log is public, so it shows only counts and any `team-steps.txt` lines that couldn't apply, never which uploads were refused or are waiting.
+Before anything is sent to the service, the run commits and pushes its state, so a run that stops halfway never signs the same list number twice, and what it spent before each send stays counted. Each time it saves, it looks at GitHub first: a run that finds another run's change stops before it sends anything, and the next run carries on. `authority/state.json` holds the signed list, the marks and the builds, which are public anyway. `authority/private.bin` is sealed with AES-GCM; it holds what is not public: signed uploads not listed yet, the review model's verdicts, the counts per creator and the spending. The public run log shows counts and safe operator-line problems, never private uploads/findings or raw service refusal text. The sealed state binds the public state digest; hand edits stop before requests. Existing setup state is validated and gains a binding on its next successful save. Malformed queues stop before processing any queued upload; corrupt sealed state refuses before requests. A semantic operator failure rolls back the service transaction before the signer saves withdrawals.
 
 Only the "Sign" step holds the keys or can push. Before it, the job checks that `authority/vool-commit` is on VOOL's own main branch, and installs VOOL's dependencies only at the versions and hashes in VOOL's lock file (`registry_service/github/requirements.txt`; after a change to `uv.lock`, a test fails until that file is made again with the command at its top).
 
-The team's hand steps are lines in `team-steps.txt`. Edit it on GitHub (the pencil button works on a phone) and commit; the signer applies it within a few minutes. GitHub's two-factor sign-in protects it. Delete a line to undo its step, except a removal: deleting a `removed` line lets new uploads of the skill in again, but the versions it took out stay revoked, so the skill comes back only with a higher version number.
+The team's hand steps are lines in `team-steps.txt`; its template lists every form. Signed comment/report moderation, download pauses, picture approvals, official namespaces, features, editor picks and reviewer/version records apply without a service restart. Read-only `comments-held`, `reports-open`, `pictures-pending` are counts/opaque IDs under `authority/state.json` → `moderation`; full private text/image export remains in the fallback CLI. Moderation commands apply once while a line remains present; use their inverse to undo, or remove then re-add to act again. Curation lines describe the complete desired signed set. Edit the file on GitHub (the pencil button works on a phone) and commit; the signer applies it within a few minutes. GitHub's two-factor sign-in protects it. Delete a declarative mark/curation line to withdraw that mark. One-shot moderation is undone with its inverse, not deletion. Withdrawn package versions remain revoked: deleting a `removed` line lets new uploads of the skill in again, but the versions it took out stay revoked, so the skill comes back only with a higher version number.
 
 ```text
 tested PUBLISHER/NAME 1.2.0      "Tested by Parad0x Labs" on exactly that version
@@ -123,7 +125,7 @@ The signed list keeps every version of every skill. VOOL reads a list of at most
 
 ## Service configuration
 
-`vool.registry.service.v1` requires `origin`, `private_dir`, `trusted_root`, `catalog_file`, `artifact_dir`, `target`, `providers`. Target is `{version,commit,platform}` for the released app. Catalog file is the canonical directory containing the signed registry projection. Artifacts are named by full transport checksum. Provider names are `github`, `google`, `apple`; their registrations come from `VOOL_REGISTRY_PROVIDER_CLIENT_ID` and `VOOL_REGISTRY_PROVIDER_CLIENT_SECRET` with PROVIDER uppercase. Apple's client secret is the developer-managed signed JWT and needs its own renewal process.
+`vool.registry.service.v1` requires `origin`, `private_dir`, `trusted_root`, `catalog_file`, `artifact_dir`, `target`, `providers`. The legacy `target: {version,commit,platform}` key remains accepted. Public distribution resolves any target in each current signed admission; it does not filter by this old configured target. A release needs no service config edit or restart. Native installation still requires its actual exact released build/platform. Removed or retired-only entries absent from the current signed list are not served. Catalog file is the canonical directory containing the signed registry projection. Artifacts are named by full transport checksum. Provider names are `github`, `google`, `apple`; their registrations come from `VOOL_REGISTRY_PROVIDER_CLIENT_ID` and `VOOL_REGISTRY_PROVIDER_CLIENT_SECRET` with PROVIDER uppercase. Apple's client secret is the developer-managed signed JWT and needs its own renewal process.
 
 Start with `vool-registry serve --config CONFIG --port 8791` under a dedicated unprivileged account. It binds 127.0.0.1, ignores forwarded IP headers, disables access/error request logs and returns JSON errors without provider tokens. It imports verified snapshots and public artifacts; its database is a cache, not catalog admission authority. A stale snapshot stops new browse/download/install rather than reusing an unsigned list.
 
@@ -178,7 +180,7 @@ Review and run `nginx -t` on the complete server configuration before applying i
 
 ## Picture review
 
-A skill picture shows only after an operator approves that exact file for that skill: add `{"id": "<publisher>/<name>", "sha256": "<checksum>"}` to `approved_pictures` in `registry_service/curation.json` through a reviewed pull request. `check-config` validates the curation file, and the service reads it at start, so restart the service after the change.
+Approve a skill picture with `picture publisher/name sha256` in `team-steps.txt`; removing the line withdraws it without a restart. The fallback is an `approved_pictures` entry in `registry_service/curation.json` through reviewed source changes and a restart. Signed curation replaces the full fallback set after the first signed curation line; retain existing approvals explicitly when migrating. Approval belongs to the skill and exact checksum, never every package using that file.
 
 To see what is waiting, run `vool-registry pictures-pending --config CONFIG --target NEWDIR`. It prints every picture of every published version that has no approval for its skill (id, version, kind, checksum, size) and writes each file into the new folder as `<sha256>.png`. It refuses a folder that already exists; without `--target` it only prints the list. Look at each file at full size and at about 52 pixels. Approve it only when:
 
@@ -188,7 +190,7 @@ To see what is waiting, run `vool-registry pictures-pending --config CONFIG --ta
 - it has no adult, violent, hateful or shocking content, and nothing styled as VOOL's own interface (buttons, warnings, prices);
 - any text in it is short and fits the skill.
 
-An approval covers one skill. The same file in another skill needs its own look, because a picture that is fine for one skill can mislead in another. Taking an entry out of `approved_pictures` hides that picture after the next start; browsers may keep a copy for up to five minutes, and a running VOOL drops it at its next Browse. Approving a picture admits nothing: packages still come only from the signed catalog.
+An approval covers one skill. The same file in another skill needs its own look, because a picture that is fine for one skill can mislead in another. Removing a signed picture line hides it without restarting; a fallback-file edit applies after the next start; browsers may keep a copy for up to five minutes, and a running VOOL drops it at its next Browse. Approving a picture admits nothing: packages still come only from the signed catalog.
 
 A results page asks for many pictures at once, so give `/registry/api/pictures/` its own limiter zone instead of the general one:
 
@@ -217,7 +219,7 @@ Read open reports with `vool-registry reports-open --config CONFIG` (see [SKILL-
 
 - Nothing wrong: `reports-close` closes the reports, wipes their notes and ends a pause the reports caused.
 - Harmful or stolen: `skill-pause` keeps downloads paused, then revoke the version in the next signed catalog so VOOL stops listing it. A pause alone does not change what VOOL lists. `skill-resume` ends an operator's pause.
-- A bad picture: remove its entry from `approved_pictures` and restart the service, then `reports-close`.
+- A bad picture: remove its signed `picture` line (or change/restart the fallback curation), then add `reports-close publisher/name`.
 - Reports in bad faith: `reporter-mute --target REPORT_ID` for each report. That account's open and later reports stop counting and its comments are held. A closed report never counts again either: the same account cannot pause that skill a second time.
 
 A paused skill stays paused until an operator acts. Check the list every day while the registry is open.
@@ -233,3 +235,48 @@ Production scanner adapters, provider registrations, protected repository settin
 Root rotation accepts exactly the next version. An app update that skips a root version leaves an existing registry cache refused; retries cannot bridge the missing version. Ship and apply every intermediate dual-signed root in order. The current client has no automatic intermediate-root retrieval, so release integration must prove a multi-version update before offering it.
 
 Native catalog refresh currently performs O(n²) signature verification by resolving entries against the catalog repeatedly. Keep catalog size within measured release budgets; this pass does not replace that algorithm or claim large-catalog performance.
+
+## Signed operator forms and public projection
+
+The service upgrades unpublished automatic uploads from the earlier implicit-consent flow to
+private `checking` with consent unset. Legacy generic publish choices return to `preflighted`.
+Authors confirm the exact checksum again. This migration runs once; fresh explicit consent survives
+restart. Already published versions and their public history remain unchanged.
+
+The complete syntax is in `registry_service/github/team-steps.txt`. Routine actions are:
+
+| Action | Form | Effect |
+| --- | --- | --- |
+| Read pending work | `authority/state.json` → `moderation` | Counts and opaque comment/report IDs; pending picture skill/version/checksums. No private text/reporters. |
+| Publish/remove comment | `comment-publish ID`, `comment-remove ID` | Publish held text or delete it. |
+| Mute/unmute | `mute namespace`, `unmute namespace` | Hold/prevent comments, or permit future comments. |
+| Close reports | `reports-close publisher/name` | Wipe notes and end reports-caused pauses. |
+| Pause/resume | `skill-pause publisher/name`, `skill-resume publisher/name` | Close reports and change download availability. |
+| Mute report sender | `reporter-mute REPORT_ID` | Remove counting authority and hold comments without exposing identity. |
+| Withdraw | `removed publisher/name`, `suspended publisher/name` | Remove every listed version and revoke their checksums. Restoration needs a higher version after clearing the line. |
+| Suspend creator | `suspended namespace` | Withdraw listed skills; refuse pending/new uploads. |
+| Approve picture | `picture publisher/name SHA256` | Exact skill/picture approval; remove line to withdraw it. |
+| Curate | `official namespace`, `featured publisher/name`, `editors-pick publisher/name` | Maintainer labels, separate from admission/popularity. |
+| Appoint/review | `reviewer namespace team|community`, `review publisher/name VERSION reviewer YYYY-MM-DD` | Exact-version public reviewer record; no self-review. |
+
+Malformed syntax applies no file changes. Conflicting operator actions are refused. The resolved
+signed marks envelope is limited to 65,536 bytes before any checkpoint/request; reduce retained
+marks if this limit is reached. Service actions
+share a transaction and are idempotent while present. Existing Tested/Highlighted/team/build forms
+remain accepted. A paid review outage or used-up cap leaves the upload checking; it never grants
+admission. The cap stops additional reviews after recorded spend reaches the limit; provider-side
+hard billing limits are separate, because a single billed response can exceed the remaining amount.
+
+The generated repository directory contains only current listed skills and their signed metadata,
+release notes, targets and display metrics. Withdrawals remove current projection files; public Git
+history remains. A stale optional metric feed preserves previous counters and does not stop the
+signer. Only listed package bytes are mirrored, after publication succeeds. Private pending/refused
+bytes and review text remain sealed/private. README links in an existing signer repository are an
+owner source update; new setup uses the current template.
+
+Checks use the implementation pinned by `authority/vool-commit`. Following release target metadata
+does not itself update that pin or prove actual execution on each binary/platform. Keep the pin
+reviewed and compatible; automated native-format validation and the exact-byte human Tested mark
+are separate evidence. Direct PR CI/publisher protection in another community repository, standalone
+email delivery/login, website pages, provider registrations and production smoke require activation.
+The local backend and generated directory do not establish that those live services are active.

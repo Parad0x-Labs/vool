@@ -1,13 +1,41 @@
 # The Skill Codex team's hand steps. Edit this file on GitHub (the pencil button works on a phone too)
 # and commit it; the signer applies it within a few minutes. Each line is one step; a line starting
-# with # is a note. Delete a line to undo its step. A removed skill's versions stay revoked even then:
-# it comes back only with a higher version number.
+# with # is a note. Marks/curation describe the complete desired set; remove a line to remove its mark.
+# Moderation commands are one-shot while their line stays present: use the inverse command to undo a mute
+# or pause, or remove then re-add a line to act again. Withdrawn versions stay revoked permanently;
+# clearing a withdrawal permits only a higher version. A malformed line applies nothing from this file.
 #
 #   tested publisher/name 1.2.0      the "Tested by Parad0x Labs" mark, on exactly that version
 #   highlighted publisher/name       in the Highlighted spot on the Skill Codex home page
-#   suspended publisher              this creator can't publish; their uploads are refused
+#   suspended publisher              withdraw listed skills and refuse this creator's pending/new uploads
+#   suspended publisher/name         withdraw this skill, the same permanent version revocation as removed
 #   removed publisher/name           off the Skill Codex, and installed copies stop working
 #   team vool-team 12345 67890       a team name and its members' GitHub account numbers
 #   build 0.7.2-beta <commit id>     also sign for this VOOL build before it is released, to test it
+#
+# Routine moderation (opaque IDs/counts are in authority/state.json under moderation; no private text):
+#   comment-publish <32-hex comment id>
+#   comment-remove <32-hex comment id>       removes its text
+#   mute publisher                         holds comments and prevents new comments
+#   unmute publisher                       permits commenting; does not automatically republish held text
+#   reports-close publisher/name           clears report notes; ends a reports-caused pause
+#   skill-pause publisher/name             closes reports and pauses downloads by operator decision
+#   skill-resume publisher/name            closes reports and ends the pause
+#   reporter-mute <32-hex report id>        mutes the sender without exposing their identity
+#
+# Curation (complete signed replacement for static curation.json after the first curation line):
+#   picture publisher/name <64-hex picture checksum>    approve exactly this skill's picture
+#   official publisher                                 maintainer-owned publishing namespace
+#   featured publisher/name
+#   editors-pick publisher/name                         shown in website, VOOL and repository catalog
+#   reviewer publisher team                            or: reviewer publisher community
+#   review publisher/name 1.2.0 reviewer 2026-10-15     exact version, appointed reviewer, date
+# Copy retained static approvals/labels into this file on first migration; there is no silent merge.
+# Removing a picture/selection line removes it without restarting the service. Reviews never admit a skill.
+# No conflicting commands for the same comment, account or package. Maximum 40,000 serialized bytes.
+# The resolved signed marks envelope also has a 65,536-byte cap, checked before checkpoint or send.
+#
+# comments-held, reports-open and pictures-pending are read views: inspect moderation counts/IDs in
+# authority/state.json. Full private text and image-export views remain available through the server CLI.
 #
 # If a line can't be read, nothing in this file is applied until it is fixed; the run log says which line.
