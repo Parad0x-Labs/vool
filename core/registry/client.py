@@ -181,16 +181,40 @@ class Client:
         return result
 
 
-def configured_client() -> Client:
+CLOSED = "Skill Codex is not open yet in this version of VOOL"
+
+
+def _anchor() -> Path:
     from core.runtime_paths import PROJECT_ROOT
 
-    # An optional owner-installed anchor is local configuration. The HTTP API
-    # cannot pass a root, URL, path, target build or a trust override.
-    anchor = Path(os.environ.get("VOOL_REGISTRY_ROOT_FILE") or Path(PROJECT_ROOT) / "core" / "registry" / "trusted-root.json")
+    return Path(os.environ.get("VOOL_REGISTRY_ROOT_FILE") or Path(PROJECT_ROOT) / "core" / "registry" / "trusted-root.json")
+
+
+def _read_anchor() -> dict:
+    from core.registry.trust import root_document, verify
+
     try:
-        root = decode(anchor.read_bytes(), 65536)
-    except OSError:
-        raise RegistryError("Skill Codex is not open yet in this version of VOOL") from None
+        root = decode(_anchor().read_bytes(), 65536)
+        require(isinstance(root, dict), CLOSED)
+        document = root_document(root.get("signed"), int(time.time()))
+        verify(root, document, "root")
+        return root
+    except (OSError, RegistryError, KeyError, TypeError, ValueError):
+        raise RegistryError(CLOSED) from None
+
+
+def is_open() -> bool:
+    """Local capability only: no network and no trust-state writes during startup or listing."""
+    try:
+        _read_anchor()
+        return True
+    except RegistryError:
+        return False
+
+
+def configured_client() -> Client:
+    # Only local configuration selects the trust anchor and the actual release identity.
+    root = _read_anchor()
     return Client(root, runtime_target())
 
 

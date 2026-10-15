@@ -41,8 +41,11 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             # A check on this device and a website link; nothing is sent from here.
             if not isinstance(body.get("name"), str):
                 return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
+            from core.registry.client import CLOSED, is_open
             from core.registry.handoff import publish_handoff
 
+            if not is_open():
+                return 400, {"error": "registry_closed", "message": CLOSED}
             result = publish_handoff(body["name"])
         elif action.startswith("registry_"):
             from core.registry.client import handle
