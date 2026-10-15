@@ -642,7 +642,10 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
             print("The service didn't answer; the next run tries again.")
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
-        print("Stopped: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__))
+        reason = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
+        if isinstance(exc, OSError) and exc.strerror:
+            reason += ": " + exc.strerror  # the system's reason, such as a read-only drive; never a path or a value
+        print("Stopped: " + reason)
         return 1
 
 
