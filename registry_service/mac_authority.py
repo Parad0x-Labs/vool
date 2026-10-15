@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import fcntl
 import functools
 import getpass
@@ -127,6 +128,10 @@ def _shown(findings: list) -> list:
     return shown
 
 
+class MissingArtifact(RegistryError):
+    """The service no longer holds the bytes of a skill on the signed list."""
+
+
 def _exclusive(method):
     """One signer at a time on this folder, working from the state on disk now.
 
@@ -137,15 +142,13 @@ def _exclusive(method):
     def wrapper(self, *args, **kwargs):
         if self._held:
             return method(self, *args, **kwargs)
-        descriptor = os.open(self.dir / "lock", os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
-            self._held = True
-            self.state = json.loads(_private(self.dir / "state.json"))
-            return method(self, *args, **kwargs)
-        finally:
-            self._held = False
-            os.close(descriptor)  # closing releases the lock
+        with self._locked():
+            try:
+                self._held = True
+                self.state = self._load_state()
+                return method(self, *args, **kwargs)
+            finally:
+                self._held = False
     return wrapper
 
 
@@ -155,22 +158,41 @@ class Authority:
     def __init__(self, directory: Path, *, transport=None, review=None, clock=time.time):
         self.dir = Path(directory)
         require(self.dir.is_dir() and self.dir.stat().st_mode & 0o077 == 0, "the authority folder must be private (0700)")
-        self.config = json.loads(_private(self.dir / "config.json"))
-        self.root_envelope = decode(_private(self.dir / "trusted-root.json"), 65536)
+        self._begin(json.loads(_private(self.dir / "config.json")), decode(_private(self.dir / "trusted-root.json"), 65536),
+                    Ed25519PrivateKey.from_private_bytes(_private(self.dir / "admission.key")),
+                    Ed25519PrivateKey.from_private_bytes(_private(self.dir / "review.key")),
+                    transport=transport, review=review, clock=clock)
+
+    def _begin(self, config: dict, root_envelope: dict, admission_key: Ed25519PrivateKey, review_key: Ed25519PrivateKey,
+               *, transport, review, clock) -> None:
+        """Everything after the keys and settings are found, wherever they are kept."""
+        self.config = config
+        self.root_envelope = root_envelope
         self.clock = clock
         self.root = root_document(self.root_envelope["signed"], self.now(), allow_expired=True)
         verify(self.root_envelope, self.root, "root")
-        self.admission_key = Ed25519PrivateKey.from_private_bytes(_private(self.dir / "admission.key"))
-        self.review_key = Ed25519PrivateKey.from_private_bytes(_private(self.dir / "review.key"))
+        self.admission_key, self.review_key = admission_key, review_key
         require(keyid(self.admission_key) in self.root["roles"]["admission"]["keyids"] and
                 keyid(self.review_key) in self.root["roles"]["review"]["keyids"], "keys do not match the trust root")
-        self.state = json.loads(_private(self.dir / "state.json"))
+        self.state = self._load_state()
         self._held = False
         self.transport = transport or self._http
         self._review = review
 
     def now(self) -> int:
         return int(self.clock())
+
+    def _load_state(self) -> dict:
+        return json.loads(_private(self.dir / "state.json"))
+
+    @contextlib.contextmanager
+    def _locked(self):
+        descriptor = os.open(self.dir / "lock", os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(descriptor)  # closing releases the lock
 
     def save(self) -> None:
         _write(self.dir / "state.json", json.dumps(self.state, sort_keys=True).encode())
@@ -182,9 +204,11 @@ class Authority:
 
             settings = self.config["review"]
             self._review = ModelReview(settings["provider"], settings["model"], ledger=self.dir / "spend.json",
-                                       monthly_cap=settings.get("monthly_cap", 20.0),
-                                       key=os.environ.get("VOOL_AUTHORITY_OPENROUTER_KEY", ""))
+                                       monthly_cap=settings.get("monthly_cap", 20.0), key=self._model_key())
         return self._review
+
+    def _model_key(self) -> str:
+        return os.environ.get("VOOL_AUTHORITY_OPENROUTER_KEY", "")
 
     # ---- the server ----
 
@@ -234,9 +258,15 @@ class Authority:
         except Exception as exc:  # anything unexpected about one package refuses it, never stops the signer
             if isinstance(exc, (OSError, MemoryError)):
                 raise  # this Mac's own trouble, not the package's
-            print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
-                  " ".join(str(exc).split())[:300], file=sys.stderr)
+            self._said_unreadable(raw, exc)
             return {"refused": [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]}
+
+    def _said_unreadable(self, raw: bytes, exc: Exception) -> None:
+        print("Refused " + hashlib.sha256(raw).hexdigest() + " after an unexpected " + type(exc).__name__ + ": " +
+              " ".join(str(exc).split())[:300], file=sys.stderr)
+
+    def _said_dropped(self, entry: dict, reason: str) -> None:
+        print("Dropped " + entry["metadata"]["id"] + " " + entry["metadata"]["version"] + ": " + reason)
 
     def _clash(self, metadata: dict) -> str | None:
         """A version number this skill already used or passed, which the signed list cannot hold twice."""
@@ -301,6 +331,10 @@ class Authority:
         if not path.exists():
             _write(path, raw)
 
+    def _artifact(self, sha256: str) -> bytes:
+        """The exact bytes of a skill on the signed list, kept for re-checking and re-signing."""
+        return (self.dir / "artifacts" / (sha256 + ".json")).read_bytes()
+
     def _renew(self) -> bool:
         """Re-sign entries before they expire, or when the release list changed. Each is checked again first."""
         changed, kept = False, []
@@ -310,14 +344,18 @@ class Authority:
                 kept.append(envelope)
                 continue
             changed = True
-            raw = (self.dir / "artifacts" / (entry["artifact_sha256"] + ".json")).read_bytes()
+            try:
+                raw = self._artifact(entry["artifact_sha256"])
+            except MissingArtifact:
+                # Nobody can download bytes the service no longer has; only this entry leaves the list.
+                self._said_dropped(entry, "the service no longer has its bytes")
+                continue
             result = self.check(raw, official=entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"])
             if "admission" in result:
                 kept.append(result["admission"])
             elif "refused" in result:
                 # Today's rules refuse it: it leaves the list rather than being re-signed.
-                print("Dropped " + entry["metadata"]["id"] + " " + entry["metadata"]["version"] + ": " +
-                      result["refused"][0]["reason"])
+                self._said_dropped(entry, result["refused"][0]["reason"])
             elif entry["expires"] > self.now() + 3600:
                 kept.append(envelope)  # the model review is unavailable; try again next run
         self.state["entries"] = kept

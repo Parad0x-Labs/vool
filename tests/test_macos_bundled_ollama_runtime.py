@@ -57,7 +57,7 @@ def _release(root: Path, *, with_runner: bool = True) -> Path:
     return src
 
 
-def _run(src: Path, dst: Path, arch: str) -> subprocess.CompletedProcess:
+def _run(src: Path, dst: Path, arch: str, *, thin_fails: bool = False) -> subprocess.CompletedProcess:
     dst.mkdir()
     shutil.copy(src / "ollama", dst / "ollama")
     driver = "\n".join(
@@ -67,7 +67,11 @@ def _run(src: Path, dst: Path, arch: str) -> subprocess.CompletedProcess:
             'die() { echo "DIE: $*"; exit 3; }',
             # lipo answers from the fake Mach-O header line and fails on anything else, as the
             # real one fails on a license file.
-            'lipo() { local l; IFS= read -r l < "$2" || true; [[ $l == \'ARCHS \'* ]] || return 1; echo "${l#ARCHS }"; }',
+            # `lipo -thin ARCH -output OUT IN` writes IN with only that slice named in its header.
+            'lipo() { local l; if [[ $1 == -thin ]]; then IFS= read -r l < "$5" || return 1;'
+            ' [[ " ${l#ARCHS } " == *" $2 "* ]] || return 1; { echo "ARCHS $2"; tail -n +2 "$5"; } > "$4"; return; fi;'
+            ' IFS= read -r l < "$2" || true; [[ $l == \'ARCHS \'* ]] || return 1; echo "${l#ARCHS }"; }',
+            *(['real_lipo() { :; }', 'eval "real_$(declare -f lipo)"', 'lipo() { [[ $1 == -thin ]] && return 1; real_lipo "$@"; }'] if thin_fails else []),
             _function(),
             f'bundle_ollama_runtime "{src}" "{dst}" "{arch}"',
             "echo done",
@@ -88,6 +92,9 @@ def test_an_intel_bundle_carries_the_runner_its_libraries_and_cpu_backends(tmp_p
         "LLAMA_CPP_LICENSE",
     ):
         assert (dst / name).is_file() and not (dst / name).is_symlink(), name
+    # The universal runners keep only the Intel slice.
+    for name in ("llama-server", "llama-quantize"):
+        assert (dst / name).read_bytes().startswith(b"ARCHS x86_64\n"), name
     assert os.readlink(dst / "libggml.0.dylib") == "libggml.0.25.3.dylib"
     assert os.readlink(dst / "libggml.dylib") == "libggml.0.dylib"
     assert (dst / "libggml.dylib").resolve() == (dst / "libggml.0.25.3.dylib").resolve()
@@ -101,7 +108,12 @@ def test_an_apple_silicon_bundle_leaves_out_intel_only_libraries_and_their_links
     run = _run(_release(tmp_path), dst, "arm64")
     assert run.returncode == 0 and "done" in run.stdout, (run.stdout, run.stderr)
     assert (dst / "llama-server").is_file()
+    # Kept whole, their x86_64 halves would link the Intel libraries left out below.
+    for name in ("llama-server", "llama-quantize"):
+        assert (dst / name).read_bytes().startswith(b"ARCHS arm64\n"), name
+    assert "thinned llama-server to arm64 (slices: x86_64 arm64)" in run.stdout
     assert (dst / "libapple-only.dylib").is_file()
+    assert (dst / "libapple-only.dylib").read_bytes() == b"ARCHS arm64\n"
     for name in ("libggml.0.25.3.dylib", "libggml-cpu-haswell.so", "libggml.0.dylib", "libggml.dylib"):
         assert not os.path.lexists(dst / name), name
     assert "left out libggml.0.25.3.dylib (slices: x86_64)" in run.stdout
@@ -129,3 +141,9 @@ def test_an_ollama_with_its_runner_built_in_needs_no_companions(tmp_path):
     run = _run(src, dst, "x86_64")
     assert run.returncode == 0 and "done" in run.stdout, (run.stdout, run.stderr)
     assert sorted(p.name for p in dst.iterdir()) == ["ollama"]
+
+
+def test_a_universal_file_that_cannot_be_thinned_fails_the_build(tmp_path):
+    run = _run(_release(tmp_path), tmp_path / "ollama", "arm64", thin_fails=True)
+    assert run.returncode == 3, (run.stdout, run.stderr)
+    assert "DIE: could not thin ollama's llama-server to arm64" in run.stdout
