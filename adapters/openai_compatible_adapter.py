@@ -17,6 +17,7 @@ from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
     canonical_tool_call_text,
@@ -616,10 +617,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     data, definitions=native_tools, metadata=request.metadata
                 )
                 break
-            except MalformedToolArgumentsError:
-                # Argument defects are recovered by the router with corrective schema feedback
+            except ToolArgumentSchemaError:
+                # Schema defects are recovered by the router with corrective schema feedback
                 # and one recorded attempt budget. An identical hidden resend here would multiply
-                # that budget on free lanes.
+                # that budget on free lanes. Other named defects keep the resend below.
                 raise
             except ToolCallParseError:
                 # SWITCHBOARD repair: a NAMED tool-call defect (UnknownToolNameError /

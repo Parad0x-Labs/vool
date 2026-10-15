@@ -238,3 +238,34 @@ def test_local_certification_still_tells_schema_violations_from_broken_json(tmp_
     result = run_local_model_tool_certification(_manifest(), exchange=exchange, db_path=tmp_path / "cert.db")
     assert exchange.parallel_attempts == 2
     assert result["stages"]["adapter_translation"]["failure_code"] == code, result["stages"]
+
+
+def _not_json_body():
+    body = _body({"archive_id": "sample"})
+    body["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = '{"archive_id": not json'
+    return body
+
+
+def _sent_correction(body):
+    return "argument-schema validation" in json.dumps(body)
+
+
+def test_arguments_that_are_not_json_are_refused_with_one_request_and_no_reask(wire):
+    # Only arguments that parse but break the offered schema are re-asked. Text that is not JSON
+    # stays the train's closed refusal on every lane: one request, nothing returned to execute.
+    wire.outcomes = [_not_json_body(), _body({"archive_id": "sample"})]
+    response, error, context = _invoke(wire)
+    assert response is None and error.startswith("malformed_tool_arguments:")
+    assert len(wire.bodies) == 1
+    assert context["last_tool_call_rejection"]["error_kind"] == "malformed_tool_arguments"
+
+
+def test_free_lane_not_json_arguments_keep_the_train_resend_and_get_no_correction(wire):
+    # The verified-free lane keeps its single identical resend for not-JSON arguments, as on the
+    # train; the router adds no correction prompt on top of it.
+    wire.outcomes = [_not_json_body()]
+    response, error, _ = _invoke(wire, adapter_free_retry=True)
+    assert response is None and error.startswith("malformed_tool_arguments:")
+    assert len(wire.bodies) == 2
+    assert not any(_sent_correction(body) for body in wire.bodies)
+

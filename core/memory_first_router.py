@@ -33,6 +33,7 @@ from core.candidate_knowledge_lane import build_task_hash, get_exact_candidate, 
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
 )
@@ -2992,7 +2993,9 @@ class MemoryFirstRouter:
                     try:
                         return _call_adapter_task(method_name, task_request)
                     except Exception as exc:
-                        if isinstance(exc, MalformedToolArgumentsError):
+                        # Only arguments that parsed but broke the offered schema are re-asked.
+                        # Text that is not JSON, or a missing call, stays a closed refusal.
+                        if isinstance(exc, ToolArgumentSchemaError):
                             from core.provider_call_deadline import deadline_expired
                             from core.tool_schema_recovery import (
                                 admit_paid_tool_correction,

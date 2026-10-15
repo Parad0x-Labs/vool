@@ -54,6 +54,7 @@ from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
     allowed_argument_types,
@@ -592,12 +593,16 @@ def _validate_candidates(
     ]
     try:
         calls = parse_native_tool_calls(raw_calls, definitions=definitions)
-    except (DuplicateToolCallError, UnknownToolNameError):
-        raise
+    except ToolCallParseError as exc:
+        # Schema failures are now a typed ToolCallParseError (a ValueError). They keep the
+        # existing lossless scalar repair and typed refusal below; every other named defect
+        # (unknown name, duplicate, arguments that are not JSON) is raised unchanged.
+        if not isinstance(exc, ToolArgumentSchemaError):
+            raise
+        if not coerce and _any_scalar_coercible(deduped):
+            raise _RecoverableDefectError("schema_scalar_coercion") from exc
+        raise _RejectionError("schema_validation_failed", str(exc)) from exc
     except ValueError as exc:
-        # Schema failures are now typed MalformedToolArgumentsError (a ValueError).
-        # Keep the existing lossless scalar repair and typed refusal contract;
-        # do not let the new type bypass recovery or invent missing arguments.
         if not coerce and _any_scalar_coercible(deduped):
             raise _RecoverableDefectError("schema_scalar_coercion") from exc
         raise _RejectionError("schema_validation_failed", str(exc)) from exc
