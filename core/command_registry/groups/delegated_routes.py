@@ -301,10 +301,12 @@ def _register_handler(name: str, fn) -> str:
 
 
 def register(reg: CommandRegistry) -> None:
+    from core.i18n.turn_locale import turn_text
+
     reg.add_group(
         GroupSpec(
             group_id="wallet",
-            description="wallet custody, proposals and settlement (disabled by default, testnet only)",
+            description=turn_text("wallet.commands.description", "Wallet accounts, approvals and receipts. Crypto is off by default; mainnet is used when enabled."),
         )
     )
     reg.add_group(

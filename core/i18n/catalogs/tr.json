@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "tr",
   "messages": {
+    "wallet.receipt.cancelled": "İptal edildi",
+    "wallet.receipt.not_sent": "Gönderilmedi",
+    "wallet.receipt.not_sent_detail": "Hiçbir şey imzalanmadı veya gönderilmedi.",
+    "wallet.balance.native_only": "Bu bakiye yalnızca ağın yerel parasını gösterir; tokenlar dahil değildir.",
+    "contacts.recipient.identity_changed": "Bu kişi değişti. Alıcıyı ve tam adresi yeniden kontrol edin.",
+    "wallet.commands.description": "Cüzdan hesapları, onaylar ve makbuzlar. Kripto varsayılan olarak kapalıdır; açıldığında ana ağ kullanılır.",
     "activity.category.changes": "Değişen dosyalar",
     "activity.category.commands": "Komutlar",
     "activity.category.edits": "Düzenleme çağrıları",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

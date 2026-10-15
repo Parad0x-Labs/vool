@@ -800,12 +800,11 @@ class PaymentLifecycle:
             # the quote the owner reviewed must name the same Contacts binding, and Contacts must still hold that exact destination
             if str(quote["fields"].get("recipient_fingerprint") or "") != str(recipient.get("fingerprint") or ""):
                 raise self._fault("wallet_quote_mismatch", proposal, reason="quote_recipient_binding_differs")
-            if recipient.get("resolution") == "contact":
-                from core.contacts import verify_snapshot
+            from core.contacts import verify_snapshot
 
-                check = verify_snapshot(recipient)
-                if not check.ok:
-                    raise self._fault("wallet_recipient_refused", proposal, reason=f"contact_{check.status}")
+            check = verify_snapshot(recipient)
+            if not check.ok:
+                raise self._fault("wallet_recipient_refused", proposal, reason=f"contact_{check.status}")
         if proposal.origin == proposals.ORIGIN_USEPOD:
             # the provider's durable requirement, before any credential: pinned fields equal, window still open
             from core.wallet import usepod

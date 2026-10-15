@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "pl",
   "messages": {
+    "wallet.receipt.cancelled": "Anulowano",
+    "wallet.receipt.not_sent": "Nie wysłano",
+    "wallet.receipt.not_sent_detail": "Nic nie zostało podpisane ani wysłane.",
+    "wallet.balance.native_only": "To saldo pokazuje tylko rodzimą monetę sieci; tokeny nie są uwzględnione.",
+    "contacts.recipient.identity_changed": "Ten kontakt się zmienił. Sprawdź ponownie odbiorcę i dokładny adres.",
+    "wallet.commands.description": "Konta portfela, zatwierdzenia i potwierdzenia. Kryptowaluty są domyślnie wyłączone; po włączeniu używana jest sieć główna.",
     "activity.category.changes": "Zmienione pliki",
     "activity.category.commands": "Polecenia",
     "activity.category.edits": "Wywołania edycji",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

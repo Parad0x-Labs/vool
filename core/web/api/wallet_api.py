@@ -351,13 +351,26 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
         if path == "/api/wallet/propose":
             key = str(body.get("idempotency_key") or "")
             wallet_id = _wallet_id(body)
+            from core.contacts.consumers import resolve_wallet_recipient
             from core.wallet import idempotency
+
+            profile = custody.require_wallet(wallet_id, source_context=source_context)
+            network = str(body.get("network") or "") or profile.network
+            recipient = resolve_wallet_recipient(str(body.get("destination") or ""), network=network,
+                asset=str(body.get("asset") or "SOL"))
+            if not recipient.ok:
+                fault = wallet_fault("wallet_recipient_refused", authority="core.wallet", context={
+                    "reason": recipient.status, "recipient": recipient.resolution or {},
+                }, source_context=source_context)
+                fault.user_message = recipient.message
+                return _fault(fault)
+            destination = recipient.snapshots[0]
 
             existed = idempotency.existing_for_key(wallet_id, key) is not None if key else False
             proposal = proposals.propose_transaction(
-                wallet_id=wallet_id, destination=str(body.get("destination") or ""), amount_minor=int(body.get("amount_minor") or 0),
+                wallet_id=wallet_id, destination=str(destination["value"]), amount_minor=int(body.get("amount_minor") or 0),
                 asset=str(body.get("asset") or "SOL"), origin=str(body.get("origin") or proposals.ORIGIN_USER), memo=str(body.get("memo") or ""),
-                idempotency_key=key, source_context=source_context, network=str(body.get("network") or ""),
+                idempotency_key=key, source_context=source_context, network=network, recipient=destination,
             )
             return _prepared(proposal, source_context=source_context, duplicate=existed)
         if path == "/api/wallet/x402/propose":

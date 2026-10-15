@@ -161,7 +161,8 @@ _JS = r"""
     if (!overlay) build();
     lastFocus = document.activeElement;
     overlay.hidden = false; say(''); state.view = '';
-    return refresh().then(function() { if (contactId) select(contactId); if (searchEl) searchEl.focus(); });
+    if (searchEl) searchEl.focus();
+    return refresh().then(function() { if (contactId && isOpen() && !state.view) select(contactId); });
   }
   function close() {
     clearSecrets();

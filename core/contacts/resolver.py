@@ -136,7 +136,8 @@ class SnapshotCheck:
 
 def verify_snapshot(snapshot: Any) -> SnapshotCheck:
     """Whether the destination a snapshot bound is still exactly what Contacts holds."""
-    if not isinstance(snapshot, dict) or snapshot.get("version") != SNAPSHOT_VERSION:
+    if (not isinstance(snapshot, dict) or snapshot.get("version") != SNAPSHOT_VERSION
+            or snapshot.get("resolution") not in ("contact", "explicit")):
         return SnapshotCheck("unknown_snapshot", False, "The recipient record is not a Contacts snapshot this build understands.")
     if snapshot.get("resolution") == "explicit":
         return SnapshotCheck("explicit", True, "The destination was given explicitly; no saved contact is bound.")
@@ -155,6 +156,20 @@ def verify_snapshot(snapshot: Any) -> SnapshotCheck:
             f"(was {snapshot.get('value')}, now {endpoint.get('value')}). Review it again.",
             current=endpoint,
         )
+    # An endpoint fingerprint binds the destination, not the name shown on the review.
+    # Re-read the owning contact as well: a renamed or substituted identity needs a new
+    # review even when its address is unchanged. Labels and unrelated edits do not move
+    # the recipient, so contact revision alone is deliberately not the predicate.
+    if (endpoint.get("contact_id") != snapshot.get("contact_id")
+            or endpoint.get("contact_display_name") != snapshot.get("display_name")
+            or any(endpoint.get(key, "") != snapshot.get(key, "")
+                   for key in ("kind", "canonical", "chain_network", "channel", "provider_account"))):
+        from core.i18n.turn_locale import turn_text
+
+        return SnapshotCheck("identity_changed", False, turn_text(
+            "contacts.recipient.identity_changed",
+            "This contact changed. Review the recipient and exact address again.",
+        ), current=endpoint)
     return SnapshotCheck("current", True, "The saved destination is unchanged.", current=endpoint)
 
 

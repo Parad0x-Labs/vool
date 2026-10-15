@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "he",
   "messages": {
+    "wallet.receipt.cancelled": "בוטל",
+    "wallet.receipt.not_sent": "לא נשלח",
+    "wallet.receipt.not_sent_detail": "דבר לא נחתם או נשלח.",
+    "wallet.balance.native_only": "יתרה זו מציגה רק את המטבע המקורי של הרשת; אסימונים אינם כלולים.",
+    "contacts.recipient.identity_changed": "איש הקשר הזה השתנה. יש לבדוק שוב את הנמען ואת הכתובת המדויקת.",
+    "wallet.commands.description": "חשבונות ארנק, אישורים וקבלות. מטבעות דיגיטליים כבויים כברירת מחדל; בהפעלה נעשה שימוש ברשת הראשית.",
     "activity.category.changes": "קבצים ששונו",
     "activity.category.commands": "פקודות",
     "activity.category.edits": "קריאות עריכה",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

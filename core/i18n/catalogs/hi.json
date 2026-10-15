@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "hi",
   "messages": {
+    "wallet.receipt.cancelled": "रद्द किया गया",
+    "wallet.receipt.not_sent": "नहीं भेजा गया",
+    "wallet.receipt.not_sent_detail": "न कुछ हस्ताक्षरित किया गया, न भेजा गया।",
+    "wallet.balance.native_only": "यह शेष राशि केवल नेटवर्क का मूल सिक्का दिखाती है; टोकन शामिल नहीं हैं।",
+    "contacts.recipient.identity_changed": "इस संपर्क में बदलाव हुआ है। प्राप्तकर्ता और पूरा पता फिर से जाँचें।",
+    "wallet.commands.description": "वॉलेट खाते, स्वीकृतियाँ और रसीदें। क्रिप्टो डिफ़ॉल्ट रूप से बंद है; चालू करने पर मुख्य नेटवर्क का उपयोग होता है।",
     "activity.category.changes": "बदली गई फ़ाइलें",
     "activity.category.commands": "कमांड",
     "activity.category.edits": "संपादन कॉल",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
     "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

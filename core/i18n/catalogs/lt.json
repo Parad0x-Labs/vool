@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "lt",
   "messages": {
+    "wallet.receipt.cancelled": "Atšaukta",
+    "wallet.receipt.not_sent": "Neišsiųsta",
+    "wallet.receipt.not_sent_detail": "Niekas nebuvo pasirašyta ar išsiųsta.",
+    "wallet.balance.native_only": "Šis likutis rodo tik pagrindinę tinklo monetą; žetonai neįtraukti.",
+    "contacts.recipient.identity_changed": "Šis kontaktas pasikeitė. Dar kartą patikrinkite gavėją ir tikslų adresą.",
+    "wallet.commands.description": "Piniginės paskyros, patvirtinimai ir kvitai. Kriptovaliutų funkcija iš pradžių išjungta; ją įjungus naudojamas pagrindinis tinklas.",
     "activity.category.changes": "Pakeisti failai",
     "activity.category.commands": "Komandos",
     "activity.category.edits": "Redagavimo iškvietimai",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

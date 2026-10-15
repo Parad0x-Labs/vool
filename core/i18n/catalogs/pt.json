@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "pt",
   "messages": {
+    "wallet.receipt.cancelled": "Cancelado",
+    "wallet.receipt.not_sent": "Não enviado",
+    "wallet.receipt.not_sent_detail": "Nada foi assinado ou enviado.",
+    "wallet.balance.native_only": "Este saldo mostra apenas a moeda nativa da rede; os tokens não estão incluídos.",
+    "contacts.recipient.identity_changed": "Este contacto foi alterado. Reveja o destinatário e o endereço exato.",
+    "wallet.commands.description": "Contas da carteira, aprovações e recibos. As criptomoedas estão desativadas por predefinição; quando ativadas, é utilizada a rede principal.",
     "activity.category.changes": "Arquivos alterados",
     "activity.category.commands": "Comandos",
     "activity.category.edits": "Chamadas de edição",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
     "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

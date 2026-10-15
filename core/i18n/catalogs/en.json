@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "en",
   "messages": {
+    "wallet.receipt.cancelled": "Cancelled",
+    "wallet.receipt.not_sent": "Not sent",
+    "wallet.receipt.not_sent_detail": "Nothing was signed or sent.",
+    "wallet.balance.native_only": "This balance shows only the network's native coin; tokens are not included.",
+    "contacts.recipient.identity_changed": "This contact changed. Review the recipient and exact address again.",
+    "wallet.commands.description": "Wallet accounts, approvals and receipts. Crypto is off by default; mainnet is used when enabled.",
     "activity.category.changes": "Files changed",
     "activity.category.commands": "Commands",
     "activity.category.edits": "Edit tool calls",

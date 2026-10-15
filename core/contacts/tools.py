@@ -96,7 +96,10 @@ def _endpoint_brief(endpoint: dict[str, Any]) -> dict[str, Any]:
         "verification": endpoint.get("verification", ""),
     }
     if endpoint["kind"] == KIND_WALLET:
-        brief.update(network=endpoint.get("chain_network", ""), network_display=endpoint.get("network_display") or network_display(endpoint.get("chain_network", "")))
+        # Keep the request-facing alias and the canonical field the wallet picker
+        # uses for its cross-chain check on the same saved identity.
+        brief.update(network=endpoint.get("chain_network", ""), chain_network=endpoint.get("chain_network", ""),
+                     network_display=endpoint.get("network_display") or network_display(endpoint.get("chain_network", "")))
     if endpoint["kind"] == KIND_MESSAGING:
         brief.update(channel=endpoint.get("channel", ""), account=endpoint.get("provider_account", ""),
                      delivery_available=bool((endpoint.get("delivery") or messaging_delivery(endpoint.get("channel"))).get("available")))

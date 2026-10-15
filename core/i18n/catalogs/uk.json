@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "uk",
   "messages": {
+    "wallet.receipt.cancelled": "Скасовано",
+    "wallet.receipt.not_sent": "Не надіслано",
+    "wallet.receipt.not_sent_detail": "Нічого не було підписано чи надіслано.",
+    "wallet.balance.native_only": "Цей баланс показує лише власну монету мережі; токени не враховано.",
+    "contacts.recipient.identity_changed": "Цей контакт змінився. Ще раз перевірте одержувача й точну адресу.",
+    "wallet.commands.description": "Рахунки гаманця, підтвердження та квитанції. Криптовалюти типово вимкнено; після ввімкнення використовується основна мережа.",
     "activity.category.changes": "Змінені файли",
     "activity.category.commands": "Команди",
     "activity.category.edits": "Виклики правок",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
     "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

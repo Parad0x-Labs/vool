@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ja",
   "messages": {
+    "wallet.receipt.cancelled": "キャンセル済み",
+    "wallet.receipt.not_sent": "未送信",
+    "wallet.receipt.not_sent_detail": "署名も送信も行われていません。",
+    "wallet.balance.native_only": "この残高にはネットワークのネイティブ通貨のみが表示され、トークンは含まれません。",
+    "contacts.recipient.identity_changed": "この連絡先は変更されました。受取人と正確なアドレスをもう一度確認してください。",
+    "wallet.commands.description": "ウォレットのアカウント、承認、領収書。暗号資産の機能は初期設定ではオフで、有効にするとメインネットを使用します。",
     "activity.category.changes": "変更されたファイル",
     "activity.category.commands": "コマンド",
     "activity.category.edits": "編集呼び出し",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
     "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

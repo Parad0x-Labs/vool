@@ -71,10 +71,10 @@ def read_balance(wallet_id: str, *, source_context: dict[str, Any] | None = None
 
 
 def _native_note(spec: Any) -> str:
-    tokens = [token.symbol for token in chains.user_transfer_tokens(spec.network)]
-    if tokens:
-        return f"This is the network's own coin. {', '.join(tokens)} on this network is shown separately."
-    return "Native coin only: this wallet sends the row's native coin; tokens (USDC and others) are not sent by it."
+    from core.i18n.turn_locale import turn_text
+
+    return turn_text("wallet.balance.native_only",
+        "This balance shows only the network's native coin; tokens are not included.")
 
 
 def read_token_balances(wallet_id: str, *, source_context: dict[str, Any] | None = None) -> list[dict[str, Any]]:

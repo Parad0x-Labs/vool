@@ -33,13 +33,20 @@ transfers and payments sections below for exactly which lanes exist on mainnet.
 
 ## What moves on which lane
 
-* **Pilot transfers move native coins only** (for example SOL on Solana, ETH on Base,
-  Ethereum or Arbitrum One).
-* **The Mainnet tokens are USDC on Solana and USDC on Base**, and they exist for x402
-  payments only. Proposals refuse them for every other origin.
+* **Transfers move native coins** (for example SOL on Solana, ETH on Base, Ethereum or
+  Arbitrum One), and **USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One**.
+  The chain is part of each saved contact address and each approval. Token transfers also
+  need that chain's native coin for fees; the quote shows both amounts within your limits.
+* **USDC on Solana and Base is available for payment channels only.** It is not offered
+  for ordinary sends. The wallet's main balance display shows native coins, not a complete
+  token portfolio.
 * Every transfer is previewed (a **quote**: amount, fee ceiling, recipient, network) and needs
   your explicit approval bound to exactly that preview. Change anything and the approval is
   void — nothing is signed.
+* A name matching several contacts or wallet addresses asks you to choose. Review the exact
+  address and chain. A changed address or renamed contact invalidates the old review.
+* Activity records payments made through VOOL and their receipts. It is not a complete
+  incoming-payment history. No swap or bridge action is offered by this wallet.
 
 ## How a payment is approved
 

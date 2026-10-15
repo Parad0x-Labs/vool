@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ar",
   "messages": {
+    "wallet.receipt.cancelled": "أُلغي",
+    "wallet.receipt.not_sent": "لم يُرسل",
+    "wallet.receipt.not_sent_detail": "لم يُوقَّع أو يُرسل أي شيء.",
+    "wallet.balance.native_only": "يعرض هذا الرصيد عملة الشبكة الأصلية فقط؛ ولا يشمل الرموز.",
+    "contacts.recipient.identity_changed": "تغيّرت جهة الاتصال هذه. راجع المستلم والعنوان الكامل مرة أخرى.",
+    "wallet.commands.description": "حسابات المحفظة والموافقات والإيصالات. العملات المشفّرة معطّلة افتراضيًا؛ تُستخدم الشبكة الرئيسية عند تفعيلها.",
     "activity.category.changes": "ملفات متغيرة",
     "activity.category.commands": "أوامر",
     "activity.category.edits": "نداءات تحرير",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
     "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

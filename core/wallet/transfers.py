@@ -525,7 +525,68 @@ def view_of(row: dict[str, Any]) -> dict[str, Any]:
 
 def latest_receipt(proposal_id: str) -> dict[str, Any] | None:
     row = get_transfer_by_id(proposal_id)
-    return view_of(row) if row else None
+    if row:
+        return view_of(row)
+    refused = _unclaimed_receipt_views(proposal_id=str(proposal_id), limit=1)
+    return refused[0] if refused else None
+
+
+def _unclaimed_receipt_views(*, limit: int, wallet_id: str = "", network: str = "", proposal_id: str = "") -> list[dict[str, Any]]:
+    """Activity for a durable refusal before any claim. No second state or ledger is written.
+
+    A receipt alone cannot prove non-dispatch: require a terminal unsigned proposal,
+    the producer's zero-charge refusal record, and no transfer, spend or signing claim.
+    An unknown or inconsistent record never acquires a 'not sent' presentation.
+    """
+    from core.i18n.turn_locale import turn_text
+    from core.wallet import proposals
+
+    clauses = ["p.state IN (?, ?, ?)", "p.tx_signature = ''", "r.state = p.state", "r.tx_signature = ''",
+        "NOT EXISTS (SELECT 1 FROM wallet_transfers t WHERE t.proposal_id = p.proposal_id)",
+        "NOT EXISTS (SELECT 1 FROM wallet_spend_ledger s WHERE s.proposal_id = p.proposal_id)",
+        "NOT EXISTS (SELECT 1 FROM wallet_signing_requests s WHERE s.proposal_id = p.proposal_id)",
+        "r.rowid = (SELECT MAX(r2.rowid) FROM wallet_receipts r2 WHERE r2.proposal_id = p.proposal_id)"]
+    values: list[Any] = [proposals.STATE_REJECTED, proposals.STATE_FAILED, proposals.STATE_EXPIRED]
+    for column, value in (("wallet_id", wallet_id), ("proposal_id", proposal_id)):
+        if value:
+            clauses.append(f"p.{column} = ?")
+            values.append(str(value))
+    if network:
+        spec = chains.resolve_network(network)
+        names = (spec.network, *spec.legacy_names)
+        clauses.append(f"p.network IN ({','.join('?' for _ in names)})")
+        values.extend(names)
+    with connection() as conn:
+        cursor = conn.execute(
+            "SELECT p.*, w.public_key AS from_address, r.receipt_id, r.payload_json AS refusal_payload, "
+            "r.created_at AS receipt_created_at FROM wallet_proposals p "
+            "JOIN wallet_receipts r ON r.proposal_id = p.proposal_id "
+            "LEFT JOIN wallet_profiles w ON w.wallet_id = p.wallet_id WHERE " + " AND ".join(clauses)
+            + " ORDER BY r.created_at DESC LIMIT ?", (*values, max(1, min(int(limit), 200))))
+        rows = [{d[0]: row[i] for i, d in enumerate(cursor.description)} for row in cursor.fetchall()]
+    views = []
+    for row in rows:
+        try:
+            refusal = json.loads(row["refusal_payload"]).get("refusal")
+        except (ValueError, AttributeError):
+            continue
+        if (not isinstance(refusal, dict) or any(type(refusal.get(k)) is not int or refusal[k] != 0
+                for k in ("charged_amount_minor", "charged_fee_minor"))):
+            continue
+        if not is_pilot_transfer_parts(wallet_id=row["wallet_id"], network=row["network"], asset=row["asset"]):
+            continue
+        cancelled = refusal.get("reason") == "owner_rejected"
+        view = view_of({**row, "to_address": row["destination"], "fee_max_minor": 0,
+            "state": STATE_CANCELLED if cancelled else STATE_RELEASED, "fee_state": FEE_EXACT,
+            "charged_fee_minor": 0, "evidence_kind": "refused_before_claim", "updated_at": row["receipt_created_at"]})
+        # This is a proposal receipt, never a transfer-state transition. Preserve
+        # the authoritative proposal state beside its user-facing cancellation.
+        view.update(record_kind="proposal_receipt", receipt_id=row["receipt_id"], proposal_state=row["state"],
+            state=STATE_CANCELLED if cancelled else row["state"], terminal=True,
+            state_label=turn_text("wallet.receipt.cancelled", "Cancelled") if cancelled else turn_text("wallet.receipt.not_sent", "Not sent"),
+            detail=turn_text("wallet.receipt.not_sent_detail", "Nothing was signed or sent."))
+        views.append(view)
+    return views
 
 
 def list_transfers(*, limit: int = 50, wallet_id: str = "", network: str = "") -> list[dict[str, Any]]:
@@ -540,7 +601,9 @@ def list_transfers(*, limit: int = 50, wallet_id: str = "", network: str = "") -
     with connection() as conn:
         cursor = conn.execute(f"SELECT * FROM wallet_transfers{where} ORDER BY created_at DESC LIMIT ?", (*values, max(1, min(int(limit), 200))))
         rows = [{d[0]: r[i] for i, d in enumerate(cursor.description)} for r in cursor.fetchall()]
-    return [view_of(row) for row in rows]
+    views = [view_of(row) for row in rows]
+    views.extend(_unclaimed_receipt_views(limit=limit, wallet_id=wallet_id, network=network))
+    return sorted(views, key=lambda view: str(view["created_at"]), reverse=True)[:max(1, min(int(limit), 200))]
 
 
 def in_flight() -> list[dict[str, Any]]:

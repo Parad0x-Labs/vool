@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "de",
   "messages": {
+    "wallet.receipt.cancelled": "Abgebrochen",
+    "wallet.receipt.not_sent": "Nicht gesendet",
+    "wallet.receipt.not_sent_detail": "Es wurde nichts signiert oder gesendet.",
+    "wallet.balance.native_only": "Dieser Kontostand zeigt nur die eigene Währung des Netzwerks; Token sind nicht enthalten.",
+    "contacts.recipient.identity_changed": "Dieser Kontakt wurde geändert. Prüfe den Empfänger und die genaue Adresse erneut.",
+    "wallet.commands.description": "Wallet-Konten, Freigaben und Belege. Krypto ist standardmäßig ausgeschaltet; nach dem Einschalten wird das Hauptnetz verwendet.",
     "activity.category.changes": "Geänderte Dateien",
     "activity.category.commands": "Befehle",
     "activity.category.edits": "Bearbeitungsaufrufe",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

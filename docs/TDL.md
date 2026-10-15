@@ -978,9 +978,9 @@ carries the machine-readable summary under `source_convergence_wave_2026_09_04`.
 - ⛔ OPEN (A8/privacy-owned): the PASS003 forced-interleave harness parks inside a write
   transaction that per-use connections made real. A lock wait, not a deadlock; the privacy law
   is stronger than at base, not weaker.
-- ⛔ OPEN (wallet-owned): `core/wallet/lifecycle.py` imports `evm` unconditionally, so without
-  `eth_abi` the Solana path, custody, ceilings and the mainnet-impossible guard raise
-  `ImportError` rather than a typed refusal. App boot is unaffected.
+- Resolved (wallet dependency boundary): `core/wallet/evm.py` loads its optional dependencies
+  at use. Missing EVM packages yield `wallet_dependency_unavailable`; Solana, custody and
+  spend caps remain available. Crypto stays off by default and uses mainnet when enabled.
 - ⛔ OPEN (effect-budget-owned): `test_door_command_machine.py` writes into the operator's real
   `~/Desktop` and never cleans up.
 - ⛔ NOT STARTED, and not claimed by this wave: C12 requirement-to-caller matrix, C13 consent/

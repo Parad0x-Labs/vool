@@ -2,6 +2,12 @@
   "schema": "vool.i18n.catalog.v1",
   "locale": "ko",
   "messages": {
+    "wallet.receipt.cancelled": "취소됨",
+    "wallet.receipt.not_sent": "전송되지 않음",
+    "wallet.receipt.not_sent_detail": "서명되거나 전송된 내용이 없습니다.",
+    "wallet.balance.native_only": "이 잔액에는 네트워크의 기본 코인만 표시되며 토큰은 포함되지 않습니다.",
+    "contacts.recipient.identity_changed": "이 연락처가 변경되었습니다. 수신자와 정확한 주소를 다시 확인하세요.",
+    "wallet.commands.description": "지갑 계정, 승인 및 영수증. 암호화폐 기능은 기본적으로 꺼져 있으며, 켜면 메인넷을 사용합니다.",
     "activity.category.changes": "변경된 파일",
     "activity.category.commands": "명령",
     "activity.category.edits": "편집 호출",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
     "keys.test.invalid": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

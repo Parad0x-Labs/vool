@@ -1035,7 +1035,7 @@ rows:
     tests: [tests/wallet/test_wallet_x402_flow.py, tests/wallet/test_wallet_x402_v2.py]
     label: TESTED
     target_release: 0.7.0
-    note: No page; test networks only on this commit — the main network entry refuses.
+    note: Crypto is off by default and uses mainnet when enabled. Website x402 payments support USDC on Base; payment channels show availability. No live mainnet payment proof is recorded.
   - id: marketplace-x402
     title: x402 payments through the model marketplace lane
     area: crypto
