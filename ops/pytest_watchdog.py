@@ -131,6 +131,23 @@ def _effective_phase_timeout(base, budgets, margin, node):
     return max(base, math.ceil(measured * margin))
 
 
+#: Floor for the pre-progress startup bound when none is given. Startup (interpreter, pytest
+#: import, plugin and initial-conftest loading) is not a test phase: it precedes the child's
+#: first progress report, scales with host load and venv size rather than with the suite, and
+#: charging it to a sub-second phase budget declared "startup / plugin loading" stalls before
+#: the phase under test was ever reached. A hung startup is still bounded and still red.
+_STARTUP_FLOOR = 60.0
+
+
+def _startup_timeout(requested, phase_timeout):
+    """The bound for the startup window: the explicit value, else the phase bound but never
+    below ``_STARTUP_FLOOR``. CI's 600s/120s phase bounds therefore keep their exact startup
+    bound; only sub-minute phase bounds stop sharing their budget with interpreter start."""
+    if requested is not None:
+        return float(requested)
+    return max(float(phase_timeout), _STARTUP_FLOOR)
+
+
 def main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["--child"]:
@@ -143,6 +160,9 @@ def main(argv=None):
                         help="measured per-file durations; a node's file may spend up to "
                              "measured*margin in one phase before the bound applies")
     parser.add_argument("--budget-margin", type=float, default=1.5)
+    parser.add_argument("--startup-timeout", type=float, default=None,
+                        help="bound for startup before the child's first progress report "
+                             "(default: the phase timeout, never below 60s)")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     options = parser.parse_args(args)
     if os.name != "posix":
@@ -151,6 +171,10 @@ def main(argv=None):
         parser.error("phase timeout must be positive and finite")
     if not math.isfinite(options.budget_margin) or options.budget_margin < 1:
         parser.error("budget margin must be finite and >= 1")
+    if options.startup_timeout is not None and (
+            not math.isfinite(options.startup_timeout) or options.startup_timeout <= 0):
+        parser.error("startup timeout must be positive and finite")
+    startup_timeout = _startup_timeout(options.startup_timeout, options.phase_timeout)
     command = options.command
     if command[:1] == ["--"]:
         command = command[1:]
@@ -208,8 +232,12 @@ def main(argv=None):
                     last = current
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
-            effective = _effective_phase_timeout(options.phase_timeout, budgets,
-                                                 options.budget_margin, last.get("node"))
+            if last_payload is None:
+                # No progress yet: the child is still starting (see _STARTUP_FLOOR).
+                effective = startup_timeout
+            else:
+                effective = _effective_phase_timeout(options.phase_timeout, budgets,
+                                                     options.budget_margin, last.get("node"))
             elapsed = _MONOTONIC() - last_change
             if elapsed > effective:
                 timed_out = True
@@ -237,6 +265,7 @@ def main(argv=None):
         # The supervisor-measured seconds since the child last changed its
         # phase/node payload -- the number the stall decision was made on.
         "stalled_seconds": round(_MONOTONIC() - last_change, 3),
+        "startup_timeout": startup_timeout,
         "wall_seconds": _MONOTONIC() - started,
     }, indent=2) + "\n")
     return code if code >= 0 else 128 - code

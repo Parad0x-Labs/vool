@@ -769,6 +769,14 @@ def finalize_answer(
     _selection_context: dict[str, Any] = dict(source_context) if isinstance(
         source_context, dict
     ) else {}
+    # Private chat (core.private_chat): a private turn's answer is bound without its bytes. Read
+    # before the discard; the request registry covers callers that pass no context.
+    try:
+        from core.private_chat import turn_is_private as _turn_is_private
+
+        _private_turn = _turn_is_private(_selection_context)
+    except Exception:
+        _private_turn = False
     del source_context  # reserved for sealing-context correlation; identity comes from the seam
     # R-4 (H-2): an onboarded lane presents its fence tuple at finality —
     # a stale generation/epoch is refused with zero rows written.
@@ -1151,6 +1159,11 @@ def finalize_answer(
     if _execution_record:
         # Provenance of the execution-claim check: what it withheld, or why it stood down.
         _commit_display_metadata["execution_claims"] = dict(_execution_record)
+    if _private_turn:
+        # Private chat (core.private_chat): the page marks this turn's two bubbles with the ghost
+        # and learns whether the chat is still private after it. Absent on ordinary turns.
+        _commit_display_metadata["private_chat"] = True
+        _commit_display_metadata["private_chat_on"] = _private_chat_still_on(_selection_context)
     commit = {
         "type": "response.commit",
         "version": 2,
@@ -1180,7 +1193,7 @@ def finalize_answer(
         # Added ONLY for turns that carried a diagnosis contract, so ordinary
         # commits stay byte-identical (frozen tests pin their shape).
         commit["root_cause"] = dict(root_cause_publication)
-    outcome = _bind_durably(commit)
+    outcome = _bind_durably(commit, private=_private_turn)
     commit["binding_outcome"] = outcome
     # TRANSCRIPT AT THE COMMIT BOUNDARY. The lane that produced this answer staged its
     # conversation row instead of writing a pre-gate draft (see core.persistent_memory); the
@@ -2546,13 +2559,28 @@ def replay_finalized_answer(
     }
 
 
-def _bind_durably(commit: dict[str, Any]) -> str:
+def _private_chat_still_on(source_context: dict[str, Any]) -> bool:
+    try:
+        from core.private_chat import is_private, private_request_session, session_id_from
+
+        sid = session_id_from(source_context) or private_request_session()
+        return bool(sid) and is_private(sid)
+    except Exception:
+        return True
+
+
+def _bind_durably(commit: dict[str, Any], *, private: bool = False) -> str:
     """Engine-enforced durable binding (immutable-first-insert).
 
     - INSERT claims the row -> ACCEPTED_FIRST;
     - unique-index conflict + equal stored hash -> ACCEPTED_IDENTICAL;
     - unique-index conflict + different hash -> FinalizationRejected (honest;
       v1 stays canonical; no write occurred).
+
+    A PRIVATE turn (core.private_chat) binds its identity with no payload: the row is born ERASED,
+    with no plaintext and a salted digest in place of the content hash, exactly the shape ERASE
+    leaves -- but with no digest tombstone, so byte-identical answers in ordinary chats are not
+    withheld by a private one. The wire commit is unchanged.
     """
     conn = get_connection()
     try:
@@ -2602,6 +2630,13 @@ def _bind_durably(commit: dict[str, Any]) -> str:
                 _inherited if _inherit_unavailable else AVAILABILITY_AVAILABLE
             )
             _content = "" if _inherit_unavailable else str(commit["canonical_content"])
+            _stored_hash = commit["content_hash"]
+            if private:
+                _content = ""
+                _availability = AVAILABILITY_ERASED
+                _stored_hash = "salted-sha256:" + hashlib.sha256(
+                    (str(commit["finalization_id"]) + "\x1f" + _utcnow()).encode("utf-8")
+                ).hexdigest()
             # A8 runtime-epoch privacy fence (R5): on an onboarded lane the
             # epoch/generation fence is IN the INSERT predicate itself — the
             # write and the fence share one statement, one transaction, one
@@ -2630,7 +2665,7 @@ def _bind_durably(commit: dict[str, Any]) -> str:
                         commit["finalization_id"],
                         commit["semantic_result_id"],
                         commit["turn_id"],
-                        commit["content_hash"],
+                        _stored_hash,
                         _content,
                         commit["status"],
                         str(commit.get("request_id") or ""),
@@ -2664,7 +2699,7 @@ def _bind_durably(commit: dict[str, Any]) -> str:
                     commit["finalization_id"],
                     commit["semantic_result_id"],
                     commit["turn_id"],
-                    commit["content_hash"],
+                    _stored_hash,
                     _content,
                     commit["status"],
                     str(commit.get("request_id") or ""),
@@ -2693,6 +2728,15 @@ def _bind_durably(commit: dict[str, Any]) -> str:
                 conn2.close()
         stored_hash = str((stored or {}).get("content_hash") or "")
         if stored and stored_hash == commit["content_hash"]:
+            return "ACCEPTED_IDENTICAL"
+        if (
+            private
+            and stored
+            and stored_hash.startswith("salted-sha256:")
+            and str(stored.get("availability") or "") == AVAILABILITY_ERASED
+        ):
+            # A re-bind of a private answer: the row keeps no bytes to compare, and nothing in it
+            # can disclose them, so the private identity stands.
             return "ACCEPTED_IDENTICAL"
         raise FinalizationRejected(
             commit["semantic_result_id"], stored_hash, commit["content_hash"]

@@ -121,8 +121,8 @@ def test_question_is_quoted_only_when_the_user_opts_in_and_is_scrubbed_too():
     assert status == 200, data
     body = _preview(data["report_id"])["issue"]["body"]
     assert "The user's question (included by the user)" in body
-    assert "What is the limit on card [redacted-card]?" in body
-    assert "PIN is [redacted-pin]" in body and "4433" not in body
+    assert "What is the limit on card [redacted-card-number]?" in body
+    assert "PIN is [redacted]" in body and "4433" not in body
 
 
 def test_selected_text_must_come_from_that_answer():

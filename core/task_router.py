@@ -1901,6 +1901,18 @@ def create_task_record(user_input: str, *, session_id: str | None = None) -> Tas
         updated_at=now,
     )
 
+    # Private chat (core.private_chat): the stored row names no words of the turn. The in-memory
+    # record keeps its summary for this turn's own work; only the durable copy is blanked.
+    stored_summary, stored_hash = task.task_summary, task.redacted_input_hash
+    try:
+        from core.private_chat import PRIVATE_TASK_SUMMARY, turn_is_private
+
+        if turn_is_private(None, session_id):
+            stored_summary = PRIVATE_TASK_SUMMARY
+            stored_hash = hashlib.sha256(PRIVATE_TASK_SUMMARY.encode("utf-8")).hexdigest()
+    except Exception:
+        stored_summary = "private chat (unverified)"
+        stored_hash = hashlib.sha256(stored_summary.encode("utf-8")).hexdigest()
     conn = get_connection()
     try:
         conn.execute(
@@ -1915,8 +1927,8 @@ def create_task_record(user_input: str, *, session_id: str | None = None) -> Tas
                 task.task_id,
                 task.session_id,
                 task.task_class,
-                task.task_summary,
-                task.redacted_input_hash,
+                stored_summary,
+                stored_hash,
                 task.environment_os,
                 task.environment_shell,
                 task.environment_runtime,

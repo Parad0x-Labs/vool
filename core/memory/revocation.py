@@ -71,6 +71,10 @@ _LOCAL = threading.local()
 _RAISE_REFUSAL = object()
 
 
+class RevokedContentWrite(RuntimeError):
+    """A memory write was refused because it carries words this chat asked to forget."""
+
+
 class ForgetStartError(RuntimeError):
     """Whether failed admission left a durable barrier for this operation."""
 
@@ -598,10 +602,12 @@ def _revoked_tokens_locked(chat_id=None, runtime_home=None, *, owner_memory=None
 
 
 def authorize_payload(payload, chat_id=None, runtime_home=None, *, owner_memory=None) -> bool:
-    from core.memory.carriers import carries
+    from core.memory.carriers import carries, memory_words
     from core.memory.withdrawals import payload_is_withdrawn
     try:
         tokens = revoked_tokens(chat_id, runtime_home, owner_memory=owner_memory)
+        # Served rows answer for their words: a forgotten "14" does not withhold a row recorded on the 14th.
+        payload = memory_words(payload)
         return not any(carries(payload, token) for token in tokens) and not payload_is_withdrawn(payload, tokens)
     except Exception:
         return False
@@ -610,13 +616,16 @@ def authorize_payload(payload, chat_id=None, runtime_home=None, *, owner_memory=
 @contextlib.contextmanager
 def writing(payload, chat_id=None, runtime_home=None):
     """Writers refuse revoked bytes while holding the completion fence."""
-    from core.memory.carriers import carries
+    from core.memory.carriers import carries, memory_words
     with serialized(runtime_home):
         prepare(runtime_home, allow_writer_initialize=True, arm=False)
         rows = [row for data in _authority_set(runtime_home, chat_id).values() for row in data['operations'].values()]
+        # The write's words, not its stamps: measured 2026-10-14, after "Forget 14." on the 14th every later
+        # "Remember ..." in that chat was refused for the created_at of its own access grants.
+        words = memory_words(payload)
         if any(row.get('kind', 'forget') == 'forget'
                and (not chat_id or not row['chat'] or row['chat'] == str(chat_id))
-               and carries(payload, row['token']) for row in rows):
+               and carries(words, row['token']) for row in rows):
             raise RuntimeError('memory write carries revoked content')
         yield
 
@@ -631,7 +640,7 @@ def _writing_rows(rows, runtime_home=None):
     this scope's revoked bytes are refused. The fence spans the actual
     write, so no erasure verification or completion races a public rewrite.
     """
-    from core.memory.carriers import carries
+    from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
     with serialized(runtime_home):
         prepare(runtime_home, allow_writer_initialize=True, arm=False)
         operations = [row for data in _authority_set(runtime_home, None).values()
@@ -640,9 +649,11 @@ def _writing_rows(rows, runtime_home=None):
             if not isinstance(row, Mapping):
                 continue
             scope = row.get('session_id') or row.get('chat_id') or row.get('chat_scope')
+            # The row's words, not its ids and stamps: a forgotten "14" is not in a row written on the 14th.
+            words = row_payload(row, structural_fields=ROW_IDENTITIES)
             if any(operation.get('kind', 'forget') == 'forget'
                    and (not scope or not operation['chat'] or operation['chat'] == str(scope))
-                   and carries(row, operation['token']) for operation in operations):
+                   and carries(words, operation['token']) for operation in operations):
                 raise RuntimeError('memory write carries revoked content')
         yield
 
@@ -696,15 +707,16 @@ def _writing_carrier_text(text, runtime_home=None):
     scope's revoked bytes are refused; a payload without row structure is
     admitted whole and refused on any operation's token.
     """
-    from core.memory.carriers import carries
+    from core.memory.carriers import carries, memory_words
     with serialized(runtime_home):
         prepare(runtime_home, allow_writer_initialize=True, arm=False)
         operations = [row for data in _authority_set(runtime_home, None).values()
                       for row in data['operations'].values()]
         for scope, row in _carrier_text_rows(text):
+            words = memory_words(row)
             if any(operation.get('kind', 'forget') == 'forget'
                    and (not scope or not operation['chat'] or operation['chat'] == str(scope))
-                   and carries(row, operation['token']) for operation in operations):
+                   and carries(words, operation['token']) for operation in operations):
                 raise RuntimeError('memory write carries revoked content')
         yield
 

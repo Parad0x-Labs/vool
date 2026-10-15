@@ -18,7 +18,7 @@ _BASELINE = "model_news_inbox_v1"
 _NON_WORK_COMPLETIONS = frozenset({
     "smalltalk_fast_path", "empty_turn_fast_path", "help_fast_path",
     "startup_sequence_fast_path", "heartbeat_poll_fast_path", "ui_command_fast_path",
-    "user_preference_command", "bare_secret_intercept", "cloud_key_command",
+    "user_preference_command", "bare_secret_intercept", "personal_secret_intake", "cloud_key_command",
     "image_key_command", "cloud_model_command", "cloud_models_command",
     "cloud_escalation_command", "spend_brakes_command", "hive_cleanup_noop",
     "image_generate_cancelled", "hive_topic_create_cancelled",
@@ -164,12 +164,23 @@ def migrate_market_state(read_seq, dismissed):
         return centre.import_model_read_state(states)
 
 
+def _private_turn(session_id) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(None, str(session_id or ""))
+    except Exception:
+        return True
+
+
 def record_runtime_event(session_id, event):
     kind = event.get("event_type")
     if kind not in {"task_completed", "task_failed", "task_cancelled", "task_pending_approval"}:
         return
     if kind == "task_completed" and event.get("status") in _NON_WORK_COMPLETIONS:
         return
+    if kind != "task_pending_approval" and _private_turn(session_id):
+        return  # a private chat's turns are not announced: the item would name the chat for good
     turn = event.get("client_turn_id") or event.get("turn_key")
     if not turn:
         return  # no stable identity: never guess which turn ended

@@ -175,6 +175,162 @@ _ZCASH_KEY_RE = re.compile(
 
 _SPECIFIC = (_JWT_RE, _API_KEY_RE, _B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE, _BEARER_RE, _PATH_TOKEN_RE, _ZCASH_KEY_RE)
 
+
+# Personal secrets people type into chat in plain words (v0.7.1 memory secret filter). The
+# labelled rules above need ``label: value`` or ``label=value``; "my card PIN is 4433", "my
+# password is hunter22" and a bare card number slipped through every one of them and were stored
+# and served back by memory. Each rule below fires only when the clause itself names the value a
+# PIN, passcode, password, security code or card number, or the digits are a grouped, Luhn-valid
+# card number, so dates, prices, phone numbers, order ids and version numbers stay untouched.
+
+#: Numeric secrets: the value must be 3-12 digits right after the label and its verb or sign.
+_PIN_LABEL = (
+    r"(?:card\s+|bank\s+|atm\s+|debit\s+|credit\s+|sim\s+|phone\s+)?"
+    r"(?:pin(?:\s+(?:code|number|no\.?))?|passcode|cvv2?|cvc2?|csc|security\s+code)"
+)
+#: Word secrets: any value token, minus ordinary words that describe the secret instead of being it.
+_WORD_VALUE_LABEL = r"(?:password|passwd|pwd|passphrase|passcode|login\s+code)"
+#: "password for my email is ...": up to four short words between the label and its verb.
+#: Label, object, verb and value stay on one line: "password is" ending a line does not own
+#: the first word of the next one.
+_LABEL_OBJECT = r"(?:[ \t]+(?:for|to|of|on|at)(?:[ \t]+[\w'@.-]{1,40}){1,4}?)?"
+_LABEL_VERB = r"(?:[ \t]*[:=#][ \t]*|[ \t]+(?:is|was|are|were)[ \t]*:?[ \t]*|[ \t]+-[ \t]+)"
+_PIN_VALUE_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(" + _PIN_LABEL + r")" + _LABEL_OBJECT + _LABEL_VERB
+    + r"[\"'“‘]?(\d(?:[ -]?\d){2,11})(?![\d])"
+)
+_LABELLED_WORD_VALUE_RE = re.compile(
+    r"(?i)(?<![A-Za-z0-9])(" + _WORD_VALUE_LABEL + r")s?" + _LABEL_OBJECT + _LABEL_VERB
+    + r"[\"'“‘]?([^\s\"'“”‘’]{3,128})"
+)
+#: Words that follow "password is" without being a password ("is required", "is the same as ...").
+_WORD_VALUE_NON_VALUES = frozenset(
+    {
+        "the", "a", "an", "my", "your", "his", "her", "our", "their", "its", "this", "that", "not",
+        "no", "now", "still", "also", "just", "too", "very", "so", "same", "different", "required",
+        "needed", "optional", "wrong", "incorrect", "correct", "right", "invalid", "valid", "expired",
+        "changed", "reset", "set", "saved", "stored", "missing", "empty", "blank", "weak", "strong",
+        "secure", "insecure", "long", "short", "case-sensitive", "hidden", "encrypted", "hashed",
+        "unknown", "forgotten", "lost", "new", "old", "ok", "okay", "fine", "good", "bad", "easy",
+        "hard", "simple", "safe", "private", "secret", "protected", "locked", "unlocked", "being",
+        "been", "here", "there", "in", "on", "at", "for", "with", "from", "by", "to", "of", "and",
+        "or", "but", "if", "when", "what", "which", "where", "how", "why", "who", "something",
+        "nothing", "anything", "everything", "one", "it", "ready", "done", "working", "broken",
+        "sent", "shown", "visible", "updated", "generated", "accepted", "rejected", "disabled",
+        "enabled", "used", "shared", "written", "typed", "entered", "managed", "kept", "same.",
+    }
+)
+_CARD_RUN_RE = re.compile(r"(?<![\d.,])\d(?:[ -]?\d){12,18}(?![\d])")
+_CARD_GROUPED_RE = re.compile(r"\d{4}(?:([ -])\d{4}\1\d{4}\1\d{1,7}|[ -]\d{6}[ -]\d{4,5})")
+_CARD_CONTEXT_RE = re.compile(
+    r"(?i)\b(?:card|cards|visa|mastercard|master\s+card|amex|american\s+express|maestro|discover"
+    r"|diners|jcb|unionpay|credit|debit|pan|cc)\b"
+)
+_CARD_CONTEXT_WINDOW = 60
+_LABEL_CLAUSE_BOUNDARY_RE = re.compile(r"[.;!?\n]\s")
+_MASKED_VALUE_PREFIX = "[redacted"
+
+
+def luhn_valid(digits: str) -> bool:
+    """The card-number checksum (ISO/IEC 7812). The wallet's card door uses this same check."""
+    if not digits.isdigit():
+        return False
+    total = 0
+    for index, char in enumerate(reversed(digits)):
+        value = int(char)
+        if index % 2 == 1:
+            value *= 2
+            if value > 9:
+                value -= 9
+        total += value
+    return total % 10 == 0
+
+
+def _clause_before(text: str, start: int) -> str:
+    prefix = text[max(0, start - _CARD_CONTEXT_WINDOW):start]
+    parts = _LABEL_CLAUSE_BOUNDARY_RE.split(prefix)
+    return parts[-1] if parts else prefix
+
+
+def _luhn_digit_run_spans(value: str):
+    for match in _CARD_RUN_RE.finditer(value):
+        raw = match.group(0)
+        digits = re.sub(r"[ -]", "", raw)
+        if not 13 <= len(digits) <= 19:
+            continue
+        named_card = _CARD_CONTEXT_RE.search(_clause_before(value, match.start())) is not None
+        grouped = _CARD_GROUPED_RE.fullmatch(raw) is not None
+        if named_card or (grouped and luhn_valid(digits)):
+            yield match.start(), match.end()
+
+
+def _labelled_word_spans(value: str):
+    for match in _LABELLED_WORD_VALUE_RE.finditer(value):
+        token = match.group(2)
+        if token.startswith(_MASKED_VALUE_PREFIX):
+            continue
+        clean = token.rstrip(".,;)")
+        if len(clean) < 3 or clean.lower() in _WORD_VALUE_NON_VALUES:
+            continue
+        yield match.start(2), match.start(2) + len(clean)
+
+
+def _redactable_personal_spans(value: str) -> list[tuple[int, int, str]]:
+    spans: list[tuple[int, int, str]] = []
+    spans.extend((start, end, "[redacted-card-number]") for start, end in _luhn_digit_run_spans(value))
+    spans.extend((match.start(2), match.end(2), "[redacted]") for match in _PIN_VALUE_RE.finditer(value))
+    spans.extend((start, end, "[redacted]") for start, end in _labelled_word_spans(value))
+    spans.sort()
+    merged: list[tuple[int, int, str]] = []
+    for start, end, mask in spans:
+        if merged and start < merged[-1][1]:
+            last_start, last_end, last_mask = merged[-1]
+            merged[-1] = (last_start, max(last_end, end), last_mask)
+            continue
+        merged.append((start, end, mask))
+    return merged
+
+
+def contains_personal_secret(text: str) -> bool:
+    """True if `text` carries a card number, PIN or password written in plain words."""
+    return bool(text) and bool(_redactable_personal_spans(str(text)))
+
+
+def redact_personal_secrets(text: str) -> str:
+    """Mask only plain-word card numbers, PINs and passwords; everything else untouched."""
+    return _redact_personal_secrets(str(text)) if text else text
+
+
+def _redact_personal_secrets(value: str) -> str:
+    spans = _redactable_personal_spans(value)
+    if not spans:
+        return value
+    pieces: list[str] = []
+    cursor = 0
+    for start, end, mask in spans:
+        pieces.append(value[cursor:start])
+        pieces.append(mask)
+        cursor = end
+    pieces.append(value[cursor:])
+    return "".join(pieces)
+
+
+def redactable_personal_kinds(text: str) -> tuple[str, ...]:
+    """Which plain-word personal secrets ``text`` carries: ``card_number``, ``pin``, ``password``.
+
+    Used to tell the user what was not saved; never returns the values themselves."""
+    if not text:
+        return ()
+    value = str(text)
+    kinds: list[str] = []
+    if next(_luhn_digit_run_spans(value), None) is not None:
+        kinds.append("card_number")
+    if _PIN_VALUE_RE.search(value) is not None:
+        kinds.append("pin")
+    if next(_labelled_word_spans(value), None) is not None:
+        kinds.append("password")
+    return tuple(kinds)
+
 # A BIP-39 recovery phrase typed as plain words ("i wrote this down: used term aspect …") with
 # no label at all. The labelled rule below masks only the FIRST whitespace token of its value,
 # so even ``mnemonic: <12 words>`` kept eleven of twelve words readable — and under the BIP-39
@@ -460,8 +616,12 @@ def _mask_secret_label(match: re.Match) -> str:
     return f"{match.group(1)}: [redacted]"
 
 
-def redact_secrets(text: str) -> str:
+def redact_secrets(text: str, *, personal: bool = True) -> str:
     """Return `text` with high-confidence secrets masked and everything else untouched. Never raises.
+
+    ``personal=False`` leaves plain-word card numbers, PINs and passwords to a caller that masks
+    them itself under its own rule names (the bug report scrubber) and then calls
+    ``redact_personal_secrets`` as its own last pass.
 
     The exact guarantee: every pattern rule (keys, JWTs, private keys, bearer values, labelled
     secrets, registered exact values) always applies, but recovery-phrase masking applies ONLY
@@ -487,6 +647,10 @@ def redact_secrets(text: str) -> str:
     value = _WIF_RE.sub(_mask_key_shaped, value)
     value = _EVM_HEX64_RE.sub(_mask_key_shaped, value)
     value = _BEARER_RE.sub("Bearer [redacted]", value)
+    # Card numbers, PINs and passwords written in plain words, before the labelled rules so
+    # "password is hunter22" and "password: hunter22" end in the same mask.
+    if personal:
+        value = _redact_personal_secrets(value)
     # Multi-word phrase secrets before the single-token rule: a masked first word
     # ("ostrich" -> "[redacted]") must not truncate the phrase match mid-list.
     # Both labelled rules honour the public-mnemonic declaration in _mask_secret_label.
@@ -496,8 +660,11 @@ def redact_secrets(text: str) -> str:
     return value
 
 
-def contains_secret(text: str) -> bool:
+def contains_secret(text: str, *, personal: bool = True) -> bool:
     """True if `text` appears to contain a high-confidence secret (used to gate/flag, never to store).
+
+    ``personal=False`` leaves plain-word card numbers, PINs and passwords out, for a caller that
+    checks them itself and then asks ``contains_personal_secret`` last (the bug report scanner).
 
     True is detection; False is NOT proof of absence. When the canonical wordlist is
     unavailable, a recovery phrase is invisible to this predicate, so a gate that releases
@@ -518,6 +685,8 @@ def contains_secret(text: str) -> bool:
             if pattern in (_B58_SECRET_RE, _WIF_RE, _EVM_HEX64_RE) and _is_public_identifier(match.group(0)):
                 continue
             return True
+    if personal and _redactable_personal_spans(value):
+        return True
     for match in _LABELED_RE.finditer(value):
         if not _label_declared_public(match.group(1), value, match.start()):
             return True
@@ -527,12 +696,34 @@ def contains_secret(text: str) -> bool:
     return False
 
 
+def redacted_copy(value):
+    """A copy of a served value (text, or lists and dicts of it) with every secret masked.
+
+    For read doors over rows written before a redaction rule existed: the stored bytes are
+    never changed, the reader only ever receives the masked copy. Text with no secret is
+    returned as the same object."""
+    if isinstance(value, str):
+        return redact_secrets(value) if contains_secret(value) else value
+    if isinstance(value, dict):
+        return {key: redacted_copy(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redacted_copy(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redacted_copy(item) for item in value)
+    return value
+
+
 __all__ = [
     "clear_exact_secrets_for_tests",
+    "contains_personal_secret",
     "contains_secret",
+    "luhn_valid",
     "mnemonic_redaction_available",
+    "redact_personal_secrets",
     "redact_secrets",
     "redact_url_path_tokens",
+    "redactable_personal_kinds",
+    "redacted_copy",
     "register_exact_secret",
     "register_public_identifier",
 ]

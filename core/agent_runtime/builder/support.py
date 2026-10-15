@@ -618,7 +618,7 @@ def controller_degraded_response(
         )
         if executed_steps:
             return (
-                f"I completed {len(executed_steps)} bounded builder step"
+                f"I attempted {len(executed_steps)} bounded builder step"
                 f"{'' if len(executed_steps) == 1 else 's'} under {_located(root_dir)}, "
                 f"but the loop stopped at `{getattr(failed_execution, 'tool_name', '') or 'tool'!s}`. {failure_text}"
             ).strip()

@@ -173,7 +173,7 @@ def test_served_chat_turn_model_proposes_operator_approves_model_reports_confirm
     home = tmp_path / "home"
     provider = PromptRoutedProvider()
     rpc = ScriptedRpc()
-    daemon = ServedDaemon(home, env_extra={"VOOL_ALWAYS_ON_CATALOG": "1", "VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "VOOL_WALLET_TESTNET_RPC_URL": rpc.url, "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url, "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"})
+    daemon = ServedDaemon(home, fixture_available_gb=64.0, env_extra={"VOOL_ALWAYS_ON_CATALOG": "1", "VOOL_WALLET_ENABLED": "1", "VOOL_WALLET_NETWORK_ENVIRONMENT": "testnet", "VOOL_WALLET_TESTNET_RPC_URL": rpc.url, "OLLAMA_HOST": provider.base_url, "VOOL_OLLAMA_URL": provider.base_url, "VOOL_OLLAMA_CHAT_URL": f"{provider.base_url}/api/chat"})
     provider.__enter__()
     rpc.__enter__()
     try:

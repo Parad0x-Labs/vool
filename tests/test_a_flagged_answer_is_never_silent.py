@@ -137,6 +137,8 @@ def _render(display_metadata: dict) -> dict:
     start = src.index("function renderAssistantContent(el, text, displayMetadata) {")
     end = src.index("// ---- Chat image actions", start)
     body = src[start:end]
+    # The badge text localizes through the page's own pageT; lift it verbatim (no bundle: English).
+    i18n = src[src.index("function pageT(") : src.index("function pageTF(")]
     script = (
         "const made = [];\n"
         "function el() { const node = { className: '', textContent: '', children: [], dataset: {},\n"
@@ -144,6 +146,7 @@ def _render(display_metadata: dict) -> dict:
         "global.document = { createElement: () => el() };\n"
         "function splitAssistantDisplayContent(text, dm) { return { content: text, display_metadata: dm || {} }; }\n"
         "function renderRichText(target, content) { target.dataset.raw = content; }\n"
+        + i18n
         + body
         + "\nconst root = el();\n"
         + f"renderAssistantContent(root, 'Banana', {json.dumps(display_metadata)});\n"

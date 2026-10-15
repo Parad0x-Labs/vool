@@ -256,6 +256,7 @@ def test_run_agent_one_shot_exact_memory_recall_is_pre_model(isolated_home, make
     from core.web.api.runtime import RuntimeServices, run_agent
 
     monkeypatch.setenv("VOOL_CONTEXT_CAPSULE_V2", "1")
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     monkeypatch.setattr("core.web.api.runtime.schedule_memory_extraction", lambda *args, **kwargs: None)
     session_id = "public:memory:operator-node"
     policy = _active_semantic_policy(session_id)

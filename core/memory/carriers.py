@@ -5,14 +5,18 @@ including nested keys; only explicitly named storage identities are excluded.
 """
 from __future__ import annotations
 
+import functools
 import json
+import logging
 import os
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 _SEPARATORS = re.compile(r"[\s\-_]+")
+_LOG = logging.getLogger(__name__)
 
 # These identify an owner/row, rather than a remembered value. Do not replace
 # this list with suffix rules: a future field named answer_id can carry prose.
@@ -26,6 +30,10 @@ ROW_IDENTITIES = frozenset({
     "turn_id", "parent_turn_id", "archive_id", "topic_id", "previous_version_id",
     "version_id", "payload_hash", "record_hash", "transcript_head_hash", "page_hash",
     "content_ref", "admission_id", "principal", "pin_id", "_erasure_rowid",
+    # Bookkeeping: a page's byte size and task id, an admission's generation, a page's erased flag, a writer's
+    # confidence. Measured on the 0.7.1 Mac smoke: a turn page of 114 bytes failed "Forget 14." as if it
+    # still held the forgotten words.
+    "bytes", "generation", "erased", "confidence", "task_id",
 })
 NODE_IDENTITIES = ROW_IDENTITIES | frozenset({
     "timestamp", "embedding", "linked_node_ids", "base_importance", "access_count",
@@ -55,12 +63,123 @@ def payload_strings(value: Any) -> tuple[str, ...]:
     raise ValueError("memory carrier has an opaque payload")
 
 
+def fold_forget_text(text: Any) -> str:
+    """Case folded, every decimal digit written as an ASCII digit.
+
+    A fullwidth "１２" or a "١٢" in another script is the number 12. Letters are not normalized
+    beyond case: a decomposed and a composed spelling stay distinct entries (the exactness law in
+    tests/test_memory_forget_resurrection_p0.py, test_collision_classes_prefix_suffix_unicode_casefold).
+    """
+    folded = str(text or "").casefold()
+    if folded.isascii():
+        return folded
+    return "".join(str(unicodedata.decimal(char)) if char.isdecimal() else char for char in folded)
+
+
+def normalized_forget_text(text: Any) -> str:
+    """Case, the script of a digit and separators (whitespace, hyphen, underscore) are not meaning:
+    "thermal-pool" is "thermal pool"."""
+    return " ".join(_SEPARATORS.split(fold_forget_text(text))).strip()
+
+
+#: Characters that join two digit runs into one number: "3.12", "1,200", "12:30", "2026-10-12", "10/12".
+_NUMBER_JOINTS = frozenset(".,:/-_")
+
+
+@functools.lru_cache(maxsize=4096)
+def _needle_pattern(needle: str) -> tuple[re.Pattern[str], bool, bool, bool]:
+    normalized = normalized_forget_text(needle)
+    parts = [re.escape(part) for part in normalized.split(" ") if part]
+    pattern = re.compile(r"[\s\-_]+".join(parts)) if parts else re.compile(r"(?!)")
+    numeric = any(char.isdecimal() for char in normalized)
+    return (pattern, numeric, bool(normalized) and normalized[0].isdecimal(),
+            bool(normalized) and normalized[-1].isdecimal())
+
+
+def forget_needle_in(hay: Any, needle: str) -> bool:
+    """Whether a forget needle occurs in a text.
+
+    Both sides are compared in ``normalized_forget_text`` form; ``hay`` may be given raw or already
+    normalized (raw keeps the punctuation the number rule below reads). A needle without digits is a
+    plain substring, as it always was. A needle with digits names a number or a code, and is only that
+    number where it stands as its own:
+
+    * the run of letters and digits it sits in may not hold other digits: "forget 12" erases
+      "gate code 12", "12kg" and "B12", never "room 312", "1234" or a hex id such as "a12f9c";
+    * a digit at the needle's edge may not continue the number across one of ``. , : / - _`` followed
+      by a digit: "12" is not erased from "3.12", "12.5", "12:30", "2026-10-12" or "10/12", and "200"
+      is not erased from "1,200". A sentence's full stop or comma ("is 12. Then", "12, and") is not
+      followed by a digit and does not protect the number.
+
+    Measured 2026-10-14: "forget 12" also erased "the meeting is in room 312".
+    """
+    pattern, numeric, digit_first, digit_last = _needle_pattern(str(needle or ""))
+    text = fold_forget_text(hay)
+    match = pattern.search(text)
+    if not numeric:
+        return match is not None
+    while match is not None:
+        start, end = match.span()
+        left = start
+        while left > 0 and text[left - 1].isalnum():
+            left -= 1
+        right = end
+        while right < len(text) and text[right].isalnum():
+            right += 1
+        own = not any(char.isdecimal() for char in text[left:start] + text[end:right])
+        if own and digit_first and start >= 2 and text[start - 1] in _NUMBER_JOINTS and text[start - 2].isdecimal():
+            own = False
+        if own and digit_last and end + 1 < len(text) and text[end] in _NUMBER_JOINTS and text[end + 1].isdecimal():
+            own = False
+        if own:
+            return True
+        match = pattern.search(text, start + 1)
+    return False
+
+
+def text_carries(text: Any, token: str) -> bool:
+    """The one forget-law carry test for a single text."""
+    return forget_needle_in(text, token)
+
+
 def carries(value: Any, token: str) -> bool:
-    needle = " ".join(_SEPARATORS.split(str(token).casefold())).strip()
+    needle = normalized_forget_text(token)
     # Inspect the whole shape even after finding a match: malformed later
     # fields are still an unverified carrier, not an ignorable parse error.
     parts = payload_strings(value)
-    return bool(needle) and any(needle in " ".join(_SEPARATORS.split(part.casefold())) for part in parts)
+    return bool(needle) and any(forget_needle_in(part, needle) for part in parts)
+
+
+#: A value the runtime made, never the user's words: a timestamp, a digest, a prefixed hex id ("req:http:<hex>"), a
+#: uuid, a number.
+_RUNTIME_MADE_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?"
+    r"|(?:[a-z0-9]+[-_:])*(?:[0-9a-f]{16,}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"
+    r"|-?\d+(?:\.\d+)?"
+)
+
+
+#: The memory mirror's own marks on a line: "- [2026-10-14] " in front, "<!--mem:memory-...-->" behind.
+_MIRROR_STAMPS_RE = re.compile(r"^\s*-\s*\[\d{4}-\d{2}-\d{2}\]\s*|<!--\s*mem:[A-Za-z0-9_.:-]+\s*-->\s*$")
+
+
+def _without_nested_identities(value: Any, structural: frozenset[str]) -> Any:
+    """Nested copies of a row identity (``provenance.recorded_at``, ``provenance.content_hash``) are the
+    runtime's own bookkeeping, like the top-level ones. Dropped only when the value has the runtime's shape,
+    so a nested field that happens to share an identity's name but holds words still answers to a forget
+    (measured 2026-10-14: "forget 14" matched every row recorded on the 14th and then refused its own rewrite)."""
+    if isinstance(value, Mapping):
+        return {key: _without_nested_identities(item, structural) for key, item in value.items()
+                if not (key in structural and (item is None or isinstance(item, (int, float))
+                                               or (isinstance(item, str) and _RUNTIME_MADE_RE.fullmatch(item))))}
+    if isinstance(value, list):
+        return [_without_nested_identities(item, structural) for item in value]
+    return value
+
+
+def memory_words(value: Any) -> Any:
+    """A payload as it is checked against a forget: its row ids and stamps, at any depth, left out."""
+    return _without_nested_identities(value, ROW_IDENTITIES)
 
 
 def row_payload(
@@ -76,8 +195,26 @@ def row_payload(
         if key in structured or key.endswith("_json"):
             if value is not None and isinstance(value, (str, bytes, bytearray)):
                 value = json.loads(value)
-        payload[key] = value
-    return payload
+        payload[key] = _without_nested_identities(value, structural) if structural else value
+    return _without_derived_keywords(payload)
+
+
+def _without_derived_keywords(payload: dict[str, Any]) -> dict[str, Any]:
+    """A row's keyword index, less the keywords its own text already holds.
+
+    The index is cut from the text at punctuation ("my step goal is 1,200" is indexed as "step", "goal",
+    "200"), so a keyword alone can look like a number the text never says: "forget 200" erased the
+    remembered "1,200" through it. A keyword inside the row's text adds no words the text lacks; the text
+    answers for it. A keyword the text does not hold still answers to a forget.
+    """
+    keywords = payload.get("keywords")
+    if not isinstance(keywords, list) or not keywords:
+        return payload
+    text = " ".join(fold_forget_text(value) for key, value in payload.items()
+                    if key != "keywords" and isinstance(value, str))
+    kept = [keyword for keyword in keywords
+            if not (isinstance(keyword, str) and keyword.strip() and fold_forget_text(keyword) in text)]
+    return {**payload, "keywords": kept}
 
 
 def payload_columns(schema: Sequence[Any], *, structural_fields: Sequence[str] = ()) -> list[str]:
@@ -155,7 +292,10 @@ def _quoted(name: str) -> str:
 
 def _derivative_tables(tables: Sequence[str]) -> set[str]:
     """The database carrier inventory shared by erasure and final verification."""
-    return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions"}
+    # chat_import_messages: the inert history of chats brought in from other apps
+    # (core.chat_import.store). It is no memory, but a forget in that chat must reach it.
+    return ({"learning_shards", "local_tasks", "response_feedback", "context_capsule_versions",
+             "chat_import_messages"}
             | {name for name in tables if name.startswith("dialogue_")
                or any(part in name for part in ("packet", "cache", "snapshot"))}) & set(tables)
 
@@ -203,8 +343,11 @@ def verify_forget_stores(
     def verify(name: str, reader: Any) -> None:
         try:
             retained = bool(reader())
+            if retained:
+                _LOG.warning("forget: %s still holds the forgotten words", name)
             _record_erasure_store(erasures, name, "incomplete" if retained else "verified")
-        except Exception:
+        except Exception as exc:
+            _LOG.warning("forget: %s could not be verified: %s", name, type(exc).__name__)
             _record_erasure_store(erasures, name, "incomplete")
 
     def file_rows(path: Path) -> bool:
@@ -239,7 +382,8 @@ def verify_forget_stores(
         except FileNotFoundError:
             return False
         for line in lines:
-            if not carries(line, token):
+            # The line's words: its day stamp and its record marker are the writer's own.
+            if not carries(_MIRROR_STAMPS_RE.sub(" ", line), token):
                 continue
             match = re.search(r"<!--\s*mem:([A-Za-z0-9_.:-]+)\s*-->\s*$", line)
             if match and owners.get(match.group(1), "") not in {"", chat_id}:
@@ -359,6 +503,9 @@ def verify_forget_stores(
 
             verify(table, sql_rows)
         _verify_pages(conn, tables, chat_id, token, verify)
+        from core.memory.run_history import verify_run_history
+
+        verify_run_history(conn, tables, chat_id, token, verify)
 
         # The swarm learning dataset is a retained store in the same database:
         # its full serialized payload answers to this operation like every
@@ -416,8 +563,10 @@ def _verify_pages(conn: Any, tables: set[str], chat_id: str, token: str, verify:
         owned = "session_id = ?"
         params = [chat_id]
         if "turn_context_admissions" in tables:
-            owned += " OR page_hash IN (SELECT page_hash FROM turn_context_admissions WHERE session_id = ? AND source_kind = 'chat_exchange')"
-            params.append(chat_id)
+            from core.turn_context import CHAT_PAGE_ADMISSIONS
+
+            owned += " OR page_hash IN (" + CHAT_PAGE_ADMISSIONS + ")"
+            params += [chat_id, chat_id]
         rows = conn.execute(
             "SELECT * FROM context_pages WHERE kind = 'turn_context' AND source = 'turn-context:chat_exchange' "
             "AND (" + owned + ")", params,

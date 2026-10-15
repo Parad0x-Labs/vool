@@ -2541,6 +2541,69 @@ def _contacts_tool(intent: str, arguments: dict[str, Any], source_context: dict[
     )
 
 
+def _wallet_balances(source_context: dict[str, Any] | None) -> dict[str, Any]:
+    """Every account's balance in the active environment, read through the wallet's own balance authority (each row's
+    endpoint after its identity proof). Chains holding something are listed with the amount; chains holding nothing are
+    named once; a read that failed is said to be unknown, never zero. Reads run side by side so one slow chain does not
+    hold the others."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from core.wallet import balances, chains, custody, environment
+
+    active = environment.active_environment().environment
+    accounts = []
+    for entry in custody.list_wallets():
+        try:
+            spec = chains.resolve_network(entry.get("network") or "")
+        except Exception:
+            continue
+        if spec.environment != active or str(entry.get("setup_state") or "") == "cancelled":
+            continue
+        accounts.append((entry, spec))
+    where = "Mainnet" if active == chains.ENVIRONMENT_MAINNET else "Test networks"
+    if not accounts:
+        return {"lines": [f"Balances: no account on {where} yet."], "balances": [], "read": 0, "unavailable": 0}
+
+    def read(item: tuple[dict[str, Any], Any]) -> list[dict[str, Any]]:
+        entry, spec = item
+        try:
+            answer = balances.read_balance(str(entry["wallet_id"]), source_context=source_context)
+        except Exception as exc:  # a refusal is a reason, never a number
+            answer = {"state": balances.STATE_UNAVAILABLE, "reason": str(getattr(exc, "code", "") or type(exc).__name__), "balance_minor": None}
+        tokens = chains.user_transfer_tokens(spec.network)
+        try:
+            token_answers = balances.read_token_balances(str(entry["wallet_id"]), source_context=source_context) if tokens else []
+        except Exception as exc:
+            token_answers = [{"asset": token.symbol, "state": balances.STATE_UNAVAILABLE, "reason": str(getattr(exc, "code", "") or type(exc).__name__), "balance_minor": None}
+                             for token in tokens]
+        where = {"wallet_id": entry["wallet_id"], "label": str(entry.get("label") or ""), "network": spec.network, "display_name": spec.display_name,
+                 "chain_order": chains.CHAIN_KEY_ORDER.index(spec.chain_key) if spec.chain_key in chains.CHAIN_KEY_ORDER else 99}
+        return [{**answer, **where, "token": False}] + [{**token_answer, **where, "token": True} for token_answer in token_answers]
+
+    with ThreadPoolExecutor(max_workers=min(6, len(accounts))) as pool:
+        rows = sorted((row for answer in pool.map(read, accounts) for row in answer), key=lambda r: (r["chain_order"], r["display_name"], r["label"], r["token"]))
+
+    def name(row: dict[str, Any], *, with_token: bool = True) -> str:
+        label = row["display_name"] + (f" ({row['label']})" if row["label"] and row["label"] != row["display_name"] else "")
+        return f"{label} {row.get('asset')}" if with_token and row["token"] else label
+
+    held = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) > 0]
+    empty = [r for r in rows if r.get("state") == balances.STATE_READ and int(r.get("balance_minor") or 0) == 0]
+    unknown = [r for r in rows if r.get("state") != balances.STATE_READ]
+    token_symbols = sorted({str(r.get("asset") or "") for r in rows if r["token"]})
+    lines = [f"Balances on {where} (each chain's own coin{' and ' + ', '.join(token_symbols) if token_symbols else ''}):"]
+    lines += [f"- {name(r, with_token=False)}: {r.get('balance_display') or (str(r.get('balance_human')) + ' ' + str(r.get('asset') or ''))}" for r in held]
+    if not held:
+        lines.append("- Nothing held on any chain that could be read.")
+    if empty:
+        lines.append("Nothing held on: " + ", ".join(name(r) for r in empty) + ".")
+    if unknown:
+        # why each read failed stays in the data below, not in the owner's line
+        lines.append("Could not be read just now (unknown, not zero): " + ", ".join(name(r) for r in unknown) + ".")
+    public = [{k: r.get(k) for k in ("wallet_id", "label", "network", "display_name", "asset", "token", "state", "reason", "balance_minor", "balance_human", "ref")} for r in rows]
+    return {"lines": lines, "balances": public, "read": len(held) + len(empty), "unavailable": len(unknown)}
+
+
 def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
     """The model-facing wallet surface: status, propose, simulate, payment_status.
 
@@ -2558,9 +2621,11 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
     context = source_context if isinstance(source_context, dict) else None
 
     def refusal(exc: WalletFault) -> RuntimeExecutionResult:
+        said = exc.user_message or exc.code
         return RuntimeExecutionResult(
             handled=True, ok=False, status=exc.code,
-            response_text=f"{exc.user_message or exc.code} Nothing was signed and nothing was sent.",
+            # a line that already says nothing was sent is not told twice
+            response_text=said if "nothing was sent" in said.lower() else f"{said} Nothing was signed and nothing was sent.",
             details={"fault": exc.to_dict(), "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=False, status=exc.code, fault_code=exc.code)},
         )
 
@@ -2576,7 +2641,9 @@ def _wallet_model_tool(intent: str, arguments: dict[str, Any], source_context: d
             last = status.get("last_receipt") or {}
             if last:
                 lines.append(f"Last receipt: proposal {last.get('proposal_id')} state={last.get('state')} tx_signature={redaction.publish_identifier(last.get('tx_signature')) or '-'}.")
-            return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text="\n".join(lines), details={"status": status, "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", pending_approvals=int(status.get("pending_approvals") or 0))})
+            held = _wallet_balances(context)
+            lines.extend(held["lines"])
+            return RuntimeExecutionResult(handled=True, ok=True, status="ok", response_text="\n".join(lines), details={"status": status, "balances": held["balances"], "observation": _tool_observation(intent=intent, tool_surface="wallet", ok=True, status="ok", pending_approvals=int(status.get("pending_approvals") or 0), balances_read=held["read"], balances_unavailable=held["unavailable"])})
         if intent == "wallet.propose":
             from core.contacts.consumers import resolve_wallet_recipient
             from core.contacts.resolver import describe_snapshot
@@ -2832,6 +2899,69 @@ def _demo_plan(arguments: dict[str, Any], *, source_context: dict[str, Any] | No
             "observation": _tool_observation(
                 intent="demo.plan", tool_surface="demo", ok=True, status="ok",
                 url=url, shot_count=len(plan.shots), total_seconds=plan.total_seconds),
+        },
+    )
+
+
+def _file_deliver(arguments: dict[str, Any], *, source_context: dict[str, Any] | None) -> RuntimeExecutionResult:
+    """Build, verify and store one downloadable file for this chat (core.deliverables)."""
+    from core import deliverables
+
+    args = arguments or {}
+    context = source_context or {}
+    session_id = str(context.get("runtime_session_id") or context.get("session_id") or "").strip()
+    files = args.get("files")
+    if files is not None and not isinstance(files, list):
+        files = None
+    try:
+        # The turn's own named format(s) (`deliverables.requested_formats`, stamped on the tool
+        # loop's context): a call building another format is refused BEFORE anything is stored,
+        # so the correction round delivers what was asked instead of a file nobody asked for.
+        deliverables.refuse_unrequested_format(
+            filename=str(args.get("filename") or args.get("name") or ""),
+            fmt=str(args.get("format") or ""),
+            wanted=tuple(context.get(deliverables.REQUESTED_FORMATS_KEY) or ()),
+        )
+        record = deliverables.create_deliverable(
+            session_id=session_id,
+            filename=str(args.get("filename") or args.get("name") or ""),
+            content=str(args.get("content") or ""),
+            fmt=str(args.get("format") or ""),
+            title=str(args.get("title") or ""),
+            files=files,
+        )
+    except deliverables.DeliverableRefused as refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=refusal.code,
+            response_text=f"The file was not created: {refusal.message}",
+            details={
+                "error": refusal.code,
+                "observation": _tool_observation(intent="file.deliver", tool_surface="file", ok=False, status=refusal.code),
+            },
+        )
+    size = int(record["size_bytes"])
+    shown = f"{size / 1024:.1f} KB" if size >= 1024 else f"{size} bytes"
+    lines = [f"Here is **{record['filename']}** ({shown}): [Download {record['filename']}]({record['url']})"]
+    lines.extend(str(note) for note in record.get("notes") or [])
+    return RuntimeExecutionResult(
+        handled=True,
+        ok=True,
+        status="executed",
+        response_text="\n\n".join(lines),
+        details={
+            "deliverable": {key: record[key] for key in ("id", "filename", "format", "media_type", "size_bytes", "sha256", "url")},
+            "observation": _tool_observation(
+                intent="file.deliver",
+                tool_surface="file",
+                ok=True,
+                status="executed",
+                filename=record["filename"],
+                format=record["format"],
+                size_bytes=size,
+                sha256=record["sha256"],
+            ),
         },
     )
 
@@ -3299,6 +3429,31 @@ def _dispatch_runtime_tool(
             from core.chain_data import run_tool as _chain_tool
 
             return _chain_tool(intent, arguments, source_context)
+        if intent == "ai.paid_ask":
+            from core.x402_ai import run_tool as _paid_ai_tool
+
+            return _paid_ai_tool(intent, arguments, source_context)
+        if intent == "token.performance":
+            from core.token_performance import run_tool as _performance_tool
+
+            return _performance_tool(intent, arguments, source_context)
+        if intent in {"watch.add", "watch.list", "watch.remove", "watch.pause", "watch.resume"}:
+            from core.market_watch import run_tool as _watch_tool
+
+            return _watch_tool(intent, arguments, source_context)
+        if intent in {"market.collect", "market.datasets", "market.dataset_delete", "market.analyze",
+                      "market.thesis_check"}:
+            from core.market_data import run_tool as _market_tool
+
+            return _market_tool(intent, arguments, source_context)
+        if intent == "token.flow":
+            from core.token_flow import run_tool as _flow_tool
+
+            return _flow_tool(intent, arguments, source_context)
+        if intent in {"token.research", "token.launches"}:
+            from core.token_research import run_tool as _research_tool
+
+            return _research_tool(intent, arguments, source_context)
         if intent == "email.send":
             return _email_send(arguments)
         if intent == "email.read":
@@ -3338,8 +3493,15 @@ def _dispatch_runtime_tool(
             from core.media_studio_chat_tools import media_export
 
             return _covered(lambda: media_export(arguments))
+        if intent == "file.deliver":
+            return _file_deliver(arguments, source_context=source_context)
         if intent == "x.trending":
             return _x_trending(arguments)
+        if intent.startswith("x."):
+            from core.x_chat_tools import X_INTENTS, run_x_tool
+
+            if intent in X_INTENTS:
+                return run_x_tool(intent, arguments, source_context)
         if intent == "demo.plan":
             return _demo_plan(arguments, source_context=source_context)
         if intent == "set.save":
@@ -7161,6 +7323,51 @@ def _cancel_token_from(source_context: dict[str, Any] | None):
     if hasattr(token, "is_set"):
         return token
     return _CallableCancelToken(token)
+
+
+WORKSPACE_PATH_REFUSED = "workspace_path_refused"
+#: Workspace writes whose single target is `arguments["path"]`, resolved by the handler with
+#: `_resolve_workspace_path(..., write=True)` before anything is touched.
+WORKSPACE_PATH_WRITE_INTENTS = frozenset({"workspace.write_file", "workspace.replace_in_file", "workspace.ensure_directory"})
+
+
+def workspace_path_refusal(intent: str, raw_path: Any, *, workspace_root: Path) -> RuntimeExecutionResult | None:
+    """The typed refusal for a workspace write whose path the handler would refuse, or None.
+
+    The same predicate the handler applies first (`_resolve_workspace_path(..., write=True)`:
+    confinement to the workspace, and never this runtime's protected state or running code),
+    decided BEFORE dispatch. Measured live 2026-10-06: `workspace.write_file` to a file inside the
+    running code was refused by that check ("nothing was touched"), but the refusal was raised past
+    the dispatch claim, so the A6 boundary recorded it as "Outcome unknown -- reconciliation
+    required", the effect obligation stayed open, finalization refused the turn
+    (OBLIGATIONS_OPEN) and the HTTP request ended in a 500. A path refused before anything was
+    written is a known outcome: nothing was written.
+    """
+    if intent not in WORKSPACE_PATH_WRITE_INTENTS:
+        return None
+    try:
+        _resolve_workspace_path(str(raw_path or ""), workspace_root=workspace_root, write=True)
+    except ValueError as exc:
+        text = f"{intent} refused: {exc} Nothing was written."
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=WORKSPACE_PATH_REFUSED,
+            response_text=text,
+            details={
+                "executed": False,
+                "path": str(raw_path or ""),
+                "workspace_root": str(workspace_root),
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="workspace",
+                    ok=False,
+                    status=WORKSPACE_PATH_REFUSED,
+                    error=str(exc),
+                ),
+            },
+        )
+    return None
 
 
 SANDBOX_CWD_OUTSIDE_WORKSPACE = "cwd_outside_workspace"

@@ -11,7 +11,8 @@ message has a Copy button.
 """
 from __future__ import annotations
 
-from core.ui_palette import DARK_PALETTE_CSS
+from core.ui_icons import ICON_CSS
+from core.ui_palette import APPEARANCE_JS, DARK_PALETTE_CSS, LIGHT_PALETTE_CSS, appearance_html_attrs
 
 _VOOL_CHAT_HTML = r"""<!doctype html>
 <html lang="en">
@@ -27,20 +28,23 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 #sidebar { flex:0 0 240px; width:240px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 #sidebar .side-head { display:flex; align-items:center; gap:8px; padding:12px 12px 8px; }
 #sidebar .side-title { font-size:12px; font-weight:700; letter-spacing:.6px; color:var(--muted); text-transform:uppercase; flex:1; }
+#newChat, #newProject { white-space:nowrap; }
 #newChat { background:transparent; color:var(--accent); border:1px solid var(--border); border-radius:8px; padding:6px 10px; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
 #sidebar #sessions { flex:1 1 auto; overflow-y:auto; min-height:0; }
 #newProject { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:6px 8px; font:inherit; font-size:12px; font-weight:600; cursor:pointer; }
 #newProject:hover { color:var(--ink); border-color:var(--accent); }
 .proj-head { display:flex; align-items:center; gap:6px; padding:6px 10px 6px 8px; cursor:pointer; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.3px; }
 .proj-head:hover { color:var(--ink); }
-.proj-head:hover .proj-actions { opacity:1; }
+.proj-head:hover .proj-actions, .proj-head:focus-within .proj-actions { display:flex; }
 .proj-head.active { background:var(--active); color:var(--ink); border-radius:8px; box-shadow:inset 2px 0 0 var(--accent); }
 .proj-head.active .proj-name { color:var(--ink); }
 .proj-head.active .proj-caret { color:var(--accent); }
 .proj-caret { width:12px; flex:0 0 auto; font-size:10px; }
 .proj-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .proj-count { flex:0 0 auto; color:var(--muted); font-weight:600; font-size:11px; }
-.proj-actions { display:flex; gap:2px; opacity:0; transition:opacity .12s; }
+/* Hidden (not merely transparent) until hover or focus: invisible buttons still took the width
+   that the project's name needed ("Secon…") and caught keyboard focus. */
+.proj-actions { display:none; gap:2px; flex:0 0 auto; }
 .proj-head.general { cursor:pointer; }
 .proj-menu { position:fixed; z-index:60; min-width:160px; max-width:220px; background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 26px rgba(0,0,0,.5); padding:4px; }
 .proj-menu-item { display:block; width:100%; text-align:left; background:transparent; color:var(--ink); border:none; border-radius:6px; padding:6px 9px; font:inherit; font-size:12.5px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -75,6 +79,9 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .text-prompt label { display:block; margin-bottom:10px; font-weight:600; }
 .text-prompt input { box-sizing:border-box; width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:10px; font:inherit; }
 .text-prompt input:focus { outline:2px solid var(--accent); outline-offset:2px; }
+.confirm-prompt .confirm-title { font-weight:600; margin-bottom:8px; overflow-wrap:anywhere; }
+.confirm-prompt .confirm-detail { color:var(--muted); line-height:1.5; margin:0 0 14px; white-space:pre-line; overflow-wrap:anywhere; }
+.confirm-prompt .confirm-yes { border-color:var(--bad); color:var(--ink); }
 .plugin-card { border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; background:var(--bg); }
 .plugin-card .p-head { display:flex; align-items:baseline; gap:8px; }
 .plugin-card .p-name { font-weight:700; color:var(--ink); }
@@ -92,6 +99,7 @@ body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-sy
 .plugins-search { width:100%; box-sizing:border-box; margin:2px 0 14px; padding:10px 13px; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:14px; }
 .plugins-search:focus { outline:none; border-color:var(--accent); }
 .files-controls { display:flex; gap:8px; align-items:center; margin:2px 0 14px; }
+.files-controls[hidden] { display:none; }
 .files-controls .plugins-search { margin:0; flex:1 1 auto; }
 .files-sort { flex:0 0 auto; background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:10px; font:inherit; font-size:13px; padding:9px 10px; cursor:pointer; }
 .files-sort:focus { outline:none; border-color:var(--accent); }
@@ -114,6 +122,15 @@ img.chat-img:hover { border-color:var(--accent); }
 .chat-provenance { margin:10px 0 0; opacity:0.72; font-size:0.92em; max-width:100%; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; }
 .chat-provenance code { border:0; background:none; padding:0; }
+/* Plain words first; the exact machine line stays one click away under "details" (and on the
+   title), so nobody mistakes a built-in reply for a model answer and nobody has to read a log.
+   A line the page cannot read with certainty is shown raw, exactly as before (provenancePlain). */
+.chat-provenance .prov-more { border:0; background:none; padding:0; margin-inline-start:2px; color:var(--muted); font:inherit;
+  text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.chat-provenance .prov-more:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+.chat-provenance .prov-raw[hidden] { display:none; }
+.chat-provenance.prov-open { white-space:normal; }
+.chat-provenance.prov-open .prov-raw { display:block; margin-top:4px; overflow-wrap:anywhere; }
 /* The Proof Chip: one served turn's evidence, projected read-only by the server and rendered
    beside the answer. Collapsed it is one quiet line (actions · sources · cost · STATE); opened it
    shows the expanded account. The state word is the SERVER's verdict, rendered verbatim — this
@@ -122,12 +139,14 @@ img.chat-img:hover { border-color:var(--accent); }
 .proof-chip { margin:10px 0 0; max-width:100%; font-size:12px; }
 .proof-chip-head { display:inline-flex; align-items:center; gap:7px; max-width:100%; background:var(--bg); color:var(--muted);
   border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:11.5px; cursor:pointer; }
+.proof-chip-head { flex-wrap:wrap; row-gap:2px; text-align:left; }
+.proof-chip-head > span { white-space:nowrap; }   /* narrow windows wrap whole items, never mid-word */
 .proof-chip-head:hover { color:var(--ink); border-color:var(--accent); }
 .proof-chip .pc-state { font-weight:700; letter-spacing:.4px; }
-.proof-chip .pc-state-verified { color:var(--success); }
+.proof-chip .pc-state-verified { color:var(--muted); }
 .proof-chip .pc-state-recorded { color:var(--muted); }
-.proof-chip .pc-state-incomplete { color:#fbbf24; }
-.proof-chip .pc-state-unverified { color:#f87171; }
+.proof-chip .pc-state-incomplete { color:var(--warn); }
+.proof-chip .pc-state-unverified { color:var(--bad); }
 .proof-chip .pc-coverage { color:var(--muted); }
 .proof-chip-body { margin-top:6px; border:1px solid var(--border); border-radius:8px; background:var(--bg);
   padding:8px 11px; color:var(--muted); font-size:11.5px; line-height:1.55; overflow-wrap:anywhere; }
@@ -160,6 +179,9 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .n-toast { position:fixed; left:50%; bottom:96px; transform:translateX(-50%) translateY(8px); max-width:520px; background:var(--bg2,#1b1b1f); color:var(--ink); border:1px solid var(--border); border-radius:10px; padding:10px 14px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:60; }
 .n-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+.n-toast.show:has(.n-toast-act) { pointer-events:auto; }
+.n-toast-act { margin-left:10px; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:6px; padding:2px 9px; font:inherit; font-size:12px; cursor:pointer; }
+.n-toast-act:hover { border-color:var(--accent); }
 .keys-list { margin-top:10px; }
 .keys-title { color:var(--muted); font-size:12px; font-weight:700; margin:4px 0 6px; }
 .key-row { display:flex; align-items:center; gap:8px; padding:6px 0; }
@@ -277,9 +299,18 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
 /* Chats nest under their project/General header as a tree: indented, with a thin left guide line. */
 #sessions .session.nested { margin-left:11px; padding-left:12px; border-left:1px solid var(--border); border-top-left-radius:0; border-bottom-left-radius:0; }
 #sessions .session.nested.active { border-left-color:var(--accent); }
+#sessions .pin-head .proj-name::before { content:'\1F4CC  '; }
+#sessions .s-pin-mark { flex:0 0 auto; font-size:11px; opacity:.75; margin-left:4px; }
 #sessions .s-rename { flex:1; min-width:0; background:var(--bg); color:var(--ink); border:1px solid var(--accent); border-radius:6px; padding:2px 6px; font:inherit; font-size:13px; }
 #sessions .s-actions { display:none; gap:2px; flex:0 0 auto; }
-#sessions .session:hover .s-actions { display:flex; }
+#sessions .session:hover .s-actions, #sessions .session:focus-within .s-actions { display:flex; }
+#sessions .s-title:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:4px; }
+#sessions .session { cursor:pointer; }
+/* Touch screens have no hover: the row actions are always there. */
+@media (hover: none) {   /* touch: a tap never reveals buttons under the finger; only the open chat and its project show theirs */
+  #sessions .session .s-actions, .proj-head .proj-actions { display:none !important; }
+  #sessions .session.active .s-actions, .proj-head.active .proj-actions { display:flex !important; }
+}
 #sessions .s-act { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:2px 5px; border-radius:4px; line-height:1; }
 #sessions .s-act:hover { color:var(--ink); background:var(--bg); }
 #sessions .arch-head { color:var(--muted); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; padding:12px 10px 4px; cursor:pointer; user-select:none; }
@@ -289,11 +320,12 @@ code { background:var(--bg); border:1px solid var(--border); border-radius:5px; 
    never a percentage, only what the runtime has actually reported. Priority (highest first) is
    needs_user > working > complete_unseen, enforced in chatLifecycleState(), not here -- only one
    badge class is ever applied to a row. */
-.lc-badge { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; font-family:ui-monospace,Consolas,monospace; font-size:9px; font-weight:700; letter-spacing:.4px; line-height:1; border-radius:3px; padding:2px 5px; border:1px solid transparent; text-transform:uppercase; }
-.lc-badge.lc-working { color:var(--ok); border-color:var(--ok); background:color-mix(in srgb, var(--ok) 14%, transparent); animation:lcPulse 1.7s ease-in-out infinite; }
-.lc-badge.lc-needs { color:var(--warn); border-color:var(--warn); background:color-mix(in srgb, var(--warn) 18%, transparent); }
+/* Quiet marks, not console tags: a soft breathing dot while working, a small "Needs you" pill. */
+.lc-badge { flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; line-height:1; border-radius:999px; padding:2px 7px; border:1px solid transparent; white-space:nowrap; }
+.lc-badge.lc-working { width:8px; height:8px; min-width:8px; padding:0; border-radius:50%; background:var(--accent); animation:lcPulse 1.7s ease-in-out infinite; }
+.lc-badge.lc-needs { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 55%, transparent); background:color-mix(in srgb, var(--warn) 12%, transparent); }
 .lc-badge.lc-unseen { width:7px; height:7px; min-width:7px; padding:0; border-radius:50%; background:var(--ink); border-color:transparent; }
-@keyframes lcPulse { 0%,100% { opacity:.78; box-shadow:0 0 2px var(--ok); } 50% { opacity:1; box-shadow:0 0 8px var(--ok); } }
+@keyframes lcPulse { 0%,100% { opacity:.45; } 50% { opacity:1; } }
 @media (prefers-reduced-motion: reduce) { .lc-badge.lc-working { animation:none; } }
 .proj-head .lc-badge { margin-left:1px; }
 #main { flex:1; display:flex; flex-direction:column; min-width:0; height:100vh; }
@@ -321,7 +353,7 @@ header a:hover { text-decoration:underline; }
 #updateChip.upd-working .upd-ico { display:inline-block; animation:upd-spin 1.1s linear infinite; }
 @keyframes upd-spin { to { transform:rotate(360deg); } }
 #updateChip.upd-ok { color:var(--ok); }
-#updateChip.upd-warn { border-color:#f87171; color:#f87171; }
+#updateChip.upd-warn { border-color:var(--bad); color:var(--bad); }
 #updateChip.upd-off { opacity:.55; }
 #updatePop { min-width:270px; }
 #updatePop .upd-ver { font-weight:700; margin:2px 0 6px; }
@@ -332,7 +364,7 @@ header a:hover { text-decoration:underline; }
 /* The model control owns connection state; the menu retains each provider's detail. */
 #modelStatus, #modelConnections { display:inline-flex; align-items:center; gap:5px; }
 #modelBtn .dot, #modelConnections .dot { width:7px; height:7px; border-radius:50%; background:var(--muted); flex:0 0 auto; }
-#modelBtn .dot.ok, #modelConnections .dot.ok { background:var(--ok); box-shadow:0 0 6px var(--ok); }
+#modelBtn .dot.ok, #modelConnections .dot.ok { background:var(--ok); }
 #modelBtn .dot.bad, #modelConnections .dot.bad { background:var(--bad); }
 #modelBtn .dot.warn, #modelConnections .dot.warn { background:var(--warn); }
 @keyframes cpPulse { 0%,100% { box-shadow:0 0 3px var(--ok); opacity:.8; } 50% { box-shadow:0 0 11px var(--ok); opacity:1; } }
@@ -358,10 +390,10 @@ header a:hover { text-decoration:underline; }
   /* Splitters can leave a narrow chat column even on a wide window. Let the header's
      controls wrap in that actual space rather than paint over the Activity button. */
   header { gap:7px; padding-inline:12px; }
-  header .ver { max-width:50px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  header .ver { white-space:nowrap; }
   header #modelCtrl { flex:1 1 200px; min-width:min(200px,100%); max-width:100%; }
-  header #pinBtn, header #searchBtn, header #exportBtn, header #panelBtn { margin-left:0; padding-inline:7px; }
-  header #updateChipTxt { max-width:45px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  header #pinBtn, header #searchBtn, header #exportBtn, header #panelBtn, header #councilBtn { margin-left:0; padding-inline:7px; }
+  header #updateChipTxt { white-space:nowrap; }
   header #modelWhere { font-size:12px; }
   header .spacer { display:none; }
   header > button { white-space:nowrap; }
@@ -375,15 +407,28 @@ header a:hover { text-decoration:underline; }
   header #modelBtn .model-lane.auto + #modelLbl { flex-shrink:0; }
 }
 #menu { display:none; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; cursor:pointer; }
+/* Zero-height anchor between the conversation and the composer: the button floats over the
+   bottom of #log without taking layout space from either. */
+#jumpLatestWrap { position:relative; height:0; z-index:5; }
+#jumpLatest { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:5px 14px; font:inherit; font-size:12.5px; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.28); }
+#jumpLatest:hover, #jumpLatest:focus-visible { border-color:var(--accent); }
+#jumpLatest[hidden] { display:none; }
+/* Settings > Appearance > Text size scales the conversation itself (1 by default). */
+#log { font-size:calc(14px * var(--vool-text-scale, 1)); }
 #log { flex:1; overflow-y:auto; padding:28px max(20px,calc((100% - 760px)/2)); display:flex; flex-direction:column; gap:14px; user-select:text; -webkit-user-select:text; cursor:text; background:var(--chat); }
 .msg { position:relative; max-width:min(760px,92%); padding:10px 34px 10px 14px; border-radius:12px; white-space:pre-wrap; word-wrap:break-word; user-select:text; -webkit-user-select:text; }
 .msg.user { align-self:flex-end; background:var(--user); border:1px solid var(--border); }
-.msg.assistant { align-self:stretch; width:100%; max-width:100%; min-width:0; padding:14px 0; border:0; border-radius:0; background:transparent; font-size:15px; line-height:1.65; }
+.msg.assistant { align-self:stretch; width:100%; max-width:100%; min-width:0; padding:14px 0; border:0; border-radius:0; background:transparent; font-size:calc(15px * var(--vool-text-scale, 1)); line-height:1.65; }
 .msg.assistant.pending { color:var(--muted); }
 .msg-text a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word; }
 .msg-text a:hover { text-decoration:none; }
 .msg-actions { position:absolute; top:6px; right:6px; display:flex; gap:4px; opacity:0; transition:opacity .12s; }
 .msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity:1; }
+/* Your own message carries Copy and Edit: the pair sits just under the bubble, in the gap between
+   messages, so it never covers the message's attachments or words. */
+.msg.user .msg-actions { top:calc(100% + 2px); right:auto; inset-inline-end:0; white-space:nowrap; }
+/* No hover on a touch screen: your own message's row stays faintly visible under the bubble. */
+@media (hover:none) { .msg.user .msg-actions { opacity:.75; } }
 .msg-copy, .msg-act { background:var(--bg); color:var(--muted); border:1px solid var(--border); border-radius:6px; font-size:11px; line-height:1; padding:3px 7px; cursor:pointer; user-select:none; }
 .msg-copy:hover, .msg-act:hover { color:var(--ink); border-color:var(--accent); }
 .msg-export-status { display:block; max-width:100%; overflow-wrap:anywhere; margin-top:6px; font-size:12px; color:var(--muted); }
@@ -400,20 +445,57 @@ header a:hover { text-decoration:underline; }
 .chat-code-wrap .code-copy:hover { color:var(--ink); border-color:var(--accent); }
 /* Export dialog controls: rows of the same form vocabulary the settings card uses. */
 .export-row { display:flex; align-items:center; gap:8px; margin:10px 0; font-size:13px; }
-.export-row label { flex:0 0 auto; color:var(--ink); }
+.export-row label { flex:0 1 auto; min-width:0; color:var(--ink); overflow-wrap:anywhere; }
 .export-row select { background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:5px 8px; font:inherit; }
 .export-row input[type="checkbox"] { accent-color:var(--accent); }
 .export-note { color:var(--muted); font-size:12px; line-height:1.5; margin:8px 0; }
+.export-more summary { cursor:pointer; font-size:12px; color:var(--muted); margin-top:6px; }
 .export-preview { background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--muted); font-size:12px; line-height:1.5; padding:8px 10px; margin:10px 0; white-space:pre-wrap; }
 .export-status { font-size:12px; margin-top:8px; min-height:16px; }
 .export-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 /* Always visible (not hover-gated like .msg-actions) but visually secondary: small, muted, no
    seconds. A user bubble gets it at send time; an assistant bubble gets it once the turn truly
    ends (finishRun -> setMsgTime), never while still streaming. */
+/* Private chat (core.private_chat): a small, quiet ghost on every message that was not saved. */
+.msg.is-private { border-style:dashed; }
+.msg-ghost { position:absolute; top:-9px; left:-9px; width:22px; height:22px; padding:0; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; background:var(--bg); border:1px solid var(--border); color:var(--ink); opacity:.75; pointer-events:auto; cursor:help; font:inherit; }
+.msg-ghost:hover, .msg-ghost:focus-visible { opacity:1; border-color:var(--accent); }
+.msg-ghost svg { display:block; }
+/* VOOL's replies have no bubble: the ghost sits in the text's first line instead of floating loose. */
+.msg.assistant .msg-ghost { position:static; display:inline-flex; vertical-align:middle; margin:0 6px 4px 0; }
+.private-divider { display:flex; align-items:center; gap:10px; margin:6px 0 2px; color:var(--muted); font-size:11px; user-select:none; }
+.private-divider::before, .private-divider::after { content:""; flex:1 1 auto; border-top:1px solid var(--border); }
+.private-note { margin:10px auto; max-width:420px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
+.msg.is-private .msg-pin, .msg.is-private .msg-report, .msg.is-private .msg-thumbs-down,
+.msg.is-private .msg-export-pdf, .msg.is-private .msg-export-status, .msg.is-private .proof-chip { display:none; }
+.private-banner { display:inline-flex; flex:0 0 auto; min-width:24px; align-items:center; gap:6px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.private-banner[hidden] { display:none; }
+.private-banner .pb-ghost { display:inline-flex; color:var(--ink); opacity:.75; }
+.private-banner .pb-short, .private-banner .pb-end-short { display:none; }
+.private-banner .pb-text { overflow:hidden; text-overflow:ellipsis; max-width:180px; }
+.private-banner button { flex:0 0 auto; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0 8px; font-size:11px; cursor:pointer; }
+.private-banner button:hover { color:var(--ink); border-color:var(--accent); }
+@container composer (max-width:470px) {
+  .private-banner .pb-text, .private-banner .pb-end-long { display:none; }
+  .private-banner .pb-short, .private-banner .pb-end-short { display:inline; }
+}
+/* Narrowest phones: the ghost and its button say it; the word goes so the row never scrolls. */
+@container composer (max-width:400px) { .private-banner .pb-short { display:none; } }
 .msg-time { display:block; margin-top:4px; font-size:10px; line-height:1; color:var(--muted); opacity:.75; text-align:right; user-select:none; }
 .empty { color:var(--ink); align-self:center; margin-top:12vh; text-align:center; max-width:560px; }
 .empty-greet { color:var(--ink); font-size:22px; font-weight:600; margin-bottom:4px; }
 .empty-sub { color:var(--ink); font-size:16px; margin-bottom:18px; }
+.empty-starts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin:0 auto 18px; }
+.empty-start { background:var(--panel); color:var(--ink); border:1px solid var(--border); border-radius:999px; padding:6px 14px; font:inherit; font-size:13px; cursor:pointer; }
+.empty-start:hover, .empty-start:focus-visible { border-color:var(--accent); }
+/* On a phone the starters stack on the left, clear of the pet's resting spot on the right, and stay
+   under menus and panels (no z-index of their own). */
+@media (max-width:600px) { .empty-starts { flex-direction:column; align-items:flex-start; } }
+/* While the box holds a draft the starters step back, so it is clear they would not replace it. */
+#log.has-draft .empty-starts { visibility:hidden; }
+/* Shortcut labels read left to right in every language ("Ctrl+/" never turns into "/+Ctrl"). */
+kbd { direction:ltr; unicode-bidi:isolate; }
 .empty-hint { font-family:Georgia,'Times New Roman',serif; font-style:italic; font-size:14px; line-height:1.5; color:var(--ink); max-width:440px; margin:2px auto 0; }
 /* A size container: the control row's breakpoint has to key off the room the FOOTER actually has,
    not off the window. The sidebar and the Activity panel can take 900px of a 1280px window, so a
@@ -438,6 +520,21 @@ footer { background:linear-gradient(transparent,var(--chat) 24%); padding:10px 2
 .qchip-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:340px; }
 .qchip-x { background:transparent; border:none; color:var(--muted); cursor:pointer; font-size:14px; line-height:1; padding:0 2px; }
 .qchip-x:hover { color:var(--ink); }
+.qchip.stale { border-style:dashed; }
+.qchip-act { background:transparent; border:1px solid var(--border); border-radius:10px; color:var(--ink); cursor:pointer; font:inherit; font-size:11px; padding:1px 8px; }
+.qchip-act:hover { border-color:var(--accent); }
+#queueWaiting { display:none; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; color:var(--muted); margin-bottom:6px; }
+#queueWaiting.show { display:flex; }
+.br-cand { display:block; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin:4px 0; cursor:pointer; }
+.br-cand.on { border-color:var(--accent); }
+.br-cand b, .br-cand small { display:block; }
+.br-cand b { font-weight:600; color:var(--ink); }
+.br-cand small { color:var(--muted); margin-top:2px; }
+.msg.pin-flash { outline:2px solid var(--accent); outline-offset:4px; border-radius:10px; transition:outline-color .6s; }
+.pin-text p { margin:0 0 6px; } .pin-text pre { white-space:pre-wrap; }
+.load-failed { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; }
+.load-failed-title { font-size:16px; font-weight:600; color:var(--ink); }
+.load-failed-text { font-size:13px; color:var(--muted); max-width:420px; }
 /* The "+N queued" / "Show less" toggle: same pill as a chip, but a plain button (no text/x split). */
 .qchip-more { cursor:pointer; font-weight:650; color:var(--ink); font:inherit; font-size:12px; }
 .qchip-more:hover { border-color:var(--accent); }
@@ -475,6 +572,10 @@ footer { background:linear-gradient(transparent,var(--chat) 24%); padding:10px 2
    window stays wide (measured: 1280x860 dragged put the input at 151px against a 200px floor
    once the dictate button joined the row), so the floor lives on the input itself. */
 #send, #dictateBtn, #voiceModeBtn { flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; }
+/* Send is the one button that must always read in full ("Sen" at 360px was measured). On a narrow
+   composer the switched-off voice buttons give their room back instead. */
+#send { flex-shrink:0; min-width:max-content; }
+@container composer (max-width:520px) { #dictateBtn:disabled, #voiceModeBtn:disabled { display:none; } }
 @media (max-width: 420px) {
   #input { min-width:120px; }
   #dictateBtn { padding: 0 4px; }
@@ -624,6 +725,14 @@ footer.att-drop { outline:2px dashed var(--accent); outline-offset:-6px; }
   #attachBtn { min-width:0; padding:5px 8px; }
 }
 .bypass-banner[hidden] { display:none; }
+.own-tools-banner { display:inline-flex; flex:0 1 auto; min-width:24px; align-items:center; gap:4px; color:var(--muted); font-size:11px; white-space:nowrap; }
+.own-tools-banner[hidden] { display:none; }
+.own-tools-banner .ot-mark { flex:0 0 auto; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; border:1px dashed var(--border); border-radius:50%; }
+.own-tools-banner .ot-mark svg { width:10px; height:10px; }
+.own-tools-banner .ot-text { overflow:hidden; text-overflow:ellipsis; max-width:130px; }
+.own-tools-banner button { flex:0 0 auto; width:24px; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; }
+.own-tools-banner button:hover { color:var(--ink); border-color:var(--accent); }
+@container composer (max-width:470px) { .own-tools-banner .ot-text { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; } }
 .bypass-banner button { flex:0 0 auto; width:24px; height:26px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:0; cursor:pointer; }
 .bypass-banner button:hover { color:var(--ink); border-color:var(--accent); }
 /* The popover grows UPWARD from a control sitting at the bottom of the window, so a long list ran
@@ -649,6 +758,7 @@ footer.att-drop { outline:2px dashed var(--accent); outline-offset:-6px; }
 .emoji-cell:hover { background:var(--active); }
 .emoji-cell.on { border-color:var(--accent); }
 .color-row { display:flex; gap:4px; margin-bottom:6px; }
+.color-name { color:var(--muted); font-size:11px; margin:-2px 0 6px; }
 .color-cell { flex:1 1 0; height:20px; border:1px solid #0006; border-radius:5px; cursor:pointer; padding:0; }
 .color-cell:hover { outline:2px solid var(--muted); outline-offset:1px; }
 .color-cell.on { outline:2px solid #fff; outline-offset:1px; }
@@ -717,11 +827,18 @@ body:not(.panel-open) #xpResize { display:none; }
 .cloud-list { max-height:230px; overflow-y:auto; }
 .local-list { max-height:230px; overflow-y:auto; }
 .pop-item.cloud-dyn, .pop-item.local-dyn { font-size:12px; }
-.pop-item.local-dyn .pi-body { display:flex; flex-direction:column; gap:1px; }
+.pop-item.local-dyn .pi-body, .pop-item.local-none .pi-body { display:flex; flex-direction:column; gap:1px; }
+#sideScrim { display:none; position:fixed; inset:0; z-index:19; background:rgba(0,0,0,.45); }
+#sideClose { display:none; align-items:center; justify-content:center; background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--muted); font:inherit; font-size:16px; line-height:1; padding:4px 8px; cursor:pointer; }
+#sideClose:hover { color:var(--ink); border-color:var(--accent); }
 @media (max-width: 720px) {
   #sidebar { position:fixed; left:0; top:0; bottom:0; z-index:20; box-shadow:2px 0 12px #0008; }
   body:not(.sidebar-open) #sidebar { display:none; }
   #menu { display:inline-flex; }
+  /* The open drawer covers the header's toggle, so it carries its own way out: a scrim that
+     closes it on tap, a close button in its head, and Esc (wired below). */
+  body.sidebar-open #sideScrim { display:block; }
+  #sideClose { display:inline-flex; }
 }
 
 /* ---- Search: chat transcript + Activity panel ---- */
@@ -736,8 +853,8 @@ body:not(.panel-open) #xpResize { display:none; }
 .search-btn { flex:0 0 auto; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:7px; padding:3px 8px; font:inherit; font-size:12px; line-height:1.2; cursor:pointer; }
 .search-btn:hover:not(:disabled) { color:var(--ink); border-color:var(--accent); }
 .search-btn:disabled { opacity:.45; cursor:default; }
-#searchBtn, #exportBtn { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:13px; cursor:pointer; margin-left:10px; }
-#searchBtn:hover, #searchBtn.on, #exportBtn:hover { color:var(--ink); border-color:var(--accent); }
+#searchBtn, #exportBtn, #councilBtn { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:13px; cursor:pointer; margin-left:10px; }
+#searchBtn:hover, #searchBtn.on, #exportBtn:hover, #councilBtn:hover { color:var(--ink); border-color:var(--accent); }
 mark.cs-hit { background:color-mix(in srgb,var(--accent) 38%,transparent); color:inherit; border-radius:3px; padding:0 1px; }
 mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .msg.cs-current-turn { box-shadow:0 0 0 2px var(--accent); }
@@ -750,7 +867,9 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .as-current { box-shadow:0 0 0 2px var(--accent); border-radius:6px; }
 
 /* ---- Live execution: status card ---- */
-:root { --paid-c:#f0b429; --warn:#f0b429; --bad:#f2545b; --ok:#2563FF; --or-c:#a78bfa; }
+/* Status colours come from the shared palette (core/ui_palette.py) so "ok" means the same colour
+   on every screen; this page only names its two extra roles. */
+:root { --paid-c:var(--warn); --or-c:#a99bc4; }
 #panelBtn { background:transparent; color:var(--accent); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:13px; cursor:pointer; margin-left:14px; }
 #panelBtn:hover, #panelBtn.on { border-color:var(--accent); }
 #pinBtn { display:inline-flex; align-items:center; gap:5px; background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:4px 10px; font:inherit; font-size:13px; cursor:pointer; margin-left:10px; }
@@ -852,6 +971,18 @@ mark.cs-hit.cs-active { background:var(--warn); color:#1a1205; }
 .tc-actions { display:flex; gap:8px; }
 .tc-view { background:transparent; color:var(--accent); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
 .tc-view:hover { border-color:var(--accent); }
+/* "Report a problem" on a failed turn: the same small outlined button as View activity, on its row. */
+.recovery-note { align-self:stretch; max-width:min(760px,92%); margin:0 auto; display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--border); border-left:3px solid var(--warn); border-radius:12px; background:var(--panel); color:var(--ink); font-size:13px; }
+.recovery-note > div { flex:1 1 260px; min-width:0; }
+.tc-report { background:transparent; color:var(--muted); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.tc-report:hover { color:var(--ink); border-color:var(--accent); }
+body.vool-offline .tc-report { display:none; }
+/* One calm line while the VOOL service cannot be reached; it clears itself when VOOL is back. */
+.offline-bar { display:flex; align-items:center; gap:10px; flex-shrink:0; padding:7px 16px; border-bottom:1px solid var(--border); background:var(--field); color:var(--ink); font-size:13px; }
+.offline-bar[hidden] { display:none; }
+.offline-bar .ob-text { flex:1 1 auto; min-width:0; }
+.offline-bar button { flex:0 0 auto; background:transparent; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font:inherit; font-size:12px; cursor:pointer; }
+.offline-bar button:hover { border-color:var(--accent); }
 .tc-summary { display:none; font-size:12px; color:var(--muted); }
 .task-card.done .tc-summary, .task-card.failed .tc-summary, .task-card.cancelled .tc-summary { display:block; }
 /* One response container: the status card lives INSIDE the assistant message. While running it
@@ -901,7 +1032,7 @@ body:not(.panel-open) #xpanel { display:none; }
 .pop-prov .pp-row b { color:var(--muted); font-weight:600; flex:0 0 auto; }
 .pop-prov .pp-row span { text-align:right; word-break:break-word; }
 .pop-prov .pp-paid { color:#fb923c; font-weight:700; }
-.pop-prov .pp-free { color:#34d399; }
+.pop-prov .pp-free { color:var(--ok); }
 .pop-prov .pp-unknown { color:#b3a284; font-weight:600; }
 /* Council control-room surfaces (truthful): no animated seats, no invented workers. */
 .council-live { border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px;
@@ -973,6 +1104,10 @@ body:not(.panel-open) #xpanel { display:none; }
 #bugReportBody .br-field > label:first-child { font-weight:600; font-size:12.5px; }
 #bugReportBody .br-field textarea, #bugReportBody .br-field input[type="text"], #bugReportBody .br-field select { width:100%; box-sizing:border-box; min-height:30px; }
 #bugReportBody .br-field textarea { min-height:64px; resize:vertical; }
+#bugReportBody .br-field textarea, #bugReportBody .br-field input[type="text"] { background:var(--bg); color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:7px 9px; font:inherit; font-size:13px; }
+#bugReportBody .br-field textarea:focus, #bugReportBody .br-field input[type="text"]:focus { outline:2px solid var(--accent); outline-offset:1px; }
+#bugReportBody .br-more { margin:6px 0; color:var(--muted); font-size:12.5px; }
+#bugReportBody .br-more summary { cursor:pointer; }
 #bugReportBody .br-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
 #bugReportBody .br-pre { white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
 .br-tech summary { color:var(--muted); font-size:11px; cursor:pointer; }
@@ -1056,6 +1191,8 @@ body:not(.panel-open) #xpanel { display:none; }
                 border-radius:10px; background:var(--bg-elev,#1a1a1e); font-size:13px; color:var(--muted,#9a9aa2); }
   .setup-line[hidden] { display:none; }
   .setup-line-text { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  /* On a narrow window the reminder wraps rather than losing its point to an ellipsis. */
+  @media (max-width:520px) { .setup-line { flex-wrap:wrap; } .setup-line-text { white-space:normal; flex-basis:100%; } }
   .setup-line-open { background:var(--accent,#4c7df0); border:1px solid var(--accent,#4c7df0); color:var(--accent-ink); border-radius:6px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:600; }
   .setup-line-x { background:none; border:none; color:var(--muted,#9a9aa2); cursor:pointer; font-size:16px; line-height:1; padding:2px 6px; }
   .setup-line-x:hover { color:var(--text,#eee); }
@@ -1067,21 +1204,23 @@ body:not(.panel-open) #xpanel { display:none; }
     <span class="side-title" data-i18n="sidebar.chats">Chats</span>
     <button id="newProject" type="button" title="New project &mdash; pick a folder; chats in it work in that folder and stay isolated" data-i18n="sidebar.new_project" data-i18n-title="sidebar.new_project_title">+ Project</button>
     <button id="newChat" data-i18n="sidebar.new_chat">+ New</button>
+    <button id="sideClose" type="button" aria-label="Close chats" title="Close chats">&times;</button>
   </div>
   <div id="sessions"></div>
   <div class="side-foot">
     <details id="homeMenu" class="home-menu">
-      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span aria-hidden="true">&#8962;</span> <span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
+      <summary id="homeToggle" aria-controls="homeOptions" title="Home — tools and settings" data-i18n-title="sidebar.home_title"><span class="vi" data-ico="home" aria-hidden="true"></span><span data-i18n="sidebar.home">Home</span> <span class="home-caret" aria-hidden="true">&#8963;</span></summary>
       <div id="homeOptions" class="home-options" role="group" aria-label="Home" data-i18n-aria-label="sidebar.home">
-        <button id="pluginsBtn" type="button" class="side-foot-btn" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
-        <button id="filesBtn" type="button" class="side-foot-btn" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">&#128193; Files</button>
-        <button id="contactsBtn" type="button" class="side-foot-btn" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">&#128100; Contacts</button>
-        <button id="settingsBtn" type="button" class="side-foot-btn" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">&#9881; Settings</button>
-        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
+        <button id="pluginsBtn" type="button" class="side-foot-btn vi" data-ico="addons" title="Browse and manage skills and plugins" data-i18n="sidebar.addons" data-i18n-title="sidebar.addons_title">Skills &amp; Plugins</button>
+        <button id="filesBtn" type="button" class="side-foot-btn vi" data-ico="files" title="Files &mdash; everything VOOL generated, across all chats" data-i18n="sidebar.files" data-i18n-title="sidebar.files_title">Files</button>
+        <button id="contactsBtn" type="button" class="side-foot-btn vi" data-ico="contacts" title="Contacts &mdash; the people and services you saved" data-i18n="sidebar.contacts" data-i18n-title="sidebar.contacts_title">Contacts</button>
+        <button id="settingsBtn" type="button" class="side-foot-btn vi" data-ico="settings" title="Settings" data-i18n="sidebar.settings" data-i18n-title="sidebar.settings_title">Settings</button>
+        <div class="home-support"><button id="reportBtn" type="button" class="side-foot-btn vi" data-ico="report" title="Report a problem &mdash; builds a sanitized local draft you approve byte-for-byte" data-i18n="sidebar.report" data-i18n-title="sidebar.report_title">Report a problem</button></div>
       </div>
     </details>
   </div>
 </aside>
+<div id="sideScrim" aria-hidden="true"></div>
 <div id="sideResize" title="Drag to resize the sidebar" data-i18n-title="chat.sidebar_resize"></div>
 <div id="main">
 <header>
@@ -1111,7 +1250,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
-  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i">&#128204;</span><span class="pin-n"></span></button>
+  <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
   <button id="panelBtn" type="button" aria-pressed="false" title="Show what VOOL did this turn — tools, files, tests, receipts" data-i18n="header.activity" data-i18n-title="header.activity_title">Activity</button>
@@ -1133,6 +1272,7 @@ body:not(.panel-open) #xpanel { display:none; }
        unconditionally), so the element was permanently hidden. /web0 and /trace are reachable from
        Settings -> Advanced, which is a link that actually works. -->
 </header>
+<div id="offlineBar" class="offline-bar" role="status" hidden><span class="ob-text" id="offlineText">VOOL isn&rsquo;t running right now. Your chats are safe. Reconnecting&hellip;</span><button type="button" id="offlineRetry">Try again</button></div>
 <div id="searchBar" class="search-bar" role="search" hidden>
   <input type="search" id="searchInput" class="search-field" placeholder="Search this chat — messages, answers, tool results" autocomplete="off" spellcheck="false" aria-label="Search this chat" data-i18n-placeholder="header.search_placeholder" data-i18n-aria-label="header.search_aria">
   <span id="searchCount" class="search-count" aria-live="polite"></span>
@@ -1142,15 +1282,17 @@ body:not(.panel-open) #xpanel { display:none; }
   <button type="button" id="searchClose" class="search-btn" title="Close search (Esc)" aria-label="Close search" data-i18n-title="header.search_close_title" data-i18n-aria-label="header.search_close_aria">&times;</button>
 </div>
 <div id="log" role="log" aria-live="polite" aria-label="Conversation" data-i18n-aria-label="chat.log_aria"></div>
+<div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
     <span class="setup-line-text" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
     <button type="button" class="setup-line-open" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
     <button type="button" class="setup-line-x" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
   </div>
+  <div id="queueWaiting" role="status"></div>
   <div id="queue" aria-label="Queued messages" data-i18n-aria-label="chat.queue_aria"></div>
   <div id="permBar" class="perm-bar" role="alertdialog" aria-label="Permission needed" data-i18n-aria-label="permissions.bar_aria" hidden>
-    <span class="perm-ico">&#128272;</span>
+    <span class="perm-ico vi" data-ico="lock" aria-hidden="true"></span>
     <span class="perm-copy"><span class="perm-msg" id="permMsg" data-i18n="permissions.bar_message">Permission needed</span><span class="perm-meta" id="permMeta"></span><span class="perm-detail" id="permDetail" hidden></span></span>
     <span class="perm-actions">
       <button type="button" id="permOnce" class="perm-btn" data-i18n="permissions.allow_once">Allow once</button>
@@ -1176,9 +1318,11 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" class="ctrl-btn mode-info" id="modeInfo" aria-haspopup="dialog" aria-expanded="false" aria-controls="modeHelpPop" aria-label="Explain the selected mode" data-i18n-aria-label="mode.info_aria">i</button>
       <div class="popover mode-help" id="modeHelpPop" role="dialog" aria-label="Selected mode permissions" data-i18n-aria-label="mode.help_aria"><b id="modeHelpTitle">Manual</b><span id="modeHelpText"></span></div>
     </div>
+    <div id="privateBanner" class="private-banner" hidden><span class="pb-ghost" id="privateBannerGhost" title="Private: this message was not saved" data-i18n-title="private.msg_title" aria-hidden="true"></span><span class="pb-text" data-i18n="private.banner">Private chat: nothing is saved</span><span class="pb-short" data-i18n="private.banner_short">Private</span><button type="button" id="privateEnd" title="Save this chat again from the next message" data-i18n-title="private.end_title"><span class="pb-end-long" data-i18n="private.end">Turn recording back on</span><span class="pb-end-short" data-i18n="private.end_short">Save again</span></button></div><span id="privateAnnounce" class="sr-only" aria-live="polite"></span>
+    <div id="ownToolsBanner" class="own-tools-banner" hidden title="The model's own tools are on: cloud models you choose don't get VOOL's tools, and some search the web themselves. Auto and local models keep VOOL's tools." data-i18n-title="own_tools.banner_title"><span class="ot-mark" aria-hidden="true"><svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6.6 1.4a2.4 2.4 0 0 0-2.9 3.1L1.4 6.8a.9.9 0 0 0 1.3 1.3L5 5.8a2.4 2.4 0 0 0 3.1-2.9L6.8 4.2 5.8 3.2z"/></svg></span><span class="ot-text" data-i18n="own_tools.banner">Model's own tools</span><button type="button" id="ownToolsEnd" aria-label="Turn off the model's own tools" title="Turn off the model's own tools" data-i18n-aria-label="own_tools.end_title" data-i18n-title="own_tools.end_title">&times;</button></div>
     <div id="bypassBanner" class="bypass-banner" role="status" hidden><span id="bypassBannerText" data-i18n="bypass.banner.active">Active</span><button type="button" id="bypassRevoke" aria-label="Revoke bypass permissions" title="Revoke bypass permissions" data-i18n-aria-label="bypass.revoke_aria" data-i18n-title="bypass.revoke_aria">&times;</button></div>
     <div class="ctrl" id="attachCtrl">
-      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico" aria-hidden="true">&#128206;</span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
+      <button type="button" class="ctrl-btn" id="attachBtn" title="Attach files or photos to this message" aria-label="Attach files or photos to this message" data-i18n-title="composer.attach_title" data-i18n-aria-label="composer.attach_aria"><span class="cb-ico vi" data-ico="attach" aria-hidden="true"></span> <span class="cb-lbl" data-i18n="composer.attach">Attach</span></button>
       <input type="file" id="attachInput" multiple hidden tabindex="-1" aria-hidden="true">
     </div>
     <div id="ctxBar" class="ctx-bar" aria-label="Current project and chat" data-i18n-aria-label="chat.ctx_aria"></div>
@@ -1191,9 +1335,9 @@ body:not(.panel-open) #xpanel { display:none; }
     <span id="attachHint" class="att-hint"></span>
   </div>
   <div class="composer-row">
-    <textarea id="input" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
-    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#127897;</span></button>
-    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph" aria-hidden="true">&#128266;</span></button>
+    <textarea id="input" dir="auto" aria-label="Message VOOL" data-i18n-placeholder="composer.placeholder" placeholder="Message VOOL &mdash; Enter to send, Shift+Enter for a new line" autofocus></textarea>
+    <button id="dictateBtn" type="button" title="Dictation is temporarily unavailable in this beta build — it returns in an update" aria-label="Dictation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="mic" aria-hidden="true"></span></button>
+    <button id="voiceModeBtn" type="button" title="Voice conversation is temporarily unavailable in this beta build — it returns in an update" aria-label="Voice conversation temporarily unavailable in this beta build" aria-pressed="false" disabled><span class="mic-glyph vi" data-ico="voice" aria-hidden="true"></span></button>
     <button id="send" data-i18n="composer.send">Send</button>
   </div>
   <div id="dictationNotice" hidden><div id="dictationNote" role="status" hidden></div><button id="dictationDismiss" type="button" aria-label="Dismiss speech notice permanently" title="Don't show this notice again">×</button></div>
@@ -1275,8 +1419,8 @@ body:not(.panel-open) #xpanel { display:none; }
       <button type="button" id="filesClose" class="modal-x" title="Close" aria-label="Close files">&times;</button>
     </div>
     <div class="modal-body">
-      <p class="set-help">Everything VOOL has generated on this machine &mdash; images, renders, docs &mdash; across every chat. Newest first; click a file to reveal it in Finder.</p>
-      <div class="files-controls">
+      <p class="set-help">Everything VOOL has generated on this machine &mdash; images, renders, docs &mdash; across every chat. Newest first; click a file to show it in its folder.</p>
+      <div class="files-controls" id="filesControls">
         <input type="search" id="filesSearch" class="plugins-search" placeholder="Search files&hellip;" autocomplete="off" spellcheck="false" aria-label="Search files">
         <select id="filesSort" class="files-sort" aria-label="Sort files">
           <option value="date">Newest</option>
@@ -1293,7 +1437,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="pinOverlay" class="modal-overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
     <div class="modal-head">
-      <span id="pinTitle">&#128204; Pinned in this chat</span>
+      <span id="pinTitle">Pinned in this chat</span>
       <button type="button" id="pinClose" class="modal-x" title="Close" aria-label="Close pinned">&times;</button>
     </div>
     <div class="modal-body" id="pinBody"></div>
@@ -1310,25 +1454,28 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="export-row">
         <label for="exportFormat">Format</label>
         <select id="exportFormat" aria-label="Export format">
-          <option value="md">Markdown (.md) — original message source, verbatim</option>
-          <option value="txt">Plain text (.txt) — original message source, verbatim</option>
-          <option value="pdf">PDF (.pdf)</option>
+          <option value="md">Markdown (.md)</option>
+          <option value="txt">Plain text (.txt)</option>
+          <option value="pdf">Document (.pdf)</option>
         </select>
       </div>
       <div class="export-row">
         <input type="checkbox" id="exportTimestamps">
-        <label for="exportTimestamps">Include timestamps <span class="export-note">(assistant completion times only — send times are not stored)</span></label>
+        <label for="exportTimestamps">Include times <span class="export-note">(when each answer arrived)</span></label>
       </div>
       <div class="export-row">
         <input type="checkbox" id="exportAttachments" checked>
-        <label for="exportAttachments">Include attachment references <span class="export-note">(names, kinds, sizes, outcomes — never file bytes)</span></label>
+        <label for="exportAttachments">List attached files <span class="export-note">(names only, not the files)</span></label>
       </div>
       <div class="export-preview" id="exportPreview">Counting…</div>
-      <div class="export-note">Exports the whole conversation from the server-side transcript — every message, not just what is on screen, with no hidden cut-off. Not included: model reasoning, tool/activity traces, and anything the store does not persist.</div>
+      <details class="export-more"><summary>What&rsquo;s in the file</summary>
+        <div class="export-note">Every message, not just what is on screen, with no hidden cut-off. Times are assistant completion times only (send times are not kept). Attached files are listed by name, kind and size, never file bytes. Left out: model reasoning, tool/activity traces and anything VOOL does not keep.</div>
+      </details>
+
       <div class="export-status" id="exportStatus" role="status"></div>
       <div class="export-actions">
         <button type="button" id="exportCancel" class="set-btn">Cancel</button>
-        <button type="button" id="exportGo" class="set-btn" style="color:var(--accent);border-color:var(--accent)">Export</button>
+        <button type="button" id="exportGo" class="set-btn" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">Export</button>
       </div>
     </div>
   </div>
@@ -1336,7 +1483,7 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="bugReportOverlay" class="modal-overlay" hidden>
   <div class="modal modal-lg" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
     <div class="modal-head">
-      <span id="bugReportTitle">&#128172; Report a problem</span>
+      <span id="bugReportTitle">Report a problem</span>
       <button type="button" id="bugReportClose" class="modal-x" title="Close" aria-label="Close bug report">&times;</button>
     </div>
     <div class="modal-body" id="bugReportBody"></div>
@@ -1478,6 +1625,7 @@ body:not(.panel-open) #xpanel { display:none; }
   </div>
 </div>
 <script>
+/*__VOOL_APPEARANCE_JS__*/
 // The sidebar's native disclosure groups existing actions without changing their handlers.
 (function wireHomeMenu() {
   const menu = document.getElementById('homeMenu');
@@ -1504,6 +1652,43 @@ body:not(.panel-open) #xpanel { display:none; }
   });
 })();
 const logEl = document.getElementById('log');
+// The browser tab tells someone working in another tab that VOOL is done or waiting on them, and
+// goes back to plain "VOOL" the moment they look. Only a real terminal state marks it.
+const TAB_TITLE = document.title || 'VOOL';
+function markTabTitle(kind) {
+  if (!document.hidden) return;
+  const word = kind === 'completed' ? pageT('chat.tab_answer_ready', 'Answer ready')
+    : kind === 'awaiting_approval' ? pageT('chat.tab_needs_you', 'Needs your OK')
+    : kind === 'failed' ? pageT('chat.tab_failed', 'Something went wrong') : '';
+  if (word) document.title = '\u25CF ' + word + ' \u00B7 ' + TAB_TITLE;
+}
+// Shortcut key caps say what to press on THIS machine: the handlers all accept Cmd or Ctrl, so a
+// Mac shows the command sign and Linux/Windows show "Ctrl+". Unknown platforms keep the sign.
+const VOOL_IS_MAC = (() => {
+  try {
+    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    return !p || /mac|iphone|ipad|ipod/i.test(p);
+  } catch (e) { return true; }
+})();
+function voolKeyLabel(text) { return VOOL_IS_MAC ? String(text) : String(text).replace(/\u2318\s?/g, 'Ctrl+'); }
+function voolKeyLabelsIn(root) {
+  if (VOOL_IS_MAC || !root) return;
+  root.querySelectorAll('kbd').forEach((k) => { if (k.textContent.indexOf('\u2318') !== -1) k.textContent = voolKeyLabel(k.textContent); });
+}
+// The conversation follows new text only while the reader is already at the bottom. Scrolling up
+// to read an earlier answer pins the view where the reader left it; the "Latest" button (shown
+// while they are scrolled away from the bottom) brings them back. Their own send always follows.
+const LOG_FOLLOW_SLACK = 80;
+let logFollowing = true;
+const jumpLatestEl = document.getElementById('jumpLatest');
+function logAtBottom() { return logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight <= LOG_FOLLOW_SLACK; }
+function syncJumpLatest() { if (jumpLatestEl) jumpLatestEl.hidden = logFollowing || logAtBottom(); }
+function followLog(force) {
+  if (force || logFollowing) { logEl.scrollTop = logEl.scrollHeight; logFollowing = true; }
+  syncJumpLatest();
+}
+logEl.addEventListener('scroll', () => { logFollowing = logAtBottom(); syncJumpLatest(); }, { passive: true });
+if (jumpLatestEl) jumpLatestEl.addEventListener('click', () => followLog(true));
 const inputEl = document.getElementById('input');
 const sendEl = document.getElementById('send');
 // Catalog lookup for the composer's own words: the deterministic i18n bundle resolves the
@@ -1699,10 +1884,10 @@ function paintChatSearchCount(matched, query) {
   if (!searchCountEl) return;
   if (!query) { searchCountEl.textContent = ''; searchCountEl.className = 'search-count'; }
   else if (query.length < SEARCH_MIN_CHARS) {
-    searchCountEl.textContent = 'type ' + SEARCH_MIN_CHARS + '+ characters';
+    searchCountEl.textContent = pageTF('chat.search_type_more', 'type {n}+ characters', { n: SEARCH_MIN_CHARS });
     searchCountEl.className = 'search-count';
   } else if (!matched) {
-    searchCountEl.textContent = 'no matches';
+    searchCountEl.textContent = pageT('chat.search_no_matches', 'no matches');
     searchCountEl.className = 'search-count none';
   } else {
     searchCountEl.textContent = (chatSearchIndex + 1) + ' / ' + matched;
@@ -1788,8 +1973,8 @@ function paintActivityCount(matched, query) {
   const prev = document.getElementById('xpSearchPrev'), next = document.getElementById('xpSearchNext');
   if (countEl) {
     if (!query) { countEl.textContent = ''; countEl.className = 'search-count'; }
-    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = SEARCH_MIN_CHARS + '+ chars'; countEl.className = 'search-count'; }
-    else if (!matched) { countEl.textContent = 'none'; countEl.className = 'search-count none'; }
+    else if (query.length < SEARCH_MIN_CHARS) { countEl.textContent = pageTF('chat.search_chars_min', '{n}+ chars', { n: SEARCH_MIN_CHARS }); countEl.className = 'search-count'; }
+    else if (!matched) { countEl.textContent = pageT('chat.search_none', 'none'); countEl.className = 'search-count none'; }
     else { countEl.textContent = (activityIndex + 1) + ' / ' + matched; countEl.className = 'search-count'; }
   }
   if (prev) prev.disabled = !matched;
@@ -1870,7 +2055,7 @@ function isLocalOnlyMode() { return modelValue === LOCAL_ONLY_MODEL; }
 // providers use), a vendor/name[:tag] slug, or either with an optional provider: prefix. Friendly
 // labels are filled in as the catalog loads; the raw id is the safe fallback. NOTE: this matches
 // bare ids, so any check that must EXCLUDE the local tiers pairs it with !MODEL_LABELS[modelValue].
-const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)?(?::[A-Za-z0-9._-]+)?$/;
+const CLOUD_MODEL_ID_RE = /^(?:[a-z0-9_-]+:)?(?!(?:[^\/]*\/)*\.{1,2}(?:[\/:]|$))[A-Za-z0-9._@-]+(?:\/[A-Za-z0-9._@-]+){0,4}(?::[A-Za-z0-9._-]+)?$/;
 const CLOUD_MODEL_LABELS = {};
 // Id -> catalog row for every row served by /api/cloud/models this session. The
 // send-time paid-pin guard reads the SAME server catalog verdicts, never its own guess.
@@ -1958,6 +2143,8 @@ function mintSessionId() {
 // state, not a variable name.
 const bootChatId = (() => {
   let stored = localStorage.getItem('vool.sessionId');
+  // A chat address (/chat#<chat>) wins, so a reload or a saved link opens that chat.
+  try { const fromUrl = decodeURIComponent(String(location.hash || '').slice(1)); if (CANONICAL.test(fromUrl)) { stored = fromUrl; localStorage.setItem('vool.sessionId', stored); } } catch (e) {}
   if (!stored || !CANONICAL.test(stored)) {
     stored = mintSessionId();
     localStorage.setItem('vool.sessionId', stored);
@@ -2066,6 +2253,8 @@ function setDisplayedChat(chatId) {
   if (previousChat && previousChat !== String(chatId || '') && typeof closeBypassModal === 'function') closeBypassModal();
   displayedChat = String(chatId || '');
   view = chatState(displayedChat);
+  // The address follows the chat on screen (replaced, not pushed, so Back history is not flooded).
+  try { if (CANONICAL.test(displayedChat) && location.hash !== '#' + displayedChat) history.replaceState(null, '', '#' + displayedChat); } catch (e) {}
   // Named fragment call site: per-chat composer state (drafts, accent) follows the ONE place the
   // displayed chat is allowed to change. Guarded — the fragment may not be mounted.
   if (window.VoolComposerExtras && previousChat !== displayedChat) {
@@ -2124,23 +2313,116 @@ function recordUserMessage(chatId, text, tsIso, attachments) {
 // the reload after a failed send -- replaces that list wholesale and would drop a row the server
 // does not know about yet. The overlay is removed the moment the server reports the chat itself.
 const _pendingSessions = new Map();
+// Cut by characters (so an emoji is never split) and at a word boundary when one is close, with
+// an ellipsis, instead of chopping mid-word.
+function shortTitle(text, max) {
+  const chars = Array.from(String(text || '').replace(/\s+/g, ' ').trim());
+  if (chars.length <= max) return chars.join('');
+  let cut = chars.slice(0, max).join('');
+  const sp = cut.lastIndexOf(' ');
+  if (sp > max * 0.6) cut = cut.slice(0, sp);
+  return cut.replace(/[\s,.;:!?-]+$/, '') + '\u2026';
+}
 function ensureSessionInSidebar(chatId, firstMessage) {
   if (!chatId || _pendingSessions.has(chatId)) return;
   if (_lastSessions.some((s) => s.session_id === chatId && !s.pending)) return;
-  const title = String(firstMessage || '').split('\n')[0].trim().slice(0, 60);
+  const title = shortTitle(String(firstMessage || '').split('\n')[0], 60);
   _pendingSessions.set(chatId, {
     session_id: chatId,
-    title: title || '(new chat)',
+    title: title || pageT('session.new_chat', '(new chat)'),
     project_id: view.projectId || '',
     archived: false,
     pending: true,
   });
+  // The server already said this chat is private and nothing of it is saved (reopened after a
+  // reload): its row is the private one from the start, so the words just typed (the last history
+  // entry) never title it. The turn's commit corrects it if the message turns out to be saved.
+  const st = chatState(chatId);
+  if (st.privateChat && st.history.slice(0, -1).every((m) => m.role !== 'user' || isPrivateEntry(m))) {
+    markPendingSessionPrivate(chatId, true);
+    return;
+  }
   renderSessions(_lastSessions);
 }
+// A chat that started private (core.private_chat) is never in the server's chat list: it has no
+// saved message and no chat record. Its overlay row stays on this page only, named by the private
+// label rather than by the words typed, offers no action that would save something about it, and is
+// gone after a reload. The first saved turn makes the server's own row, which replaces it.
+function markPendingSessionPrivate(chatId, isPrivate, savedText) {
+  const row = _pendingSessions.get(chatId);
+  if (!row || !!row.private === !!isPrivate) return;
+  if (isPrivate) {
+    row.private = true;
+    row.title = pageT('private.banner_short', 'Private');
+  } else {
+    delete row.private;
+    row.title = String(savedText || '').split('\n')[0].trim().slice(0, 60) || '(new chat)';
+  }
+  renderSessions(_lastSessions);
+}
+// A chat exists on the server only once its first turn ends, so a rename (or archive) made while
+// that first answer is still running met a 404 and was silently lost. Such a change is held here
+// and sent the moment the server reports the chat; until then the pending row shows it.
+const _queuedSessionPatches = new Map();
+// Chats the user deleted. A delete issued while the first answer was still running can be
+// overtaken by that turn persisting the chat afterwards; the tombstone keeps the row out of the
+// list (and out of every badge) and re-sends the delete when the server reports it again.
+const _deletedChats = new Map();   // id -> re-delete attempts made
+// One held change per chat, sent once that chat's answer has finished. The server can list a
+// chat before it accepts changes to it, so a 404 is retried a few times with a growing pause
+// instead of on every sidebar refresh (which turned one rename into dozens of failing requests).
+const _patchRetry = new Map();     // id -> { tries, next, inflight, timer }
+function flushQueuedPatch(id) {
+  const patch = _queuedSessionPatches.get(id);
+  if (!patch) return;
+  const st = _patchRetry.get(id) || { tries: 0, next: 0, inflight: false, timer: null };
+  _patchRetry.set(id, st);
+  const cs = chatStates[String(id)];
+  const answering = !!(cs && cs.run && !cs.run.ended);
+  if (st.inflight) return;
+  if (answering || Date.now() < st.next) {
+    // Look again later (a local check, no request) so the change goes out soon after the answer ends.
+    if (!st.timer) st.timer = setTimeout(() => { st.timer = null; flushQueuedPatch(id); }, answering ? 2000 : Math.max(500, st.next - Date.now()));
+    return;
+  }
+  st.inflight = true;
+  _queuedSessionPatches.delete(id);
+  postSessionNow(id, patch).then((res) => {
+    st.inflight = false;
+    if (res.ok) { _patchRetry.delete(id); loadSessions(); return; }
+    if ((res.status === 404 || res.status === 0) && st.tries < 5) {
+      st.tries += 1;
+      const wait = Math.min(30000, 1500 * Math.pow(2, st.tries));
+      st.next = Date.now() + wait;
+      _queuedSessionPatches.set(id, Object.assign({}, patch, _queuedSessionPatches.get(id) || {}));
+      if (st.timer) clearTimeout(st.timer);
+      st.timer = setTimeout(() => { st.timer = null; flushQueuedPatch(id); }, wait);
+      return;
+    }
+    _patchRetry.delete(id);
+    toast(res.status === 0 ? "VOOL couldn't be reached, so the new chat name wasn't saved. Try renaming it again."
+      : "Couldn't save the new chat name. Try renaming it again.");
+    loadSessions();
+  });
+}
 function mergePendingSessions(sessions) {
-  const server = (sessions || []).filter((s) => !s.pending);
+  let server = (sessions || []).filter((s) => !s.pending);
+  server.forEach((row) => {
+    const tries = _deletedChats.get(row.session_id);
+    if (tries != null && tries < 3) {
+      _deletedChats.set(row.session_id, tries + 1);
+      postSession(row.session_id, { delete: true }).then((res) => { if (res.ok) loadSessions(); });
+    }
+  });
+  server = server.filter((row) => !_deletedChats.has(row.session_id));
   const known = new Set(server.map((s) => s.session_id));
-  _pendingSessions.forEach((_row, id) => { if (known.has(id)) _pendingSessions.delete(id); });
+  _pendingSessions.forEach((_row, id) => { if (known.has(id) || _deletedChats.has(id)) _pendingSessions.delete(id); });
+  server = server.map((row) => {
+    const patch = _queuedSessionPatches.get(row.session_id);
+    if (!patch) return row;
+    flushQueuedPatch(row.session_id);
+    return Object.assign({}, row, patch.title != null && String(patch.title).trim() ? { title: String(patch.title).trim() } : {});
+  });
   return [..._pendingSessions.values()].concat(server);
 }
 function splitAssistantDisplayContent(text, metadata) {
@@ -2157,7 +2439,9 @@ function splitAssistantDisplayContent(text, metadata) {
   return { content: content, display_metadata: displayMetadata };
 }
 function canonicalMessagesForModel(history) {
-  return (history || []).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
+  // Messages brought in from another app are history to read, never model input: they are
+  // left out here, so continuing such a chat sends only what was said in VOOL.
+  return (history || []).filter((m) => !(m && m.imported)).map((m) => ({ role: m.role, content: String((m && m.content) || '') }));
 }
 function applyResponseCommit(run, commit) {
   if (!run || !commit || commit.type !== 'response.commit' || Number(commit.version) < 1) return false;
@@ -2215,6 +2499,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // The ids of the attachments THIS turn staged, and only when there are any: a text-only turn
     // carries no attachment field at all, so its body is byte-identical to a build without them.
     ...(run.attachments && run.attachments.length ? { attachments: run.attachments.map((a) => String(a.id)) } : {}),
+    // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
+    // still keeps this message unsaved, because the person sent it believing it would be.
+    ...(owner.privateChat ? { private_chat: true } : {}),
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -2310,7 +2597,9 @@ fetch('/api/runtime/version').then((r) => r.json()).then((v) => {
   const commit = (v.commit || '').slice(0, 7);
   const dirty = !!v.dirty;
   const source = commit ? commit + (dirty ? '+dirty' : '') : (dirty ? 'dirty' : '');
-  verEl.textContent = 'v' + rel + (source ? ' (' + source + ')' : '');
+  // The release is what a person reads; the commit is shown only when the runtime is NOT the clean
+  // build it names (uncommitted changes), and the full identity stays on the title.
+  verEl.textContent = 'v' + rel + (dirty && source ? ' (' + source + ')' : '');
   verEl.title = v.build_id || verEl.textContent;
   maybeReloadForNewBuild(v.commit || '');
 }).catch(() => {});
@@ -2343,6 +2632,22 @@ function emptyT(key, fallback) {
   return fallback;
 }
 
+// A chat whose transcript could not be read because VOOL is not reachable. Drawing the empty
+// greeting there made the chat look deleted; this says what is going on and offers a retry.
+function showLoadFailed(chatId) {
+  if (!logEl || !isDisplayed(chatId)) return;
+  logEl.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'empty load-failed'; box.setAttribute('role', 'status');
+  const h = document.createElement('div'); h.className = 'load-failed-title';
+  h.textContent = "Couldn\u2019t load this chat right now.";
+  const p = document.createElement('div'); p.className = 'load-failed-text';
+  p.textContent = "VOOL isn\u2019t reachable at the moment. Your chat is safe and will show again once VOOL is back.";
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'tc-view'; b.textContent = 'Try again';
+  b.addEventListener('click', () => openSession(chatId));
+  box.appendChild(h); box.appendChild(p); box.appendChild(b);
+  logEl.appendChild(box);
+}
 function showEmpty() {
   // Time-aware greeting + a rotating opener so a new chat never opens on a blank screen.
   const h = new Date().getHours();
@@ -2387,9 +2692,17 @@ function showEmpty() {
     ['first_run.fact_20', 'Bigger is not always better — a small local model answers everyday questions instantly.'],
   ];
   const fact = facts[Math.floor(Math.random() * facts.length)];
+  // Three first steps a new person can take with one tap. Each only fills the message box -- it
+  // never sends -- so the model, mode and every approval stay exactly what the person chose.
+  const starts = [
+    ['first_run.start_what_can_you_do', 'What can you do?'],
+    ['first_run.start_plan_my_day', 'Help me plan my day'],
+    ['first_run.start_explain', 'Explain something to me simply'],
+  ];
   logEl.innerHTML = '<div class="empty">'
     + '<div class="empty-greet">' + esc(greet) + '</div>'
     + '<div class="empty-sub">' + esc(line) + '</div>'
+    + '<div class="empty-starts">' + starts.map((st) => { const t = emptyT(st[0], st[1]); return '<button type="button" class="empty-start" data-start="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>'
     + '<div class="empty-hint">“' + esc(emptyT(fact[0], fact[1])) + '”</div>'
     + '</div>';
 }
@@ -2425,6 +2738,7 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   if (role === 'user' && Array.isArray(attachments) && attachments.length) el.appendChild(buildMsgAttachments(attachments));
   const span = document.createElement('span');
   span.className = 'msg-text';
+  span.dir = 'auto';   // right-to-left messages keep their own direction and punctuation
   if (role === 'assistant') { renderAssistantContent(span, text, displayMetadata); } else { span.textContent = text; span.dataset.raw = text; }
   el.appendChild(span);
   // The Proof Chip hangs off the assistant bubble by this message's canonical request id.
@@ -2471,6 +2785,24 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
       actions.appendChild(copyRichBtn);
     }
   }
+  // Try again (answers) and Edit (your own messages) both go back through the ordinary composer
+  // and send(): the same rules, approvals, paid-model confirmation, spend caps and receipts apply
+  // as to any typed message, and the earlier turn stays in the chat exactly as it happened.
+  if (role === 'assistant') {
+    const retry = document.createElement('button');
+    retry.type = 'button'; retry.className = 'msg-act msg-retry';
+    retry.textContent = pageT('msg.retry', 'Try again');
+    retry.title = pageT('msg.retry_title', 'Ask the same question again as a new message');
+    retry.addEventListener('click', () => resendFromBubble(el, true));
+    actions.insertBefore(retry, actions.firstChild);   // the main action comes first
+  } else if (role === 'user') {
+    const edit = document.createElement('button');
+    edit.type = 'button'; edit.className = 'msg-act msg-edit';
+    edit.textContent = pageT('msg.edit', 'Edit');
+    edit.title = pageT('msg.edit_title', 'Put this message back in the box to change it and send it again');
+    edit.addEventListener('click', () => resendFromBubble(el, false));
+    actions.insertBefore(edit, actions.firstChild);
+  }
   // Pin: save this message to the chat so it's findable later (📌 in the header opens the pinned list).
   const pin = document.createElement('button');
   pin.type = 'button'; pin.className = 'msg-act msg-pin';
@@ -2479,12 +2811,148 @@ function addMsg(role, text, tsIso, displayMetadata, attachments, requestId) {
   actions.appendChild(pin);
   el.appendChild(actions);
   if (role === 'assistant' && requestId) mountAnswerExport(el, displayedChat, requestId);
+  if (displayMetadata && displayMetadata.private_chat) markPrivateMsg(el);
   logEl.appendChild(el);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(role === 'user');   // the reader's own message always brings them down; replies follow only if they were there
   return el;
 }
 
 function msgTextEl(el) { return el.querySelector('.msg-text'); }
+
+// ---- Private chat (core.private_chat) ----
+// "private chat" / "don't record this" turns it on; "turn recording back on" ends it. The server owns
+// the switch: the page learns it from the turn's commit (display_metadata.private_chat and
+// private_chat_on) and from the transcript read (private_chat). Every message of a private turn --
+// the user's and VOOL's -- wears the ghost, and loses the actions that would save a copy (pin,
+// report, export). Nothing from those turns is in the server's transcript, so a reload shows the
+// chat without them: that is the record being what the ghost said it would be.
+const GHOST_SVG = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">'
+  + '<path fill="currentColor" fill-rule="evenodd" d="M8 1.5C5.2 1.5 3 3.7 3 6.5V14l1.7-1.2L6.3 14 8 12.8 9.7 14l1.6-1.2L13 14V6.5c0-2.8-2.2-5-5-5zM5.6 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0zM8.5 6.7a.95.95 0 1 0 1.9 0 .95.95 0 1 0-1.9 0z"/></svg>';
+function markPrivateMsg(el) {
+  if (!el || el.classList.contains('is-private')) return;
+  el.classList.add('is-private');
+  // A button, so its meaning is one tap (or Enter) away on a phone or keyboard, not hover only.
+  const g = document.createElement('button');
+  g.type = 'button';
+  g.className = 'msg-ghost';
+  g.innerHTML = GHOST_SVG;
+  const label = pageT('private.msg_title', 'Private: this message was not saved');
+  g.title = label; g.setAttribute('aria-label', label);
+  g.addEventListener('click', (e) => { e.stopPropagation(); toast(label); });
+  el.insertBefore(g, el.firstChild);
+}
+function unmarkPrivateMsg(el) {
+  if (!el || !el.classList.contains('is-private')) return;
+  el.classList.remove('is-private');
+  const g = el.querySelector(':scope > .msg-ghost'); if (g) g.remove();
+}
+function isPrivateEntry(m) { return !!(m && (m.private || (m.display_metadata && m.display_metadata.private_chat))); }
+// The quiet line under the reply that ends private chat: what follows it is saved again.
+function privateDivider() {
+  const d = document.createElement('div');
+  d.className = 'private-divider'; d.setAttribute('role', 'separator');
+  d.textContent = pageT('private.saving_again', 'Saving again from here');
+  return d;
+}
+// Applies one committed private turn to its chat: both bubbles and both transcript entries get the
+// mark, and the chat's switch follows what the server says it is now.
+// The server is the only source: a message is marked from its own turn's commit, never from what
+// this tab last believed (another tab may have ended private chat since). A commit that is not
+// private says the chat is being saved, so this tab's banner follows it too.
+function applyPrivateCommit(run, meta) {
+  if (!run) return;
+  const owner = ownerOf(run);
+  const userEntry = run.userHistoryIndex >= 0 ? owner.history[run.userHistoryIndex] : null;
+  if (!meta || !meta.private_chat) {
+    if (userEntry) delete userEntry.private;
+    withRunDom(run, () => unmarkPrivateMsg(run.userMsgEl));
+    if (owner.privateChat) { owner.privateChat = false; if (isDisplayed(run.chatId)) reflectPrivate(); }
+    markPendingSessionPrivate(run.chatId, false, userEntry && userEntry.content);
+    return;
+  }
+  // Only a chat with no saved message: one that was saved first is the server's row by now, or
+  // will be, and keeps its title.
+  if (owner.history.every((m) => m.role !== 'user' || m === userEntry || m.private)) markPendingSessionPrivate(run.chatId, true);
+  run.private = true;
+  if (userEntry) userEntry.private = true;
+  owner.privateChat = !!meta.private_chat_on;
+  withRunDom(run, () => {
+    markPrivateMsg(run.userMsgEl); markPrivateMsg(run.assistantMsgEl);
+    if (!owner.privateChat && run.assistantMsgEl && !(run.assistantMsgEl.nextElementSibling || {}).classList?.contains('private-divider')) {
+      run.assistantMsgEl.after(privateDivider());
+    }
+  });
+  if (isDisplayed(run.chatId)) reflectPrivate();
+}
+// Another tab (or window) may have switched private chat since this one last heard: re-read the
+// server's answer when this tab comes back into view, so the banner never promises what isn't so.
+async function refreshPrivateState() {
+  const chatId = displayedChat;
+  if (!chatId || document.hidden) return;
+  try {
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
+    const data = await r.json();
+    const on = !!(data && data.private_chat);
+    if (chatState(chatId).privateChat !== on) { chatState(chatId).privateChat = on; if (isDisplayed(chatId)) reflectPrivate(); }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', refreshPrivateState);
+window.addEventListener('focus', refreshPrivateState);
+function reflectPrivate() {
+  const banner = document.getElementById('privateBanner');
+  if (!banner) return;
+  const ghost = document.getElementById('privateBannerGhost');
+  if (ghost && !ghost.innerHTML) ghost.innerHTML = GHOST_SVG;
+  const on = !!view.privateChat;
+  if (!on) document.querySelectorAll('#log .private-note').forEach((n) => n.remove());
+  if (banner.hidden === on) {
+    banner.hidden = !on;
+    // Said once when it changes within the same chat, so a screen reader hears it; showing a
+    // hidden node is not enough. Moving to another chat is not "saving again".
+    const say = document.getElementById('privateAnnounce');
+    if (say && reflectPrivate.chat === displayedChat) say.textContent = on ? pageT('private.banner', 'Private chat: nothing is saved') : pageT('private.saving_again', 'Saving again from here');
+  }
+  reflectPrivate.chat = displayedChat;
+}
+function endPrivateChat() {
+  const chatId = displayedChat;
+  if (!chatState(chatId).privateChat) return;
+  if (isChatBusy(chatId) || councilOwnsComposer()) { toast(pageT('private.wait', 'Wait for the current answer to finish, then try again.')); return; }
+  // The command stays in English on purpose: it is the words the server's switch reads.
+  runTurn('turn recording back on', null, { chatId: chatId });
+}
+// The words of the user message a bubble belongs to: the bubble itself for a user message, the
+// nearest user message above it for an answer. Attachment markers stay with the original message.
+// The question behind a bubble: its words, and whether it also carried files or a pasted document
+// (those are not re-attached automatically, so a resend must never quietly go out without them).
+function questionFor(el) {
+  let node = el;
+  while (node && !(node.classList && node.classList.contains('msg') && node.classList.contains('user'))) node = node.previousElementSibling;
+  const span = node ? msgTextEl(node) : null;
+  if (!span) return { text: '', hadFiles: false };
+  const raw = span.dataset.raw != null ? span.dataset.raw : span.textContent;
+  const text = textWithoutMarkers(raw);
+  return { text: text, hadFiles: text.trim() !== String(raw || '').trim() || !!node.querySelector('.msg-att') };
+}
+function questionTextFor(el) { return questionFor(el).text; }
+// Never overwrite what the person is in the middle of typing or attaching: a busy box refuses.
+function resendFromBubble(el, sendNow) {
+  if (inputEl.value.trim() || attachBucket(displayedChat).length) {
+    toast(pageT('msg.retry_box_busy', 'Your message box already has something in it. Send or clear it first.'));
+    inputEl.focus();
+    return;
+  }
+  const q = questionFor(el), text = q.text;
+  if (!text) { toast(pageT('msg.retry_nothing', 'That message had only attachments. Attach them again to ask again.')); return; }
+  inputEl.value = text;
+  inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+  // Files are not re-attached: the words wait in the box and nothing is sent until the person
+  // adds the files again (or decides to send without them).
+  if (q.hadFiles) toast(pageT('msg.retry_files_again', 'Your words are back in the box. Attach the files again, then send.'));
+  if (sendNow && !q.hadFiles) { send(); return; }
+  inputEl.focus();
+  inputEl.setSelectionRange(text.length, text.length);
+}
 
 // ---- Pinned messages: save an answer in a long chat, find it again from the header 📌 ----
 function isPinnedLocal(role, text) { const t = (text || '').trim(); return view.pins.some((p) => p.role === role && p.text === t); }
@@ -2512,6 +2980,16 @@ async function togglePin(role, text, btn) {
   if (btn) setPinBtn(btn, isPinnedLocal(role, clean));
   updatePinCount(); renderPinPanel();
 }
+// The message on screen that a pin was made from, matched the same way the Pin buttons match.
+function pinnedMessageEl(p) {
+  const want = String(p.text || '').trim();
+  const all = Array.from(document.querySelectorAll('#log .msg'));
+  return all.find((el) => {
+    if ((el.classList.contains('assistant') ? 'assistant' : 'user') !== p.role) return false;
+    const t = msgTextEl(el); if (!t) return false;
+    return String(t.dataset.raw != null ? t.dataset.raw : t.textContent).trim() === want;
+  }) || null;
+}
 function openPinPanel() { const o = document.getElementById('pinOverlay'); if (o) { o.hidden = false; renderPinPanel(); } }
 function closePinPanel() { const o = document.getElementById('pinOverlay'); if (o) o.hidden = true; }
 function renderPinPanel() {
@@ -2524,9 +3002,23 @@ function renderPinPanel() {
   }
   for (const p of view.pins) {
     const card = document.createElement('div'); card.className = 'pin-card';
-    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : 'You';
-    const txt = document.createElement('div'); txt.className = 'pin-text'; txt.textContent = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
+    const meta = document.createElement('div'); meta.className = 'pin-meta'; meta.textContent = p.role === 'assistant' ? 'VOOL' : pageT('pin.you', 'You');
+    const txt = document.createElement('div'); txt.className = 'pin-text';
+    const shown = p.text.length > 800 ? (p.text.slice(0, 800) + '…') : p.text;
+    // An answer is drawn the way the chat draws it (no raw Markdown marks); your own words stay as typed.
+    if (p.role === 'assistant') renderRichText(txt, shown); else txt.textContent = shown;
     const row = document.createElement('div'); row.className = 'pin-row';
+    const target = pinnedMessageEl(p);
+    if (target) {
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'pin-btn2'; go.textContent = 'Show in chat';
+      go.addEventListener('click', () => {
+        closePinPanel();
+        try { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { target.scrollIntoView(); }
+        target.classList.add('pin-flash');
+        setTimeout(() => target.classList.remove('pin-flash'), 1800);
+      });
+      row.appendChild(go);
+    }
     const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'pin-btn2'; copy.textContent = pageT('msg.copy', 'Copy'); copy.addEventListener('click', () => copyText(p.text, copy));
     const un = document.createElement('button'); un.type = 'button'; un.className = 'pin-btn2'; un.textContent = pageT('pin.unpin', 'Unpin'); un.addEventListener('click', () => unpinFromPanel(p.id));
     row.appendChild(copy); row.appendChild(un);
@@ -2544,7 +3036,7 @@ async function unpinFromPanel(pinId) {
 }
 
 function copyText(text, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, btn, done));
   } else {
@@ -2570,7 +3062,7 @@ function fallbackCopy(text, btn, done) {
 // hardcoded English "Copy"; remembered once so a second failure inside the window cannot stick.
 function copiedFail(btn) {
   if (btn.dataset.copyLabel == null) btn.dataset.copyLabel = btn.textContent;
-  btn.textContent = 'Copy failed';
+  btn.textContent = (typeof pageT === 'function') ? pageT('msg.copy_failed', 'Copy failed') : 'Copy failed';
   setTimeout(() => { btn.textContent = btn.dataset.copyLabel; }, 1200);
 }
 
@@ -2597,7 +3089,7 @@ function richHtmlFor(raw) {
 }
 
 function copyRichMessage(raw, btn) {
-  const done = () => { const prev = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
+  const done = () => { const prev = btn.textContent; btn.textContent = (typeof pageT === 'function') ? pageT('msg.copied', 'Copied') : 'Copied'; setTimeout(() => { btn.textContent = prev; }, 1200); };
   let html = '';
   try { html = richHtmlFor(raw); } catch (e) { html = ''; }
   if (!html || typeof window.ClipboardItem !== 'function' || !(navigator.clipboard && navigator.clipboard.write)) { copyText(raw, btn); return; }
@@ -2677,9 +3169,9 @@ function requestTextInput(message, initialValue = '') {
   dialog.innerHTML = '<form method="dialog"><div class="modal-body">'
     + '<label id="textPromptLabel" for="textPromptValue"></label>'
     + '<input id="textPromptValue" type="text" autocomplete="off">'
-    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>Cancel</button>'
-    + '<button type="submit" class="set-btn">OK</button></div></div></form>';
-  dialog.querySelector('label').textContent = String(message || 'Enter a value');
+    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel>' + pageT('xsetup.cancel', 'Cancel') + '</button>'
+    + '<button type="submit" class="set-btn">' + pageT('chat.prompt_ok', 'OK') + '</button></div></div></form>';
+  dialog.querySelector('label').textContent = String(message || pageT('chat.prompt_enter_value', 'Enter a value'));
   const input = dialog.querySelector('input'); input.value = String(initialValue == null ? '' : initialValue);
   document.body.appendChild(dialog);
   return new Promise((resolve) => {
@@ -2697,6 +3189,53 @@ function requestTextInput(message, initialValue = '') {
     dialog.showModal(); input.focus(); input.select();
   });
 }
+// A yes/no question in VOOL's own calm dialog, not the browser's plain confirm box (which the
+// native shell's web view may not implement at all). Resolves true only on the explicit confirm
+// button; Cancel, Esc and closing all resolve false. Focus starts on Cancel, so a stray Enter
+// never deletes anything. Caller text is set as text, never as HTML.
+// A chat or project name inside a question: its own trailing full stop or question mark dropped
+// (no "“Plans.”?"), and isolated so a right-to-left sentence never moves its punctuation.
+function confirmName(name) {
+  const whole = String(name || '').trim();
+  // A name that is nothing BUT punctuation ("???") keeps it rather than showing empty quotes.
+  return '\u2068' + (whole.replace(/[\s.!?,;:\u2026\u3002\uff01\uff1f]+$/u, '') || whole) + '\u2069';
+}
+function requestConfirm(title, detail, confirmLabel) {
+  if (document.getElementById('confirmPromptDialog')) return Promise.resolve(false);
+  const previousFocus = document.activeElement;
+  const dialog = document.createElement('dialog');
+  dialog.id = 'confirmPromptDialog'; dialog.className = 'modal text-prompt confirm-prompt';
+  dialog.setAttribute('aria-labelledby', 'confirmPromptTitle');
+  dialog.setAttribute('aria-describedby', 'confirmPromptDetail');
+  dialog.innerHTML = '<form method="dialog"><div class="modal-body">'
+    + '<div id="confirmPromptTitle" class="confirm-title"></div>'
+    + '<p id="confirmPromptDetail" class="confirm-detail"></p>'
+    + '<div class="export-actions"><button type="button" class="set-btn" data-cancel></button>'
+    + '<button type="submit" class="set-btn confirm-yes"></button></div></div></form>';
+  dialog.querySelector('.confirm-title').textContent = String(title || '');
+  dialog.querySelector('.confirm-detail').textContent = String(detail || '');
+  const cancel = dialog.querySelector('[data-cancel]');
+  cancel.textContent = pageT('dialog.cancel', 'Cancel');
+  dialog.querySelector('.confirm-yes').textContent = String(confirmLabel || 'OK');
+  document.body.appendChild(dialog);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return; settled = true;
+      dialog.close(); dialog.remove();
+      // Back to where the person was; a control that is hidden again (sidebar row actions show only
+      // on hover) cannot take focus, so the message box takes it instead of nothing.
+      if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      if (!document.activeElement || document.activeElement === document.body) { try { inputEl.focus(); } catch (e) {} }
+      resolve(value);
+    };
+    dialog.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); finish(true); });
+    cancel.addEventListener('click', () => finish(false));
+    dialog.addEventListener('cancel', (e) => { e.preventDefault(); finish(false); });
+    dialog.addEventListener('keydown', (e) => { if (e.key === 'Escape') e.stopPropagation(); });
+    dialog.showModal(); cancel.focus();
+  });
+}
 async function nativePickFolder() {
   // Native picker cancellation is final. An unavailable picker returns undefined so browsers
   // and unsupported hosts can ask for a typed path.
@@ -2709,38 +3248,98 @@ async function nativePickFolder() {
   } catch (e) {}
   return undefined;
 }
+// The folder is checked by the server, which is the only place that can see the disk. A refused
+// folder brings the SAME dialog back with the reason and the typed path kept, instead of a browser
+// alert that threw everything away. A folder that already is a project is never re-created:
+// creation is idempotent by real path on the server and would silently rename the existing one.
+function projectRootKey(root) { return String(root || '').trim().replace(/[\\/]+$/, ''); }
+function existingProjectFor(root) {
+  const known = (typeof _serverProjects === 'object' && _serverProjects) || {};
+  const key = projectRootKey(root);
+  for (const id in known) if (key && projectRootKey(known[id] && known[id].root) === key) return Object.assign({ id }, known[id]);
+  return null;
+}
+function projectNotice(text) { if (typeof toast === 'function') toast(text); }
 async function createProjectFlow(assignSid) {
   let root = await nativePickFolder();
   if (root === null) return null;
-  if (!root) {
-    root = await requestTextInput('Project folder — full path to a folder on this machine:', '');
-    if (!root || !root.trim()) return null;
-    root = root.trim();
-  }
-  const suggested = root.split('/').filter(Boolean).pop() || 'Project';
-  const name = await requestTextInput('Project name:', suggested);
-  if (name === null) return null;
-  try {
-    const r = await fetch('/api/projects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), root: root }),
-    });
-    const d = await r.json();
-    if (!r.ok || !d.project) { alert('Could not add project: ' + ((d && d.error) || ('HTTP ' + r.status))); return null; }
+  const typed = !root;
+  let folderLabel = 'Project folder: type its location, for example ~/Documents/Garden';
+  let name = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (typed) {
+      root = await requestTextInput(folderLabel, root || '');
+      if (!root || !root.trim()) return null;
+      root = root.trim();
+    }
+    const already = existingProjectFor(root);
+    if (already) {
+      projectNotice('This folder is already the project \u201c' + (already.name || 'Project') + '\u201d. Its chats are in the sidebar; pick another folder for a new project.');
+      if (assignSid) { await assignSession(assignSid, already.id); }
+      return already.id;
+    }
+    if (name === null) {
+      const suggested = root.split(/[\\/]/).filter(Boolean).pop() || 'Project';
+      name = await requestTextInput(pageT('session.project_name_prompt', 'Project name:'), suggested);
+      if (name === null) return null;
+    }
+    const before = (typeof _serverProjects === 'object' && _serverProjects) ? Object.assign({}, _serverProjects) : {};
+    let r, d;
+    try {
+      r = await fetch('/api/projects', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), root: root }),
+      });
+      d = await r.json();
+    } catch (e) { projectNotice("VOOL couldn't be reached, so the project wasn't added. Try again in a moment."); return null; }
+    if (!r.ok || !d || !d.project) {
+      // The server says why in a plain sentence (it starts in lower case so it can follow a
+      // lead-in). A refusal of the folder itself is asked again here, keeping the typed name and
+      // folder, instead of closing the dialog; anything else is shown as it is.
+      const why = String((d && d.error) || '').trim().replace(/\.$/, '');
+      const folderRefusal = r && (r.status === 400 || r.status === 422) && why;
+      if (typed && folderRefusal) {
+        folderLabel = 'Project folder: we couldn\u2019t use that one \u2014 ' + why + '.' + (/for example|like /i.test(why) ? ' Type another location.' : ' Type another location, for example ~/Documents/Garden');
+        continue;
+      }
+      projectNotice(why ? "Couldn't add this project: " + why + '.' : "Couldn't add this project. Pick another folder and try again.");
+      return null;
+    }
+    // Same folder under another spelling (a link, a trailing slash): the server returned the
+    // project that already existed and renamed it. Put its name back and say so.
+    const prior = before[d.project.id];
+    if (prior) {
+      if ((prior.name || '') !== (d.project.name || '')) {
+        try { await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: prior.name || '', root: d.project.root || root }) }); } catch (e) {}
+      }
+      await refreshProjects();
+      projectNotice('This folder is already the project \u201c' + (prior.name || 'Project') + '\u201d. Pick another folder for a new project.');
+      if (assignSid) { await assignSession(assignSid, d.project.id); }
+      return d.project.id;
+    }
     await refreshProjects();
     // Global "+ Project": mint + bind + focus a fresh chat for the new project (reuses the
     // r.ok-gated fail-closed bind in newChatInProject). The move-menu path (assignSid) reassigns the
     // existing chat instead.
     if (assignSid) { await assignSession(assignSid, d.project.id); } else { await newChatInProject(d.project.id); }
     return d.project.id;
-  } catch (e) { alert('Could not add project.'); return null; }
+  }
+  return null;
 }
 async function deleteProject(pid) {
   const proj = _serverProjects[pid]; if (!proj) return;
-  if (!confirm('Delete project "' + (proj.name || 'this project') + '"?\n\nVOOL will FORGET everything it learned in it, and its chats move back to General (your files are untouched).')) return;
-  try { await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); } catch (e) {}
+  const name = String(proj.name || '').trim() || pageT('dialog.this_project', 'this project');
+  if (!await requestConfirm(
+    pageTF('dialog.delete_project_title', 'Delete project “{name}”?', { name: confirmName(name) }),
+    pageT('dialog.delete_project_detail', 'VOOL will forget everything it learned in it, and its chats move back to General. Your files are untouched.'),
+    pageT('dialog.delete', 'Delete'))) return;
+  let ok = false, reached = true;
+  try { const r = await fetch('/api/projects/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pid }) }); ok = r.ok; } catch (e) { reached = false; }
+  if (!ok) toast(reached ? "Couldn't delete this project. Nothing was changed. Try again." : "VOOL couldn't be reached, so nothing was deleted. Try again in a moment.");
   await refreshProjects();
   await loadSessions();   // its chats now fall back to General; its memory is purged server-side
+  // The project's own row (and the button that opened the dialog) is gone: keep focus somewhere.
+  if (!document.activeElement || document.activeElement === document.body) { try { inputEl.focus(); } catch (e) {} }
 }
 async function revealProject(pid) {
   if (!_serverProjects[pid]) return;
@@ -2777,7 +3376,7 @@ function openProjectMenu(sid, anchor) {
   add('General', '', !cur);
   for (const id in projects) add(projects[id].name || 'Project', id, cur === id);
   const nb = document.createElement('button');
-  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = '+ New project…';
+  nb.type = 'button'; nb.className = 'proj-menu-item new'; nb.textContent = pageT('session.new_project_menu', '+ New project…');
   nb.addEventListener('click', (e) => { e.stopPropagation(); closeProjectMenu(); createProjectFlow(sid); });
   menu.appendChild(nb);
   document.body.appendChild(menu);
@@ -2797,7 +3396,17 @@ function startProjectRename(head, nameEl, pid) {
     const val = input.value.trim();
     if (save && val && val !== proj.name) {
       // Rename = re-register the SAME folder with a new name (create is idempotent by real path).
-      try { await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: val.slice(0, 60), root: proj.root }) }); } catch (e) {}
+      // The server keeps up to 80 characters; the same limit is applied here by characters, and
+      // the user is told when the end did not fit.
+      const chars = Array.from(val);
+      const name = chars.slice(0, 80).join('');
+      let ok = false;
+      try {
+        const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, root: proj.root }) });
+        ok = r.ok;
+      } catch (e) {}
+      if (!ok) toast("Couldn't rename the project. Try again in a moment.");
+      else if (chars.length > 80) toast('Project names can be up to 80 characters, so the end was left off.');
       await refreshProjects();
     }
     renderSessions(_lastSessions);
@@ -2815,43 +3424,101 @@ function makeSessionItem(s, archived, nested) {
   applyAccent(item, s.color);   // subtle bg tint + left accent bar when a colour is set
   const emo = document.createElement('span'); emo.className = 's-emoji'; if (s.emoji) emo.textContent = s.emoji;
   const title = document.createElement('span');
-  title.className = 's-title';
-  title.textContent = s.title || '(new chat)';
+  title.className = 's-title'; title.dir = 'auto';
+  title.textContent = s.title || pageT('session.new_chat', '(new chat)');
   title.title = s.title || '';
   title.addEventListener('click', () => openSession(s.session_id));
+  // The whole row opens the chat, by mouse, touch or keyboard (the title is a focusable button;
+  // the action buttons stop their own clicks).
+  item.dataset.id = s.session_id;
+  title.setAttribute('role', 'button');
+  title.tabIndex = 0;
+  title.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openSession(s.session_id); } });
+  item.addEventListener('click', (e) => {
+    if (e.target === item || e.target === emo || (e.target.classList && e.target.classList.contains('lc-badge'))) openSession(s.session_id);
+  });
+  if (s.private) {
+    item.classList.add('session-private');
+    emo.innerHTML = GHOST_SVG;
+    item.appendChild(emo); item.appendChild(title);
+    return item;
+  }
   const actions = document.createElement('div');
   actions.className = 's-actions';
   const semo = document.createElement('button');
-  semo.type = 'button'; semo.className = 's-act'; semo.textContent = '🎨'; semo.title = 'Set chat emoji or colour';
+  semo.type = 'button'; semo.className = 's-act vi'; semo.dataset.ico = 'palette'; semo.title = pageT('session.emoji_title', 'Set chat emoji or colour'); semo.setAttribute('aria-label', 'Emoji and colour for this chat');
   semo.addEventListener('click', (e) => { e.stopPropagation(); openSessionEmojiPicker(s.session_id, semo); });
   actions.appendChild(semo);
   if (!archived) {
     const move = document.createElement('button');
-    move.type = 'button'; move.className = 's-act'; move.textContent = '\u{1F4C1}'; move.title = 'Move to project';
+    move.type = 'button'; move.className = 's-act vi'; move.dataset.ico = 'move'; move.title = pageT('session.move_title', 'Move to project'); move.setAttribute('aria-label', 'Move chat to a project');
     move.addEventListener('click', (e) => { e.stopPropagation(); openProjectMenu(s.session_id, move); });
     actions.appendChild(move);
   }
+  if (!archived) {
+    const pinB = document.createElement('button');
+    pinB.type = 'button'; pinB.className = 's-act'; pinB.textContent = s.pinned ? '\u{1F4CD}' : '\u{1F4CC}';
+    pinB.title = s.pinned ? 'Unpin chat' : 'Pin chat to the top';
+    pinB.addEventListener('click', (e) => { e.stopPropagation(); setChatPinned(s.session_id, !s.pinned); });
+    actions.appendChild(pinB);
+  }
   const ren = document.createElement('button');
-  ren.type = 'button'; ren.className = 's-act'; ren.textContent = '✎'; ren.title = 'Rename';
+  ren.type = 'button'; ren.className = 's-act vi'; ren.dataset.ico = 'rename'; ren.title = pageT('session.rename_title', 'Rename'); ren.setAttribute('aria-label', 'Rename chat');
   ren.addEventListener('click', (e) => { e.stopPropagation(); startRename(item, title, s.session_id); });
   const arch = document.createElement('button');
-  arch.type = 'button'; arch.className = 's-act';
-  arch.textContent = archived ? '↩' : '\u{1F5C4}';
-  arch.title = archived ? 'Unarchive' : 'Archive';
+  arch.type = 'button'; arch.className = 's-act vi';
+  arch.dataset.ico = archived ? 'restore' : 'archive';
+  arch.title = archived ? pageT('session.unarchive_title', 'Unarchive') : pageT('session.archive_title', 'Archive'); arch.setAttribute('aria-label', archived ? 'Unarchive chat' : 'Archive chat');
   arch.addEventListener('click', (e) => { e.stopPropagation(); archiveSession(s.session_id, !archived); });
   const del = document.createElement('button');
-  del.type = 'button'; del.className = 's-act'; del.textContent = '\u{1F5D1}'; del.title = 'Delete chat (removes it and its memory)';
+  del.type = 'button'; del.className = 's-act vi'; del.dataset.ico = 'trash'; del.title = pageT('session.delete_title', 'Delete chat (removes it and its memory)'); del.setAttribute('aria-label', 'Delete chat');
   del.addEventListener('click', (e) => { e.stopPropagation(); deleteSession(s.session_id, s.title || ''); });
   actions.appendChild(ren); actions.appendChild(arch); actions.appendChild(del);
   item.appendChild(emo); item.appendChild(title);
+  if (s.pinned && !archived) { const pm = document.createElement('span'); pm.className = 's-pin-mark'; pm.textContent = '\u{1F4CC}'; pm.title = 'Pinned'; item.appendChild(pm); }
   if (!archived) appendLifecycleBadge(item, sidebarLifecycleState(s.session_id));
   item.appendChild(actions);
   return item;
 }
+async function setChatPinned(sid, pinned) {
+  try {
+    await fetch('/api/chat/pin-chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, pinned: !!pinned }) });
+  } catch (e) {}
+  await loadSessions();
+}
+// Stop a chat's own running turn the way its Stop button does: the server turn first (by its
+// turn_id, so a queued turn is never hit), then the client stream.
+async function cancelChatRun(chatId) {
+  const st = chatStates[String(chatId || '')];
+  const run = st && st.run;
+  if (!run || run.released) return;
+  try {
+    await fetch('/api/chat/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: run.chatId, turn_id: run.turnId }) });
+  } catch (e) {}
+  try { if (run.aborter) run.aborter.abort(); } catch (e) {}
+}
 async function deleteSession(sid, title) {
   if (!sid) return;
-  if (!confirm('Delete "' + (title || 'this chat') + '"? This permanently removes the chat and everything VOOL learned in it.')) return;
-  try { await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid, delete: true }) }); } catch (e) {}
+  const name = String(title || '').trim() || pageT('dialog.this_chat', 'this chat');
+  if (!await requestConfirm(
+    pageTF('dialog.delete_chat_title', 'Delete “{name}”?', { name: confirmName(name) }),
+    pageT('dialog.delete_chat_detail', 'This permanently removes the chat and everything VOOL learned in it.'),
+    pageT('dialog.delete', 'Delete'))) return;
+  const wasRunning = isChatBusy(sid);
+  const wasPending = _pendingSessions.has(sid);
+  if (wasRunning) await cancelChatRun(sid);
+  const res = await postSession(sid, { delete: true });
+  // 404 on a chat whose first turn never finished is the expected answer (nothing on disk yet);
+  // the tombstone covers the turn persisting it afterwards. Any other refusal keeps the row.
+  if (!res.ok && !(res.status === 404 && (wasRunning || wasPending))) {
+    toast(res.status === 0 ? "VOOL couldn't be reached, so nothing was deleted. Try again in a moment."
+      : "Couldn't delete this chat yet. Try again in a moment.");
+    await loadSessions();
+    return;
+  }
+  _deletedChats.set(sid, 0);
+  _pendingSessions.delete(sid);
+  _queuedSessionPatches.delete(sid);
   if (sid === displayedChat) {
     // Deleting the chat you are IN has to leave you somewhere, so a replacement is opened. It must
     // open in the SAME project: newChat() hard-sets view.projectId = '', so the replacement
@@ -2872,25 +3539,29 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
   const emo = document.createElement('span'); emo.className = 'proj-emoji'; if (proj.emoji) emo.textContent = proj.emoji;
   const nameEl = document.createElement('span'); nameEl.className = 'proj-name';
   nameEl.textContent = (proj.root && proj.exists === false) ? (name + ' ⚠') : name;
-  nameEl.title = proj.root ? ((proj.exists === false ? 'Folder not found: ' : '') + proj.root) : name;
+  nameEl.title = proj.root ? (proj.exists === false ? pageTF('session.project_folder_missing', 'Folder not found: {path}', { path: proj.root }) : proj.root) : name;
   const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = count ? String(count) : '';
   const pact = document.createElement('div'); pact.className = 'proj-actions';
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act'; prev.textContent = '\u{1F4C2}'; prev.title = 'Reveal folder in Finder';
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 's-act vi'; prev.dataset.ico = 'folder-open'; prev.title = /Mac/.test(navigator.platform || '') ? pageT('session.reveal_folder_title', 'Reveal folder in Finder') : 'Show folder'; prev.setAttribute('aria-label', 'Show project folder');
   prev.addEventListener('click', (e) => { e.stopPropagation(); revealProject(pid); });
-  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act'; pren.textContent = '✎'; pren.title = 'Rename project';
+  const pren = document.createElement('button'); pren.type = 'button'; pren.className = 's-act vi'; pren.dataset.ico = 'rename'; pren.title = pageT('session.rename_project_title', 'Rename project'); pren.setAttribute('aria-label', 'Rename project');
   pren.addEventListener('click', (e) => { e.stopPropagation(); startProjectRename(head, nameEl, pid); });
-  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act'; pdel.textContent = '\u{1F5D1}'; pdel.title = 'Delete project (forget its memory; chats move to General)';
+  const pdel = document.createElement('button'); pdel.type = 'button'; pdel.className = 's-act vi'; pdel.dataset.ico = 'trash'; pdel.title = pageT('session.delete_project_title', 'Delete project (forget its memory; chats move to General)'); pdel.setAttribute('aria-label', 'Delete project');
   pdel.addEventListener('click', (e) => { e.stopPropagation(); deleteProject(pid); });
-  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = 'New chat in this project';
+  const pnew = document.createElement('button'); pnew.type = 'button'; pnew.className = 's-act'; pnew.textContent = '+'; pnew.title = pageT('session.new_chat_in_project_title', 'New chat in this project');
   pnew.addEventListener('click', (e) => { e.stopPropagation(); newChatInProject(pid); });
-  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act'; pemo.textContent = '🎨'; pemo.title = 'Set project emoji or colour';
+  const pemo = document.createElement('button'); pemo.type = 'button'; pemo.className = 's-act vi'; pemo.dataset.ico = 'palette'; pemo.title = pageT('session.project_emoji_title', 'Set project emoji or colour');
   pemo.addEventListener('click', (e) => { e.stopPropagation(); openEmojiPicker(pid, pemo); });
+  pnew.setAttribute('aria-label', 'New chat in this project'); pemo.setAttribute('aria-label', 'Emoji and colour for this project');
   pact.appendChild(pemo); pact.appendChild(pnew); pact.appendChild(prev); pact.appendChild(pren); pact.appendChild(pdel);
   head.appendChild(caret); head.appendChild(emo); head.appendChild(nameEl); head.appendChild(cnt);
   appendLifecycleBadge(head, lcState);
   head.appendChild(pact);
   applyAccent(head, proj.color);   // subtle bg tint + left accent bar when a colour is set
   head.addEventListener('click', () => { const c = loadCollapsed(); c[pid] = !c[pid]; saveCollapsed(c); renderSessions(_lastSessions); });
+  // Reachable without a mouse: the head is a button that opens/closes its group.
+  head.tabIndex = 0; head.setAttribute('role', 'button'); head.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  head.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === head) { e.preventDefault(); head.click(); } });
   return head;
 }
 
@@ -2898,14 +3569,15 @@ function makeProjectHead(pid, name, count, collapsed, lcState) {
 // apart at a glance in the sidebar and in the context bar above the composer. Default is neither.
 const EMOJI_PALETTE = ['🎯','🚀','🔥','⭐','💡','🎨','🎬','🎮','🧪','🔬','🛠️','📦','🌐','🔒','💰','📊','🧠','🤖','👾','🦞','🐙','🐳','🦊','🐤','🌙','⚡','💎','🏆','📌','🔑','🧩','📷','🕹️','🧬','⚙️','🌀','🛰️','🧭','🗂️','💼','🏗️','🔭','🪐','🍀','🎵','📝','🌈','✨'];
 // Accent colours: [#rrggbb, label]. Tuned to read as subtle tints on the dark UI. '' = none.
-const COLOR_PALETTE = [['#e5484d','Red'],['#f76b15','Orange'],['#ffb224','Amber'],['#46a758','Green'],['#12a594','Teal'],['#3e63dd','Blue'],['#8e4ec6','Purple'],['#e93d82','Pink'],['#8b8d98','Slate']];
+// Muted on purpose: a marker, not a highlight (the old saturated set painted rows bright red).
+const COLOR_PALETTE = [['#b9706c','Red'],['#bf8a62','Orange'],['#c2a66a','Amber'],['#7f9f7f','Green'],['#6f9e98','Teal'],['#7c8fb8','Blue'],['#9a86b5','Purple'],['#b77f97','Pink'],['#8b8d98','Slate']];
 function hexToRgba(hex, a) {
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
   return m ? ('rgba(' + parseInt(m[1],16) + ',' + parseInt(m[2],16) + ',' + parseInt(m[3],16) + ',' + a + ')') : '';
 }
 // Paint an element with an accent colour (subtle bg tint + a left accent bar), or clear it when color is ''.
 function applyAccent(el, color) {
-  if (color) { el.style.background = hexToRgba(color, 0.20); el.style.boxShadow = 'inset 3px 0 0 ' + color; }
+  if (color) { el.style.background = hexToRgba(color, 0.07); el.style.boxShadow = 'inset 3px 0 0 ' + color; }
   else { el.style.background = ''; el.style.boxShadow = ''; }
 }
 function closeEmojiPicker() { const m = document.getElementById('emojiPicker'); if (m) m.remove(); }
@@ -2919,10 +3591,18 @@ function openAppearancePicker(anchor, current, onEmoji, onColor) {
   for (const pair of COLOR_PALETTE) {
     const sw = document.createElement('button'); sw.type = 'button';
     sw.className = 'color-cell' + (pair[0] === curColor ? ' on' : ''); sw.title = pair[1]; sw.style.background = pair[0];
+    sw.setAttribute('aria-label', pair[1]);
     sw.addEventListener('click', (ev) => { ev.stopPropagation(); onColor(pair[0]); closeEmojiPicker(); });
+    sw.addEventListener('mouseenter', () => { cname.textContent = pair[1]; });
+    sw.addEventListener('focus', () => { cname.textContent = pair[1]; });
     crow.appendChild(sw);
   }
   box.appendChild(crow);
+  // The colour's name in words, not only in a hover tooltip.
+  const cname = document.createElement('div'); cname.className = 'color-name';
+  const curPair = COLOR_PALETTE.find((pair) => pair[0] === curColor);
+  cname.textContent = curPair ? curPair[1] : (curColor ? 'Custom colour' : 'No colour');
+  box.appendChild(cname);
   const grid = document.createElement('div'); grid.className = 'emoji-grid';
   for (const e of EMOJI_PALETTE) {
     const b = document.createElement('button'); b.type = 'button';
@@ -2931,7 +3611,7 @@ function openAppearancePicker(anchor, current, onEmoji, onColor) {
     grid.appendChild(b);
   }
   box.appendChild(grid);
-  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = 'Clear emoji & colour';
+  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'emoji-clear'; clr.textContent = pageT('session.clear_appearance', 'Clear emoji & colour');
   clr.addEventListener('click', (ev) => { ev.stopPropagation(); onColor(''); onEmoji(''); closeEmojiPicker(); });
   box.appendChild(clr);
   document.body.appendChild(box);
@@ -2939,6 +3619,13 @@ function openAppearancePicker(anchor, current, onEmoji, onColor) {
   box.style.top = (r.bottom + 4) + 'px';
   box.style.left = Math.max(6, Math.min(r.left - 100, window.innerWidth - 246)) + 'px';
   setTimeout(() => document.addEventListener('click', closeEmojiPicker, { once: true }), 0);
+  const onKey = (e) => {
+    if (!document.getElementById('emojiPicker')) { document.removeEventListener('keydown', onKey); return; }
+    if (e.key === 'Escape') { e.preventDefault(); closeEmojiPicker(); document.removeEventListener('keydown', onKey); try { anchor.focus(); } catch (err) {} }
+  };
+  document.addEventListener('keydown', onKey);
+  const first = box.querySelector('.color-cell.on, .emoji-cell.on, .color-cell');
+  if (first) { try { first.focus(); } catch (e) {} }
 }
 function openEmojiPicker(pid, anchor) {
   const p = _serverProjects[pid] || {};
@@ -2978,7 +3665,7 @@ function renderContextBar() {
   else bar.appendChild(mkChip(' cc-project muted', '', 'General', '', 'Not bound to a project'));
   const sep = document.createElement('span'); sep.className = 'ctx-sep'; sep.textContent = '›'; bar.appendChild(sep);
   const chat = (_lastSessions || []).find((s) => s.session_id === displayedChat) || null;
-  const chatName = (chat && chat.title) ? chat.title : 'New chat';
+  const chatName = (chat && chat.title) ? chat.title : ((typeof pageT === 'function') ? pageT('companion.untitled_chat', 'New chat') : 'New chat');
   bar.appendChild(mkChip('', (chat && chat.emoji) || '', chatName, (chat && chat.color) || '', chatName));
   // A tight composer hides the muted project chip and ellipsizes the chat name, so the bar itself
   // carries the whole path -- the collapse is a display decision, never a loss of information.
@@ -3169,8 +3856,8 @@ function aggregateLifecycleState(sessions) {
   return working ? 'working' : (unseen ? 'complete_unseen' : '');
 }
 const LIFECYCLE_BADGES = {
-  working: { cls: 'lc-working', text: 'RUN', title: 'Working — a turn is running now' },
-  needs_user: { cls: 'lc-needs', text: 'ASK', title: 'Needs you — approval or confirmation required' },
+  working: { cls: 'lc-working', text: '', title: 'Working — a turn is running now' },
+  needs_user: { cls: 'lc-needs', text: 'Needs you', title: 'Needs you — approval or confirmation required' },
   complete_unseen: { cls: 'lc-unseen', text: '', title: 'Finished — not yet viewed' },
 };
 function appendLifecycleBadge(parent, state) {
@@ -3223,12 +3910,14 @@ async function refreshReminderArtifacts(chatId) {
   const run = target.run, length = target.history.length;
   reminderRefreshes.add(chatId);
   try {
-    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery');
+    const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId) + '&event_kind=reminder_delivery,paid_ai_answer');
     if (!r.ok) return;
     const data = await r.json();
     if (target.run !== run || target.history.length !== length || (target.run && !target.run.ended)) return;
+    // a paid AI answer arrives after its payment is approved: one per payment
     const key = (m) => m.artifact && m.artifact.kind === 'reminder_delivery' && m.artifact.reminder_id
-      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '') : '';
+      ? String(m.artifact.reminder_id) + ':' + String(m.artifact.status || '')
+      : (m.artifact && m.artifact.kind === 'paid_ai_answer' && m.artifact.proposal_id ? 'paid:' + String(m.artifact.proposal_id) : '');
     const seen = new Set(target.history.map(key).filter(Boolean));
     let changed = false;
     for (const m of (data.messages || [])) {
@@ -3249,7 +3938,10 @@ async function refreshReminderArtifacts(chatId) {
 // server has not sent counts yet.
 function groupCount(pid, pageLength) {
   if (_sessionCounts && Object.prototype.hasOwnProperty.call(_sessionCounts, pid)) {
-    return _sessionCounts[pid];
+    // The server counts only chats it has stored; a chat whose first answer is still running is
+    // shown in the list already, so it is counted too.
+    const pendingHere = (_lastSessions || []).filter((s) => s.pending && String(s.project_id || '') === String(pid || '')).length;
+    return _sessionCounts[pid] + pendingHere;
   }
   return pageLength;
 }
@@ -3272,7 +3964,7 @@ function renderSessions(sessions) {
   if (!active.length && !archived.length && !projectIds.length) {
     const none = document.createElement('div');
     none.className = 'side-empty';
-    none.textContent = 'No past chats yet.';
+    none.textContent = pageT('session.no_past_chats', 'No past chats yet.');
     sessionsEl.appendChild(none);
     return;
   }
@@ -3283,13 +3975,29 @@ function renderSessions(sessions) {
     if (pid && projects[pid]) { (byProject[pid] = byProject[pid] || []).push(s); }
     else general.push(s);
   }
+  // Pinned chats first: a shortcut list above every group. A pinned chat also stays in its own
+  // group, so the group counts (computed server-side over every chat) remain true.
+  const PIN_KEY = '__pinned__';
+  const pinnedRows = active.filter((s) => s.pinned)
+    .sort((a, b) => String(b.pinned_at || '').localeCompare(String(a.pinned_at || '')));
+  if (pinnedRows.length) {
+    const pinCollapsed = !!collapsed[PIN_KEY];
+    const ph = document.createElement('div'); ph.className = 'proj-head pin-head' + (pinCollapsed ? ' collapsed' : '');
+    const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = pinCollapsed ? '▸' : '▾';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'Pinned';
+    const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(pinnedRows.length);
+    ph.appendChild(c); ph.appendChild(n); ph.appendChild(cnt);
+    ph.addEventListener('click', () => { const cc = loadCollapsed(); cc[PIN_KEY] = !cc[PIN_KEY]; saveCollapsed(cc); renderSessions(_lastSessions); });
+    sessionsEl.appendChild(ph);
+    if (!pinCollapsed) { for (const s of pinnedRows) sessionsEl.appendChild(makeSessionItem(s, false, true)); }
+  }
   // General (unassigned) pinned to the TOP and collapsible, like a project group.
   const GEN_KEY = '__general__';
   if (general.length) {
     const genCollapsed = !!collapsed[GEN_KEY];
     const gh = document.createElement('div'); gh.className = 'proj-head general' + (genCollapsed ? ' collapsed' : '');
     const c = document.createElement('span'); c.className = 'proj-caret'; c.textContent = genCollapsed ? '▸' : '▾';
-    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = 'General';
+    const n = document.createElement('span'); n.className = 'proj-name'; n.textContent = pageT('session.general', 'General');
     // The true count of unbound chats, not how many of the capped page happen to be unbound.
     const cnt = document.createElement('span'); cnt.className = 'proj-count'; cnt.textContent = String(groupCount('', general.length));
     gh.appendChild(c); gh.appendChild(n); gh.appendChild(cnt);
@@ -3314,7 +4022,7 @@ function renderSessions(sessions) {
   if (archived.length) {
     const head = document.createElement('div');
     head.className = 'arch-head';
-    head.textContent = 'Archived (' + archived.length + ')';
+    head.textContent = pageTF('session.archived_count', 'Archived ({n})', { n: archived.length });
     const box = document.createElement('div');
     box.style.display = 'none';
     head.addEventListener('click', () => { box.style.display = box.style.display === 'none' ? 'block' : 'none'; });
@@ -3328,11 +4036,18 @@ function renderSessions(sessions) {
 function startRename(item, titleEl, id) {
   const input = document.createElement('input');
   input.className = 's-rename';
-  input.value = titleEl.textContent === '(new chat)' ? '' : titleEl.textContent;
+  input.value = titleEl.textContent === pageT('session.new_chat', '(new chat)') ? '' : titleEl.textContent;
   let done = false;
   const finish = async (save) => {
     if (done) return; done = true;
-    if (save) await postSession(id, { title: input.value });
+    if (save && input.value.trim()) {
+      const res = await postSession(id, { title: input.value });
+      if (!res.ok) {
+        toast(res.status === 0 ? "VOOL couldn't be reached, so the new name wasn't saved." : "Couldn't rename this chat. Try again.");
+        if (input.parentNode) input.parentNode.replaceChild(titleEl, input);   // the old name stays
+        return;
+      }
+    } else if (input.parentNode) input.parentNode.replaceChild(titleEl, input);
     loadSessions();
   };
   input.addEventListener('keydown', (e) => {
@@ -3344,18 +4059,51 @@ function startRename(item, titleEl, id) {
   input.focus(); input.select();
 }
 
-async function postSession(id, patch) {
+// Returns what the server said ({ok, status}; status 0 = unreachable) so no caller can treat a
+// refused or lost change as saved. A rename/archive of a chat whose first answer is still being
+// written is held (see _queuedSessionPatches) rather than lost to the server's 404.
+// The plain request, with no holding: used when a held change is finally sent.
+async function postSessionNow(id, patch) {
   try {
-    await fetch('/api/chat/session', {
+    const r = await fetch('/api/chat/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ session_id: id }, patch)) });
+    return { ok: r.ok, status: r.status };
+  } catch (e) { return { ok: false, status: 0 }; }
+}
+async function postSession(id, patch) {
+  const firstTurnRunning = !patch.delete && (_pendingSessions.has(id) || isChatBusy(id));
+  // A change already held for this chat: add to it rather than asking the server again now.
+  if (firstTurnRunning && _queuedSessionPatches.has(id)) {
+    _queuedSessionPatches.set(id, Object.assign({}, _queuedSessionPatches.get(id), patch));
+    const row = _pendingSessions.get(id);
+    if (row && patch.title != null && String(patch.title).trim()) row.title = String(patch.title).trim();
+    return { ok: true, status: 0, queued: true };
+  }
+  let status = 0;
+  try {
+    const r = await fetch('/api/chat/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(Object.assign({ session_id: id }, patch)),
     });
-  } catch (e) {}
+    status = r.status;
+    if (r.ok) return { ok: true, status };
+  } catch (e) { return { ok: false, status: 0 }; }
+  if (status === 404 && firstTurnRunning) {
+    _queuedSessionPatches.set(id, Object.assign({}, _queuedSessionPatches.get(id) || {}, patch));
+    const row = _pendingSessions.get(id);
+    if (row && patch.title != null && String(patch.title).trim()) row.title = String(patch.title).trim();
+    return { ok: true, status, queued: true };
+  }
+  return { ok: false, status };
 }
 
 async function archiveSession(id, archived) {
-  await postSession(id, { archived: archived });   // persist the state change immediately
+  const res = await postSession(id, { archived: archived });   // persist the state change immediately
+  if (!res.ok) {
+    toast(res.status === 0 ? (archived ? "VOOL couldn't be reached, so the chat wasn't archived." : "VOOL couldn't be reached, so the chat wasn't brought back.")
+      : (archived ? "Couldn't archive this chat. Try again in a moment." : "Couldn't bring this chat back. Try again in a moment."));
+    return;
+  }
   // Archiving the ACTIVE thread mid-stream: leave the live output + currentSessionId untouched and
   // let send()'s completion reload the sidebar (moving it after the stream finishes). Active + idle:
   // start a fresh chat so the archived thread leaves the active list. Any other thread: just refresh.
@@ -3387,15 +4135,27 @@ function repaintCouncilCards(chatId, rows) {
   if (!window.VoolCouncilCard) return;
   try { window.VoolCouncilCard.repaint(chatId, logEl, rows); } catch (e) {}
 }
+// A private chat read back from the server has none of its private messages: say so, so the gap
+// reads as kept-private rather than lost. Only when this page holds no private message itself.
+function privateReloadNote(st) {
+  if (!st.privateChat || st.history.some(isPrivateEntry)) return;
+  const n = document.createElement('div');
+  n.className = 'private-note';
+  n.textContent = pageT('private.reload_note', 'This chat is private. Private messages are not saved, so they don\'t show here after a reload.');
+  logEl.appendChild(n);
+}
 function renderChat(chatId) {
   const st = chatState(chatId);
   const run = st.run;
   if (run) detachRunDom(run);      // the old nodes are about to be thrown away
   logEl.innerHTML = '';
-  if (!st.history.length && !run) { showEmpty(); repaintCouncilCards(chatId, []); return; }
+  if (!st.history.length && !run) { showEmpty(); privateReloadNote(st); repaintCouncilCards(chatId, []); return; }
   const councilRows = [];
   st.history.forEach((m, i) => {
     const el = addMsg(m.role, m.content, m.ts, m.display_metadata, m.attachments, m.request_id);
+    if (isPrivateEntry(m)) markPrivateMsg(el);
+    // Private turns followed by a saved one (or a chat no longer private): the line where saving resumed.
+    if (m.role === 'assistant' && isPrivateEntry(m) && !(st.history[i + 1] ? isPrivateEntry(st.history[i + 1]) : st.privateChat)) logEl.appendChild(privateDivider());
     if (m.role === 'assistant') councilRows.push({ el: el, textEl: msgTextEl(el), text: m.content });
     // Re-hang a finished run's card on the exact bubble it produced, matched by the index recorded
     // when its answer was appended -- never by comparing text, so two identical answers in one chat
@@ -3404,8 +4164,9 @@ function renderChat(chatId) {
   });
   // A turn still in flight has no history entry yet: give it a live bubble seeded from run.text.
   if (run && !run.ended) attachRunDom(run, addMsg('assistant', run.text || '…'));
+  privateReloadNote(st);
   repaintCouncilCards(chatId, councilRows);
-  logEl.scrollTop = logEl.scrollHeight;
+  followLog(true);   // opening a chat starts at its latest message
   // The transcript was just rebuilt, so any marks from an open search went with it.
   if (chatSearchOpen() && searchInputEl && searchInputEl.value.trim()) runChatSearch(true);
 }
@@ -3453,21 +4214,25 @@ async function openSession(id) {
   // Hydrate the transcript from the server ONLY for a chat with nothing in flight and nothing
   // already in its bucket. A chat that is mid-turn (or that this page has already run turns in)
   // owns the authoritative transcript in memory; refetching would drop the in-flight exchange.
+  let historyUnreachable = false;
   if (!view.run && !view.history.length) {
     try {
       const r = await fetch('/api/chat/history?session=' + encodeURIComponent(id));
+      if (r.status >= 500) historyUnreachable = true;
       const data = await r.json();
+      chatState(id).privateChat = !!(data && data.private_chat);
       if (isDisplayed(id) && !view.run && !view.history.length) for (const m of (data.messages || [])) {
         if (m.role === 'assistant') {
           const normalized = splitAssistantDisplayContent(m.content, m.display_metadata);
           view.history.push({ ...historyEntryFromServer(m), content: normalized.content, display_metadata: normalized.display_metadata });
         } else view.history.push(historyEntryFromServer(m));
       }
-    } catch (e) {}
+    } catch (e) { if (isNetworkFailure(e)) historyUnreachable = true; }
   }
   if (!isDisplayed(id)) return;   // the user moved on again while we were fetching
   restoreStagedAttachments(id);   // a draft left unsent in this chat comes back with the chat
   renderChat(id);
+  if (historyUnreachable && !view.run && !view.history.length) showLoadFailed(id);
   await refreshReminderArtifacts(id);
   if (!isDisplayed(id)) return;
   reflectComposer();
@@ -3478,6 +4243,15 @@ async function openSession(id) {
   await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
   inputEl.focus();
 }
+
+// A chat address typed or pasted into this tab (/chat#<chat>) opens that chat.
+try {
+  window.addEventListener('hashchange', () => {
+    let id = '';
+    try { id = decodeURIComponent(String(location.hash || '').slice(1)); } catch (e) { id = ''; }
+    if (CANONICAL.test(id) && id !== displayedChat) openSession(id);
+  });
+} catch (e) {}
 
 function newChat() {
   // No busy guard: a turn running in the chat being left keeps running in the background.
@@ -3544,6 +4318,16 @@ function applyProjectModel(pid) {
 }
 async function newChatInProject(pid) {
   // No busy guard, for the same reason as newChat(): the chat being left keeps its run.
+  // An untouched "New chat" already in this project is reused instead of adding another empty
+  // row each time (General's + New behaves the same way).
+  const idle = pid ? (_lastSessions || []).find((s) => s.project_id === pid && !s.pending && !s.archived
+    && Number(s.turn_count || 0) === 0 && (!s.title || s.title === 'New chat') && !chatState(s.session_id).run && !chatState(s.session_id).history.length) : null;
+  if (idle) {
+    if (idle.session_id !== displayedChat) await openSession(idle.session_id);
+    document.body.classList.remove('sidebar-open');
+    inputEl.focus();
+    return;
+  }
   if (view.run && !view.run.ended) detachRunDom(view.run);
   const sid = mintSessionId();
   setDisplayedChat(sid); localStorage.setItem('vool.sessionId', sid);
@@ -3580,10 +4364,17 @@ async function newChatInProject(pid) {
   await loadSessions(); refreshQueue(); inputEl.focus();
 }
 let _toastTimer = null;
-function toast(text) {
+function toast(text, action) {
   let t = document.getElementById('nToast');
   if (!t) { t = document.createElement('div'); t.id = 'nToast'; t.className = 'n-toast'; document.body.appendChild(t); }
   t.textContent = text; t.classList.add('show');
+  // An optional single action (e.g. Undo) rides the same toast; the toast stays its usual time.
+  if (action && action.label && typeof action.run === 'function') {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'n-toast-act'; b.textContent = action.label;
+    b.addEventListener('click', () => { t.classList.remove('show'); try { action.run(); } catch (e) {} });
+    t.appendChild(b);
+  }
   if (_toastTimer) clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { t.classList.remove('show'); }, 6500);
 }
@@ -3594,6 +4385,8 @@ async function restoreCurrent() {
   try {
     const r = await fetch('/api/chat/history?session=' + encodeURIComponent(chatId));
     const data = await r.json();
+    target.privateChat = !!(data && data.private_chat);
+    if (isDisplayed(chatId)) reflectPrivate();
     // The operator may have sent a turn while this snapshot was in flight.
     // Appending OLD user messages after it changes the model's last question.
     // The live bucket wins; persisted history remains intact on the server.
@@ -3605,8 +4398,13 @@ async function restoreCurrent() {
       if (isDisplayed(chatId)) renderChat(chatId);
     } else if (isDisplayed(chatId)) {
       showEmpty();  // fresh/empty session -> the time-aware greeting, never a blank static screen
+      privateReloadNote(target);
     }
-  } catch (e) { if (isDisplayed(chatId) && !target.run && !target.history.length) showEmpty(); }
+  } catch (e) {
+    if (isDisplayed(chatId) && !target.run && !target.history.length) {
+      if (isNetworkFailure(e)) showLoadFailed(chatId); else showEmpty();
+    }
+  }
   restoreStagedAttachments(chatId);   // an unsent draft survives a reload with its chat
 }
 
@@ -3724,7 +4522,33 @@ function agentEvidenceText(rows, nowMs) {
   }
   return out.join('\n').trim();
 }
+// The provenance "details" toggle, for both render paths. Guarded so the renderer helpers
+// around it still load where there is no document (they are also run on their own).
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') document.addEventListener('click', (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('.chat-provenance .prov-more') : null;
+  if (!btn) return;
+  const block = btn.closest('.chat-provenance');
+  const raw = block && block.querySelector('.prov-raw');
+  if (!raw) return;
+  const open = raw.hidden;
+  raw.hidden = !open;
+  block.classList.toggle('prov-open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  btn.textContent = open ? pageT('chat.provenance.hide_details', 'hide details') : pageT('chat.provenance.details', 'details');
+});
 function esc(t) { const d = document.createElement('div'); d.textContent = (t == null ? '' : String(t)); return d.innerHTML; }
+// A chat file download link, or null: same origin, path exactly /api/chat/deliverable, an id of
+// the server's own shape and a chat named. Never widens to other relative or javascript: links.
+function deliverableLink(target) {
+  try {
+    const url = new URL(String(target), location.origin);
+    if (url.origin !== location.origin || url.pathname !== '/api/chat/deliverable') return null;
+    const id = url.searchParams.get('id') || '', session = url.searchParams.get('session') || '';
+    // Both values land in attributes: only the shapes the server mints, never a quote or a bracket.
+    if (!/^dlv_[0-9a-f]{32}$/.test(id) || !/^openclaw:[0-9a-f]{20}$/.test(session)) return null;
+    return { href: url.href, id: id, session: session };
+  } catch (e) { return null; }
+}
 function safeUrl(u) {
   try { const url = new URL(String(u), location.origin); return (url.protocol === 'http:' || url.protocol === 'https:') ? url.href : ''; }
   catch (e) { return ''; }
@@ -3748,6 +4572,15 @@ function renderInline(html) {
     else if (t.charAt(0) === '/') { local = t; src = '/api/files/raw?path=' + encodeURIComponent(local); }
     if (!src) return m;
     return '<img class="chat-img" src="' + esc(src) + '" alt="' + esc(alt || 'image') + '" loading="lazy" data-local="' + esc(local) + '" title="Click to open in Preview - right-click for more">';
+  });
+  // A file the assistant built in this chat: [label](/api/chat/deliverable?id=dlv_...&session=...).
+  // The ONLY relative link that ever becomes an anchor: same origin, that exact path, a well-formed
+  // file id and a chat. Anything else stays plain text. A click saves it (see the log's click handler).
+  html = html.replace(/\[([^\]\n]+)\]\((\/api\/chat\/deliverable\?[^\s)]+)\)/g, (m, label, target) => {
+    const file = deliverableLink(target.replace(/&amp;/g, '&'));
+    if (!file) return m;
+    return '<a class="chat-deliverable" href="' + esc(file.href) + '" data-deliverable-id="' + esc(file.id)
+      + '" data-deliverable-session="' + esc(file.session) + '">' + label + '</a>';
   });
   html = html.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, label, url) => {
     const safe = safeUrl(url.replace(/&amp;/g, '&'));
@@ -3787,6 +4620,134 @@ function renderInline(html) {
 // code are stateful and regex-only versions break on the first ragged case. Escaping still happens
 // exactly once, up front, so page content can never inject markup, and only http/https URLs ever
 // become anchors.
+// The provenance line (`core/response_provenance.py`) in plain words. The machine line is the
+// record and is never changed or dropped -- it stays in the bubble behind "details" and on the
+// title -- but the first thing a person reads is what happened, not lane ids and a build number.
+//
+// FAIL CLOSED. This reads the server's line STRUCTURALLY, shape by shape, exactly as
+// `format_provenance_footer` builds it, and every segment must be one it knows. Anything else --
+// a new segment, a reordered line, a lane word with the wrong tail -- returns null, and the caller
+// shows the raw line as before. A plain sentence is only ever a translation of a line it fully
+// understood: "not written by an AI model" appears only on a `tool` line that carries the
+// server's own no-model authorship marker, and a line with tokens is never described as model-free.
+function provenancePlain(rawLine) {
+  const segs = String(rawLine || '').replace(/^`|`$/g, '').split(' | ').map((s) => s.trim());
+  if (segs.length < 2 || segs.some((s) => !s)) return null;
+  const lane = segs.shift();
+  const out = [];
+  let rest = segs;
+  const T = (k, en) => pageT('chat.provenance.' + k, en);
+  const TF = (k, en, params) => pageTF('chat.provenance.' + k, en, params);
+  const grouped = (n) => { try { return Number(n).toLocaleString(appLocale()); } catch (e) { return String(n); } };
+  const TOKENS = /^([\d,]+) tok$/;
+  // Shared tail segments, consumed in any order after the shape's head. `files` etc. are filled
+  // in as they are read; an unrecognised segment aborts the whole reading.
+  const facts = { files: 0, cost: [], costPartial: false, calls: '', failed: '', localOnly: false };
+  const lanePrefix = /^(?:(local|cloud|mixed) )?/;
+  function tail(allowed) {
+    for (const seg of rest) {
+      let m;
+      if (allowed.files && (m = /^(\d+) files?$/.exec(seg))) { facts.files = Number(m[1]); continue; }
+      if (allowed.build && /^build \S+$/.test(seg)) continue;
+      if (seg === 'local only · cloud blocked') { facts.localOnly = true; continue; }
+      if (allowed.calls && (m = /^(\d+) (?:(local|cloud|mixed) )?routing calls?$/.exec(seg))) { facts.calls = m[2] || 'unknown'; continue; }
+      if (allowed.failed && (m = /^(\d+) (?:(local|cloud|mixed) )?model attempts? failed$/.exec(seg))) { facts.failed = m[2] || 'unknown'; continue; }
+      if (allowed.usage) {
+        if (/^\d+(?:\.\d+)? output tok\/s \(request time\)$/.test(seg)) continue;
+        if (/^input ≤\S+ \/ output ≤\S+ \S+ \(at approved rates\)$/.test(seg)) continue;
+        if (/^identity: \S+$/.test(seg)) continue;
+        if (seg === 'cost unreported' || seg === 'some call costs unreported' || /^reported calls /.test(seg)) { facts.costPartial = true; continue; }
+        if ((m = /^\$(\d+\.\d+)$/.exec(seg))) { facts.cost.push(TF('charged', '{amount} charged', { amount: seg })); continue; }
+        if ((m = /^(\d+(?:\.\d+)?) (\S+) charged$/.exec(seg))) { facts.cost.push(TF('charged', '{amount} charged', { amount: m[1] + ' ' + m[2] })); continue; }
+        if ((m = /^≤(\d+(?:\.\d+)?) (\S+) \(upper bound\)$/.exec(seg))) { facts.cost.push(TF('up_to', 'up to {amount}', { amount: m[1] + ' ' + m[2] })); continue; }
+      }
+      return false;
+    }
+    return true;
+  }
+  function tokensPhrase(seg) {
+    const m = TOKENS.exec(seg);
+    if (!m) return '';
+    const n = Number(m[1].replace(/,/g, ''));
+    return TF('tokens', '{n, plural, one {{count} token} other {{count} tokens}}', { n: n, count: grouped(n) });
+  }
+  const isTokens = (seg) => TOKENS.test(seg) || seg === 'tokens unreported';
+
+  if ((lane === 'local' || lane === 'cloud' || lane === 'runtime') && rest.length >= 2 && isTokens(rest[1])) {
+    // A model wrote the answer: `<lane> | <model id> | <N tok> | ...`. `runtime` here means the
+    // turn did not record WHICH lane, so the plain words do not name one either.
+    out.push(lane === 'local' ? T('local', 'Answered by a local model')
+      : lane === 'cloud' ? T('cloud', 'Answered by a cloud model') : T('model', 'Answered by an AI model'));
+    if (rest[0] !== 'model id unrecorded') out.push(rest[0]);
+    const tok = tokensPhrase(rest[1]);
+    if (tok) out.push(tok);
+    rest = rest.slice(2);
+    if (!tail({ files: true, build: true, usage: true })) return null;
+  } else if (lane === 'runtime' && rest[0] === 'no model') {
+    // Nothing was invoked at all (`runtime | no model | [N files] | build X`).
+    out.push(T('no_model', 'No AI model used'));
+    rest = rest.slice(1);
+    if (!tail({ files: true, build: true })) return null;
+  } else if (lane === 'runtime' && rest.length >= 3 && rest[1] === 'model attempted' && rest[2] === 'no usable answer') {
+    out.push(T('no_answer', 'An AI model was tried but gave no usable answer'));
+    rest = rest.slice(3);
+    if (!tail({ files: true, build: true, failed: true, usage: true })) return null;
+  } else if (lane === 'runtime' && rest.length >= 3 && rest[1] === 'not sent' && /^refused before send: \S+$/.test(rest[2])) {
+    out.push(T('not_sent', 'Not sent: stopped before it reached the model'));
+    rest = rest.slice(3);
+    if (!tail({ files: true, build: true, failed: true })) return null;
+    // The ledger counts the refused dispatch as a failed call; the request never left, so the
+    // plain words do not call it an attempt (the raw line keeps the count).
+    facts.failed = '';
+  } else if (lane === 'tool') {
+    // `tool | [operation] | [+N more tools] | [N files] | <authorship marker> | ...`. The marker is
+    // the server's own statement that no model wrote the answer; without it, no plain words.
+    const markers = ['no model', 'no model for the answer', 'tool-generated answer'];
+    const at = rest.findIndex((s) => markers.includes(s));
+    if (at < 0) return null;
+    const head = rest.slice(0, at);
+    let operation = '';
+    for (let k = 0; k < head.length; k += 1) {
+      const seg = head[k];
+      let m;
+      if ((m = /^(\d+) files?$/.exec(seg))) { facts.files = Number(m[1]); continue; }
+      if (/^\+\d+ more tools?$/.test(seg)) continue;
+      if (k === 0 && /^[\w.:\-]+$/.test(seg)) { operation = seg; continue; }
+      return null;
+    }
+    out.push(/smalltalk|fast_path/.test(operation) ? T('quick_reply', 'Quick built-in reply') : T('builtin_tool', 'Done by a built-in tool'));
+    out.push(T('no_ai', 'not written by an AI model'));
+    rest = rest.slice(at + 1);
+    if (!tail({ files: true, build: true, calls: true, failed: true, usage: true })) return null;
+  } else {
+    return null;
+  }
+  if (facts.files) out.push(TF('files', '{n, plural, one {{n} file changed} other {{n} files changed}}', { n: facts.files }));
+  if (facts.calls) out.push(facts.calls === 'cloud' || facts.calls === 'mixed'
+    ? T('also_called_cloud', 'a cloud model was also called') : T('also_called', 'an AI model was also called'));
+  if (facts.failed) out.push(facts.failed === 'cloud' || facts.failed === 'mixed'
+    ? T('try_failed_cloud', 'a cloud model try failed') : T('try_failed', 'an AI model try failed'));
+  for (const c of facts.cost) out.push(c);
+  if (facts.costPartial) out.push(T('cost_partial', 'cost not fully reported'));
+  if (facts.localOnly) out.push(T('local_only', 'Local Only: cloud blocked'));
+  return out.join(' · ');
+}
+
+// One provenance block for the markdown path: plain words, a "details" toggle, and the exact
+// machine line (already escaped + inline-rendered by the caller) hidden until asked for. A line
+// provenancePlain cannot read is rendered raw and visible, exactly as it was before.
+function provenanceBlockHtml(rawLine, renderedLine) {
+  const bare = String(rawLine || '').replace(/^`|`$/g, '');
+  const plain = provenancePlain(bare);
+  if (!plain) return '<p class="chat-provenance">' + renderedLine + '</p>';
+  return '<p class="chat-provenance" title="' + esc(bare) + '"><span class="prov-plain">' + esc(plain)
+    + '</span> <button type="button" class="prov-more" aria-expanded="false">' + esc(pageT('chat.provenance.details', 'details')) + '</button>'
+    + '<span class="prov-raw" dir="ltr" hidden>' + renderedLine + '</span></p>';
+}
+
+// The code-block Copy label in the UI language. The renderer is also lifted out and run on its
+// own (rich copy, sanitised exports), where the page's catalog lookup may not exist: English then.
+function codeCopyLabel(key, fallback) { return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; }
 function renderRichText(el, text) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
@@ -3840,17 +4801,24 @@ function renderRichText(el, text) {
   // something in between. Each piece became its own <ol>, every one restarting at 1, so a numbered
   // answer read "1. 1. 1.". Blank lines and deeper-indented items now stay inside the list, and an
   // ordered list keeps the number it was written with (`start`), so a resumed list continues.
-  const parseList = (start) => {
+  // `contStart` is the message-level continuation: when the model restarts at "1." after an
+  // earlier ordered list in the same message, the new list continues from there instead of
+  // reading "1." again. The return's `resumeAt` says what the NEXT such list should continue at
+  // (start + item count, because item numbers render positionally), and is 0 unless every item
+  // of this list was written "1." (lazy numbering).
+  const parseList = (start, contStart) => {
     const first = listItemAt(lines[start]);
     const base = first.indent;
     const sameList = (it) => it && it.ordered === first.ordered && it.indent <= base + 1 && it.indent >= base - 1;
     const nested = (it) => it && it.indent > base + 1;
     const blankRunEnd = (from) => { let k = from; while (k < lines.length && !lines[k].trim()) k += 1; return k; };
     const items = [];
+    let allOnes = true;
     let j = start;
     while (j < lines.length) {
       const it = listItemAt(lines[j]);
       if (!sameList(it)) break;
+      if (it.num !== 1) allOnes = false;
       const parts = [it.text];
       let inner = '';
       j += 1;
@@ -3868,9 +4836,21 @@ function renderRichText(el, text) {
       if (k > j && k < lines.length && sameList(listItemAt(lines[k]))) j = k;
     }
     const tag = first.ordered ? 'ol' : 'ul';
-    const startAttr = first.ordered && first.num !== 1 ? ' start="' + first.num + '"' : '';
-    return { html: '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>', next: j };
+    const startValue = first.ordered
+      ? (first.num !== 1 ? first.num : (contStart > 1 ? contStart : 1))
+      : 1;
+    const startAttr = first.ordered && startValue !== 1 ? ' start="' + startValue + '"' : '';
+    const html = '<' + tag + ' class="chat-list"' + startAttr + '>' + items.join('') + '</' + tag + '>';
+    // Only a list written "1." on every item hands its count on: a list the model numbered
+    // 1, 2, 3 itself is complete, and a later "1." after it is a new list, not a continuation.
+    return { html: html, next: j, resumeAt: first.ordered && allOnes ? startValue + items.length : 0 };
   };
+
+  // What an ordered list restarted at "1." should continue from (0 = nothing to continue).
+  // Paragraphs and code blocks between lists keep it — the model writes numbered steps split by
+  // commentary, and each piece restarting at 1 read "1. 1. 1.". Any other block (a heading, a
+  // rule, a table, a quote, another kind of list) starts the numbering over.
+  let olResumeAt = 0;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -3901,7 +4881,7 @@ function renderRichText(el, text) {
       const rawBody = rawLines.slice(bodyStart, i).join('\n');
       i += 1;
       const lang = fence[2] ? ' class="lang-' + esc(fence[2].toLowerCase()) + '"' : '';
-      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="Copy this code block exactly">Copy</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
+      out.push('<div class="chat-code-wrap" data-raw-code="' + encodeURIComponent(rawBody) + '"><button type="button" class="code-copy" title="' + esc(codeCopyLabel('msg.code_copy_title', 'Copy this code block exactly')) + '">' + esc(codeCopyLabel('msg.copy', 'Copy')) + '</button><pre class="chat-code"><code' + lang + '>' + body.join('\n') + '</code></pre></div>');
       continue;
     }
 
@@ -3910,12 +4890,14 @@ function renderRichText(el, text) {
       const level = heading[1].length;
       out.push('<h' + level + ' class="chat-h">' + renderInline(heading[2]) + '</h' + level + '>');
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
     if (/^\s*(?:---+|\*\*\*+|___+)\s*$/.test(line)) {
       out.push('<hr class="chat-hr">');
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
@@ -3925,8 +4907,9 @@ function renderRichText(el, text) {
     // paragraph above. Checked BEFORE the table branch on purpose -- it is pipe-separated and sits
     // directly under an action table, which is the one place a row-consuming loop could eat it.
     if (/^\s*`(?:local|cloud|tool|runtime) \| [^`]*`\s*$/.test(line)) {
-      out.push('<p class="chat-provenance">' + renderInline(line.trim()) + '</p>');
+      out.push(provenanceBlockHtml(rawLines[i].trim(), renderInline(line.trim())));
       i += 1;
+      olResumeAt = 0;
       continue;
     }
 
@@ -3938,6 +4921,7 @@ function renderRichText(el, text) {
       const head = header.map(c => '<th scope="col">' + renderInline(c) + '</th>').join('');
       const rows = body.map(r => '<tr>' + r.map(c => '<td>' + renderInline(c) + '</td>').join('') + '</tr>').join('');
       out.push('<div class="chat-table-wrap"><table class="chat-table"><caption class="sr-only">Data table</caption><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>');
+      olResumeAt = 0;
       continue;
     }
 
@@ -3948,13 +4932,18 @@ function renderRichText(el, text) {
       // reading it.
       while (i < lines.length && /^\s*(?:&gt;|>)\s?/.test(lines[i])) { body.push(lines[i].replace(/^\s*(?:&gt;|>)\s?/, '')); i += 1; }
       out.push('<blockquote class="chat-quote">' + renderInline(body.join('<br>')) + '</blockquote>');
+      olResumeAt = 0;
       continue;
     }
 
     if (listItemAt(line)) {
-      const list = parseList(i);
+      const firstItem = listItemAt(line);
+      // Only a restart at "1." continues: a number the model wrote out (2., 5., …) is kept
+      // exactly as written.
+      const list = parseList(i, firstItem.ordered && firstItem.num === 1 ? olResumeAt : 0);
       out.push(list.html);
       i = list.next;
+      olResumeAt = list.resumeAt;
       continue;
     }
 
@@ -4002,14 +4991,27 @@ function renderAssistantContent(el, text, displayMetadata) {
   if (vp && vp.review_flagged) {
     const warn = document.createElement('p'); warn.className = 'chat-provenance chat-verifier-flag';
     const code0 = document.createElement('code');
-    code0.textContent = '\u26a0 review flagged \u2014 double-check this answer';
+    code0.textContent = pageT('msg.review_flagged', '\u26a0 review flagged \u2014 double-check this answer');
     warn.appendChild(code0); el.appendChild(warn);
   }
   const footer = String((normalized.display_metadata && normalized.display_metadata.provenance_footer) || '').trim();
   if (!footer) { if (vp && vp.review_flagged) { el.dataset.raw = normalized.content; } return; }
   const p = document.createElement('p'); p.className = 'chat-provenance';
+  const rawLine = footer.replace(/^`|`$/g, '');
   const code = document.createElement('code');
-  code.textContent = footer.replace(/^`|`$/g, '');
+  code.textContent = rawLine;
+  const plainText = provenancePlain(rawLine);
+  if (plainText) {
+    // Read with certainty: plain words, the raw line one click away. Otherwise (unknown shape)
+    // the raw line stays exactly as it always was -- never a guessed sentence.
+    p.title = rawLine;
+    const plain = document.createElement('span'); plain.className = 'prov-plain';
+    plain.textContent = plainText;
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'prov-more';
+    more.setAttribute('aria-expanded', 'false'); more.textContent = pageT('chat.provenance.details', 'details');
+    code.className = 'prov-raw'; code.setAttribute('dir', 'ltr'); code.hidden = true;
+    p.appendChild(plain); p.appendChild(document.createTextNode(' ')); p.appendChild(more);
+  }
   p.appendChild(code); el.appendChild(p);
   // renderRichText deliberately set this to canonical content. Keep copy/pin/history behavior on
   // that authority even though the metadata is now visible in the same bubble.
@@ -4032,13 +5034,13 @@ function mountAnswerReport(host, chatId, requestId) {
   host.dataset.requestId = requestId; host.dataset.chatId = chatId;
   const report = document.createElement('button');
   report.type = 'button'; report.className = 'msg-act msg-report';
-  report.textContent = 'Report';
-  report.title = 'Report a wrong answer or a problem with this answer';
+  report.textContent = pageT('msg.report', 'Report');
+  report.title = pageT('msg.report_title', 'Report a wrong answer or a problem with this answer');
   report.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const down = document.createElement('button');
-  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down';
-  down.textContent = '\u{1F44E}';
-  down.title = 'Bad answer \u2014 report it'; down.setAttribute('aria-label', down.title);
+  down.type = 'button'; down.className = 'msg-act icon msg-thumbs-down vi';
+  down.dataset.ico = 'thumbs-down';
+  down.title = pageT('msg.report_down_title', 'Bad answer \u2014 report it'); down.setAttribute('aria-label', down.title);
   down.addEventListener('click', () => openAnswerReport({ chatId: chatId, requestId: requestId, excerpt: '', reason: 'wrong' }));
   const pin = actions.querySelector('.msg-pin');
   actions.insertBefore(report, pin || null);
@@ -4050,9 +5052,10 @@ function mountAnswerExport(host, chatId, requestId) {
   if (!host || !chatId || !requestId || host.querySelector('.msg-export-pdf')) return;
   const actions = host.querySelector('.msg-actions');
   if (!actions) return;
+  const label = (key, fallback) => (typeof pageT === 'function') ? pageT(key, fallback) : fallback;
   const button = document.createElement('button');
   button.type = 'button'; button.className = 'msg-act msg-export-pdf';
-  button.textContent = '\u2193'; button.title = 'Download this answer as PDF';
+  button.textContent = '\u2193'; button.title = label('msg.pdf_title', 'Download this answer as PDF');
   button.setAttribute('aria-label', button.title);
   const status = document.createElement('span');
   status.className = 'msg-export-status'; status.setAttribute('role', 'status');
@@ -4063,13 +5066,13 @@ function mountAnswerExport(host, chatId, requestId) {
       if (nativeApi && typeof nativeApi.save_answer_pdf === 'function') {
         const result = await nativeApi.save_answer_pdf(chatId, requestId);
         if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'PDF save failed');
-        status.textContent = result.cancelled ? 'Cancelled' : 'Saved';
+        status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
           + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
         if (!response.ok) {
           const refusal = await response.json();
-          throw new Error(refusal.message || refusal.error || 'PDF export failed');
+          throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
         }
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
@@ -4077,9 +5080,9 @@ function mountAnswerExport(host, chatId, requestId) {
         link.href = url; link.download = 'vool-answer.pdf';
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
-        status.textContent = 'Downloaded';
+        status.textContent = label('msg.pdf_downloaded', 'Downloaded');
       }
-    } catch (error) { status.textContent = error.message || 'PDF export failed'; }
+    } catch (error) { status.textContent = error.message || label('msg.pdf_failed', 'PDF export failed'); }
     finally { button.disabled = false; }
   });
   actions.appendChild(button); host.appendChild(status);
@@ -4104,7 +5107,7 @@ async function mountProofChip(host, chatId, requestId, presentationSelection) {
   const head = document.createElement('button');
   head.type = 'button';
   head.className = 'proof-chip-head';
-  head.title = 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim';
+  head.title = pageT('msg.run_record_title', 'Run record — saved output integrity, actions, sources and cost; not an independent check of every answer claim');
   const cost = (typeof compact.cost === 'object' && compact.cost) || {};
   const costText = cost.display ? String(cost.display) : cost.usd != null ? ('$' + Number(cost.usd).toFixed(4)) : (cost.tokens != null ? (compact.cost.tokens + ' tok') : 'cost not recorded');
   const seg = (cls, text) => { const span = document.createElement('span'); span.className = cls; span.textContent = text; return span; };
@@ -4258,10 +5261,10 @@ function openImageMenu(img, x, y) {
   const local = img.dataset.local || '';
   const menu = document.createElement('div'); menu.className = 'proj-menu'; menu.id = 'imgMenu';
   const add = (label, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'proj-menu-item'; b.textContent = label; b.addEventListener('click', (e) => { e.stopPropagation(); _imgMenuClose(); fn(); }); menu.appendChild(b); };
-  if (local) add('Open in Preview', () => openImageNative(local));
-  if (local) add('Show in Finder', () => revealImage(local));
-  add('Copy image', () => copyImageToClipboard(img));
-  if (local) add('Copy path', () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
+  if (local) add(pageT('msg.img_open_preview', 'Open in Preview'), () => openImageNative(local));
+  if (local) add(/Mac/.test(navigator.platform || '') ? pageT('msg.img_show_in_finder', 'Show in Finder') : 'Show in folder', () => revealImage(local));
+  add(pageT('msg.img_copy', 'Copy image'), () => copyImageToClipboard(img));
+  if (local) add(pageT('msg.img_copy_path', 'Copy path'), () => { try { navigator.clipboard.writeText(local); } catch (e) {} });
   document.body.appendChild(menu);
   menu.style.top = Math.min(y, window.innerHeight - 170) + 'px';
   menu.style.left = Math.min(x, window.innerWidth - 190) + 'px';
@@ -4269,8 +5272,32 @@ function openImageMenu(img, x, y) {
 }
 if (logEl) {
   logEl.addEventListener('click', (e) => {
+    const start = e.target.closest && e.target.closest('.empty-start');
+    if (start) {
+      // A starter only fills an EMPTY box: words or attachments already there are never replaced.
+      if (inputEl.value.trim() || attachBucket(displayedChat).length) { inputEl.focus(); return; }
+      inputEl.value = start.dataset.start || start.textContent;
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.focus();
+      inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+      return;
+    }
     const img = e.target.closest && e.target.closest('img.chat-img');
     if (img && img.dataset.local) { e.preventDefault(); openImageNative(img.dataset.local); }
+    // A built file: the desktop app saves it through its native save sheet (its web view does not
+    // download); a browser follows the same-origin link and downloads it.
+    const fileLink = e.target.closest && e.target.closest('a.chat-deliverable');
+    if (fileLink) {
+      const nativeApi = window.pywebview && window.pywebview.api;
+      if (nativeApi && typeof nativeApi.save_deliverable === 'function') {
+        e.preventDefault();
+        Promise.resolve(nativeApi.save_deliverable(fileLink.dataset.deliverableSession, fileLink.dataset.deliverableId))
+          .then((result) => {
+            if (result && !result.ok && !result.cancelled) fileLink.title = result.message || 'The file could not be saved.';
+          })
+          .catch(() => { fileLink.title = 'The file could not be saved.'; });
+      }
+    }
     // Code-block Copy is delegated here once, so message re-renders can never drop it. The
     // clipboard payload is the ORIGINAL source span the renderer carried on the wrapper —
     // never the DOM's textContent, which innerHTML parsing normalizes (CRLF becomes LF).
@@ -4408,6 +5435,8 @@ function reflectComposer() {
   // The attachment strip belongs to the chat on screen exactly like the Send button does. The
   // typeof guard keeps function-slicing harnesses (which lift this function alone) running.
   if (typeof renderAttachStrip === 'function') renderAttachStrip();
+  // The private-chat banner belongs to the chat on screen too (core.private_chat).
+  if (typeof reflectPrivate === 'function') reflectPrivate();
   // "Queue" is wider than "Send", so the reserve is re-read whenever the label changes.
   syncComposerTail();
 }
@@ -4420,7 +5449,7 @@ function startRunTimers(run) {
   run.timer = setInterval(() => {
     if (run.ended) return;
     if (!run.refs) return;   // off screen: the clock still runs, there is just nothing to paint it on
-    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+    run.refs.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   }, 1000);
   // Poll the runtime ledger so the Activity panel shows the real timeline (scope, classify, model,
   // tools, timeouts, terminal), scoped to this turn. Only while the panel is open AND this run's
@@ -4455,13 +5484,98 @@ function attachRunDom(run, host) {
   paintRunState(run);
 }
 
+// An answer is shown formatted while it streams: headings, lists, bold and code look the way they
+// will at the end instead of popping from raw Markdown on the last token. Repaints are batched
+// (at most one per STREAM_PAINT_MS) and use the same renderer as the final answer. The element is
+// marked data-streaming meanwhile so half-written charts and diagrams are never hydrated; the
+// final render (server commit or stream end) clears the mark and paints the canonical text.
+const STREAM_PAINT_MS = 120;
+// A very long answer costs more to repaint, so it repaints less often (about every 120 ms up to
+// 24k characters, then slower in proportion), keeping the page responsive while it streams.
+function streamPaintDelay(run) { return Math.max(STREAM_PAINT_MS, Math.round(String(run.text || '').length / 200)); }
+// What a partial answer shows: the text so far, minus a trailing piece that is not finished yet --
+// a half-received table row, or an opened **, ` or [link]( that has not closed -- so raw markup
+// never flashes up for a moment. The final render always paints the complete text.
+// Hold back only a SHORT unfinished tail: an unusual literal (2**10, a lone backtick) then shows raw
+// for a moment instead of freezing the rest of its line until the answer ends.
+const STREAM_HOLD_MAX = 80;
+function streamingPreviewText(text) {
+  const t = String(text || '');
+  const fences = (t.match(/^\s*(```|~~~)/gm) || []).length;
+  if (fences % 2) return t;                          // an open code block: its contents are literal
+  const nl = t.lastIndexOf('\n');
+  const lastLine = t.slice(nl + 1);
+  const isRow = (line) => /^\s*\|.*\|\s*$/.test(line);
+  // A table's header row waits for its separator line, so it never flashes as a raw "| a | b |".
+  if (/^\s*\|?[\s:|-]*$/.test(lastLine) && nl >= 0) {
+    const nl2 = t.lastIndexOf('\n', nl - 1);       // two lines back, without splitting the answer
+    const header = t.slice(nl2 + 1, nl);
+    const above = nl2 >= 0 ? t.slice(t.lastIndexOf('\n', nl2 - 1) + 1, nl2) : '';
+    if (isRow(header) && !isRow(above)) return t.slice(0, nl2 + 1);
+  }
+  if (/^\s*\|/.test(lastLine) && !/\|\s*$/.test(lastLine)) return t.slice(0, nl + 1);  // half a row
+  if (isRow(lastLine)) {                             // a first row may be a header: wait for its newline
+    const above = nl >= 0 ? t.slice(t.lastIndexOf('\n', nl - 1) + 1, nl) : '';
+    if (!isRow(above)) return t.slice(0, nl + 1);
+  }
+  // Finished inline code is literal: blank it out (same length) before looking for open markers.
+  const masked = lastLine.replace(/(`+)[^`]*?\1/g, (m) => ' '.repeat(m.length));
+  const holdFrom = (at) => (at >= 0 && lastLine.length - at <= STREAM_HOLD_MAX) ? t.slice(0, nl + 1 + at) : t;
+  const tick = masked.indexOf('`');
+  if (tick >= 0) return holdFrom(tick);              // an inline code span still open
+  const stars = [...masked.matchAll(/\*\*/g)].map((m) => m.index);
+  if (stars.length % 2) {
+    const at = stars[stars.length - 1];
+    // Only a real bold opener (start of a word, text after it) waits; "2**10" stays as written.
+    if (!/[\p{L}\p{N}]/u.test(masked.charAt(at - 1) || ' ') && /\S/.test(masked.charAt(at + 2) || '')) return holdFrom(at);
+  }
+  const link = masked.match(/!?\[[^\]]*(\]\([^)]*)?$/);
+  // Once "](" has arrived it is surely a link, however long its address: hold it whole.
+  if (link) return link[1] ? t.slice(0, nl + 1 + link.index) : holdFrom(link.index);
+  return t;
+}
+function paintStreamingText(run) {
+  if (!run.textEl) return;
+  run.textEl.dataset.streaming = '1';
+  renderRichText(run.textEl, streamingPreviewText(run.text));
+}
+function scheduleStreamPaint(run) {
+  if (run.streamPaintTimer) return;
+  // Leading edge: a piece that arrives after a quiet spell paints at once; pieces that follow
+  // close behind are batched into one paint every streamPaintDelay.
+  const paint = () => {
+    run.streamPaintTimer = null;
+    if (run.ended) return;
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      paintStreamingText(run);
+      run.lastStreamPaint = Date.now();
+      followLog();   // only while the reader is at the bottom
+    });
+  };
+  const wait = (run.lastStreamPaint || 0) + streamPaintDelay(run) - Date.now();
+  if (wait <= 0) { paint(); return; }
+  run.streamPaintTimer = setTimeout(paint, wait);
+}
+function endStreamPaint(run) {
+  if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+  if (run.textEl) delete run.textEl.dataset.streaming;
+}
+
 // Replay everything the run already knows onto fresh refs: answer text, live card, and -- for a
 // turn that ended while its chat was off screen -- its terminal state.
 function paintRunState(run) {
   if (run.textEl) {
     if (run.text) {
       if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
-      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata); else run.textEl.textContent = run.text;
+      if (run.ended) renderAssistantContent(run.textEl, run.text, run.displayMetadata);
+      else {
+        // The fresh node now shows everything so far: a batched paint still waiting is moot, and
+        // the next piece paints straight into this node.
+        if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+        paintStreamingText(run);
+        run.lastStreamPaint = 0;
+      }
     } else if (run.assistantMsgEl) {
       run.assistantMsgEl.classList.add('pending');
       run.textEl.textContent = '…';
@@ -4551,19 +5665,19 @@ function buildCard(run, host) {
   run.card = card; run.refs = refs;
   if (run.permission || run.pricePaused) card.classList.add('tc-hold');   // re-built mid-approval: the mark holds, it is not working
   if (run.ended) refs.stop.style.display = 'none';   // a re-hung terminal card has nothing to stop
-  logEl.scrollTop = logEl.scrollHeight;
+  if (typeof followLog === 'function') followLog();
   renderCard(run);
   return refs;
 }
 
 const HUMAN_ACTIVITY_STATES = {
-  Planning: 'Planning', Searching: 'Searching', Reading: 'Reading', Editing: 'Editing',
-  Running: 'Running', Testing: 'Testing', 'Waiting for permission': 'Waiting for approval',
+  Planning: pageT('run.stage_planning', 'Planning'), Searching: pageT('run.stage_searching', 'Searching'), Reading: pageT('run.stage_reading', 'Reading'), Editing: pageT('run.stage_editing', 'Editing'),
+  Running: pageT('run.stage_running', 'Running'), Testing: pageT('run.stage_testing', 'Testing'), 'Waiting for permission': pageT('run.stage_waiting_approval', 'Waiting for approval'),
 };
 function humanActivityState(run) {
-  if (run.permission) return 'Waiting for approval';
+  if (run.permission) return pageT('run.stage_waiting_approval', 'Waiting for approval');
   const stage = String(run.stage || '').trim();
-  return HUMAN_ACTIVITY_STATES[stage] || 'Working';
+  return HUMAN_ACTIVITY_STATES[stage] || pageT('run.stage_working', 'Working');
 }
 function recordedModelProvider(model) {
   if (!model) return '';
@@ -4634,10 +5748,10 @@ function renderCard(run) {
   const stageText = run.action || run.stage || '';
   r.stage.textContent = stageText;
   r.stage.title = stageText;
-  if (!run.ended) r.title.textContent = run.pricePaused ? 'Paused — waiting for your price' : 'VOOL is working';
+  if (!run.ended) r.title.textContent = run.pricePaused ? pageT('run.paused_price', 'Paused — waiting for your price') : pageT('run.working_title', 'VOOL is working');
   r.stage.style.whiteSpace = run.pricePaused ? 'normal' : '';
   r.stage.style.overflow = run.pricePaused ? 'visible' : '';
-  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> elapsed';
+  r.elapsed.innerHTML = '<b>' + fmtElapsed(Date.now() - run.start) + '</b> ' + pageT('run.elapsed_suffix', 'elapsed');
   r.steps.textContent = run.steps.length ? stepsRollupText(run.steps) : '';
   r.mode.textContent = MODE_LABELS[run.activeMode] || MODE_LABELS.manual;
   r.mode.classList.toggle('bypass', run.activeMode === 'bypass_permissions');
@@ -4648,16 +5762,16 @@ function renderCard(run) {
     r.model.textContent = compactLabel(compactModelBadge(run.model));
     const _identity = modelIdentityDetails(run.model);
     if (!_identity.length) _identity.push(modelProviderPresentation(run.model));
-    r.model.title = _identity.join(' | ') || 'Recorded model identity';
+    r.model.title = _identity.join(' | ') || pageT('run.model_identity_title', 'Recorded model identity');
   }
-  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? (usd + ' used') : '';
+  const usd = fmtUsd(run.cost); r.cost.textContent = usd ? pageTF('run.cost_used', '{cost} used', { cost: usd }) : '';
   const recent = run.steps.slice(-3).map((s) => (s.status === 'completed' ? '✓ ' : (s.status === 'failed' ? '× ' : '• ')) + (s.summary || s.tool || 'Action'));
   r.recent.innerHTML = recent.map((s) => '<span>' + esc(s) + '</span>').join('');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';   // one line + ellipsis, exact text on the tooltip
-  if (run.status === 'running') r.title.textContent = run.verifying ? 'Answer ready · model review running…' : humanActivityState(run);
+  if (run.status === 'running') r.title.textContent = run.verifying ? pageT('run.verifying', 'Answer ready · model review running…') : humanActivityState(run);
   run.card.classList.toggle('perm', !!run.permission && run.status === 'running');
-  r.sr.textContent = (run.permission ? 'Waiting for approval. ' : '') + (run.action || run.stage || '');
+  r.sr.textContent = (run.permission ? pageT('run.sr_waiting', 'Waiting for approval. ') : '') + (run.action || run.stage || '');
 }
 
 const REVIEW_STATE_BY_RAW_TYPE = Object.freeze({
@@ -4768,7 +5882,8 @@ function applyResultSummary(run) {
   r.summary.textContent = parts.join(' · ');
   r.last.textContent = run.last || '';
   r.last.title = run.last || '';
-  r.sr.textContent = parts.join(' · ') || 'Done';
+  // A failed or stopped turn is never announced as "Done".
+  r.sr.textContent = parts.join(' · ') || (run.status === 'failed' ? (run.endSummary || "Didn't finish") : run.status === 'cancelled' ? 'Stopped' : pageT('run.sr_done', 'Done'));
   // Routing, approval, failure, review and ledger events are meaningful even when no tool completed.
   const hasActivity = hasMeaningfulActivity(run);
   if (r.view) r.view.style.display = hasActivity ? '' : 'none';
@@ -4805,6 +5920,7 @@ function finishRun(run, kind, summaryText, tsIso) {
   paintFinishedCard(run);
   if (isDisplayed(run.chatId)) renderPanel();
   setTimeout(loadActivityHistory, 250);
+  if (typeof markTabTitle === 'function') markTabTitle(kind);
   // Named fragment call site: lifecycle notifications. The fragment decides visibility (it only
   // surfaces completions the operator was NOT looking at); this site only reports the truth.
   if (window.VoolNotify && window.VoolNotify.runFinished) {
@@ -4852,7 +5968,7 @@ function paintFinishedCard(run) {
     link.textContent = pageT('run.report_problem', 'Report a problem');
     link.title = pageT('run.report_problem_title', 'Build a sanitized bug report for this failed turn');
     link.addEventListener('click', () => reportProblemForFailedRun(run));
-    run.card.appendChild(link);
+    (run.card.querySelector('.tc-actions') || run.card).appendChild(link);
   }
 }
 
@@ -5010,6 +6126,34 @@ function openPanel() {
 }
 function closePanel() { document.body.classList.remove('panel-open'); panelBtnEl.classList.remove('on'); panelBtnEl.setAttribute('aria-pressed', 'false'); }
 function togglePanel() { document.body.classList.contains('panel-open') ? closePanel() : openPanel(); }
+// Esc closes the Activity panel when it is the thing in front: focus is inside it, or no reply is
+// running (a bare Esc during a reply still stops the reply). Anything open on top of it (a menu,
+// a dialog) owns that Esc first; that is decided before those closers run.
+let panelEscOwned = false;
+function focusInsidePanel() {
+  const xp = document.getElementById('xpanel');
+  return !!(xp && typeof xp.contains === 'function' && xp.contains(document.activeElement));
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  panelEscOwned = false;
+  try {
+    if (!document.body.classList.contains('panel-open')) return;
+    const inside = focusInsidePanel();
+    const onTop = document.querySelector('.pop.open, .popover.open, #emojiPicker, #projMenu, #textPromptDialog')
+      || Array.from(document.querySelectorAll('.modal-overlay')).some((o) => !o.hidden && o.getClientRects().length);
+    panelEscOwned = !onTop && (inside || !(view.run && !view.run.ended));
+  } catch (err) { panelEscOwned = false; }
+}, true);
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented || !panelEscOwned) return;
+  panelEscOwned = false;
+  const inside = focusInsidePanel();
+  if (inside && document.activeElement && document.activeElement.id === 'xpSearchInput') return;
+  e.preventDefault();
+  closePanel();
+  if (inside) { try { panelBtnEl.focus(); } catch (err) {} }
+});
 function rowCls(st) { return st === 'completed' ? 'ok' : st === 'failed' ? 'fail' : st === 'pending_approval' ? 'wait' : 'run'; }
 function rowIcon(st) { return st === 'completed' ? '✓' : st === 'failed' ? '✕' : st === 'pending_approval' ? '⏸' : st === 'running' ? '▸' : '•'; }
 
@@ -6406,18 +7550,22 @@ function scopeSessionSet() {
   return set;
 }
 function scopeWhere() {
-  if (panelScope === 'chat') return 'this chat';
-  if (panelScope === 'project') return 'project ' + currentProjectName();
+  if (panelScope === 'chat') return pageT('panel.scope_chat', 'this chat');
+  if (panelScope === 'project') return pageTF('panel.scope_project', 'project {name}', { name: currentProjectName() });
   return 'VOOL';
 }
 // "No receipts for this chat yet." / "...for project Lumen yet." / "...anywhere in VOOL yet."
 function emptyScopeText(kind) {
-  if (panelScope === 'all') return 'No ' + kind + ' recorded anywhere in VOOL yet.';
-  return 'No ' + kind + ' for ' + scopeWhere() + ' yet.';
+  if (panelScope === 'all') return pageTF('panel.empty_all', 'No {kind} recorded anywhere in VOOL yet.', { kind: kind });
+  return pageTF('panel.empty_scoped', 'No {kind} for {scope} yet.', { kind: kind, scope: scopeWhere() });
 }
-function chatTitleFor(sid) {
+// `untitled` lets a caller name a chat that has no title yet in words ("New chat") instead of the
+// id tail, which only means something next to other ids (the Activity groups keep the tail).
+function chatTitleFor(sid, untitled) {
   const chat = _lastSessions.find((s) => s.session_id === sid) || {};
-  return chat.title || String(sid || '').slice(-8) || 'Chat';
+  if (chat.title) return chat.title;
+  if (untitled != null) return untitled;
+  return String(sid || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
 }
 function scopeKey() { return panelScope + '|' + displayedChat + '|' + (view.projectId || ''); }
 // Durable per-chat ledgers for a wider scope. Chat scope needs none of this: the open chat's own
@@ -6500,6 +7648,29 @@ async function loadActivityHistory() {
     target.recoveredTask = activityHistory.find((item) => item.session_id === chatId && item.resume_available) || null;
   } catch (e) { activityHistory = []; target.recoveredTask = null; }
   renderPanel();
+  if (isDisplayed(chatId)) paintRecoveryNote(target);
+}
+// A chat whose turn was cut off by VOOL stopping is badged "Needs you" (it can be resumed). The
+// way to answer that lives in the Activity panel, so the chat itself says what happened and opens
+// it -- otherwise the user found an empty chat under a "Needs you" badge with nothing to answer.
+function paintRecoveryNote(st) {
+  if (!logEl) return;
+  const old = logEl.querySelector('.recovery-note');
+  if (!st || !st.recoveredTask) { if (old) old.remove(); return; }
+  if (old) return;
+  const h = st.recoveredTask.execution_history || {};
+  const asked = String(h.request_preview || st.recoveredTask.request_preview || '').trim();
+  const note = document.createElement('div');
+  note.className = 'recovery-note'; note.setAttribute('role', 'status');
+  const text = document.createElement('div');
+  text.textContent = 'This chat was interrupted when VOOL stopped.' + (asked ? ' You asked: \u201c' + asked.slice(0, 160) + '\u201d' : '') + ' You can resume it or cancel it.';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'tc-view'; btn.textContent = 'Resume or cancel\u2026';
+  btn.addEventListener('click', () => openPanel());
+  note.appendChild(text); note.appendChild(btn);
+  const empty = logEl.querySelector('.empty');
+  if (empty) empty.remove();
+  logEl.insertBefore(note, logEl.firstChild);
 }
 function historyProjectLabel(sid) {
   const chat = _lastSessions.find((item) => item.session_id === sid) || {};
@@ -6522,7 +7693,7 @@ function renderActivityHistoryHtml() {
     const bounded = h.bounded_execution || {};
     const task = h.request_preview || item.request_preview || h.title || 'Task';
     const status = h.request_state_label || h.status || item.status || 'unknown';
-    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || 'Chat';
+    const chatTitle = chat.title || String(item.session_id || '').slice(-8) || pageT('panel.chat_fallback', 'Chat');
     const evidence = [];
     if (h.latest_tool) evidence.push('last action ' + h.latest_tool);
     if (Array.isArray(h.changed_paths) && h.changed_paths.length) evidence.push(h.changed_paths.length + ' file' + (h.changed_paths.length === 1 ? '' : 's') + ' changed');
@@ -6616,15 +7787,15 @@ function wireActivityPanelActions() {
   }));
   xpBodyEl.querySelectorAll('[data-recovery]').forEach((button) => button.addEventListener('click', async () => {
     const action = button.getAttribute('data-recovery');
-    if (action === 'review') { toast('Showing the saved task timeline and receipts below.'); return; }
+    if (action === 'review') { toast(pageT('recovery.toast_timeline', 'Showing the saved task timeline and receipts below.')); return; }
     if (action === 'resume') { const sid = displayedChat; if (!isChatBusy(sid)) { view.recoveredTask = null; renderPanel(); await runTurn('Continue the interrupted task from its saved checkpoint.', null, { chatId: sid }); } return; }
     if (action === 'cancel') {
       button.disabled = true;
       try {
         const r = await fetch('/api/task/recovery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: displayedChat, checkpoint_id: button.getAttribute('data-checkpoint') || '', action: 'cancel' }) });
         const d = await r.json(); if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-        view.recoveredTask = null; toast('Interrupted task cancelled.'); await loadActivityHistory();
-      } catch (e) { button.disabled = false; toast('Could not cancel recovered task: ' + e.message); }
+        view.recoveredTask = null; toast(pageT('recovery.toast_cancelled', 'Interrupted task cancelled.')); await loadActivityHistory();
+      } catch (e) { button.disabled = false; toast(pageT('recovery.cancel_failed_prefix', 'Could not cancel recovered task: ') + e.message); }
     }
   }));
 }
@@ -6705,7 +7876,7 @@ function renderPanelBody() {
   // The one Copy control names the tab it will actually copy ("Copy Activity", "Copy Event log").
   const copyBtn = document.getElementById('xpCopy');
   if (copyBtn) {
-    const copyLabel = 'Copy ' + (panelTab || 'Activity') + ' (' + scopeWhere() + ')';
+    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTab || pageT('panel.tab_activity', 'Activity'), scope: scopeWhere() });
     copyBtn.title = copyLabel; copyBtn.setAttribute('aria-label', copyLabel);
   }
   const run = view.run, body = xpBodyEl;
@@ -6725,11 +7896,11 @@ function renderPanelBody() {
       // claimed. It used to be the last turn only.
       restored += renderChatActivity(view, { live: false });
       restored += renderActivityHistoryHtml();
-      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>';
+      body.innerHTML = restored || '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>';
       xpBodyEl.dataset.activityRendered = '1';
       wireActivityPanelActions(); return;
     }
-    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('activity')) + '</div>'; return;
+    body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_activity', 'activity'))) + '</div>'; return;
   }
   let html = '';
   if (panelTab === 'Steps') {
@@ -6777,11 +7948,11 @@ function renderPanelBody() {
     html = renderRecoveryHtml() + html + renderActivityHistoryHtml();
   } else if (panelTab === 'Changes' || panelTab === 'Files') {
     const paths = Object.keys(run.files);
-    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('file changes')) + '</div>'; return; }
+    if (!paths.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_file_changes', 'file changes'))) + '</div>'; return; }
     paths.forEach((p) => { html += '<div class="xp-row ok"><span class="ic">✎</span><div class="bd mono">' + esc(p) + '</div></div>'; });
   } else if (panelTab === 'Tests') {
     const t = run.tests;
-    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('test runs')) + '</div>'; return; }
+    if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_test_runs', 'test runs'))) + '</div>'; return; }
     html = '<div class="xp-note">' + esc(t.done + (t.total ? (' of ' + t.total) : '') + ' tests complete' + (t.failed ? (' · ' + t.failed + ' failed') : '')) + '</div>';
   } else if (panelTab === 'Preview') {
     if (run.preview) { html = '<div class="xp-note">Preview: <span class="mono">' + esc(run.preview) + '</span></div>'; }
@@ -6891,10 +8062,10 @@ function renderAgents(body) {
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
     if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">Reading activity for ' + esc(scopeWhere()) + '\u2026</div>'; return; }
-    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+    if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
-  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('events')) + '</div>'; return; }
+  if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   // The event log is a flat list -- there is nothing to disclose -- so it gets the control that
   // actually applies to it. Copy all still reads from the data, not from what happens to be scrolled.
   let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">Copy all</button></div>';
@@ -6924,7 +8095,7 @@ async function renderReceipts(body) {
     const r = await fetch('/api/runtime/receipts?session=' + encodeURIComponent(displayedChat));
     const d = await r.json();
     const list = d.receipts || [];
-    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+    if (!list.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
     let html = '<div class="xp-note">' + (d.chain_verified === true
       ? 'Receipts consistent — every receipt shown is individually valid and correctly linked to the one before it. This does not prove the history is complete: receipts deleted from the end leave no trace. This does not prove the answer is correct.'
       : (d.chain_verified === false
@@ -6955,7 +8126,7 @@ async function renderScopedReceipts(body) {
     } catch (e) { /* one unreadable chat must not empty the panel */ }
   }
   if (scopeKey() !== key || panelTab !== 'Receipts') return;   // the user moved on mid-load
-  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText('signed receipts')) + '</div>'; return; }
+  if (!groups.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_signed_receipts', 'signed receipts'))) + '</div>'; return; }
   const dropped = Math.max(0, ids.length - capped.length);
   let html = '<div class="xp-note">Receipts from ' + groups.length + ' chat' + (groups.length === 1 ? '' : 's')
     + ' in ' + esc(scopeWhere()) + '. Each chain is verified within its own chat.'
@@ -7015,7 +8186,7 @@ function wireReceiptActions(body, list) {
       const text = btn.getAttribute('data-copy') === 'hash'
         ? String(rc.content_hash || '')
         : JSON.stringify(rc, null, 2);
-      if (!text) { toast('That receipt carries no hash to copy.'); return; }
+      if (!text) { toast(pageT('receipts.no_hash_toast', 'That receipt carries no hash to copy.')); return; }
       copyText(text, btn);
     });
   });
@@ -7023,6 +8194,35 @@ function wireReceiptActions(body, list) {
 
 
 // --- Message queue (composer stays usable; a send while busy is queued, never dropped) ---
+// Every claim carries this page's lease, and the page keeps a heartbeat for it. A claimed
+// ("in flight") message whose lease has no live page behind it was cut off by a reload or a
+// closed window: it is shown as interrupted with Send again / Remove instead of "Running" for
+// ever. A claim with no lease (older pages) keeps the old reading.
+const PAGE_LEASE = 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+const LEASE_PREFIX = 'vool.queue.lease.';
+function beatLease() { try { localStorage.setItem(LEASE_PREFIX + PAGE_LEASE, String(Date.now())); } catch (e) {} }
+beatLease();
+setInterval(beatLease, 4000);
+try { window.addEventListener('pagehide', function () { try { localStorage.removeItem(LEASE_PREFIX + PAGE_LEASE); } catch (e) {} }); } catch (e) {}
+function leaseAlive(owner) {
+  if (!owner) return true;            // unknown claimer: never call it interrupted
+  if (owner === PAGE_LEASE) return true;
+  try {
+    const t = Number(localStorage.getItem(LEASE_PREFIX + owner) || 0);
+    return !!t && (Date.now() - t) < 90000;   // hidden tabs beat about once a minute
+  } catch (e) { return false; }
+}
+function queueItemOwnedHere(item) {
+  return Object.keys(chatStates || {}).some(function (k) {
+    const r = chatStates[k] && chatStates[k].run;
+    return r && !r.released && r.queueItemId === item.queue_item_id;
+  });
+}
+function queueItemStale(item) {
+  return item.status === 'in_flight' && !!item.lease_owner && !queueItemOwnedHere(item)
+    && !(item.lease_owner === PAGE_LEASE && chatState(String(item.session_id || displayedChat)).pumpHold)
+    && !leaseAlive(item.lease_owner);
+}
 async function queueOp(op, chatId, extra) {
   try {
     const res = await fetch('/api/chat/queue', {
@@ -7055,6 +8255,7 @@ const lastQueueItemsByChat = new Map();
 
 function renderQueue(items) {
   lastQueueItemsByChat.set(displayedChat, items || []);
+  scheduleQueueWaitingNotice(displayedChat);
   const pending = (items || []).filter(function (i) { return i.status === 'pending' || i.status === 'in_flight'; });
   queueEl.innerHTML = '';
   if (!pending.length) { queueEl.style.display = 'none'; queueExpandedByChat.delete(displayedChat); return; }
@@ -7063,23 +8264,38 @@ function renderQueue(items) {
   const visibleCount = expanded ? pending.length : Math.min(pending.length, QUEUE_VISIBLE_LIMIT);
   let pos = 0;
   pending.forEach(function (item, idx) {
-    const running = item.status === 'in_flight';
-    if (!running) pos += 1;
+    const stale = queueItemStale(item);
+    const running = item.status === 'in_flight' && !stale;
+    if (!running && !stale) pos += 1;
     // Numbering and cancel targets are computed for every item, visible or not, so an expanded
     // chip 3 still reads "Queued 3" and cancels the same queue_item_id it always would have.
     if (idx >= visibleCount) return;
     const chip = document.createElement('div');
-    chip.className = 'qchip' + (running ? ' running' : '');
+    chip.className = 'qchip' + (running ? ' running' : '') + (stale ? ' stale' : '');
     const preview = (item.payload && item.payload.text) ? item.payload.text : '';
     const label = document.createElement('span');
     label.className = 'qchip-text';
     const queuedAttachmentCount = ((item.payload && item.payload.attachments) || []).length;
-    label.textContent = (running ? 'Running: ' : (item.payload && item.payload.price_wait ? 'Waiting for price · ' + item.payload.price_wait.model_id + ': ' : ('Queued ' + pos + ': '))) + preview + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
+    label.textContent = (stale ? 'Interrupted, not sent: ' + preview : running ? pageTF('queue.item_running', 'Running: {preview}', { preview: preview }) : (item.payload && item.payload.price_wait ? pageTF('queue.item_price_wait', 'Waiting for price · {model}: {preview}', { model: item.payload.price_wait.model_id, preview: preview }) : pageTF('queue.item_queued', 'Queued {pos}: {preview}', { pos: pos, preview: preview }))) + (queuedAttachmentCount ? ' \u{1F4CE}' + queuedAttachmentCount : '');
     label.title = preview;
     chip.appendChild(label);
-    if (!running) {
+    if (stale) {
+      const again = document.createElement('button');
+      again.type = 'button'; again.className = 'qchip-act'; again.textContent = 'Send again';
+      again.title = 'Send this message again';
+      again.addEventListener('click', function () { resendStaleQueueItem(item); });
+      chip.appendChild(again);
+      const rm = document.createElement('button');
+      rm.type = 'button'; rm.className = 'qchip-x'; rm.textContent = '×'; rm.title = 'Remove this message';
+      rm.setAttribute('aria-label', 'Remove this message');
+      rm.addEventListener('click', async function () {
+        await queueOp('complete', displayedChat, { queue_item_id: item.queue_item_id, status: 'cancelled' });
+        refreshQueue();
+      });
+      chip.appendChild(rm);
+    } else if (!running) {
       const x = document.createElement('button');
-      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = 'Cancel this queued message';
+      x.type = 'button'; x.className = 'qchip-x'; x.textContent = '×'; x.title = pageT('queue.cancel_title', 'Cancel this queued message');
       x.addEventListener('click', async function () { await queueOp('cancel', displayedChat, { queue_item_id: item.queue_item_id }); refreshQueue(); });
       chip.appendChild(x);
     }
@@ -7089,8 +8305,8 @@ function renderQueue(items) {
   if (hiddenCount > 0) {
     const more = document.createElement('button');
     more.type = 'button'; more.className = 'qchip qchip-more'; more.id = 'queueMore';
-    more.textContent = '+' + hiddenCount + ' queued';
-    more.title = 'Show all queued messages'; more.setAttribute('aria-expanded', 'false');
+    more.textContent = pageTF('queue.more_hidden', '+{n} queued', { n: hiddenCount });
+    more.title = pageT('queue.show_all_title', 'Show all queued messages'); more.setAttribute('aria-expanded', 'false');
     more.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, true);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7099,8 +8315,8 @@ function renderQueue(items) {
   } else if (expanded && pending.length > QUEUE_VISIBLE_LIMIT) {
     const less = document.createElement('button');
     less.type = 'button'; less.className = 'qchip qchip-more'; less.id = 'queueMore';
-    less.textContent = 'Show less';
-    less.title = 'Collapse the queue'; less.setAttribute('aria-expanded', 'true');
+    less.textContent = pageT('queue.show_less', 'Show less');
+    less.title = pageT('queue.collapse_title', 'Collapse the queue'); less.setAttribute('aria-expanded', 'true');
     less.addEventListener('click', function () {
       queueExpandedByChat.set(displayedChat, false);
       renderQueue(lastQueueItemsByChat.get(displayedChat) || []);
@@ -7108,6 +8324,89 @@ function renderQueue(items) {
     queueEl.appendChild(less);
   }
 }
+
+// Messages left waiting with nothing sending them (the page that was going to send them was
+// reloaded or closed). Checked again after a short pause so a normal hand-off between two
+// queued turns never flashes the notice.
+let queueWaitingTimer = null;
+function queueWaitingState(chatId) {
+  const items = lastQueueItemsByChat.get(chatId) || [];
+  const live = items.some(function (i) { return i.status === 'in_flight' && !queueItemStale(i); });
+  // Interrupted messages count too, in their original order, so one answer covers them all.
+  const waiting = items.filter(function (i) {
+    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+  });
+  const owner = chatState(chatId);
+  if (live || !waiting.length || isChatBusy(chatId) || owner.pumpHold) return [];
+  return waiting;
+}
+function paintQueueWaiting(chatId) {
+  const bar = document.getElementById('queueWaiting');
+  if (!bar) return;
+  const waiting = isDisplayed(chatId) ? queueWaitingState(chatId) : [];
+  bar.innerHTML = '';
+  bar.classList.toggle('show', waiting.length > 0);
+  if (!waiting.length) return;
+  const msg = document.createElement('span');
+  msg.textContent = waiting.length === 1 ? '1 message is waiting to send.' : waiting.length + ' messages are waiting to send.';
+  const go = document.createElement('button');
+  go.type = 'button'; go.className = 'qchip-act'; go.textContent = 'Send now';
+  go.addEventListener('click', function () { bar.classList.remove('show'); resendWaiting(chatId); });
+  const drop = document.createElement('button');
+  drop.type = 'button'; drop.className = 'qchip-act'; drop.textContent = 'Discard';
+  drop.addEventListener('click', async function () {
+    bar.classList.remove('show');
+    for (const i of waiting) {
+      if (i.status === 'in_flight') await queueOp('complete', chatId, { queue_item_id: i.queue_item_id, status: 'cancelled' });
+      else await queueOp('cancel', chatId, { queue_item_id: i.queue_item_id });
+    }
+    refreshQueue();
+  });
+  bar.appendChild(msg); bar.appendChild(go); bar.appendChild(drop);
+}
+function scheduleQueueWaitingNotice(chatId) {
+  if (queueWaitingTimer) clearTimeout(queueWaitingTimer);
+  if (!queueWaitingState(chatId).length) { paintQueueWaiting(chatId); return; }
+  queueWaitingTimer = setTimeout(function () { queueWaitingTimer = null; paintQueueWaiting(chatId); }, 1500);
+}
+// Send again / Send now: messages are sent in the order they were written. When an interrupted
+// message is among them, it and every message queued after it are taken off the queue and put
+// back in their original order (the queue only appends), so "and dogs" never answers before
+// "what about cats". With nothing interrupted, the queue is simply sent.
+async function resendWaiting(chatId) {
+  chatId = String(chatId || displayedChat);
+  const items = (lastQueueItemsByChat.get(chatId) || []).filter(function (i) {
+    return (i.status === 'pending' && !(i.payload && i.payload.price_wait)) || queueItemStale(i);
+  });
+  const firstStale = items.findIndex(queueItemStale);
+  if (firstStale < 0) { pumpQueue(chatId); return; }
+  const redo = items.slice(firstStale);
+  for (const i of redo) {
+    if (i.status === 'in_flight') await queueOp('complete', chatId, { queue_item_id: i.queue_item_id, status: 'cancelled' });
+    else await queueOp('cancel', chatId, { queue_item_id: i.queue_item_id });
+  }
+  let lostFiles = false, failed = null;
+  for (const i of redo) {
+    const payload = i.payload || {};
+    const extra = { text: payload.text || '', idempotency_key: 'idem-again-' + i.queue_item_id };
+    if (Array.isArray(payload.attachments) && payload.attachments.length) extra.attachments = payload.attachments;
+    let res = await queueOp('enqueue', chatId, extra);
+    if ((!res || !res.item) && extra.attachments) {
+      delete extra.attachments;
+      res = await queueOp('enqueue', chatId, extra);
+      if (res && res.item) lostFiles = true;
+    }
+    if (!res || !res.item) { failed = payload.text || ''; break; }
+  }
+  if (lostFiles) toast('Sent again without its files. Attach them again if you still need them.');
+  if (failed !== null) {
+    toast("Couldn't send it again. The words are in the message box.");
+    try { if (isDisplayed(chatId) && !String(inputEl.value || '').trim()) { inputEl.value = failed; inputEl.focus(); } } catch (e) {}
+  }
+  await refreshQueue();
+  if (!isChatBusy(chatId)) pumpQueue(chatId);
+}
+function resendStaleQueueItem(item) { return resendWaiting(String(item.session_id || displayedChat)); }
 
 let priceQueuePumpActive = false;
 async function pumpPriceWaitQueues() {
@@ -7129,7 +8428,7 @@ async function pumpQueue(forChatId) {
   owner.pumpHold = true;  // hold THIS chat's slot across the await so a concurrent send() queues
   for (;;) {
     const arrivals = owner.queueArrivals;
-    const res = await queueOp('claim', chatId, {});
+    const res = await queueOp('claim', chatId, { lease_owner: PAGE_LEASE });
     const claimed = res && res.item ? res.item : null;
     if (!claimed) {
       // A send() can enqueue while this empty claim was on the wire, and its own pumpQueue() call
@@ -7186,16 +8485,20 @@ async function runTurn(text, queueItemId, opts) {
   // spent the draft, the queue item that owned them, or the resend of a failed turn -- and then
   // ride the run. Nothing after this line re-reads the composer's strip.
   const turnAttachments = Array.isArray(opts.attachments) ? opts.attachments.map((a) => Object.assign({}, a)) : [];
+  let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
-    if (isDisplayed(chatId)) addMsg('user', text, sentAt, null, turnAttachments);
+    if (isDisplayed(chatId)) userMsgEl = addMsg('user', text, sentAt, null, turnAttachments);
     recordUserMessage(chatId, text, sentAt, turnAttachments);
+    userHistoryIndex = owner.history.length - 1;
+    // Marked private only when the server's commit for this turn says so (applyPrivateCommit).
     ensureSessionInSidebar(chatId, text);
     // The draft is spent: its chips now live on the bubble, and the strip is clear for the next
     // message of THIS chat.
     if (turnAttachments.length) { owner.attachments = []; if (isDisplayed(chatId)) renderAttachStrip(); }
   }
   const run = adoptRun(chatId, newRun(chatId));
+  run.userMsgEl = userMsgEl; run.userHistoryIndex = userHistoryIndex;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -7267,7 +8570,7 @@ async function runTurn(text, queueItemId, opts) {
       // confirm remains the fallback so an unmounted fragment can never brick sending.
       const ok = window.VoolPriceGate
         ? await window.VoolPriceGate.review({ kind: 'per-send', id: String(selectedModel), label: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel })
-        : window.confirm('Use the PAID model "' + ((CLOUD_MODEL_LABELS[selectedModel]) || selectedModel) + '" for this turn? It may charge your account each turn. VOOL spend caps still apply.');
+        : window.confirm(pageTF('model.confirm_paid', 'Use the PAID model "{name}" for this turn? It may charge your account each turn. VOOL spend caps still apply.', { name: (CLOUD_MODEL_LABELS[selectedModel]) || selectedModel }));
       if (!ok) {
         finishRun(run, 'cancelled', pageT('run.cancelled_paid', 'Cancelled \u2014 paid model not confirmed'));
         releaseComposer(run);
@@ -7284,6 +8587,7 @@ async function runTurn(text, queueItemId, opts) {
       // approval grant, bypass grant -- never from the composer's current display.
       body: JSON.stringify(buildTurnRequestBody(run, selectedModel, modelSelection)),
     });
+    run.responseReceived = true;
     // The trial's one turn is now genuinely sent: retire the grant so the NEXT turn
     // reverts to the chat's ordinary selection (pin/sticky/Auto) on its own.
     if (trialServing) consumeTryOnce(chatId);
@@ -7307,6 +8611,21 @@ async function runTurn(text, queueItemId, opts) {
         releaseComposer(run);
         return;
       }
+    }
+    // Any other refusal (an archived chat's 409, an outage) is the turn's answer: the server's own
+    // reason, never an empty stream read as "(no response)" and marked Completed.
+    if (!res.ok) {
+      let refusal = null;
+      try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      const reason = (refusal && (refusal.detail || refusal.error)) ? String(refusal.detail || refusal.error) : '';
+      run.text = reason
+        ? pageT('run.refused_reason', 'VOOL did not run this turn: {reason}').replace('{reason}', reason)
+        : pageT('run.refused_status', 'VOOL did not run this turn (HTTP {status}).').replace('{status}', String(res.status));
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      if (run.textEl) run.textEl.textContent = run.text;
+      finishRun(run, 'failed', run.text);
+      releaseComposer(run);
+      return;
     }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -7335,6 +8654,7 @@ async function runTurn(text, queueItemId, opts) {
           continue;
         }
         if (obj && obj.vool_response_commit && applyResponseCommit(run, obj.vool_response_commit)) {
+          applyPrivateCommit(run, run.displayMetadata);
           // Deltas are intentionally speculative. The terminal server commit is the only content
           // allowed into the transcript, persistence-parity view, and next-turn model history.
           hasResponseCommit = true;
@@ -7342,12 +8662,13 @@ async function runTurn(text, queueItemId, opts) {
           const committedUsage = run.displayMetadata && run.displayMetadata.usage;
           const committedTokens = Number(committedUsage && committedUsage.output_tokens) || 0;
           run.tokens = committedTokens || Math.round(assistant.length / 4);
+          endStreamPaint(run);
           withRunDom(run, () => {
             if (!run.textEl) return;
             run.assistantMsgEl.classList.remove('pending');
             renderAssistantContent(run.textEl, assistant, run.displayMetadata);
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
           continue;
         }
@@ -7363,10 +8684,10 @@ async function runTurn(text, queueItemId, opts) {
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
             run.assistantMsgEl.classList.remove('pending');
-            run.textEl.textContent = assistant;
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
-            logEl.scrollTop = logEl.scrollHeight;
+            followLog();
           });
+          if (!hasResponseCommit) scheduleStreamPaint(run);
         }
       }
     }
@@ -7379,6 +8700,22 @@ async function runTurn(text, queueItemId, opts) {
       if (!assistant) { run.text = pageT('run.stopped_showing', '(stopped showing this answer)'); withRunDom(run, () => { if (run.textEl) run.textEl.textContent = run.text; }); }
       finishRun(run, 'cancelled', pageT('run.cancelled', 'Stopped \u2014 cancelled the turn on your machine.'));
     }
+    else if (isNetworkFailure(e)) {
+      // The service itself could not be reached: say that in words, never the browser's
+      // "Failed to fetch". Whether anything reached VOOL depends on whether a reply had begun.
+      VoolConnection.markOffline();
+      const sentNothing = !run.responseReceived;
+      run.error = sentNothing
+        ? "VOOL couldn't be reached, so this message wasn't answered. It's back in the message box: send it again when VOOL is running."
+        : "The connection to VOOL was lost before this answer finished. Try again when VOOL is running.";
+      run.text = assistant ? assistant : run.error;
+      withRunDom(run, () => { if (run.textEl) run.textEl.textContent = assistant ? (assistant + '\n\n' + run.error) : run.error; });
+      if (sentNothing && isDisplayed(chatId) && inputEl && !inputEl.value.trim()) {
+        inputEl.value = text;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      finishRun(run, 'failed', "Couldn't reach VOOL");
+    }
     else {
       run.error = (e && e.message ? e.message : String(e));
       run.text = run.text || (pageT('run.error_prefix', 'Error: ') + run.error);
@@ -7386,6 +8723,9 @@ async function runTurn(text, queueItemId, opts) {
       finishRun(run, 'failed', pageT('run.connection_error', 'Connection error'));
     }
   }
+  // The stream is over: no batched repaint may land after the terminal paint below (or the error
+  // and stop text the catch above just wrote).
+  endStreamPaint(run);
   if (!hasResponseCommit && assistant) {
     // Compatibility with an older server: retain the response, but still migrate any appended
     // provenance footer out of canonical conversation content before it is recorded.
@@ -7417,7 +8757,37 @@ async function runTurn(text, queueItemId, opts) {
   }
   releaseComposer(run);  // frees THIS chat's slot + pumps THIS chat's queue
   loadSessions();
+  // A turn can switch "use the model's own tools" by chat command; re-read the saved switch.
+  refreshOwnToolsBanner();
   if (isDisplayed(chatId)) inputEl.focus();
+}
+// "Use the model's own tools" marker. The saved preference is the one authority: the banner shows
+// exactly what the next turn will read, and its button sends the same words the server parses.
+async function refreshOwnToolsBanner() {
+  const banner = document.getElementById('ownToolsBanner');
+  if (!banner) return;
+  try {
+    const r = await fetch('/api/settings/prefs');
+    if (!r.ok) return;
+    const p = await r.json();
+    banner.hidden = !(p && p.model_own_tools === true);
+  } catch (e) { /* unknown: leave the marker as it was */ }
+}
+async function endOwnTools() {
+  // One toast, decided by the save itself: the follow-up read only redraws the marker.
+  const banner = document.getElementById('ownToolsBanner');
+  let saved = false;
+  try {
+    const r = await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model_own_tools: false }) });
+    saved = r.ok;
+  } catch (e) { saved = false; }
+  if (saved) {
+    if (banner) banner.hidden = true;
+    toast(pageT('own_tools.ended', "Using VOOL's tools again."));
+  } else {
+    toast(pageT('own_tools.end_failed', "Couldn't switch back to VOOL's tools. Nothing changed."));
+  }
+  await refreshOwnToolsBanner();
 }
 
 let spendingPreflightPending = false;
@@ -7490,7 +8860,7 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   try { balance = await postJsonWithin('/api/cloud/usepod/balance', {}, 20000); } catch (e) { balance = null; }
   const blocker = usepodBalanceBlocker(balance);
   if (!blocker) return true;
-  toast(blocker + ' Nothing was sent.');
+  toast(blocker + pageT('usepod.nothing_sent', ' Nothing was sent.'));
   openSettingsInFrame('models/usepod/spend');
   return false;
 }
@@ -7507,10 +8877,10 @@ async function send() {
   if (!text && !draft.length) return;
   // Attachments gate the send BEFORE the typed text is cleared: nothing is sent, nothing is
   // lost, and a second press after the upload is fixed sends the message exactly once.
-  if (draft.some((i) => i.state === 'uploading')) { toast('Wait for the attachments to finish uploading.'); return; }
-  if (draft.some((i) => i.state === 'failed')) { toast('Remove or retry the failed attachment before sending.'); return; }
+  if (draft.some((i) => i.state === 'uploading')) { toast(pageT('attach.toast_wait_uploading', 'Wait for the attachments to finish uploading.')); return; }
+  if (draft.some((i) => i.state === 'failed')) { toast(pageT('attach.toast_failed_present', 'Remove or retry the failed attachment before sending.')); return; }
   // A message that is only the documents' markers carries no words of the user's own.
-  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast('Add a message saying what to do with the ' + (draft.some((i) => i.document) ? 'document' : 'attachment') + '.'); inputEl.focus(); return; }
+  if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast(pageTF('attach.toast_say_what', 'Add a message saying what to do with the {kind}.', { kind: draft.some((i) => i.document) ? pageT('attach.document', 'document') : pageT('attach.attachment', 'attachment') })); inputEl.focus(); return; }
   const selected = effectiveModel(chatId, text);
   if (String(selected).startsWith('usepod:') && !isChatBusy(chatId)) {
     if (spendingPreflightPending) return;
@@ -7526,17 +8896,17 @@ async function send() {
   if (String(selected).startsWith('usepod:')) {
     let target;
     try { target = await postJsonWithin('/api/cloud/usepod/price-wait/check', {model_id:String(selected).slice(7)}, 20000); }
-    catch (e) { toast('Price check unavailable. Your draft is unchanged.'); return; }
+    catch (e) { toast(pageT('send.price_check_unavailable', 'Price check unavailable. Your draft is unchanged.')); return; }
     if (!isDisplayed(chatId) || inputEl.value !== draftText || effectiveModel(chatId, text) !== selected) return;
     if (target && target.enabled) {
       const queued = await queueOp('enqueue', chatId, {text, attachments:attachments.map(a=>a.id), price_wait_model:String(selected).slice(7), idempotency_key:'price-' + Date.now()});
-      if (!queued || !queued.item) { toast('Could not save this task to the price queue. Your draft is unchanged.'); return; }
+      if (!queued || !queued.item) { toast(pageT('send.price_queue_save_failed', 'Could not save this task to the price queue. Your draft is unchanged.')); return; }
       // Same wakeup contract as the busy branch below: the arrival must survive an empty claim
       // that was already on the wire when this item landed.
       chatState(chatId).queueArrivals++;
       inputEl.value = ''; if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
       const owner = chatState(chatId); attachments.forEach(a=>{owner.queuedAttachmentMeta[a.id]=a;});owner.attachments=[];renderAttachStrip();
-      await refreshQueue(); toast(target.ready ? 'Price is available. Starting within your UsePod budget.' : 'Task saved. Waiting for your price; keep VOOL open.');
+      await refreshQueue(); toast(target.ready ? pageT('send.price_ready_start', 'Price is available. Starting within your UsePod budget.') : pageT('send.task_saved_waiting', 'Task saved. Waiting for your price; keep VOOL open.'));
       pumpQueue(chatId); return;
     }
   }
@@ -7597,12 +8967,12 @@ function attachHintText() {
   const L = ATTACH_LIMITS;
   // The audio mention follows the server's own accept list: where the speech dependency is
   // absent, audio uploads are refused typed and the picker never advertised them.
-  const families = 'text, code, PNG, JPEG, GIF, WebP' + ((L.accept && /audio/.test(L.accept)) ? ', audio' : '');
-  return 'Up to ' + L.max_files_per_turn + ' files · ' + fmtBytes(L.max_bytes_per_file) + ' each · ' + fmtBytes(L.max_bytes_per_turn) + ' per message · ' + families;
+  const families = pageT('attach.families', 'text, code, PNG, JPEG, GIF, WebP') + ((L.accept && /audio/.test(L.accept)) ? ', ' + pageT('attach.audio_family', 'audio') : '');
+  return pageTF('attach.hint', 'Up to {max_files} files · {per_file} each · {per_message} per message · {families}', { max_files: L.max_files_per_turn, per_file: fmtBytes(L.max_bytes_per_file), per_message: fmtBytes(L.max_bytes_per_turn), families: families });
 }
 function reflectAttachHint() {
   if (attachHintEl) attachHintEl.textContent = attachHintText();
-  if (attachBtnEl) attachBtnEl.title = 'Attach files or photos to this message — ' + attachHintText();
+  if (attachBtnEl) attachBtnEl.title = pageT('attach.title_prefix', 'Attach files or photos to this message — ') + attachHintText();
 }
 async function loadAttachmentLimits() {
   // The rules come from the server's own tables, so the picker's accept list and the hint can
@@ -7638,9 +9008,9 @@ function buildAttachChip(item, opts) {
   } else {
     const ico = document.createElement('span'); ico.className = 'att-ico'; ico.textContent = item.kind === 'image' ? '\u{1F5BC}' : (item.document ? '\u{1F4CB}' : '\u{1F4C4}'); chip.appendChild(ico);
   }
-  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? 'pasted text' : 'attachment'); name.title = item.name || ''; chip.appendChild(name);
+  const name = document.createElement('span'); name.className = 'att-name'; name.textContent = item.name || (item.document ? pageT('attach.pasted_text', 'pasted text') : pageT('attach.attachment', 'attachment')); name.title = item.name || ''; chip.appendChild(name);
   const meta = document.createElement('span'); meta.className = 'att-meta';
-  if (item.state === 'uploading') meta.textContent = 'uploading…';
+  if (item.state === 'uploading') meta.textContent = pageT('attach.uploading', 'uploading…');
   else if (item.document) {
     // Name, type, size and shape are the chip's whole claim about the document; what the model
     // did with it (once known) rides the same line.
@@ -7653,7 +9023,7 @@ function buildAttachChip(item, opts) {
   if (item.document && item.state !== 'failed') buildDocPreview(chip, item);
   if (opts.draft && item.document && item.state === 'ready') {
     const asMessage = document.createElement('button'); asMessage.type = 'button'; asMessage.className = 'att-as-message';
-    asMessage.textContent = 'Use as message'; asMessage.title = 'Move the full text into your editable message; nothing is sent';
+    asMessage.textContent = pageT('attach.use_as_message', 'Use as message'); asMessage.title = pageT('attach.use_as_message_title', 'Move the full text into your editable message; nothing is sent');
     asMessage.addEventListener('click', () => useDocumentAsMessage(item.localId)); chip.appendChild(asMessage);
   }
   if (opts.draft && item.kind === 'image' && item.state === 'ready') {
@@ -7661,15 +9031,15 @@ function buildAttachChip(item, opts) {
     if (warning) { const warn = document.createElement('span'); warn.className = 'att-warn'; warn.textContent = warning; chip.appendChild(warn); }
   }
   if (item.state === 'failed') {
-    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || 'Upload failed.'; chip.appendChild(err);
+    const err = document.createElement('span'); err.className = 'att-error'; err.textContent = item.error || pageT('attach.upload_failed', 'Upload failed.'); chip.appendChild(err);
     if (item.retryable) {
-      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = 'Retry'; retry.title = 'Upload this file again';
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'att-retry'; retry.textContent = pageT('attach.retry', 'Retry'); retry.title = pageT('attach.retry_title', 'Upload this file again');
       retry.addEventListener('click', () => retryAttachment(item.localId));
       chip.appendChild(retry);
     }
   }
   if (opts.draft) {
-    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = 'Remove this attachment'; x.setAttribute('aria-label', 'Remove ' + (item.name || 'attachment'));
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'att-x'; x.textContent = '×'; x.title = pageT('attach.remove_title', 'Remove this attachment'); x.setAttribute('aria-label', pageTF('attach.remove_aria', 'Remove {name}', { name: item.name || pageT('attach.attachment', 'attachment') }));
     x.addEventListener('click', () => removeAttachment(item.localId));
     chip.appendChild(x);
   }
@@ -7682,32 +9052,32 @@ function buildAttachChip(item, opts) {
 function buildDocPreview(chip, item) {
   const cid = String(item.sessionId || displayedChat || '');
   const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'att-expand';
-  toggle.textContent = 'Preview'; toggle.title = 'Show the beginning of this document exactly as pasted'; toggle.setAttribute('aria-expanded', 'false');
+  toggle.textContent = pageT('attach.preview', 'Preview'); toggle.title = pageT('attach.preview_title', 'Show the beginning of this document exactly as pasted'); toggle.setAttribute('aria-expanded', 'false');
   const pre = document.createElement('pre'); pre.className = 'att-preview'; pre.hidden = true;
   const more = document.createElement('span'); more.className = 'att-more'; more.hidden = true;
   let loaded = false;
   function paint(text) {
     const head = text.length > DOC_PREVIEW_CHARS ? text.slice(0, DOC_PREVIEW_CHARS) : text;
     pre.textContent = head;
-    if (text.length > head.length) { more.textContent = '… ' + (text.length - head.length).toLocaleString() + ' more characters; the whole document was kept and is what the model reads.'; more.hidden = false; }
+    if (text.length > head.length) { more.textContent = pageTF('attach.doc_more_chars', '… {n} more characters; the whole document was kept and is what the model reads.', { n: (text.length - head.length).toLocaleString(appLocale()) }); more.hidden = false; }
     else more.hidden = true;
   }
   async function load() {
     if (loaded) return;
     loaded = true;
     if (typeof item.text === 'string') { paint(item.text); return; }
-    if (!item.id) { pre.textContent = 'This document has no stored copy yet.'; return; }
+    if (!item.id) { pre.textContent = pageT('attach.doc_no_copy', 'This document has no stored copy yet.'); return; }
     try {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
-      if (r.status === 410) { pre.textContent = 'This document was erased from the chat; its name and size are all that remain.'; return; }
-      if (!r.ok) { pre.textContent = 'This document is no longer available (HTTP ' + r.status + ').'; return; }
+      if (r.status === 410) { pre.textContent = pageT('attach.doc_erased', 'This document was erased from the chat; its name and size are all that remain.'); return; }
+      if (!r.ok) { pre.textContent = pageTF('attach.doc_gone_http', 'This document is no longer available (HTTP {status}).', { status: r.status }); return; }
       paint(await r.text());
-    } catch (e) { loaded = false; pre.textContent = 'The preview could not be loaded. Check the connection and try again.'; }
+    } catch (e) { loaded = false; pre.textContent = pageT('attach.doc_preview_failed', 'The preview could not be loaded. Check the connection and try again.'); }
   }
   toggle.addEventListener('click', () => {
     const open = pre.hidden;
     pre.hidden = !open; more.hidden = !open || !more.textContent;
-    toggle.textContent = open ? 'Hide' : 'Preview';
+    toggle.textContent = open ? pageT('attach.hide', 'Hide') : pageT('attach.preview', 'Preview');
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) load();
   });
@@ -7721,6 +9091,7 @@ function renderAttachStrip() {
   attachChipsEl.innerHTML = '';
   items.forEach((item) => attachChipsEl.appendChild(buildAttachChip(item, { draft: true })));
   attachStripEl.hidden = !items.length;
+  if (typeof syncDraftMark === 'function') syncDraftMark();
 }
 function buildMsgAttachments(list) {
   const wrap = document.createElement('div'); wrap.className = 'msg-att';
@@ -7735,6 +9106,7 @@ function attachmentMeta(a) {
 // A transcript row from the server, with the attachment receipt the runtime persisted with it.
 function historyEntryFromServer(m) {
   const entry = { role: m.role, content: m.content, ts: m.ts, request_id: m.request_id || '' };
+  if (m.imported === true) entry.imported = true;
   if (m.artifact && typeof m.artifact === 'object') entry.artifact = { ...m.artifact };
   if (m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length) {
     entry.attachments = m.attachments.map((a) => Object.assign(attachmentMeta(a), { previewUrl: '' }));
@@ -7756,7 +9128,7 @@ async function addPastedDocument(text, chatId, opts) {
   if (councilOwnsComposer()) { toast(councilLockNote); return null; }
   const cid = String(chatId || displayedChat);
   const bucket = attachBucket(cid);
-  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — the pasted text was not added.'); return null; }
+  if (bucket.length >= ATTACH_LIMITS.max_files_per_turn) { toast(pageTF('attach.limit_no_paste', 'Up to {n} attachments per message — the pasted text was not added.', { n: ATTACH_LIMITS.max_files_per_turn })); return null; }
   const item = {
     localId: 'la-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
     file: null, bytes: null, text: text, document: true, sessionId: cid, source: opts.source === 'drop' ? 'drop' : 'paste',
@@ -7838,7 +9210,7 @@ async function addAttachmentFiles(fileList, chatId) {
   const room = ATTACH_LIMITS.max_files_per_turn - bucket.length;
   let accepted = files;
   if (files.length > room) {
-    toast('Up to ' + ATTACH_LIMITS.max_files_per_turn + ' attachments per message — ' + (files.length - Math.max(0, room)) + ' not added.');
+    toast(pageTF('attach.limit_some_not_added', 'Up to {n} attachments per message — {count} not added.', { n: ATTACH_LIMITS.max_files_per_turn, count: files.length - Math.max(0, room) }));
     accepted = files.slice(0, Math.max(0, room));
   }
   const fresh = [];
@@ -7919,7 +9291,7 @@ async function useDocumentAsMessage(localId) {
       const r = await fetch('/api/chat/attachments/preview?session=' + encodeURIComponent(cid) + '&id=' + encodeURIComponent(item.id));
       if (!r.ok) throw new Error('unavailable');
       text = await r.text();
-    } catch (e) { toast('Could not load the document. It is still attached.'); return; }
+    } catch (e) { toast(pageT('attach.doc_load_failed', 'Could not load the document. It is still attached.')); return; }
   }
   if (!isDisplayed(cid) || inputEl.value !== before || !attachBucket(cid).includes(item) || councilOwnsComposer()) return;
   const marker = documentMarker(item);
@@ -7927,7 +9299,7 @@ async function useDocumentAsMessage(localId) {
   removeAttachment(localId);
   inputEl.value = next;
   inputEl.dispatchEvent(new Event('input', {bubbles:true})); inputEl.focus();
-  toast('Moved into your message. Review it, then send.');
+  toast(pageT('attach.moved_to_message', 'Moved into your message. Review it, then send.'));
 }
 function retryAttachment(localId) {
   const cid = displayedChat;
@@ -7988,7 +9360,7 @@ if (composerFooterEl && typeof composerFooterEl.addEventListener === 'function')
       const images = files.filter((f) => (f.type || '').indexOf('image/') === 0);
       const texts = files.filter((f) => (f.type || '').indexOf('image/') !== 0);
       if (images.length) addAttachmentFiles(images, displayedChat);
-      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(f.name + ' could not be read as text.')); });
+      texts.forEach((f) => { const chatId = displayedChat; f.text().then((t) => addPastedDocument(t, chatId, { name: f.name, source: 'drop' })).catch(() => toast(pageTF('attach.read_failed', '{name} could not be read as text.', { name: f.name }))); });
       return;
     }
     let text = '';
@@ -8030,9 +9402,9 @@ let dictationRecorder = null;
 const DICTATION_NOTICE_DISMISSED_KEY = 'vool_dictation_notice_dismissed_v1';
 const DICTATION_LOCALE_KEY = 'vool_dictation_locale_v1';
 const VOICE_MODE_KEY = 'vool_voice_mode_v1';
-const DICTATION_TITLE_IDLE = 'Dictate into this message — recorded and transcribed on this machine only';
-const DICTATION_TITLE_RECORDING = 'Recording — click to stop and transcribe';
-const DICTATION_TITLE_PTT = 'Hold to talk — release to transcribe into this message';
+const DICTATION_TITLE_IDLE = dictT('dictate_title', 'Dictate into this message — recorded and transcribed on this machine only');
+const DICTATION_TITLE_RECORDING = dictT('recording_stop_title', 'Recording — click to stop and transcribe');
+const DICTATION_TITLE_PTT = dictT('ptt_title', 'Hold to talk — release to transcribe into this message');
 function dictT(key, fallback, params) {
   // Localised through the page's i18n bundle when it is present; the inline English is the
   // honest fallback until a catalog resolves the key.
@@ -8060,7 +9432,7 @@ if (dictationDismissEl) dictationDismissEl.addEventListener('click', async () =>
   try {
     const response = await fetch('/api/settings/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({speech_notice_dismissed:true})});
     if (!response.ok) throw new Error('Preference was not saved');
-  } catch (e) { toast('Notice hidden for now. Could not save this choice for restart.'); }
+  } catch (e) { toast(pageT('dictation.notice_hide_failed', 'Notice hidden for now. Could not save this choice for restart.')); }
 });
 // Native private web sessions can discard browser storage on exit. The existing
 // profile preference is the durable authority; wait for it before the boot probe.
@@ -8080,7 +9452,7 @@ function setDictating(on) {
   dictateBtnEl.classList.remove('error');
   if (voiceMode()) {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_PTT;
-    dictateBtnEl.setAttribute('aria-label', on ? 'Recording — release to transcribe' : DICTATION_TITLE_PTT);
+    dictateBtnEl.setAttribute('aria-label', on ? pageT('dictation.ptt_recording_aria', 'Recording — release to transcribe') : DICTATION_TITLE_PTT);
   } else {
     dictateBtnEl.title = on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE;
     dictateBtnEl.setAttribute('aria-label', on ? DICTATION_TITLE_RECORDING : DICTATION_TITLE_IDLE);
@@ -8102,7 +9474,7 @@ function setDictationError(note) {
 function setTranscribing(on) {
   if (!dictateBtnEl) return;
   dictateBtnEl.classList.toggle('transcribing', on);
-  dictateBtnEl.title = on ? 'Transcribing on this machine…' : dictationIdleTitle();
+  dictateBtnEl.title = on ? pageT('dictation.transcribing_title', 'Transcribing on this machine…') : dictationIdleTitle();
 }
 async function beginDictationRecording() {
   if (dictating || !dictateBtnEl) return false;
@@ -8213,6 +9585,9 @@ if (dictationLocaleEl) {
 }
 async function probeDictationAvailability() {
   await dictationNoticeReady;
+  // While this build ships the mic switched off (the button is disabled and says so), a second
+  // message under the composer about installing a recogniser only contradicts it.
+  if (dictateBtnEl && dictateBtnEl.disabled) return;
   // The typed availability probe (GET): an absent recogniser shows its reason and remedy
   // BEFORE the operator records, not after a wasted attempt.
   fetch('/api/chat/dictation?locale=' + encodeURIComponent(dictationLocale()))
@@ -8684,7 +10059,7 @@ function initComposerControls() {
       e.stopPropagation();
       const requested = it.getAttribute('data-mode'); closePops(null);
       if (requested === 'bypass_permissions') { openBypassModal(); return; }
-      try { await setModeController(requested); } catch (err) { toast('Mode was not changed: ' + err.message); }
+      try { await setModeController(requested); } catch (err) { toast(pageTF('mode.change_failed', 'Mode was not changed: {error}', { error: err.message })); }
     });
   });
   const modeItems = Array.from(document.querySelectorAll('#modePop .pop-item'));
@@ -8703,6 +10078,11 @@ function initComposerControls() {
   if (bypassClose) bypassClose.addEventListener('click', closeBypassModal); if (bypassCancel) bypassCancel.addEventListener('click', closeBypassModal);
   const bypassLink = document.getElementById('bypassLink'); if (bypassLink) bypassLink.addEventListener('click', linkBypassWorkspace);
   if (bypassConfirm) bypassConfirm.addEventListener('click', confirmBypass); if (bypassRevoke) bypassRevoke.addEventListener('click', revokeBypass);
+  const privateEnd = document.getElementById('privateEnd'); if (privateEnd) privateEnd.addEventListener('click', endPrivateChat);
+  const ownToolsEnd = document.getElementById('ownToolsEnd');
+  if (ownToolsEnd) ownToolsEnd.addEventListener('click', endOwnTools);
+  refreshOwnToolsBanner();
+  window.addEventListener('focus', refreshOwnToolsBanner);
   const bypassDurationSel = document.getElementById('bypassDuration'), bypassScopeSel = document.getElementById('bypassScope');
   if (bypassDurationSel) bypassDurationSel.addEventListener('change', () => {
     const custom = document.getElementById('bypassCustomField'); if (custom) custom.hidden = bypassDurationSel.value !== 'custom';
@@ -8983,8 +10363,8 @@ function cloudSelectionId(provider, id) {
 }
 function buildCloudPicker() {
   const box = document.createElement('div'); box.className = 'cloud-picker cloud-dyn';
-  const label = document.createElement('label'); label.textContent = 'Provider';
-  const select = document.createElement('select'); select.setAttribute('aria-label', 'Model provider');
+  const label = document.createElement('label'); label.textContent = pageT('keys.provider_aria', 'Provider');
+  const select = document.createElement('select'); select.setAttribute('aria-label', pageT('keys.model_provider_aria', 'Model provider'));
   cloudProviderRows.forEach((p) => {
     const option = document.createElement('option'); option.value = p.id; option.textContent = p.label || p.id;
     select.appendChild(option);
@@ -9067,18 +10447,58 @@ async function renderLocalModels() {
     const r = await fetch('/api/tags');
     data = await r.json();
   } catch (e) { return; }   // fail-soft: leave the popover exactly as it was
-  const names = (data && Array.isArray(data.models)) ? data.models.map((m) => m && (m.name || m.model)) : [];
+  // /api/tags is the runtime's CONFIGURED catalogue: it always names the default tag, marked
+  // `digest: "vool-runtime"` with `size: 0`, whether or not anything is installed. Such a row is
+  // not evidence that a model is on this computer, and listing it under "installed" was a false
+  // claim (the user picked it and every answer failed). Only a row with real inventory evidence
+  // counts: one /api/models/local reports as installed, or a tags row that is not the synthetic
+  // runtime entry. An unreachable inventory proves nothing, so it adds nothing.
+  let installed = new Set();
+  try {
+    const r2 = await fetch('/api/models/local');
+    const inv = r2.ok ? await r2.json() : null;
+    (inv && Array.isArray(inv.models) ? inv.models : []).forEach((m) => {
+      const n = m && String(m.model_name || m.name || '').trim();
+      if (n) installed.add(n.indexOf('ollama-local:') === 0 ? n.slice('ollama-local:'.length) : n);
+    });
+  } catch (e) { installed = new Set(); }
+  const synthetic = (m) => m && m.digest === 'vool-runtime' && !Number(m.size || 0);
+  const names = (data && Array.isArray(data.models)) ? data.models.map((m) => {
+    const n = m && (m.name || m.model);
+    if (!n) return '';
+    const bare = String(n).indexOf('ollama-local:') === 0 ? String(n).slice('ollama-local:'.length) : String(n);
+    return (!synthetic(m) || installed.has(bare)) ? n : '';
+  }) : [];
+  installed.forEach((n) => names.push(n));
   const rows = localModelRows(names);
   localModelIds = new Set(rows.map((m) => m.id));
   try { localStorage.setItem('vool_local_models', JSON.stringify([...localModelIds])); } catch (e) {}
   document.querySelectorAll('#modelPop .local-dyn').forEach((n) => n.remove());
-  if (!rows.length) return;
   // Anchor above the Auto hint so the local list reads directly under the Auto row it extends.
   const anchor = pop.querySelector('.pop-hint') || pop.querySelector('.pop-note') || null;
   const list = document.createElement('div');
   list.className = 'local-list local-dyn';
   const group = document.createElement('div');
   group.className = 'pop-group';
+  if (!rows.length) {
+    // Nothing is on this computer: say so once, with the way to fix it, instead of a row to pick.
+    group.textContent = 'On this computer';
+    list.appendChild(group);
+    const none = document.createElement('button');
+    none.type = 'button';
+    none.className = 'pop-item local-none';
+    none.setAttribute('role', 'menuitem');
+    none.innerHTML = '<span class="pi-check"></span><span class="pi-body">No model on this computer yet<span class="pi-hint">Set one up</span></span>';
+    none.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = document.getElementById('modelBtn');
+      pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+      openSetup('');
+    });
+    list.appendChild(none);
+    pop.insertBefore(list, anchor);
+    return;
+  }
   group.textContent = pageT('header.run_local_models', 'Local · installed on this computer');
   list.appendChild(group);
   rows.forEach((m) => list.appendChild(makeLocalRow(m)));
@@ -9108,12 +10528,18 @@ function renderSelectionProvenance(sel) {
   }
   if (!sel || !sel.ok) {
     el.hidden = false;
-    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
+    el.innerHTML = '<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span class="pp-unknown">' + esc(document.body.classList.contains('vool-offline') ? "unknown \u2014 VOOL isn\u2019t running right now" : pageT('header.run_prov_unanswered', 'UNKNOWN — server did not answer')) + '</span></span>';
     return;
   }
   const pin = String(sel.model || '').trim();
   const provider = String(sel.provider || '').trim();
   const cost = String(sel.cost_state || '');
+  // Nothing pinned and no spend class to report: the "VOOL Auto" row below already says it all, so
+  // the routing table ("Pinned: none", "Spend class: not classified") is not shown at all.
+  if (!pin && !cost && !(sel.free_cloud_enabled && sel.auto_free_model && sel.auto_free_model !== 'auto')) {
+    el.hidden = true; el.innerHTML = '';
+    return;
+  }
   const costCls = cost === 'paid' ? 'pp-paid' : cost === 'free' ? 'pp-free' : 'pp-unknown';
   const costWord = cost === 'paid' ? pageT('pay.reason_paid_classified', 'PAID — may spend provider credits') : cost === 'free' ? pageT('notif.free', 'free') : cost ? pageT('header.run_prov_unknown', 'UNKNOWN') : pageT('header.run_prov_unclassified', 'not classified (local/Auto)');
   const rows = ['<span class="pp-row"><b>' + esc(pageT('header.run_prov_pin', 'Pinned')) + '</b><span>' + esc(pin ? (provider ? provider + ' · ' + pin : pin) : pageT('header.run_prov_none', 'none — VOOL Auto routing')) + '</span></span>',
@@ -9304,15 +10730,15 @@ async function performCloudModelSwitch(id, name, rowEl, provider) {
       const priceRose = code === 'price_above_accepted';
       if (classifiedPaid || costUnclassified || pricingIndeterminate || priceRose) {
         const reasonText = classifiedPaid
-          ? 'The server classified this model as PAID.'
+          ? pageT('model.reason_paid_classified', 'The server classified this model as PAID.')
           : costUnclassified
-            ? 'The server could not verify what this model costs.'
+            ? pageT('model.reason_cost_unknown', 'The server could not verify what this model costs.')
             : priceRose
-              ? 'The catalog now lists this model ABOVE the price you accepted earlier.'
-              : "This model's published pricing is indeterminate on the server.";
+              ? pageT('model.reason_price_rose', 'The catalog now lists this model ABOVE the price you accepted earlier.')
+              : pageT('model.reason_indeterminate', "This model's published pricing is indeterminate on the server.");
         const gateOk = window.VoolPriceGate
           ? await window.VoolPriceGate.review({ kind: 'pin', id: cloudSelectionId(provider, id), provider: provider, label: name || id, code: code, accepted: j.accepted || null, current: j.current || null })
-          : window.confirm(reasonText + ' Pin "' + id + '" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.');
+          : window.confirm(reasonText + pageTF('model.pin_confirm_suffix', ' Pin "{id}" and allow spend on the pinned lane? Spend caps still apply. This covers this switch only.', { id: id }));
         if (gateOk) {
           paidDecision = gateOk;
           if (!stillCurrent()) return false;
@@ -9361,7 +10787,7 @@ async function switchAutoFreeModel(id, selectEl) {
       return true;
     }
   } catch (e) {}
-  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = 'Could not change Auto fallback.'; }
+  if (selectEl) { selectEl.value = autoFreeModel; selectEl.title = pageT('model.auto_fallback_failed', 'Could not change Auto fallback.'); }
   return false;
 }
 
@@ -9391,7 +10817,7 @@ function makeCloudRow(m) {
     switching = true; it.disabled = true;
     delete it.dataset.selectionError;
     const previousHint = kind.textContent;
-    kind.textContent = 'Checking model and price…';
+    kind.textContent = pageT('model.checking', 'Checking model and price…');
     it.setAttribute('aria-busy', 'true');
     try {
     // The switch first asks the server to classify this exact provider/model, then
@@ -9413,7 +10839,7 @@ function makeCloudRow(m) {
 
 function buildCloudToolbar(onPricesChange) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar';
-  const lab = document.createElement('span'); lab.textContent = 'Sort'; bar.appendChild(lab);
+  const lab = document.createElement('span'); lab.textContent = pageT('addons.sort', 'Sort'); bar.appendChild(lab);
   const sel = document.createElement('select');
   Object.keys(CLOUD_ORDER_LABELS).forEach((k) => { const o = document.createElement('option'); o.value = k; o.textContent = CLOUD_ORDER_LABELS[k]; if (k === cloudOrder) o.selected = true; sel.appendChild(o); });
   sel.addEventListener('click', (e) => e.stopPropagation());
@@ -9430,17 +10856,47 @@ function buildCloudToolbar(onPricesChange) {
 
 function buildAutoFallbackControl(freeModels) {
   const bar = document.createElement('div'); bar.className = 'pop-order cloud-toolbar auto-fallback';
-  const lab = document.createElement('label'); lab.textContent = 'Auto fallback';
+  const lab = document.createElement('label'); lab.textContent = pageT('model.auto_fallback_label', 'Auto fallback');
   const sel = document.createElement('select');
-  const best = document.createElement('option'); best.value = 'auto'; best.textContent = 'Best verified free'; sel.appendChild(best);
+  const best = document.createElement('option'); best.value = 'auto'; best.textContent = pageT('model.auto_best_free', 'Best verified free'); sel.appendChild(best);
   freeModels.forEach((m) => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name || m.id; sel.appendChild(o); });
   sel.value = autoFreeModel;
   if (sel.value !== autoFreeModel) { autoFreeModel = 'auto'; sel.value = 'auto'; }
   sel.addEventListener('click', (e) => e.stopPropagation());
   sel.addEventListener('change', async (e) => { e.stopPropagation(); const previous = autoFreeModel; if (!(await switchAutoFreeModel(sel.value, sel))) sel.value = previous; });
   lab.appendChild(sel); bar.appendChild(lab);
-  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = 'used only by VOOL Auto; never paid'; bar.appendChild(hint);
+  const hint = document.createElement('span'); hint.className = 'pi-hint'; hint.textContent = pageT('model.auto_hint', 'used only by VOOL Auto; never paid'); bar.appendChild(hint);
   return bar;
+}
+
+// A model id typed by hand, for a provider whose own endpoint may serve models it does not list (the
+// custom OpenAI-compatible endpoint says so with `accepts_typed_model`). The id goes through the same
+// server-owned pin as a catalogue row, cost confirmation included; only the shape is checked here.
+function buildTypedModelRow(provider) {
+  const row = document.createElement('div'); row.className = 'pop-order cloud-toolbar cloud-dyn cloud-typed';
+  const lab = document.createElement('label'); lab.textContent = 'Model id';
+  const input = document.createElement('input'); input.type = 'text'; input.placeholder = 'exact id the endpoint serves';
+  input.autocomplete = 'off'; input.spellcheck = false; input.setAttribute('aria-label', 'Type a model id for this endpoint');
+  const use = document.createElement('button'); use.type = 'button'; use.className = 'pop-item cloud-dyn'; use.textContent = 'Use';
+  const hint = document.createElement('span'); hint.className = 'pi-hint';
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); use.click(); } });
+  use.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const id = input.value.trim();
+    if (!id || !CLOUD_MODEL_ID_RE.test(id)) { hint.textContent = 'Not a model id (letters, digits, . _ - @, up to five / parts, optional :tag).'; return; }
+    hint.textContent = 'Checking model and price…'; use.disabled = true;
+    try {
+      if (await switchCloudModel(id, id, use, provider)) {
+        hint.textContent = '';
+        const pop = document.getElementById('modelPop'), btn = document.getElementById('modelBtn');
+        if (pop) pop.classList.remove('open'); if (btn) btn.setAttribute('aria-expanded', 'false');
+      } else if (!use.dataset.selectionError) hint.textContent = 'Not pinned.';
+      else hint.textContent = use.dataset.selectionError;
+    } finally { use.disabled = false; }
+  });
+  lab.appendChild(input); row.appendChild(lab); row.appendChild(use); row.appendChild(hint);
+  return row;
 }
 
 async function renderCloudModels() {
@@ -9487,7 +10943,7 @@ async function renderCloudModels() {
     row.className = 'pop-group cloud-dyn cloud-empty';
     const msg = document.createElement('span'); msg.className = 'pi-hint';
     const refreshInfo = data && typeof data.refresh === 'object' && data.refresh ? data.refresh : null;
-    if (fetchError) msg.textContent = 'Could not load the model catalog: ' + fetchError;
+    if (fetchError) msg.textContent = pageTF('model.catalog_load_failed', 'Could not load the model catalog: {error}', { error: fetchError });
     else if (refreshInfo && refreshInfo.ok === false) msg.textContent = 'Model catalog refresh failed' + (refreshInfo.error ? ': ' + refreshInfo.error : '') + '.';
     else msg.textContent = 'No model catalog loaded yet. The connection test checks your key, not the catalog.';
     row.appendChild(msg);
@@ -9505,6 +10961,7 @@ async function renderCloudModels() {
     });
     pop.insertBefore(row, anchor);
     pop.insertBefore(retry, anchor);
+    if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
     positionPopover(pop, document.getElementById('modelBtn'));
     return;
   }
@@ -9531,6 +10988,7 @@ async function renderCloudModels() {
   pop.insertBefore(picker, anchor);
   autoFreeModel = String((data && data.auto_free_model) || 'auto');
   if ((data && data.provider) === 'openrouter') pop.insertBefore(buildAutoFallbackControl(free), anchor);
+  if (data && data.accepts_typed_model) pop.insertBefore(buildTypedModelRow(provider), anchor);
   pop.insertBefore(buildCloudToolbar(renderMatches), anchor);
   function group(text) { const g = document.createElement('div'); g.className = 'pop-group cloud-dyn'; g.textContent = text; return g; }
   const list = document.createElement('div'); list.className = 'cloud-list cloud-dyn';
@@ -9571,7 +11029,9 @@ async function refreshCredentials() {
     if (!rp.ok) throw new Error('Provider list unavailable');
     const jp = await rp.json();
     const slots = new Set((j.credentials || []).map((c) => c.name));
-    const configured = (jp.providers || []).filter((p) => p && p.id && slots.has('llm.cloud.' + p.id));
+    // A key in a Settings slot or in the environment (the server reports the latter by presence
+    // only): either way the lane routes on it, so the picker must offer it.
+    const configured = (jp.providers || []).filter((p) => p && p.id && (slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
     let accountless = false;
     // Include the wallet route even when another provider also has a saved key.
     try {
@@ -9812,7 +11272,7 @@ async function brCopyReport(btn) {
       remove_fields: brFlow.removedFields, remove_attachments: brFlow.removedAttachments,
     });
     await brWriteClipboard(data.clipboard_text || '');
-    if (btn) { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
+    if (btn) { btn.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { btn.textContent = 'Copy report'; }, 1500); }
     toast('Report copied. Paste it wherever you want to send it.');
   } catch (e) {
     toast('Copy failed (' + e.message + '). Use "Save a local copy" instead.');
@@ -9873,29 +11333,35 @@ function renderBugReportPick(selectedIdx) {
   if (!brFlow.candidates.length) {
     candHtml = '<p class="br-status">No failed turns recorded for this chat. You can still describe the problem manually.</p>';
   } else {
-    candHtml = '<div class="br-field"><label>Affected turn</label>' + brFlow.candidates.map((c, i) =>
-      '<div class="br-cand' + (i === selectedIdx ? ' on' : '') + '" data-br-idx="' + i + '" role="radio" aria-checked="' + (i === selectedIdx) + '" tabindex="0">' +
-      '<b>' + esc((c.failure_types || []).join(', ') || 'failure') + '</b>' +
-      '<small>' + esc(c.ts || '') + ' &middot; ' + esc(c.client_turn_id ? String(c.client_turn_id).slice(0, 8) : '') + '</small>' +
-      '<small>' + esc(c.summary || '') + '</small></div>').join('') + '</div>';
+    // Each failed answer reads as what went wrong and when; the internal failure codes and the
+    // turn id stay on the tooltip for whoever reads the report.
+    const whenOf = (ts) => { try { const d = new Date(ts); return isNaN(d.getTime()) ? '' : d.toLocaleString(appLocale()); } catch (e) { return ''; } };
+    candHtml = '<div class="br-field"><label>Which answer went wrong?</label>' + brFlow.candidates.map((c, i) =>
+      '<div class="br-cand' + (i === selectedIdx ? ' on' : '') + '" data-br-idx="' + i + '" role="radio" aria-checked="' + (i === selectedIdx) + '" tabindex="0"'
+      + ' title="' + esc(((c.failure_types || []).join(', ') || 'failure') + (c.client_turn_id ? ' \u00b7 ' + String(c.client_turn_id).slice(0, 8) : '')) + '">' +
+      '<b class="br-cand-what">' + esc(c.summary || 'An answer that did not finish') + '</b>' +
+      '<small class="br-cand-when">' + esc(whenOf(c.ts) || '') + '</small></div>').join('') + '</div>';
   }
   bugReportBody.innerHTML =
     '<div id="brTurnList">' + candHtml + '</div>' +
     (brFlow.candidates.length ? (
-      '<div class="br-field"><label>Include diagnostics (already sanitized server-side)</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeError"' + (f.includeError ? ' checked' : '') + '> Error / stack</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeLogs"' + (f.includeLogs ? ' checked' : '') + '> Runtime event log for the turn</label>' +
-      '<label class="set-row"><input type="checkbox" id="brIncludeComponents"' + (f.includeComponents ? ' checked' : '') + '> Lanes / tools / models involved</label>' +
+      '<div class="br-field"><label>Include technical details from VOOL (private parts are removed first)</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeError"' + (f.includeError ? ' checked' : '') + '> The error VOOL saw</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeLogs"' + (f.includeLogs ? ' checked' : '') + '> What VOOL did during that answer</label>' +
+      '<label class="set-row"><input type="checkbox" id="brIncludeComponents"' + (f.includeComponents ? ' checked' : '') + '> Which models and tools were used</label>' +
       '</div>') : '') +
     '<div class="br-grid">' +
-    '<div class="br-field"><label>Short title</label><input id="brTitle" type="text" value="' + esc(f.title) + '" placeholder="daemon crashes on second tool call"></div>' +
-    '<div class="br-field"><label>Destination repository (owner/name) &mdash; where the report goes if you send it</label><input id="brDestination" type="text" value="' + esc(f.destination) + '" placeholder="owner/repo"></div>' +
+    '<div class="br-field"><label for="brTitle">In a few words, what went wrong?</label><input id="brTitle" type="text" value="' + esc(f.title) + '" placeholder="For example: the answer never arrived"></div>' +
     '</div>' +
-    '<div class="br-field"><label>Category</label><input id="brCategory" type="text" value="' + esc(f.category) + '" placeholder="crash"></div>' +
-    '<div class="br-field"><label>Expected behaviour</label><textarea id="brExpected">' + esc(f.expected) + '</textarea></div>' +
-    '<div class="br-field"><label>Actual behaviour</label><textarea id="brActual">' + esc(f.actual) + '</textarea></div>' +
-    '<div class="br-field"><label>Minimal reproduction &mdash; one step per line</label><textarea id="brRepro">' + esc(f.repro) + '</textarea></div>' +
-    '<div class="br-actions"><button type="button" id="brCreateDraft" class="set-btn primary">Create sanitized local draft</button>' +
+    '<div class="br-field"><label for="brActual">What happened?</label><textarea id="brActual" placeholder="For example: the reply stopped halfway">' + esc(f.actual) + '</textarea></div>' +
+    '<div class="br-field"><label for="brExpected">What did you expect?</label><textarea id="brExpected">' + esc(f.expected) + '</textarea></div>' +
+    '<div class="br-field"><label for="brRepro">Steps, if you remember them (optional, one per line)</label><textarea id="brRepro">' + esc(f.repro) + '</textarea></div>' +
+    // Where a report would go, and its category, are for people who file reports often.
+    '<details class="br-more"><summary>Details</summary>' +
+    '<div class="br-field"><label for="brCategory">Kind of problem</label><input id="brCategory" type="text" value="' + esc(f.category) + '" placeholder="Something broke"></div>' +
+    '<div class="br-field"><label for="brDestination">Where the report goes if you send it</label><input id="brDestination" type="text" value="' + esc(f.destination) + '" placeholder="owner/name"></div>' +
+    '</details>' +
+    '<div class="br-actions"><button type="button" id="brCreateDraft" class="set-btn primary">Prepare report (nothing is sent yet)</button>' +
     '<button type="button" id="brMine" class="set-btn">My reports</button>' +
     '<span class="br-status">Nothing is sent yet &mdash; a local draft is created first.</span></div>' +
     '<p class="br-note">Got a wrong answer? Press <b>Report</b> under that answer, or highlight the wrong part and press Report.</p>';
@@ -10245,6 +11711,7 @@ function closeSettingsFrame() {
   if (!settingsFrameOverlay || settingsFrameOverlay.hidden) return;
   settingsFrameOverlay.hidden = true;
   const composer = document.getElementById('input'); if (composer) { try { composer.focus(); } catch (e) {} }
+  refreshOwnToolsBanner();  // the switch may have changed inside the framed Settings page
 }
 // The framed Settings page asks its host to close it: its own "Back" can neither close a frame nor
 // be allowed to navigate the chat away. Same origin only.
@@ -10491,7 +11958,7 @@ async function renderKeys() {
       note.innerHTML = '';
       const t = document.createElement('span'); t.textContent = text; note.appendChild(t);
       const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'set-btn key-copy'; cp.textContent = 'Copy';
-      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = 'Copied'; setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
+      cp.addEventListener('click', () => { try { navigator.clipboard.writeText(k.label + ': ' + text); cp.textContent = pageT('msg.copied', 'Copied'); setTimeout(() => { cp.textContent = 'Copy'; }, 1500); } catch (e) {} });
       note.appendChild(cp);
     });
     row.appendChild(dot); row.appendChild(lbl); row.appendChild(test); row.appendChild(diag);
@@ -10711,8 +12178,8 @@ const COUNCIL_EVIDENCE_CLASSES = [
   ['Verdict', 'PASS / REJECTED / FLAGGED, with the evidence path'],
 ];
 function councilVerdictDot(state) {
-  return state === 'passed' ? '#34d399' : state === 'running' ? 'var(--accent)'
-    : (state === 'not_run' || state === '') ? '#9ca3af' : '#fbbf24';
+  return state === 'passed' ? 'var(--ok)' : state === 'running' ? 'var(--accent)'
+    : (state === 'not_run' || state === '') ? '#9ca3af' : 'var(--warn)';
 }
 function renderCouncilTab(body) {
   const run = view.run;
@@ -10888,8 +12355,18 @@ function renderPlugins(d, query) {
     const act = document.createElement('div'); act.className = 'p-actions';
     const off = pl.enabled === false;
     const nSk = (pl.skills || []).length;
-    const st = document.createElement('span'); st.className = 'p-status' + (off ? ' off' : '');
-    st.textContent = (off ? 'Disabled' : 'Installed · Enabled') + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
+    // The status line says exactly what the catalog states and nothing more: "On" only for
+    // enabled === true — a missing field is unknown, never on — "Off" for false, and a
+    // bundled/first-party pack is "Built in", not "Installed". Whether a plugin's runtime
+    // tools are loaded is not part of the catalog entry, so the label claims nothing there.
+    const builtIn = pl.first_party === true || pl.origin === 'bundled';
+    const origin = builtIn ? pageT('plugins.status.built_in', 'Built in')
+      : (pl.origin === 'installed' ? pageT('plugins.status.installed', 'Installed') : '');
+    const state = pl.enabled === true ? pageT('plugins.status.on', 'On')
+      : pl.enabled === false ? pageT('plugins.status.off', 'Off')
+      : pageT('plugins.status.unknown', 'Status unknown');
+    const st = document.createElement('span'); st.className = 'p-status' + (pl.enabled === true ? '' : ' off');
+    st.textContent = (origin ? origin + ' · ' : '') + state + (nSk ? (' · ' + nSk + ' skill' + (nSk === 1 ? '' : 's')) : '');
     const tg = document.createElement('button'); tg.className = 'p-toggle' + (off ? ' enable' : ''); tg.textContent = off ? 'Enable' : 'Disable';
     tg.addEventListener('click', () => togglePlugin(pl.id, off));
     act.appendChild(st); act.appendChild(tg); card.appendChild(act);
@@ -10976,8 +12453,15 @@ async function openFiles() {
   const search = document.getElementById('filesSearch');
   if (search) search.value = '';
   if (body) body.textContent = 'Loading…';
-  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); if (search) search.focus(); }
-  catch (e) { if (body) body.textContent = 'Could not read your files.'; }
+  // Focus goes to the first control that is showing: the search box, or the close button when
+  // there is nothing to search yet (the search bar is hidden while there are no files).
+  const focusFirst = () => {
+    const controls = document.getElementById('filesControls');
+    if (search && !(controls && controls.hidden)) search.focus();
+    else { const x = document.getElementById('filesClose'); if (x) x.focus(); }
+  };
+  try { _filesData = await (await fetch('/api/files')).json(); renderFiles(); focusFirst(); }
+  catch (e) { if (body) body.textContent = isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so your files can\u2019t be listed." : 'Could not read your files.'; focusFirst(); }
 }
 function _fmtBytes(n) {
   n = Number(n || 0);
@@ -11011,7 +12495,10 @@ function renderFiles() {
   head.textContent = q
     ? (files.length + ' file' + (files.length === 1 ? '' : 's') + ' match “' + q + '”')
     : (_filesData.count + ' file' + (_filesData.count === 1 ? '' : 's') + (_filesData.count > _filesData.shown ? (' (showing newest ' + _filesData.shown + ')') : ''));
-  body.appendChild(head);
+  // Nothing to sort or search while there are no files at all.
+  const controls = document.getElementById('filesControls');
+  if (controls) controls.hidden = !_filesData.count;
+  if (!_filesData.count) head.remove(); else body.appendChild(head);
   if (!files.length) {
     const p = document.createElement('div'); p.className = 'plugins-empty';
     p.textContent = _filesData.count ? 'No files match that search.' : 'Nothing generated yet — make an image or a doc and it shows up here.';
@@ -11487,6 +12974,27 @@ newChatEl.addEventListener('click', newChat);
 const newProjectEl = document.getElementById('newProject');
 if (newProjectEl) newProjectEl.addEventListener('click', () => { createProjectFlow(); });
 menuEl.addEventListener('click', () => document.body.classList.toggle('sidebar-open'));
+(function wireDrawerExits() {
+  const closeDrawer = () => {
+    if (!document.body.classList.contains('sidebar-open')) return false;
+    document.body.classList.remove('sidebar-open');
+    try { menuEl.focus(); } catch (e) {}
+    return true;
+  };
+  const scrim = document.getElementById('sideScrim');
+  if (scrim) scrim.addEventListener('click', closeDrawer);
+  const x = document.getElementById('sideClose');
+  if (x) x.addEventListener('click', closeDrawer);
+  // Esc closes the drawer only while it is a drawer (narrow window) and nothing inside it is
+  // being edited; a rename field keeps its own Esc (cancel).
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    if (!window.matchMedia('(max-width: 720px)').matches) return;
+    const t = e.target;
+    if (t && t.classList && t.classList.contains('s-rename')) return;
+    if (closeDrawer()) e.preventDefault();
+  });
+})();
 // ---- Exact, expiring permission controls ---------------------------------------------------
 // Approval ids come from the controller and authorize only the fingerprinted task/tool/arguments.
 // Nothing here can turn an approval into a blanket browser-side "always allow" preference.
@@ -11671,6 +13179,57 @@ panelBtnEl.addEventListener('click', togglePanel);
   const pb = document.getElementById('pinBtn'); if (pb) pb.addEventListener('click', openPinPanel);
   const pc = document.getElementById('pinClose'); if (pc) pc.addEventListener('click', closePinPanel);
   const po = document.getElementById('pinOverlay'); if (po) po.addEventListener('click', (e) => { if (e.target === po) closePinPanel(); });
+  // Esc closes it like every other dialog here.
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && po && !po.hidden) { e.preventDefault(); closePinPanel(); } });
+})();
+// ---- Dialog focus: every modal overlay takes focus when it opens, keeps Tab inside, and gives
+// focus back to the control that opened it. One observer for all of them, so a dialog added later
+// gets the same behaviour without its own copy (keyboard and screen-reader users otherwise stayed
+// on the page behind the dim layer and typed into it).
+(function wireDialogFocus() {
+  const FOCUSABLE = 'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [href], iframe, [tabindex]:not([tabindex="-1"])';
+  const visible = (el) => !!(el && el.getClientRects().length);
+  const focusables = (root) => Array.from(root.querySelectorAll(FOCUSABLE)).filter(visible);
+  const openers = new Map();
+  function topOverlay() {
+    const open = Array.from(document.querySelectorAll('.modal-overlay')).filter((o) => !o.hidden && visible(o));
+    return open.length ? open[open.length - 1] : null;
+  }
+  function onShown(overlay) {
+    const active = document.activeElement;
+    if (active && !overlay.contains(active)) openers.set(overlay, active);
+    setTimeout(() => {
+      if (overlay.hidden || overlay.contains(document.activeElement)) return;
+      const list = focusables(overlay);
+      const field = list.find((el) => /^(INPUT|SELECT|TEXTAREA|IFRAME)$/.test(el.tagName)) || list.find((el) => !el.classList.contains('modal-x')) || list[0];
+      if (field) { try { field.focus(); } catch (e) {} }
+    }, 0);
+  }
+  function onHidden(overlay) {
+    const opener = openers.get(overlay);
+    openers.delete(overlay);
+    const active = document.activeElement;
+    if (opener && opener.isConnected && (!active || active === document.body || overlay.contains(active))) {
+      try { opener.focus(); } catch (e) {}
+    }
+  }
+  if (typeof MutationObserver === 'function') {
+    const obs = new MutationObserver((records) => {
+      records.forEach((r) => { const o = r.target; if (o.hidden) onHidden(o); else onShown(o); });
+    });
+    document.querySelectorAll('.modal-overlay').forEach((o) => obs.observe(o, { attributes: true, attributeFilter: ['hidden'] }));
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const overlay = topOverlay();
+    if (!overlay) return;
+    const list = focusables(overlay);
+    if (!list.length) return;
+    const first = list[0], last = list[list.length - 1];
+    if (!overlay.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
 })();
 // ---- Export: the WHOLE conversation, from the server-side persisted transcript ----
 // One dialog per chat. The chat id is owned at the moment the dialog opens and is never re-read
@@ -11692,41 +13251,54 @@ panelBtnEl.addEventListener('click', togglePanel);
     + '&no_attachments=' + (el('exportAttachments').checked ? 0 : 1)
     + (extra || '');
   async function refreshPreview() {
-    if (!exportChat) { previewEl.textContent = 'This chat has nothing persisted to export yet — send a message first.'; return; }
+    const goEl = el('exportGo');
+    const nothing = (text) => { previewEl.textContent = text; if (goEl) goEl.disabled = true; };
+    if (!exportChat) { nothing('Nothing to export yet. Send a message first.'); return; }
     previewEl.textContent = 'Counting…';
+    if (goEl) goEl.disabled = false;
     try {
       const r = await fetch(params('&preview=1'));
       const j = await r.json();
-      if (!r.ok || !j.ok) { previewEl.textContent = (j && j.message) ? j.message : 'Could not count this chat.'; return; }
-      previewEl.textContent = j.message_count + ' messages in ' + j.turns + ' turns'
-        + ' · attachment references: ' + j.attachment_items
-        + ' · artifact cards: ' + j.artifact_cards
-        + (j.unavailable_by_policy ? ' · unavailable by privacy policy: ' + j.unavailable_by_policy : '')
-        + '\nComplete transcript: ' + (j.complete ? 'yes — collected under a server-side snapshot' : 'no')
-        + '.\nNot included: ' + (j.excluded || []).join('; ') + '.';
-    } catch (e) { previewEl.textContent = 'Could not reach the export door.'; }
+      if (!r.ok || !j.ok) {
+        // A chat with no saved messages is not an error: say so plainly and offer nothing to press.
+        if (r.status === 404 || (j && /no persisted transcript/i.test(String(j.message || '')))) { nothing('Nothing to export yet. Send a message first.'); return; }
+        previewEl.textContent = "Couldn't count this chat's messages right now.";
+        return;
+      }
+      // No count in the answer means the count is unknown, not zero: never claim an empty chat.
+      if (typeof j.message_count !== 'number') { previewEl.textContent = "Couldn't count this chat's messages right now."; return; }
+      const n = j.message_count;
+      if (!n) { nothing('Nothing to export yet. Send a message first.'); return; }
+      const lines = ['Exports all ' + n + ' message' + (n === 1 ? '' : 's') + ' in this chat.'];
+      if (j.unavailable_by_policy) lines.push(j.unavailable_by_policy + ' kept out by your privacy settings.');
+      if (!j.complete) lines.push('Some messages could not be collected, so the file may be incomplete.');
+      lines.push('Not included: how VOOL worked things out, and its activity log.');
+      previewEl.textContent = lines.join('\n');
+    } catch (e) { previewEl.textContent = "VOOL couldn't be reached, so this chat can't be counted right now."; }
   }
   function openExport() {
     exportChat = displayedChat || '';
     statusEl.textContent = '';
-    el('exportChatName').textContent = 'Chat: ' + (exportChat ? (chatTitleFor(exportChat) || exportChat) : '(unsaved)');
+    el('exportChatName').textContent = exportChat ? (chatTitleFor(exportChat) || 'This chat') : 'New chat';
     overlay.hidden = false;
     refreshPreview();
   }
   async function runExport() {
     if (exportBusy) return;
-    if (!exportChat) { statusEl.textContent = 'This chat has nothing persisted to export yet — send a message first.'; return; }
+    if (!exportChat) { statusEl.textContent = 'Nothing to export yet. Send a message first.'; return; }
     const fmt = el('exportFormat').value;
     statusEl.textContent = 'Collecting…';
     exportBusy = true; el('exportGo').disabled = true;
     try {
       const nativeApi = window.pywebview && window.pywebview.api;
       if (nativeApi) {
-        if (typeof nativeApi.save_chat_export !== 'function') throw new Error('This app build cannot save chat exports. Update the app and try again.');
+        // The app's own refusal is the useful part, so it is shown as given.
+        const refusal = (message) => { const err = new Error(message); err.fromApp = true; return err; };
+        if (typeof nativeApi.save_chat_export !== 'function') throw refusal('This app build cannot save chat exports. Update the app and try again.');
         nativeExportBusy = true;
         const result = await nativeApi.save_chat_export(exportChat, fmt,
           el('exportTimestamps').checked, el('exportAttachments').checked);
-        if (!result.ok && !result.cancelled) throw new Error(result.message || result.error || 'Export save failed');
+        if (!result.ok && !result.cancelled) throw refusal(result.message || result.error || "Couldn\u2019t export this chat. Try again.");
         statusEl.textContent = result.cancelled ? 'Export cancelled.' : 'Export saved.';
         if (result.ok) overlay.hidden = true;
         return;
@@ -11737,7 +13309,7 @@ panelBtnEl.addEventListener('click', togglePanel);
       exportAborter = null;
       if (closed) return;
       if (!r.ok) {
-        let msg = 'Export failed (' + r.status + ').';
+        let msg = "Couldn\u2019t export this chat. Try again.";
         try { const j = await r.json(); if (j && j.message) msg = j.message; } catch (e) {}
         statusEl.textContent = msg;
         return;
@@ -11754,7 +13326,9 @@ panelBtnEl.addEventListener('click', togglePanel);
       overlay.hidden = true;
     } catch (e) {
       exportAborter = null;
-      statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.' : (e && e.message ? e.message : 'Export failed.');
+      statusEl.textContent = (e && e.name === 'AbortError') ? 'Export cancelled.'
+        : (e && e.fromApp) ? e.message
+        : (isNetworkFailure(e) ? "VOOL isn\u2019t reachable right now, so the chat wasn\u2019t exported. Try again once it\u2019s back." : "Couldn\u2019t export this chat. Try again.");
     } finally {
       exportBusy = false; nativeExportBusy = false; el('exportGo').disabled = false;
     }
@@ -11861,12 +13435,44 @@ if (xpScopeEl) {
 // over category headlines and none of the evidence under them.
 const xpCopyEl = document.getElementById('xpCopy');
 if (xpCopyEl) xpCopyEl.addEventListener('click', () => copyPanelEvidence(xpCopyEl, panelTab || 'Activity'));
+// Starters step back while the box holds a draft (they only ever fill an empty box).
+function syncDraftMark() { if (logEl && inputEl) logEl.classList.toggle('has-draft', !!inputEl.value.trim() || attachBucket(displayedChat).length > 0); }
+inputEl.addEventListener('input', syncDraftMark);
 inputEl.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  // Enter that confirms an input-method candidate (Japanese, Chinese, Korean...) is part of
+  // typing, not a send.
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+  // Up in an EMPTY box brings back your last message to fix and resend; it never sends by itself
+  // and never replaces anything you have typed or attached.
+  if (e.key === 'ArrowUp' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey && !inputEl.value) {
+    if (attachBucket(displayedChat).length) return;
+    const mine = logEl.querySelectorAll('.msg.user');
+    const last = mine.length ? msgTextEl(mine[mine.length - 1]) : null;
+    // Attachment markers stay with the message that carried them: only the typed words come back.
+    const text = last ? textWithoutMarkers(last.dataset.raw != null ? last.dataset.raw : last.textContent) : '';
+    if (!text) return;
+    e.preventDefault();
+    inputEl.value = text;
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    inputEl.setSelectionRange(text.length, text.length);
+  }
 });
 
 const modelConnectEl = document.getElementById('modelConnect');
 if (modelConnectEl) modelConnectEl.addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('modelPop').classList.remove('open'); document.getElementById('modelBtn').setAttribute('aria-expanded', 'false'); document.getElementById('settingsBtn').click(); });
+// A phone has no Shift key to hint at: narrow screens get the short placeholder, so the box says
+// what it is for instead of a cut-off keyboard tip.
+(() => {
+  if (!window.matchMedia) return;
+  const narrow = window.matchMedia('(max-width: 600px)');
+  const full = inputEl.getAttribute('placeholder') || '';
+  const apply = () => { inputEl.placeholder = narrow.matches ? pageT('composer.placeholder_short', 'Message VOOL') : pageT('composer.placeholder', full); };
+  apply();
+  // The i18n DOM pass fills data-i18n-placeholder on DOMContentLoaded; re-apply after it.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', apply);
+  if (narrow.addEventListener) narrow.addEventListener('change', apply);
+})();
 initComposerControls();
 buildTabs();
 loadSessions();
@@ -11912,7 +13518,9 @@ let _updateFast = false;
 function renderUpdateChip(payload) {
   _updateStatus = payload;
   const phase = payload && payload.phase ? payload.phase : 'idle';
-  if (!payload) { updateChip.hidden = true; return; }
+  // Nothing to act on (this copy cannot update itself): no permanent header chip. The status
+  // stays in Settings > About & Diagnostics, which reads the same authority.
+  if (!payload || phase === 'unavailable') { updateChip.hidden = true; updatePop.classList.remove('open'); return; }
   updateChip.hidden = false;
   const label = UPDATE_LABELS[phase] || 'Update';
   let text = label;
@@ -11973,13 +13581,23 @@ if (updateChip) {
     if (!updatePop.classList.contains('open')) return;
     if (!document.getElementById('updateCtrl').contains(e.target)) { updatePop.classList.remove('open'); }
   });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !updatePop.classList.contains('open')) return;
+    updatePop.classList.remove('open');
+    updateChip.setAttribute('aria-expanded', 'false');
+    try { updateChip.focus(); } catch (err) {}
+  });
 }
 if (updateActionBtn) updateActionBtn.addEventListener('click', () => {
   pressUpdate(_updateStatus && _updateStatus.phase === 'ready_to_restart' ? 'restart' : 'install');
 });
 if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
-  try { await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {}
+  // Every press ends in a visible result line; a failed check used to change nothing at all.
+  updateMessageEl.textContent = UPDATE_LABELS.checking;
+  let ok = false;
+  try { const r = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok); } catch (e) { ok = false; }
+  if (!ok) { updateMessageEl.textContent = "Couldn't check for updates right now. Try again later."; return; }
   setTimeout(refreshUpdateStatus, 400);
 });
 if (updateRollbackBtn) updateRollbackBtn.addEventListener('click', () => pressUpdate('rollback'));
@@ -11991,6 +13609,7 @@ setInterval(refreshSidebarActivity, 5000);        // the only tick that touches 
 document.addEventListener('visibilitychange', () => {
   // Regaining focus on the chat already on screen is the same acknowledgment as opening it.
   if (!document.hidden && displayedChat) markChatSeen(displayedChat);
+  if (!document.hidden) document.title = TAB_TITLE;
   maybeRepaintSidebarLifecycle();
 });
 
@@ -11999,6 +13618,70 @@ document.addEventListener('visibilitychange', () => {
 // actions, so a monolith refactor breaks HERE, visibly, instead of inside a fragment. Stop goes
 // through the displayed run's own Stop control -- the exact code path a user's click takes
 // (server-first cancel by turn_id, then stream abort) -- never a second cancel implementation.
+// --- Connection watcher ------------------------------------------------------------------------
+// When the VOOL service stops, every action used to look as if it worked or failed with browser
+// jargon. One watcher owns that state: any same-origin request that fails at the network level
+// (never an abort, never an HTTP error, which is an answer) shows one calm bar, and /healthz is
+// polled with a growing delay until VOOL answers again; then the bar clears and the sidebar reloads.
+function isNetworkFailure(e) {
+  if (!e || e.name === 'AbortError') return false;
+  return e instanceof TypeError || /Failed to fetch|NetworkError|Load failed|network/i.test(String(e.message || ''));
+}
+const VoolConnection = (function () {
+  const nativeFetch = (typeof window.fetch === 'function') ? window.fetch.bind(window) : null;
+  const bar = document.getElementById('offlineBar');
+  let offline = false, timer = null, delay = 2000;
+  function show(on) {
+    offline = on;
+    document.body.classList.toggle('vool-offline', on);
+    if (bar) bar.hidden = !on;
+  }
+  async function probe() {
+    if (!nativeFetch) return true;
+    try { const r = await nativeFetch('/healthz', { cache: 'no-store' }); return r.ok; } catch (e) { return false; }
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(check, delay);
+    delay = Math.min(Math.round(delay * 1.6), 15000);
+  }
+  async function check() {
+    if (await probe()) {
+      clearTimeout(timer); delay = 2000;
+      if (offline) {
+        show(false);
+        toast('VOOL is running again.');
+        try { loadSessions(); } catch (e) {}
+        try { if (logEl && logEl.querySelector('.load-failed')) openSession(displayedChat); } catch (e) {}
+      }
+      return true;
+    }
+    if (!offline) show(true);
+    schedule();
+    return false;
+  }
+  function markOffline() { if (!offline) { show(true); delay = 2000; schedule(); } }
+  function sameOrigin(input) {
+    try { const u = new URL(typeof input === 'string' ? input : (input && input.url) || '', window.location.href); return u.origin === window.location.origin; } catch (e) { return true; }
+  }
+  if (nativeFetch) {
+    window.fetch = function (input, init) {
+      return nativeFetch(input, init).catch((err) => {
+        if (isNetworkFailure(err) && sameOrigin(input)) markOffline();
+        throw err;
+      });
+    };
+  }
+  const retry = document.getElementById('offlineRetry');
+  if (retry) retry.addEventListener('click', async () => {
+    retry.disabled = true;
+    const ok = await check();
+    retry.disabled = false;
+    if (!ok) toast("Still can't reach VOOL. It will keep trying.");
+  });
+  return { markOffline, check, isOffline: () => offline };
+})();
+
 window.VoolPageActions = Object.freeze({
   newChat: () => newChat(),
   togglePanel: () => togglePanel(),
@@ -12102,6 +13785,15 @@ async function setupLineLoad() {
       await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: true }) });
     } catch (e) { /* the authority decides; the next load shows its truth */ }
     setupLineLoad();
+    // One click must not be a silent, permanent goodbye to guided setup: say where it still is,
+    // and offer to bring the reminder back.
+    toast('Setup reminder hidden. You can still open setup from the command palette (' + (/Mac/.test(navigator.platform || '') ? '\u2318K' : 'Ctrl+K') + ', then \u201cSet up VOOL\u201d).', {
+      label: 'Undo',
+      run: async () => {
+        try { await fetch('/api/settings/prefs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setup_dismissed: false }) }); } catch (e) {}
+        setupLineLoad();
+      },
+    });
   });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) setupLineLoad(); });
   window.addEventListener('focus', () => setupLineLoad());
@@ -12111,7 +13803,9 @@ async function setupLineLoad() {
 </script>
 </body>
 </html>
-""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS)
+""".replace("__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS).replace(
+    "/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1
+)
 
 
 def _page_fragments() -> tuple[str, ...]:
@@ -12160,7 +13854,7 @@ def _page_fragments() -> tuple[str, ...]:
 
 
 
-def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> str:
+def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
     from base64 import b64encode
     from pathlib import Path
@@ -12196,7 +13890,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en") -> s
     return (
         page.replace(
             '<html lang="en">',
-            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}">',
+            f'<html lang="{tag}" dir="{spec.direction if spec else "ltr"}"{appearance_html_attrs(appearance)}>',
         )
         .replace(
             "<script>\n",

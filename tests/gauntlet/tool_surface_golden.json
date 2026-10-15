@@ -1,5 +1,5 @@
 {
-  "intent_count": 136,
+  "intent_count": 151,
   "intents": [
     "capability.expand_family",
     "code.review_evidence",
@@ -18,6 +18,7 @@
     "contacts.search",
     "contacts.update",
     "demo.plan",
+    "file.deliver",
     "hive.list_available",
     "machine.disk_usage",
     "machine.display_inspect",
@@ -33,6 +34,11 @@
     "machine.move_path",
     "machine.read_file",
     "machine.write_file",
+    "market.analyze",
+    "market.collect",
+    "market.dataset_delete",
+    "market.datasets",
+    "market.thesis_check",
     "marketplace.purchase_knowledge",
     "marketplace.search_listings",
     "media.edit",
@@ -108,6 +114,15 @@
     "skill.remove",
     "skill.rollback",
     "skill.validate",
+    "token.flow",
+    "token.launches",
+    "token.performance",
+    "token.research",
+    "watch.add",
+    "watch.list",
+    "watch.pause",
+    "watch.remove",
+    "watch.resume",
     "web.chain_lookup",
     "web.fetch",
     "web.research",
@@ -138,7 +153,7 @@
     "workspace.symbol_search",
     "workspace.write_file"
   ],
-  "native_definition_count": 136,
+  "native_definition_count": 151,
   "tools": {
     "capability.expand_family": {
       "arguments": [
@@ -2144,6 +2159,138 @@
       },
       "read_only": true
     },
+    "file.deliver": {
+      "arguments": [
+        "content",
+        "filename",
+        "files",
+        "format",
+        "title"
+      ],
+      "description": "Hand the user a downloadable FILE built from text you write: a Word document (.docx), Excel workbook (.xlsx), PowerPoint deck (.pptx), PDF, CSV/TSV, JSON, YAML, XML, HTML, Markdown, plain text, a source file (.py, .js, ...), or a .zip / .tar.gz of several files. Use it when the user asks for something AS a file, to export or download it, or names a file format for the answer. Write `content` as markdown for docx/pdf/pptx/md (each top heading becomes a slide in pptx), as CSV or markdown tables for xlsx/csv (one sheet per table), or as the exact text for code and data files. Use the format the user named (asked for a PDF -> filename.pdf). Several files, or anything the user asks to zip: ONE call with filename *.zip and `files`, never one call per file. The file is checked and the reply gives the user a download link. Not for editing project files: that is workspace.write_file.",
+      "native_name": "file__deliver",
+      "native_parameters": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "properties": {
+                "content": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "filename",
+                "content"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "format": {
+            "enum": [
+              "docx",
+              "xlsx",
+              "pptx",
+              "pdf",
+              "csv",
+              "tsv",
+              "json",
+              "yaml",
+              "xml",
+              "html",
+              "md",
+              "txt",
+              "code",
+              "zip",
+              "tar.gz"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "create_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "hive.list_available": {
       "arguments": [
         "limit"
@@ -3477,6 +3624,460 @@
         }
       },
       "read_only": false
+    },
+    "market.analyze": {
+      "arguments": [
+        "dataset_id",
+        "focus"
+      ],
+      "description": "Compute patterns from a dataset market.collect saved. Code computes every number: return over the window and per day; volatility; volume spikes (hourly volume z-score > 3, with times); buy/sell count and USD per hour and the buy share; top 20 wallets by net USD flow and by trade count; the first 50 buyers and whether they still hold (net flow); wallets that bought within 1h before the 3 biggest hourly price rises; concentration of traded USD in the top 10 wallets. Every metric names its row count; a metric with too few rows says \"not enough data\", never a number. Give dataset_id (from market.datasets) and optionally focus (a word like flows, spikes, buyers).",
+      "native_name": "market__analyze",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset_id": {
+            "description": "str: the dataset to analyze",
+            "type": "string"
+          },
+          "focus": {
+            "description": "str (optional): a section word",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "dataset_id",
+          "focus"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "market.collect": {
+      "arguments": [
+        "chain",
+        "token",
+        "window"
+      ],
+      "description": "Collect a token's trade data into a local dataset that market.analyze and market.thesis_check read: price/volume candles and the most liquid pool's last 300 trades of the past 24h from public DEX data (needs web access on), plus the token's transfer history through the user's own chain-data key (Helius, Alchemy or Etherscan, whichever is saved). Only the sources that are allowed run, and the answer states exactly what it got and where paging stopped. Give the token contract address, the chain when it is not Solana, and a window from 1h to 30d (default 24h). Read-only market data: nothing is signed or sent. Say the dataset id back to the user; keep it for the analysis tools. Refused in a private chat (nothing is stored there).",
+      "native_name": "market__collect",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str (optional): solana | ethereum | base | bnb | robinhood",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str: token contract address",
+            "type": "string"
+          },
+          "window": {
+            "description": "str (optional): 1h to 30d, e.g. 24h, 7d, 30d (default 24h)",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "chain",
+          "window"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "market.dataset_delete": {
+      "arguments": [
+        "dataset_id"
+      ],
+      "description": "Delete one collected market dataset (dataset_id) and its rows from VOOL's local storage. A CSV copy written into a project folder stays on disk. Nothing is sent anywhere.",
+      "native_name": "market__dataset_delete",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "dataset_id": {
+            "description": "str: the dataset to delete (from market.datasets)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset_id"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "market.datasets": {
+      "arguments": [],
+      "description": "List the market datasets collected in this VOOL: id, token, chain, window, when, row counts per source, and whether coverage is partial. Use a dataset's id with market.analyze or market.thesis_check.",
+      "native_name": "market__datasets",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "market.thesis_check": {
+      "arguments": [
+        "claims",
+        "dataset_id",
+        "window"
+      ],
+      "description": "Check a user's thesis about a collected dataset by evaluating claims written with ONLY the metric names market.analyze defines: window_return_pct, daily_return_pct:<UTC date>, volatility_pct, volume_spike_count, buy_count, sell_count, buy_usd_total, sell_usd_total, buy_share_pct, net_usd_flow:<wallet>, trade_count:<wallet>, top10_volume_share_pct, first_buyers_count, early_buyers_still_holding, buyers_before_top_rises_count, max_hourly_price_rise_pct, rows_candles, rows_trades, rows_transfers. Each claim is an object {metric, comparator (> < >= <= = within), value, tolerance? (a number, for = and within), window? (e.g. 24h: the last 24h of the dataset), note? (the user's words for this claim)}. Turn the thesis into checkable claims first; never invent a metric name. Code evaluates each claim from the stored rows: supported, contradicted, or not checkable (an unknown metric, or not enough data for it) -- never coerced. The reply shows each claim as written next to its verdict, so the user sees what was actually tested.",
+      "native_name": "market__thesis_check",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "claims": {
+            "description": "list (1-20) of {metric, comparator, value, tolerance?, window?, note?}",
+            "items": {},
+            "type": "array"
+          },
+          "dataset_id": {
+            "description": "str: the dataset the thesis is about",
+            "type": "string"
+          },
+          "window": {
+            "description": "str (optional): e.g. 24h -- the last part of the dataset every claim without its own window looks at",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "dataset_id",
+          "claims",
+          "window"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "allow",
+            "plan": "allow",
+            "review_edits": "allow"
+          }
+        }
+      },
+      "read_only": true
     },
     "marketplace.purchase_knowledge": {
       "arguments": [
@@ -10449,6 +11050,919 @@
       },
       "read_only": true
     },
+    "token.flow": {
+      "arguments": [
+        "chain",
+        "token",
+        "windows"
+      ],
+      "description": "Buy and sell activity for one token right now, from public DEX trading data: its most liquid pools (up to 5, each named with its DEX and pair) and, per window (default 5m, 1h, 6h, 24h), buy trades, sell trades, traded USD and price change, with totals across the pools that report a split. Read-only. Needs web access on. Facts only: it never says buy or sell pressure, and never advises.",
+      "native_name": "token__flow",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str (optional): solana | ethereum | base | bnb | arbitrum",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str: token contract address",
+            "type": "string"
+          },
+          "windows": {
+            "description": "list (optional) of windows: 5m, 1h, 6h, 24h",
+            "items": {},
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "chain",
+          "windows"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.launches": {
+      "arguments": [
+        "authority",
+        "creator",
+        "limit"
+      ],
+      "description": "List the newest tokens created on Solana, newest first, with the user's own Helius key: address, name, symbol and authority. Optionally only tokens with a given creator or authority address (for example one launch program's). Read-only, nothing is bought or traded. Follow up with token.research on any of them.",
+      "native_name": "token__launches",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "authority": {
+            "description": "str (optional): only tokens with this authority address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): only tokens listing this creator address",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "description": "int (optional, 1-50): how many, default 20",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "limit",
+          "authority",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.performance": {
+      "arguments": [
+        "at",
+        "calls",
+        "chain",
+        "token"
+      ],
+      "description": "How a token did after a moment: its price then, now, and the highest and lowest after (with when the peak came), from public DEX trading data. Give up to 15 calls, each a token contract address and a time (ISO, e.g. the time of an X post). Use it to judge past calls, e.g. after x.token_callers. Read-only. Needs web access on. Facts only: it never rates a call.",
+      "native_name": "token__performance",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "description": "str (optional): the time for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "calls": {
+            "description": "list (1-15) of {token: contract address, at: ISO time, chain?: solana|ethereum|base|bnb|arbitrum}",
+            "items": {},
+            "type": "array"
+          },
+          "chain": {
+            "description": "str (optional): the chain for that one token",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str (optional): one token address instead of calls",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "calls",
+          "token",
+          "at",
+          "chain"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "token.research": {
+      "arguments": [
+        "chain",
+        "creator",
+        "parts",
+        "token"
+      ],
+      "description": "Research a token from public data with the user's own keys, in one call: its facts (name, symbol, supply), its largest holders and how concentrated they are, who created it and whether anyone can still mint or freeze it, what else that creator launched, the website and social links its metadata lists, and (when X is connected) who posted about it first. Solana, Ethereum, Base and BNB Smart Chain. Read-only. Use it for 'research this token', 'who deployed this', 'what else did the dev launch'. Give a contract address; a $TICKER or name alone only searches X for the addresses people post for it. Each part says plainly when it could not be read.",
+      "native_name": "token__research",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str (optional): solana | ethereum | base | bnb (needed for a 0x address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "creator": {
+            "description": "str (optional): a creator address, to list only what it launched",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parts": {
+            "description": "list[str] (optional): any of facts, holders, creator, creator_tokens, links, x; default all",
+            "items": {},
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "token": {
+            "description": "str: token mint or contract address, or a $TICKER / name (X search only)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "chain",
+          "parts",
+          "creator"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "read_files",
+            "use_network_access"
+          ],
+          "effects": {
+            "auto": "allow",
+            "bypass_permissions": "allow",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": true
+    },
+    "watch.add": {
+      "arguments": [
+        "chain",
+        "kind",
+        "label",
+        "rule",
+        "subject"
+      ],
+      "description": "Start watching a wallet or a token price and get a notification when something happens. A wallet watch (kind wallet) needs the chain and the address, and a chain-data key that serves history on that chain. A price watch (kind price) needs the chain, the token's contract address and a rule: above a price, below a price, or a percent move within 5m, 1h, 6h or 24h; repeat alerts on every crossing. While VOOL runs it checks every 5 minutes (wallets) or every minute (prices) and posts one notification per event. Read-only market data: nothing is signed or sent.",
+      "native_name": "watch__add",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "chain": {
+            "description": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "description": "str: wallet | price",
+            "type": "string"
+          },
+          "label": {
+            "description": "str optional: a name for the notification (default: a short form of the address)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rule": {
+            "description": "rule: object for a price watch, one of {above: number} | {below: number} | {move_pct: signed number, window: 5m|1h|6h|24h}; repeat: boolean optional (default false)",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "description": "str: the wallet address or token contract address to watch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "chain",
+          "subject",
+          "label",
+          "rule"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "watch.list": {
+      "arguments": [],
+      "description": "Every watch with its label, chain, rule in words, state (active, paused or needs_setup) and when it was last checked. Use it for 'what am I watching'.",
+      "native_name": "watch__list",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {},
+        "required": [],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "watch.pause": {
+      "arguments": [
+        "id",
+        "subject"
+      ],
+      "description": "Pause one watch (no checks, no notifications) by id or by the address it watches.",
+      "native_name": "watch__pause",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "str optional: the watch id from watch.list",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "description": "str optional: the watched address",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "watch.remove": {
+      "arguments": [
+        "id",
+        "subject"
+      ],
+      "description": "Stop watching: delete one watch by id or by the address it watches. Its rows are deleted.",
+      "native_name": "watch__remove",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "str optional: the watch id from watch.list",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "description": "str optional: the watched address",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
+    "watch.resume": {
+      "arguments": [
+        "id",
+        "subject"
+      ],
+      "description": "Resume a paused watch, or re-arm a watch that stopped because its requirement was missing (its key removed, web access off). Re-checks the requirement first.",
+      "native_name": "watch__resume",
+      "native_parameters": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "str optional: the watch id from watch.list",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject": {
+            "description": "str optional: the watched address",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "permissions": {
+        "existing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "missing_path": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "no_arguments": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "safe_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        },
+        "side_effecting_command": {
+          "actions": [
+            "unknown_side_effect"
+          ],
+          "effects": {
+            "auto": "deny",
+            "bypass_permissions": "deny",
+            "manual": "require_approval",
+            "plan": "deny",
+            "review_edits": "require_approval"
+          }
+        }
+      },
+      "read_only": false
+    },
     "web.chain_lookup": {
       "arguments": [
         "address",
@@ -10459,7 +11973,7 @@
         "token",
         "tx"
       ],
-      "description": "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, Etherscan): a wallet's native balance, its token balances, its recent transactions, a token's info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an on-chain address, token or transaction instead of answering from memory; without a key it says which key to add.",
+      "description": "Look up public blockchain data with the operator's own chain-data API keys (Helius, Alchemy, Solscan, Etherscan, Moralis): a wallet's native balance, its token balances, its recent transactions, a token's info, a token's largest holders, or one transaction, on Solana, Ethereum, Base, BNB Smart Chain, Arbitrum or Robinhood Chain. Read-only: nothing is signed or sent. Use it for any question about an on-chain address, token or transaction instead of answering from memory; without a key it says which key to add.",
       "native_name": "web__chain_lookup",
       "native_parameters": {
         "additionalProperties": false,
@@ -10469,7 +11983,7 @@
             "type": "string"
           },
           "chain": {
-            "description": "str: solana | ethereum | base | bnb | robinhood (optional for a Solana address)",
+            "description": "str: solana | ethereum | base | bnb | arbitrum | robinhood (optional for a Solana address)",
             "type": [
               "string",
               "null"
@@ -10483,7 +11997,7 @@
             ]
           },
           "provider": {
-            "description": "str (optional): helius | alchemy | solscan | etherscan",
+            "description": "str (optional): helius | alchemy | solscan | etherscan | moralis",
             "type": [
               "string",
               "null"

@@ -168,12 +168,14 @@ def test_companion_popover_is_placed_toggled_and_closable() -> None:
     assert "atEdge && vnNativeCompanionApi()" in fragment, "edge-release hands the sprite to the desktop"
 
 
-def test_drawer_pet_tab_offers_desktop_detach() -> None:
+def test_drawer_pet_tab_offers_no_move_to_desktop_button() -> None:
+    """The owner's call (2026-10-13): the pet reaches the desktop by being dragged out of the
+    window, never through a "Move to desktop" button."""
     from core.companion_drawer_fragment import render_companion_drawer_fragment
 
     fragment = render_companion_drawer_fragment()
-    assert "vcdDetach" in fragment and "Move to desktop" in fragment
-    assert "companion.detachDesktop" in fragment
+    assert "vcdDetach" not in fragment and "Move to desktop" not in fragment
+    assert "companion.detachDesktop" not in fragment
 
 
 def test_drag_gesture_listeners_are_one_shot() -> None:

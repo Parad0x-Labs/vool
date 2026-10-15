@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="246" viewBox="0 0 760 246" role="img" aria-labelledby="title desc">
+<title id="title">Official 150: cost, tokens and answer time per question</title><desc id="desc">Cost per question: VOOL v12 $0.0033, Hermes $0.0046, OpenClaw $0.0100; Tokens per question: VOOL v12 9.6k, Hermes 33.5k, OpenClaw 51.8k; Median answer time: VOOL v12 11.2 s, Hermes 16.2 s, OpenClaw 15.6 s</desc>
+<style>svg{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s-vool:#2a78d6;--s-hermes:#eb6834;--s-openclaw:#1baf7a;--s-full-transcript:#a3a29b;}@media (prefers-color-scheme: dark){svg{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s-vool:#3987e5;--s-hermes:#d95926;--s-openclaw:#199e70;--s-full-transcript:#6f6e69;}}text{font-family:system-ui, -apple-system, "Segoe UI", sans-serif;fill:var(--ink)}.t{font-size:17px;font-weight:600}.st{font-size:12.5px;fill:var(--ink2)}.lb{font-size:13px}.v{font-size:12.5px;font-variant-numeric:tabular-nums}.ax{font-size:11.5px;fill:var(--muted);font-variant-numeric:tabular-nums}.g{stroke:var(--grid);stroke-width:1}.b{stroke:var(--axis);stroke-width:1}</style>
+<rect width="760" height="246" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="34">Official 150: cost, tokens and answer time per question</text>
+<text class="st" x="24" y="54">Billed answering cost, product-call tokens and median answer time. Shorter is better.</text>
+<rect x="24" y="72" width="12" height="12" rx="3" fill="var(--s-vool)"/>
+<text class="lb" x="42" y="82">VOOL v12</text>
+<rect x="113" y="72" width="12" height="12" rx="3" fill="var(--s-hermes)"/>
+<text class="lb" x="131" y="82">Hermes</text>
+<rect x="187" y="72" width="12" height="12" rx="3" fill="var(--s-openclaw)"/>
+<text class="lb" x="205" y="82">OpenClaw</text>
+<text class="lb" x="24.0" y="102" font-weight="600">Cost per question</text>
+<line class="b" x1="24.0" y1="110" x2="24.0" y2="196"/>
+<path d="M24.0,112.0h45.1a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-45.1z" fill="var(--s-vool)"/>
+<text class="v" x="79.1" y="127.5">$0.0033</text>
+<path d="M24.0,142.0h64.4a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-64.4z" fill="var(--s-hermes)"/>
+<text class="v" x="98.4" y="157.5">$0.0046</text>
+<path d="M24.0,172.0h144.7a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-144.7z" fill="var(--s-openclaw)"/>
+<text class="v" x="178.7" y="187.5">$0.0100</text>
+<text class="lb" x="270.7" y="102" font-weight="600">Tokens per question</text>
+<line class="b" x1="270.7" y1="110" x2="270.7" y2="196"/>
+<path d="M270.7,112.0h23.6a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-23.6z" fill="var(--s-vool)"/>
+<text class="v" x="304.2" y="127.5">9.6k</text>
+<path d="M270.7,142.0h92.1a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-92.1z" fill="var(--s-hermes)"/>
+<text class="v" x="372.8" y="157.5">33.5k</text>
+<path d="M270.7,172.0h144.7a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-144.7z" fill="var(--s-openclaw)"/>
+<text class="v" x="425.3" y="187.5">51.8k</text>
+<text class="lb" x="517.3" y="102" font-weight="600">Median answer time</text>
+<line class="b" x1="517.3" y1="110" x2="517.3" y2="196"/>
+<path d="M517.3,112.0h98.8a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-98.8z" fill="var(--s-vool)"/>
+<text class="v" x="626.1" y="127.5">11.2 s</text>
+<path d="M517.3,142.0h144.7a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-144.7z" fill="var(--s-hermes)"/>
+<text class="v" x="672.0" y="157.5">16.2 s</text>
+<path d="M517.3,172.0h139.2a4.0,4.0 0 0 1 4.0,4.0v14.0a4.0,4.0 0 0 1 -4.0,4.0h-139.2z" fill="var(--s-openclaw)"/>
+<text class="v" x="666.5" y="187.5">15.6 s</text>
+<text class="st" x="24" y="230">Answer time excludes ingestion. Median ingestion per conversation: VOOL 62.5 s, OpenClaw 12.5 s, Hermes 2.8 s.</text>
+</svg>

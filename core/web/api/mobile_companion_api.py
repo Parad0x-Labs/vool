@@ -1269,39 +1269,75 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VOOL — pair a device</title>
+<title>VOOL · Pair your phone</title>
 <style>
-  body {{ background: #0b0d10; color: #e8ecf1; font-family: -apple-system, system-ui, sans-serif;
-         display: flex; justify-content: center; padding-top: 48px; }}
-  .card {{ background: #12161b; border-radius: 14px; padding: 28px; max-width: 420px; width: 90%; }}
-  h1 {{ font-size: 20px; margin: 0 0 4px; }}
-  .fp {{ color: #7d8794; font-size: 12px; font-family: menlo, monospace; margin-bottom: 18px; }}
-  #qr {{ background: #fff; padding: 16px; border-radius: 10px; width: fit-content; margin: 0 auto 14px; }}
-  #qr table {{ border-collapse: collapse; }}
-  #qr td {{ width: 4px; height: 4px; }}
-  .code {{ font-size: 30px; letter-spacing: 8px; font-family: menlo, monospace;
-           text-align: center; margin: 10px 0 4px; }}
-  .meta {{ color: #7d8794; font-size: 12px; text-align: center; }}
-  .warn {{ color: #f59e0b; font-size: 12px; margin-top: 14px; line-height: 1.5; }}
+  /* Filled with str.replace (not str.format), so braces are single. Colours follow the app palette. */
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #141416; color: #e6e2dc; font: 15px/1.5 -apple-system, "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
+         display: flex; justify-content: center; padding: 48px 16px; }
+  .card { background: #1b1b1e; border: 1px solid #39393f; border-radius: 14px; padding: 28px; max-width: 420px; width: 100%; box-sizing: border-box; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .lead { color: #aaa5a0; font-size: 14px; margin: 0 0 18px; }
+  #qr { background: #fff; padding: 16px; border-radius: 10px; width: fit-content; margin: 0 auto 14px; }
+  #qr table { border-collapse: collapse; }
+  #qr td { width: 4px; height: 4px; }
+  .code { font-size: 30px; letter-spacing: 8px; font-family: ui-monospace, Menlo, monospace; text-align: center; margin: 10px 0 4px; }
+  .meta { color: #aaa5a0; font-size: 13px; text-align: center; }
+  .gone #qr, .gone .code { opacity: .25; filter: grayscale(1); }
+  .expired { display: none; text-align: center; margin-top: 16px; }
+  .gone .expired { display: block; }
+  button { font: inherit; background: #c3b8a8; color: #171513; border: 0; border-radius: 8px; padding: 9px 16px; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .say { color: #aaa5a0; font-size: 13px; margin-top: 8px; }
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>Pair a device</h1>
-  <div class="fp">desktop authority __SHORT_FP__</div>
-  <div id="qr"></div>
-  <div class="code">__CODE__</div>
-  <div class="meta">pairing id <span id="pid"></span> · expires <span id="exp"></span></div>
-  <div class="warn">Scan with the VOOL companion app, or type the code into it.
-  The code is single-use and expires in minutes. Every paired device can be
-  revoked from this desktop at any time.</div>
+<div class="card" id="card">
+  <h1>Pair your phone</h1>
+  <p class="lead">Scan this with VOOL on your phone, or type the code into it. It works once.</p>
+  <div id="qr" aria-label="Pairing code as a QR image" role="img"></div>
+  <div class="code" aria-label="Pairing code">__CODE__</div>
+  <div class="meta" id="exp" role="status" aria-live="polite"></div>
+  <p class="say">This computer's check code is <b>__SHORT_FP__</b>. If your phone shows a check code while pairing, it should be the same.</p>
+  <div class="expired">
+    <p id="goneText">This code expired.</p>
+    <button type="button" id="again">Make a new code</button>
+    <div class="say" id="againSay" role="status" aria-live="polite"></div>
+  </div>
 </div>
 <script>
-(function () {{
+(function () {
   var payload = __PAYLOAD__;
-  document.getElementById("pid").textContent = payload.pid;
-  var left = Math.max(0, Math.round(payload.exp - Date.now() / 1000));
-  document.getElementById("exp").textContent = left > 0 ? ("in " + left + "s") : "EXPIRED";
+  var card = document.getElementById("card"), exp = document.getElementById("exp");
+  function gone(text) {
+    card.classList.add("gone");
+    exp.textContent = "";
+    document.getElementById("goneText").textContent = text;
+  }
+  function tick() {
+    var left = Math.max(0, Math.round(payload.exp - Date.now() / 1000));
+    if (left <= 0) { gone("This code expired."); return false; }
+    var m = Math.floor(left / 60), s = left % 60;
+    exp.textContent = "Expires in " + m + ":" + (s < 10 ? "0" : "") + s;
+    return true;
+  }
+  if (payload.status && payload.status !== "waiting") {
+    gone("This code was already used or closed.");
+  } else if (tick()) {
+    var timer = setInterval(function () { if (!tick()) clearInterval(timer); }, 1000);
+  }
+  document.getElementById("again").addEventListener("click", function () {
+    var btn = this, say = document.getElementById("againSay");
+    btn.disabled = true; say.textContent = "";
+    fetch("/api/mobile/pairing/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (res.ok && res.d && res.d.pairing_page) { window.location.href = res.d.pairing_page; return; }
+        btn.disabled = false;
+        say.textContent = "Couldn't make a new code" + (res.d && res.d.code === "pairing_rate_limited" ? ": too many tries. Wait a minute, then try again." : ". Please try again.");
+      })
+      .catch(function () { btn.disabled = false; say.textContent = "VOOL isn't answering right now. Check that it is running, then try again."; });
+  });
   var uri = "vool-pair://" + window.location.host
     + "?fp=" + payload.fp + "&pid=" + payload.pid
     + "&code=" + payload.code + "&exp=" + payload.exp;
@@ -1309,7 +1345,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   qr.addData(uri);
   qr.make();
   document.getElementById("qr").innerHTML = qr.createTableTag(4, 8);
-}})();
+})();
 </script>
 </body>
 </html>

@@ -243,6 +243,29 @@ def _batch_member_is_read_only(intent: str, arguments: dict[str, Any] | None = N
 _NON_EXECUTING_INTENTS = {"respond.direct", "none", "no_tool"}
 
 
+def _completes_turn(intent: str) -> bool:
+    """Whether a successful call of this tool is the whole answer (contract `completes_turn`)."""
+    try:
+        from core.runtime_tool_contracts import runtime_tool_contract_map
+
+        return bool(getattr(runtime_tool_contract_map().get(str(intent or "")), "completes_turn", False))
+    except Exception:
+        return False
+
+
+def _pending_delivery_formats(context: dict[str, Any], steps: list[dict[str, Any]]) -> set[str]:
+    from core.deliverables import REQUESTED_FORMATS_KEY
+
+    wanted = set(context.get(REQUESTED_FORMATS_KEY) or ())
+    made = {
+        str((step.get("observation") or {}).get("format") or "")
+        for step in steps
+        if step.get("ok") and step.get("tool_name") == "file.deliver"
+        and isinstance(step.get("observation"), dict)
+    }
+    return wanted - made
+
+
 def _code_task_report_completed_the_turn(executed_steps: list[dict[str, Any]]) -> bool:
     """Whether this turn's last real step published a completed code task report and no coding task the
     turn worked on is unfinished (the completion law in `enforce_code_task_completion`)."""
@@ -398,6 +421,54 @@ def _within_turn_navigation(loop: Any) -> Any:
 
 
 class ResearchToolLoopFacadeMixin:
+    def _open_provider_search_receipt(self, source_context: dict[str, Any] | None, authority_text: str) -> bool:
+        """"Use the model's own tools": open the receipt for the provider's search BEFORE synthesis.
+
+        The provider searches inside the answering call, so its receipt is opened through the
+        canonical door here, before the synthesis freeze, exactly like VOOL's own schedulers;
+        `core.model_own_tools.record_provider_search` closes it with the sources the provider
+        returned. The search is sent only where VOOL itself would search: a turn whose canonical
+        record needs current information, that the owner did not close to tools ("without using
+        any tools") or to the network (a remote-fetch veto), and that the door admits. The switch
+        alone never widens a turn to current. Returns False otherwise; the caller then sends the
+        call without the provider's search, so every provider search has a receipt.
+        """
+        from core.agent_runtime.intent_claims import ActionPolicy, action_policy_from_context
+        from core.execution_requirements import current_requirement_record, requirements_for
+        from core.model_own_tools import PROVIDER_SEARCH_RECEIPT_KEY, turn_has_provider_search
+        from core.remote_fetch_policy import remote_fetch_allowed_by_context
+        from core.retrieval_authority_gate import authorize_retrieval
+        from core.retrieval_provenance import MODEL_PROVIDER_SEARCH
+
+        if not isinstance(source_context, dict) or not turn_has_provider_search(source_context):
+            return False
+        source_context.pop(PROVIDER_SEARCH_RECEIPT_KEY, None)
+        if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
+            return False
+        if explicit_remote_fetch_disabled(source_context) or not remote_fetch_allowed_by_context(source_context):
+            return False
+        # The turn's canonical decision (minted here if no stage has read it yet, exactly as the
+        # freeze below would mint it): the provider search is judged by the same record.
+        requirements_for(authority_text, source_context=source_context)
+        record = current_requirement_record(source_context)
+        if record is None or not bool(getattr(record.requirements, "current_information_required", False)):
+            return False
+        if not authorize_retrieval(
+            source_context,
+            authority_text,
+            lane=MODEL_PROVIDER_SEARCH,
+            proposal_reason="model_own_tools",
+        ):
+            return False
+        source_context[PROVIDER_SEARCH_RECEIPT_KEY] = begin_web_retrieval(
+            source_context,
+            kind="provider_search",
+            query=str(authority_text or ""),
+            task_id=str(source_context.get("task_id") or ""),
+            provider_id=MODEL_PROVIDER_SEARCH,
+        )
+        return True
+
     def _collect_live_web_notes(
         self,
         *,
@@ -427,6 +498,11 @@ class ResearchToolLoopFacadeMixin:
             return []
         source_context = source_context if isinstance(source_context, dict) else {}
         if explicit_remote_fetch_disabled(source_context):
+            return []
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
+            # The owner handed this cloud model its own tools: VOOL does not search for it.
             return []
         surface = str(source_context.get("surface", "") or "").lower()
         platform = str(source_context.get("platform", "") or "").lower()
@@ -552,6 +628,14 @@ class ResearchToolLoopFacadeMixin:
             return AdaptiveResearchResult(
                 enabled=False,
                 reason="remote_fetch_disabled",
+                strategy="not_allowed",
+            )
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
+            return AdaptiveResearchResult(
+                enabled=False,
+                reason="model_own_tools",
                 strategy="not_allowed",
             )
         # A workspace audit is a question about code ON THIS MACHINE. Its evidence has already been
@@ -913,6 +997,13 @@ class ResearchToolLoopFacadeMixin:
             "code_task_control_required",
             "owner_not_read",
             "stage_violation",
+            # file.deliver building a format the request did not name (`deliverables.
+            # refuse_unrequested_format`): nothing was stored, and the refusal names the format to
+            # use. Measured live without this seat: the refusal ended the turn, so "a PDF" or "zip
+            # them up" got no file at all instead of the corrected one.
+            "format_not_requested",
+            "delivery_tool_required",
+            "member_format_mismatch",
         }
     )
     _MAX_ARGUMENT_CORRECTIONS = 2
@@ -1019,6 +1110,19 @@ class ResearchToolLoopFacadeMixin:
         )
         return True
 
+    def _pick_up_followup_notes(self, loop_source_context: dict[str, Any], *, step_count: int) -> None:
+        from core.followup_continuity import drain_notes_into_context
+
+        for note in drain_notes_into_context(loop_source_context):
+            text = " ".join(str(note.get("text") or "").split())
+            self._emit_runtime_event(
+                loop_source_context,
+                event_type="followup_note_applied",
+                message=f"Picked up your note: {text[:160]}",
+                status="note_applied",
+                step_count=step_count,
+            )
+
     @_within_turn_navigation
     def _maybe_execute_model_tool_intent(
         self,
@@ -1042,6 +1146,13 @@ class ResearchToolLoopFacadeMixin:
         # turn.  Do not ask a model to construct a tool payload only to reject it
         # later: that still produces a false action/approval status in the UI.
         if action_policy_from_context(source_context) is ActionPolicy.FORBIDDEN:
+            return None
+        # "Use the model's own tools" is on and the owner pinned a cloud model: VOOL offers it no
+        # tools at all, so the turn answers on the plain model path (where the router attaches the
+        # provider's own tools when the provider really has them).
+        from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+        if _model_own_tools_turn(source_context):
             return None
         # A bound workspace audit has already executed the authoritative read-only tool sequence
         # and attached its results as model evidence.  Running the generic tool-intent planner here
@@ -1145,6 +1256,21 @@ class ResearchToolLoopFacadeMixin:
             loop_source_context[TURN_SCOPE_KEY] = current_scope
         else:
             loop_source_context.pop(TURN_SCOPE_KEY, None)
+        # THIS request's named file format(s), read from its own words (a resumed checkpoint's
+        # stored context must not carry an earlier request's formats into this one).
+        from core.deliverables import (
+            DOWNLOAD_ONLY_KEY,
+            REQUESTED_FORMATS_KEY,
+            downloadable_request_without_workspace_target,
+            requested_formats,
+        )
+
+        named_formats = requested_formats(effective_input)
+        if named_formats:
+            loop_source_context[REQUESTED_FORMATS_KEY] = list(named_formats)
+        else:
+            loop_source_context.pop(REQUESTED_FORMATS_KEY, None)
+        loop_source_context[DOWNLOAD_ONLY_KEY] = downloadable_request_without_workspace_target(effective_input)
         executed_steps: list[dict[str, Any]] = []
         last_tool_decision = None
         seen_tool_payloads: set[str] = set()
@@ -1251,6 +1377,9 @@ class ResearchToolLoopFacadeMixin:
         self._toolloop_candidate_fp: tuple[str, ...] | None = None
 
         while pending_tool_payload or model_rounds < max_rounds:
+            # A step boundary: notes the user attached to this task while it worked join the
+            # request here (core/followup_continuity.py), and every later model call sees them.
+            self._pick_up_followup_notes(loop_source_context, step_count=len(executed_steps))
             # Replaying the pending approval uses its already-recorded decision round. It must
             # still execute at the limit, and must not spend a second model call. New decisions
             # increment here so every continue/return path remains bounded.
@@ -1902,7 +2031,13 @@ class ResearchToolLoopFacadeMixin:
                 # still decides and still spends the grant. A member the grant does not name gets
                 # False here and the walk defers from that point, exactly as it does today for every
                 # write -- so the failure direction is "ask again", never "run unasked".
-                if not _batch_member_is_read_only(member_intent, member_payload["arguments"]) and not request_batch_grant_covers(
+                # A `completes_turn` member (file.deliver: it writes only the runtime's own private
+                # store) runs inline too, still through the permission gate in `_execute_tool_intent`.
+                # Deferring it made the model re-request the whole batch every round: measured live
+                # 2026-10-06, "a script and a README" rebuilt the script six times and never the README.
+                if not _batch_member_is_read_only(member_intent, member_payload["arguments"]) and not _completes_turn(
+                    member_intent
+                ) and not request_batch_grant_covers(
                     intent=member_intent,
                     arguments=member_payload["arguments"],
                     task_id=task.task_id,
@@ -1974,6 +2109,9 @@ class ResearchToolLoopFacadeMixin:
                             )
                         ),
                         "tool_call_id": str((member_execution.details or {}).get("tool_call_id") or ""),
+                        # The member's own text, kept like the head step's: a `completes_turn`
+                        # tool publishes every successful call's text, not only the head's.
+                        "response_text": redact_tool_argument_data(str(member_execution.response_text or "")),
                         "decision_source": "model_tool_intent_batch_member",
                         "round_index": current_round,
                     }
@@ -2084,6 +2222,18 @@ class ResearchToolLoopFacadeMixin:
                         else "running"
                     ),
                 )
+            # A tool whose successful call IS the answer (`completes_turn`, e.g. file.deliver) ends
+            # the loop here: the model is not asked for another round it would have to fill with a
+            # tool call, and the synthesis below publishes the tool's own text.
+            if (
+                execution.mode == "tool_executed"
+                and execution.ok
+                and not (executed_steps and executed_steps[-1].get("deferred_calls"))
+                and _completes_turn(str(execution.tool_name or tool_name))
+                and not _pending_delivery_formats(loop_source_context, executed_steps)
+            ):
+                loop_stop_reason = "tool_completed_turn"
+                break
             # A refused step is not a terminal turn: the correction path or grounded synthesis
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
@@ -2506,6 +2656,20 @@ class ResearchToolLoopFacadeMixin:
             # This contract publishes its complete, already-redacted runtime result.
             # A one-line activity summary is not the requested report or PR body.
             final_message = str(executed_steps[-1].get("response_text") or "").strip()
+            if _completes_turn(str(executed_steps[-1].get("tool_name") or "")):
+                # Several files in one turn (a batch of file.deliver calls) are ALL the answer:
+                # each successful call's own text, in order, never only the last one's link.
+                delivered = [
+                    str(step.get("response_text") or "").strip()
+                    for step in executed_steps
+                    if step.get("ok") and str(step.get("tool_name") or "") == str(executed_steps[-1].get("tool_name") or "")
+                ]
+                delivered = [text for index, text in enumerate(delivered) if text and text not in delivered[:index]]
+                if delivered:
+                    final_message = "\n\n".join(delivered)
+                pending_formats = _pending_delivery_formats(loop_source_context, executed_steps)
+                if pending_formats:
+                    final_message += "\n\nStill missing requested output: " + ", ".join(sorted(pending_formats)) + "."
             if not final_message:
                 final_message = self._tool_loop_final_message(None, executed_steps)
         elif reject_reason:

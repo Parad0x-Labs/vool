@@ -419,7 +419,7 @@ def _reason_for(state: str, plugins_dir: str, detail: str, budget_s: float | Non
     if state == STORAGE_ACCESSIBLE:
         return ""
     if state == STORAGE_MISSING:
-        return "No plugins repo found (set VOOL_PLUGINS_DIR)."
+        return "No extra add-ons yet. Browse the store to add one."
     if state == STORAGE_DENIED:
         return (
             f"Access to the plugin folder was denied ({plugins_dir}: {detail}). Grant VOOL access to "

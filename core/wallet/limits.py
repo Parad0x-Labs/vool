@@ -29,6 +29,7 @@ DAY_SECONDS = 86_400
 DEFAULT_LIMITS = {
     "SOL": (100_000_000, 500_000_000, 250_000_000),
     "USDC": (10_000_000, 50_000_000, 25_000_000),
+    "USDT": (10_000_000, 50_000_000, 25_000_000),
     "ETH": (10_000_000_000_000_000, 50_000_000_000_000_000, 25_000_000_000_000_000),
     "BNB": (20_000_000_000_000_000, 100_000_000_000_000_000, 50_000_000_000_000_000),
 }
@@ -251,13 +252,14 @@ def _fee_hold_id(proposal_id: str) -> str:
 
 
 def _token_transfer(chain: str, asset: str) -> bool:
-    """A registered token on a Solana row: its principal and its fee are denominated in different assets."""
+    """A registered token on a Solana row, or a token the owner sends on an EVM row: its principal and its fee are
+    denominated in different assets."""
     if not chain:
         return False
     try:
-        from core.wallet import svm_tokens
+        from core.wallet import evm_tokens, svm_tokens
 
-        return svm_tokens.is_token_transfer(chain, asset)
+        return svm_tokens.is_token_transfer(chain, asset) or evm_tokens.is_token_transfer(chain, asset)
     except Exception:
         return False
 

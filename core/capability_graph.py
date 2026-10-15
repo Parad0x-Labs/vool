@@ -122,6 +122,7 @@ _CANONICAL_FAMILIES = frozenset(
         "operator",      # inspect and mutate the local machine
         "skill",         # author, validate, install skills
         "pdf",           # read and OCR PDF documents
+        "file",          # build a document/spreadsheet/deck/archive and hand it over as a download
         "marketplace",   # browse and purchase listings
         "runtime",       # respond, orchestrate, system internals
         "web0",          # Web0 site building and publishing
@@ -137,7 +138,7 @@ _CANONICAL_FAMILIES = frozenset(
         # ontology must describe them rather than pretend they are not families.
         "set",           # named preference/setting packs
         "demo",          # guided demo journeys
-        "x",             # X/Twitter trending reads
+        "x",             # X reads (search, callers, accounts, timelines) and proposed actions
         "profile",       # the operator's typed profile (remember/forget/list)
         "repo",          # repository operations: PRs, CI truth, typed git, authorized push
     }
@@ -1238,6 +1239,7 @@ _TOOLSET_HINT_TO_FAMILY: dict[str, str] = {
     "code": "code",
     "network": "network",
     "mcp": "mcp",
+    "x": "x",
 }
 
 # One representative tool per capability family for the family-navigation set.
@@ -1261,6 +1263,7 @@ _FAMILY_REPRESENTATIVE: dict[str, str] = {
     "operator": "operator.inspect_disk_usage",
     "skill": "skill.list",
     "pdf": "pdf.extract_text",
+    "file": "file.deliver",
     "orchestration": "orchestration.execute_envelope",
     "web0": "web0.open_builder_draft",
     "payment": "sell.quote",

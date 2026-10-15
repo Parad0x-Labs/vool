@@ -201,7 +201,7 @@ def _code(artifact: dict) -> list[dict]:
         elif name not in allowed and name not in pictures and not (
                 name.startswith("skills/") and name.lower().endswith(TEXT_SUFFIXES)):
             findings.append(_finding("code", name, "Skills hold Markdown or plain-text files under skills/, the licence "
-                                                   "and their pictures. Take this file out."))
+                                                   "and their pictures. Take this file out.", rule="layout"))
         elif artifact["files"][name][:2] == b"#!":
             findings.append(_finding("code", name, "This file starts like a script. Skills can't run code."))
     manifest = artifact["manifest"]

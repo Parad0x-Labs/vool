@@ -27,7 +27,8 @@ Four laws, each measured broken on 2026-09-14 (validation-logs/autodetection-202
 
 The truths stay DISTINCT because each is a different operator situation: ``verified``; ``invalid``
 (the provider rejected the key — by status, or by an error code the descriptor says names the
-credential); ``unauthorized`` (valid, not permitted); ``exhausted`` (no credit or quota);
+credential); ``unauthorized`` (request not permitted; validity unknown); ``gateway_blocked`` (the
+provider's edge refused this client before the key was judged); ``exhausted`` (no credit or quota);
 ``rate_limited``; ``provider_unavailable`` (408/5xx); ``endpoint_not_found`` (404 — a wrong base
 URL); ``timeout``; ``network_unavailable``; ``redirected``; ``malformed_response``;
 ``unexpected_schema``; ``public_endpoint``; ``refused`` (nothing was sent); ``unexpected`` (anything
@@ -66,10 +67,12 @@ STATUS_REDIRECTED = "redirected"
 STATUS_MALFORMED_RESPONSE = "malformed_response"
 STATUS_UNEXPECTED_SCHEMA = "unexpected_schema"
 STATUS_PUBLIC_ENDPOINT = "public_endpoint"
+STATUS_GATEWAY_BLOCKED = "gateway_blocked"
 
 #: Outcomes that carry NO evidence about the key itself: the provider, the path or the policy was
 #: what answered. None of them may be surfaced as a rejected key or withdraw a working lane.
 INCONCLUSIVE_STATUSES = frozenset({
+    STATUS_GATEWAY_BLOCKED,
     STATUS_RATE_LIMITED,
     STATUS_NETWORK_UNAVAILABLE,
     STATUS_TIMEOUT,
@@ -100,7 +103,7 @@ _details = {
     STATUS_INVALID: "key rejected by provider",
     STATUS_EXHAUSTED: "account balance or quota exhausted",
     STATUS_RATE_LIMITED: "provider throttled the request",
-    STATUS_UNAUTHORIZED: "key valid but not permitted this request",
+    STATUS_UNAUTHORIZED: "request not permitted; key validity was not established",
     STATUS_NETWORK_UNAVAILABLE: "provider unreachable",
     STATUS_REFUSED: "verification refused before any request",
     STATUS_UNEXPECTED: "unexpected provider response",
@@ -110,6 +113,7 @@ _details = {
     STATUS_REDIRECTED: "provider redirected to another origin; the key was not sent there",
     STATUS_MALFORMED_RESPONSE: "the answer was not an API response",
     STATUS_UNEXPECTED_SCHEMA: "the answer does not have this provider's documented shape",
+    STATUS_GATEWAY_BLOCKED: "the provider gateway blocked this client request; key validity was not established",
     STATUS_PUBLIC_ENDPOINT: "the endpoint answers without a key, so it cannot confirm one; the key was not sent",
 }
 
@@ -371,6 +375,9 @@ def classify_verification_response(descriptor: ProviderDescriptor, *, status: in
         location = str(getattr(headers, "get", lambda _name: "")("Location") or "")
         return _outcome(STATUS_REDIRECTED, descriptor, status, host, redirect_origin=_origin_text(location))
     code = provider_error_code_from_body(body)
+    if is_gateway_denial(status, body):
+        # The edge refused this client before the provider looked at the key: no key evidence.
+        return _outcome(STATUS_GATEWAY_BLOCKED, descriptor, status, host)
     if code and code in descriptor.invalid_error_codes:
         return _outcome(STATUS_INVALID, descriptor, status, host, provider_error_code=code)
     if status in descriptor.invalid_statuses:
@@ -435,11 +442,13 @@ def _place_credential(key: str | None, descriptor: ProviderDescriptor) -> tuple[
             query_data = json.dumps(dict(descriptor.verify_body)).encode("utf-8")
             query_headers["Content-Type"] = "application/json"
         return _merge_query(descriptor.verify_endpoint, {**dict(descriptor.verify_query), name: key}), query_headers, query_data
-    if not (style == "bearer" or (style == "header" and name) or (style == "body" and name and method == "POST")):
+    open_endpoint = style == "none" and descriptor.user_endpoint
+    if not (style == "bearer" or (style == "header" and name) or (style == "body" and name and method == "POST")
+            or open_endpoint):
         return None
     headers = {"Accept": "application/json"}
     body = dict(descriptor.verify_body) if descriptor.verify_body else None
-    if key is not None:
+    if key is not None and not open_endpoint:
         if style == "bearer":
             headers["Authorization"] = f"Bearer {key}"
         elif style == "header":
@@ -556,6 +565,22 @@ def verify_provider_credential(secret: str, descriptor: ProviderDescriptor,
                         detail=f"unsupported key placement {descriptor.auth_style!r}")
 
     with named_background_effect_scope(scope):
+        if descriptor.user_endpoint and str(descriptor.auth_style or "").strip().lower() == "none":
+            # An endpoint the operator says is OPEN: no key exists to send, so the keyless answer is
+            # the whole verdict. Its documented shape proves the address serves this API; a 401/403
+            # says it demands a key after all, and that is named, never read as a bad key.
+            first = _ask(keyless, descriptor, timeout_s, host, keyed=False)
+            if isinstance(first, VerificationOutcome):
+                return first
+            status, body, headers = first
+            if status in _KEY_DEMANDED_STATUSES:
+                return _outcome(STATUS_UNAUTHORIZED, descriptor, status, host,
+                                detail="this endpoint asks for a key; choose where the key goes instead of no key",
+                                provider_error_code=provider_error_code_from_body(body))
+            judged = classify_verification_response(descriptor, status=status, body=body, headers=headers, host=host)
+            if judged.status == STATUS_VERIFIED:
+                return _outcome(STATUS_VERIFIED, descriptor, status, host, detail="open endpoint; no key is sent")
+            return judged
         if descriptor.user_endpoint:
             first = _ask(keyless, descriptor, timeout_s, host, keyed=False)
             if isinstance(first, VerificationOutcome):
@@ -582,6 +607,7 @@ __all__ = [
     "INCONCLUSIVE_STATUSES",
     "STATUS_ENDPOINT_NOT_FOUND",
     "STATUS_EXHAUSTED",
+    "STATUS_GATEWAY_BLOCKED",
     "STATUS_INVALID",
     "STATUS_MALFORMED_RESPONSE",
     "STATUS_NETWORK_UNAVAILABLE",

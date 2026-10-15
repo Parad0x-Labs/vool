@@ -197,6 +197,8 @@ WALLET_ACTIONS: tuple[tuple[str, str, str, str], ...] = (
      "Choose Mainnet or Test networks for new wallet effects; accounts, balances and receipts never move"),
     ("wallet.channels.set", "/api/wallet/channels", "mutating",
      "Turn one payment channel (x402 built into VOOL, or x402 or MPP on Solana through Solana pay-kit) on or off; parked payments wait, nothing is signed or sent"),
+    ("wallet.ai_endpoints.set", "/api/wallet/ai-endpoints", "mutating",
+     "List, add, pause or remove the owner's pay-per-answer AI endpoints; nothing is asked, signed or sent"),
     ("wallet.setup.create", "/api/wallet/setup/create", "destructive",
      "Create a Crypto Pilot wallet on this device: credential first, then one backup reveal"),
     ("wallet.setup.reveal", "/api/wallet/setup/reveal", "destructive",
@@ -647,6 +649,23 @@ def _chat_cancel(inp: RouteInput, _ctx: Any) -> Any:
     return HandlerOk(data={"ok": True, "state": state}, summary=f"turn cancel: {state}")
 
 
+def _chat_followup(inp: RouteInput, _ctx: Any) -> Any:
+    from core.followup_continuity import handle_followup
+
+    body = dict(inp.body or {})
+    outcome = handle_followup(
+        str(body.get("session_id") or ""),
+        str(body.get("text") or ""),
+        idempotency_key=str(body.get("idempotency_key") or ""),
+    )
+    if not outcome.get("ok"):
+        return HandlerFault(
+            fault_code="usage", summary="follow-up refused",
+            detail={"legacy_status": 400, **outcome},
+        )
+    return HandlerOk(data=outcome, summary=f"follow-up: {outcome.get('route')}")
+
+
 def _chat_attachment_remove(inp: RouteInput, _ctx: Any) -> Any:
     from core import chat_attachments
 
@@ -738,6 +757,9 @@ def _probe_chat_actions(_context: dict) -> tuple[bool, str]:
 CHAT_ACTIONS: tuple[tuple[str, str, str, str, Any], ...] = (
     ("chat.pin", "/api/chat/pin", "mutating", "Pin or unpin one message in a chat", _chat_pin),
     ("chat.cancel", "/api/chat/cancel", "mutating", "Cancel one in-flight turn", _chat_cancel),
+    ("chat.followup", "/api/chat/followup", "mutating",
+     "Route a message sent while this chat's task runs: stop it, answer beside it, or attach a note",
+     _chat_followup),
     ("chat.attachment.remove", "/api/chat/attachments/remove", "destructive",
      "Drop one staged-but-unsent attachment from this chat", _chat_attachment_remove),
     ("chat.session.update", "/api/chat/session", "mutating",

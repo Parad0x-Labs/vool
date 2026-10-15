@@ -438,6 +438,18 @@ def should_attempt_tool_intent(
     except Exception:
         pass
 
+    # The answer wanted AS A FILE ("give me this as a Word document", "export the table to CSV",
+    # "zip these") is an action with a tool of its own, read through the SAME recogniser that
+    # seats that tool in the offer (core.tool_demand_signals), so this gate and the offer cannot
+    # disagree. Measured on the served daemon: these turns classified as plain conversation, this
+    # gate returned False, the model was handed no tools, and the user got the content pasted
+    # into chat instead of the file they asked for. It sits above the response-shape readings
+    # below because "as a PDF" is a deliverable, not a formatting preference for the reply.
+    from core.tool_demand_signals import asks_for_a_file
+
+    if asks_for_a_file(text):
+        return True
+
     # A few ordinary knowledge/text requests in one message still need one plain answer, not the
     # always-on tool catalogue and its large intent-selection call.  The detector is intentionally
     # limited to non-operational request heads; file/web/machine/action verbs never enter this lane.

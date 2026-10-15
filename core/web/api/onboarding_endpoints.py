@@ -110,6 +110,16 @@ def handle_pact_get(path: str, query: dict, runtime, client_host: str = "127.0.0
         return _with_runtime_headers(_json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
     from core import first_run_pact
 
+    view = (query or {}).get("view")
+    view = view[0] if isinstance(view, (list, tuple)) and view else str(view or "")
+    if str(view).strip() == "boundary":
+        # GET /api/onboarding/pact?view=boundary — the boundaries' live truth for Settings'
+        # Web lookups row: a pure projection of the owning authorities, with no pact seed and
+        # no tour state. The default branch below stays the onboarding tour's snapshot.
+        return _with_runtime_headers(
+            _json_response(200, {"ok": True, **first_run_pact.boundary_live()}), runtime
+        )
+
     model_pull = None
     try:
         model_pull = dict((runtime.runtime_version_stamp or {}).get("model_pull") or {}) or None
@@ -212,6 +222,8 @@ def _command_input(command_id: str, body: dict) -> dict:
             data["session_id"] = _opt_str(body, "session_id")
             data["provider_id"] = _opt_str(body, "provider_id")
             data["base_url"] = _opt_str(body, "base_url")
+            # A custom endpoint's key placement (bearer / header:<Name> / none); validated by the handler.
+            data["auth"] = _opt_str(body, "auth")
         elif command_id == "intake.quarantine.retry" or command_id == "intake.quarantine.delete":
             data = {"provider_id": _opt_str(body, "provider_id")}
             return data

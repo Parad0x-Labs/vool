@@ -945,7 +945,11 @@ def _serve_receipt(mem, row):
         row, source_body=str(source[0]) if source is not None else None, json_fields=json_fields,
     )
     if authorize_payload(payload, row["chat_scope"], getattr(mem, "_authority_home", None), owner_memory=mem):
-        return _row_to_receipt(row)
+        from core.secret_redaction import redacted_copy
+
+        # A receipt written before the v0.7.1 secret rules can quote a card number, PIN or
+        # password; the stored row stays as it is and the served copy is masked.
+        return redacted_copy(_row_to_receipt(row))
     return None
 
 

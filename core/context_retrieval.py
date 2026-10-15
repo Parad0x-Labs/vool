@@ -7503,9 +7503,9 @@ def _sweep_derived_dialogue_surfaces(
         return
 
     def carries(*values: object) -> bool:
-        return any(needle in _normalize_forget_token(str(value or "")) for value in values)
+        return any(forget_needle_in(str(value or ""), needle) for value in values)
 
-    from core.memory.carriers import ROW_IDENTITIES, payload_columns
+    from core.memory.carriers import ROW_IDENTITIES, forget_needle_in, payload_columns
     from core.memory.carriers import carries as structured_match
 
     def structured_carries(value: object) -> bool:
@@ -7677,9 +7677,6 @@ def revoked_tokens_for_chat(chat_id: str) -> tuple[str, ...]:
     return revoked_tokens(chat_id)
 
 
-_FORGET_SEPARATOR_RE = re.compile(r"[\s\-_]+")
-
-
 def _normalize_forget_token(token: str) -> str:
     """Canonical form for forget-law token matching.
 
@@ -7688,17 +7685,36 @@ def _normalize_forget_token(token: str) -> str:
     Measured on the integrated head (F14-07, full208-nomic-492d7412): plain
     substring matching let a hyphenated assistant copy of a forgotten token
     survive every layer — invalidation, scrubs, serving gates — and the
-    neural evidence leg then re-served the deleted value.
+    neural evidence leg then re-served the deleted value. Neither is the script
+    of a digit (``core.memory.carriers.normalized_forget_text``).
     """
-    return " ".join(_FORGET_SEPARATOR_RE.split(str(token or "").casefold())).strip()
+    from core.memory.carriers import normalized_forget_text
+
+    return normalized_forget_text(token)
+
+
+#: The days the runtime itself writes into a delivery: a record's stamp ("(recorded: 2026-10-14)", "(stated
+#: 2026-10-14)") and the memory header's "Today is 2026-10-14: a question's how-long-ago ...". They are not the
+#: user's words, so a forgotten "4" must not withhold every record on a day with a 4 in it (measured 2026-10-14:
+#: after forgetting "4", "my lead wall grade is 6." was undeliverable all day).
+_RUNTIME_DAY_STAMP_RE = re.compile(
+    r"\((?:recorded|stated)[: ]\s*\d{4}-\d{2}-\d{2}\)"
+    r"|\bToday is \d{4}-\d{2}-\d{2}(?=: a question's how-long-ago counts back from this date;)"
+)
+
+
+def _without_runtime_day_stamps(text: str) -> str:
+    return _RUNTIME_DAY_STAMP_RE.sub(" ", str(text or ""))
 
 
 def text_carries_revoked_token(text: str, revocations: tuple[str, ...]) -> bool:
     if not revocations:
         return False
-    hay = _normalize_forget_token(text)
+    from core.memory.carriers import forget_needle_in
+
+    hay = _without_runtime_day_stamps(text)
     return any(
-        token and _normalize_forget_token(token) in hay for token in revocations
+        token and forget_needle_in(hay, _normalize_forget_token(token)) for token in revocations
     )
 
 
@@ -7777,7 +7793,7 @@ def forget_session_memory(
         # when no token-free clause survives; other sessions' events are
         # never touched.
         try:
-            from core.memory.carriers import ROW_IDENTITIES, carries, row_payload
+            from core.memory.carriers import ROW_IDENTITIES, carries, forget_needle_in, row_payload
             from core.memory.files import (
                 conversation_log_path,
             )
@@ -7795,9 +7811,8 @@ def forget_session_memory(
                         continue
                     user_text = str(row.get("user") or "")
                     assistant_text = str(row.get("assistant") or "")
-                    user_carries = needle in _normalize_forget_token(user_text)
-                    asst_carries = needle in _normalize_forget_token(
-                        assistant_text)
+                    user_carries = forget_needle_in(user_text, needle)
+                    asst_carries = forget_needle_in(assistant_text, needle)
                     payload = row_payload(row, structural_fields=ROW_IDENTITIES)
                     if not carries(payload, token):
                         kept.append(row)
@@ -8264,7 +8279,9 @@ def _verify_memory_delivery(
         )
         from core.memory.revocation import authorize_payload
 
-        if not carries_revoked and authorize_payload(added, session_id, runtime_home, owner_memory=authority):
+        # The authority reads the delivery without the days the runtime stamped on it, the same as the check above.
+        checked = [{**item, "content": _without_runtime_day_stamps(str(item.get("content") or ""))} for item in added]
+        if not carries_revoked and authorize_payload(checked, session_id, runtime_home, owner_memory=authority):
             allowed = (authority.revocation_generation(session_id), barrier_generation(session_id, runtime_home)) == generation
     except Exception:
         revoked = None

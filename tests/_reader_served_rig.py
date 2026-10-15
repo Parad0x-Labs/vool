@@ -16,6 +16,7 @@ it well. Model execution on this machine is cloud-only, and a stub is not a mode
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -510,6 +511,50 @@ class ServedDaemon:
         except Exception:
             return "<no daemon log>"
 
+    def assert_running(self, *, context: str = "") -> None:
+        """Fail AS an exited daemon, with its evidence, before the test depends on it.
+
+        After start() nothing checks this process again until stop(), so a daemon whose
+        process has exited surfaces as whatever the next HTTP or browser call happens to
+        raise -- a bare transport error carrying no exit status and no server-side evidence
+        (the server routes its logging into the disposable home's own file). The same
+        capture law ``certify()`` already applies to transport loss applies here: name the
+        exit status and the redacted log tail at the boundary. Reports the measured
+        process state; classifies nothing. Never a retry, never a pass.
+        """
+        if self.process is None:
+            raise AssertionError(f"served daemon was never started ({context})")
+        code = self.process.poll()
+        if code is not None:
+            raise AssertionError(
+                f"served daemon exited rc={code} before {context or 'this step'}; "
+                f"server evidence:\n{self.await_failure_log_tail()}"
+            )
+
+    @contextlib.contextmanager
+    def evidence_on_failure(self, context: str):
+        """Carry this daemon's process status and redacted server evidence on a failed step.
+
+        Wraps one navigation or request step. The step's OWN exception propagates unchanged
+        -- same type, same traceback -- with one note attached recording what the daemon's
+        process was at failure time (``alive`` / ``exited rc=N`` / ``never started``) plus
+        the redacted server log tail, captured before any teardown can dispose of the home.
+        Evidence capture only: no retry, no swallow, no state change.
+        """
+        try:
+            yield
+        except BaseException as exc:
+            if self.process is None:
+                state = "never started"
+            else:
+                code = self.process.poll()
+                state = "alive" if code is None else f"exited rc={code}"
+            exc.add_note(
+                f"[served-daemon] {context}: process {state}; server evidence:\n"
+                f"{self.await_failure_log_tail()}"
+            )
+            raise
+
     # --- the doors under test -----------------------------------------------------------------
 
     def upload(
@@ -636,21 +681,39 @@ class ServedDaemon:
             with urlopen(request, timeout=timeout + 60) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            return {
+            return self._report_failure({
                 "state": "error",
                 "http_status": exc.code,
                 "body": exc.read().decode("utf-8", "replace")[:600],
                 "server_log_tail": self.await_failure_log_tail(),
-            }
+            })
         except (URLError, OSError) as exc:
             # The daemon never answered at all (it died, or the socket went away): the
             # daemon.log tail is the only witness, and it rides the same redaction.
-            return {
+            return self._report_failure({
                 "state": "error",
                 "http_status": 0,
                 "body": f"{type(exc).__name__}: {exc}"[:600],
                 "server_log_tail": self.await_failure_log_tail(),
-            }
+            })
+
+    @staticmethod
+    def _report_failure(failure: dict[str, Any]) -> dict[str, Any]:
+        """Print a failed certification's evidence whole, then return it unchanged.
+
+        CI runs ``-q --tb=short``, and pytest cuts the assertion's dict repr mid-string, so the
+        raising frame inside ``server_log_tail`` never reached the job log (#168 run 38316343005,
+        shard 4: a 500 whose cause was cut off). pytest shows a failing test's captured stderr in
+        full, so the same redacted text is written there. Diagnostics only: the verdict is untouched.
+        """
+        print(
+            f"served certification failed: http_status={failure['http_status']}\n"
+            f"body: {failure['body']}\n"
+            f"server_log_tail:\n{failure['server_log_tail']}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return failure
 
     def await_failure_log_tail(self, *, settle_seconds: float = 2.5) -> str:
         """``failure_log_tail`` after letting the server finish writing its evidence.

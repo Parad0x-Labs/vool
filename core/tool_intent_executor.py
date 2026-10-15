@@ -1134,6 +1134,36 @@ def _execute_tool_intent_impl(
             },
         )
 
+    # A request for a downloadable artifact names no workspace destination. Reject the
+    # wrong writer before dispatch, so a model can use the delivery tool without writing
+    # incidental files or misclassifying a protected-source refusal as an unknown effect.
+    from core.deliverables import DOWNLOAD_ONLY_KEY
+
+    filesystem_mutation = (
+        intent.startswith("workspace.") and is_mutating_tool_intent(intent)
+    ) or intent in {
+        "machine.write_file", "machine.ensure_directory", "machine.move_path", "machine.download_file",
+        "sandbox.run_command", "operator.move_path",
+    }
+    if filesystem_mutation and bool(
+        (source_context or {}).get(DOWNLOAD_ONLY_KEY)
+    ):
+        response = (
+            "This turn requested a downloadable file, not a workspace write. Nothing was written. "
+            "Use file.deliver with the requested format; for an archive, include the authored "
+            "members in its files argument."
+        )
+        return ToolIntentExecution(
+            handled=True,
+            ok=False,
+            status="delivery_tool_required",
+            mode="refused",
+            tool_name=intent,
+            response_text=response,
+            user_safe_response_text=response,
+            details={"executed": False, "controller_enforced": True},
+        )
+
     # One controller-owned permission seam for every model-selected tool.  This runs before
     # dispatch to web, workspace, sandbox, Hive, operator, payment, or MCP implementations, so a
     # downstream path cannot accidentally bypass Plan/Review/Manual restrictions.
@@ -1173,6 +1203,44 @@ def _execute_tool_intent_impl(
         from core.runtime_execution_tools import _workspace_root, sandbox_cwd_refusal
 
         refusal = sandbox_cwd_refusal(arguments.get("cwd"), workspace_root=_workspace_root(source_context))
+        if refusal is not None:
+            return ToolIntentExecution(
+                handled=True,
+                ok=False,
+                status=refusal.status,
+                response_text=refusal.response_text,
+                user_safe_response_text=refusal.response_text,
+                mode="tool_failed",
+                tool_name=intent,
+                details=dict(refusal.details or {}),
+            )
+    if intent in {"machine.write_file", "workspace.write_file"}:
+        # The turn ordered a downloadable file in a named format (`deliverables.requested_formats`,
+        # stamped by the tool loop); a disk writer producing another format answers a different
+        # request. Refused before the permission decision, as a correction the model can act on.
+        from core.deliverables import REQUESTED_FORMATS_KEY, ordered_file_writer_refusal
+
+        wrong_tool = ordered_file_writer_refusal(
+            intent, arguments.get("path"), tuple((source_context or {}).get(REQUESTED_FORMATS_KEY) or ())
+        )
+        if wrong_tool:
+            return ToolIntentExecution(
+                handled=True, ok=False, status="format_not_requested",
+                response_text=wrong_tool, user_safe_response_text=wrong_tool,
+                mode="tool_failed", tool_name=intent,
+                details={"executed": False, "observation": _tool_observation(
+                    intent=intent, tool_surface="file", ok=False, status="format_not_requested",
+                )},
+            )
+    if intent in {"workspace.write_file", "workspace.replace_in_file", "workspace.ensure_directory"}:
+        # A path the handler refuses (outside the workspace, protected state, running code) is
+        # refused HERE, before the permission decision and before the dispatch claim: raised inside
+        # the handler it was recorded as an unknown outcome, which held the turn's obligations open
+        # and ended the request in an HTTP 500 (measured live 2026-10-06). Same predicate as the
+        # handler (`workspace_path_refusal`).
+        from core.runtime_execution_tools import _workspace_root, workspace_path_refusal
+
+        refusal = workspace_path_refusal(intent, arguments.get("path"), workspace_root=_workspace_root(source_context))
         if refusal is not None:
             return ToolIntentExecution(
                 handled=True,

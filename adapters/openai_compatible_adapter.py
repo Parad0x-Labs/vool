@@ -28,6 +28,13 @@ from core.execution_requirements import assert_envelope_carries_tools
 from core.local_model_admission import local_model_slot
 from core.memory_prompt_builder import apply_memory_prefix_to_messages, build_memory_prefix_for_request
 from core.model_output_guard import scrub_foreign_markers, strip_reasoning_block
+from core.model_own_tools import (
+    citation_sources,
+    granted_provider_tools,
+    provider_search_metadata,
+    searched_call_cost_estimate,
+    with_sources,
+)
 from core.normalized_provider_result import (
     EmptyProviderResponseError,
     MalformedProviderResponseError,
@@ -456,11 +463,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             structured_fallback_in_envelope=bool(payload.get("response_format")),
             lane_name=self.manifest.provider_id,
         )
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         # Same gate as _build_openai_payload: only a request that actually carries tool definitions
         # takes the native tool-calling path. A tool_intent turn with no tools is a structured-output
@@ -514,6 +527,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 # LEADING block — a `<think>` further in is content about the tags, and
                 # `strip_reasoning_block` leaves that whole.
                 output_text = strip_reasoning_block(_extract_openai_text(data))
+                if granted_provider_tools(getattr(request, "metadata", None)):
+                    output_text = with_sources(output_text, _openai_message_sources(data))
                 # The prompted lane. The model was told about its tools in prose, so a call it
                 # writes arrives as prose too — and without this it is returned to the user as
                 # chat. Only ever attempted when tools were genuinely offered on this turn:
@@ -626,7 +641,14 @@ class OpenAICompatibleAdapter(ModelAdapter):
             output_text=output_text,
             confidence=float(self.manifest.metadata.get("confidence_baseline") or 0.65),
             raw_response=data,
-            provider_metadata={"response_headers": response_header_facts(getattr(response, "headers", None))},
+            provider_metadata={
+                "response_headers": response_header_facts(getattr(response, "headers", None)),
+                **provider_search_metadata(
+                    granted_provider_tools(getattr(request, "metadata", None)),
+                    _openai_message_sources(data),
+                ),
+                **self._provider_search_cost(request, usage),
+            },
             usage=usage,
             provider_id=self.manifest.provider_id,
             model_name=self.manifest.model_name,
@@ -691,11 +713,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             structured_fallback_in_envelope=bool(payload.get("format")),
             lane_name=self.manifest.provider_id,
         )
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers()
         permit = seal_provider_invocation(
@@ -795,11 +823,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         api_path = str(self.manifest.runtime_config.get("api_path") or "/v1/chat/completions")
         payload = self._build_openai_payload(request, force_json=False, stream=True)
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers(base_url=base_url, api_key=dispatch_key)
         permit = seal_provider_invocation(
@@ -832,6 +866,9 @@ class OpenAICompatibleAdapter(ModelAdapter):
             # None for the whole stream if the provider never sends it.
             attested_model: str | None = None
             finish_reason = ""
+            provider_tools_sent = bool(granted_provider_tools(getattr(request, "metadata", None)))
+            stream_sources: list[tuple[str, str]] = []
+            streamed_text: list[str] = []
             try:
                 for raw_line in response.iter_lines(decode_unicode=True):
                     _assert_response_timely(request, response)
@@ -857,7 +894,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
                         if first_choice.get("finish_reason"):
                             finish_reason = str(first_choice["finish_reason"])
                     delta_text = _extract_stream_delta_text(event)
+                    if provider_tools_sent and isinstance(event, dict):
+                        stream_sources.extend(_openai_message_sources(event, key="delta"))
                     if delta_text:
+                        streamed_text.append(delta_text)
                         yield ModelStreamChunk(
                             delta_text=delta_text,
                             raw_event=event,
@@ -868,12 +908,27 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 _assert_response_timely(request, response)
             finally:
                 response.close()
+            if stream_sources:
+                answered = "".join(streamed_text)
+                sources_tail = with_sources(answered, stream_sources)[len(answered.rstrip()):]
+                if sources_tail.strip():
+                    yield ModelStreamChunk(
+                        delta_text=sources_tail,
+                        done=False,
+                        provider_attested_model=attested_model,
+                        finish_reason=finish_reason,
+                    )
             yield ModelStreamChunk(
                 delta_text="",
                 done=True,
                 usage=stream_usage or None,
                 provider_metadata={"response_headers": response_header_facts(getattr(response, "headers", None)),
-                                   "response_metadata": response_metadata},
+                                   "response_metadata": response_metadata,
+                                   **provider_search_metadata(
+                                       granted_provider_tools(getattr(request, "metadata", None)),
+                                       stream_sources,
+                                   ),
+                                   **self._provider_search_cost(request, stream_usage)},
                 provider_attested_model=attested_model,
                 finish_reason=finish_reason,
             )
@@ -886,11 +941,17 @@ class OpenAICompatibleAdapter(ModelAdapter):
             raise RuntimeError(f"{self.manifest.provider_id}: missing runtime_config.base_url")
         self._gate_local_model_load()
         payload = self._build_ollama_payload(request, force_json=False, stream=True)
-        from core.provider_call_deadline import effective_timeout_seconds
+        from core.provider_call_deadline import (
+            effective_timeout_seconds,
+            local_manifest_call_timeout_seconds,
+        )
 
         timeout_seconds = effective_timeout_seconds(
             request,
-            float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            local_manifest_call_timeout_seconds(
+                self.manifest,
+                float(self.manifest.runtime_config.get("timeout_seconds") or 30.0),
+            ),
         )
         headers = self._headers()
         permit = seal_provider_invocation(
@@ -990,8 +1051,13 @@ class OpenAICompatibleAdapter(ModelAdapter):
         """Feed real tok/s from this Ollama call into the local inference benchmark
         table, so core.local_inference_autopilot's live routing scores providers on
         actual measured speed instead of static/zero manifest metadata. Never lets
-        a benchmark-recording failure affect the real chat response."""
+        a benchmark-recording failure affect the real chat response. A private turn's call
+        records nothing; the recorder keeps counts and durations, never the prompt or answer."""
         try:
+            from core.private_chat import request_is_private
+
+            if request_is_private():
+                return
             from core.local_inference_evidence import record_ollama_generate_benchmark
 
             record_ollama_generate_benchmark(
@@ -1004,6 +1070,19 @@ class OpenAICompatibleAdapter(ModelAdapter):
             logger.debug("Failed to record local inference benchmark", exc_info=True)
 
     def _build_openai_payload(self, request: ModelRequest, *, force_json: bool, stream: bool) -> dict[str, Any]:
+        # A model that runs paid tools of its own on every call (web search, code execution) on an
+        # endpoint that reports no price for them would spend outside the caps: refused before
+        # anything is sent, whichever lane or switch reached here.
+        from core.model_pricing import (
+            UNPRICED_BUILTIN_TOOLS_REFUSAL,
+            provider_slot_for_manifest,
+            unpriced_builtin_tools,
+        )
+
+        if unpriced_builtin_tools(
+            provider_slot_for_manifest(self.manifest), str(getattr(self.manifest, "model_name", "") or "")
+        ):
+            raise RuntimeError(UNPRICED_BUILTIN_TOOLS_REFUSAL)
         generation_profile = dict(request.metadata.get("generation_profile") or {})
         context_window = self._ollama_context_window(request) if self._runtime_family() == "ollama" else 0
         max_output_tokens = (
@@ -1114,6 +1193,21 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 }
             elif force_json and bool(self.manifest.runtime_config.get("supports_json_mode", False)):
                 payload["response_format"] = {"type": "json_object"}
+        # "Use the model's own tools": the router granted this call its provider's own server-side
+        # tools (web search). Only on the OpenRouter lane, never on a verified-free model (the
+        # search is billed to the owner's key, and only a paid reservation holds money for it),
+        # never beside VOOL's own native tools, and only types on the allowlist -- anything else
+        # refuses the call rather than silently sending a different request than the owner chose.
+        provider_tools = granted_provider_tools(getattr(request, "metadata", None))
+        if provider_tools:
+            if (
+                not self._is_openrouter_lane()
+                or self._is_verified_free_openrouter_lane()
+                or self._runtime_family() == "ollama"
+                or payload.get("tools")
+            ):
+                raise RuntimeError("provider tools refused: this lane cannot carry the model's own tools")
+            payload["tools"] = [dict(tool) for tool in provider_tools]
         # Opt-in wire capture (VOOL_DEBUG_PROMPT=1). Off by default; one env read when off.
         dump_outbound_prompt(
             payload,
@@ -1547,7 +1641,18 @@ class OpenAICompatibleAdapter(ModelAdapter):
             self.manifest.runtime_config.get("base_url") or ""
         ).strip()
         if api_key and self._key_transport_is_safe(transport_base):
-            headers["Authorization"] = f"Bearer {api_key}"
+            placement = "bearer"
+            if self._is_custom_managed_lane():
+                # The custom endpoint's key rides where its operator chose WITH this pair: Bearer,
+                # a named header, or nowhere for an open server. Read for the base this request
+                # travels to, so a placement committed with another endpoint never applies.
+                from core.cloud_providers import committed_custom_auth, custom_auth_parts
+
+                placement, header_name = custom_auth_parts(committed_custom_auth(transport_base))
+            if placement == "header":
+                headers[header_name] = api_key
+            elif placement == "bearer":
+                headers["Authorization"] = f"Bearer {api_key}"
         if self._is_openrouter_lane():
             # The manifest can contain legacy or caller-supplied headers. The canonical factory
             # must run last so no request path can clobber VOOL attribution on the wire.
@@ -1555,6 +1660,20 @@ class OpenAICompatibleAdapter(ModelAdapter):
 
             headers = apply_openrouter_attribution_headers(headers)
         return headers
+
+    def _provider_search_cost(self, request: ModelRequest, usage: Any) -> dict[str, Any]:
+        """The cost of a call that carried the provider's search, search fee included, for the
+        caps and the cost shown (see `core.model_own_tools.searched_call_cost_estimate`)."""
+        if not usage or not granted_provider_tools(getattr(request, "metadata", None)):
+            return {}
+        from core.model_pricing import provider_slot_for_manifest
+
+        estimate = searched_call_cost_estimate(
+            provider_id=provider_slot_for_manifest(self.manifest),
+            model_id=str(getattr(self.manifest, "model_name", "") or ""),
+            usage=usage,
+        )
+        return {"cost_estimate": estimate} if estimate else {}
 
     def _is_openrouter_lane(self) -> bool:
         provider_name = str(getattr(self.manifest, "provider_name", "") or "").strip().lower()
@@ -2699,6 +2818,14 @@ def _parse_stream_line(line: str) -> dict[str, Any] | str | None:
         return json.loads(text)
     except Exception:
         return None
+
+
+def _openai_message_sources(payload: dict[str, Any], *, key: str = "message") -> list[tuple[str, str]]:
+    """The ``url_citation`` sources on the first choice's message (or stream delta)."""
+    choices = list((payload or {}).get("choices") or []) if isinstance(payload, dict) else []
+    first = choices[0] if choices and isinstance(choices[0], dict) else {}
+    holder = first.get(key)
+    return citation_sources(holder if isinstance(holder, dict) else None)
 
 
 def _extract_stream_delta_text(payload: dict[str, Any]) -> str:

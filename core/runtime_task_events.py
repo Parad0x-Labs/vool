@@ -83,13 +83,25 @@ def emit_runtime_event(
     if turn_key:
         payload.setdefault("turn_key", turn_key)
     sink: RuntimeEventSink | None = None
+    # Private chat (core.private_chat): the live stream still shows the event, but what is stored
+    # (the session ledger, the execution receipts, notifications) carries no words of the turn.
+    from core.private_chat import private_event_details, turn_is_private
+
+    private = turn_is_private(source_context)
     if session_id:
-        payload = append_runtime_event(
+        stored = append_runtime_event(
             session_id=session_id,
             event_type=payload["event_type"],
-            message=payload["message"],
-            details={key: value for key, value in payload.items() if key not in {"event_type", "message"}},
+            message="" if private else payload["message"],
+            details=private_event_details(
+                {key: value for key, value in payload.items() if key not in {"event_type", "message"}}
+            ) if private else {key: value for key, value in payload.items() if key not in {"event_type", "message"}},
         )
+        live = {**payload, **{key: stored[key] for key in ("session_id", "seq", "created_at") if key in stored}} if private else stored
+        payload = stored
+        # The turn's execution facts (which tool ran, and how it ended) are read from the full
+        # event: the turn's own answer checks depend on them, private or not.
+        facts_from = live
         # An execution becomes an authoritative fact HERE, at the one function every runtime event
         # passes through, rather than at the sixteen call sites that emit `tool_executed` -- which is
         # exactly where the shapes diverged (the live-data lane's thin event carried no receipt, so
@@ -100,12 +112,13 @@ def emit_runtime_event(
                 source_context,
                 event_type=payload["event_type"],
                 session_id=session_id,
-                details={key: value for key, value in payload.items() if key not in {"event_type", "message"}},
+                details={key: value for key, value in facts_from.items() if key not in {"event_type", "message"}},
             )
         with contextlib.suppress(Exception):
             from core.operator.notification_hub import record_runtime_event
 
             record_runtime_event(session_id, payload)
+        payload = live
     if stream_id:
         with _LOCK:
             sink = _SINKS.get(stream_id)

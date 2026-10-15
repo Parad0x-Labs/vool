@@ -338,8 +338,8 @@ def test_withhold_and_erase_gate_every_reader_and_hydration(profile_env):
 
 def test_erase_by_plaintext_derivative_tombstones_unlineaged_item(profile_env):
     p = _profile()
-    item = p.remember(OWNER, "email_signature", "the vault passphrase is 7F3-QX9-2210").item
-    commit = admit_finalize("Analysis: the vault passphrase is 7F3-QX9-2210 — canonical.", request_id="req-x")
+    item = p.remember(OWNER, "email_signature", "the vault label is 7F3-QX9-2210").item
+    commit = admit_finalize("Analysis: the vault label is 7F3-QX9-2210 — canonical.", request_id="req-x")
     erase(commit["finalization_id"])
     assert p.get_item(item.item_id) is None
 

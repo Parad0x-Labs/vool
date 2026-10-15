@@ -7,9 +7,9 @@
 <p align="center"><strong>Your machine. Your models. An agent that gets things done.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
-  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.0_beta-eee8d5" alt="Version 0.7.0 beta" /></a>
+  <a href="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml"><img src="https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml/badge.svg" alt="CI" /></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-eee8d5" alt="MIT license" /></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/version-0.7.1_beta-eee8d5" alt="Version 0.7.1 beta" /></a> <a href="https://github.com/Parad0x-Labs/vool/stargazers"><img src="https://img.shields.io/github/stars/Parad0x-Labs/vool?label=stars&color=eee8d5" alt="GitHub stars" /></a><br />
+  <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/VOOL-0.7.1-beta-macos-arm64.dmg?label=0.7.1%20macOS%20arm64%20downloads&color=eee8d5" alt="0.7.1 macOS arm64 downloads" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/VOOL-0.7.1-beta-macos-x86_64.dmg?label=0.7.1%20macOS%20x86_64%20downloads&color=eee8d5" alt="0.7.1 macOS x86_64 downloads" /></a> <a href="https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta"><img src="https://img.shields.io/github/downloads/Parad0x-Labs/vool/v0.7.1-beta/vool-0.7.1-beta-linux-x86_64.tar.gz?label=0.7.1%20Linux%20x86_64%20downloads&color=eee8d5" alt="0.7.1 Linux x86_64 downloads" /></a>
 </p>
 
 **VOOL is a local-first personal agent from Parad0x Labs.** It connects conversation to action: read a project, edit files, run tests, research the web, and carry useful context into the next session.
@@ -26,7 +26,7 @@ VOOL can read, plan, call tools, inspect results, and continue. Give it a reposi
 
 ### Memory beyond one chat
 
-Keep useful facts and decisions across sessions. Local memory, context management, and retrieval help the agent pick up where you left off. You can inspect and manage what it remembers. [How memory works →](docs/concepts/memory.md)
+Keep useful facts and decisions across sessions. Local memory, context management, and retrieval help the agent pick up where you left off. You can inspect and manage what it remembers. [How memory works →](docs/concepts/memory.md) · [Memory benchmarks →](#memory-benchmarks)
 
 ### Your choice of models
 
@@ -42,15 +42,15 @@ Workspace scopes and operating modes control what the agent can do. Choose how e
 
 ## Install
 
-**Current version: 0.7.0-beta.** Download the app for your computer from the [v0.7.0-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.0-beta), or install from source with the bootstrap script below.
+**Current version: 0.7.1-beta.** Download the app for your computer from the [v0.7.1-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.1-beta), or install from source with the bootstrap script below.
 
 ### Downloads
 
 | Your computer | Download |
 | --- | --- |
-| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.0-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-arm64.dmg) |
-| **Mac with an Intel chip** | [`VOOL-0.7.0-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/VOOL-0.7.0-beta-macos-x86_64.dmg) |
-| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.0-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.0-beta/vool-0.7.0-beta-linux-x86_64.tar.gz) |
+| **Mac with Apple Silicon** (M1 and later) | [`VOOL-0.7.1-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.1-beta/VOOL-0.7.1-beta-macos-arm64.dmg) |
+| **Mac with an Intel chip** | [`VOOL-0.7.1-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.1-beta/VOOL-0.7.1-beta-macos-x86_64.dmg) |
+| **Linux x86_64** (Ubuntu 22.04 / 24.04) | [`vool-0.7.1-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.1-beta/vool-0.7.1-beta-linux-x86_64.tar.gz) |
 
 Each download has a SHA-256 checksum on the release page. Check it before you open the file ([how](docs/getting-started/install.md#verify-a-download)). Not sure which Mac you have? Open the Apple menu and choose **About This Mac**: "Apple M…" means Apple Silicon, "Intel" means Intel. The macOS app needs macOS 14 Sonoma or newer.
 
@@ -62,9 +62,9 @@ Each download has a SHA-256 checksum on the release page. Check it before you op
 
 **Linux.** Unpack the tarball and run its installer; no sudo is needed. Full steps are in the [install guide](docs/INSTALL.md#linux-x86_64-tarball).
 
-**Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine; a clearer prompt for it comes in 0.7.1.
+**Using a local model?** Before a local model can write answers, open **Settings → Models & Providers → Local models** and press **Certify** for it once. This runs a short check on your machine.
 
-Nothing goes online on a fresh install until you turn it on. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
+Updating from 0.7.0: download 0.7.1 and install it over 0.7.0. Your chats and settings live in your profile, outside the app. Release notes: [CHANGELOG](CHANGELOG.md). Release state, signing and updates: [release status](docs/trust/release-status.md).
 
 | Platform | Getting started |
 | --- | --- |
@@ -80,8 +80,8 @@ For model choices, system requirements, checksums, and troubleshooting, see the 
 Download the bootstrap script, then run it:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.0-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.0-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.1-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.1-beta
 ```
 
 ### From source: Windows PowerShell
@@ -99,9 +99,9 @@ The installer prepares the Python environment, checks your hardware, sets up the
 The default profile is selected from your hardware. To choose explicitly:
 
 ```bash
-bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-only
+bash bootstrap_vool.sh --ref v0.7.1-beta --install-profile local-only
 # Or use the larger local model profile:
-bash bootstrap_vool.sh --ref v0.7.0-beta --install-profile local-max
+bash bootstrap_vool.sh --ref v0.7.1-beta --install-profile local-max
 ```
 
 Windows accepts `-InstallProfile local-only` or `-InstallProfile local-max`.
@@ -154,6 +154,12 @@ python -m core.honesty_receipt verify-last
 
 A signature verifies the signed record's integrity; it is not a guarantee that every model answer is correct.
 
+## Memory benchmarks
+
+On 150 never-used [LoCoMo](https://github.com/snap-research/locomo) questions, with the same model answering for every system and GPT-4o grading, VOOL's memory answered 124 right against OpenClaw's 107 and Hermes's 94, while sending 3.5 to 5.4 times fewer tokens per question. Every run is published, including the round where VOOL's lead was too small to count and the full-set run where pasting the whole chat into the prompt did better on ordinary questions: [memory benchmarks](docs/benchmarks/README.md).
+
+<img src="docs/benchmarks/charts/head-to-head-rounds.svg" alt="LoCoMo questions answered right, VOOL vs OpenClaw vs Hermes: official 150, 124 vs 107 vs 94; round 3 of 130, 102 vs 93 vs 95; pilot of 200, 163 vs 142 vs 139" width="100%" />
+
 ## Explore further
 
 Meet the [related ecosystem projects](docs/SYSTEM_SPINE.md#related-ecosystem-projects), including Dark Null Protocol for privacy-preserving settlement.
@@ -163,7 +169,7 @@ VOOL also includes optional wallet/payment integrations and bounded local helper
 | Explore | Start here |
 | --- | --- |
 | First session and model setup | [First run](docs/getting-started/first-run.md) · [Connect a model](docs/getting-started/connect-a-model.md) |
-| Workspace, memory, and control | [Workspaces](docs/concepts/workspaces.md) · [Memory](docs/concepts/memory.md) · [Spending limits](docs/guides/spending-limits.md) |
+| Workspace, memory, and control | [Workspaces](docs/concepts/workspaces.md) · [Memory](docs/concepts/memory.md) · [Spending limits](docs/guides/spending-limits.md) · [Memory benchmarks](docs/benchmarks/README.md) |
 | Development and contribution | [Repository map](docs/REPO_MAP.md) · [Contributing](CONTRIBUTING.md) |
 | Reviewing VOOL | [Reviewer guide](REVIEW.md) · [Evidence registry](docs/review/EVIDENCE.md) |
 | Build status and troubleshooting | [CI](https://github.com/Parad0x-Labs/vool/actions/workflows/ci.yml) · [Engineering status](docs/STATUS.md) · [Error reference](docs/ERROR_BOOK.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) |

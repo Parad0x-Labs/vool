@@ -49,6 +49,28 @@ _NOTIFY_CSS = """
 .vf-btn.vf-ghost{color:var(--muted,#9aa1af)}
 .vf-cert{font-size:10.5px;color:var(--muted,#9aa1af);margin-top:4px;line-height:1.45}
 .vf-empty{padding:14px;font-size:12px;color:var(--muted,#9aa1af)}
+/* The detail card is appended to <body>, which is a flex ROW: without its own box it became a
+   third column and squeezed the whole chat. It is a floating card under the bell instead. */
+#vfEventCard{position:fixed;top:56px;right:16px;z-index:1160;width:min(360px,calc(100vw - 32px));max-height:80vh;overflow:auto;
+  background:var(--panel,#16191f);border:1px solid var(--border,#262b35);border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#vfEventCard[hidden]{display:none}
+#vfEventCard .vf-back{background:none;border:0;color:var(--muted,#9aa1af);font:inherit;font-size:12px;cursor:pointer;padding:0 14px 10px}
+#vfEventCard .vf-back:hover{color:var(--ink,#e8eaf0)}
+.vf-card{padding:12px 14px;display:grid;gap:8px;font-size:13px;color:var(--ink,#e8eaf0)}
+.vf-card-head{display:flex;align-items:flex-start;gap:8px}
+.vf-card-head strong{flex:1;min-width:0;overflow-wrap:anywhere}
+.vf-x{flex:none;background:transparent;border:0;color:var(--muted,#9aa1af);font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+.vf-x:hover{color:var(--ink,#e8eaf0)}
+.vf-card .vf-row span{color:var(--muted,#9aa1af);text-align:left}
+.vf-card .vf-row b{color:var(--ink,#e8eaf0);font-weight:500;text-align:right;overflow-wrap:anywhere}
+.vf-card-acts{display:flex;flex-wrap:wrap;gap:6px}
+.vf-btn.vf-primary{background:var(--accent,#c3b8a8);color:var(--accent-ink,#171513);border-color:var(--accent,#c3b8a8);text-decoration:none}
+.vf-policy{display:grid;gap:6px;font-size:12px}
+.vf-policy input{width:4.5em;background:var(--field,#1d2129);color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);border-radius:6px;padding:2px 6px;font:inherit}
+.vf-acts{display:flex;flex-wrap:wrap;gap:6px}
+.vf-acts button,.vf-acts a,.vf-actions button,[data-vf-discover]{font:inherit;font-size:11.5px;border-radius:6px;padding:3px 9px;cursor:pointer;
+  background:transparent;color:var(--ink,#e8eaf0);border:1px solid var(--border,#262b35);text-decoration:none}
+.vf-acts button:hover,.vf-acts a:hover,.vf-actions button:hover,[data-vf-discover]:hover{border-color:var(--accent,#5eead4)}
 .vf-foot{padding:8px 14px;font-size:10.5px;color:var(--muted,#9aa1af);border-top:1px solid var(--border,#262b35);line-height:1.5}
 """
 
@@ -142,7 +164,7 @@ bell.id = 'vfBell';
 bell.type = 'button';
 bell.title = NTF('notif.bell_title', 'Notifications \u2014 background completions and watched-model market changes');
 bell.setAttribute('aria-label', bell.title);
-bell.innerHTML = '\\ud83d\\udd14<span id="vfBadge" hidden></span>';
+bell.innerHTML = '<span class="vi" data-ico="bell" aria-hidden="true"></span><span id="vfBadge" hidden></span>';
 var pop = document.createElement('div');
 pop.id = 'vfPop';
 pop.hidden = true;
@@ -288,7 +310,14 @@ function centreMeta(item){
       .filter(Boolean).join(' \\u00b7 ');
   }
   if (item.source_kind === 'reminder') return NTF('notif.reminder', 'Reminder') + (p.due_local ? ' \\u00b7 ' + NTF('notif.due_label', 'due') + ' ' + p.due_local : '');
-  return String(item.body || '');
+  // Name the chat an item is about, so two "Chat failed" rows can be told apart.
+  var chatName = '';
+  if (item.session_id) {
+    var acts = pageActions();
+    var meta = acts && acts.sessionMeta ? acts.sessionMeta(item.session_id) : null;
+    chatName = meta && meta.title ? '\\u201c' + meta.title + '\\u201d' : '';
+  }
+  return [chatName, String(item.body || '')].filter(Boolean).join(' \\u00b7 ');
 }
 
 function snoozable(item){
@@ -325,7 +354,8 @@ function paintList(){
   centre.forEach(function(item, index){ if (itemSection(item) === section) rows.push(centreRow(item, index)); });
   pop.innerHTML = '<div class="vf-head">' + NTF('notif.pop_title', 'Notifications') + '</div><div class="vf-tabs" role="tablist" aria-label="' + NTF('notif.sections_aria', 'Notification sections') + '">' + nav + '</div>'
     + (rows.join('') || '<div class="vf-empty">' + NTF('notif.empty', 'Nothing here yet.') + '</div>')
-    + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button> \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') + '</div>';
+    + '<div class="vf-foot"><button type="button" data-vf-discover>' + NTF('notif.discover', 'Discover models') + '</button>'
+    + (rows.length ? ' \\u00b7 ' + NTF('notif.foot_note', 'Dismiss hides an inbox item; your alerts and model choice stay unchanged.') : '') + '</div>';
 }
 function readItems(items){
   var ids = items.filter(function(item){ return !item.read_at; }).map(function(item){ return item.notification_id; });
@@ -374,6 +404,13 @@ function openCard(item){
   } else if (p.due_local) {
     rows.push([NTF('notif.row.due', 'Due'), p.due_local]);
   }
+  // A chat item carries what the row showed: which chat, and what happened.
+  if (item.source_kind !== 'calendar_alert' && item.source_kind !== 'calendar_catch_up' && item.source_kind !== 'reminder') {
+    var acts0 = pageActions();
+    var meta0 = item.session_id && acts0 && acts0.sessionMeta ? acts0.sessionMeta(item.session_id) : null;
+    if (meta0 && meta0.title) rows.push(['Chat', meta0.title]);
+    if (item.body) rows.push(['What happened', String(item.body)]);
+  }
   var mac = (item.channels || {}).macos;
   if (mac && mac.state) rows.push([NTF('notif.row.macos', 'macOS'), (MAC_STATE_TEXT[mac.state] || mac.state) + (mac.detail ? ' \\u00b7 ' + mac.detail : '')]);
   var html = '<div class="vf-card"><div class="vf-card-head"><strong>' + esc(item.title) + '</strong>' +
@@ -399,7 +436,13 @@ function openCard(item){
       '<small>' + NTF('notif.policy_help', 'Separate several lead times with commas, for example 30, 5. VOOL does not change the alarms saved in your calendar.') + '</small></form>';
   }
   html += '</div>';
+  html += '<button type="button" class="vf-back" data-vcard="back">\u2039 All notifications</button>';
   card.innerHTML = html;
+  // The card takes the list's place instead of covering it.
+  if (!pop.hidden) {
+    card.style.top = pop.style.top || ''; card.style.left = pop.style.left || ''; card.style.right = pop.style.left ? 'auto' : '';
+    pop.hidden = true;
+  }
   card.hidden = false;
 }
 function closeCard(){ card.hidden = true; cardItem = null; }
@@ -441,6 +484,7 @@ card.addEventListener('click', function(ev){
   var what = control.getAttribute('data-vcard');
   var current = cardItem;
   if (what === 'close') closeCard();
+  else if (what === 'back') { closeCard(); openPop(); }
   else if (what === 'snooze') { closeCard(); centreAction(current, 'snooze', Number(control.getAttribute('data-min')) || 10); }
   else if (what === 'dismiss') { closeCard(); centreAction(current, 'dismiss'); }
   else if (what === 'policy-off') { savePolicy(current, []); }

@@ -250,7 +250,10 @@ def cmd_resolve(name: str, *, json_mode: bool = False) -> int:
     return 0 if payload.get("resolved") else 1
 
 
-WEB_DISABLED_MESSAGE = "Web access is off. Enable it with VOOL_ENABLE_WEB=1 (web is opt-in and off by default)."
+WEB_DISABLED_MESSAGE = (
+    "Web access is off. Turn it on in Settings > Privacy & Permissions > Web lookups, "
+    "or here on the command line set VOOL_ENABLE_WEB=1 (web is opt-in and off by default)."
+)
 
 
 def _run_web_intent(intent: str, arguments: dict[str, object]) -> object:

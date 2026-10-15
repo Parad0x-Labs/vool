@@ -153,6 +153,11 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         network_line = "Network fee: paid by the site (its fee payer signs and pays it; this wallet pays none)"
     elif sdk:
         network_line = "Network fee: paid by the site (its facilitator submits the payment and pays the gas; this wallet pays none)"
+    elif fields.get("create_recipient_account"):
+        fee_decimals = fields.get("fee_decimals", fields.get("decimals"))
+        parts = fields.get("fee_parts") or {}
+        network_line = (f"Network fee and opening the recipient's {asset} account: at most {payment_fee_max} {gas}, paid by you "
+                        f"(network fee {_human(parts.get('base_minor'), fee_decimals)} {gas}; opening their {asset} account {_human(parts.get('account_rent_minor'), fee_decimals)} {gas}, one time)")
     else:
         network_line = f"Network fee: at most {payment_fee_max} {gas} (estimated {_human(fields.get('fee_estimate_minor'), fields.get('fee_decimals', fields.get('decimals')))} {gas})"
     if fields.get("balance_stale"):
@@ -160,6 +165,8 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
     for cue in fields.get("cues") or []:
         if cue == "new_recipient_account":
             warnings.append({"code": cue, "text": "The recipient account does not exist yet; this transfer creates it."})
+        elif cue == "new_recipient_token_account":
+            warnings.append({"code": cue, "text": f"The recipient has no {asset} account yet, so this transfer opens one for them. You pay a one-time {gas} amount for that (shown above), and it is not returned to you."})
         elif cue == "non_system_owner_recipient":
             warnings.append({"code": cue, "text": "The recipient account is owned by a program, not a plain wallet."})
     actions: list[dict[str, Any]] = [{
@@ -179,7 +186,9 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         ["Payer address", str(fields.get("from_address") or "")],
         ["Recipient address", to_address],
     ]
-    if fields.get("token_transfer") and not sdk:
+    if fields.get("token_transfer") and not sdk and fields.get("token_contract"):
+        details.append(["Token contract", f"{fields.get('token_contract')} (the {asset} contract this wallet uses on {fields.get('display_name') or 'this network'}; the recipient gets {asset} only, and the network fee is paid in {gas})"])
+    elif fields.get("token_transfer") and not sdk:
         details.append(["Recipient token account", str(fields.get("recipient_token_account") or "")])
         details.append(["Payer token account", str(fields.get("payer_token_account") or "")])
         details.append(["Token mint", str(fields.get("mint") or "")])
@@ -203,6 +212,7 @@ def compose(fields: dict[str, Any], proposal: Any) -> dict[str, Any]:
         ("l1_estimate_minor", "L1 data fee estimate"),
         ("l1_ceiling_minor", "L1 data fee maximum"),
         ("operator_minor", "Operator fee"),
+        ("account_rent_minor", f"Opening the recipient's {asset} account (one-time)"),
     ):
         if key in fee_parts:
             details.append([label, f"{_human(fee_parts[key], fields.get('fee_decimals', fields.get('decimals')))} {gas} = {_int(fee_parts[key])} atomic units"])

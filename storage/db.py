@@ -228,6 +228,11 @@ def _make_connection(db_path: str | Path) -> sqlite3.Connection:
         conn.execute("PRAGMA busy_timeout=5000;")
         conn.execute("PRAGMA synchronous=NORMAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
+        # Deleted and overwritten content is zeroed, not left in free pages. Private chat
+        # (core.private_chat) blanks and deletes words it held while a turn ran, and "forget"
+        # deletes rows; without this their bytes stayed readable in the file until SQLite happened
+        # to reuse the page.
+        conn.execute("PRAGMA secure_delete=ON;")
         enforce_store_version_gate(conn)
     except BaseException:
         with contextlib.suppress(Exception):

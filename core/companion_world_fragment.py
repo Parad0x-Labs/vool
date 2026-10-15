@@ -46,12 +46,12 @@ function vcwDude(g,x,pk,o,v){
  const hx=x-v.headW/2+slump*2,hy=ty-v.headH+slump*2;vcwBlock(g,hx,hy,v.headW,v.headH,s);vcwR(g,hx-1,hy-1,v.headW+1,3,d);vcwR(g,hx-1,hy-1,v.headW+1,1,vcwLite(d,30));
  if(v.fringe){vcwR(g,hx+1,hy+2,5,3,d);vcwR(g,hx+v.headW-5,hy+2,4,2,d);}if(v.ears){vcwR(g,hx-2,hy+6,2,4,s);vcwR(g,hx+v.headW,hy+6,2,4,s);}
  const look=Math.max(-1,Math.min(1,o.look||0)),ey=hy+6,le=hx+3+look,re=hx+v.headW-6+look;vcwR(g,le,ey,v.eyeW,v.eyeH,pk.face);vcwR(g,re,ey,v.eyeW,v.eyeH,pk.face);
- if(expr==='failed'){vcwR(g,le,ey,3,1,pk.eye);vcwR(g,re,ey,3,1,pk.eye);vcwR(g,le+1,ey+2,1,2,pk.eye);vcwR(g,re+1,ey+2,1,2,pk.eye);}else{vcwR(g,le+1,ey+1,1,2,pk.eye);vcwR(g,re+1,ey+1,1,2,pk.eye);}
+ if(o.blink){vcwR(g,le,ey+2,3,1,pk.eye);vcwR(g,re,ey+2,3,1,pk.eye);}else if(expr==='failed'){vcwR(g,le,ey,3,1,pk.eye);vcwR(g,re,ey,3,1,pk.eye);vcwR(g,le+1,ey+2,1,2,pk.eye);vcwR(g,re+1,ey+2,1,2,pk.eye);}else{vcwR(g,le+1,ey+1,1,2,pk.eye);vcwR(g,re+1,ey+1,1,2,pk.eye);}
  if(v.brow){vcwR(g,le,ey-2,3,1,d);vcwR(g,re,ey-2+(expr==='smirk'?1:0),3,1,d);}if(v.nose)vcwR(g,hx+(v.headW>>1),ey+3,1,2,vcwLite(s,-32));
  if(expr==='happy'||expr==='excited')vcwR(g,hx+7,hy+12,5,1,pk.eye);else if(expr==='smirk')vcwR(g,hx+9,hy+12,4,1,pk.eye);else if(expr==='failed')vcwR(g,hx+7,hy+12,5,1,'#f87171');
  if(v.prime){vcwR(g,hx+2,hy,v.headW-4,1,'#67e8f9');vcwR(g,x-1,ty+2,2,2,'#67e8f9');}}
 function vcwDraw(g,state,frame,opts){opts=opts||{};const pk=VCW_PACKS[opts.pack]||VCW_PACKS.default,v=VCW_CHARACTERS[opts.character]||VCW_CHARACTERS.spark;g.clearRect(0,0,48,48);const hero=o=>vcwDude(g,20,pk,Object.assign({frame:frame},o||{}),v);
- if(state==='tool'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});}else if(state==='thinking'||state==='starting'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({look:1,expr:'focused',bob:frame%10===0?1:0});vcwPips(g,27,8,frame);}else if(state==='waiting'){hero({tapFoot:true});vcwPips(g,30,12,frame,'#fbbf24');}else if(state==='approval'){hero({tapFoot:true});vcwR(g,34,18,7,10,'#e8eaf0');vcwR(g,34,18,7,2,'#94a3b8');vcwR(g,36,22,3,1,'#475569');}else if(state==='retry'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});vcwR(g,8,8,3,7,'#fbbf24');vcwR(g,9,17,2,2,'#fbbf24');}else if(state==='success'){vcwConfetti(g,frame);hero({pose:'armsup',expr:'happy',bob:frame%4===1?3:0});}else if(state==='failure'){hero({pose:'slump',expr:'failed'});vcwR(g,34,9,2,7,'#f87171');vcwR(g,34,18,2,2,'#f87171');}else if(state==='cancelled'){hero({pose:'cross',expr:'smirk'});}else if(state==='unknown'){hero({look:frame%8<4?-1:1});vcwQuestion(g,34,8,frame);}else hero({look:frame%10<5?0:1,bob:frame%16===0?1:0});}
+ if(state==='tool'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});}else if(state==='thinking'||state==='starting'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({look:1,expr:'focused',bob:frame%10===0?1:0});vcwPips(g,27,8,frame);}else if(state==='waiting'){hero({tapFoot:true});vcwPips(g,30,12,frame,'#fbbf24');}else if(state==='approval'){hero({tapFoot:true});vcwR(g,34,18,7,10,'#e8eaf0');vcwR(g,34,18,7,2,'#94a3b8');vcwR(g,36,22,3,1,'#475569');}else if(state==='retry'){vcwDesk(g,35,25);vcwMonitor(g,37,22,frame);hero({pose:'type',look:1,expr:'focused'});vcwR(g,8,8,3,7,'#fbbf24');vcwR(g,9,17,2,2,'#fbbf24');}else if(state==='success'){vcwConfetti(g,frame);hero({pose:'armsup',expr:'happy',bob:frame%4===1?3:0});}else if(state==='failure'){hero({pose:'slump',expr:'failed'});vcwR(g,34,9,2,7,'#f87171');vcwR(g,34,18,2,2,'#f87171');}else if(state==='cancelled'){hero({pose:'cross',expr:'smirk'});}else if(state==='unknown'){hero({look:frame%8<4?-1:1});vcwQuestion(g,34,8,frame);}else hero({look:0,blink:frame===2});}
 const VCW_SHEETS = {
   prism: {
     palette: {"#": "#1d2333", "c": "#2b3648", "d": "#232c3c", "e": "#3b4a63", "a": "#5eead4", "b": "#a5b4fc", "w": "#f4f7fa", "p": "#182130", "g": "#dfe9f2", "r": "#5eead4"},
@@ -355,7 +355,7 @@ window.VoolCompanionWorld={draw:vcwDraw,scene:vcwScene,egg:vcwEgg,characters:VCW
 """
 
 
-def normalise_companion_payload(payload: object = None) -> dict[str, str]:
+def normalise_companion_payload(payload: object = None) -> dict[str, object]:
     """Return the complete, presentation-only payload accepted by either renderer."""
     raw = payload if isinstance(payload, dict) else {}
     state = str(raw.get("state") or "idle").lower()
@@ -383,6 +383,9 @@ def normalise_companion_payload(payload: object = None) -> dict[str, str]:
     clean["chatTitle"] = chat_title
     activity = str(raw.get("activity") or "").strip().lower()
     clean["activity"] = activity if activity in {"read", "search", "dig", "code", "exec", "test", "watch"} else ""
+    # The chat page says when its bubble has gone quiet (a finished job's moment has passed).
+    if raw.get("quiet") is True:
+        clean["quiet"] = True
     if raw.get("motion") in {"system", "reduced", "allow"}:
         clean["motion"] = raw["motion"]
     # The pet's last native position, when the page has one to restore. Presentation only, and
@@ -446,14 +449,14 @@ def render_desktop_companion_html(initial_payload: object = None) -> str:
         "#bubbleActivity{font-size:9.5px;line-height:12px;color:var(--muted)}"
         "#controls{position:absolute;right:4px;top:4px;display:flex;gap:3px;opacity:0;"
         "pointer-events:none;transition:opacity .16s ease}"
-        "#shell:hover #controls{opacity:1;pointer-events:auto}"
+        "#shell.interacting #controls{opacity:1;pointer-events:auto}"
         "#controls button{width:22px;height:22px;padding:0;border:1px solid #39414f;border-radius:6px;"
         "background:rgba(22,25,31,.92);color:#e8eaf0;cursor:pointer;font:11px system-ui;line-height:1}"
         "@media (prefers-reduced-motion:reduce){#controls{transition:none}}"
         "</style><div id='shell'><div id='controls'>"
-        "<button id='attach' title='Return to VOOL'>\u21a9</button>"
-        "<button id='reset' title='Reset position'>\u2316</button>"
-        "<button id='hide' title='Hide pet'>\u2715</button>"
+        "<button type='button' id='attach' title='Return to app' aria-label='Return to app'>\u21a9</button>"
+        "<button type='button' id='reset' title='Reset position' aria-label='Reset position'>\u2316</button>"
+        "<button type='button' id='hide' title='Hide pet' aria-label='Hide pet'>\u2715</button>"
         "</div><canvas id='pet' width='48' height='48'></canvas>"
         "<div id='bubble'><div id='bubbleTitle'></div><div id='bubbleActivity'></div></div></div>"
         "<script>'use strict';" + COMPANION_WORLD_JS + "\nconst VCW_INITIAL_STATE=" + encoded + ";" + r"""
@@ -478,7 +481,8 @@ function vcwSetBubble(title,activity){
  const t=vcwSafeText(title,42),a=vcwSafeText(activity,34);
  if(vcwBubbleTitle.textContent!==t)vcwBubbleTitle.textContent=t;
  if(vcwBubbleActivity.textContent!==a)vcwBubbleActivity.textContent=a;
- vcwBubble.style.display=t?'flex':'none';
+ // Quiet unless there is something to say: the second line is empty while idle.
+ vcwBubble.style.display=a?'flex':'none';
 }
 function vcwPaint(now){
  if(vcwStarted===null)vcwStarted=now;
@@ -501,15 +505,16 @@ window.VoolDesktopCompanion={
   if(next&&typeof next==='object'){
    if(next.state&&next.state!==vcwState.state)vcwStarted=null;
    Object.assign(vcwState,next);
+   vcwState.quiet=next.quiet===true;  // a snapshot: an omitted flag means "speak"
   }
   /* Idle keeps the title and drops the activity line, so a finished turn stops advertising
      stale work. Otherwise the line is the reducer-resolved activity, never model prose. */
   const idle=String(vcwState.state||'idle')==='idle';
-  vcwSetBubble(vcwState.chatTitle||'',idle?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+  vcwSetBubble(vcwState.chatTitle||'',idle||vcwState.quiet?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
  },
  interaction:function(hover,drag){vcwNativeInteraction=true;vcwInteraction(hover,drag);}
 };
-vcwSetBubble(vcwState.chatTitle||'',vcwState.state==='idle'?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
+vcwSetBubble(vcwState.chatTitle||'',vcwState.state==='idle'||vcwState.quiet?'':vcwState.caption||String(vcwState.state||'idle').toUpperCase());
 function vcwBridge(name){
  return window.pywebview&&window.pywebview.api&&window.pywebview.api[name]?window.pywebview.api[name]:null;
 }

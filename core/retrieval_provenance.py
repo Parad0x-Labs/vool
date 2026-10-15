@@ -74,6 +74,12 @@ KEYLESS_PROVIDER_LABELS: dict[str, str] = {
     "browser_search": "Browser search",
 }
 
+#: The cloud model's OWN provider ran the search ("use the model's own tools", core.model_own_tools):
+#: billed to the owner's model key, so it is keyed, and it is named as the model's provider rather
+#: than as any search engine VOOL runs -- VOOL did not choose or see the engine.
+MODEL_PROVIDER_SEARCH = "model_provider_search"
+MODEL_PROVIDER_SEARCH_LABEL = "The model's own provider search"
+
 #: What a provider slot says when nothing ran. Distinct from "" so a reader can
 #: tell "no retrieval" from "a retrieval whose provider we failed to record".
 PROVIDER_NONE = "none"
@@ -111,6 +117,8 @@ def provider_attribution(provider_id: str, *, has_key: bool | None = None) -> di
     resolved from the credential store.
     """
     clean = str(provider_id or "").strip().lower()
+    if clean == MODEL_PROVIDER_SEARCH:
+        return {"provider_id": clean, "provider_label": MODEL_PROVIDER_SEARCH_LABEL, "keyed_or_keyless": KEYED}
     if not clean or clean in {PROVIDER_NONE, "disabled"}:
         return {
             "provider_id": clean or PROVIDER_NONE,
@@ -220,6 +228,8 @@ __all__ = [
     "LIFECYCLE_FAILED",
     "LIFECYCLE_STARTED",
     "LIFECYCLE_SUCCEEDED",
+    "MODEL_PROVIDER_SEARCH",
+    "MODEL_PROVIDER_SEARCH_LABEL",
     "PROVIDER_NONE",
     "STATUS_AVAILABLE",
     "STATUS_FAILED",
