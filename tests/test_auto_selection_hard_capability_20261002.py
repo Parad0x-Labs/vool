@@ -554,3 +554,55 @@ def test_native_ollama_lane_follows_its_own_native_tool_rule_not_the_declaration
     else:
         assert ranked == []
         assert not payload.get("tools") and not payload.get("format")
+
+
+# ---------------------------------------------------------------- the local runtime lanes declare it
+_LOCAL_RUNTIME_LANES = [
+    ("vllm-local", "_ensure_vllm_provider", {"VLLM_BASE_URL": "http://127.0.0.1:8000/v1"}, {"model_name": "qwen3-8b"}),
+    ("llamacpp-local", "_ensure_llamacpp_provider", {"LLAMACPP_BASE_URL": "http://127.0.0.1:8080/v1"}, {"model_name": "qwen3-8b"}),
+    (
+        "llamacpp-local",
+        "_ensure_llamacpp_deep_provider",
+        {"VOOL_LLAMACPP_DEEP_BASE_URL": "http://127.0.0.1:8090/v1", "VOOL_LLAMACPP_DEEP_MODEL": "qwen3-14b"},
+        {},
+    ),
+    ("mlx-local", "_ensure_mlx_provider", {"MLX_BASE_URL": "http://127.0.0.1:8081/v1"}, {"model_name": "qwen3-8b-mlx"}),
+]
+
+
+@pytest.mark.parametrize("provider,ensure,env,kwargs", _LOCAL_RUNTIME_LANES, ids=lambda v: v if isinstance(v, str) else "")
+@pytest.mark.parametrize("role", ["auto", "drone"])
+def test_a_machine_whose_only_local_runtime_is_this_lane_keeps_its_tool_turns(provider, ensure, env, kwargs, role) -> None:
+    """vLLM, llama.cpp and MLX lanes carry native tool schemas through their adapter; the hard
+    law reads the declaration, so the lane VOOL registers must declare tool selection or a
+    machine running only that runtime has no candidate for any tool step."""
+    from core import runtime_provider_defaults
+
+    _clear_manifests()
+    registry = ModelRegistry()
+    assert getattr(runtime_provider_defaults, ensure)(registry, env=env, **kwargs)
+    ranked = rank_provider_candidates(registry, task_kind="tool_intent", output_mode="tool_intent", role=role, min_trust=0.45)
+    assert [m.provider_name for m in ranked] == [provider]
+
+
+@pytest.mark.parametrize("provider,ensure,env,kwargs", _LOCAL_RUNTIME_LANES, ids=lambda v: v if isinstance(v, str) else "")
+def test_a_lane_persisted_before_it_declared_tool_selection_is_registered_again(provider, ensure, env, kwargs) -> None:
+    """An install upgraded in place keeps its stored manifest; the boot-time ensure must not
+    short-circuit on a stored lane that predates the declaration."""
+    from core import runtime_provider_defaults
+
+    _clear_manifests()
+    registry = ModelRegistry()
+    getattr(runtime_provider_defaults, ensure)(registry, env=env, **kwargs)
+    (stored,) = registry.list_manifests(enabled_only=True)
+    registry.register_manifest(
+        stored.model_copy(update={"capabilities": [c for c in stored.capabilities if c != "tool_intent"]})
+    )
+    assert "tool_intent" not in registry.list_manifests(enabled_only=True)[0].capabilities
+
+    getattr(runtime_provider_defaults, ensure)(registry, env=env, **kwargs)
+    (refreshed,) = registry.list_manifests(enabled_only=True)
+    assert refreshed.provider_name == provider
+    assert "tool_intent" in refreshed.capabilities
+    ranked = rank_provider_candidates(registry, task_kind="tool_intent", output_mode="tool_intent", role="auto", min_trust=0.45)
+    assert [m.provider_name for m in ranked] == [provider]
