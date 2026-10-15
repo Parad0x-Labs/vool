@@ -64,6 +64,8 @@ The form should prefill stable namespace, name-derived skill path, `kind: skill`
 
 Count the full serialized draft in UTF-8 with `TextEncoder`. Do not promise two independent 32 KiB text uploads: the entire request shares 32 KiB. Count skill body separately for the 8,000-character native limit. Keep the local draft editable when a payload fails. Do not persist text suspected to contain credentials into public analytics, crash reporting or default browser storage.
 
+The VOOL app opens `/codex/skills/publish#skill=<base64url JSON>` to hand over a skill the person made. That page prefills this form from the fragment and sends nothing until the person presses Send. The fragment's format and rules are in [SKILL-CODEX.md](SKILL-CODEX.md#publishing-from-vool).
+
 ## State copy and actions
 
 | State | Suggested label | Allowed visible next action |

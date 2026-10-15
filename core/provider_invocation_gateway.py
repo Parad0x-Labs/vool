@@ -59,6 +59,12 @@ class ProviderInvocationValidationError(ValueError):
 LOGGER = logging.getLogger(__name__)
 
 
+def _record_chat_ref(chat_id: Any) -> str:
+    from core.private_chat import record_chat_ref
+
+    return record_chat_ref(chat_id)
+
+
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -1172,7 +1178,8 @@ def seal_provider_invocation(
     unsigned = _canonical_manifest_fields({
         "manifest_id": manifest_id,
         "request_id": request_id,
-        "chat_id": str(context.get("chat_id") or ""),
+        # Signed and never deleted: a private turn's manifest names no chat (core.private_chat).
+        "chat_id": _record_chat_ref(context.get("chat_id")),
         "project_id": str(context.get("project_id") or ""),
         "provider_id": clean_provider_id,
         "model_id": clean_model_id,

@@ -201,8 +201,9 @@ def _terms_from_requirement(requirement: dict[str, Any], *, wallet_network: str,
             asset = chains.asset_for(spec.network, mint)
         except Exception:
             raise refuse("offer_asset_not_registered", asset=raw_asset[:48]) from None
-        if asset.native or asset.address != mint:
-            # a symbol the registry knows under ANOTHER mint is not this asset: the mint is the identity
+        if asset.native or asset.address != mint or asset.symbol not in chains.PAYMENT_LANE_TOKENS:
+            # a symbol the registry knows under ANOTHER mint is not this asset: the mint is the identity; and a lane pays
+            # only with a lane token (the owner's own transfer tokens never pay a site)
             raise refuse("offer_asset_not_registered", asset=raw_asset[:48])
     pay_to = str(requirement.get("payTo") or requirement.get("recipient") or "").strip()
     if not chains.destination_matches_family(spec.network, pay_to):

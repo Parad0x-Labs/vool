@@ -439,7 +439,7 @@ def _update(args: dict[str, Any], source_context: dict[str, Any] | None) -> dict
         if saved is None:
             return _result(False, "endpoint_not_found", f"{target['display_name']} has no saved entry {endpoint_id or '(missing endpoint_id)'}.")
         merged = {"kind": saved["kind"], "value": item.get("value", saved["value"]), "label": item.get("label", saved["label"]),
-                  "network": item.get("network", saved.get("chain_network", "")), "channel": item.get("channel", saved.get("channel", "")),
+                  "network": item.get("network") or saved.get("chain_network", ""), "channel": item.get("channel", saved.get("channel", "")),
                   "provider_account": item.get("account", item.get("provider_account", saved.get("provider_account", "")))}
         try:
             normalized = normalize_endpoint(merged)

@@ -169,9 +169,13 @@ def test_V7b_research_gets_web_not_workspace_writes() -> None:
     visible = [s["intent"] for s in model_visible_specs(family_hint=family)]
     assert "web.search" in visible, visible
     # Family-true: every non-reserved tool is a web tool. (web.fetch rides the
-    # runtime's web policy flag, so its presence is not pinned here.)
+    # runtime's web policy flag, so its presence is not pinned here.) Token research and
+    # new launches read public web data and are seated in the web family on purpose
+    # (core/token_research.py); they are the only named exceptions.
     tools = [i for i in visible if i not in RESERVED]
-    assert tools and all(i.startswith("web.") for i in tools), visible
+    assert tools and all(
+        i.startswith("web.") or i in {"token.research", "token.launches"} for i in tools
+    ), visible
     assert not any(i.startswith("workspace.") for i in visible), visible
 
 

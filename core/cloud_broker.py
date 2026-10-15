@@ -156,6 +156,27 @@ class CloudModelBroker:
         self._transports = dict(transports)
         self._sleep = sleeper
 
+    def author_manifest(self, provider_id: str, model_id: str) -> Any:
+        """The dispatch identity of a route this broker served, for the final-answer authority.
+
+        Built from the broker's own registered provider and the model id of the route it chose,
+        never from a response's claim about itself. None when this broker can't name the route.
+        """
+        from storage.model_provider_manifest import ModelProviderManifest
+
+        provider = self._registry.get(provider_id)
+        if provider is None or provider_id not in self._transports or not model_id:
+            return None
+        base_url = str(getattr(provider, "base_url", "") or "").strip()
+        if not base_url:
+            return None
+        return ModelProviderManifest(
+            provider_name=provider_id, model_name=model_id, source_type="http",
+            adapter_type="openai_compatible", runtime_dependency="cloud-provider",
+            runtime_config={"base_url": base_url},
+            metadata={"deployment_class": "cloud", "runtime_family": "openai-compatible"},
+        )
+
     def _enabled_provider_ids(self) -> tuple[str, ...]:
         return tuple(provider.provider_id for provider in self._registry.list() if provider.provider_id in self._transports)
 

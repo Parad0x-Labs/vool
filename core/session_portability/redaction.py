@@ -40,7 +40,7 @@ class RedactionReport:
         return self.secrets + self.paths
 
 
-def _scrub_text(value: str, report: RedactionReport, private_roots: list[Path]) -> str:
+def _mask_secrets(value: str, report: RedactionReport) -> str:
     scrubbed = redact_secrets(value)
     scrubbed = scrub_secret_material(scrubbed)
     if scrubbed != value or contains_secret(value) or secret_material_present(value):
@@ -48,6 +48,27 @@ def _scrub_text(value: str, report: RedactionReport, private_roots: list[Path]) 
             report.secrets += 1
             scrubbed = redact_secrets(scrubbed)
             scrubbed = scrub_secret_material(scrubbed)
+    return scrubbed
+
+
+def _drop_secret_residue(scrubbed: str, report: RedactionReport, marker: str) -> str:
+    if contains_secret(scrubbed) or secret_material_present(scrubbed):
+        # A residue that still reads as credential material after both scrubbers: drop the
+        # span entirely rather than let a half-masked secret travel.
+        report.secrets += 1
+        return marker
+    return scrubbed
+
+
+def scrub_secret_text(value: str, report: RedactionReport, *, residue_marker: str = _REDACTION_MARKER) -> str:
+    """The secret half of the pass alone: mask credential material and count it, dropping a
+    string whole when a residue still reads as a secret. Private paths are left as written
+    (used for text that stays on this machine, such as chats brought in from other apps)."""
+    return _drop_secret_residue(_mask_secrets(value, report), report, residue_marker)
+
+
+def _scrub_text(value: str, report: RedactionReport, private_roots: list[Path]) -> str:
+    scrubbed = _mask_secrets(value, report)
     for pattern in (_POSIX_HOME_RE, _WINDOWS_HOME_RE, _TMP_VOLATILE_RE):
         if pattern.search(scrubbed):
             report.paths += 1
@@ -57,12 +78,7 @@ def _scrub_text(value: str, report: RedactionReport, private_roots: list[Path]) 
         if root_str and root_str in scrubbed:
             report.paths += 1
             scrubbed = scrubbed.replace(root_str, _VOOL_HOME_PLACEHOLDER)
-    if contains_secret(scrubbed) or secret_material_present(scrubbed):
-        # A residue that still reads as credential material after both scrubbers: drop the
-        # span entirely rather than let a half-masked secret travel.
-        report.secrets += 1
-        scrubbed = _REDACTION_MARKER
-    return scrubbed
+    return _drop_secret_residue(scrubbed, report, _REDACTION_MARKER)
 
 
 def redact_value(value: Any, report: RedactionReport, private_roots: list[Path]) -> Any:

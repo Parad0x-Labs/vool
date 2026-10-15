@@ -291,7 +291,7 @@ def _run(args: list[str], *, scratch: Path, timeout: int = SUBPROCESS_TIMEOUT_S)
             # The macOS authorization state ("notDetermined", "denied", "restricted") is a code, not
             # words; the person reads what to do. The code stays on the typed error for diagnostics.
             raise ReaderUnavailable(
-                "Voice typing needs your permission to use speech recognition on this Mac.",
+                "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
                 code="speech_recognizer_unauthorized",
                 remediation=(
                     "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "
@@ -395,7 +395,7 @@ def transcribe_unavailable(locale: str = DEFAULT_LOCALE) -> ReaderUnavailable | 
         # The macOS state ("notDetermined", "denied", "restricted") is a code, not words: the same
         # message as the transcription path, so dictation and audio files say one thing.
         return ReaderUnavailable(
-            "Voice typing needs your permission to use speech recognition on this Mac.",
+            "Voice typing needs your permission: speech recognition is not granted to VOOL on this Mac.",
             code="speech_recognizer_unauthorized",
             remediation=(
                 "Open System Settings → Privacy & Security → Speech Recognition and turn VOOL on. "

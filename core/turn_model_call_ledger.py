@@ -405,7 +405,11 @@ def fail_pending_provider_calls(
 
 
 def record_served_usage(
-    source_context: dict[str, Any] | None, summary: dict[str, Any] | None, *, authored: bool = True
+    source_context: dict[str, Any] | None,
+    summary: dict[str, Any] | None,
+    *,
+    authored: bool = True,
+    author_manifest: Any = None,
 ) -> None:
     """The usage of the response that was SERVED this turn, recorded where every thread can read it.
 
@@ -447,7 +451,7 @@ def record_served_usage(
         # failed produced no bytes, and refusing a runtime-composed failure notice on the
         # strength of an attempted call is a measured, previously-paid-for mistake.
         with contextlib.suppress(Exception):
-            _record_author_eligibility(source_context, dict(summary))
+            _record_author_eligibility(source_context, dict(summary), author_manifest=author_manifest)
     except Exception:
         return
 
@@ -536,7 +540,7 @@ def _turn_support_rows(source_context: dict[str, Any] | None) -> list[dict[str, 
 
 
 def _record_author_eligibility(
-    source_context: dict[str, Any] | None, summary: dict[str, Any]
+    source_context: dict[str, Any] | None, summary: dict[str, Any], *, author_manifest: Any = None
 ) -> None:
     """Ask the one authority whether the model that just served may author, and record it."""
 
@@ -547,7 +551,11 @@ def _record_author_eligibility(
 
     context = source_context if isinstance(source_context, dict) else {}
     provider_id = str(summary.get("provider_id") or "").strip()
-    manifest = _served_manifest(provider_id)
+    # Cloud-broker routes live in the cloud provider registry, not ModelRegistry, so their owner
+    # hands over its dispatch identity; one naming a different model than the served id is ignored.
+    manifest = author_manifest if author_manifest is not None else _served_manifest(provider_id)
+    if manifest is not None and str(getattr(manifest, "provider_id", "") or "") != provider_id:
+        manifest = None
     role = str(context.get("model_call_role") or "").strip()
     request_text = ""
     for key in ("turn_request", "user_input", "effective_input", "request_text"):

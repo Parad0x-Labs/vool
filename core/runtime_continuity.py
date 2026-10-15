@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import copy
 import hashlib
 import json
 import logging
@@ -305,7 +306,11 @@ def append_runtime_event(
                     return True
 
             governed_strings: list[str] = [clean_message, *list(_iter_tree_strings(clean_details))]
-            if any(
+            # A chat's forgotten words stay forgotten: a turn still running when the forget came may not
+            # append them back (review of 9b78dac). Unreadable forget authority counts as carrying them.
+            from core.memory.run_history import carries_forgotten_words
+
+            if carries_forgotten_words(clean_session_id, governed_strings) or any(
                 text and _durable_veto(text) for text in governed_strings
             ):
                 clean_message = ""
@@ -578,6 +583,9 @@ def list_runtime_tool_receipts(
         item["arguments"] = _json_loads(item.pop("arguments_json"), fallback={})
         item["execution"] = _json_loads(item.pop("execution_json"), fallback={})
         out.append(item)
+    held = _held_tool_receipts(clean_session_id)
+    if held:
+        out = sorted(out + held, key=lambda item: str(item.get("updated_at") or ""), reverse=True)[:bounded_limit]
     return out
 
 
@@ -1203,7 +1211,7 @@ def finalize_runtime_checkpoint(
     if normalized_outcome.is_unfulfilled and not normalized_failure_text:
         codes = ", ".join(normalized_outcome.failure_codes) or "task_unfulfilled"
         normalized_failure_text = f"{normalized_outcome.failure_stage or 'fulfillment'}: {codes}"
-    return update_runtime_checkpoint(
+    finalized = update_runtime_checkpoint(
         checkpoint_id,
         status=clean_status,
         pending_intent={},
@@ -1212,6 +1220,12 @@ def finalize_runtime_checkpoint(
         failure_text=redact_secrets(normalized_failure_text),
         outcome=normalized_outcome.to_dict(),
     )
+    # A turn that was running when this chat forgot something wrote its state and answer back with the
+    # words in them: erase them again now that the turn is done (review of 9b78dac).
+    from core.memory.run_history import resweep_forgotten_run_history
+
+    resweep_forgotten_run_history(str((finalized or current).get("session_id") or ""))
+    return finalized
 
 
 # ============================================================================
@@ -3513,6 +3527,10 @@ def load_tool_receipt(receipt_key: str) -> dict[str, Any] | None:
     if not clean_key:
         return None
     with _LOCK:
+        held = _PRIVATE_TOOL_RECEIPTS.get(clean_key)
+        if held is not None:
+            return copy.deepcopy(held)
+    with _LOCK:
         conn = _conn()
         try:
             row = conn.execute(
@@ -3583,6 +3601,28 @@ def _preserve_tool_receipt_structure(*, original, scrubbed, raw_arguments, safe_
     return candidate if _stable_json_hash(candidate) == _stable_json_hash(original) else scrubbed
 
 
+# A private turn's tool receipts (core.private_chat) stay in this process: the row would keep the
+# call's arguments (the private words) and the chat id on disk. Readers (the replay cache, the
+# honesty checks) still find them while VOOL runs. Bounded; the oldest drop first. A payment's money
+# record is the wallet's own ledger, which is not this table.
+_PRIVATE_TOOL_RECEIPTS: dict[str, dict[str, Any]] = {}
+_PRIVATE_TOOL_RECEIPTS_MAX = 512
+
+
+def _tool_receipt_is_private(session_id: str) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        return turn_is_private(None, str(session_id or "").strip())
+    except Exception:
+        return True
+
+
+def _held_tool_receipts(session_id: str) -> list[dict[str, Any]]:
+    with _LOCK:
+        return [copy.deepcopy(item) for item in _PRIVATE_TOOL_RECEIPTS.values() if item["session_id"] == session_id]
+
+
 def store_tool_receipt(
     *,
     receipt_key: str,
@@ -3627,6 +3667,15 @@ def store_tool_receipt(
         "created_at": timestamp,
         "updated_at": timestamp,
     }
+    if clean_receipt_key in _PRIVATE_TOOL_RECEIPTS or _tool_receipt_is_private(payload["session_id"]):
+        with _LOCK:
+            held = _PRIVATE_TOOL_RECEIPTS.pop(clean_receipt_key, None)
+            if held is not None:  # same conflict rule as the table: the arguments stay as first stored
+                payload = {**held, "execution": payload["execution"], "updated_at": timestamp}
+            _PRIVATE_TOOL_RECEIPTS[clean_receipt_key] = copy.deepcopy(payload)
+            while len(_PRIVATE_TOOL_RECEIPTS) > _PRIVATE_TOOL_RECEIPTS_MAX:
+                _PRIVATE_TOOL_RECEIPTS.pop(next(iter(_PRIVATE_TOOL_RECEIPTS)), None)
+        return payload
     with _LOCK:
         conn = _conn()
         try:

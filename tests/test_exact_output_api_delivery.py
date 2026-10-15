@@ -50,7 +50,8 @@ def test_api_finalizer_preserves_exact_body_and_accounting(directive,raw):
     assert result["answer_provenance"]["model_ran"]
 
 
-def test_ordinary_api_reply_keeps_truthful_provenance():
+def test_ordinary_api_reply_keeps_truthful_provenance(monkeypatch):
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     result=finalize("The complete answer.",{})
     assert result["response"].startswith("The complete answer.\n\n`local | controlled-reader |")
     assert result["answer_provenance"]["model_ran"]

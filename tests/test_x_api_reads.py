@@ -317,3 +317,18 @@ def test_counts_mode(fake_x):
     result = _run("x.search", {"token": "$BONK", "mode": "counts"})
     assert result.ok and result.details["total"] == 7
     assert fake_x.requests[-1]["path"] == "/2/tweets/counts/recent"
+
+
+def test_profile_links_name_the_account_only_on_x_hosts(fake_x):
+    _connect()
+    for link in ("x.com/early_ape", "https://twitter.com/early_ape/status/1234567890123456789",
+                 "https://www.x.com/early_ape/?s=20"):
+        fake_x.requests.clear()
+        posts = _run("x.user_posts", {"username": link})
+        assert posts.ok, (link, posts.status)
+        assert fake_x.requests[0]["path"] == "/2/users/by/username/early_ape", link
+    fake_x.requests.clear()
+    for link in ("https://evil.example/early_ape", "https://evil.example/x.com/early_ape",
+                 "https://x.com.evil.example/early_ape", "ftp://x.com/early_ape"):
+        assert _run("x.user_posts", {"username": link}).status == "invalid_arguments", link
+    assert fake_x.requests == []

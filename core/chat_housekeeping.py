@@ -475,6 +475,8 @@ def set_chat_pinned(session_id: str, pinned: bool, *, allow_new_chat: bool = Fal
         return ActionResult(False, action, error="invalid_session_id")
     if _chat_is_deleted(sid):
         return ActionResult(False, action, session_id=sid, error="chat_deleted")
+    if _unsaved_private(sid):
+        return ActionResult(False, action, session_id=sid, error="private_chat")
     live = _live_sessions()
     if sid not in live and not allow_new_chat:
         return ActionResult(False, action, session_id=sid, error="chat_not_found")
@@ -507,6 +509,18 @@ def set_chat_pinned(session_id: str, pinned: bool, *, allow_new_chat: bool = Fal
 # --------------------------------------------------------------------------------------------
 
 
+def _unsaved_private(sid: str) -> bool:
+    """A private chat with nothing saved (core.private_chat_traces) is in no chat list, and a pin, a
+    name or a project would put its id (and the words typed) on disk. Unknown answers True."""
+    try:
+        from core.private_chat import is_private
+        from core.private_chat_traces import chat_is_unsaved
+
+        return is_private(sid) and chat_is_unsaved(sid)
+    except Exception:
+        return True
+
+
 def _meta(sid: str) -> dict[str, Any]:
     from core.memory.entries import load_session_meta
 
@@ -518,6 +532,8 @@ def _require_chat(sid: str, action: str, *, allow_new_chat: bool) -> ActionResul
         return ActionResult(False, action, error="invalid_session_id")
     if _chat_is_deleted(sid):
         return ActionResult(False, action, session_id=sid, error="chat_deleted")
+    if _unsaved_private(sid):
+        return ActionResult(False, action, session_id=sid, error="private_chat")
     if not allow_new_chat and sid not in _live_sessions():
         return ActionResult(False, action, session_id=sid, error="chat_not_found")
     return None
@@ -727,9 +743,22 @@ def _load_state() -> dict[str, Any]:
     return state
 
 
-def remember_results(session_id: str, hits: list[dict[str, Any]], *, query: str) -> None:
+# The last search of a private chat (core.private_chat) is kept in this process only: the state
+# file would keep the chat's id and the words searched for. Bounded.
+_PRIVATE_RESULTS: dict[str, dict[str, Any]] = {}
+_PRIVATE_RESULTS_MAX = 64
+
+
+def remember_results(session_id: str, hits: list[dict[str, Any]], *, query: str, private: bool = False) -> None:
     sid = str(session_id or "").strip()
     if not sid:
+        return
+    if private:
+        with _STORE_LOCK:
+            _PRIVATE_RESULTS.pop(sid, None)
+            _PRIVATE_RESULTS[sid] = {"at": time.time(), "query": str(query or "")[:200], "hits": list(hits)[:_DEFAULT_HITS * 2]}
+            while len(_PRIVATE_RESULTS) > _PRIVATE_RESULTS_MAX:
+                _PRIVATE_RESULTS.pop(next(iter(_PRIVATE_RESULTS)), None)
         return
     with _STORE_LOCK:
         state = _load_state()
@@ -742,7 +771,8 @@ def remember_results(session_id: str, hits: list[dict[str, Any]], *, query: str)
 
 def recalled_results(session_id: str) -> dict[str, Any] | None:
     """The last search made in this chat, if it is still fresh."""
-    entry = (_load_state()["chats"] or {}).get(str(session_id or "").strip())
+    sid = str(session_id or "").strip()
+    entry = _PRIVATE_RESULTS.get(sid) or (_load_state()["chats"] or {}).get(sid)
     if not isinstance(entry, dict):
         return None
     if time.time() - float(entry.get("at") or 0) > _FOLLOWUP_TTL_SECONDS:

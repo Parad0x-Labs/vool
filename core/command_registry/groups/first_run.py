@@ -34,7 +34,7 @@ _FAULT_REMEDIATIONS = {
     "evidence_unverifiable": ("the evidence did not verify; retry the real action or skip",),
     "evidence_session_unknown": ("that chat has no receipt ledger here",),
     "not_applicable_readonly": ("replay the tour from Settings → Show me around",),
-    "boundary_key_unknown": ("use local_only_composite, memory_paused or web_lookups",),
+    "boundary_key_unknown": ("use local_only_composite, memory_paused, web_lookups or automatic_checks",),
     "pact_absent": ("the tour seed has not run yet; re-poll in a moment",),
     "lock_unavailable": ("another window is publishing; retry in a moment",),
     "boundary_partial": ("part of the boundary applied; the outcome names what did and what failed — live truth is projected",),

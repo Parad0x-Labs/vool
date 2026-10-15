@@ -86,24 +86,50 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/crypto-wheel
-          key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v1
+          key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v2
+      # The wheel must carry no path of the machine that built it AND be byte-reproducible, so a
+      # record run can be repeated and the record re-checked. Every input path is fixed (sources
+      # unpacked at $W/src, cargo's target dir, and TMPDIR all under $W) and remapped; time is
+      # pinned (SOURCE_DATE_EPOCH for OpenSSL's "built on", ZERO_AR_DATE for ar/ld64); rustc runs
+      # with one codegen unit, no incremental state and debug info stripped; the wheel is then
+      # repacked with a fixed member order, timestamps and modes, the cargo SBOM's absolute paths,
+      # serial number and timestamp removed, and RECORD rewritten. A path that survives fails the
+      # step here, before the bundle's own gate ever sees it.
       - name: Build cryptography natively for x86_64 (static OpenSSL, no-module)
         if: steps.crypto-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           W="$RUNNER_TEMP/crypto-build"; OUT="$RUNNER_TEMP/crypto-wheel"
-          mkdir -p "$W/src" "$W/stage" "$OUT"
+          rm -rf "$W" "$OUT"; mkdir -p "$W/src" "$W/stage" "$W/raw" "$OUT"
+          # >>> deterministic build environment
+          ORIG_TMP="${TMPDIR:-/tmp}"; ORIG_TMP="${ORIG_TMP%/}"
+          export TMPDIR="$W/tmp"; mkdir -p "$TMPDIR"
+          export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+          export CARGO_TARGET_DIR="$W/target"
+          export SOURCE_DATE_EPOCH=315532800 ZERO_AR_DATE=1 CARGO_INCREMENTAL=0
+          export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_STRIP=debuginfo
+          # rustc applies the LAST matching remap, so the general prefixes come first and the
+          # nested ones (cargo, rustup and the build dir all sit under the home) after them.
+          RUST_REMAPS=""; C_REMAPS=""
+          for map in "$HOME=/home" "$ORIG_TMP=/tmp" "/private$ORIG_TMP=/tmp" "$CARGO_HOME=/cargo" "$RUSTUP_HOME=/rustup" "$W=/build"; do
+            RUST_REMAPS="$RUST_REMAPS --remap-path-prefix=$map"; C_REMAPS="$C_REMAPS -ffile-prefix-map=$map"
+          done
+          export RUSTFLAGS="${RUST_REMAPS# }" CFLAGS="${C_REMAPS# }"
+          # <<< deterministic build environment
           cd "$W/src"
           curl -fsSLO "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VERSION}/openssl-${OPENSSL_VERSION}.tar.gz"
           echo "${OPENSSL_SHA256}  openssl-${OPENSSL_VERSION}.tar.gz" | shasum -a 256 -c -
           tar xzf "openssl-${OPENSSL_VERSION}.tar.gz"
           cd "openssl-${OPENSSL_VERSION}"
-          ./Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs \
+          # OpenSSL keeps its own flags: its "compiler:" string would otherwise record the build
+          # dir through CFLAGS. Its sources compile by relative path, so there is nothing to remap.
+          env -u CFLAGS ./Configure darwin64-x86_64-cc no-shared no-module no-tests no-docs \
             --prefix=/private/etc/ssl --openssldir=/private/etc/ssl --libdir=/private/etc/ssl/lib \
             -mmacosx-version-min=14.0 > "$W/openssl-configure.log" 2>&1
-          make -j"$(sysctl -n hw.ncpu)" > "$W/openssl-make.log" 2>&1
-          make install_sw DESTDIR="$W/stage" > "$W/openssl-install.log" 2>&1
+          env -u CFLAGS make -j"$(sysctl -n hw.ncpu)" > "$W/openssl-make.log" 2>&1
+          env -u CFLAGS make install_sw DESTDIR="$W/stage" > "$W/openssl-install.log" 2>&1
           lipo -info "$W/stage/private/etc/ssl/lib/libcrypto.a"
+          shasum -a 256 "$W/stage/private/etc/ssl/lib/libcrypto.a" "$W/stage/private/etc/ssl/lib/libssl.a"
           rustup toolchain install "${RUST_TOOLCHAIN}" --profile minimal
           uv python install cpython-3.11-macos-x86_64-none
           uv venv --python cpython-3.11-macos-x86_64-none "$W/venv"
@@ -111,11 +137,103 @@ jobs:
           cd "$W/src"
           "$W/venv/bin/python" -m pip download --quiet --no-deps --no-binary :all: "cryptography==${CRYPTO_VERSION}" -d "$W/src"
           echo "${CRYPTO_SDIST_SHA256}  cryptography-${CRYPTO_VERSION}.tar.gz" | shasum -a 256 -c -
+          # Unpacked at a FIXED path and built in place: `pip wheel <sdist>` would unpack into a
+          # random pip-req-build-* dir under TMPDIR, which no remap can name in advance.
+          "$W/venv/bin/python" -I -c "import sys,tarfile;tarfile.open(sys.argv[1]).extractall(sys.argv[2],filter='data')" \
+            "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" "$W/src"
           # maturin's PEP 517 hook runs the `maturin` CLI by name, so the venv's bin goes on PATH.
           env PATH="$W/venv/bin:$PATH" RUSTUP_TOOLCHAIN="${RUST_TOOLCHAIN}" OPENSSL_DIR="$W/stage/private/etc/ssl" OPENSSL_STATIC=1 \
             ARCHFLAGS="-arch x86_64" CARGO_BUILD_TARGET=x86_64-apple-darwin \
-            RUSTFLAGS="--remap-path-prefix=$HOME=/home --remap-path-prefix=$W=/build" \
-            "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}.tar.gz" -w "$OUT"
+            "$W/venv/bin/python" -m pip wheel --no-deps --no-build-isolation "$W/src/cryptography-${CRYPTO_VERSION}" -w "$W/raw"
+          RAW="$(ls "$W"/raw/cryptography-${CRYPTO_VERSION}-*.whl)"
+          "$W/venv/bin/python" -I - "$RAW" "$OUT/$(basename "$RAW")" \
+            "$HOME=/home" "$ORIG_TMP=/tmp" "/private$ORIG_TMP=/tmp" "$CARGO_HOME=/cargo" "$RUSTUP_HOME=/rustup" "$W=/build" \
+            -- "$RUNNER_TEMP" "${GITHUB_WORKSPACE:-}" <<'REPACK'
+          """Repack a wheel deterministically, scrub its SBOMs, rewrite RECORD, refuse build paths.
+
+          argv: <in.whl> <out.whl> <prefix=replacement>... -- <extra root>...
+          Every prefix and extra root is a build-machine path: none may survive in any member.
+          """
+          import base64
+          import hashlib
+          import json
+          import stat
+          import sys
+          import zipfile
+
+          args = sys.argv[1:]
+          src, dst = args[0], args[1]
+          sep = args.index("--")
+          maps = [m.split("=", 1) for m in args[2:sep]]
+          maps = [(a.rstrip("/"), b) for a, b in maps if len(a.rstrip("/")) >= 5]
+          maps.sort(key=lambda m: len(m[0]), reverse=True)  # nested prefixes first
+          roots = {a for a, _ in maps} | {r.rstrip("/") for r in args[sep + 1:] if len(r.rstrip("/")) >= 5}
+          FIXED_DATE = (1980, 1, 1, 0, 0, 0)
+
+          def remap(text):
+              for old, new in maps:
+                  text = text.replace(old, new)
+              return text
+
+          def scrub_sbom(node, top=True):
+              if isinstance(node, dict):
+                  out = {}
+                  for key, value in node.items():
+                      # A random serial number and the generation time differ on every build.
+                      if top and key == "serialNumber":
+                          continue
+                      if key == "metadata" and top and isinstance(value, dict):
+                          value = {k: v for k, v in value.items() if k != "timestamp"}
+                      out[key] = scrub_sbom(value, False)
+                  return out
+              if isinstance(node, list):
+                  return [scrub_sbom(v, False) for v in node]
+              if isinstance(node, str):
+                  return remap(node)
+              return node
+
+          with zipfile.ZipFile(src) as zin:
+              infos = [i for i in zin.infolist() if not i.is_dir()]
+              members = {}
+              modes = {}
+              for info in infos:
+                  data = zin.read(info)
+                  if "/sboms/" in info.filename and info.filename.endswith(".json"):
+                      data = (json.dumps(scrub_sbom(json.loads(data)), indent=2) + "\n").encode()
+                  members[info.filename] = data
+                  modes[info.filename] = 0o755 if (info.external_attr >> 16) & 0o111 else 0o644
+
+          records = [n for n in members if n.endswith(".dist-info/RECORD")]
+          if len(records) != 1:
+              sys.exit(f"repack: expected one RECORD, found {len(records)}")
+          record_name = records[0]
+          dist_info = record_name.rsplit("/", 1)[0] + "/"
+          payload = sorted(n for n in members if not n.startswith(dist_info))
+          meta = sorted(n for n in members if n.startswith(dist_info) and n != record_name)
+          order = payload + meta
+
+          leaks = [(n, r) for n in order for r in sorted(roots) if r.encode() in members[n]]
+          if leaks:
+              for name, root in leaks[:10]:
+                  print(f"build path under \"{root.rsplit('/', 1)[-1]}\" in {name}", file=sys.stderr)
+              sys.exit("repack: the wheel still carries build-machine paths; refusing it")
+
+          lines = []
+          for name in order:
+              digest = base64.urlsafe_b64encode(hashlib.sha256(members[name]).digest()).rstrip(b"=").decode()
+              lines.append(f"{name},sha256={digest},{len(members[name])}")
+          lines.append(f"{record_name},,")
+          members[record_name] = ("\n".join(lines) + "\n").encode()
+          modes[record_name] = 0o644
+
+          with zipfile.ZipFile(dst, "w") as zout:
+              for name in order + [record_name]:
+                  info = zipfile.ZipInfo(name, date_time=FIXED_DATE)
+                  info.create_system = 3
+                  info.external_attr = (stat.S_IFREG | modes[name]) << 16
+                  zout.writestr(info, members[name], compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+          print(f"repacked {dst}: {len(order) + 1} members, sha256 {hashlib.sha256(open(dst, 'rb').read()).hexdigest()}")
+          REPACK
           ls -l "$OUT"
       - name: Check the cryptography wheel (slice, no dynamic OpenSSL, imports, legacy provider)
         env:
@@ -197,8 +315,12 @@ jobs:
                   "target x86_64-apple-darwin; OpenSSL Configure darwin64-x86_64-cc no-shared no-module "
                   "no-tests no-docs --prefix=/private/etc/ssl --openssldir=/private/etc/ssl "
                   f"--libdir=/private/etc/ssl/lib -mmacosx-version-min={env['MACOSX_DEPLOYMENT_TARGET']}; "
-                  "RUSTFLAGS --remap-path-prefix for the cargo registry, git checkouts, rustup, "
-                  "the build dir and the home dir"
+                  "sources unpacked and built at fixed paths, TMPDIR inside the build dir; "
+                  "RUSTFLAGS --remap-path-prefix and CFLAGS -ffile-prefix-map for the home, the "
+                  "runner temp dir, cargo, rustup and the build dir; SOURCE_DATE_EPOCH=315532800, "
+                  "ZERO_AR_DATE=1, codegen-units=1, CARGO_INCREMENTAL=0, debug info stripped; "
+                  "wheel repacked deterministically with the cargo SBOM's paths, serial number "
+                  "and timestamp removed and RECORD rewritten"
               ),
               "built_on": "{} (native {}, GitHub Actions {} runner image, macOS {})".format(
                   run("date", "-u", "+%Y-%m-%d"),
