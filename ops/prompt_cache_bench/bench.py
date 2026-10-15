@@ -623,6 +623,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
         "model": args.model,
         "cache": args.cache,
         "mode": args.mode,
+        "request_shape": "whole chat in messages, as the chat page sends it",
         "sha": staged.sha_full,
         "archive_sha256": staged.archive_sha256,
         "repeats": args.repeats,
@@ -655,6 +656,11 @@ def cmd_vool(args: argparse.Namespace) -> int:
             last_seq = 0
             failure = ""
             chat_calls = 0
+            # The chat page sends the whole chat as `messages` on every turn
+            # (core/vool_chat_page.py buildTurnRequestBody / canonicalMessagesForModel); the server
+            # decides whether a turn has history from that list. Sending only the latest message,
+            # as run4 did, routes follow-ups to the no-history prompt.
+            transcript: list[dict[str, str]] = []
             for index, turn in enumerate(task["turns"]):
                 ledger.check(f"{args.label} {task['id']} r{repeat} t{index}")
                 turn_id = f"t{index}-{uuid.uuid4().hex[:8]}"
@@ -665,6 +671,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     turn_id=turn_id,
                     workspace=str(workspace),
                     extra_body={
+                        "messages": [*transcript, {"role": "user", "content": turn["text"]}],
                         "model": f"openrouter-byok:{args.model}",
                         "model_selection": "pin",
                         "mode": args.mode,
@@ -698,6 +705,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     "transport_error": exchange.error or None,
                     "wall_seconds": wall,
                     "answer": answer,
+                    "messages_sent": len(transcript) + 1,
                     **usage,
                 }
                 _append_jsonl(results_path, row)
@@ -709,6 +717,7 @@ def cmd_vool(args: argparse.Namespace) -> int:
                     flush=True,
                 )
                 chat_calls += int(usage["calls"])
+                transcript += [{"role": "user", "content": turn["text"]}, {"role": "assistant", "content": answer}]
                 if exchange.error or exchange.status != 200 or not answer:
                     reason = exchange.error or (f"http {exchange.status}" if exchange.status != 200 else "empty answer")
                     failure = f"turn {index}: {str(reason)[:300]}"
