@@ -112,3 +112,10 @@ def test_invisible_unicode_in_outer_metadata_cannot_hide_in_json_escapes(tmp_pat
     assert any(item.get("rule") == "invisible" and item["path"] == REVIEW_METADATA
                for item in findings(tmp_path, raw))
     assert unsafe(inspect(raw), raw)
+
+
+@pytest.mark.parametrize("field", ["summary", "title", "release_notes", "license"])
+def test_surrogate_text_is_refused_specifically_before_utf8_review(tmp_path, field):
+    raw = outer(tmp_path, **{field: "Unreadable \ud800 text"})
+    assert findings(tmp_path, raw) == [
+        {"check": "archive", "path": "package", "reason": "invalid " + field.replace("_", " ")}]

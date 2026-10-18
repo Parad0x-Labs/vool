@@ -115,6 +115,9 @@ def metadata(value: dict) -> dict:
                 bool(_REPO.fullmatch(str(source["repository"]))) and
                 bool(COMMIT.fullmatch(str(source["commit"]))), "source must name an exact GitHub commit")
         path_name(source["path"])
+    for field in ("title", "summary", "license", "release_notes"):
+        require(not any(0xD800 <= ord(char) <= 0xDFFF for char in value.get(field, "")),
+                "invalid " + field.replace("_", " "))
     return value
 
 
