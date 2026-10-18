@@ -1158,6 +1158,12 @@ def resolve_demand_signals(text: str) -> DemandSignals:
     if is_explicit_code_repair(cleaned):
         _note("code.task.open", "code")
 
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if browser_requested(cleaned):
+        _note("vool-browser.session.open", "web")
+        _note("vool-browser.inspect", "web")
+
     database_is_context_only = bool(_DATABASE_CONTEXT_ONLY.search(cleaned))
     is_wallet_move = any(
         pattern.search(cleaned) for intent, _family, pattern in _RULES if intent == "wallet.propose"

@@ -255,6 +255,19 @@ def execute_tool_intent(
     `trusted_local_only` is a server-only channel: it may be set solely by a Python caller that
     built the command itself, never from anything carried inside `payload`."""
     call_id = str(tool_call_id or "").strip() or f"tool-{uuid.uuid4().hex}"
+    from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
+
+    browser_payload = _normalize_payload(payload)
+    requested_intent = str(browser_payload.get("intent") or "")
+    browser_arguments = browser_payload.get("arguments")
+    if not browser_tool_allowed(requested_intent, browser_arguments if isinstance(browser_arguments, dict) else {}):
+        from core.i18n import catalog_for
+
+        return ToolIntentExecution(
+            handled=True, ok=False, status="browser_scope_required", mode="refused", tool_name=requested_intent,
+            response_text=catalog_for("en").text("live.refused"),
+            details={"tool_call_id": call_id, "executed": False, "allowed_toolset": "vool-browser"},
+        )
 
     # A DIRECT call — no turn ledger active — is legitimate library use of the
     # executor, and THIS function is its owning entry point. It opens the R2b1

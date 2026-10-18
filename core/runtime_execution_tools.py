@@ -3225,8 +3225,9 @@ def _dispatch_runtime_tool(
     if intent.startswith("vool-browser."):
         from core.vool_browser import live as live_browser
         from core.vool_browser.api import handle_intent as _browser_handle
+        from core.vool_browser.live_requests import confined as browser_confined
 
-        if live_browser.configured():
+        if live_browser.configured() or browser_confined():
             try:
                 result = live_browser.tool_intent(intent, arguments, dict(source_context or {}))
             except live_browser.BrowserFault as exc:
@@ -3728,6 +3729,14 @@ def execute_runtime_tool(
     workspace root the dispatch resolves against is replaced by that workspace, so even an
     approved builder seat cannot reach the operator's checkout through a relative path.
     """
+    from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
+
+    if not browser_tool_allowed(intent, arguments):
+        from core.i18n import catalog_for
+
+        return RuntimeExecutionResult(handled=True, ok=False, status="browser_scope_required",
+                                      response_text=catalog_for("en").text("live.refused"),
+                                      details={"intent": intent, "executed": False, "allowed_toolset": "vool-browser"})
     from core.agent_team import gate as agent_team_gate
 
     # Agent-team write gate: a call made for an agent's chat session may only read, or write

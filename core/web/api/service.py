@@ -7894,6 +7894,11 @@ def _dispatch_post_inner(
                     )
                 )
             ]
+        # Server-owned: the supervised browser waits for the owner while this
+        # very turn is alive, so approval resumes its existing model/tool loop.
+        from core.vool_browser.live import available as _live_browser_available
+
+        source_context["live_browser_wait_for_owner"] = bool(owner_local and _live_browser_available())
         approval_token = str(body.get("approval_token") or "").strip()
         if approval_token and len(approval_token) <= 128:
             source_context["mode_approval_token"] = approval_token

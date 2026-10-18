@@ -13,7 +13,7 @@ def get(path, query, *, locale="en"):
     if path == "/browser":
         from core.vool_browser.live_page import render
 
-        return html_response(200, render(chat, locale), headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"})
+        return html_response(200, render(chat, locale), headers={"Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"})
     if path == "/api/browser/settings":
         return json_response(200, live.settings(), headers={"Cache-Control": "no-store"})
     try:
@@ -25,6 +25,8 @@ def get(path, query, *, locale="en"):
         download = item.download()
         if download:
             return ApiResponse(200, "application/octet-stream", body=download[1], headers={"Content-Disposition": 'attachment; filename="download.bin"', "Cache-Control": "no-store"})
+    if path == "/api/browser/state" and item:
+        item.owner_heartbeat()
     return json_response(200, item.snapshot() if item else {"ok": True, "state": "stopped" if not active_chat else "ready" if live.available() else "web_off", "closed": True}, headers={"Cache-Control": "no-store"})
 
 

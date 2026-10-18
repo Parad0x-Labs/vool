@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import contextvars
 import copy
 import ipaddress
 import json
@@ -181,7 +182,7 @@ def _addresses(url: str, fixture_origin: str = "") -> tuple[str, ...]:
     return answers
 
 
-def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_origin: str, stopped: tuple[threading.Event, threading.Event], source_context: dict, download: bool) -> tuple[int, dict, bytes]:
+def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_origin: str, stopped: tuple[threading.Event, threading.Event], source_context: dict, download: bool, telemetry=None) -> tuple[int, dict, bytes]:
     """No ambient proxy, pinned DNS, no redirects, bounded decoded response."""
     from core.effect_gateway import named_background_effect_scope
     from core.remote_fetch_policy import open_remote
@@ -194,7 +195,10 @@ def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_ori
     safe_headers = {k: v for k, v in headers.items() if k.lower() in {"content-type", "cookie", "accept", "user-agent"}}
     safe_headers["Accept-Encoding"] = "identity"
     req = Request(url, data=data, headers=safe_headers, method=method)
-    with named_background_effect_scope("browser.owner_action", source_context={**source_context, "surface": "api", "platform": "web_companion", "allow_remote_fetch": True}):
+    with contextlib.ExitStack() as scope:
+        scope.enter_context(named_background_effect_scope("browser.owner_action", source_context={**source_context, "surface": "api", "platform": "web_companion", "allow_remote_fetch": True}))
+        if telemetry is not None:
+            scope.enter_context(telemetry())
         try:
             response = open_remote(req, timeout=TIMEOUT, redirect_policy="refuse", pinned_addresses=addresses)
         except HTTPError as exc:
@@ -248,7 +252,7 @@ def _fetch(url: str, method: str, headers: dict, data: bytes | None, fixture_ori
 
 
 class LiveSession:
-    def __init__(self, chat: str, *, fixture_origin: str = "") -> None:
+    def __init__(self, chat: str, *, fixture_origin: str = "", lease_seconds: float = 120) -> None:
         from core.private_chat import is_private
 
         self.chat = chat
@@ -267,11 +271,18 @@ class LiveSession:
         self.url = ""
         self._document_origin = ""
         self.nodes: list[dict] = []
+        self._forms: list[dict] = []
+        self._submission_previews: dict[str, list[dict]] = {}
         self.revision = 0
         self.last_activity = time.monotonic()
+        self._lease_seconds = max(1, float(lease_seconds))
+        self._owner_deadline = self.last_activity + self._lease_seconds
+        self._completed: dict[str, dict] = {}
+        self._telemetry: dict[str, Any] = {}
+        self._lease_cleanup = None
         self._mutex = threading.RLock()
         self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="live-browser")
+        self._thread = threading.Thread(target=contextvars.Context().run, args=(self._run,), daemon=True, name="live-browser")
         self._thread.start()
         self._context = None
         self._driver = None
@@ -292,6 +303,84 @@ class LiveSession:
         self._owned_processes: dict[int, float] = {}
         self._driver_pid = 0
         self._download: tuple[str, bytes] | None = None
+        self._proxy_server = None
+        self._proxy_clients: set[Any] = set()
+        self.engine_network_refusals = 0
+        self._loop.call_soon_threadsafe(self._check_owner_lease)
+
+    def owner_heartbeat(self) -> None:
+        """Only the owner HTTP state door renews presence, never model reads."""
+        with self._mutex:
+            if not self.closed:
+                self._owner_deadline = time.monotonic() + self._lease_seconds
+
+    def _check_owner_lease(self) -> None:
+        if self.closed:
+            return
+        if time.monotonic() < self._owner_deadline:
+            self._loop.call_later(min(5, self._lease_seconds / 2), self._check_owner_lease)
+            return
+        # Cleanup cannot join this event loop from its own thread. The owned
+        # cleanup thread leaves the loop free to finish context/driver closure.
+        self._lease_cleanup = threading.Thread(target=self._expire_owner_lease, daemon=True)
+        self._lease_cleanup.start()
+
+    def _expire_owner_lease(self) -> None:
+        # Preserve cleanup_failed and the retryable session for the owner.
+        with contextlib.suppress(BrowserFault):
+            self.stop()
+
+    def _complete(self, proposal_id: str, result: dict) -> None:
+        with self._mutex:
+            self._completed[proposal_id] = result
+            while len(self._completed) > 8:
+                self._completed.pop(next(iter(self._completed)))
+
+    def wait_for_owner(self, proposal: dict, source_context: dict) -> dict:
+        """Continue the original served tool call after its exact owner decision."""
+        from core.i18n import catalog_for
+        from core.runtime_task_events import emit_runtime_event
+        from core.tool_intent_executor import _turn_was_cancelled
+
+        proposal_id = proposal["id"]
+        view_url = "/browser?chat=" + quote(self.chat)
+        emit_runtime_event(
+            source_context, event_type="browser_approval_required",
+            message=catalog_for(str(source_context.get("ui_locale") or "en")).text("live.approval_required"),
+            details={"view_url": view_url, "proposal_id": proposal_id, "op": proposal["op"]},
+        )
+        from core import runtime_active_clock
+
+        with contextlib.ExitStack() as human_wait:
+            if runtime_active_clock.enabled():
+                human_wait.enter_context(runtime_active_clock.paused())
+            return self._wait_for_decision(proposal, source_context, human_wait, _turn_was_cancelled)
+
+    def _wait_for_decision(self, proposal: dict, source_context: dict, human_wait, cancelled) -> dict:
+        proposal_id = proposal["id"]
+        view_url = "/browser?chat=" + quote(self.chat)
+        while time.monotonic() < proposal["expires"] + 22:
+            if cancelled(source_context) or not available():
+                self.stop()
+                return {"ok": False, "status": "cancelled" if available() else "web_off"}
+            with self._mutex:
+                if self.closed:
+                    return {"ok": False, "status": self.state}
+                if not self.pending or self.pending["id"] != proposal_id:
+                    human_wait.close()  # Engine/model time remains chargeable.
+                if proposal_id in self._completed:
+                    return {**copy.deepcopy(self._completed.pop(proposal_id)), "view_url": view_url}
+                if self.takeover:
+                    return {"ok": False, "status": "paused", "view_url": view_url}
+                if self.pending and self.pending["id"] == proposal_id and time.monotonic() >= proposal["expires"]:
+                    self.pending = None
+                    self._submission_previews.pop(proposal_id, None)
+                    self._telemetry.pop(proposal_id, None)
+                    self.state = "refused"
+                    return {"ok": False, "status": "stale_approval", "view_url": view_url}
+            self._stopped.wait(.05)
+        self.stop()
+        return {"ok": False, "status": "operation_timeout", "view_url": view_url}
 
     def _run(self) -> None:
         asyncio.set_event_loop(self._loop)
@@ -334,20 +423,21 @@ class LiveSession:
         flags = [a for a in isolation_launch_flags(profile_dir=str(self.profile)) if not a.startswith("--user-data-dir=")]
         import os
 
-        self._browser = await self._driver.chromium.launch(
-            executable_path=binary, headless=True, args=flags, timeout=5000,
+        self._proxy_server = await asyncio.start_server(self._deny_engine_network, '127.0.0.1', 0)
+        proxy_port = self._proxy_server.sockets[0].getsockname()[1]
+        # Only the approved Python gateway can reach a site. Chromium's background
+        # services see a rejecting loopback proxy; DNS and QUIC cannot bypass it.
+        flags += ['--disable-quic', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1']
+        self._context = await self._driver.chromium.launch_persistent_context(
+            user_data_dir=str(self.profile), executable_path=binary, headless=True,
+            args=flags, timeout=10000, chromium_sandbox=True,
+            proxy={'server':f'http://127.0.0.1:{proxy_port}', 'bypass':'<-loopback>'},
             downloads_path=str(self.profile / "downloads"), env={**os.environ, "TMPDIR": str(self.profile)},
-        )
-        cdp = await self._browser.new_browser_cdp_session()
-        info = await cdp.send("SystemInfo.getProcessInfo")
-        for process in info["processInfo"]:
-            if process["type"] == "browser":
-                self._record_process(int(process["id"]))
-        await cdp.detach()
-        self._context = await self._browser.new_context(
             java_script_enabled=False, service_workers="block", accept_downloads=False,
             permissions=[], viewport={"width": 1100, "height": 720},
         )
+        self._browser = self._context.browser
+        self._record_driver_tree()
         await self._context.route("**/*", self._route)
         await self._context.route_web_socket("**/*", lambda ws: ws.close())
         self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
@@ -355,6 +445,20 @@ class LiveSession:
         self._context.on("page", lambda page: asyncio.create_task(page.close()) if page != self._page else None)
         self._page.on("dialog", lambda dialog: asyncio.create_task(dialog.dismiss()))
         self._page.on("download", lambda download: asyncio.create_task(download.cancel()))
+
+    async def _deny_engine_network(self, reader, writer) -> None:
+        self._proxy_clients.add(writer)
+        self.engine_network_refusals += 1
+        try:
+            with contextlib.suppress(asyncio.TimeoutError, ConnectionError):
+                await asyncio.wait_for(reader.read(4096), timeout=1)
+                writer.write(b'HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+                await writer.drain()
+        finally:
+            writer.close()
+            with contextlib.suppress(asyncio.TimeoutError, ConnectionError):
+                await asyncio.wait_for(writer.wait_closed(), timeout=1)
+            self._proxy_clients.discard(writer)
 
     async def _route(self, route: Any) -> None:
         request = route.request
@@ -367,7 +471,7 @@ class LiveSession:
                 await route.abort()
                 return
             permit["used"] = True
-            status, headers, raw = await asyncio.to_thread(_fetch, request.url, request.method, await request.all_headers(), request.post_data_buffer, self.fixture_origin, (self._stopped, permit["cancelled"]), {"session_id": self.chat, "private_chat": self.private}, False)
+            status, headers, raw = await asyncio.to_thread(_fetch, request.url, request.method, await request.all_headers(), request.post_data_buffer, self.fixture_origin, (self._stopped, permit["cancelled"]), {"session_id": self.chat, "private_chat": self.private}, False, permit.get("telemetry"))
             if self.closed or self._permit is not permit or not available():
                 await route.abort()
                 return
@@ -434,11 +538,14 @@ class LiveSession:
             await self._context.add_cookies(cookies)
 
     def snapshot(self) -> dict[str, Any]:
+        if not self.closed and not available():
+            self.stop()
         with self._mutex:
-            if not self.closed and not available():
-                self.stop()
+            pending = copy.deepcopy(self.pending)
+            if pending and pending['id'] in self._submission_previews:
+                pending['submission'] = copy.deepcopy(self._submission_previews[pending['id']])
             return {"ok": True, "id": self.id, "state": self.state, "takeover": self.takeover,
-                    "pending": copy.deepcopy(self.pending), "url": self.url, "revision": self.revision,
+                    "pending": pending, "url": self.url, "revision": self.revision,
                     "nodes": self.nodes, "frame": self.frame, "result": self.result,
                     "private": self.private, "closed": self.closed, "download_ready": self._download is not None}
 
@@ -453,6 +560,7 @@ class LiveSession:
             if op not in {"navigate", "inspect", "click", "type", "scroll", "download", "upload"}:
                 raise BrowserFault("unsupported")
             safe: dict[str, Any] = {}
+            review = None
             if op in {"navigate", "download"}:
                 url = _canonical_url(args.get("url"))
                 safe["url"] = url
@@ -504,11 +612,30 @@ class LiveSession:
                     if len(raw) > 1_000_000:
                         raise BrowserFault("page_too_large")
                     safe["file"] = {"name": Path(str(file.get("name") or "upload")).name[:100], "mimeType": "application/octet-stream", "buffer": base64.b64encode(raw).decode()}
+                submits = (op == "click" and node.get("form", -1) >= 0 and node.get("navigates")) or (op == "type" and safe.get("submit"))
+                if submits:
+                    if node.get("form", -1) < 0:
+                        raise BrowserFault("invalid_input")
+                    from core.vool_browser.live_forms import submission_preview
+                    from core.vool_browser.live_requests import submission_allowed
+
+                    if actor == "agent" and not submission_allowed():
+                        raise BrowserFault("request_scope_required")
+                    try:
+                        review = submission_preview(self._forms[node['form']], node, safe)
+                    except ValueError:
+                        raise BrowserFault("invalid_input") from None
             if op == "scroll":
                 safe["direction"] = "up" if args.get("direction") == "up" else "down"
             token = uuid.uuid4().hex
+            if actor == "agent":
+                from core.remote_fetch_policy import capture_remote_fetch_telemetry
+
+                self._telemetry[token] = capture_remote_fetch_telemetry()
             self.pending = {"id": token, "op": op, "args": safe, "actor": actor,
                             "revision": self.revision, "expires": time.monotonic() + 120}
+            if review is not None:
+                self._submission_previews[token] = review
             self.state = "approval_required"
             return {"ok": False, "status": "approval_required", "view_url": "/browser?chat=" + quote(self.chat), "proposal": copy.deepcopy(self.pending)}
 
@@ -518,15 +645,22 @@ class LiveSession:
             pending = self.pending
             if not pending or pending["id"] != proposal_id:
                 raise BrowserFault("stale_approval")
+            self._submission_previews.pop(proposal_id, None)
             self.pending = None  # consume before dispatch; no replay, even after failure
             if not approve:
+                self._telemetry.pop(pending["id"], None)
                 self.state = "refused"
+                self._complete(pending["id"], {"ok": False, "status": "refused"})
                 return self.snapshot()
             if pending["expires"] < time.monotonic() or pending["revision"] != self.revision:
+                self._telemetry.pop(pending["id"], None)
                 self.state = "refused"
                 raise BrowserFault("stale_approval")
             self.state = "running"
-            self._task = asyncio.run_coroutine_threadsafe(self._execute_bounded(pending), self._loop)
+            pending["_telemetry"] = self._telemetry.pop(pending["id"], None)
+            # An owner-approved command has its own execution context. A nested
+            # caller cannot accidentally transfer model confinement or authority.
+            self._task = contextvars.Context().run(asyncio.run_coroutine_threadsafe, self._execute_bounded(pending), self._loop)
             return {"ok": True, "state": "running"}
 
     async def _execute_bounded(self, proposal: dict) -> None:
@@ -539,6 +673,7 @@ class LiveSession:
                 self.nodes = []
                 self.frame = ""
                 self.state = "page_failed"
+                self._complete(proposal["id"], {"ok": False, "status": "page_failed"})
 
     async def _execute(self, proposal: dict) -> None:
         self._execution_task = asyncio.current_task()
@@ -557,13 +692,13 @@ class LiveSession:
             if op == "download":
                 # Fetching an approved attachment must not navigate the live
                 # document to an aborted/error page and lose its origin.
-                self._permit = {"url": args["url"], "method": "GET", "used": True, "op": op, "cancelled": threading.Event()}
+                self._permit = {"url": args["url"], "method": "GET", "used": True, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                 cookies = await self._context.cookies(args["url"])
                 headers = {"Cookie": "; ".join(c["name"] + "=" + c["value"] for c in cookies)}
                 status, response_headers, raw = await asyncio.to_thread(
                     _fetch, args["url"], "GET", headers, None, self.fixture_origin,
                     (self._stopped, self._permit["cancelled"]),
-                    {"session_id": self.chat, "private_chat": self.private}, True,
+                    {"session_id": self.chat, "private_chat": self.private}, True, proposal.get("_telemetry"),
                 )
                 if self.closed:
                     raise BrowserFault("stopped")
@@ -575,7 +710,7 @@ class LiveSession:
                 else:
                     self._download = ("download.bin", raw)
             elif op == "navigate":
-                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event()}
+                self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                 await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
             elif op in {"click", "type", "upload"}:
                 node = self._page.locator(args["selector"])
@@ -591,11 +726,11 @@ class LiveSession:
                     else:
                         await node.fill(args["text"])
                     if args.get("submit"):
-                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event()}
+                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                         async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
                             await node.press("Enter")
                 else:
-                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event()}
+                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                     if args.get("navigates"):
                         async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
                             await node.click()
@@ -606,17 +741,20 @@ class LiveSession:
             outcome = "ready" if not self._blocked else self._blocked
         except asyncio.CancelledError:
             observe = False
-            outcome = "stopped" if self.closed else "ready"
+            outcome = "stopped" if self.closed else "paused" if self.takeover else "cancelled"
         except Exception as exc:
+            self.result["failure_class"] = type(exc).__name__
             outcome = "ready" if self._download else (self._blocked or (str(exc) if isinstance(exc, BrowserFault) else "page_failed"))
         finally:
+            proposal.pop("_telemetry", None)
             if self._permit:
                 self._permit["cancelled"].set()
             self._permit = None
             if observe and not self.closed and self._page is not None:
                 try:
                     await self._observe()
-                except Exception:
+                except Exception as exc:
+                    self.result["observation_failure_class"] = type(exc).__name__
                     self.nodes = []
                     self.frame = ""
                     if outcome == "ready" and not self._download:
@@ -630,34 +768,27 @@ class LiveSession:
                     approved_proposal_id=proposal["id"], revision=proposal["revision"],
                 )
                 self.state = outcome
+                completed = {"ok": outcome == "ready", "status": "executed" if outcome == "ready" else outcome, "receipt": self.result["receipt"]}
+                if outcome == "ready" and self.result.get("page"):
+                    completed.update(copy.deepcopy(self.result["page"]))
+                    completed["result"] = copy.deepcopy(self.result)
+                    completed["nodes"] = {"content_class": "untrusted_page_evidence", "authority": "none", "items": copy.deepcopy(self.nodes)}
+                self._complete(proposal["id"], completed)
 
     async def _observe(self) -> None:
         self.url = self._page.url
         # Fixed source, never a caller/page expression. Stable visible-node handles
         # are regenerated after every action and invalidated by the revision.
-        self.nodes = await self._page.evaluate("""() => {
-          document.querySelectorAll('[data-vool-live]').forEach(e => e.removeAttribute('data-vool-live'));
-          return [...document.querySelectorAll('a,button,input,textarea,select')]
-            .filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')
-            .slice(0,100).map((e,i) => {
-              e.setAttribute('data-vool-live', String(i)); const f=e.form;
-              const method=f ? (e.getAttribute('formmethod')||f.method||'GET').toUpperCase() : 'GET';
-              let target=e.href || (f ? new URL(e.getAttribute('formaction')||f.action, document.baseURI).href : location.href);
-              if(f && method==='GET' && !f.querySelector('input[type=password]')) {
-                const address=new URL(target); const fields=new URLSearchParams();
-                for(const [key,value] of new FormData(f)) fields.append(key, typeof value==='string' ? value : value.name);
-                if(e.type==='submit' && e.name) fields.append(e.name,e.value);
-                address.search=fields.toString(); target=address.href;
-              }
-              return {selector:'[data-vool-live="'+i+'"]', tag:e.tagName.toLowerCase(), name:e.name||'',
-                label:(e.innerText||e.getAttribute('aria-label')||e.getAttribute('name')||e.type||'').slice(0,120),
-                type:e.type||'', navigates:!!e.href || (!!f && e.type==='submit'),
-                target:target.slice(0,4096), target_too_long:target.length>4096, method,
-                password_form:!!f && !!f.querySelector('input[type=password]'),
-                options:e.tagName==='SELECT' ? [...e.options].slice(0,100).map(o=>({value:o.value,label:o.label.slice(0,120)})) : [],
-                payment:!!e.closest('[data-payment]')};
-            });
-        }""")
+        from core.vool_browser.live_forms import OBSERVE, payment_form
+
+        observed = await self._page.evaluate(OBSERVE)
+        if self.closed:
+            return
+        self.nodes, self._forms = observed['nodes'], observed['forms']
+        for node in self.nodes:
+            form = self._forms[node['form']] if node['form'] >= 0 else None
+            if form is not None and payment_form(form):
+                node['payment'] = True
         text = (await self._page.locator("body").inner_text())[:50000]
         self.result["page"] = Untrusted.wrap(text, url=self.url, origin=urlsplit(self.url).netloc, title=(await self._page.title())[:300])
         self.frame = base64.b64encode(await self._page.screenshot(type="jpeg", quality=65, timeout=3000)).decode()
@@ -666,19 +797,26 @@ class LiveSession:
     def take_over(self, value: bool) -> dict[str, Any]:
         with self._mutex:
             self.takeover = value
+            if self.pending:
+                self._telemetry.pop(self.pending["id"], None)
+                self._submission_previews.pop(self.pending["id"], None)
             self.pending = None
-            if value and self._task and not self._task.done():
+            running = bool(value and self._task and not self._task.done())
+            if running:
                 if self._permit:
                     self._permit["cancelled"].set()
                 self._task.cancel()
-                settling = asyncio.run_coroutine_threadsafe(self._settle_takeover(), self._loop)
-                try:
-                    settling.result(timeout=3)
-                except Exception as exc:
-                    raise BrowserFault("busy") from exc
             elif self.state == "approval_required":
                 self.state = "ready"
-            return self.snapshot()
+        if running:
+            # Cancellation completes through _complete, which needs _mutex.
+            # Never hold the caller's lock while waiting on that event loop.
+            settling = asyncio.run_coroutine_threadsafe(self._settle_takeover(), self._loop)
+            try:
+                settling.result(timeout=3)
+            except Exception as exc:
+                raise BrowserFault("busy") from exc
+        return self.snapshot()
 
     async def _settle_takeover(self) -> None:
         # Let cancellation reach the asyncio task even if the outer future was
@@ -701,6 +839,10 @@ class LiveSession:
             self.nodes = []
             self.result = {}
             self._download = None
+            self._completed.clear()
+            self._telemetry.clear()
+            self._forms.clear()
+            self._submission_previews.clear()
             self.url = ""
             self._document_origin = ""
             self.state = "stopping"
@@ -725,6 +867,8 @@ class LiveSession:
             self._driver_manager = self._driver_start = self._opening = None
             self._task = self._execution_task = self._closing_future = None
             self._browser = None
+            self._proxy_server = None
+            self._proxy_clients.clear()
             self._owned_processes.clear()
             self._routes.clear()
             if self.profile.exists() or self.profile.is_symlink():
@@ -748,6 +892,7 @@ class LiveSession:
         # session. Creation times fence PID reuse. No names or global scans.
         owned = list(self._owned_processes.items())
         owned.sort(key=lambda entry: entry[0] == self._driver_pid)
+        waiting = []
         for pid, created in owned:
             if pid == self._driver_pid and not include_driver:
                 continue
@@ -756,13 +901,17 @@ class LiveSession:
                 if process.create_time() != created:
                     continue
                 process.terminate()
-                try:
-                    process.wait(timeout=0.5)
-                except psutil.TimeoutExpired:
-                    process.kill()
-                    process.wait(timeout=1)
+                waiting.append(process)
             except psutil.NoSuchProcess:
                 pass
+        _, alive = psutil.wait_procs(waiting, timeout=0.5)
+        for process in alive:
+            with contextlib.suppress(psutil.NoSuchProcess):
+                if process.create_time() == self._owned_processes.get(process.pid):
+                    process.kill()
+        _, alive = psutil.wait_procs(alive, timeout=1)
+        if alive:
+            raise BrowserFault("cleanup_failed")
 
     def _record_driver_tree(self) -> None:
         import psutil
@@ -824,6 +973,12 @@ class LiveSession:
             route_task.cancel()
         if routes:
             await asyncio.gather(*routes, return_exceptions=True)
+        if self._proxy_server:
+            self._proxy_server.close()
+            await self._proxy_server.wait_closed()
+        for writer in tuple(self._proxy_clients):
+            writer.close()
+        self._proxy_clients.clear()
         closing = []
         if self._context:
             closing.append(asyncio.create_task(self._context.close()))
@@ -834,6 +989,9 @@ class LiveSession:
         self._record_driver_tree()
         await asyncio.to_thread(self._stop_owned_processes)
         if closing:
+            _, pending = await asyncio.wait(closing, timeout=1)
+            for pending_task in pending:
+                pending_task.cancel()
             await asyncio.gather(*closing, return_exceptions=True)
         if self._driver:
             self.cleanup_metrics["phase"] = "driver_close"
@@ -841,6 +999,9 @@ class LiveSession:
             done, _ = await asyncio.wait({stopping}, timeout=1)
             if not done:
                 await asyncio.to_thread(self._stop_owned_processes, True)
+                done, _ = await asyncio.wait({stopping}, timeout=1)
+                if not done:
+                    stopping.cancel()
             await asyncio.gather(stopping, return_exceptions=True)
         if task and task is not asyncio.current_task() and not task.done():
             task.cancel()
@@ -856,17 +1017,26 @@ class LiveSession:
 
 def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
     """The existing chat tool seam; tool payloads only propose, never decide."""
-    from core.remote_fetch_policy import remote_fetch_allowed_by_context
+    from core.remote_fetch_policy import local_only_active, remote_fetch_allowed_by_context
     from core.vool_browser.live_contracts import SUPPORTED
+    from core.vool_browser.live_requests import confine, tool_allowed
 
     if intent not in SUPPORTED:
         raise BrowserFault("unsupported")
+    confine()
+    if not tool_allowed(intent, arguments):
+        raise BrowserFault("request_scope_required")
     chat = str(source_context.get("session_id") or source_context.get("runtime_session_id") or "")
     op = intent.removeprefix("vool-browser.")
     local = op in {"cancel", "session.close", "session.status", "inspect"}
+    if local_only_active(source_context) and op not in {"cancel", "session.close", "session.status"}:
+        item = session(chat)
+        if item:
+            item.stop()
+        raise BrowserFault("web_off")
     if not local:
         _check()
-        if not remote_fetch_allowed_by_context(source_context):
+        if local_only_active(source_context) or not remote_fetch_allowed_by_context(source_context):
             raise BrowserFault("web_off")
     item = session(chat, create=not local)
     if item is None:
@@ -879,7 +1049,7 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
     if op == "inspect" and arguments.get("mode") in {"scroll_up", "scroll_down"}:
         if not remote_fetch_allowed_by_context(source_context):
             raise BrowserFault("web_off")
-        return item.propose("scroll", {"direction": "up" if arguments["mode"] == "scroll_up" else "down"})
+        return _tool_proposal(item, "scroll", {"direction": "up" if arguments["mode"] == "scroll_up" else "down"}, source_context)
     if op in {"session.status", "inspect"}:
         snap = item.snapshot()
         if op == "session.status":
@@ -904,4 +1074,15 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
     if op == "session.open":
         op = "navigate"
         arguments = {"url": arguments.get("start_url")}
-    return item.propose(op, arguments)
+    return _tool_proposal(item, op, arguments, source_context)
+
+
+def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: dict) -> dict:
+    proposed = item.propose(op, arguments)
+    if op == "navigate":
+        from core.vool_browser.live_requests import note_navigation_proposal
+
+        note_navigation_proposal(arguments["url"])
+    if source_context.get("live_browser_wait_for_owner") is True:
+        return item.wait_for_owner(proposed["proposal"], source_context)
+    return proposed

@@ -1250,6 +1250,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
+  <button id="browserBtn" type="button" data-i18n="live.browser">Browser</button>
   <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
@@ -11676,6 +11677,9 @@ function openSettings(section) {
   openSettingsInFrame(section);
 }
 function openSettingsInFrame(section) { openSurfaceInFrame('/settings' + (section ? ('#' + section) : ''), 'VOOL Settings'); }
+document.getElementById('browserBtn').addEventListener('click', () => {
+  openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
+});
 // The SAME frame overlay carries any second surface of this runtime (Settings, guided setup): one
 // overlay, one close path (Back / Escape / click outside), the chat and its draft untouched.
 function openSurfaceInFrame(url, label) {

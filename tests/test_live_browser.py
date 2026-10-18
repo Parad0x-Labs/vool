@@ -47,6 +47,14 @@ def world(pact_rig, request):
             <a href="/other">Later trains</a><a href="/file" download>Download</a>
             <form method="post" action="/submit" enctype="multipart/form-data"><input name="address"><input name="password" type="password"><input name="document" type="file"><button type="submit">Send address</button></form>
             <form method="get" action="/find"><input name="destination"><select name="service"><option value="day">Day train</option><option value="night">Night train</option></select><button type="submit">Find train</button></form><div style="height:1600px">Platform 2</div>'''
+            if path == '/review':
+                content=b'<form method="post" action="/review-submit"><input type="hidden" name="destination" value="fixture-destination"><input name="address"><input name="password" type="password"><button name="decision" value="save" type="submit">Send address</button></form>'
+            if path == '/unreviewable':
+                content=('<form method="post" action="/review-submit">'+''.join('<input type="hidden" name="field'+str(i)+'" value="x">' for i in range(201))+'<button type="submit">Send</button></form>').encode()
+            if path == '/payment':
+                kind=parse_qs(urlsplit(self.path).query).get('kind',['card'])[0]
+                field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>'}[kind]
+                content=('<form method="post" action="/review-submit">'+field+'<button type="submit">Send</button></form>').encode()
             if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a>'
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()
             if path == '/find':

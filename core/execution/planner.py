@@ -2842,6 +2842,10 @@ def plan_tool_workflow(
     executed_steps: list[dict[str, Any]],
     source_context: dict[str, Any] | None,
 ) -> WorkflowPlannerDecision:
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if browser_requested(user_text):
+        return WorkflowPlannerDecision(handled=False, reason="supervised_browser_model_loop")
     raw_text = str(user_text or "")
     text = " ".join(raw_text.split()).strip()
     lowered = f" {text.lower()} "
