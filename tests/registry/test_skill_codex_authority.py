@@ -365,7 +365,10 @@ def test_a_lost_answer_to_an_admission_is_sent_again_and_never_reviewed_twice(wo
     lost = lose_answers(world, "/authority/submissions/")
     report = world.mac.run_once()
     assert lost and report["admitted"] == [] and report["errors"] == ["alice/notes 1.0.0: the server refused: HTTP 502"]
-    assert "alice/notes" not in rows(world) and world.store.queue() == []  # admitted on the service, not yet listed
+    assert world.http.get(PREFIX + "/catalog").status_code == 400
+    assert world.http.get(PREFIX + "/catalog").json() == {"error": "approved catalog is not configured"}
+    assert world.store.queue() == []  # admitted on the service; the stopped run signed no catalog
+    assert "catalog" not in report and "did not confirm" in report["stopped"]
     report = world.mac.run_once()
     assert report["admitted"] == ["alice/notes 1.0.0"] and report["errors"] == []
     assert "alice/notes" in rows(world) and len(world.model.calls) == 1

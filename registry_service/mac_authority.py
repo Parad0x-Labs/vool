@@ -233,7 +233,27 @@ class Authority:
             except (RegistryError, ValueError, AttributeError):
                 message = ""
             raise RegistryError("the server refused: " + (message or f"HTTP {status}"))
-        return data if raw else decode(data, 16 * 1024 * 1024)
+        if raw:
+            return data
+        answer = decode(data, 16 * 1024 * 1024)
+        if method == "POST":
+            if path.startswith("/authority/submissions/"):
+                state = "admitted" if "admission" in value else "refused"
+                require(answer == {"state": state}, "the service returned an invalid decision acknowledgement")
+            elif path == "/authority/marks":
+                require(isinstance(answer, dict) and type(answer.get("sequence")) is int and
+                        answer == {"sequence": value["signed"]["sequence"]},
+                        "the service returned an invalid marks acknowledgement")
+            elif path == "/authority/catalog":
+                published = {entry["signed"]["metadata"]["id"] + "@" + entry["signed"]["metadata"]["version"]
+                             for entry in value["entries"]}
+                require(isinstance(answer, dict) and set(answer) == {"sequence", "expires", "published"} and
+                        type(answer["sequence"]) is int and answer["sequence"] > 0 and
+                        type(answer["expires"]) is int and self.now() < answer["expires"] <= value["authorization"]["signed"]["expires"] and
+                        isinstance(answer["published"], list) and len(answer["published"]) <= len(published) and
+                        all(isinstance(item, str) and item in published for item in answer["published"]),
+                        "the service returned an invalid catalog acknowledgement")
+        return answer
 
     # ---- checks and signing ----
 
@@ -389,7 +409,8 @@ class Authority:
             except RegistryError as exc:
                 if "not waiting for checks" not in str(exc):
                     report["errors"].append(item["label"] + ": " + str(exc))
-                    continue  # try again next run
+                    report["stopped"] = "the service did not confirm an admission; the next run retries"
+                    return  # retain this pending decision and stop before any later send
                 # Refused or gone on the service meanwhile (a suspension, say): it is not listed.
                 report["errors"].append(item["label"] + ": no longer waiting on the service; not listed")
             else:
@@ -455,12 +476,15 @@ class Authority:
             self.save()  # preserve paid costs and verdicts for the retry, without an admission or catalog write
             return report
         self._deliver(report)
+        if report.get("stopped"):
+            self.save()
+            return report
         for item, raw, result in checked:
             label = item["package_id"] + " " + item["version"]
             try:
                 if "refused" in result:
-                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
-                                                                             "refused": _shown(result["refused"])})
+                    self.call("POST", "/authority/submissions/" + item["id"],
+                              {"sha256": item["sha256"], "refused": _shown(result["refused"])})
                     report["refused"].append(label)
                 elif "admission" in result:
                     self._store(raw)
@@ -472,8 +496,11 @@ class Authority:
                 else:
                     report["waiting"].append(label)
             except RegistryError as exc:
-                report["errors"].append(label + ": " + str(exc))  # this upload waits; the others go on
+                report["errors"].append(label + ": " + str(exc))
+                report["stopped"] = "the service did not confirm a decision; the next run retries"
             self.save()
+            if report.get("stopped"):
+                return report
         if renewed:
             self.state["unpublished"] = True
         if self.state.get("unpublished") or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
