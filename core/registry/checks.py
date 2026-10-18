@@ -337,8 +337,9 @@ def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]]) -> l
         lines = text.splitlines()
         if name.endswith(".json"):
             try:
-                # Package paths such as "./skills/" are structure the loader checks, not words anyone reads.
-                lines = [line for value in _strings(json.loads(text)) if not value.startswith("./")
+                # Plain package paths such as "./skills/" are loader structure. A path prefix never excuses
+                # the words following it, and outer public metadata has no path exemption.
+                lines = [line for value in _strings(json.loads(text)) if name == REVIEW_METADATA or not re.fullmatch(r"\./[A-Za-z0-9._/-]+", value)
                          for line in value.splitlines()]
             except ValueError:
                 lines = text.splitlines()
