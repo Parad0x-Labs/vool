@@ -78,6 +78,41 @@ def root_document(value: dict, now: int, *, allow_expired: bool = False) -> dict
     return value
 
 
+def persisted_root(anchor: dict, state: Path, *, now: int) -> dict:
+    """Read an unexpired successor with a complete signature chain, without writes."""
+    from core.registry.codec import decode
+
+    root = root_document(anchor.get("signed"), now, allow_expired=True)
+    verify(anchor, root, "root")
+    db = sqlite3.connect(state.resolve().as_uri() + "?mode=ro", uri=True)
+    try:
+        row = db.execute("SELECT root FROM trust WHERE id=1").fetchone()
+        require(row, "registry trust state missing")
+        current = decode(row[0], 65536)
+        require(isinstance(current, dict), "invalid persisted root")
+        final = root_document(current.get("signed"), now)
+        require(root["version"] < final["version"] <= root["version"] + 4096, "invalid persisted root version")
+        history = {}
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='root_history'").fetchone():
+            history = dict(db.execute("SELECT version, root FROM root_history WHERE version>? AND version<=?",
+                                      (root["version"], final["version"])))
+        # A pre-history database can still prove one rotation from its dual-signed
+        # current envelope. Missing intermediate roots never establish a chain.
+        history[final["version"]] = row[0]
+        for version in range(root["version"] + 1, final["version"] + 1):
+            require(version in history, "registry root history is incomplete")
+            envelope = decode(history[version], 65536)
+            require(isinstance(envelope, dict), "invalid root history envelope")
+            successor = root_document(envelope.get("signed"), now, allow_expired=True)
+            require(successor["version"] == version, "registry root history version mismatch")
+            verify(envelope, root, "root")
+            verify(envelope, successor, "root")
+            root = successor
+        return current
+    finally:
+        db.close()
+
+
 class TrustedCatalog:
     """Persist monotonic versions and exact metadata hashes transactionally."""
 

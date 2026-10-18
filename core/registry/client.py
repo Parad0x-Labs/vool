@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import os
 import platform
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -249,15 +250,18 @@ def _anchor() -> Path:
 
 
 def _read_anchor() -> dict:
-    from core.registry.trust import root_document, verify
+    from core.registry.trust import persisted_root, root_document, verify
 
     try:
         root = decode(_anchor().read_bytes(), 65536)
         require(isinstance(root, dict), CLOSED)
-        document = root_document(root.get("signed"), int(time.time()))
+        now = int(time.time())
+        document = root_document(root.get("signed"), now, allow_expired=True)
         verify(root, document, "root")
+        if document["expires"] <= now:
+            return persisted_root(root, home() / "config" / STATE_NAME, now=now)
         return root
-    except (OSError, RegistryError, KeyError, TypeError, ValueError):
+    except (OSError, RegistryError, sqlite3.Error, KeyError, TypeError, ValueError):
         raise RegistryError(CLOSED) from None
 
 
