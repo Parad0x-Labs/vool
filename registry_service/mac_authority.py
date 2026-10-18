@@ -65,6 +65,10 @@ _FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120, "rule": 
 STEP = 30
 
 
+class RunStopped(Exception):
+    """A run-wide failure that must not become one upload's content refusal."""
+
+
 # ---- one-time codes (RFC 6238, as Google Authenticator uses them) ----
 
 def totp(secret: bytes, counter: int) -> str:
@@ -277,8 +281,8 @@ class Authority:
         try:
             return self._check(raw, official=official)
         except Exception as exc:  # anything unexpected about one package refuses it, never stops the signer
-            if isinstance(exc, (OSError, MemoryError)):
-                raise  # this Mac's own trouble, not the package's
+            if isinstance(exc, (OSError, MemoryError, RunStopped)):
+                raise  # a device or run-wide failure, not the package's content
             self._said_unreadable(raw, exc)
             return {"refused": [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]}
 
@@ -322,6 +326,7 @@ class Authority:
                 return {"refused": [{"check": "instructions-secondary", "path": "package", "reason":
                                      "This account has used this month's checks. Upload it again next month."}]}
             self.state["reviews"] = {month: used}  # older months are done with
+            self.before_review()
             try:
                 result = self.review.review(artifact, self._texts(artifact))
             except (CapReached, NoAnswer) as exc:
@@ -420,6 +425,9 @@ class Authority:
                 report["admitted"].append(item["label"])
             del pending[sha]
             self.save()
+
+    def before_review(self) -> None:
+        """Check run-wide prerequisites immediately before spending on a new verdict."""
 
     def review_checkpoint(self) -> None:
         self.save()

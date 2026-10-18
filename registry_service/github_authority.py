@@ -58,6 +58,7 @@ from registry_service.mac_authority import (
     ROOT_SECONDS,
     Authority,
     MissingArtifact,
+    RunStopped,
     _exclusive,
     _public,
     _raw_key,
@@ -142,8 +143,8 @@ def _public_json(value) -> bytes:
 
 # ---- the repository ----
 
-class Superseded(Exception):
-    """Another signer run changed the state first. This run stops before it sends anything.
+class Superseded(RunStopped):
+    """Another signer run changed the state first. This run stops before further writes or reviews.
 
     Not a RegistryError, so no handler for one upload's trouble catches it and lets the run go on.
     """
@@ -178,9 +179,9 @@ class Repository:
         self._git("merge", "-q", "--ff-only", "FETCH_HEAD")
 
     def fresh(self) -> None:
-        """Stop when another run changed the state on GitHub since this run began: two signers ran at once."""
+        """Stop when a remote state or operator-step commit overtakes this run."""
         self._git("fetch", "-q", "origin", self.branch)
-        if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER).stdout.strip():
+        if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER, STEPS).stdout.strip():
             raise Superseded("another signer run changed the state meanwhile; this run stopped before sending anything")
 
     def save(self, message: str) -> bool:
@@ -194,7 +195,7 @@ class Repository:
             if self._git("push", "-q", "origin", "HEAD:refs/heads/" + self.branch, check=False).returncode == 0:
                 return True
             self.fresh()
-            self._git("rebase", "-q", "FETCH_HEAD")  # only the team's own files moved, team-steps.txt say
+            self._git("rebase", "-q", "FETCH_HEAD")  # only unrelated repository files moved
         raise RegistryError("the signer's state could not be pushed to GitHub")
 
 
@@ -404,6 +405,9 @@ class RepoAuthority(Authority):
     def checkpoint(self, message: str = "Skill Codex: state before sending") -> None:
         self.save()
         self.repository.save(message)
+
+    def before_review(self) -> None:
+        self.repository.fresh()
 
     def review_checkpoint(self) -> None:
         self.checkpoint("Skill Codex: review state before next upload")

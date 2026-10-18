@@ -323,7 +323,7 @@ def test_a_second_signer_running_at_the_same_time_stops_before_sending_anything(
     with pytest.raises(github_authority.Superseded, match="another signer run changed the state"):
         late.run_once()
     assert [call for call in world.sent[sent:] if call[0] == "POST"] == []  # not even the refusal
-    assert len(world.model.calls) == reviews + 1  # it stopped at its first send, not after paying for the rest
+    assert len(world.model.calls) == reviews  # a superseded run stops before any paid review
     assert "alice/other" not in rows(world) and json.loads(on_github(world, FOLDER + "/state.json"))["epoch"] == 1
     # The next scheduled run starts from GitHub's newest state and carries on.
     report = run(world)
