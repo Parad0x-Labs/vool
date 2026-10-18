@@ -272,6 +272,13 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         page.wait_for_function('document.documentElement.getAttribute("data-theme") === "light"')
         _shot(page, "09-contacts-light")
         page.set_viewport_size({"width": 390, "height": 844})
+        header = page.locator("#vcOverlay .modal-head").evaluate("""head => Array.from(head.querySelectorAll("#vcTitle, button")).map(n => {
+            const r = n.getBoundingClientRect(); return {text: n.textContent, left: r.left, right: r.right, top: r.top, bottom: r.bottom}; })""")
+        title, *buttons = header
+        for button in buttons:
+            assert 0 <= button["left"] < button["right"] <= 390, header
+            assert (button["left"] >= title["right"] + 8 or title["left"] >= button["right"] + 8
+                or button["top"] >= title["bottom"] + 8 or title["top"] >= button["bottom"] + 8), header
         _shot(page, "10-contacts-narrow-window")
         assert not outside, outside
         assert not errors, errors
