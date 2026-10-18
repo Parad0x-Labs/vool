@@ -454,7 +454,9 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
                                             "text under 120,000 characters.", rule="too-long"))
         return {"artifact": artifact, "findings": findings, "results": {}}
-    secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_text(artifact, checksums=False)})
+    # Scan decoded author text, not JSON escape sequences: escaped quotes must not hide a secret.
+    metadata_words = "\n".join(_strings(json.loads(metadata_text(artifact, checksums=False))))
+    secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_words})
     findings["secrets"] += secrets
     findings["instructions-primary"] += _instructions(texts, secret_lines)
     findings["license"] += _license(artifact)
@@ -462,7 +464,8 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
                                                  "Skill Codex skills can't depend on other packages yet. Empty the requires list."))
-    boundaries = analyze(review_files(artifact))
+    boundary_text = "\n".join(_strings(json.loads(metadata_text(artifact))))
+    boundaries = analyze({**artifact["files"], REVIEW_METADATA: boundary_text.encode("utf-8")})
     findings["native-boundaries"] += [dict(item, reason="This tries to override VOOL's own rules on spending, "
                                            "approvals or permissions. Take it out.") for item in boundaries["conflicts"]]
     if not findings["code"]:
@@ -477,6 +480,12 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
                 exc, RegistryError) else "VOOL could not load this skill"))
     else:
         findings["compatibility"].append(_finding("compatibility", "package", "Not checked until the files above are fixed."))
+    if secret_lines.get(REVIEW_METADATA):
+        for items in findings.values():
+            for item in items:
+                if item.get("path") == REVIEW_METADATA:
+                    item.pop("quote", None)  # do not expose fragments of a secret split across fields or lines
+                    item.pop("line", None)  # decoded metadata has no source-file line number
     publication = {"service": PUBLICATION_SERVICE, "artifact_sha256": artifact["sha256"]}
     results = {
         "source": {"publication": publication, "artifact_sha256": artifact["sha256"]},

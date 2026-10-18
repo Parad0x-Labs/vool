@@ -119,3 +119,36 @@ def test_surrogate_text_is_refused_specifically_before_utf8_review(tmp_path, fie
     raw = outer(tmp_path, **{field: "Unreadable \ud800 text"})
     assert findings(tmp_path, raw) == [
         {"check": "archive", "path": "package", "reason": "invalid " + field.replace("_", " ")}]
+
+
+@pytest.mark.parametrize("field", ["summary", "title", "release_notes", "license"])
+def test_json_escaped_quotes_cannot_hide_a_phrase_in_public_metadata(tmp_path, field):
+    phrase = " ".join(['"act"'] * 4 + ["act"] * 7 + ["add"])  # synthetic dictionary-word fixture, never an account key
+    control = tmp_path / "control"
+    listing = tmp_path / "listing"
+    control.mkdir()
+    listing.mkdir()
+    assert any(item["check"] == "secrets" for item in findings(control, package(control, BODY + "\n" + phrase)))
+    raw = outer(listing, **{field: phrase})
+    hits = findings(listing, raw)
+    assert any(item["check"] == "secrets" and item["path"] == REVIEW_METADATA for item in hits)
+    assert all("quote" not in item and "line" not in item for item in hits if item["path"] == REVIEW_METADATA)
+    assert unsafe(inspect(raw), raw)
+
+
+def test_a_quoted_secret_in_notes_is_refused_before_review_or_publication(world):
+    _, token, csrf = creator(world, "101", "alice")
+    folder = world.tmp / "private-notes"
+    folder.mkdir()
+    raw = outer(folder, release_notes=" ".join(['"act"'] * 4 + ["act"] * 7 + ["add"]))
+    world.http.cookies.set("vool_registry", token)
+    response = world.http.post("/registry/api/submissions", content=raw, headers={
+        "Content-Type": "application/vnd.vool.registry+json", "Origin": ORIGIN, "X-Vool-CSRF": csrf,
+        "X-Vool-Agreement": AGREEMENT})
+    assert response.status_code == 201 and response.json()["state"] == "refused"
+    hits = response.json()["findings"]
+    assert any(item.get("rule") == "secret" for item in hits)
+    assert all("quote" not in item for item in hits)
+    world.http.cookies.clear()
+    assert run(world)["admitted"] == [] and world.model.calls == []
+    assert json.loads(on_github(world, FOLDER + "/registry.json"))["entries"] == []
