@@ -399,6 +399,9 @@ class RepoAuthority(Authority):
         self.save()
         self.repository.save(message)
 
+    def review_checkpoint(self) -> None:
+        self.checkpoint("Skill Codex: review state before next upload")
+
     def call(self, method: str, path: str, value=None, *, raw: bool = False):
         # What is about to be signed and sent is on GitHub first, so a lost run never sends it differently and the
         # spending behind it is kept; a run another run overtook stops here, before it sends anything.
@@ -460,15 +463,16 @@ class RepoAuthority(Authority):
 
     # ---- what a run does besides the uploads ----
 
-    def team_steps(self) -> dict:
-        """Bring the marks and removals in line with team-steps.txt. A line that can't apply yet is reported."""
+    def _read_steps(self) -> dict:
         path = self.repo / STEPS
         try:
-            wanted = parse_steps(path.read_text(encoding="utf-8") if path.exists() else "")
-        except (RegistryError, UnicodeDecodeError) as exc:
-            # Nothing applies, and the last removals keep holding while the file is being fixed.
-            self._removed = set(self.state.get("removed", []))
-            return {"applied": False, "problems": [str(exc) if isinstance(exc, RegistryError) else STEPS + " is not plain text"]}
+            return parse_steps(path.read_text(encoding="utf-8") if path.exists() else "")
+        except UnicodeDecodeError:
+            raise RegistryError(STEPS + " is not plain text") from None
+
+    def team_steps(self, wanted: dict | None = None) -> dict:
+        """Apply a completely parsed set of operator steps, or stop before changing anything."""
+        wanted = self._read_steps() if wanted is None else wanted
         problems = []
         self._removed = set(wanted["removed"]) | {
             item["signed"]["metadata"]["id"] for item in self.state["entries"]
@@ -522,12 +526,21 @@ class RepoAuthority(Authority):
                         {"check": "source", "path": "package", "reason": REMOVED}]})
         return {"applied": True, "problems": problems}
 
-    def follow_releases(self) -> bool:
-        """Once a day: sign for the newest published VOOL releases. True when the builds changed."""
-        if self._releases is not None and self.state.get("releases_checked") != self._today():
+    def _discover_releases(self) -> list | None:
+        if self._releases is None or self.state.get("releases_checked") == self._today():
+            return None
+        try:
             released = self._releases()
             require(validate_policy(checks.policy(released)) in self.root["policies"],
                     "the release list does not fit the trust root")
+        except Exception:
+            raise RegistryError("release discovery failed; the next run retries") from None
+        return released
+
+    def follow_releases(self, released: list | None = None) -> bool:
+        """Persist only a completely validated release discovery."""
+        released = self._discover_releases() if released is None else released
+        if released is not None:
             self.state["released"] = released
             self.state["releases_checked"] = self._today()
             self.save()
@@ -579,25 +592,27 @@ class RepoAuthority(Authority):
 
     @_exclusive
     def run_once(self) -> dict:
-        report = {"steps": self.team_steps(), "dropped": []}
+        # All local instructions and required sources must be readable before any signed write.
+        wanted = self._read_steps()
+        released = self._discover_releases()
+        queue = self.upload_queue()
+        prepared = self.read_uploads(queue)
         from registry_service.operations import summary
 
-        self.state["moderation"] = summary(self.call("GET", "/authority/moderation"))
+        moderation = summary(self.call("GET", "/authority/moderation"))
+        report = {"steps": self.team_steps(wanted), "dropped": []}
+        self.state["moderation"] = moderation
+        report["releases_changed"] = self.follow_releases(released)
+        report["dropped"] = self.recheck()
         try:
-            report["releases_changed"] = self.follow_releases()
-        except RegistryError as exc:
-            report["releases_waiting"] = str(exc)  # GitHub is down: the next run asks again
-            report["releases_changed"] = self._sign_for()  # a build the team named still applies
-        try:
-            report["dropped"] = self.recheck()
-        except RegistryError as exc:
-            report["recheck_waiting"] = str(exc)  # the service is down: the next run looks again
-        try:
-            report.update(super().run_once())
+            report.update(super().run_once(queue=queue, prepared=prepared))
         except BaseException:
             with contextlib.suppress(Exception):
                 self.checkpoint("Skill Codex: state after a stopped run")  # keep what was spent and decided
             raise
+        if report.get("stopped"):
+            self.checkpoint("Skill Codex: review state before retry")
+            return report
         from registry_service.publication import publish
 
         try:
@@ -730,7 +745,11 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
         authority = RepoAuthority(args.repo, repository=repository, transport=transport, clock=clock,
                                   releases=releases or (lambda: released_targets(token=token)))
         try:
-            print(json.dumps(quiet(authority.run_once()), sort_keys=True))
+            report = authority.run_once()
+            if report.get("stopped"):
+                print("Stopped: " + report["stopped"])
+                return 1
+            print(json.dumps(quiet(report), sort_keys=True))
         except Superseded:
             print("Another signer run saved first; this run stopped before sending anything.")
         except (RegistryError, OSError) as exc:

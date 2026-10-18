@@ -398,9 +398,10 @@ def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_not
     assert row["tested"] is True and row["highlighted"] is True
 
     team_steps(world, "tested alice/notes\nremoved alice/notes\n")
-    report = run(world)
-    assert report["steps"]["applied"] is False and "line 1" in report["steps"]["problems"][0]
-    assert quiet(report)["team_steps"][-1] == "nothing applied"
+    before = on_github(world, FOLDER + "/state.json")
+    with pytest.raises(RegistryError, match=r"team-steps\.txt line 1"):
+        run(world)
+    assert on_github(world, FOLDER + "/state.json") == before
     row = rows(world)["alice/notes"]
     assert row["tested"] is True and row["highlighted"] is True  # nothing half-applied
 
@@ -419,6 +420,10 @@ def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_not
 
     team_steps(world, "removed alice/notes\nwhatever this is\n")  # broken again: the removal keeps holding
     upload(world, token, csrf, "alice/notes", version="1.0.2")
+    with pytest.raises(RegistryError, match=r"team-steps\.txt line 2"):
+        run(world)
+    assert "alice/notes" not in rows(world)
+    team_steps(world, "removed alice/notes\n")
     assert run(world)["refused"] == ["alice/notes 1.0.2"]
 
     team_steps(world, "")
@@ -493,9 +498,12 @@ def test_the_signed_builds_follow_vools_published_releases(world):
         raise RegistryError("GitHub could not list VOOL's releases: URLError")
 
     world.clock.t += DAY
-    report = run(world, releases=down)
+    before = on_github(world, FOLDER + "/state.json")
+    with pytest.raises(RegistryError, match="release discovery failed"):
+        run(world, releases=down)
+    assert on_github(world, FOLDER + "/state.json") == before
     world.online.refresh(now=world.clock.t)  # the service's own stamp, every ten minutes
-    assert report["releases_waiting"].startswith("GitHub could not") and "alice/notes" in rows(world)
+    assert "alice/notes" in rows(world)
 
 
 def test_a_build_the_team_names_is_signed_for_before_its_release_and_leaves_with_its_line(world):

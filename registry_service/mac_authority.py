@@ -270,8 +270,9 @@ class Authority:
 
     def _clash(self, metadata: dict) -> str | None:
         """A version number this skill already used or passed, which the signed list cannot hold twice."""
-        mine = [item["signed"]["metadata"] for item in self.state["entries"]] + \
-            [item["admission"]["signed"]["metadata"] for item in self.state.get("pending", {}).values()]
+        mine = ([item["signed"]["metadata"] for item in self.state["entries"]] +
+                [item["admission"]["signed"]["metadata"] for item in self.state.get("pending", {}).values()] +
+                [item["signed"]["metadata"] for item in getattr(self, "_batch_admissions", [])])
         for other in mine:
             if other["id"] == metadata["id"] and version_key(other["version"]) >= version_key(metadata["version"]):
                 return "Version " + metadata["version"] + " is not higher than " + other["version"] + \
@@ -302,7 +303,9 @@ class Authority:
             self.state["reviews"] = {month: used}  # older months are done with
             try:
                 result = self.review.review(artifact, self._texts(artifact))
-            except (CapReached, NoAnswer):
+            except (CapReached, NoAnswer) as exc:
+                self._review_stop = ("monthly review cap reached; uploads wait for the next budget" if
+                                     isinstance(exc, CapReached) else "review service unavailable; the next run retries")
                 return {}  # nothing was answered: it waits, and nothing counts against it
             except ReviewUnavailable:
                 used[publisher] = used.get(publisher, 0) + 1
@@ -396,9 +399,11 @@ class Authority:
             del pending[sha]
             self.save()
 
-    @_exclusive
-    def run_once(self) -> dict:
-        report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+    def review_checkpoint(self) -> None:
+        self.save()
+
+    def upload_queue(self) -> dict:
+        """Validate the complete queue before making any signed write."""
         queue = self.call("GET", "/authority/queue")
         require(isinstance(queue, dict) and set(queue) == {"submissions"} and isinstance(queue["submissions"], list) and
                 len(queue["submissions"]) <= 20, "the service returned an invalid upload queue")
@@ -410,15 +415,48 @@ class Authority:
                     isinstance(item["version"], str) and VERSION.fullmatch(item["version"]) and
                     isinstance(item["sha256"], str) and HEX.fullmatch(item["sha256"]) and
                     type(item["created"]) is int and type(item["official"]) is bool, "the service returned an invalid upload queue")
-        self._deliver(report)
+        return queue
+
+    def read_uploads(self, queue: dict) -> list:
+        # Read the whole batch before paying or sending decisions. A broken source cannot publish half a batch.
+        prepared = []
         for item in queue["submissions"]:
+            raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
+            require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
+            prepared.append((item, raw))
+        return prepared
+
+    @_exclusive
+    def run_once(self, *, queue: dict | None = None, prepared: list | None = None) -> dict:
+        report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        self._review_stop = None
+        self._batch_admissions = []
+        queue = self.upload_queue() if queue is None else queue
+        prepared = self.read_uploads(queue) if prepared is None else prepared
+        checked = []
+        for item, raw in prepared:
+            if item["sha256"] in self.state.get("pending", {}):
+                continue  # the saved decision is retried by _deliver, without another check
+            publisher = item["package_id"].split("/")[0]
+            result = self.check(raw, official=publisher in self.state["marks"]["teams"])
+            self.review_checkpoint()  # keep review costs before attempting another upload
+            checked.append((item, raw, result))
+            if "admission" in result:
+                self._batch_admissions.append(result["admission"])
+            if self._review_stop:
+                break
+        entries = self.state["entries"]
+        renewed = False if self._review_stop else self._renew()
+        if self._review_stop:
+            self.state["entries"] = entries
+            report["waiting"] = [item["package_id"] + " " + item["version"] for item in queue["submissions"]]
+            report["stopped"] = self._review_stop
+            self.save()  # preserve paid costs and verdicts for the retry, without an admission or catalog write
+            return report
+        self._deliver(report)
+        for item, raw, result in checked:
             label = item["package_id"] + " " + item["version"]
             try:
-                raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
-                require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
-                # Whether a skill is the team's comes from this Mac's own signed marks, never from the service's reply.
-                publisher = item["package_id"].split("/")[0]
-                result = self.check(raw, official=publisher in self.state["marks"]["teams"])
                 if "refused" in result:
                     self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
                                                                              "refused": _shown(result["refused"])})
@@ -435,7 +473,7 @@ class Authority:
             except RegistryError as exc:
                 report["errors"].append(label + ": " + str(exc))  # this upload waits; the others go on
             self.save()
-        if self._renew():
+        if renewed:
             self.state["unpublished"] = True
         if self.state.get("unpublished") or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
             report["catalog"] = self.publish()

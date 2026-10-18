@@ -57,8 +57,10 @@ def test_steps_publish_comments_pause_resume_mute_and_curate_without_restart(wor
 def test_bad_syntax_applies_no_operator_actions_or_curation(world):
     _, _, comment = prepared(world)
     team_steps(world, f"comment-publish {comment}\neditors-pick alice/notes\npicture alice/notes bad\n")
-    result = run(world)
-    assert result["steps"]["applied"] is False
+    before = on_github(world, FOLDER + "/state.json")
+    with pytest.raises(RegistryError, match=r"team-steps\.txt line 3"):
+        run(world)
+    assert on_github(world, FOLDER + "/state.json") == before
     assert not rows(world)["alice/notes"]["editors_pick"]
     assert community.held(world.store)[0]["id"] == comment
 
