@@ -569,3 +569,24 @@ def test_actual_engine_profile_sandbox_and_network_rejector_are_owned(world):
     for pid,created in owned:
         try:assert psutil.Process(pid).create_time()!=created
         except psutil.NoSuchProcess:pass
+
+
+def test_prompt_catalog_names_the_actual_native_functions_and_parameters(world):
+    from core.cloud_tool_call_contract import build_cloud_tool_definitions
+    from core.prompt_normalizer import _tool_intent_catalog_text
+    from core.tool_offer_assembly import assemble_tool_offer
+    from core.vool_browser.live_requests import turn_scope
+
+    rig,item,origin,requests=world
+    prompt=f'Use the browser to open {origin}/ and fill the address and submit the form.'
+    with turn_scope(prompt):
+        offer=assemble_tool_offer(user_text=prompt,task_class='research')
+        rendered=_tool_intent_catalog_text(user_text=prompt,task_class='research',offer=offer)
+        definitions=build_cloud_tool_definitions(offer.specs)
+    assert 'Canonical operation names in guidance are not native function names' in rendered
+    for definition in definitions:
+        signature=definition.name+'('+', '.join(definition.parameters.get('properties',{}))+')'
+        assert signature in rendered
+    assert 'respond__direct(message)' in rendered
+    assert 'vool_browser__type(selector, text, submit, session)' in rendered
+    assert requests==[] and item.pending is None
