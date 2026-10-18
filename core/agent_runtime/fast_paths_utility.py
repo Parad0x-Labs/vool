@@ -908,7 +908,7 @@ def maybe_handle_direct_workspace_runtime_request(
     # pasted text, so this lane stands down and the generative lanes answer from it.
     from core.inline_payload import turn_supplies_its_own_content
 
-    if turn_supplies_its_own_content(user_input):
+    if turn_supplies_its_own_content(user_input, source_context=source_context):
         return None
     direct_reads = _direct_workspace_read_requests(user_input, for_synthesis=True)
     if direct_reads and _names_only_absent_proper_noun_products(user_input, direct_reads, workspace_root):

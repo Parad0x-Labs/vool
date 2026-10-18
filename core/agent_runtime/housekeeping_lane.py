@@ -373,7 +373,9 @@ def _fold_simple(text: str) -> str:
 
 def looks_like_search(clause: str) -> bool:
     """Whether a clause asks WHERE something was said or done across the operator's chats."""
-    f = _fold_simple(clause)
+    # Request markers inside fenced material are data; quoted search topics remain intact.
+    request_text = re.sub(r"```.*?(?:```|\Z)|~~~.*?(?:~~~|\Z)", " ", clause, flags=re.DOTALL)
+    f = _fold_simple(request_text)
     if _S_LOC.search(f) and _S_HERE_NOW.search(f) and not _S_PAST.search(f):
         return False
     if _S_LOC.search(f) or _S_WHERE.search(f) or _S_FORGOT.search(f) or _S_ALL.search(f):
@@ -437,8 +439,11 @@ def split_clauses(text: str) -> list[str]:
 
 def parse_housekeeping(text: str) -> Plan | None:
     """The whole message as housekeeping actions, or None when any part is something else."""
-    raw = " ".join(str(text or "").split())
-    if not raw or len(raw) > 2000:
+    original = str(text or "")
+    if len(original) > 2000:
+        return None
+    raw = " ".join(original.split())
+    if not raw:
         return None
     actions: list[Action] = []
     for clause in split_clauses(raw):
@@ -962,6 +967,13 @@ def maybe_handle_housekeeping_request(
     """The front door's housekeeping lane. Returns {"result": ...} when it owns the turn."""
     text = str(raw_user_input or effective_input or "")
     try:
+        from core.turn_contract import TURN_REQUEST_KEY, TurnRequest
+
+        request = (source_context or {}).get(TURN_REQUEST_KEY)
+        # Normalization may strip fences or collapse a document's whitespace. It cannot
+        # gain search authority that the accepted request's original bytes did not carry.
+        if isinstance(request, TurnRequest) and parse_housekeeping(request.user_text) is None:
+            return None
         plan = parse_housekeeping(text)
     except Exception:
         plan = None

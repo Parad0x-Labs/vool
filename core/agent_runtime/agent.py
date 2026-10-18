@@ -2073,6 +2073,9 @@ class VoolAgent(
                 route_id="empty_turn_fast_path",
             )
         runtime_source_context["runtime_session_id"] = session_id
+        # Retained inline text is supplied material. Its example commands must not become
+        # independent planner tasks; answer it with its document in one reasoning context.
+        inline_document_turn = False
         if not private_turn and not forget_turn:
             from core import chat_attachments as _inline_documents
 
@@ -2098,6 +2101,11 @@ class VoolAgent(
                     route_id="inline_document_refused",
                 )
             if _inline_bound is not None:
+                from core.inline_payload import turn_supplies_its_own_content
+
+                inline_document_turn = turn_supplies_its_own_content(
+                    user_input, source_context=runtime_source_context,
+                )
                 runtime_source_context["attachment_turn_id"] = _inline_origin
                 _other_evidence = [
                     item for item in (runtime_source_context.get("external_evidence") or [])
@@ -2742,7 +2750,7 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = self._maybe_answer_conductor_turn(
+        conductor_result = None if inline_document_turn else self._maybe_answer_conductor_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2763,7 +2771,7 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = self._maybe_answer_demand_owned_turn(
+        demand_owned_result = None if inline_document_turn else self._maybe_answer_demand_owned_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2780,7 +2788,7 @@ class VoolAgent(
         # multi-city weather clause ended up losing its own boundary. Returns None for anything
         # that is not LIVE_DATA-classified, or when the typed plan itself finds nothing to answer
         # -- the ordinary planner and every existing lane are untouched below.
-        live_data_result = self._maybe_answer_live_data_turn(
+        live_data_result = None if inline_document_turn else self._maybe_answer_live_data_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2791,7 +2799,7 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = self._maybe_answer_planned_turn(
+        planned_result = None if inline_document_turn else self._maybe_answer_planned_turn(
             effective_input=effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
