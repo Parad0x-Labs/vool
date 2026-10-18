@@ -17,6 +17,7 @@ import urllib.request
 from pathlib import Path
 
 from core.registry.codec import RegistryError, decode, require
+from registry_service.http_transport import RedirectRefused, open_request
 
 OPENROUTER = "https://openrouter.ai/api/v1/chat/completions"
 OLLAMA = "http://127.0.0.1:11434/v1/chat/completions"
@@ -115,8 +116,10 @@ class ModelReview:
         request = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST",
                                          headers={"Content-Type": "application/json", **headers})
         try:
-            with urllib.request.urlopen(request, timeout=180) as response:
+            with open_request(request, service="review", timeout=180) as response:
                 return json.loads(response.read(2 * 1024 * 1024))
+        except RedirectRefused as exc:
+            raise NoAnswer(str(exc)) from None
         except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ValueError, OSError) as exc:
             raise NoAnswer(type(exc).__name__) from None
 

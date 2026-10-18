@@ -53,6 +53,7 @@ from core.registry.codec import COMMIT, HEX, IDENTITY, VERSION, RegistryError, c
 from core.registry.publisher import add_signature
 from core.registry.trust import root_document
 from registry_service.authority import MARKS_SCHEMA, keyid, marks_document
+from registry_service.http_transport import RedirectRefused, open_request
 from registry_service.mac_authority import (
     ROOT_SECONDS,
     Authority,
@@ -77,6 +78,7 @@ _SEALED = b"SCP1"
 _AAD = b"skill-codex private state v1"
 BOT = ("sls_0x", "240776969+Parad0x-Labs@users.noreply.github.com")
 VOOL = "Parad0x-Labs/vool"
+GITHUB_API = "https://api.github.com"
 # The builds VOOL reports for itself (core.registry.client.runtime_target); installing needs a released Mac build.
 PLATFORMS = ("macos-arm64", "macos-x86_64")
 RELEASES_FOLLOWED = 3
@@ -162,9 +164,11 @@ class Repository:
 
     def _git(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
         result = subprocess.run(["git", "-C", str(self.path), "-c", "user.name=" + BOT[0], "-c", "user.email=" + BOT[1],
-                                 "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=120,
+                                 "-c", "commit.gpgsign=false", "-c", "http.followRedirects=false", *args], capture_output=True, text=True, timeout=120,
                                 env=self._env)
         if check and result.returncode:
+            if re.search(r"(?:HTTP |returned error: )30[12378]\b", result.stderr):
+                raise RegistryError("git redirect refused")
             raise RegistryError("git " + args[0] + " failed: " + " ".join(result.stderr.split())[:300])
         return result
 
@@ -275,10 +279,12 @@ def _github(token: str):
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "skill-codex-signer"}
         if token:
             headers["Authorization"] = "Bearer " + token
-        request = urllib.request.Request("https://api.github.com" + path, headers=headers)
+        request = urllib.request.Request(GITHUB_API + path, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with open_request(request, service="GitHub", timeout=30) as response:
                 return json.loads(response.read(4 * 1024 * 1024))
+        except RedirectRefused:
+            raise
         except (urllib.error.URLError, ValueError, OSError) as exc:
             raise RegistryError("GitHub could not list VOOL's releases: " + type(exc).__name__) from None
     return get

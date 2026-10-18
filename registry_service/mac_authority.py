@@ -50,6 +50,7 @@ from core.registry.codec import HEX, IDENTITY, VERSION, RegistryError, canonical
 from core.registry.publisher import add_signature, admission, authorize_catalog
 from core.registry.trust import AUTHORIZATION_SECONDS, root_document, verify
 from registry_service.authority import HEADER, MARKS_SCHEMA, keyid, marks_document, sign_request
+from registry_service.http_transport import open_request
 
 PREFIX = "/registry/api"
 ADMISSION_SECONDS = 30 * 86400 - 3600
@@ -215,7 +216,7 @@ class Authority:
     def _http(self, method: str, url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
         request = urllib.request.Request(url, data=body if method == "POST" else None, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with open_request(request, service="authority", timeout=60) as response:
                 return response.status, response.read(16 * 1024 * 1024)
         except urllib.error.HTTPError as error:
             return error.code, error.read(65536)
