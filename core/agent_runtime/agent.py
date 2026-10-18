@@ -2072,6 +2072,43 @@ class VoolAgent(
                 semantic_source=SemanticSource.FAST_PATH,
                 route_id="empty_turn_fast_path",
             )
+        runtime_source_context["runtime_session_id"] = session_id
+        if not private_turn and not forget_turn:
+            from core import chat_attachments as _inline_documents
+
+            _inline_origin = str(
+                runtime_source_context.get("attachment_turn_id")
+                or runtime_source_context.get("cancel_turn_id")
+                or turn_request.turn_id
+            )
+            try:
+                _inline_bound = _inline_documents.retain_inline_message(
+                    session_id=session_id, turn_id=_inline_origin, text=user_input,
+                )
+            except _inline_documents.AttachmentRefused as exc:
+                return _seal_semantic_result(
+                    self._fast_path_result(
+                        session_id=session_id, user_input=user_input, response=exc.message,
+                        confidence=0.9, source_context=runtime_source_context,
+                        reason="inline_document_refused",
+                    ),
+                    session_id=session_id, user_input=user_input, effective_input=user_input,
+                    source_context=runtime_source_context,
+                    semantic_source=SemanticSource.REFUSAL_POLICY,
+                    route_id="inline_document_refused",
+                )
+            if _inline_bound is not None:
+                runtime_source_context["attachment_turn_id"] = _inline_origin
+                _other_evidence = [
+                    item for item in (runtime_source_context.get("external_evidence") or [])
+                    if not isinstance(item, dict) or item.get("origin") != "chat_attachment"
+                ]
+                runtime_source_context["external_evidence"] = bounded_evidence_items([
+                    *_other_evidence,
+                    *_inline_documents.evidence_items_for_turn(
+                        session_id=session_id, turn_id=_inline_origin, question=user_input,
+                    ),
+                ])
         runtime_source_context["conversation_history"] = _augment_history_from_session_log(
             runtime_source_context.get("conversation_history"),
             session_id=session_id,

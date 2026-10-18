@@ -7520,6 +7520,18 @@ def _dispatch_post_inner(
         user_text = extract_user_message_provider(messages)
         if not user_text:
             return apply_runtime_headers(json_response(400, {"error": "no user message found"}), runtime)
+        # Keep a long ordinary message's exact document bytes. Transport scaffolding still
+        # uses the existing normalized request, and empty messages retain their existing refusal.
+        from core.chat_attachments import DOCUMENT_THRESHOLD_CHARS
+
+        for _message in reversed(messages):
+            if not isinstance(_message, dict) or str(_message.get("role") or "").strip().lower() != "user":
+                continue
+            _raw_text = _message.get("content")
+            if (isinstance(_raw_text, str) and len(_raw_text) >= DOCUMENT_THRESHOLD_CHARS
+                    and _raw_text.strip() == user_text):
+                user_text = _raw_text
+            break
 
         model = body.get("model", model_name)
         stream = body.get("stream", False)
@@ -7804,11 +7816,17 @@ def _dispatch_post_inner(
         source_context.pop("attachment_delivery", None)
         _attachment_turn = ""
         _raw_attachment_ids = body.get("attachments")
-        if _raw_attachment_ids not in (None, [], ()):
+        if (_raw_attachment_ids not in (None, [], ())
+                or len(user_text) >= _chat_attachments.DOCUMENT_THRESHOLD_CHARS):
+            # Inline documents bind inside the agent, after its admission gates. Give them
+            # this door's existing attachment identity before the runtime copies its context,
+            # so both response lanes release that same turn on completion or disconnect.
             _attachment_turn = (
                 str(body.get("turn_id") or "").strip()[:80]
                 or ("req:" + str(request_id or uuid.uuid4().hex).strip())[:80]
             )
+            source_context["attachment_turn_id"] = _attachment_turn
+        if _raw_attachment_ids not in (None, [], ()):
             try:
                 if not isinstance(_raw_attachment_ids, list):
                     raise _chat_attachments.AttachmentRefused("invalid_id", "attachments must be a list of attachment ids.", http_status=400)
