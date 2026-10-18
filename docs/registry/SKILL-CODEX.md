@@ -116,7 +116,7 @@ The reasons are `scam`, `harmful`, `stolen`, `picture`, `broken` and `other`; re
 
 Reports are private. No page shows how many reports a skill has, their reasons or who sent them. Three open `scam`, `harmful` or `stolen` reports pause downloads of every version of that skill. They count only from accounts older than one day, that are not muted, and that have not already reported that skill in a report an operator closed. A pause refuses new download tickets and tickets already handed out, with HTTP 400 `{"error": "downloads of this skill are paused while a person looks into it"}`, and the skill's catalog row carries `downloads_paused: true`. The skill stays listed, because only the signed catalog decides what is listed. Other reports reach the operator but never pause a skill. VOOL says in the person's language that downloads are paused when someone tries to download or install a paused skill, including one downloaded for inspection before the pause. Installing that inspected copy asks the registry again, so it waits until VOOL can reach the registry.
 
-Operators read and act on reports on the server, never over HTTP:
+Operators receive private aggregate counts and opaque report IDs through signed authority HTTP requests. Signed `team-steps.txt` actions close reports, pause or resume downloads, and mute a reporter by opaque ID. Browser sessions have no operator authority. Full private report text stays in the server CLI; reporter identity is never returned. The CLI also provides these fallback actions:
 
 ```sh
 vool-registry reports-open --config CONFIG                           # every skill with open reports or a pause
@@ -139,13 +139,17 @@ JSON: {"v":1,"name":"<skill folder name>","title":"<display name>","summary":"<d
 
 ## Updates
 
+Public package metadata is checked with the package text: ID/name, title, summary, release notes, licence label, categories, languages, requirements, source links and picture descriptors. `@metadata.json` identifies outer metadata findings and is included in model review. Unknown fields, invalid types, oversized values and malformed Unicode are refused before signing. Secret checks read decoded metadata text, so JSON escaping does not hide it; findings never quote detected secret fragments. Verified picture checksum slots are excluded only from secret detection; the same text elsewhere is still checked.
+
+VOOL rechecks the same public text before installation. It reads the installed receipt against the root recorded at installation, so a valid key rotation permits a higher version without admitting reused or lower versions. An unreadable or inconsistent receipt refuses the update and preserves the installation. Skill Codex can open with an expired shipped root only when a valid, unexpired persisted successor chains from it; that availability check reads local state without connecting or writing.
+
 An update keeps the stable package ID and must use a higher version than every published one. The server refuses a reused or lower version before scanning. Stars, download requests and comments stay with the stable ID.
 
 ## GitHub import
 
 `POST /registry/api/imports` takes `{repository, ref, path, metadata, publish_when_checks_pass}`. It requires a linked GitHub sign-in, and the public repository must be owned by that GitHub account (owner ID match). The server resolves `ref` to an exact commit and downloads that commit's archive from GitHub. It unpacks only `path` as inert data, refusing links, special files, ambiguous paths and oversized folders. It packages the folder's `SKILL.md`, other files and `LICENSE` with source provenance `{repository, commit, path}`, then submits it like an upload. The response is the submission plus `source`. `metadata` may name `icon` and `banner` by their path inside the imported folder, for example `"icon": "assets/icon.png"`; the server records each file's checksum. A skill written in the website form (`POST /drafts`) has no picture files and refuses these fields.
 
-When `publish_when_checks_pass` is `true`, the author's consent is bound to the exact server-built checksum, and the submission moves to `ready_for_github` as soon as the prepublication checks pass. Otherwise the normal consent step follows. Server-built imports establish the account's publisher association on publication, just as website drafts do.
+`publish_when_checks_pass` remains an accepted compatibility field and never grants consent. Every import starts without automatic consent. Show the returned exact checksum and obtain a separate unticked Publish decision through `POST /submissions/{id}/consent` with `{sha256, public: true}`. Only those consented bytes enter automatic admission. Server-built imports establish the account's publisher association on publication, just as website drafts do.
 
 Import is off unless the service configuration sets `"github_import": true`. It contacts only `api.github.com` and `codeload.github.com`, refuses redirects, and reads at most 16 MiB. It uses no GitHub token, so GitHub's anonymous rate limit applies per server address. Private repositories and organisation-owned repositories are not supported in this version.
 

@@ -64,6 +64,12 @@ Place the **complete MIT licence text** in a file named `LICENSE` and replace it
 
 ## Automatic publishing: website or GitHub import
 
+All public package text, including release notes, title, summary, licence label, source links and other metadata, receives the same checks as the instructions. Findings for outer fields use `@metadata.json`; the review model sees those fields too. Unsupported fields, malformed text and values over their limits are refused before signing. Keep notes descriptive: installation commands, secret requests and hidden instructions are refused here as in SKILL.md.
+
+An unavailable review service or exhausted review budget leaves the batch waiting; it does not publish partially reviewed uploads. Already completed paid verdicts survive retry. `publish_when_checks_pass` on an import is a compatibility field, never permission to publish; explicitly consent to the returned checksum.
+
+Installed updates require a higher version, including after a valid signing-key rotation. A current version says that it is up to date and asks the person to check back. An unreadable receipt preserves the installed files and refuses the update.
+
 Sign in with a configured GitHub, Google or Apple provider. Standalone email-link/password sign-in
 is not implemented. A linked GitHub identity is required for GitHub import. Authors choose a stable
 namespace and accept the MIT rights agreement. Publishing requires an account at least 14 days old,

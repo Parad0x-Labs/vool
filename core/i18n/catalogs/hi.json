@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "कौशल कोडेक्स की जाँचें इस कौशल को इसके मौजूदा रूप में अस्वीकार कर देंगी।",
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
     "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
-    "addons.registry_newer": "इस कौशल को अपडेट करने के लिए बड़ा संस्करण नंबर चुनें।",
+    "addons.registry_newer": "यह कौशल पहले से अद्यतित है। अपडेट के लिए बाद में फिर देखें।",
     "addons.registry_editors_pick": "संपादक की पसंद",
     "addons.registry_featured": "चुनिंदा",
     "addons.registry_release_notes": "संस्करण विवरण",
     "addons.registry_metrics": "वेबसाइट पर {stars} सितारे · {downloads} डाउनलोड अनुरोध"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

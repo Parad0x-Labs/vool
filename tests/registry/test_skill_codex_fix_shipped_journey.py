@@ -303,6 +303,13 @@ def _exercise(folder):
                         installed_file.write_bytes(old_text)
                         installed_file.chmod(0o444)
                         assert post(page, install)["status"] == 200
+                        assert browse(page).ok
+                        page.locator("#pluginsBody .addon-card").filter(has_text="1.1.0").get_by_role(
+                            "button", name="Download for inspection", exact=True).click()
+                        page.get_by_role("button", name="Install and enable", exact=True).click()
+                        expect(page.locator("#pluginsBody .addon-error")).to_have_text(
+                            "This skill is already up to date. Check back for an update.")
+                        page.get_by_role("button", name="Cancel", exact=True).click()
                         for version, digest in (("1.1.0", second["sha256"]), ("1.0.0", first["sha256"])):
                             assert post(page, {"action": "registry_prepare", "id": "alice/notes", "version": version,
                                                "approved": True})["status"] == 200

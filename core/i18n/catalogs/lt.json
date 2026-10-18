@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Įgūdžių kodekso patikros šio įgūdžio tokio, koks jis yra, nepriimtų.",
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį.",
-    "addons.registry_newer": "Norėdami atnaujinti šį įgūdį, pasirinkite didesnį versijos numerį.",
+    "addons.registry_newer": "Šis įgūdis jau atnaujintas. Vėliau patikrinkite, ar yra naujinių.",
     "addons.registry_editors_pick": "Redakcijos pasirinkimas",
     "addons.registry_featured": "Rekomenduojama",
     "addons.registry_release_notes": "Versijos pastabos",
     "addons.registry_metrics": "{stars} svetainės žvaigždučių · {downloads} atsisiuntimo užklausų"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

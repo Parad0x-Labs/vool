@@ -38,4 +38,7 @@
 # comments-held, reports-open and pictures-pending are read views: inspect moderation counts/IDs in
 # authority/state.json. Full private text and image-export views remain available through the server CLI.
 #
-# If a line can't be read, nothing in this file is applied until it is fixed; the run log says which line.
+# If a line can't be read, the whole run stops before state changes, admissions or catalog publication.
+# The run log says Stopped with the line number; fix it and the next run retries.
+# Failed release discovery also stops before changes. Review downtime or the cap holds the upload batch.
+# A newer remote state or operator-step commit stops a stale run before its next paid review.

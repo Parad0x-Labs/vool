@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
-    "addons.registry_newer": "Chọn số phiên bản cao hơn để cập nhật kỹ năng này.",
+    "addons.registry_newer": "Kỹ năng này đã được cập nhật. Hãy kiểm tra lại sau để xem có bản cập nhật mới không.",
     "addons.registry_editors_pick": "Lựa chọn của biên tập viên",
     "addons.registry_featured": "Nổi bật",
     "addons.registry_release_notes": "Ghi chú phiên bản",
     "addons.registry_metrics": "{stars} sao trên trang web · {downloads} yêu cầu tải xuống"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

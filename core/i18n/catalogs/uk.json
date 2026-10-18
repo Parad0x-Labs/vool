@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Перевірки кодексу навичок не пропустять цю навичку в теперішньому вигляді.",
     "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
     "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть.",
-    "addons.registry_newer": "Виберіть більший номер версії, щоб оновити цю навичку.",
+    "addons.registry_newer": "Цю навичку вже оновлено. Перевірте наявність оновлень пізніше.",
     "addons.registry_editors_pick": "Вибір редакції",
     "addons.registry_featured": "Рекомендоване",
     "addons.registry_release_notes": "Примітки до версії",
     "addons.registry_metrics": "{stars} зірок на сайті · {downloads} запитів завантаження"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

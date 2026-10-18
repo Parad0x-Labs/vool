@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
-    "addons.registry_newer": "Wybierz wyższy numer wersji, aby zaktualizować tę umiejętność.",
+    "addons.registry_newer": "Ta umiejętność jest już aktualna. Sprawdź później, czy jest dostępna aktualizacja.",
     "addons.registry_editors_pick": "Wybór redakcji",
     "addons.registry_featured": "Polecane",
     "addons.registry_release_notes": "Informacje o wersji",
     "addons.registry_metrics": "{stars} gwiazdek w witrynie · {downloads} żądań pobrania"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

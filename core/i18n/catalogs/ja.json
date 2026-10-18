@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
     "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。",
-    "addons.registry_newer": "このスキルを更新するには、より大きいバージョン番号を選んでください。",
+    "addons.registry_newer": "このスキルはすでに最新です。後でもう一度更新を確認してください。",
     "addons.registry_editors_pick": "編集部のおすすめ",
     "addons.registry_featured": "注目",
     "addons.registry_release_notes": "リリースノート",
     "addons.registry_metrics": "サイトのスター {stars} · ダウンロード要求 {downloads}"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -6,6 +6,8 @@ Use the existing VPS for the static website, API and private account/quarantine 
 
 ## Activation checklist
 
+VOOL preserves the root used to verify each installed receipt, allowing higher-version updates after key rotation. Missing or inconsistent installation evidence refuses without replacing files. An expired shipped anchor opens only with a valid, unexpired persisted successor and a verified rotation chain; availability checks are local and read-only. Every public package metadata field receives the same text checks as the package before admission and again at native install.
+
 1. Create the two community repositories from the reviewed blueprints, protect main and require independent review plus an authenticated admission check from its expected external GitHub App (or an independently protected workflow with verified workload identity). Candidate-run blueprint checks are advisory. Follow [ADMISSION-SERVICE.md](ADMISSION-SERVICE.md) and inspect the applied required-check source. Protect workflows, policies, roots and CODEOWNERS. A PR's own modified workflow is not trustworthy admission evidence. Published content must retain its original author and licence.
 2. Configure a pinned scanner policy for the actual latest released VOOL build and supported platforms. Supply all eleven required reports from trusted workers. Unsupported coverage remains held. Bind workload identity to protected workflow/code revisions; never expose review/signing credentials to candidate execution.
 3. Establish root, admission, review and online-catalog key custody. With automatic checks, the signer holds the admission and review keys, the root key stays offline or on the signing Mac, and the server holds only the online catalog key (see [Automatic checks on GitHub](#automatic-checks-on-github) and [Automatic checks with the signing Mac](#automatic-checks-with-the-signing-mac)). A deployment can require two or more signers per role instead. Publish only public keys in a reviewed trust anchor. The web process holds no admission or review private key.
@@ -18,6 +20,12 @@ Use the existing VPS for the static website, API and private account/quarantine 
 10. Verify actual GitHub/Google/Apple login, account linking/deletion, secret rejection, failed scans, public-consent export, exact GitHub commit verification, signed browse, install/enable, update recovery, tamper/revocation and stats with production registrations on disposable accounts/profiles before opening the service publicly.
 
 ## Automatic checks on GitHub
+
+The signer parses all operator lines and reads release discovery, the complete upload batch and moderation summary before changing state or sending decisions. A bad line or failed release discovery prints `Stopped: ...`, exits non-zero and leaves `state.json` and `private.bin` byte-identical. The next run retries. An unavailable review or exhausted cap holds the whole batch without admissions or a catalog update; completed review costs and verdicts remain sealed for retry. Unconfirmed admission/refusal responses stop later decisions and catalog publication. Malformed catalog or marks acknowledgments stop before further requests; retries retain spent epochs and pending decisions. Corrupt private state or a public-state digest mismatch refuses before requests.
+
+Immediately before each uncached paid review, the signer fetches the remote state and operator instructions and stops if either has changed. Each completed upload check is checkpointed before the next review. This is a freshness check, not an atomic reservation across Git and the review provider.
+
+Every credential-bearing HTTP transport refuses 301, 302, 303, 307 and 308 responses with a specific redirect reason, including authority signatures, review authorization, provider credentials and the Actions token. Git disables redirects too. Correct the configured endpoint instead of relying on a redirect. Browser sign-in navigation remains separate from these server transports.
 
 The signer can run as a GitHub Actions job instead of on a Mac, so no computer has to stay on. It is the same signer, with the same checks, review model, limits and hand steps; only where it keeps its keys and state differs. It runs in its own public repository that only the team can change. Runner billing and provider quotas depend on the repository's active service terms.
 
@@ -132,7 +140,8 @@ Start with `vool-registry serve --config CONFIG --port 8791` under a dedicated u
 The proxy needs TLS, a 24 MiB body limit, strict host/origin routing, no credentials in URLs and a per-client request limiter. Integrate these excerpts into the existing `http` context and named TLS server; retain its certificates and website/relay routes:
 
 ```nginx
-# http context: transient client-address state, not a request log.
+# http context: top level of a site file included by http, never inside server.
+# Transient client-address state, not a request log.
 limit_req_zone $binary_remote_addr zone=registry_per_client:10m rate=5r/s;
 
 server {
@@ -176,7 +185,7 @@ Review and run `nginx -t` on the complete server configuration before applying i
 - Upload admission checks namespace ownership and the ten-submissions-per-24-hours quota before reading either artifact or draft bodies, and before inspecting/scanning/packing direct Store calls. SQLite leases allow four active uploads across workers and one per account; refused requests consume no body. API body reads time out after 30 seconds. Lease cleanup runs on success, refusal and cancellation; a crashed worker's lease expires after five minutes. Expired or revoked leases cannot commit an upload. Size limits and the proxy limiter are still required.
 - The secure, host-only session cookie is `vool_registry`, scoped to `/registry/api`; it does not use the `__Host-` prefix. Deploy with **no untrusted subdomains** beneath the service's parent domain. Do not treat path scoping as protection against a hostile sibling subdomain.
 - Stars are one per authenticated account/package, not one per person. Throwaway accounts can inflate stars; ranking is not a trust or admission signal.
-- The website account-link POST returns a 303 redirect to the provider. A `fetch()` call may not navigate the page. Before website handover, test complete browser navigation through linking, callback, cancellation and return to the account screen with real provider registrations.
+- The website account-link POST returns HTTP 200 `{url}`. The page navigates to that URL after the successful response. Ordinary sign-in starts with HTTP 303. Linking, callback, cancellation and return to the account screen require a configured provider.
 
 ## Picture review
 

@@ -57,14 +57,16 @@ no-referrer and restrictive CSP; approved pictures have a five-minute cache exce
 
 Profile includes private account `id`, stable namespace, bio, handles and linked provider names,
 never provider subject IDs. Namespace: lowercase letters/digits/hyphens, starts with a letter or
-digit, 1–64 characters. `vool`, `parad0x-labs`, `official`, `native` are reserved. Chosen names cannot
+digit, 1–64 characters. `vool`, `vool-team`, `parad0x-labs`, `official`, `native` are reserved. Chosen names cannot
 change through this route and remain reserved after deletion. Bio ≤500 characters. Handles:
-`github`, `x`, `mastodon`, `website` only, each ≤200 characters; GitHub/X are plain handles, the
-other two HTTPS URLs without credentials. Handles are author assertions, not verification badges.
+`github`, `x`, `mastodon`, `website` only, each ≤200 characters. GitHub/X must match
+`[A-Za-z0-9_.-]{1,64}`; the other two are HTTPS URLs without credentials. Handles are author assertions, not verification badges.
 GitHub, Google and Apple are implemented providers. Standalone email/password or email-link login
 is not implemented. Show only configured choices; provider registration is deployment work.
 
 ## Author submissions and updates
+
+Every public package metadata field receives the package's deterministic checks, paid-review inclusion and native install recheck. Render `@metadata.json` findings as metadata findings. Release notes have no bypass. A service failure or exhausted review budget holds the batch without admission; the signer retries with already paid verdicts retained. Import's `publish_when_checks_pass` field never replaces explicit checksum consent.
 
 The MIT rights agreement and public-history consent are separate. First save and inspect the
 private submission. Then show its exact checksum and obtain a separate, unticked Publish decision.
@@ -78,7 +80,7 @@ Automatic model review/public listing waits for that checksum consent. Agreement
 | POST `/drafts` | JSON exactly `{metadata,skill_markdown,agreement}` or legacy `{metadata,skill_markdown,license_text}`; complete UTF-8 body ≤32,768 bytes | 201 private submission | `invalid skill draft`, native/secret findings, quota, namespace or age refusal. Inspect state even on 201. |
 | POST `/submissions` | Unmodified canonical bytes, `application/vnd.vool.registry+json`; optional `X-Vool-Agreement: mit-own-work-v1`; body ≤24 MiB, native payload ≤16 MiB | 201 private submission | No multipart or JSON reserialization. Agreed packages naming GitHub source are refused with import guidance. |
 | POST `/imports` | JSON `{repository,ref,path,metadata,publish_when_checks_pass}` and optional `agreement` | 201 submission plus resolved `{source:{repository,commit,path}}` | Requires configured import and linked GitHub identity owning a public repository. Invalid ownership/ref/layout/limits refused. |
-| POST `/publisher-link` | JSON exactly `{namespace}`, session/CSRF and linked GitHub identity | Updated profile with publisher link | No public publications, wrong owner or claimed name: 400 `{error}`. |
+| POST `/publisher-link` | JSON exactly `{namespace}`, session/CSRF and linked GitHub identity | `{namespace,verified:true}` | No public publications, wrong owner or claimed name: 400 `{error}`. |
 | GET `/submissions` | Session | `{submissions:[...]}`, ≤100 newest | Authentication refusal: 400 `{error}`. |
 | GET `/submissions/{identifier}` | Owner session | One private submission | Other accounts: `submission not found`. |
 | POST `/submissions/{identifier}/consent` | JSON `{sha256,public:true}`, owner session/CSRF | Updated submission | Wrong checksum/owner/state or unreviewed legacy bytes: 400 `{error}`. |

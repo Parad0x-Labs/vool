@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
     "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
     "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
-    "addons.registry_newer": "Choisissez un numéro de version supérieur pour mettre à jour cette compétence.",
+    "addons.registry_newer": "Cette compétence est déjà à jour. Revenez plus tard pour vérifier les mises à jour.",
     "addons.registry_editors_pick": "Choix de la rédaction",
     "addons.registry_featured": "À la une",
     "addons.registry_release_notes": "Notes de version",
     "addons.registry_metrics": "{stars} étoiles sur le site · {downloads} demandes de téléchargement"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

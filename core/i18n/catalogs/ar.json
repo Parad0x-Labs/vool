@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
     "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله.",
-    "addons.registry_newer": "اختر رقم إصدار أعلى لتحديث هذه المهارة.",
+    "addons.registry_newer": "هذه المهارة محدّثة بالفعل. تحقّق لاحقًا من وجود تحديث.",
     "addons.registry_editors_pick": "اختيار المحررين",
     "addons.registry_featured": "مميز",
     "addons.registry_release_notes": "ملاحظات الإصدار",
     "addons.registry_metrics": "{stars} نجوم على الموقع · {downloads} طلبات تنزيل"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

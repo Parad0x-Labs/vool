@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
-    "addons.registry_newer": "כדי לעדכן את המיומנות הזו, יש לבחור מספר גרסה גבוה יותר.",
+    "addons.registry_newer": "המיומנות הזו כבר מעודכנת. אפשר לבדוק שוב בהמשך אם יש עדכון.",
     "addons.registry_editors_pick": "בחירת העורכים",
     "addons.registry_featured": "מומלץ",
     "addons.registry_release_notes": "הערות גרסה",
     "addons.registry_metrics": "{stars} כוכבים באתר · {downloads} בקשות הורדה"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

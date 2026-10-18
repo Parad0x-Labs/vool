@@ -2600,13 +2600,13 @@
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn.",
-    "addons.registry_newer": "Wähle eine höhere Versionsnummer, um diesen Skill zu aktualisieren.",
+    "addons.registry_newer": "Diese Fähigkeit ist bereits aktuell. Schau später nach einem Update.",
     "addons.registry_editors_pick": "Auswahl der Redaktion",
     "addons.registry_featured": "Empfohlen",
     "addons.registry_release_notes": "Versionshinweise",
     "addons.registry_metrics": "{stars} Website-Sterne · {downloads} Downloadanfragen"
   },
-  "source_catalog_sha256": "6812eb054ec8cefdcf199c08276c986f6cec283c222089bd649470acd873478d",
+  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

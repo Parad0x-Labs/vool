@@ -27,6 +27,10 @@ follows the newest published releases, rechecks listed skills daily, and keeps m
 Unavailable review never admits unchecked bytes. Public logs show counts and operator-line problems;
 `authority/state.json` also contains opaque moderation IDs/counts, never private text or reporter identities.
 
+A malformed operator line or failed release discovery stops the whole run before state changes, admissions or catalog publication. The log names the line or source failure and the next run retries. Website queue/byte/moderation failures stop before review. Review downtime or the monthly cap holds the batch, retaining completed costs and verdicts in sealed state. Unconfirmed or malformed decision, marks and catalog acknowledgments stop further requests and keep recovery state. Before every new paid review the signer checks the remote state and operator instructions for a superseding commit; it checkpoints each completed upload check before the next review.
+
+Every public package metadata field, including release notes, is checked with the package and included in model review. Credential-bearing HTTP and Git transports refuse redirects rather than forwarding credentials. Existing setup/configuration fields, secret names and operator line forms remain valid.
+
 Automated checks cover package compatibility and known threat patterns; they can miss malicious behavior.
 Community skills are provided as is, without warranty. Inspect their files and licence before use. Website
 stars and download requests are popularity signals, separate from safety checks and the team's editor picks.
