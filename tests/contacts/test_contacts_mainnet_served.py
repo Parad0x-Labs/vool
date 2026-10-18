@@ -232,6 +232,10 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         transfers = _get(daemon, "/api/wallet/transfers")["transfers"]
         assert any(t["state"] == "cancelled" for t in transfers), transfers
         assert chain.send_count() == 0
+        _activate(page, "#vwHomeClose")
+        page.reload(wait_until="domcontentloaded")
+        _home_item(page, "#vwHomeBtn")
+        expect(page.locator("#vwHomeBody")).to_contain_text("Cancelled")
         _shot(page, "08-mainnet-declined-receipt")
         page.keyboard.press("Escape")
 

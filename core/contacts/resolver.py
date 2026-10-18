@@ -163,7 +163,7 @@ def verify_snapshot(snapshot: Any) -> SnapshotCheck:
     if (endpoint.get("contact_id") != snapshot.get("contact_id")
             or endpoint.get("contact_display_name") != snapshot.get("display_name")
             or any(endpoint.get(key, "") != snapshot.get(key, "")
-                   for key in ("kind", "canonical", "chain_network", "channel", "provider_account"))):
+                   for key in ("kind", "value", "canonical", "chain_network", "channel", "provider_account"))):
         from core.i18n.turn_locale import turn_text
 
         return SnapshotCheck("identity_changed", False, turn_text(

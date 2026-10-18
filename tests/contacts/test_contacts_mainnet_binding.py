@@ -92,6 +92,7 @@ def test_two_distinct_names_and_an_endpoint_relabel_keep_unsigned_mainnet_quotes
     {"resolution": "future_resolution"}, {"contact_id": "ct-not-this-person"},
     {"display_name": "Another person"}, {"chain_network": "eip155:8453"},
     {"kind": "email"}, {"canonical": "another-destination"},
+    {"value": "0x" + "c" * 40},
     {"resolution": {}}, {"resolution": []},
 ])
 def test_unknown_or_mismatched_saved_bindings_fail_closed(mainnet, changed):
@@ -113,6 +114,35 @@ def test_wallet_proposal_refuses_an_unknown_recipient_contract(mainnet):
             recipient={**snapshot, "resolution": "future_resolution"})
     assert refused.value.code == "wallet_recipient_refused"
     assert node.calls == [] and proposals.list_proposals() == []
+
+
+def test_proposal_refuses_a_forged_value_with_a_real_saved_fingerprint(mainnet):
+    wallet, node = mainnet
+    _contact()
+    snapshot = resolver.resolve("Aster", kind="wallet", network=NETWORK).snapshot
+    assert snapshot
+    forged = "0x" + "c" * 40
+    with pytest.raises(WalletFault) as refused:
+        proposals.propose_transaction(wallet_id=wallet.wallet_id, destination=forged,
+            amount_minor=10**12, asset="ETH", origin=proposals.ORIGIN_USER,
+            recipient={**snapshot, "value": forged})
+    assert refused.value.code == "wallet_recipient_refused"
+    assert node.calls == [] and proposals.list_proposals() == []
+
+
+def test_a_persisted_forged_value_cannot_get_a_new_mainnet_quote(mainnet):
+    from core.wallet.store import connection
+
+    wallet, node = mainnet
+    _contact()
+    proposal = _proposal(wallet)
+    forged = "0x" + "c" * 40
+    with connection() as conn:
+        conn.execute("UPDATE wallet_proposals SET destination = ?, recipient_json = ? WHERE proposal_id = ?",
+            (forged, json.dumps({**proposal.recipient, "value": forged}), proposal.proposal_id))
+    with pytest.raises(WalletFault) as refused:
+        quotes.mint_quote(proposal.proposal_id)
+    assert refused.value.code == "wallet_recipient_refused" and node.calls == []
 
 
 def test_a_persisted_unknown_recipient_contract_cannot_be_quoted(mainnet):
