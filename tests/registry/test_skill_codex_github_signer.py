@@ -210,6 +210,26 @@ def test_setup_puts_the_online_keys_only_in_github_and_the_main_key_offline(worl
     assert not (fresh / FOLDER).exists()
 
 
+
+def test_setup_that_cant_write_the_main_key_says_why_and_leaves_the_repository_empty(tmp_path, monkeypatch, capsys):
+    # A Windows-formatted stick mounts read-only on a Mac: the person needs the system's reason, not just its type.
+    repo = tmp_path / "signer"
+    (repo / ".git").mkdir(parents=True)
+    stick = tmp_path / "stick"
+    stick.write_text("not a folder that can hold the main key")
+    targets = tmp_path / "targets.json"
+    targets.write_text(json.dumps([TARGET]))
+    secrets = []
+    monkeypatch.setattr(github_authority, "gh_secret", lambda github: lambda name, value: secrets.append(name))
+    monkeypatch.setattr(github_authority.getpass, "getpass", lambda prompt="": PASSPHRASE)
+    code = github_authority.main(["setup", "--repo", str(repo), "--github", GITHUB, "--catalog-key", "ab" * 32,
+                                  "--model", "review-model", "--offline", str(stick / "skill-codex-root"),
+                                  "--targets", str(targets), "--vool-commit", "a" * 40])
+    assert code == 1
+    assert capsys.readouterr().out == "Stopped: NotADirectoryError: Not a directory\n"
+    assert sorted(path.name for path in repo.iterdir()) == [".git"]
+    assert len(secrets) == 3  # replaced by the next setup run, which makes new keys
+
 def test_an_upload_is_checked_signed_listed_and_its_state_is_on_github(world):
     _, token, csrf = creator(world, "101", "alice")
     submission = draft(world, token, csrf, "alice/notes").json()

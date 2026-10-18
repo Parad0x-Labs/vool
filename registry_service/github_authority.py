@@ -742,6 +742,8 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
         message = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
         if message.startswith("the server refused:"):
             message = "the service refused a signed request; check its configuration and operator steps"
+        if isinstance(exc, OSError) and exc.strerror:
+            message += ": " + exc.strerror  # the system's reason, such as a read-only drive; never a path or a value
         print("Stopped: " + message)
         return 1
 

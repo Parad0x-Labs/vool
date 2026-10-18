@@ -2,7 +2,8 @@
 
 This repository runs the Skill Codex signer for VOOL. Every few minutes a GitHub Actions job checks new
 skill uploads, signs the ones that pass and refuses the rest with the exact reasons, and keeps the
-signed list fresh. Once a day it runs every listed skill through the checks again.
+signed list fresh. Once a day it runs every listed skill through the checks again and follows VOOL's
+newest releases.
 
 - [Browse the listed skills](authority/CATALOG.md). [Machine-readable directory](authority/registry.json).
 - Only exact consented bytes that passed checks and reached the signed list enter `authority/packages/`.
@@ -11,10 +12,15 @@ signed list fresh. Once a day it runs every listed skill through the checks agai
 - `authority/state.json` is the signed list, the marks and the VOOL builds it is signed for.
 - `authority/private.bin` is sealed. It holds private verdicts, counts, spending and a digest binding the
   public state. Hand-edited state stops before requests. Existing setup state is validated and upgraded.
+- `authority/trusted-root.json` is the public trust anchor that VOOL ships with. The main key that
+  signs it is kept offline.
 - `team-steps.txt` holds the team's hand steps: the Tested mark, the Highlighted spot, suspending a
-  creator/skill, removing a skill, comment/report moderation, pauses, picture approvals and editorial picks.
-  Its comments list every form. Routine steps take effect through signed requests without a server restart.
+  creator/skill, removing a skill, comment/report moderation, pauses, picture approvals, editorial picks,
+  the team's members and VOOL builds to test before their release. Its comments list every form. Edit it on
+  GitHub; the next run applies it through signed requests, with no server restart.
 - The checks themselves are VOOL's own, from the commit named in `authority/vool-commit`.
+- The signing keys live only in this repository's Actions secrets. The run log shows counts, never
+  what an upload contains.
 
 The service follows the builds in signed admissions without editing its old target setting. The signer
 follows the newest published releases, rechecks listed skills daily, and keeps model review capped.
