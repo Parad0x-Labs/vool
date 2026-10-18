@@ -101,6 +101,12 @@ class TrustedCatalog:
             else:
                 self.db.execute("INSERT INTO trust VALUES (1, ?, 0, NULL)", (canonical(trusted_root),))
                 self.root = root
+        # Keep the keys that verified earlier install receipts. Expiry/revocation
+        # still governs current use; history only proves what was installed before.
+        with self.db:
+            self.db.execute("CREATE TABLE IF NOT EXISTS root_history (version INTEGER PRIMARY KEY, root BLOB NOT NULL)")
+            current = self.db.execute("SELECT root FROM trust WHERE id=1").fetchone()[0]
+            self.db.execute("INSERT OR IGNORE INTO root_history VALUES (?, ?)", (self.root["version"], current))
         self.current = None
         if root["version"] > self.root["version"]:
             self.rotate(trusted_root, now=now)
@@ -120,6 +126,7 @@ class TrustedCatalog:
             from core.registry.codec import decode
 
             require(decode(row[0])["signed"]["version"] == self.root["version"], "concurrent root rotation")
+            self.db.execute("INSERT INTO root_history VALUES (?, ?)", (new["version"], canonical(envelope)))
             self.db.execute("UPDATE trust SET root=?, sequence=0, snapshot=NULL WHERE id=1", (canonical(envelope),))
         self.root, self.current = new, None
 
