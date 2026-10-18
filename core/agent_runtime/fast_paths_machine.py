@@ -1821,7 +1821,11 @@ def maybe_handle_direct_machine_read_request(
         file_read_target = _extract_machine_file_read_target(user_input)
         if file_read_target is not None:
             intent = "machine.read_file"
-            payload_arguments = file_read_target
+            payload_arguments = dict(file_read_target)
+            from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
+
+            if file_question_requires_synthesis(user_input, str(payload_arguments.get("path") or "")):
+                payload_arguments["max_lines"] = max(2000, int(payload_arguments.get("max_lines") or 0))
         elif asks_only_for_machine_specs(user_input):
             # The family already decided this is a hardware read, so do not re-ask the planner.
             # Measured 2026-07-29: `plan_tool_workflow` returns intent None for the bare
@@ -1850,6 +1854,13 @@ def maybe_handle_direct_machine_read_request(
         )
     if execution is None:
         return None
+    if intent == "machine.read_file" and execution.ok and isinstance(source_context, dict):
+        from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
+        from core.agent_runtime.workspace_question_evidence import record_evidence
+
+        if file_question_requires_synthesis(user_input, str(payload_arguments.get("path") or "")):
+            record_evidence(agent, source_context, intent, payload_arguments, execution)
+            return None
     response_text = (
         _render_machine_specs_correction_response(execution)
         if correction_followup and getattr(execution, "ok", False)
