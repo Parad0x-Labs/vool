@@ -299,3 +299,58 @@ def test_uncertain_or_inconsistent_refusal_is_never_presented_as_not_sent(mainne
             conn.execute("UPDATE wallet_proposals SET tx_signature = 'uncertain' WHERE proposal_id = ?", (proposal.proposal_id,))
     assert transfers.latest_receipt(proposal.proposal_id) is None
     assert transfers.list_transfers() == [] and node.sent == []
+
+
+@pytest.mark.parametrize("newer_inconsistent_receipts", [1, 205])
+def test_ignored_refusals_do_not_hide_an_older_receipt_at_the_activity_limit(mainnet, newer_inconsistent_receipts):
+    from core.wallet import lifecycle, transfers
+    from core.wallet.store import connection
+
+    wallet, node = mainnet
+    _contact()
+    old = _proposal(wallet)
+    later = []
+    for index in range(newer_inconsistent_receipts + 1):
+        proposal = old if index == 0 else _proposal(wallet)
+        assert lifecycle.end_refused(proposal.proposal_id, proposals.STATE_FAILED,
+            expected_state=proposal.state, fault_code="wallet_simulation_failed", reason="simulation_failed")
+        if index:
+            later.append(proposal)
+    with connection() as conn:
+        for proposal, stamp in [(old, "2026-01-01T00:00:01Z"), *((p, "2026-01-01T00:00:02Z") for p in later)]:
+            conn.execute("UPDATE wallet_proposals SET created_at = ? WHERE proposal_id = ?", (stamp, proposal.proposal_id))
+            conn.execute("UPDATE wallet_receipts SET created_at = ? WHERE proposal_id = ?", (stamp, proposal.proposal_id))
+        for proposal in later:
+            raw = conn.execute("SELECT payload_json FROM wallet_receipts WHERE proposal_id = ?", (proposal.proposal_id,)).fetchone()[0]
+            payload = json.loads(raw)
+            payload["refusal"]["charged_fee_minor"] = 1
+            conn.execute("UPDATE wallet_receipts SET payload_json = ? WHERE proposal_id = ?", (json.dumps(payload), proposal.proposal_id))
+    assert transfers.latest_receipt(old.proposal_id) is not None
+    assert transfers.latest_receipt(later[-1].proposal_id) is None
+    [receipt] = transfers.list_transfers(limit=1)
+    assert receipt["proposal_id"] == old.proposal_id and receipt["record_kind"] == "proposal_receipt"
+    assert receipt["charged_fee_minor"] == "0" and receipt["dispatched"] is False
+    assert node.sent == []
+
+
+def test_activity_limit_keeps_the_same_creation_order_when_receipts_finish_out_of_order(mainnet):
+    from core.wallet import lifecycle, transfers
+    from core.wallet.store import connection
+
+    wallet, node = mainnet
+    _contact()
+    old, newer = _proposal(wallet), _proposal(wallet)
+    for proposal in (newer, old):
+        assert lifecycle.end_refused(proposal.proposal_id, proposals.STATE_FAILED,
+            expected_state=proposal.state, fault_code="wallet_simulation_failed", reason="simulation_failed")
+    with connection() as conn:
+        for proposal, created, finished in [
+            (old, "2026-01-01T00:00:01Z", "2026-01-01T00:00:05Z"),
+            (newer, "2026-01-01T00:00:03Z", "2026-01-01T00:00:04Z"),
+        ]:
+            conn.execute("UPDATE wallet_proposals SET created_at = ? WHERE proposal_id = ?", (created, proposal.proposal_id))
+            conn.execute("UPDATE wallet_receipts SET created_at = ? WHERE proposal_id = ?", (finished, proposal.proposal_id))
+    full = transfers.list_transfers(limit=200)
+    assert [r["proposal_id"] for r in full] == [newer.proposal_id, old.proposal_id]
+    assert transfers.list_transfers(limit=1) == full[:1]
+    assert node.sent == []

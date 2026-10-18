@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -531,6 +532,28 @@ def latest_receipt(proposal_id: str) -> dict[str, Any] | None:
     return refused[0] if refused else None
 
 
+def _unclaimed_receipt_candidates(clauses: list[str], values: list[Any]) -> Iterator[dict[str, Any]]:
+    """Read bounded pages in display creation order; eligibility precedes its limit."""
+    after = None
+    while True:
+        page_clauses, page_values = clauses, values
+        if after is not None:
+            page_clauses = [*clauses, "(p.created_at < ? OR (p.created_at = ? AND r.rowid < ?))"]
+            page_values = [*values, after[0], after[0], after[1]]
+        with connection() as conn:
+            cursor = conn.execute(
+                "SELECT p.*, w.public_key AS from_address, r.receipt_id, r.rowid AS receipt_rowid, "
+                "r.payload_json AS refusal_payload, r.created_at AS receipt_created_at FROM wallet_proposals p "
+                "JOIN wallet_receipts r ON r.proposal_id = p.proposal_id "
+                "LEFT JOIN wallet_profiles w ON w.wallet_id = p.wallet_id WHERE " + " AND ".join(page_clauses)
+                + " ORDER BY p.created_at DESC, r.rowid DESC LIMIT 200", page_values)
+            rows = [{d[0]: row[i] for i, d in enumerate(cursor.description)} for row in cursor.fetchall()]
+        yield from rows
+        if len(rows) < 200:
+            return
+        after = rows[-1]["created_at"], rows[-1]["receipt_rowid"]
+
+
 def _unclaimed_receipt_views(*, limit: int, wallet_id: str = "", network: str = "", proposal_id: str = "") -> list[dict[str, Any]]:
     """Activity for a durable refusal before any claim. No second state or ledger is written.
 
@@ -556,16 +579,9 @@ def _unclaimed_receipt_views(*, limit: int, wallet_id: str = "", network: str = 
         names = (spec.network, *spec.legacy_names)
         clauses.append(f"p.network IN ({','.join('?' for _ in names)})")
         values.extend(names)
-    with connection() as conn:
-        cursor = conn.execute(
-            "SELECT p.*, w.public_key AS from_address, r.receipt_id, r.payload_json AS refusal_payload, "
-            "r.created_at AS receipt_created_at FROM wallet_proposals p "
-            "JOIN wallet_receipts r ON r.proposal_id = p.proposal_id "
-            "LEFT JOIN wallet_profiles w ON w.wallet_id = p.wallet_id WHERE " + " AND ".join(clauses)
-            + " ORDER BY r.created_at DESC LIMIT ?", (*values, max(1, min(int(limit), 200))))
-        rows = [{d[0]: row[i] for i, d in enumerate(cursor.description)} for row in cursor.fetchall()]
+    requested = max(1, min(int(limit), 200))
     views = []
-    for row in rows:
+    for row in _unclaimed_receipt_candidates(clauses, values):
         try:
             refusal = json.loads(row["refusal_payload"]).get("refusal")
         except (ValueError, AttributeError):
@@ -586,6 +602,8 @@ def _unclaimed_receipt_views(*, limit: int, wallet_id: str = "", network: str = 
             state_label=turn_text("wallet.receipt.cancelled", "Cancelled") if cancelled else turn_text("wallet.receipt.not_sent", "Not sent"),
             detail=turn_text("wallet.receipt.not_sent_detail", "Nothing was signed or sent."))
         views.append(view)
+        if len(views) == requested:
+            break
     return views
 
 
