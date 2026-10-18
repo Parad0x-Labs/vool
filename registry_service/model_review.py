@@ -124,7 +124,10 @@ class ModelReview:
         """Return {"verdict", "findings"} for these exact files, or raise ReviewUnavailable."""
         if self.provider == "openrouter" and self.spent() >= self.cap:
             raise CapReached("monthly review cap reached")
+        from core.registry.artifact import REVIEW_METADATA
+
         files = {name: texts[name] for name in sorted(texts)}
+        files[REVIEW_METADATA] = json.dumps(artifact["metadata"], ensure_ascii=False, sort_keys=True)
         data = json.dumps({"summary": artifact["metadata"]["summary"], "id": artifact["metadata"]["id"],
                            "files": files}, ensure_ascii=False)
         require(len(data) <= MAX_FILES_CHARS, "this skill is too long to check")
@@ -140,7 +143,7 @@ class ModelReview:
             usage = answer.get("usage") if isinstance(answer, dict) else None
             cost = usage.get("cost") if isinstance(usage, dict) else None
             self._charge(float(cost) if _amount(cost) else UNKNOWN_COST)
-        return parse(answer, set(texts))
+        return parse(answer, set(files))
 
 
 def parse(answer: object, paths: set[str]) -> dict:

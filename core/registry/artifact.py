@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import re
 from pathlib import Path, PurePosixPath
 
@@ -24,10 +25,27 @@ from core.registry.codec import (
 from core.registry.requirements import check_languages, check_needs
 
 SCHEMA = "vool.registry.artifact.v1"
+# This cannot collide with a package path: path_name() refuses '@'.
+REVIEW_METADATA = "@metadata.json"
 _PATH = re.compile(r"^[A-Za-z0-9._/-]+$")
 _REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _PRIVATE = {".git", ".ssh", ".aws", ".gnupg", "credentials.json", "id_rsa", "id_ed25519"}
 _DEVICES = {"con", "prn", "aux", "nul"} | {f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10)}
+
+
+def review_files(artifact: dict) -> dict[str, bytes]:
+    """Every public author field gets the same checks as the package instructions."""
+    return {**artifact["files"], REVIEW_METADATA: metadata_text(artifact).encode("utf-8")}
+
+
+def metadata_text(artifact: dict, *, checksums: bool = True) -> str:
+    info = dict(artifact["metadata"])
+    if not checksums:
+        # inspect() proved these exact hashes against decoded PNG bytes. They are public content
+        # identifiers, not secrets. No prose field or unverified descriptor gets this exception.
+        for kind in artifact.get("pictures", {}):
+            info[kind] = {**info[kind], "sha256": "verified picture checksum"}
+    return json.dumps(info, ensure_ascii=False, sort_keys=True)
 
 
 def native_identity(package_id: str) -> str:

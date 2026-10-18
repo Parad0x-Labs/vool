@@ -10,6 +10,7 @@ import json
 import re
 import unicodedata
 
+from core.registry.artifact import REVIEW_METADATA, metadata_text, review_files
 from core.registry.codec import RegistryError, canonical, digest
 
 SUITE = "skill-codex-checks"
@@ -164,7 +165,7 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
     """Every file other than the declared pictures must be UTF-8 text without control characters."""
     pictures = _picture_paths(artifact)
     texts, findings = {}, []
-    for name, raw in artifact["files"].items():
+    for name, raw in review_files(artifact).items():
         if name in pictures:
             continue
         try:
@@ -453,7 +454,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
                                             "text under 120,000 characters.", rule="too-long"))
         return {"artifact": artifact, "findings": findings, "results": {}}
-    secrets, secret_lines = _secrets(texts)
+    secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_text(artifact, checksums=False)})
     findings["secrets"] += secrets
     findings["instructions-primary"] += _instructions(texts, secret_lines)
     findings["license"] += _license(artifact)
@@ -461,7 +462,7 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
                                                  "Skill Codex skills can't depend on other packages yet. Empty the requires list."))
-    boundaries = analyze(artifact["files"])
+    boundaries = analyze(review_files(artifact))
     findings["native-boundaries"] += [dict(item, reason="This tries to override VOOL's own rules on spending, "
                                            "approvals or permissions. Take it out.") for item in boundaries["conflicts"]]
     if not findings["code"]:
