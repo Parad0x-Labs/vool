@@ -417,6 +417,12 @@
     "bypass.timed": "Umgehung der Freigaben · Bereich {scope} · läuft ab {time}",
     "chat.ctx_aria": "Aktuelles Projekt und Chat",
     "chat.log_aria": "Unterhaltung",
+    "chat.no_model.line_text": "VOOL braucht ein KI-Modell, bevor es antworten kann. Die Einrichtung dauert etwa zwei Minuten.",
+    "chat.no_model.reply_body": "Die Einrichtung dauert etwa zwei Minuten: Öffne die Einrichtung und wähle, wo VOOL denken soll. Wenn du schon eine Modell-App wie Ollama auf diesem Computer hast, öffne sie und frag noch einmal.",
+    "chat.no_model.reply_detail": "Details: Auf diesem Computer läuft kein lokales Modell, und kein Cloud-Modell steht bereit, um stattdessen zu antworten.",
+    "chat.no_model.reply_lead": "Ich kann noch nicht antworten, weil auf diesem Computer noch kein KI-Modell eingerichtet ist.",
+    "chat.no_model.setup_button": "Modell einrichten",
+    "chat.no_model.setup_button_title": "Öffnet die Einrichtung beim Schritt, in dem du ein Modell wählst",
     "chat.queue_aria": "Wartende Nachrichten",
     "chat.setup_line_hide_aria": "Nicht mehr erinnern",
     "chat.setup_line_hide_title": "Nicht mehr erinnern — die Einrichtung lässt sich jederzeit über die Einstellungen fortsetzen",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

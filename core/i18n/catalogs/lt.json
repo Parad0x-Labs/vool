@@ -417,6 +417,12 @@
     "bypass.timed": "Leidimų apejimas · {scope} apimtis · baigiasi {time}",
     "chat.ctx_aria": "Dabartinis projektas ir pokalbis",
     "chat.log_aria": "Pokalbis",
+    "chat.no_model.line_text": "Kad galėtų atsakyti, VOOL reikia DI modelio. Nustatymas užtrunka apie dvi minutes.",
+    "chat.no_model.reply_body": "Nustatymas užtrunka apie dvi minutes: atidarykite sąranką ir pasirinkite, kur VOOL turėtų mąstyti. Jei šiame kompiuteryje jau turite modelių programą, pavyzdžiui, Ollama, atidarykite ją ir paklauskite dar kartą.",
+    "chat.no_model.reply_detail": "Išsamiau: šiame kompiuteryje neveikia joks vietinis modelis, o debesies modelio, kuris galėtų atsakyti vietoj jo, nėra.",
+    "chat.no_model.reply_lead": "Kol kas negaliu atsakyti, nes šiame kompiuteryje nenustatytas joks DI modelis.",
+    "chat.no_model.setup_button": "Nustatyti modelį",
+    "chat.no_model.setup_button_title": "Atidaro sąranką ties žingsniu, kuriame pasirenkate modelį",
     "chat.queue_aria": "Eilėje laukiančios žinutės",
     "chat.setup_line_hide_aria": "Nepriminti man",
     "chat.setup_line_hide_title": "Nepriminti man — sąranką vis tiek galite baigti per Nustatymus",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

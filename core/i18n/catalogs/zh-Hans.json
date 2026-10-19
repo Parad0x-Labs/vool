@@ -417,6 +417,12 @@
     "bypass.timed": "绕过权限 · 范围 {scope} · {time} 到期",
     "chat.ctx_aria": "当前项目与对话",
     "chat.log_aria": "对话",
+    "chat.no_model.line_text": "VOOL 需要一个 AI 模型才能回答。设置大约需要两分钟。",
+    "chat.no_model.reply_body": "设置大约需要两分钟：打开设置，选择 VOOL 在哪里思考。如果这台电脑上已经有模型应用（例如 Ollama），请打开它后再问一次。",
+    "chat.no_model.reply_detail": "详细信息：这台电脑上没有正在运行的本地模型，也没有可以代为回答的云端模型。",
+    "chat.no_model.reply_lead": "我暂时还无法回答，因为这台电脑上还没有设置 AI 模型。",
+    "chat.no_model.setup_button": "设置模型",
+    "chat.no_model.setup_button_title": "在选择模型的步骤打开设置",
     "chat.queue_aria": "排队中的消息",
     "chat.setup_line_hide_aria": "不再提醒我",
     "chat.setup_line_hide_title": "不再提醒我 — 你仍可随时在设置里完成配置",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
     "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

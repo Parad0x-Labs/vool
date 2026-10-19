@@ -417,6 +417,12 @@
     "bypass.timed": "İzinleri atla · kapsam {scope} · {time} tarihinde sona erer",
     "chat.ctx_aria": "Geçerli proje ve sohbet",
     "chat.log_aria": "Konuşma",
+    "chat.no_model.line_text": "VOOL'un yanıt verebilmesi için bir yapay zekâ modeli gerekiyor. Kurulum yaklaşık iki dakika sürer.",
+    "chat.no_model.reply_body": "Kurulum yaklaşık iki dakika sürer: kurulumu açın ve VOOL'un nerede düşüneceğini seçin. Bu bilgisayarda Ollama gibi bir model uygulaması zaten varsa onu açın ve yeniden sorun.",
+    "chat.no_model.reply_detail": "Ayrıntılar: Bu bilgisayarda çalışan bir yerel model yok ve onun yerine yanıt verebilecek bir bulut modeli de yok.",
+    "chat.no_model.reply_lead": "Henüz yanıt veremiyorum, çünkü bu bilgisayarda kurulu bir yapay zekâ modeli yok.",
+    "chat.no_model.setup_button": "Model kur",
+    "chat.no_model.setup_button_title": "Kurulumu model seçtiğiniz adımda açar",
     "chat.queue_aria": "Kuyruktaki iletiler",
     "chat.setup_line_hide_aria": "Bana bir daha hatırlatma",
     "chat.setup_line_hide_title": "Bana bir daha hatırlatma — kurulumu Ayarlar satırlarından yine bitirebilirsiniz",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

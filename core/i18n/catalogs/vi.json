@@ -417,6 +417,12 @@
     "bypass.timed": "Bỏ qua quyền · phạm vi {scope} · hết hạn {time}",
     "chat.ctx_aria": "Dự án và cuộc trò chuyện hiện tại",
     "chat.log_aria": "Cuộc trò chuyện",
+    "chat.no_model.line_text": "VOOL cần một mô hình AI trước khi có thể trả lời. Việc thiết lập mất khoảng hai phút.",
+    "chat.no_model.reply_body": "Việc thiết lập mất khoảng hai phút: mở phần thiết lập và chọn nơi VOOL sẽ suy nghĩ. Nếu máy tính này đã có ứng dụng mô hình, như Ollama, hãy mở nó và hỏi lại.",
+    "chat.no_model.reply_detail": "Chi tiết: không có mô hình cục bộ nào đang chạy trên máy tính này và không có mô hình đám mây nào sẵn sàng trả lời thay.",
+    "chat.no_model.reply_lead": "Tôi chưa thể trả lời vì chưa có mô hình AI nào được thiết lập trên máy tính này.",
+    "chat.no_model.setup_button": "Thiết lập mô hình",
+    "chat.no_model.setup_button_title": "Mở phần thiết lập ở bước chọn mô hình",
     "chat.queue_aria": "Tin nhắn đang chờ",
     "chat.setup_line_hide_aria": "Đừng nhắc tôi nữa",
     "chat.setup_line_hide_title": "Đừng nhắc tôi nữa — bạn vẫn có thể hoàn tất thiết lập từ các dòng trong Cài đặt",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

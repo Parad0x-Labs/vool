@@ -417,6 +417,12 @@
     "bypass.timed": "権限を一時免除 · 範囲 {scope} · {time} に失効",
     "chat.ctx_aria": "現在のプロジェクトとチャット",
     "chat.log_aria": "会話",
+    "chat.no_model.line_text": "VOOLが答えるにはAIモデルが必要です。設定は2分ほどで終わります。",
+    "chat.no_model.reply_body": "設定は2分ほどで終わります。セットアップを開いて、VOOLがどこで考えるかを選んでください。Ollamaなどのモデルアプリがすでにこのコンピューターにある場合は、それを開いてからもう一度お尋ねください。",
+    "chat.no_model.reply_detail": "詳細：このコンピューターではローカルモデルが動いておらず、代わりに答えられるクラウドモデルもありません。",
+    "chat.no_model.reply_lead": "このコンピューターにはまだAIモデルが設定されていないため、まだお答えできません。",
+    "chat.no_model.setup_button": "モデルを設定",
+    "chat.no_model.setup_button_title": "モデルを選ぶステップでセットアップを開きます",
     "chat.queue_aria": "キュー内のメッセージ",
     "chat.setup_line_hide_aria": "今後は表示しない",
     "chat.setup_line_hide_title": "今後は表示しない — 設定の行からいつでもセットアップを完了できます",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
     "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

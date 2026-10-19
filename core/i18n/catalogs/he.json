@@ -417,6 +417,12 @@
     "bypass.timed": "עקיפת הרשאות · היקף {scope} · פג תוקף {time}",
     "chat.ctx_aria": "הפרויקט והצ׳אט הנוכחיים",
     "chat.log_aria": "שיחה",
+    "chat.no_model.line_text": "VOOL צריך מודל בינה מלאכותית כדי לענות. ההגדרה לוקחת בערך שתי דקות.",
+    "chat.no_model.reply_body": "ההגדרה לוקחת בערך שתי דקות: פתחו את ההגדרה ובחרו איפה VOOL יחשוב. אם כבר יש לכם במחשב הזה אפליקציית מודלים, כמו Ollama, פתחו אותה ושאלו שוב.",
+    "chat.no_model.reply_detail": "פרטים: אין מודל מקומי שפועל במחשב הזה, ואין מודל ענן זמין שיענה במקומו.",
+    "chat.no_model.reply_lead": "אני עדיין לא יכול לענות, כי אין מודל בינה מלאכותית מוגדר במחשב הזה.",
+    "chat.no_model.setup_button": "הגדרת מודל",
+    "chat.no_model.setup_button_title": "פותח את ההגדרה בשלב שבו בוחרים מודל",
     "chat.queue_aria": "הודעות בתור",
     "chat.setup_line_hide_aria": "אל תזכיר לי שוב",
     "chat.setup_line_hide_title": "אל תזכיר לי שוב — תמיד אפשר להשלים את ההגדרה משורות ההגדרות",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

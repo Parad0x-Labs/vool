@@ -417,6 +417,12 @@
     "bypass.timed": "अनुमतियाँ बायपास · दायरा {scope} · समाप्त {time}",
     "chat.ctx_aria": "मौजूदा प्रोजेक्ट और चैट",
     "chat.log_aria": "बातचीत",
+    "chat.no_model.line_text": "जवाब देने से पहले VOOL को एक AI मॉडल चाहिए। इसे सेट करने में लगभग दो मिनट लगते हैं।",
+    "chat.no_model.reply_body": "सेटअप में लगभग दो मिनट लगते हैं: सेटअप खोलें और चुनें कि VOOL कहाँ सोचे। अगर इस कंप्यूटर पर पहले से कोई मॉडल ऐप है, जैसे Ollama, तो उसे खोलें और फिर से पूछें।",
+    "chat.no_model.reply_detail": "विवरण: इस कंप्यूटर पर कोई लोकल मॉडल नहीं चल रहा है, और उसकी जगह जवाब देने के लिए कोई क्लाउड मॉडल उपलब्ध नहीं है।",
+    "chat.no_model.reply_lead": "मैं अभी जवाब नहीं दे सकता, क्योंकि इस कंप्यूटर पर कोई AI मॉडल सेट नहीं है।",
+    "chat.no_model.setup_button": "मॉडल सेट करें",
+    "chat.no_model.setup_button_title": "सेटअप को उस चरण पर खोलता है जहाँ आप मॉडल चुनते हैं",
     "chat.queue_aria": "कतार में मौजूद संदेश",
     "chat.setup_line_hide_aria": "मुझे दोबारा याद मत दिलाना",
     "chat.setup_line_hide_title": "मुझे दोबारा याद मत दिलाना — सेटिंग्स की पंक्तियों से आप अब भी सेटअप पूरा कर सकते हैं",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
     "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

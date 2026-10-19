@@ -417,6 +417,12 @@
     "bypass.timed": "Omijanie uprawnień · zakres {scope} · wygasa {time}",
     "chat.ctx_aria": "Bieżący projekt i czat",
     "chat.log_aria": "Rozmowa",
+    "chat.no_model.line_text": "Zanim VOOL będzie mógł odpowiadać, potrzebuje modelu AI. Konfiguracja zajmuje około dwóch minut.",
+    "chat.no_model.reply_body": "Konfiguracja zajmuje około dwóch minut: otwórz konfigurację i wybierz, gdzie VOOL ma myśleć. Jeśli masz już na tym komputerze aplikację z modelami, na przykład Ollama, otwórz ją i zapytaj ponownie.",
+    "chat.no_model.reply_detail": "Szczegóły: na tym komputerze nie działa żaden model lokalny i nie ma modelu w chmurze, który mógłby odpowiedzieć zamiast niego.",
+    "chat.no_model.reply_lead": "Nie mogę jeszcze odpowiedzieć, bo na tym komputerze nie skonfigurowano żadnego modelu AI.",
+    "chat.no_model.setup_button": "Skonfiguruj model",
+    "chat.no_model.setup_button_title": "Otwiera konfigurację na kroku wyboru modelu",
     "chat.queue_aria": "Wiadomości w kolejce",
     "chat.setup_line_hide_aria": "Nie przypominaj mi",
     "chat.setup_line_hide_title": "Nie przypominaj mi — konfigurację zawsze dokończysz w Ustawieniach",
@@ -2601,7 +2607,7 @@
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "e9cba46a813b6caa231c259f1fcb020061bf5997e0c4a6b2c8dc285f04939f14",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
