@@ -876,7 +876,12 @@ def dispatch_get(
         if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
             return json_response(403, {"ok": False, "error": "owner_local_required"})
         try:
-            return browser_api.get(normalized_path, query, locale=resolve_page_locale(query, headers))
+            return browser_api.get(
+                normalized_path,
+                query,
+                locale=resolve_page_locale(query, headers),
+                appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
+            )
         except BrowserFault as exc:
             return json_response(409, {"ok": False, "error": str(exc)})
 

@@ -578,6 +578,46 @@ def test_live_form_review_is_visible_in_the_real_owner_pane(world,tmp_path):
         server.shutdown();server.server_close()
 
 
+def test_the_owner_pane_follows_the_vool_appearance_choice_not_only_the_system(world,tmp_path):
+    from playwright.sync_api import sync_playwright
+
+    from core.vool_browser.engine import find_engine_binary, isolation_launch_flags
+    from core.web.api.service import dispatch_get
+
+    rig=world[0]
+    class App(BaseHTTPRequestHandler):
+        def log_message(self,*_):pass
+        def do_GET(self):
+            parts=urlsplit(self.path)
+            response=dispatch_get(path=parts.path,query=parse_qs(parts.query),runtime=rig.runtime,
+                model_name='vool',client_host='127.0.0.1',headers=dict(self.headers))
+            self.send_response(response.status);self.send_header('Content-Type',response.content_type)
+            for key,value in response.headers.items():self.send_header(key,value)
+            self.send_header('Content-Length',str(len(response.body or b'')));self.end_headers();self.wfile.write(response.body or b'')
+    server=ThreadingHTTPServer(('127.0.0.1',0),App)
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    flags=[f for f in isolation_launch_flags(profile_dir=str(tmp_path/'viewer')) if not f.startswith('--user-data-dir=')]
+    luma="(()=>{const m=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g).map(Number);return .2126*m[0]+.7152*m[1]+.0722*m[2]})()"
+    try:
+        with sync_playwright() as driver:
+            browser=driver.chromium.launch(executable_path=find_engine_binary(),headless=True,args=flags)
+            seen={}
+            for choice,system in [(None,'light'),('light.100','dark'),('system.100','light'),('system.100','dark')]:
+                context=browser.new_context(viewport={'width':390,'height':800},color_scheme=system)
+                if choice:
+                    context.add_cookies([{'name':'vool_appearance','value':choice,'url':f'http://127.0.0.1:{server.server_port}/'}])
+                page=context.new_page()
+                page.goto(f'http://127.0.0.1:{server.server_port}/browser?chat=live-test')
+                seen[(choice,system)]=(page.evaluate(luma)>128,page.evaluate('document.documentElement.scrollWidth'))
+                context.close()
+            browser.close()
+    finally:
+        server.shutdown();server.server_close()
+    # Dark is VOOL's default even when the computer is light; Light and "Same as this computer" are honoured.
+    assert seen=={(None,'light'):(False,390),('light.100','dark'):(True,390),
+                  ('system.100','light'):(True,390),('system.100','dark'):(False,390)}
+
+
 def test_actual_engine_profile_sandbox_and_network_rejector_are_owned(world):
     import socket
 

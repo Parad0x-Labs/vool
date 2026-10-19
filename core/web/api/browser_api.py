@@ -4,7 +4,7 @@ from __future__ import annotations
 from core.vool_browser import live
 
 
-def get(path, query, *, locale="en"):
+def get(path, query, *, locale="en", appearance=None):
     from core.web.api.service import ApiResponse, html_response, json_response
 
     if path not in {"/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download"}:
@@ -13,7 +13,7 @@ def get(path, query, *, locale="en"):
     if path == "/browser":
         from core.vool_browser.live_page import render
 
-        return html_response(200, render(chat, locale), headers={"Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"})
+        return html_response(200, render(chat, locale, appearance), headers={"Cache-Control": "no-store", "X-Frame-Options": "SAMEORIGIN", "Content-Security-Policy": "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'"})
     if path == "/api/browser/settings":
         return json_response(200, live.settings(), headers={"Cache-Control": "no-store"})
     try:
