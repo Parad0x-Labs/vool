@@ -371,6 +371,10 @@ builder_root_list() {
   {
     for r in "${HOME:-}" "${PROJECT_ROOT:-}" "${OUT_DIR:-}" "${TMPDIR:-}" "$@"; do
       [[ -n "${r}" ]] || continue
+      while [[ "${r}" == */ ]]; do r="${r%/}"; done
+      # A shared short root stays excluded when macOS resolves its /private alias.
+      [[ ${#r} -ge 5 ]] || continue
+      case "${r}" in /private/tmp|/private/var|/private/usr) continue ;; esac
       printf '%s\n' "${r}"
       if [[ -d "${r}" ]]; then (cd "${r}" 2>/dev/null && pwd -P) || true; fi
     done
@@ -577,6 +581,12 @@ stage_self_contained() {
   # UV_OFFLINE=1 to make a network fetch impossible rather than merely unnecessary. Wheels are
   # resolved from the directory first; anything not there still comes from the cache or the
   # index exactly as before, so an unset variable changes nothing.
+  # Build the pure-Python dependency from its verified sdist, twice, with the recorded recipe.
+  local input_scratch
+  input_scratch="$(mktemp -d -t vool-build-inputs)"
+  "${embedded}" "${PROJECT_ROOT}/ops/macos_build_inputs.py" proxy-wheel \
+      --cache "${input_scratch}/cache" --out "${input_scratch}/wheels" \
+      || die "pinned proxy-tools wheel build failed"
   wheelhouse_args=()
   if [[ -n "${VOOL_BUNDLE_WHEELHOUSE:-}" ]]; then
     [[ -d "${VOOL_BUNDLE_WHEELHOUSE}" ]] \
@@ -584,6 +594,7 @@ stage_self_contained() {
     wheelhouse_args=(--find-links "${VOOL_BUNDLE_WHEELHOUSE}")
     say "  local wheelhouse: ${VOOL_BUNDLE_WHEELHOUSE}"
   fi
+  wheelhouse_args+=(--find-links "${input_scratch}/wheels")
   # DEPENDENCY PROVENANCE. A package manager accepting a wheel is not provenance: during this
   # lane's preflight, two pins were supplied from wheels RE-ZIPPED out of unpacked ~/.cache/uv
   # directories -- contents intact, RECORD verified, and their own sha256 matching nothing in
@@ -708,17 +719,14 @@ stage_self_contained() {
 
   say "  [4/4] bundled ollama"
   mkdir -p "${res}/ollama"
-  local oll resolved
-  oll="$(command -v ollama || true)"
-  if [[ -n "${oll}" ]]; then
-    resolved="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${oll}" 2>/dev/null || echo "${oll}")"
-    if [[ -f "${resolved}" ]]; then
-      cp -f "${resolved}" "${res}/ollama/ollama" && chmod +x "${res}/ollama/ollama"
-      say "        bundled: ${resolved}"
-      bundle_ollama_runtime "$(dirname "${resolved}")" "${res}/ollama" "${TARGET_ARCH}"
-    fi
-  fi
-  [[ -x "${res}/ollama/ollama" ]] || say "        WARNING: no ollama binary bundled; the app will use a system ollama if present"
+  "${embedded}" "${PROJECT_ROOT}/ops/macos_build_inputs.py" ollama \
+      --cache "${input_scratch}/cache" --out "${input_scratch}/ollama" \
+      || die "pinned Ollama download failed"
+  cp -f "${input_scratch}/ollama/ollama" "${res}/ollama/ollama"
+  chmod +x "${res}/ollama/ollama"
+  bundle_ollama_runtime "${input_scratch}/ollama" "${res}/ollama" "${TARGET_ARCH}"
+  [[ -x "${res}/ollama/ollama" ]] || die "the pinned Ollama executable is missing"
+  rm -rf "${input_scratch}"
 
   # ---- BUILDER-FOOTPRINT SCRUB (must run before any code signature) ------------------------
   # A distributed bundle must not carry the BUILD MACHINE's footprint: compiled .pyc bytecode
