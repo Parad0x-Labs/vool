@@ -13122,7 +13122,12 @@ function resumeApprovedTurn(chatId) {
   const asking = resume && resume.run;
   const entry = asking && asking.promptEntry;
   // Without the asking turn and its message there is nothing exact to resume: send nothing.
-  if (!entry || owner.history.indexOf(entry) < 0 || !asking.turnId) { releaseApprovalTokenFor(owner.chatId); return; }
+  // Said, not silent: the operator allowed an action that will not run now.
+  if (!entry || owner.history.indexOf(entry) < 0 || !asking.turnId) {
+    releaseApprovalTokenFor(owner.chatId);
+    toast(pageT('permissions.approval_gone', 'This approval is no longer available.'));
+    return;
+  }
   // The asking turn's own answer is replaced by the resumed one only when it is still the last
   // entry; an answer to a later message is that message's, and stays.
   if (asking.historyIndex >= 0 && asking.historyIndex === owner.history.length - 1 && owner.history[asking.historyIndex].role === 'assistant') {
