@@ -571,6 +571,7 @@ class RepoAuthority(Authority):
 
     def recheck(self) -> list[str]:
         """Once a day: today's checks on every listed skill. One that fails them leaves the list."""
+        self._recheck_waiting = None
         if self.state.get("rechecked") == self._today():
             return []
         kept, dropped = [], []
@@ -580,6 +581,11 @@ class RepoAuthority(Authority):
                 raw = self._artifact(entry["artifact_sha256"])
             except MissingArtifact:
                 dropped.append(envelope)  # nobody can download it any more
+                continue
+            except RegistryError as exc:
+                # Unreadable today: only this skill waits for the next daily recheck; the others are checked now.
+                self._recheck_waiting = self._recheck_waiting or str(exc)
+                kept.append(envelope)
                 continue
             official = entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"]
             try:
@@ -621,10 +627,9 @@ class RepoAuthority(Authority):
         report = {"steps": self.team_steps(wanted), "dropped": []}
         self.state["moderation"] = moderation
         report["releases_changed"] = self.follow_releases(released)
-        try:
-            report["dropped"] = self.recheck()
-        except RegistryError as exc:
-            report["recheck_waiting"] = str(exc)  # the listed skills are looked at again next run
+        report["dropped"] = self.recheck()
+        if self._recheck_waiting:
+            report["recheck_waiting"] = self._recheck_waiting
         try:
             report.update(super().run_once(queue=queue, prepared=prepared,
                                            held=held and held + "; the uploads wait for the next run"))

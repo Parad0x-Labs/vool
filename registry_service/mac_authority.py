@@ -372,13 +372,21 @@ class Authority:
             if entry["expires"] - self.now() > RENEW_BEFORE and entry["targets"] == self.state["targets"]:
                 kept.append(envelope)
                 continue
-            changed = True
             try:
                 raw = self._artifact(entry["artifact_sha256"])
             except MissingArtifact:
                 # Nobody can download bytes the service no longer has; only this entry leaves the list.
+                changed = True
                 self._said_dropped(entry, "the service no longer has its bytes")
                 continue
+            except RegistryError:
+                # Its bytes could not be read this run: only this entry waits, and it leaves the list before it expires.
+                if entry["expires"] > self.now() + 3600:
+                    kept.append(envelope)
+                else:
+                    changed = True
+                continue
+            changed = True
             result = self.check(raw, official=entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"])
             if "admission" in result:
                 kept.append(result["admission"])
@@ -461,7 +469,13 @@ class Authority:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
         self._review_stop = None
         self._batch_admissions = []
-        queue = self.upload_queue() if queue is None else queue
+        if queue is None:
+            try:
+                queue = self.upload_queue()
+                prepared = self.read_uploads(queue)
+            except RegistryError as exc:
+                # A broken upload batch waits whole; the list already signed still renews.
+                held, queue, prepared = str(exc) + "; the uploads wait for the next run", {"submissions": []}, []
         prepared = self.read_uploads(queue) if prepared is None else prepared
         checked = []
         for item, raw in prepared:

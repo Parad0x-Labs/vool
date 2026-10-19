@@ -115,3 +115,32 @@ def test_a_signer_that_never_published_does_not_publish_an_empty_list_for_a_held
     assert report["stopped"] == CAP_STOP and "catalog" not in report
     assert state(world)["authorized_until"] == 0
     assert world.http.get("/registry/api/snapshot").json() == {"error": "no approved snapshot"}
+
+
+def test_a_listed_skill_whose_bytes_stay_unreadable_leaves_only_itself_and_the_rest_stays_fresh(world):
+    _, token, csrf = creator(world, "101", "alice")
+    first = draft(world, token, csrf, "alice/one").json()
+    assert held_signer(world).run_once()["admitted"] == ["alice/one 1.0.0"]
+    listed = world.clock.t
+    world.clock.t += 1
+    draft(world, token, csrf, "alice/two", SKILL + "\nSECOND\n")
+    world.clock.t += DAY
+    assert held_signer(world).run_once()["admitted"] == ["alice/two 1.0.0"]
+    calls = len(world.model.calls)
+
+    def different(method, url, body, headers):
+        if method == "GET" and url.endswith("/authority/artifacts/" + first["sha256"]):
+            world.sent.append((method, url))
+            return 200, b"PRIVATE_DIFFERENT_BYTES"
+        return world.transport(method, url, body, headers)
+
+    for day in range(3, 37, 3):  # past alice/one's 30-day signature, which can no longer be renewed
+        world.clock.t = listed + day * DAY
+        report = held_signer(world, transport=different).run_once()
+        assert "stopped" not in report
+        assert report.get("recheck_waiting") == ("the server sent different bytes" if day <= 30 else None)
+        world.online.refresh(now=world.clock.t)
+        assert sorted(app_rows(world)) == (["alice/one", "alice/two"] if day < 30 else ["alice/two"])
+        assert state(world)["authorized_until"] > world.clock.t
+    assert len(world.model.calls) == calls  # alice/two renewed from its saved verdict
+    assert b"PRIVATE_" not in on_github(world, FOLDER + "/state.json")
