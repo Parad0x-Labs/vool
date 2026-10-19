@@ -47,7 +47,11 @@ live view. The person opens Browser from the chat header and watches every step.
 5. Uploads are selected by the person in the pane. Attachment and submission
    have separate approvals. A download is bounded and retrieved by the person
    from that pane; no local path can select a file for upload or download.
-6. Close with `session.close` when the journey ends. Do not close while approval
+6. A follow-up in the same chat that names a part of the open page and an
+   action ("now fill the address field and submit") may act on that page with
+   only the authority its own words give. Field values in the observation show
+   what a fill already did; read them before repeating a fill.
+7. Close with `session.close` when the journey ends. Do not close while approval
    is pending. `cancel` stops immediately. Stop, closed views, abandoned views
    and chat deletion purge the owned context and profile.
 
