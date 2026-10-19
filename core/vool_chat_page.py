@@ -12421,7 +12421,7 @@ function renderSkills(d, query) {
     card.appendChild(h);
     if (s.description) { const de = document.createElement('div'); de.className = 'p-desc'; de.textContent = s.description; card.appendChild(de); }
     // Only a skill the person made gets the quiet Skill Codex button (the add-on store owns it).
-    if (s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
+    if (d.skill_codex_open === true && s.own && s.slug && window.VoolAddons && typeof window.VoolAddons.publishControl === 'function') card.appendChild(window.VoolAddons.publishControl(s));
     body.appendChild(card);
   });
 }

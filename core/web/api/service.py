@@ -1892,8 +1892,9 @@ def dispatch_get(
         # the local plugin monorepo (marketplace + manifests + SKILL.md frontmatter). Plugins give
         # VOOL powers; skills teach it how to use them.
         from core.plugin_catalog import read_plugin_catalog
+        from core.registry.client import is_open
 
-        return apply_runtime_headers(json_response(200, read_plugin_catalog()), runtime)
+        return apply_runtime_headers(json_response(200, {**read_plugin_catalog(), "skill_codex_open": is_open()}), runtime)
 
     if normalized_path == "/api/skills":
         # The NATIVE skill library's inventory: every shipped skill with its version, enabled

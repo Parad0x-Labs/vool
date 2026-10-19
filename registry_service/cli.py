@@ -47,7 +47,7 @@ def load_service(config: dict, *, now: int):
         entry = envelope["signed"]
         info = entry["metadata"]
         try:
-            trust.resolve(info["id"], info["version"], target=config["target"], now=now)
+            trust.resolve_any(info["id"], info["version"], now=now)
         except RegistryError:
             continue
         raw = store.admitted_artifact(entry["artifact_sha256"])
@@ -56,7 +56,7 @@ def load_service(config: dict, *, now: int):
             if online is not None and not cached.exists():
                 continue  # its bytes left with a deleted account before they were published; it is not served
             raw = cached.read_bytes()
-        store.publish(trust, info["id"], info["version"], config["target"], raw, now=now)
+        store.publish(trust, info["id"], info["version"], None, raw, now=now)
     store.prune(now=now)
     providers = []
     require(isinstance(config["providers"], list), "invalid provider registrations")
@@ -87,7 +87,7 @@ def moderate(args) -> int:
         if args.command == "pictures-pending":
             from registry_service.curation import load_curation, picture_approvals
 
-            approvals = picture_approvals(load_curation())
+            approvals = picture_approvals(store.marks().get("curation", load_curation()))
             pending = [item for item in store.published_pictures() if (item["id"], item["sha256"]) not in approvals]
             if args.target:
                 # Write each waiting picture into a new folder so a person can look at the exact file.

@@ -126,6 +126,16 @@ class Store:
             # A public name survives private account deletion without retaining
             # provider/account identifiers. Legacy state must be unambiguous.
             db.execute("BEGIN IMMEDIATE")
+            if not db.execute("SELECT 1 FROM service_keys WHERE name='checksum-consent-v1'").fetchone():
+                # Earlier automatic intake set consent from the licence agreement. It cannot prove
+                # that an unpublished upload's author saw and accepted this exact checksum.
+                db.execute("UPDATE submissions SET consent=0,state='checking' WHERE agreement IS NOT NULL "
+                           "AND state IN ('checking','admitted')")
+                db.execute("UPDATE submissions SET state='preflighted' WHERE auto_consent=1 AND state='ready_for_github'")
+                db.execute("UPDATE submissions SET consent=0 WHERE auto_consent=1 AND state!='published'")
+                db.execute("INSERT INTO service_keys VALUES ('checksum-consent-v1',?)", (b"1",))
+            # An earlier generic publish choice is not consent to the returned artifact checksum.
+            db.execute("UPDATE submissions SET auto_consent=0 WHERE consent=0")
             db.execute("INSERT OR IGNORE INTO service_keys VALUES ('download-hmac',?)", (secrets.token_bytes(32),))
             self._ticket_key = db.execute("SELECT value FROM service_keys WHERE name='download-hmac'").fetchone()[0]
             require(isinstance(self._ticket_key, bytes) and len(self._ticket_key) == 32, "invalid private download key")
@@ -391,6 +401,9 @@ class Store:
                 # A team name someone else already holds is a squat for a maintainer, never silently shared.
                 require(not db.execute("SELECT 1 FROM accounts WHERE namespace=?", (name,)).fetchone(),
                         f"an account outside the team holds the name {name}")
+            from registry_service.operations import apply
+
+            apply(db, value.get("operations", []), now=now)
             db.execute("INSERT OR REPLACE INTO authority_marks VALUES (1,?,?)", (value["sequence"], canonical(envelope)))
             # A team's name is the team's: nobody else can choose it.
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
@@ -428,7 +441,7 @@ class Store:
             suspended = set(marks["suspended"])
             rows = db.execute("""SELECT submissions.id, submissions.package_id, submissions.version, submissions.sha256,
                 submissions.created, accounts.namespace FROM submissions JOIN accounts ON accounts.id=submissions.account
-                WHERE submissions.state='checking' AND submissions.agreement IS NOT NULL AND submissions.artifact IS NOT NULL
+                WHERE submissions.state='checking' AND submissions.agreement IS NOT NULL AND submissions.consent=1 AND submissions.artifact IS NOT NULL
                 ORDER BY submissions.created, submissions.rowid""").fetchall()
             waiting = []
             for row in rows:
@@ -443,7 +456,7 @@ class Store:
 
     def queued_artifact(self, identifier: str) -> bytes:
         with self.connection() as db:
-            row = db.execute("SELECT artifact FROM submissions WHERE id=? AND state='checking' AND artifact IS NOT NULL",
+            row = db.execute("SELECT artifact FROM submissions WHERE id=? AND state='checking' AND consent=1 AND artifact IS NOT NULL",
                              (identifier,)).fetchone()
         require(row, "this upload is not waiting for checks")
         return row[0]
@@ -473,7 +486,7 @@ class Store:
         refusal = None
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT artifact, state FROM submissions WHERE id=? AND sha256=? AND artifact IS NOT NULL AND "
+            row = db.execute("SELECT artifact, state FROM submissions WHERE id=? AND sha256=? AND consent=1 AND artifact IS NOT NULL AND "
                              "state IN ('checking','admitted','published')", (identifier, sha256)).fetchone()
             require(row, "this upload is not waiting for checks")
             if row[1] != "checking":
@@ -583,7 +596,7 @@ class Store:
                        "agreement,consent,publisher_bound) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (identifier, account, completed, artifact["metadata"]["id"], artifact["metadata"]["version"], artifact["sha256"],
                         raw if state in {"quarantined", "checking"} else None, state, canonical(findings or checked),
-                        canonical(notices), _via, agreement, int(bool(agreement)), int(bool(agreement))))
+                        canonical(notices), _via, agreement, 0, int(bool(agreement))))
         return self.submission(account, identifier)
 
     def draft(self, account: str, value: dict, *, now: int, _slot: str | None = None) -> dict:
@@ -735,8 +748,8 @@ class Store:
             if local["findings"] and result["state"] not in {"rejected", "refused", "checking"}:
                 db.execute("UPDATE submissions SET state='held', findings=? WHERE id=?", (canonical(local["findings"]), result["id"]))
             # Server-built bytes from a repository owned by this account's verified GitHub identity.
-            db.execute("UPDATE submissions SET publisher_bound=1, auto_consent=? WHERE id=? AND account=?",
-                       (int(value["publish_when_checks_pass"]), result["id"], account))
+            db.execute("UPDATE submissions SET publisher_bound=1, auto_consent=0 WHERE id=? AND account=?",
+                       (result["id"], account))
         return self.submission(account, result["id"]) | {"source": info["source"]}
 
     def submission(self, account: str, identifier: str) -> dict:
@@ -791,8 +804,11 @@ class Store:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             row = db.execute("SELECT * FROM submissions WHERE id=? AND account=?", (identifier, account)).fetchone()
-            require(row and row["sha256"] == sha256 and row["state"] in {"preflighted", "reviewed"}, "exact bytes must pass review before public consent")
-            db.execute("UPDATE submissions SET consent=1, state='ready_for_github' WHERE id=?", (identifier,))
+            automatic = bool(row and row["state"] == "checking" and row["agreement"] == AGREEMENT and row["artifact"])
+            require(row and row["sha256"] == sha256 and (automatic or row["state"] in {"preflighted", "reviewed"}),
+                    "exact bytes must pass review before public consent")
+            state = "checking" if automatic else "ready_for_github"
+            db.execute("UPDATE submissions SET consent=1, state=? WHERE id=?", (state, identifier))
         return self.submission(account, identifier)
 
     def export_submission(self, identifier: str, policy: dict, root: dict, *, now: int) -> tuple[bytes, dict]:
@@ -824,9 +840,10 @@ class Store:
                     "submission changed during export; recheck review and consent")
             return current["artifact"], review
 
-    def publish(self, catalog, package_id: str, version: str, target: dict, raw: bytes, *, now: int) -> None:
+    def publish(self, catalog, package_id: str, version: str, target: dict | None, raw: bytes, *, now: int) -> None:
         """Called only after TrustedCatalog verifies the signed GitHub catalog snapshot."""
-        entry = catalog.resolve(package_id, version, target=target, now=now)
+        entry = catalog.resolve_any(package_id, version, now=now) if target is None else catalog.resolve(
+            package_id, version, target=target, now=now)
         artifact = inspect(raw)
         require(artifact["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"] and
                 artifact["native_digest"] == entry["native_digest"] and artifact["metadata"] == entry["metadata"], "published artifact differs from admission")

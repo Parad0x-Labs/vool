@@ -104,8 +104,8 @@ def test_add_ons_page_shows_languages_needs_and_tested_builds_before_install(tmp
             return dict(zip(terms, scope.locator(".addon-facts dd").all_inner_texts(), strict=True))
 
         tested = "VOOL 0.7.1 (macOS Apple Silicon)"
-        expected = {"Languages": "en, lt", "Needs": "Web search, VOOL wallet", "Tested with": tested} if declared \
-            else {"Tested with": tested}
+        expected = {"Languages": "en, lt", "Needs": "Web search, VOOL wallet", "Checked for": tested} if declared \
+            else {"Checked for": tested}
         assert facts(card) == expected
         card.get_by_role("button", name="Download for inspection", exact=True).click()
         page.get_by_role("button", name="Install and enable", exact=True).wait_for()

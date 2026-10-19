@@ -11,15 +11,11 @@ import urllib.parse
 import urllib.request
 
 from core.registry.codec import RegistryError, decode, require
+from registry_service.http_transport import open_request
 
 REPOSITORY = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}")
 REF = re.compile(r"[A-Za-z0-9._/-]{1,100}")
 MAX_ARCHIVE = 16 * 1024 * 1024
-
-
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise RegistryError("GitHub redirect refused")
 
 
 def check_repository(repository: object) -> str:
@@ -41,7 +37,7 @@ class GitHubSource:
     def _get(self, url: str, accept: str, limit: int) -> bytes:
         request = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "VOOL-registry"})
         try:
-            with urllib.request.build_opener(_NoRedirect()).open(request, timeout=self.timeout) as response:
+            with open_request(request, service="GitHub", timeout=self.timeout) as response:
                 data = response.read(limit + 1)
         except (urllib.error.URLError, OSError):
             raise RegistryError("GitHub is unavailable or the repository was not found") from None
