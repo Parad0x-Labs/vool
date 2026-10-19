@@ -5537,6 +5537,9 @@ function streamingPreviewText(text) {
 }
 function paintStreamingText(run) {
   if (!run.textEl) return;
+  // The bubble leaves its typing state in the same step that puts text in it: a reply that is not
+  // .pending always shows words, never the '…' placeholder of an answer that has not painted yet.
+  if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
   run.textEl.dataset.streaming = '1';
   renderRichText(run.textEl, streamingPreviewText(run.text));
 }
@@ -8684,7 +8687,9 @@ async function runTurn(text, queueItemId, opts) {
           run.tokens = Math.round(assistant.length / 4);
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
-            run.assistantMsgEl.classList.remove('pending');
+            // The typing state ends when the text is painted (paintStreamingText), not here: an early
+            // task.completed event can end the run first, and then no stream paint follows until the
+            // server commit renders the answer.
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
             followLog();
           });
@@ -8747,7 +8752,11 @@ async function runTurn(text, queueItemId, opts) {
     // The answer is appended to the chat that ASKED for it, resolved off the run -- never off the
     // chat currently on screen. This is the line that would silently move A's answer into B.
     recordAssistantMessage(run, assistant, run.displayMetadata);
-    withRunDom(run, () => { if (run.textEl) renderAssistantContent(run.textEl, assistant, run.displayMetadata); });
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      renderAssistantContent(run.textEl, assistant, run.displayMetadata);
+    });
   }
   if (!run.ended) finishRun(run, run.permissionDenied ? 'failed' : (run.permission ? 'awaiting_approval' : (run.terminal ? 'failed' : 'completed')), run.permissionDenied ? pageT('run.permission_denied', 'Permission denied') : (run.permission ? pageT('run.review_action', 'Review the exact action below.') : (run.terminal ? (run.action || pageT('run.failed_safely_label', 'Failed safely')) : pageT('run.complete', 'Complete'))));
   // The turn ran to the end without asking again, so the server either matched the token or never
