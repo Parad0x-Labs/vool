@@ -34,6 +34,9 @@ class SpendReservation:
     reserved_usd: float
     actual_usd: float
     status: str
+    # True when this settlement named an invocation the ledger had already settled: nothing was
+    # written, and the row is returned as it stands.
+    replayed: bool = False
 
 
 def _init_table() -> None:
@@ -57,6 +60,15 @@ def _init_table() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_model_spend_task ON model_spend_reservations(task_id, created_ts);
             CREATE INDEX IF NOT EXISTS idx_model_spend_status ON model_spend_reservations(status, created_ts);
+            CREATE TABLE IF NOT EXISTS model_spend_invocations (
+                model_call_id TEXT NOT NULL,
+                invocation_id TEXT NOT NULL,
+                ledger_call_id TEXT NOT NULL,
+                actual_usd REAL,
+                flagged INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (model_call_id, invocation_id)
+            );
             """
         )
         conn.commit()
@@ -138,13 +150,36 @@ def reserve_spend(
         conn.close()
 
 
-def settle_spend(model_call_id: str, *, actual_usd: float | None, billing_ambiguous: bool = False) -> SpendReservation:
+def settle_spend(
+    model_call_id: str,
+    *,
+    actual_usd: float | None,
+    billing_ambiguous: bool = False,
+    invocation_id: str = "",
+    add_to_ambiguous: bool = False,
+) -> SpendReservation:
+    """Close (or keep holding) a reservation at what the call cost.
+
+    ``invocation_id`` names the physical provider response being settled. The ledger records it in
+    the same transaction as the money, so settling that response again returns the row unchanged
+    (``replayed``) instead of charging it twice, across restarts and concurrent callers.
+
+    ``add_to_ambiguous`` adds ``actual_usd`` to the charges already known on a row whose earlier
+    attempt left its outcome unknown; the sum is taken inside the transaction, so two settlements
+    racing on that row cannot lose one of the charges.
+    """
     _init_table()
     actual = None if actual_usd is None else round(max(0.0, float(actual_usd)), 8)
     billing_ambiguous = billing_ambiguous or actual is None
+    invocation = str(invocation_id or "")
     conn = get_connection()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        if invocation:
+            replay = _replayed_row(conn, model_call_id, invocation)
+            if replay is not None:
+                conn.rollback()
+                return replay
         row = conn.execute("SELECT * FROM model_spend_reservations WHERE model_call_id = ?", (model_call_id,)).fetchone()
         if row is None:
             raise KeyError(model_call_id)
@@ -152,15 +187,20 @@ def settle_spend(model_call_id: str, *, actual_usd: float | None, billing_ambigu
             raise ValueError("reservation_already_finalized")
         if actual is None:
             actual = float(row["actual_usd"])
+        elif add_to_ambiguous and row["status"] == "billing_ambiguous":
+            actual = round(actual + float(row["actual_usd"]), 8)
         # Unknown billing remains a liability, not a zero-dollar settlement. Only
         # explicit reconciliation may clear this hold with a known total.
         held = float(row["reserved_usd"]) if billing_ambiguous else 0.0
         status = "billing_ambiguous" if billing_ambiguous else ("cap_breached" if actual > float(row["reserved_usd"]) else "settled")
+        now_iso = datetime.now(timezone.utc).isoformat()
         conn.execute(
             """UPDATE model_spend_reservations SET actual_usd = ?, reserved_usd = ?,
             status = ?, billing_ambiguous = ?, updated_at = ? WHERE model_call_id = ?""",
-            (actual, held, status, int(billing_ambiguous), datetime.now(timezone.utc).isoformat(), model_call_id),
+            (actual, held, status, int(billing_ambiguous), now_iso, model_call_id),
         )
+        if invocation:
+            _record_invocation(conn, model_call_id, invocation, ledger_call_id=model_call_id, usd=actual_usd, flagged=False)
         conn.commit()
         return SpendReservation(
             reservation_id=row["reservation_id"], model_call_id=model_call_id, task_id=row["task_id"],
@@ -170,6 +210,126 @@ def settle_spend(model_call_id: str, *, actual_usd: float | None, billing_ambigu
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def record_supplemental_charge(
+    model_call_id: str,
+    *,
+    invocation_id: str,
+    task_id: str,
+    model_id: str,
+    actual_usd: float | None,
+    hold_usd: float = 0.0,
+) -> SpendReservation | None:
+    """Record a provider response that arrived after its reservation closed (a paid retry).
+
+    The caps exist to refuse spend that has not happened yet; this money already has, so the row is
+    admitted regardless of them, and recording it is what makes the NEXT reservation see the larger
+    total. A known amount is booked as settled; an unknown one holds ``hold_usd`` as an ambiguous
+    liability rather than reading as free.
+
+    The row is keyed on the invocation, in one transaction with its invocation record, so the same
+    response replayed returns the existing row (``replayed``) and books nothing. A settlement that
+    names no invocation cannot be told apart from a replay: it is recorded under a fresh id and
+    FLAGGED (see :func:`unverified_supplemental_charges`), never dropped. Returns ``None`` when there
+    is nothing to record (a known zero, or an unknown outcome with nothing to hold).
+    """
+    _init_table()
+    actual = None if actual_usd is None else round(max(0.0, float(actual_usd)), 8)
+    hold = round(max(0.0, float(hold_usd or 0.0)), 8) if actual is None else 0.0
+    if (actual is not None and actual <= 0) or (actual is None and hold <= 0):
+        return None
+    invocation = str(invocation_id or "")
+    flagged = not invocation
+    if flagged:
+        invocation = f"unidentified-{uuid.uuid4().hex}"
+    supplemental_id = f"{model_call_id}#{invocation}"
+    status = "billing_ambiguous" if actual is None else "settled"
+    conn = get_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        replay = _replayed_row(conn, model_call_id, invocation)
+        if replay is not None:
+            conn.rollback()
+            return replay
+        ts = datetime.now(timezone.utc).timestamp()
+        now_iso = datetime.fromtimestamp(ts, timezone.utc).isoformat()
+        reservation_id = f"spend-reservation-{uuid.uuid4().hex}"
+        conn.execute(
+            """INSERT INTO model_spend_reservations
+            (reservation_id, model_call_id, task_id, subtask_id, model_id, reserved_usd,
+             actual_usd, status, billing_ambiguous, created_ts, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                reservation_id, supplemental_id, task_id or "unknown_task", SUPPLEMENTAL_SUBTASK_ID, model_id,
+                hold, actual or 0.0, status, int(actual is None), ts, now_iso, now_iso,
+            ),
+        )
+        _record_invocation(conn, model_call_id, invocation, ledger_call_id=supplemental_id, usd=actual, flagged=flagged)
+        conn.commit()
+        return SpendReservation(
+            reservation_id=reservation_id, model_call_id=supplemental_id, task_id=task_id or "unknown_task",
+            subtask_id=SUPPLEMENTAL_SUBTASK_ID, model_id=model_id, reserved_usd=hold,
+            actual_usd=actual or 0.0, status=status,
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _replayed_row(conn, model_call_id: str, invocation_id: str) -> SpendReservation | None:
+    """The ledger row an already-settled invocation wrote, marked replayed; else ``None``."""
+    seen = conn.execute(
+        "SELECT ledger_call_id FROM model_spend_invocations WHERE model_call_id = ? AND invocation_id = ?",
+        (model_call_id, invocation_id),
+    ).fetchone()
+    if seen is None:
+        return None
+    row = conn.execute(
+        "SELECT * FROM model_spend_reservations WHERE model_call_id = ?", (seen["ledger_call_id"],)
+    ).fetchone()
+    if row is None:
+        # The invocation is on record but its row is gone: the response WAS settled once, so a
+        # replay still books nothing. Report it as an empty settled row.
+        return SpendReservation(
+            reservation_id="", model_call_id=str(seen["ledger_call_id"]), task_id="", subtask_id="",
+            model_id="", reserved_usd=0.0, actual_usd=0.0, status="settled", replayed=True,
+        )
+    return SpendReservation(
+        reservation_id=str(row["reservation_id"] or ""), model_call_id=str(row["model_call_id"] or ""),
+        task_id=str(row["task_id"] or ""), subtask_id=str(row["subtask_id"] or ""),
+        model_id=str(row["model_id"] or ""), reserved_usd=float(row["reserved_usd"] or 0.0),
+        actual_usd=float(row["actual_usd"] or 0.0), status=str(row["status"] or ""), replayed=True,
+    )
+
+
+def _record_invocation(conn, model_call_id: str, invocation_id: str, *, ledger_call_id: str, usd: float | None, flagged: bool) -> None:
+    conn.execute(
+        """INSERT INTO model_spend_invocations
+        (model_call_id, invocation_id, ledger_call_id, actual_usd, flagged, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)""",
+        (model_call_id, invocation_id, ledger_call_id, usd, int(flagged), datetime.now(timezone.utc).isoformat()),
+    )
+
+
+def unverified_supplemental_charges() -> list[dict[str, object]]:
+    """Charges booked on a closed reservation by a settlement that named no invocation.
+
+    Each one is real money recorded against the caps that may also be a replay of an earlier
+    response; they are listed so a person can reconcile them against the provider's bill.
+    """
+    _init_table()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """SELECT model_call_id, invocation_id, ledger_call_id, actual_usd, created_at
+            FROM model_spend_invocations WHERE flagged = 1 ORDER BY created_at"""
+        ).fetchall()
+        return [dict(row) for row in rows]
     finally:
         conn.close()
 
@@ -272,8 +432,10 @@ __all__ = [
     "SpendReservation",
     "calls_today",
     "get_spend_reservation",
+    "record_supplemental_charge",
     "release_spend",
     "reserve_spend",
     "settle_spend",
     "unresolved_spend_today",
+    "unverified_supplemental_charges",
 ]
