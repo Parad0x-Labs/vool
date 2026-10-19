@@ -332,3 +332,18 @@ def test_the_job_environment_accepts_only_git_identity_from_a_caller(tmp_path) -
     assert "GIT_AUTHOR_NAME=Ada" in result.stdout
     assert "LD_PRELOAD" not in result.stdout and "GITHUB_TOKEN" not in result.stdout
     assert "PATH=/evil" not in result.stdout
+
+
+@SANDBOX
+def test_a_failed_or_refused_command_ends_the_turn_on_what_happened(workspace, chat_autonomy) -> None:
+    turn = _Turn(workspace, "auto")
+    (workspace / "test_broken.py").write_text("def test_broken():\n    assert 1 == 2\n", encoding="utf-8")
+    failing = turn.command("python3 -m pytest -q test_broken.py")
+    assert failing.status == "command_failed"
+    assert "Exit code: 1" in failing.user_safe_response_text
+    assert "1 failed" in failing.user_safe_response_text
+
+    refused = turn.command("bash -c 'touch RAN'")
+    assert refused.status == "blocked_by_policy"
+    assert "bash" in refused.user_safe_response_text
+    assert not (workspace / "RAN").exists()

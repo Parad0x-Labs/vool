@@ -1554,6 +1554,12 @@ def _execute_tool_intent_impl(
             # this, a needs_setup read ended the turn on the generic "I wasn't able to turn that into a
             # completed action" and the reconnect instruction never reached the user.
             execution.user_safe_response_text = str(runtime_execution.response_text or "")
+        if not runtime_execution.ok and str((runtime_details.get("observation") or {}).get("tool_surface") or "") == "sandbox":
+            # A command that ran and exited non-zero (failing tests above all) or that the sandbox
+            # refused ends the turn on what happened: the command, its exit code and output, or the
+            # reason it did not run. Measured served 2026-10-19: `false && touch x` and a refused
+            # `bash -c` both ended on "I wasn't able to turn that into a completed action".
+            execution.user_safe_response_text = str(runtime_execution.response_text or "")
         _maybe_store_tool_receipt(
             execution,
             receipt_key=receipt_key,
