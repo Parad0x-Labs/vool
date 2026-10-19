@@ -31,10 +31,12 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
 from core.web.api.service import (
     ApiResponse,
@@ -64,7 +66,15 @@ MAX_CAPTURE_BYTES = 16 * 1024 * 1024
 # themselves are held once, bounded by the capture bound above.)
 PAGE_SIZE = 200
 
-_STRIP_SESSION_FOR_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
+# The file name is built from the chat's title. These characters cannot appear in a file name
+# on at least one desktop system (or would be read as a path), so they become spaces.
+_FILENAME_FORBIDDEN = frozenset('/\\:*?"<>|')
+# A title's share of the file name, in UTF-8 bytes: the name as a whole must stay well under
+# the 255-byte limit common file systems set, with room for " - VOOL chat - 2026-10-19.pdf".
+MAX_FILENAME_TITLE_BYTES = 120
+_WHITESPACE = re.compile(r"\s+")
+_ZWJ = "\u200d"     # joins emoji into one picture; kept
+_ZWNJ = "\u200c"    # part of how Persian and Indic words are spelled; kept
 
 _MD_SEPARATOR = "\n\n---\n\n"
 _TXT_SEPARATOR = "\n\n"
@@ -116,6 +126,8 @@ class ExportOptions:
     include_timestamps: bool = False   # assistant-side completion times, opt-in
     include_attachments: bool = True   # attachment reference lines, opt-out
     request_id: str = ""              # optional exact answer; never the surrounding chat
+    locale: str = "en"                 # the app language the page asked for (its UI locale)
+    title: str = ""                   # the chat's title as the sidebar shows it; "" = untitled
 
 
 @dataclass
@@ -340,8 +352,38 @@ def _fmt_bytes(n: int) -> str:
     return f"{n / (1024 * 1024):.1f} MB"
 
 
-def _attachment_lines(turn: _Turn, bullet: str) -> list[str]:
+def _text(opts: ExportOptions, key: str, english: str, **counts: int) -> str:
+    """One piece of VOOL's own words in the file, in the app language the page asked for.
+
+    Only counts are ever formatted through the catalog (its placeholder law HTML-escapes
+    values, which is right for the page and wrong for a text file), so a chat title or a file
+    name is always joined to the catalog text here, never passed into it. A key missing from
+    the shipped catalogs serves the English source given here, never a bare key.
+    """
+    from core.i18n.catalog import catalog_for, format_message
+
+    catalog = catalog_for(opts.locale)
+    if catalog.text(key) == key:
+        return format_message(english, counts) if counts else english
+    return catalog.format(key, **counts) if counts else catalog.text(key)
+
+
+def _local_time_label(ts: str) -> str:
+    """A stored completion instant as a person reads it: this computer's local date and minute."""
+    try:
+        moment = datetime.fromisoformat(str(ts).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return str(ts)
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+def _attachment_lines(turn: _Turn, bullet: str, opts: ExportOptions) -> list[str]:
     lines: list[str] = []
+    reference = _text(opts, "chat_export.attachment_reference", "Attachment reference")
+    outcome_word = _text(opts, "chat_export.attachment_outcome", "outcome")
+    note = _text(opts, "chat_export.attachment_note", "names and outcomes only, never the file bytes")
     for entry in turn.attachments:
         name = str(entry.get("name") or "attachment")
         kind = str(entry.get("media_type") or entry.get("kind") or "file")
@@ -351,113 +393,175 @@ def _attachment_lines(turn: _Turn, bullet: str) -> list[str]:
         if isinstance(size, int):
             parts.append(_fmt_bytes(size))
         if outcome:
-            parts.append(f"outcome: {outcome}")
+            parts.append(f"{outcome_word}: {outcome}")
         if entry.get("document"):
             parts.append("document retained")
-        lines.append(
-            f"{bullet} Attachment reference: {name} ({', '.join(parts)})"
-            " — names and outcomes only, never the file bytes"
-        )
+        lines.append(f"{bullet} {reference}: {name} ({', '.join(parts)}) — {note}")
     return lines
 
 
-def _assistant_source_ref(turn: _Turn, opts: ExportOptions) -> str:
-    """Optional turn provenance in the heading — completion time and request id.
+def _assistant_time_ref(turn: _Turn, opts: ExportOptions) -> str:
+    """Optional answer time in the heading, opt-in with the timestamps control.
 
-    Both come from the persisted row; both are opt-in with the timestamps control,
-    because the store carries the assistant-side completion instant only and the
-    heading must never dress that up as a send time.
+    The store carries the assistant-side completion instant only, so the heading says when the
+    answer finished and never dresses that up as a send time.
     """
-    if not opts.include_timestamps:
+    if not opts.include_timestamps or not turn.ts:
         return ""
-    bits: list[str] = []
-    if turn.ts:
-        bits.append(f"turn completed {turn.ts}")
-    if turn.request_id:
-        bits.append(f"request {turn.request_id[:12]}")
-    return f" ({', '.join(bits)})" if bits else ""
+    answered = _text(opts, "chat_export.answered_at", "answered {time}")
+    return " (" + answered.replace("{time}", _local_time_label(turn.ts)) + ")"
 
 
-def _preamble_lines(opts: ExportOptions, counts: ExportCounts, snapshot_rows: int) -> list[str]:
-    exported_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    fmt_label = "Markdown (message sources verbatim)" if opts.fmt == "md" else "Plain text (message sources verbatim)"
-    if opts.fmt == 'pdf':
-        fmt_label = 'PDF (formatted persisted message content; attachment references only)'
-    lines = [
-        "VOOL chat export",
-        "",
-        f"Session: {opts.session_id}",
-        f"Exported: {exported_at}",
-        f"Source: persisted conversation transcript, server-side snapshot of {snapshot_rows} log rows",
-        (
-            f"Messages: {counts.message_count()} in {counts.turns} turns"
-            f" · Attachment references: {counts.attachment_items}"
-            f" · Artifact cards: {counts.artifact_cards}"
-            + (f" · Unavailable by privacy policy: {counts.unavailable}" if counts.unavailable else "")
-            + (f" · Unreadable log rows skipped and disclosed: {counts.unreadable_rows}" if counts.unreadable_rows else "")
-        ),
-        f"Format: {fmt_label}",
-        "Complete: yes — the full persisted transcript at snapshot time; no message truncation.",
-        (
-            "Not part of this export: model reasoning, tool/activity traces, and user send"
-            " times (the store does not persist them). Attachment file bytes are referenced,"
-            " never embedded."
-        ),
-    ]
+def _role(opts: ExportOptions, role: str) -> str:
+    if role == "user":
+        return _text(opts, "chat_export.role_user", "User")
+    return _text(opts, "chat_export.role_assistant", "Assistant")
+
+
+def _unavailable_heading(opts: ExportOptions) -> str:
+    return _role(opts, "assistant") + " — " + _text(
+        opts, "chat_export.unavailable_heading", "unavailable by privacy policy"
+    )
+
+
+def _unavailable_body(opts: ExportOptions) -> str:
+    return "[" + _text(
+        opts,
+        "chat_export.unavailable_body",
+        "This answer is not included: it was withheld or erased under the privacy policy.",
+    ) + "]"
+
+
+def _artifact_line(turn: _Turn, opts: ExportOptions) -> str:
+    return f"({_text(opts, 'chat_export.artifact_card', 'VOOL artifact card')}: {turn.artifact_kind})"
+
+
+def _fallback_title(opts: ExportOptions) -> str:
+    return _text(opts, "chat_export.fallback_title", "VOOL chat")
+
+
+_MD_TITLE_ESCAPES = re.compile(r"([\\`*_\[\]<>!|#~])")
+
+
+def _markdown_title(title: str) -> str:
+    """The title as a Markdown heading's text: its punctuation is shown, never interpreted
+    (a chat named ``*draft*`` or ``![x](…)`` is a title, not formatting or an image)."""
+    return _MD_TITLE_ESCAPES.sub(r"\\\1", title)
+
+
+def _pdf_drawable(text: str) -> str:
+    """The header title with only the characters the PDF font can draw.
+
+    The title is VOOL's heading, not message content: an emoji in a chat's name must not make
+    the whole PDF refuse, so characters the PDF font has no glyph for are left out of the
+    HEADING only. Message content keeps the renderer's own all-or-nothing glyph law.
+    """
+    try:
+        from reportlab.pdfbase import pdfmetrics
+
+        from core.presentation.render_pdf import _font
+
+        _font()
+        glyphs = pdfmetrics.getFont("VoolPDFBold").face.charToGlyph
+    except Exception:
+        return text
+    kept = "".join(ch for ch in text if ch.isspace() or ord(ch) in glyphs)
+    return _WHITESPACE.sub(" ", kept).strip()
+
+
+def _header_title(opts: ExportOptions) -> str:
+    title = opts.title or _fallback_title(opts)
+    if opts.fmt == "pdf":
+        title = _pdf_drawable(title) or _pdf_drawable(_fallback_title(opts)) or "VOOL chat"
+    return title
+
+
+def _preamble_lines(opts: ExportOptions, counts: ExportCounts) -> list[str]:
+    """A short header a person reads: the chat's name, when it was exported, how many messages,
+    and, in plain words, what the file leaves out. Nothing about logs, rows or formats."""
+    exported_on = _text(opts, "chat_export.exported_on", "Exported from VOOL on {date}").replace(
+        "{date}", datetime.now().astimezone().strftime("%Y-%m-%d")
+    )
+    messages = _text(
+        opts,
+        "chat_export.message_count",
+        "{n, plural, one {{n} message} other {{n} messages}}",
+        n=counts.message_count(),
+    )
+    notes = [_text(opts, "chat_export.not_included", "Not included: how VOOL worked things out and its activity log.")]
+    # What happened to attached files is said only when the chat has any.
+    if counts.attachment_items and opts.include_attachments:
+        notes.append(_text(opts, "chat_export.attachments_by_name", "Attached files are listed by name only."))
+    elif counts.attachment_items:
+        notes.append(_text(opts, "chat_export.attachments_left_out", "Attached files are left out, as you chose."))
+    if counts.unavailable:
+        notes.append(_text(
+            opts,
+            "chat_export.withheld_count",
+            "{n, plural, one {{n} answer is not included because of the privacy policy.}"
+            " other {{n} answers are not included because of the privacy policy.}}",
+            n=counts.unavailable,
+        ))
+    if counts.unreadable_rows:
+        notes.append(_text(
+            opts,
+            "chat_export.unreadable_count",
+            "{n, plural, one {{n} saved part of this chat could not be read, so it is not in this file.}"
+            " other {{n} saved parts of this chat could not be read, so they are not in this file.}}",
+            n=counts.unreadable_rows,
+        ))
     if opts.include_timestamps:
-        lines.append("Timestamps: assistant-side completion times only (opted in).")
-    else:
-        lines.append("Timestamps: off (optional; the export dialog offers them).")
-    if not opts.include_attachments:
-        lines.append("Attachment references: excluded at your request.")
-    return lines
+        notes.append(_text(opts, "chat_export.times_note", "Times show when each answer finished."))
+    title = _header_title(opts)
+    heading = "# " + _markdown_title(title) if opts.fmt in ("md", "pdf") else title
+    return [heading, "", f"{exported_on} · {messages}", "", " ".join(notes)]
 
 
 def format_turn_markdown(turn: _Turn, opts: ExportOptions) -> list[str]:
-    out: list[str] = ["## User"]
+    out: list[str] = ["## " + _role(opts, "user")]
     if turn.user:
         out.append("")
         out.append(turn.user)
     if opts.include_attachments and turn.attachments:
         out.append("")
-        out.extend(_attachment_lines(turn, "-"))
+        out.extend(_attachment_lines(turn, "-", opts))
     out.append("")
     if turn.unavailable:
-        out.append(f"## Assistant — unavailable by privacy policy ({turn.unavailable})")
+        out.append("## " + _unavailable_heading(opts))
         out.append("")
-        out.append("[This answer is not part of the export: its payload was withheld or erased under the privacy policy.]")
+        out.append(_unavailable_body(opts))
     else:
-        out.append("## Assistant" + _assistant_source_ref(turn, opts))
+        out.append("## " + _role(opts, "assistant") + _assistant_time_ref(turn, opts))
         if turn.assistant:
             out.append("")
             out.append(turn.assistant)
         if turn.artifact_kind:
             out.append("")
-            out.append(f"(VOOL artifact card: {turn.artifact_kind})")
+            out.append(_artifact_line(turn, opts))
     return out
 
 
 def format_turn_text(turn: _Turn, opts: ExportOptions) -> list[str]:
     rule = "=" * 72
     thin = "-" * 72
-    out: list[str] = [rule, "USER", rule, ""]
+    out: list[str] = [rule, _role(opts, "user").upper(), rule, ""]
     if turn.user:
         out.append(turn.user)
         out.append("")
     if opts.include_attachments and turn.attachments:
-        out.extend(_attachment_lines(turn, "*"))
+        out.extend(_attachment_lines(turn, "*", opts))
         out.append("")
     if turn.unavailable:
-        out.extend([thin, f"ASSISTANT — unavailable by privacy policy ({turn.unavailable})", thin, ""])
-        out.append("[This answer is not part of the export: its payload was withheld or erased under the privacy policy.]")
+        out.extend([thin, _unavailable_heading(opts).upper(), thin, ""])
+        out.append(_unavailable_body(opts))
         out.append("")
     else:
-        out.extend([thin, f"ASSISTANT{_assistant_source_ref(turn, opts)}", thin, ""])
+        out.extend([thin, _role(opts, "assistant").upper() + _assistant_time_ref(turn, opts), thin, ""])
         if turn.assistant:
             out.append(turn.assistant)
             out.append("")
         if turn.artifact_kind:
-            out.append(f"(VOOL artifact card: {turn.artifact_kind})")
+            out.append(_artifact_line(turn, opts))
             out.append("")
     return out
 
@@ -470,6 +574,7 @@ def build_export_document(opts: ExportOptions, preview: bool) -> tuple[str | Non
     under, and a refusal never ships a quietly partial file.
     """
     turns, counts = scan_snapshot(opts.session_id)
+    opts.title = chat_title(opts.session_id, turns)
     if opts.request_id:
         selected = [turn for turn in turns if turn.request_id == opts.request_id]
         if len(selected) != 1:
@@ -487,7 +592,7 @@ def build_export_document(opts: ExportOptions, preview: bool) -> tuple[str | Non
 
     fmt_turn = format_turn_markdown if opts.fmt in ("md", "pdf") else format_turn_text
     separator = _MD_SEPARATOR if opts.fmt in ("md", "pdf") else _TXT_SEPARATOR
-    header = "\n".join(_preamble_lines(opts, counts, counts.snapshot_rows))
+    header = "\n".join(_preamble_lines(opts, counts))
     sep_len = len(separator.encode("utf-8"))
     # `total` tracks the size of the exact bytes the response will carry:
     # header + sep + block + (sep + block)…  — the preamble counts from the first byte.
@@ -517,12 +622,141 @@ def build_export_document(opts: ExportOptions, preview: bool) -> tuple[str | Non
     return document, counts
 
 
-def _export_filename(opts: ExportOptions) -> str:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    stem = _STRIP_SESSION_FOR_FILENAME.sub("-", opts.session_id).strip("-") or "chat"
-    ext = opts.fmt
-    scope = "answer" if opts.request_id else "chat"
-    return f"vool-{scope}-{stem[:40]}-{stamp}.{ext}"
+def chat_title(session_id: str, turns: list[_Turn]) -> str:
+    """The chat's name as the sidebar shows it, or "" for an untitled chat.
+
+    The same rule ``list_conversation_sessions`` serves the sidebar with: a name the person
+    gave the chat wins, else the chat's first message (its first 80 characters). Only turns
+    this export already carries are read, so the name never shows anything the file does not.
+    """
+    try:
+        from core.persistent_memory import load_session_meta
+
+        custom = str((load_session_meta().get(session_id) or {}).get("title") or "")
+    except Exception:
+        custom = ""
+    custom = _WHITESPACE.sub(" ", custom).strip()
+    if custom:
+        return custom
+    for turn in turns:
+        first = turn.user.strip()
+        if first:
+            return _WHITESPACE.sub(" ", first[:80]).strip()
+    return ""
+
+
+def _extends_previous(ch: str) -> bool:
+    """True for a character that belongs to the one before it: a joiner, a combining mark,
+    an emoji variation selector, a skin tone or an emoji tag."""
+    code = ord(ch)
+    return (ch == _ZWJ or unicodedata.category(ch) in ("Mn", "Me", "Mc")
+            or code in (0xFE0E, 0xFE0F) or 0x1F3FB <= code <= 0x1F3FF or 0xE0020 <= code <= 0xE007F)
+
+
+def _grapheme_safe_cut(text: str, index: int) -> int:
+    """Move a cut point back until it falls between two whole characters as a person sees
+    them, so a cut never leaves half an emoji, a lone mark or half of a flag."""
+    while 0 < index < len(text) and (_extends_previous(text[index]) or text[index - 1] == _ZWJ):
+        index -= 1
+    if 0 < index < len(text) and "\U0001f1e6" <= text[index] <= "\U0001f1ff":
+        flags = 0
+        while flags < index and "\U0001f1e6" <= text[index - 1 - flags] <= "\U0001f1ff":
+            flags += 1
+        if flags % 2:
+            index -= 1
+    return index
+
+
+def filename_title(title: str, *, max_bytes: int = MAX_FILENAME_TITLE_BYTES) -> str:
+    """A chat title made safe to be part of a file name on Windows, macOS and Linux.
+
+    Letters of every script and emoji are kept. Path characters, characters a desktop system
+    forbids in file names, control characters and invisible direction overrides (which could
+    make ``report<RLO>fdp.exe`` look like a PDF) become spaces. Leading dots (a hidden file) and
+    dashes (read as an option by command-line tools) go, and so do trailing dots and spaces
+    (dropped by Windows). A long title is cut at a word where
+    possible, within ``max_bytes`` of UTF-8, and marked with an ellipsis.
+    """
+    text = unicodedata.normalize("NFC", str(title or ""))
+    out: list[str] = []
+    for ch in text:
+        category = unicodedata.category(ch)
+        if ch in (_ZWJ, _ZWNJ):
+            out.append(ch)
+        elif ch in _FILENAME_FORBIDDEN or category[0] in ("C", "Z"):
+            out.append(" ")
+        else:
+            out.append(ch)
+    cleaned = _WHITESPACE.sub(" ", "".join(out)).strip()
+    cleaned = cleaned.lstrip(". -").rstrip(". ")
+    if len(cleaned.encode("utf-8")) <= max_bytes:
+        return cleaned
+    budget = max_bytes - len("…".encode())
+    index = len(cleaned)
+    while index and len(cleaned[:index].encode("utf-8")) > budget:
+        index -= 1
+    index = _grapheme_safe_cut(cleaned, index)
+    cut = cleaned[:index]
+    space = cut.rfind(" ")
+    if space >= len(cut) // 2:
+        cut = cut[:space]
+    cut = cut.rstrip(" .-")
+    return (cut + "…") if cut else ""
+
+
+def _ascii_filename(name: str) -> str:
+    """The plain-ASCII ``filename=`` fallback for clients that ignore ``filename*``."""
+    folded = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    folded = "".join(ch if (ch.isalnum() or ch in " .-_()&,+'!") else " " for ch in folded)
+    return _WHITESPACE.sub(" ", folded).strip()
+
+
+def export_filenames(opts: ExportOptions, *, today: str = "") -> tuple[str, str]:
+    """(file name, ASCII fallback): ``<title> - VOOL chat - <date>.<ext>``.
+
+    An untitled chat is ``VOOL chat - <date>.<ext>``; a single answer says "VOOL answer".
+    The label follows the app language; the ASCII fallback keeps the English label when the
+    localized one has no ASCII form.
+    """
+    date = today or datetime.now().astimezone().strftime("%Y-%m-%d")
+    if opts.request_id:
+        label = _text(opts, "chat_export.answer_label", "VOOL answer")
+        english_label = "VOOL answer"
+    else:
+        label = _fallback_title(opts)
+        english_label = "VOOL chat"
+    title = filename_title(opts.title)
+    if title.casefold() in (label.casefold(), english_label.casefold()):
+        title = ""
+    parts = [title, label, date] if title else [label, date]
+    name = " - ".join(parts) + "." + opts.fmt
+    ascii_title = _ascii_filename(title)
+    ascii_label = _ascii_filename(label) if _ascii_filename(label) == label else english_label
+    # A title that loses most of itself to ASCII folding (Arabic, CJK, emoji) is left out of
+    # the fallback rather than shown as a stray fragment.
+    if len(ascii_title) * 2 < len(title):
+        ascii_title = ""
+    ascii_parts = [ascii_title, ascii_label, date] if ascii_title else [ascii_label, date]
+    return name, " - ".join(ascii_parts) + "." + opts.fmt
+
+
+def content_disposition(name: str, ascii_name: str) -> str:
+    """``attachment`` with an ASCII ``filename=`` and the exact UTF-8 name in ``filename*``
+    (RFC 6266 / RFC 5987): every byte outside RFC 5987's attr-char is percent-encoded, so a
+    quote, semicolon, backslash, percent sign or newline in a title can never break the header."""
+    encoded = quote(name, safe="!#$&+-.^_`|~")
+    safe_ascii = ascii_name.replace("\\", " ").replace('"', " ").replace("%", " ")
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded}"
+
+
+def _export_locale(requested: str) -> str:
+    """The app language the page asked for (``ui_locale``), or English. Never guessed."""
+    from core.i18n.catalog import resolve_render_locale
+
+    try:
+        return resolve_render_locale(requested, None, "en")
+    except Exception:
+        return "en"
 
 
 def _truthy(value: str) -> bool:
@@ -564,6 +798,7 @@ def handle_chat_export_get(
         include_timestamps=_truthy((query.get("timestamps") or ["0"])[0]),
         include_attachments=not _truthy((query.get("no_attachments") or ["0"])[0]),
         request_id=str((query.get("request_id") or [""])[0] or "").strip(),
+        locale=_export_locale(str((query.get("ui_locale") or [""])[0] or "")),
     )
 
     # A deleted session's namespace is not exportable — the same lifecycle truth the
@@ -626,7 +861,7 @@ def handle_chat_export_get(
         from core.presentation.render_pdf import PdfRefused, render_markdown_pdf
 
         try:
-            body = render_markdown_pdf(document,title='VOOL answer' if opts.request_id else 'VOOL chat export')
+            body = render_markdown_pdf(document, title=opts.title or _fallback_title(opts))
         except ImportError:
             return apply_runtime_headers(json_response(503,{'ok':False,'error':'pdf_renderer_unavailable',
                 'message':'The PDF renderer is not installed in this build.'}),runtime)
@@ -634,14 +869,14 @@ def handle_chat_export_get(
             return apply_runtime_headers(json_response(422,{'ok':False,'error':'pdf_export_refused',
                 'message':str(exc)}),runtime)
         content_type = 'application/pdf'
-    filename = _export_filename(opts)
+    filename, ascii_filename = export_filenames(opts)
     return apply_runtime_headers(
         ApiResponse(
             status=200,
             content_type=content_type,
             body=body,
             headers={
-                "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename}",
+                "Content-Disposition": content_disposition(filename, ascii_filename),
                 "Cache-Control": "private, no-store",
                 "X-Content-Type-Options": "nosniff",
             },
