@@ -38,6 +38,7 @@ legacy ``daily_cap`` values do not restrict either manual or automatic calls.
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -534,8 +535,8 @@ def _post_supplemental_charge(
             # and never less than the per-call floor.
             reservation = getattr(authorization, "reservation", None)
             ceiling = getattr(reservation, "reserved_usd", 0.0)
-            ceiling = float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) else 0.0
-            hold = max(ceiling, float(spend_limits().per_call_usd))
+            numeric = isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) and not math.isnan(ceiling)
+            hold = max(float(ceiling) if numeric else 0.0, float(spend_limits().per_call_usd))
         row = record_supplemental_charge(
             model_call_id,
             invocation_id=invocation_id,

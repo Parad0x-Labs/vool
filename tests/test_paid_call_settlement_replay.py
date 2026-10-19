@@ -302,3 +302,13 @@ def test_a_settlement_that_read_a_stale_status_keeps_a_concurrent_unknown_attemp
     assert row.status == "billing_ambiguous"
     assert row.reserved_usd == pytest.approx(0.25), "the unknown attempt's hold is not cleared"
     assert row.actual_usd == pytest.approx(CENT)
+
+
+@pytest.mark.parametrize("snapshot", [float("nan"), None, "7.05"])
+def test_an_unreadable_reservation_snapshot_still_holds_the_per_call_floor(monkeypatch, snapshot):
+    monkeypatch.setattr(pcr, "spend_limits", lambda: LIMITS)
+    auth = _reserve("call-odd")
+    auth.reservation = SimpleNamespace(reserved_usd=snapshot)
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=CENT, invocation_id="response-a")
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=None, invocation_id="response-b")
+    assert _held() == pytest.approx(LIMITS.per_call_usd)
