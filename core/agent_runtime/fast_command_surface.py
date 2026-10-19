@@ -3,12 +3,57 @@ from __future__ import annotations
 import logging
 import re
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from core.hive_activity_tracker import session_hive_state
 from core.human_input_adapter import runtime_session_id
 from core.runtime_lane_truth import FACET_KEY, maybe_runtime_lane_answer, runtime_lane_question
 from network import signer as signer_mod
+
+#: Conversation rows a fast lane produced while its caller had not yet decided whether the lane's
+#: result answers the turn. One message is one turn: the front door asks a lane (live info, a
+#: receipt lookup, a workspace audit), then may set its result aside -- a refusal, or a slice of a
+#: mixed message -- and let a later lane answer. The row the set-aside result wrote was a second
+#: turn for the same message: measured on a fresh install, one "what is the weather like in rome"
+#: came back after a reload as the question twice, with two different answers, one of which the
+#: user never saw. A caller that may set a result aside holds the lane's rows here and records
+#: them only when it serves that result.
+_DEFERRED_TURN_ROWS: ContextVar[list[tuple[Any, dict[str, Any]]] | None] = ContextVar(
+    "vool_deferred_fast_lane_turn_rows", default=None
+)
+
+
+@contextmanager
+def deferred_turn_rows() -> Iterator[list[tuple[Any, dict[str, Any]]]]:
+    """Hold the conversation rows fast lanes write inside this block instead of writing them.
+
+    The caller passes the yielded list to :func:`record_deferred_turn_rows` when it serves the
+    lane's result; the rows of a result it sets aside are never written."""
+    pending: list[tuple[Any, dict[str, Any]]] = []
+    token = _DEFERRED_TURN_ROWS.set(pending)
+    try:
+        yield pending
+    finally:
+        _DEFERRED_TURN_ROWS.reset(token)
+
+
+def record_deferred_turn_rows(pending: list[tuple[Any, dict[str, Any]]]) -> None:
+    """Write the rows a served fast-lane result held back, in the order the lane produced them."""
+    rows = list(pending)
+    pending.clear()
+    for append_fn, event in rows:
+        _record_turn_row(append_fn, event)
+
+
+def _record_turn_row(append_fn: Any, event: dict[str, Any]) -> None:
+    deferred = _DEFERRED_TURN_ROWS.get()
+    if deferred is not None:
+        deferred.append((append_fn, event))
+        return
+    append_fn(**event)
 
 
 def _record_routing_decision(*, session_id: str, user_input: str, family: str) -> None:
@@ -1807,12 +1852,15 @@ def fast_path_result(
         session_id=session_id,
         source_context=source_context,
     )
-    append_conversation_event_fn(
-        session_id=session_id,
-        user_input=user_input,
-        assistant_output=decorated_response,
-        source_context=source_context,
-        response_class=turn_result.response_class.value,
+    _record_turn_row(
+        append_conversation_event_fn,
+        {
+            "session_id": session_id,
+            "user_input": user_input,
+            "assistant_output": decorated_response,
+            "source_context": source_context,
+            "response_class": turn_result.response_class.value,
+        },
     )
     audit_logger_module.log(
         "agent_fast_path_response",
@@ -2013,12 +2061,15 @@ def action_fast_path_result(
         session_id=session_id,
         source_context=source_context,
     )
-    append_conversation_event_fn(
-        session_id=session_id,
-        user_input=user_input,
-        assistant_output=decorated_response,
-        source_context=source_context,
-        response_class=turn_result.response_class.value,
+    _record_turn_row(
+        append_conversation_event_fn,
+        {
+            "session_id": session_id,
+            "user_input": user_input,
+            "assistant_output": decorated_response,
+            "source_context": source_context,
+            "response_class": turn_result.response_class.value,
+        },
     )
     agent._update_task_result(
         task_id,
