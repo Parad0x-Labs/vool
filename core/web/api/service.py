@@ -1484,6 +1484,22 @@ def dispatch_get(
                             if isinstance(entry, dict)
                         ]
                     messages.append(user_row)
+                if not assistant_text and str(event.get("commit_state") or "") == "stopped":
+                    # The person stopped this turn: no reply was kept, and the page's stopped
+                    # marker is painted here, in the reader's app language. `stopped` types it so
+                    # a client never has to recognise the words.
+                    from core.persistent_memory import _stopped_marker_text
+
+                    stopped_message: dict[str, Any] = {
+                        "role": "assistant",
+                        "content": _stopped_marker_text(resolve_page_locale(query, headers)),
+                        "ts": turn_ts,
+                        "stopped": True,
+                    }
+                    if str(event.get("request_id") or "").strip():
+                        stopped_message["request_id"] = str(event.get("request_id") or "").strip()
+                    messages.append(stopped_message)
+                    continue
                 if assistant_text:
                     # A7 W5 (S13) + A8 availability gate: the CONTENT is gated,
                     # not the label. Verified bytes require an AVAILABLE
@@ -3885,7 +3901,7 @@ def _flush_staged_transcript_rows(request_id: str) -> None:
     try:
         from core.persistent_memory import flush_staged_conversation_events
 
-        flush_staged_conversation_events(str(request_id or ""))
+        flush_staged_conversation_events(str(request_id or ""), request_end=True)
     except Exception:
         logging.getLogger(__name__).exception("staged transcript rows were not flushed at request end")
     # Private chat (core.private_chat): at request end, drop the words the turn's working ledgers
@@ -3907,7 +3923,14 @@ def _flush_staged_transcript_after(request_id: str, stream: Iterable[bytes]) -> 
     try:
         yield from stream
     finally:
-        _flush_staged_transcript_rows(request_id)
+        # A stream that ends while its turn is still running (the page aborted its fetch: a Stop
+        # whose cancel has not landed yet, a reload, a closed tab) is not the end of the turn.
+        # Flushing now wrote the worker's unseen draft as `unsealed` and closed the turn before the
+        # stop could be recorded; the flush runs when the turn's worker is done instead.
+        from core.web.api.runtime import run_when_turn_ends
+
+        if not run_when_turn_ends(request_id, lambda: _flush_staged_transcript_rows(request_id)):
+            _flush_staged_transcript_rows(request_id)
 
 
 def _release_admission_after(admission: Any, stream: Iterable[bytes]) -> Iterator[bytes]:
@@ -6582,14 +6605,15 @@ def _dispatch_post_inner(
         cancel_turn = str(body.get("turn_id") or "").strip()
         if not cancel_session or not cancel_turn:
             return apply_runtime_headers(json_response(400, {"error": "missing session_id or turn_id"}), runtime)
-        state = request_cancel(cancel_session, cancel_turn)
-        if state == "cancelled":
-            # The stopped turn is recorded before this answers, as the person saw it: whatever
-            # follows the stop (a reload, the next message, deleting the chat) finds it, and the
-            # turn's late finish cannot add or replace it.
-            from core.web.api.runtime import record_stopped_turn
+        # The stopped turn is recorded FIRST, then cancelled: once the cancel Event is set the
+        # worker may seal its cancel notice at once, and the record must already say "stopped".
+        # Whatever follows the stop (a reload, the next message, deleting the chat) finds it, and
+        # the turn's late finish cannot add or replace it. A turn that is not running records
+        # nothing here.
+        from core.web.api.runtime import record_stopped_turn
 
-            record_stopped_turn(cancel_session, cancel_turn)
+        record_stopped_turn(cancel_session, cancel_turn)
+        state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
     if normalized_path == "/api/chat/followup":

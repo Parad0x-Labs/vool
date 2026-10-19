@@ -260,6 +260,11 @@ def _row_to_turn(row: dict[str, Any], counts: ExportCounts) -> _Turn | None:
         turn.unavailable = availability
     else:
         turn.assistant = assistant_text
+        if not assistant_text.strip() and str(row.get("commit_state") or "") == "stopped":
+            # A turn the person stopped keeps no reply; the export shows the page's marker.
+            from core.persistent_memory import _stopped_marker_text
+
+            turn.assistant = _stopped_marker_text()
     if not (turn.user.strip() or turn.assistant.strip() or turn.unavailable or turn.artifact_kind):
         return None
     if turn.user.strip():
