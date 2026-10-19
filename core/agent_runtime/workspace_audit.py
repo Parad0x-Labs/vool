@@ -457,8 +457,11 @@ def looks_like_code_audit_request(text: str) -> bool:
     # mode -- same reasoning as `_QUALIFIED_CODE_AUDIT_RE` above: with no adjacency to lean on at
     # all, this path can never rule out an intervening qualifier, so it can never safely trust the
     # generic vocabulary either.
-    if _AUDIT_ACTION_RE.search(normalized) or contains_audit_verb(normalized):
-        if _AUDIT_VERDICT_RE.search(normalized) and _scope_regex_matches(
+    # The verb and the verdict are read from the prose, never from a folder path; the scope
+    # noun may still come from a path ("review ~/code for bugs" names its scope there).
+    prose = _without_path_tokens(normalized)
+    if _AUDIT_ACTION_RE.search(prose) or contains_audit_verb(prose):
+        if _AUDIT_VERDICT_RE.search(prose) and _scope_regex_matches(
             _AUDIT_SCOPE_RE, normalized, strict=True
         ):
             return True
@@ -469,7 +472,7 @@ def looks_like_code_audit_request(text: str) -> bool:
     # over"); this only adds the co-occurring demonstrative-qualified scope so a bare verb by
     # itself, with nothing pointing at code at all, still does not open the gate. The scope noun
     # itself is validated by the same shared predicate as every other path.
-    if contains_audit_verb(normalized) and _scope_regex_matches(_AUDIT_SCOPE_DEMONSTRATIVE_RE, normalized):
+    if contains_audit_verb(prose) and _scope_regex_matches(_AUDIT_SCOPE_DEMONSTRATIVE_RE, normalized):
         return True
     # "audit <file>" — the most natural audit request of all names a FILE, not a project noun, and
     # every branch above requires the noun. Measured live 2026-08-01: "lets audit
@@ -487,7 +490,7 @@ def looks_like_code_audit_request(text: str) -> bool:
     # tells a source file apart from a website, a document, or a spreadsheet.
     if not has_code_like_extension(target):
         return False
-    without_paths = _AUDIT_TARGET_RE.sub(" ", normalized)
+    without_paths = prose
     if not contains_audit_verb(without_paths):
         return False
     extension = target.rsplit(".", 1)[-1].strip().lower()
@@ -504,7 +507,7 @@ def looks_like_code_audit_request(text: str) -> bool:
         # bare verb + target was always enough (`auditing config.yaml today, anything scary in
         # it?` keeps working because it says "auditing").
         has_audit_word = bool(_LITERAL_AUDIT_WORD_RE.search(without_paths))
-        if not has_audit_word and not _AUDIT_VERDICT_RE.search(normalized):
+        if not has_audit_word and not _AUDIT_VERDICT_RE.search(prose):
             return False
     return True
 
@@ -691,6 +694,20 @@ def _validation_for(
 _AUDIT_TARGET_RE = re.compile(
     r"[`'\"]?((?:[\w\-.]+/)*[\w\-]+(?:\.[\w\-]+)*\.[A-Za-z][A-Za-z0-9]{0,8})[`'\"]?"
 )
+
+# A folder path in the sentence ("Inside /Users/me/review/alpha create adder.py ...") is a
+# location, not prose: its segments are folder names the user chose, and a segment such as
+# "review" or "failure" is not the user's verb or verdict. Measured 2026-10-18: an explicit
+# write into a workspace whose path ran through a folder named "review" opened the read-only
+# audit lane and the file was never written. A token is a path when it is rooted ("/", "~/",
+# "./", "../", "C:\\") or has two or more separators; "review/audit" in prose stays prose.
+_PATH_TOKEN_RE = re.compile(
+    r"(?<!\S)[`'\"]?(?:(?:~|\.{1,2}|[A-Za-z]:)?[\\/][^\s`'\"]*|[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/]?)[`'\"]?"
+)
+
+
+def _without_path_tokens(text: str) -> str:
+    return _PATH_TOKEN_RE.sub(" ", _AUDIT_TARGET_RE.sub(" ", str(text or "")))
 
 
 def audit_target_in(text: str) -> str:
