@@ -7468,6 +7468,10 @@ def _run_command(
         lines.append(f"- Stdout:\n{stdout}")
     if stderr:
         lines.append(f"- Stderr:\n{stderr}")
+    # The receipt says when this run had the network and why; every other run was offline.
+    network_egress = str(result.get("network_egress") or "")
+    if network_egress:
+        lines.append(f"- Network: {network_egress}")
     return RuntimeExecutionResult(
         handled=True,
         ok=not command_failed,
@@ -7477,6 +7481,7 @@ def _run_command(
             "command": command,
             "cwd": relative_cwd,
             "returncode": returncode,
+            **({"network_egress": network_egress} if network_egress else {}),
             "success": bool(result.get("success", False)),
             "stdout": stdout,
             "stderr": stderr,

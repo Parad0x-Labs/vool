@@ -28,6 +28,13 @@ _HARDLINK_SCAN_FILE_LIMIT = 200_000
 
 
 
+#: The only variables a caller may add to a job's environment: the operator's git identity, so a
+#: commit made in the sandbox (whose HOME hides ~/.gitconfig) is attributed to them.
+_EXTRA_ENV_ALLOWED = frozenset(
+    {"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"}
+)
+
+
 def _is_windows_platform() -> bool:
     """Indirection over ``os.name == "nt"`` so tests can simulate "running on Windows" for one
     call without mutating the real ``os.name`` -- ``pathlib.Path`` itself branches on ``os.name``
@@ -581,6 +588,7 @@ class JobRunner:
         *,
         cwd: str | Path | None = None,
         cancel_event: threading.Event | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> ExecutionResult:
         if not argv:
             raise ValueError("No command provided.")
@@ -611,6 +619,8 @@ class JobRunner:
         argv = self._with_network_isolation(argv, allowed_roots)
 
         env = self._child_environment(cwd_path)
+        # Only named git identity values may be added on top of the allow-listed environment.
+        env.update({key: str(value) for key, value in dict(extra_env or {}).items() if key in _EXTRA_ENV_ALLOWED})
         # `start_new_session=True` puts the child in its OWN process group, which is what makes
         # the whole tree killable. `subprocess.run(timeout=…)` kills the direct child and reaps
         # it; anything that child spawned keeps running, reparented to init, with the caller
