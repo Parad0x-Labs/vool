@@ -2600,9 +2600,10 @@
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
-    "liveinfo.web_off.not_checked": "Wyszukiwanie w sieci jest wyłączone, więc nic nie zostało wyszukane i nie mam aktualnej odpowiedzi. Możesz je włączyć w Ustawienia → Prywatność i uprawnienia → Wyszukiwanie w sieci."
+    "liveinfo.web_off.not_checked": "Wyszukiwanie w sieci jest wyłączone, więc nic nie zostało wyszukane i nie mam aktualnej odpowiedzi. Możesz je włączyć w Ustawienia → Prywatność i uprawnienia → Wyszukiwanie w sieci.",
+    "liveinfo.web_off.not_checked_started_off": "Wyszukiwanie w sieci jest wyłączone, więc nic nie zostało wyszukane i nie mam aktualnej odpowiedzi."
   },
-  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
+  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

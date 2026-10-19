@@ -29,6 +29,16 @@ def _code(value: Any, *, limit: int = 64) -> str:
     return _NON_CODE_RE.sub("_", str(value or "").strip().lower()).strip("_")[:limit]
 
 
+_LEADING_CODE_RE = re.compile(r"[a-z0-9_.\-]+")
+
+
+def _leading_code(value: Any) -> str:
+    # Block reasons are a gate or policy code, sometimes followed by an exception message
+    # ("explicit_heavy_lane_failed: <provider error>"). Only the leading code is kept.
+    match = _LEADING_CODE_RE.match(str(value or "").strip().lower())
+    return match.group(0)[:64] if match else ""
+
+
 def _contract_error_code(error: Any) -> str:
     # Contract errors are `name` or `name:detail`. Only `missing_keys` carries a detail worth
     # keeping (schema key names); the others carry parser messages, which are dropped.
@@ -97,7 +107,7 @@ def reply_rejection_receipt(model_execution: Any, *, rendered_via: str, response
         "structured_output_present": structured_present,
         "contract_error": _contract_error_code(details.get("contract_error")),
         "warnings": warnings,
-        "block_reason": _code(details.get("block_reason") or details.get("reason")),
+        "block_reason": _leading_code(details.get("block_reason") or details.get("reason")),
         "provider_id": str(getattr(model_execution, "provider_id", "") or "")[:120],
         "model_name": str(getattr(model_execution, "model_name", "") or "")[:120],
         "attempted_count": len(list(details.get("attempted") or [])),

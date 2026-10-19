@@ -2600,9 +2600,10 @@
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
     "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
-    "liveinfo.web_off.not_checked": "As pesquisas na web estão desativadas, então não pesquisei na web e não tenho uma resposta atual. Você pode ativá-las em Configurações → Privacidade e permissões → Pesquisas na web."
+    "liveinfo.web_off.not_checked": "As pesquisas na web estão desativadas, então não pesquisei na web e não tenho uma resposta atual. Você pode ativá-las em Configurações → Privacidade e permissões → Pesquisas na web.",
+    "liveinfo.web_off.not_checked_started_off": "As pesquisas na web estão desativadas, então não pesquisei na web e não tenho uma resposta atual."
   },
-  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
+  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

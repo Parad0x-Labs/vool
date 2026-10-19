@@ -2,8 +2,8 @@
 
 Review finding on 3422a2e1 (2026-10-18): an explicit "Inside <path>/alpha create <file> with
 exactly this content" turn returned audit advice and wrote nothing whenever the workspace path ran
-through a folder named "review" (the Mac review scratch folder did; CI temp folders do not, which
-is why the existing explicit-write test passed in CI and failed on the Mac). The audit lane read
+through a folder named "review" (a review scratch folder did; CI temp folders do not, which is
+why the existing explicit-write test passed in CI and failed on that machine). The audit lane read
 "review" in the path as the verb and "failure" in a folder name as a verdict.
 """
 from __future__ import annotations
@@ -55,6 +55,7 @@ def test_explicit_writes_run_when_the_workspace_path_names_audit_words(tmp_path,
         "Inside /data/review/out/test-failure/run create log.txt with exactly this content: OK",
         "Inside ~/projects/review/app create main.py with exactly this code: print(1)",
         "Inside C:\\Users\\me\\review\\alpha create util.py with exactly this code: x = 1",
+        "Inside artifacts/run_2/review/out create util.py with exactly this code: x = 1",
     ],
 )
 def test_a_folder_named_review_is_not_an_audit_request(text):
@@ -69,6 +70,8 @@ def test_a_folder_named_review_is_not_an_audit_request(text):
         "review ~/code for bugs and security issues",
         "audit svc/queue.py",
         "review src/review/app.py for bugs",
+        "examine/inspect/vet the command relay in the active directory and deliver a launch-blocker assessment",
+        "examine the command relay in the active directory and deliver a launch-blocker/risk/defect assessment.",
     ],
 )
 def test_real_audit_requests_still_open_the_audit(text):

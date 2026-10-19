@@ -2600,9 +2600,10 @@
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
-    "liveinfo.web_off.not_checked": "Tra cứu web đang tắt, nên tôi không tìm trên web và không có câu trả lời mới. Bạn có thể bật trong Cài đặt → Riêng tư và Quyền → Tra cứu web."
+    "liveinfo.web_off.not_checked": "Tra cứu web đang tắt, nên tôi không tìm trên web và không có câu trả lời mới. Bạn có thể bật trong Cài đặt → Riêng tư và Quyền → Tra cứu web.",
+    "liveinfo.web_off.not_checked_started_off": "Tra cứu web đang tắt, nên tôi không tìm trên web và không có câu trả lời mới."
   },
-  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
+  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

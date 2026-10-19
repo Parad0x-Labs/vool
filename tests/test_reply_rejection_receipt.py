@@ -104,6 +104,12 @@ def test_parser_detail_and_reply_text_never_enter_the_receipt() -> None:
     assert "varga" not in json.dumps(receipt).lower() and PRIVATE_MARKER.lower() not in json.dumps(receipt).lower()
 
 
+def test_a_block_reason_keeps_only_its_leading_code() -> None:
+    decision = _decision(source="selected_model_blocked", used_model=False, details={"reason": "explicit_heavy_lane_failed: upstream said " + PRIVATE_MARKER})
+    receipt = reply_rejection_receipt(decision, rendered_via="honest_degraded_chat", response_reason="x")
+    assert receipt["block_reason"] == "explicit_heavy_lane_failed"
+
+
 def test_missing_keys_keep_only_schema_key_names() -> None:
     decision = _decision(validation_state="contract_failed", details={"contract_error": "missing_keys:summary,steps"})
     receipt = reply_rejection_receipt(decision, rendered_via="output_contract_failed_refused", response_reason="x")

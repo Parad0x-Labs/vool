@@ -695,14 +695,18 @@ _AUDIT_TARGET_RE = re.compile(
     r"[`'\"]?((?:[\w\-.]+/)*[\w\-]+(?:\.[\w\-]+)*\.[A-Za-z][A-Za-z0-9]{0,8})[`'\"]?"
 )
 
-# A folder path in the sentence ("Inside /Users/me/review/alpha create adder.py ...") is a
+# A folder path in the sentence ("Inside /srv/team/review/alpha create adder.py ...") is a
 # location, not prose: its segments are folder names the user chose, and a segment such as
 # "review" or "failure" is not the user's verb or verdict. Measured 2026-10-18: an explicit
 # write into a workspace whose path ran through a folder named "review" opened the read-only
 # audit lane and the file was never written. A token is a path when it is rooted ("/", "~/",
-# "./", "../", "C:\\") or has two or more separators; "review/audit" in prose stays prose.
+# "./", "../", "C:\\"), or has two or more separators and something only a path carries (a
+# digit, "_", an inner ".") or a trailing separator. Slash-joined words stay prose: "review/audit",
+# "examine/inspect/vet", "launch-blocker/risk/defect".
 _PATH_TOKEN_RE = re.compile(
-    r"(?<!\S)[`'\"]?(?:(?:~|\.{1,2}|[A-Za-z]:)?[\\/][^\s`'\"]*|[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/]?)[`'\"]?"
+    r"(?<!\S)[`'\"]?(?:(?:~|\.{1,2}|[A-Za-z]:)?[\\/][^\s`'\"]*"
+    r"|(?=[^\s`'\"]*(?:[\d_]|\.[^\s`'\"]))[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/]?"
+    r"|[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/])[`'\"]?"
 )
 
 

@@ -64,6 +64,24 @@ def test_web_off_turn_says_web_is_off_and_claims_no_check(web_off, text, carried
     assert "did not search the web" in response, response
     assert "checked the live web" not in response.lower(), response
     assert "tried the live web" not in response.lower(), response
+    # Forced off at start: the Settings switch cannot turn it back on, so the notice does not send the user there.
+    assert "Settings" not in response, response
+
+
+def test_web_off_in_settings_points_to_the_switch(monkeypatch):
+    # A fresh home starts with web lookups off and no environment override.
+    monkeypatch.delenv("VOOL_DISABLE_WEB", raising=False)
+    monkeypatch.delenv("VOOL_NO_WEB", raising=False)
+    monkeypatch.delenv("VOOL_ENABLE_WEB", raising=False)
+    policy_engine.load(force_reload=True)
+    try:
+        assert policy_engine.allow_web_fallback() is False
+        response = str(_enter(FRESH_INPUT).get("response") or "")
+    finally:
+        monkeypatch.undo()
+        policy_engine.load(force_reload=True)
+    assert response.startswith("Web lookups are off, so I did not search the web"), response
+    assert "Settings → Privacy & Permissions → Web lookups" in response, response
 
 
 @pytest.mark.parametrize("mode", ["fresh_lookup", "weather", "news"])

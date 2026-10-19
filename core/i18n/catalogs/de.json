@@ -2600,9 +2600,10 @@
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn.",
-    "liveinfo.web_off.not_checked": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und habe keine aktuelle Antwort. Du kannst sie unter Einstellungen → Privatsphäre & Berechtigungen → Websuchen einschalten."
+    "liveinfo.web_off.not_checked": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und habe keine aktuelle Antwort. Du kannst sie unter Einstellungen → Privatsphäre & Berechtigungen → Websuchen einschalten.",
+    "liveinfo.web_off.not_checked_started_off": "Websuchen sind ausgeschaltet, deshalb habe ich nicht im Web gesucht und habe keine aktuelle Antwort."
   },
-  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
+  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

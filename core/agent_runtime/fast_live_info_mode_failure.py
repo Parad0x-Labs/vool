@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 
 def live_info_failure_text(*, query: str, mode: str) -> str:
     # Every wording below reports a web lookup that ran. With web lookups off no lookup can
@@ -11,6 +13,13 @@ def live_info_failure_text(*, query: str, mode: str) -> str:
     if not policy_engine.allow_web_fallback():
         from core.i18n.turn_locale import turn_text
 
+        if _web_forced_off_at_start():
+            # Started with web lookups forced off (VOOL_DISABLE_WEB / VOOL_NO_WEB), which the
+            # Settings switch cannot override, so the notice does not point there.
+            return turn_text(
+                "liveinfo.web_off.not_checked_started_off",
+                "Web lookups are off, so I did not search the web and have no current answer.",
+            )
         return turn_text(
             "liveinfo.web_off.not_checked",
             "Web lookups are off, so I did not search the web and have no current answer. "
@@ -21,3 +30,11 @@ def live_info_failure_text(*, query: str, mode: str) -> str:
     if mode == "news":
         return f'I tried the live web lane for "{query}", but no current news results came back.'
     return f'I checked the live web lane for "{query}", but I could not ground a current answer confidently.'
+
+
+def _web_forced_off_at_start() -> bool:
+    # The same variables and truthy values policy_engine's environment overrides read.
+    return any(
+        str(os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+        for name in ("VOOL_DISABLE_WEB", "VOOL_NO_WEB")
+    )
