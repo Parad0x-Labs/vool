@@ -365,10 +365,12 @@ def _settings_groups() -> list[dict]:
                     widget="automatic_checks",
                     help=(
                         "Lets VOOL go online on its own, without you asking. When this is on, VOOL may "
-                        "download a missing local model when it starts and check which cloud models are "
-                        "available. If this computer is set up for the public VOOL network, VOOL also "
-                        "tells that network when it is online. Questions you ask are not affected: Web "
-                        "lookups has its own switch. Off by default."
+                        "download a missing local model when it starts, check which cloud models are "
+                        "available, check for updates and sync the online calendars you chose. If this "
+                        "computer is set up for the public VOOL network, VOOL also tells that network when "
+                        "it is online. While this is off, VOOL does none of these, even when you press "
+                        "Check for updates or Sync now. Questions you ask are not affected: Web lookups "
+                        "has its own switch. Off by default."
                     ),
                     read={"url": WEB_LOOKUPS_READ},
                     keywords="online on its own automatic outbound background network model download cloud models public network",
@@ -2420,11 +2422,24 @@ function widgetUpdates(stack) {
      say so in plain words and do not offer a button that can only fail. The server's own reason
      stays reachable under Technical details. */
   const unavailable = phase === 'unavailable';
-  const message = phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
+  /* The outbound switch is the master over update checks: while it is off no check goes online, a
+     pressed Check included. Say so calmly, with the way to the switch, instead of a failure. */
+  const onlineOff = !unavailable && !!src && src.online_access === false;
+  const message = onlineOff ? T('update.online_off', 'Online access is off, so VOOL does not check for updates.')
+    : phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
     : unavailable ? T('settings.updates.unavailable', 'Automatic updates are not available for this copy of VOOL.')
     : error || src && src.message || T('settings.widget.loading', 'Loading…');
   const status = el('div', 'subtle', message); status.setAttribute('role', 'status');
   status.dataset.testid = 'settings-update-status'; stack.appendChild(status);
+  let onlineLink = null;
+  const showOnlineSwitch = () => {
+    if (onlineLink) return;
+    onlineLink = el('button', 'btn', T('online_access.open_setting', 'Go to the online access setting'));
+    onlineLink.type = 'button'; onlineLink.dataset.testid = 'settings-update-online-setting';
+    onlineLink.addEventListener('click', () => { location.hash = '#permissions/automatic_checks'; });
+    stack.appendChild(onlineLink);
+  };
+  if (onlineOff) showOnlineSwitch();
   const check = el('button', 'btn', T('update.action_check', 'Check for updates'));
   check.type = 'button'; check.dataset.testid = 'settings-update-check';
   check.disabled = unavailable || ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
@@ -2435,6 +2450,10 @@ function widgetUpdates(stack) {
       const response = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const result = await response.json().catch(() => ({}));
+      if (result.reason === 'online_access_off' || result.error === 'online_access_off') {
+        status.textContent = T('update.online_off', 'Online access is off, so VOOL does not check for updates.');
+        showOnlineSwitch(); check.disabled = false; return;
+      }
       if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));
       await readSource('/api/update/status');
       widgetUpdates(stack);

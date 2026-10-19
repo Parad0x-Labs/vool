@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada. Prueba más tarde o desde otra red. No se guardó nada.",
     "keys.test.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada.",
     "settings.row.automatic_checks.label": "Conectarse por su cuenta",
-    "settings.row.automatic_checks.help": "Permite que VOOL se conecte a internet por su cuenta, sin que se lo pidas. Cuando está activado, VOOL puede descargar al iniciarse un modelo local que falte y comprobar qué modelos en la nube hay disponibles. Si este equipo está configurado para la red pública de VOOL, VOOL también avisa a esa red cuando está en línea. Las preguntas que haces no se ven afectadas: las búsquedas web tienen su propio interruptor. Desactivado de forma predeterminada.",
+    "settings.row.automatic_checks.help": "Permite que VOOL se conecte por su cuenta, sin que se lo pidas. Cuando está activado, VOOL puede descargar al iniciarse un modelo local que falte, comprobar qué modelos en la nube están disponibles, buscar actualizaciones y sincronizar los calendarios en línea que elegiste. Si este equipo está configurado para la red pública de VOOL, VOOL también avisa a esa red cuando está en línea. Mientras está desactivado, VOOL no hace nada de esto, ni siquiera cuando pulsas Buscar actualizaciones o Sincronizar ahora. Las preguntas que haces no se ven afectadas: las búsquedas web tienen su propio interruptor. Desactivado de forma predeterminada.",
     "settings.row.automatic_checks.local_only_note": "El modo de solo local está activado para todo este equipo, así que esto sigue desactivado. Ajustes no tiene ningún interruptor para desactivar el modo de solo local.",
     "settings.row.automatic_checks.retry_note": "VOOL no pudo cambiar esto ahora. Inténtalo de nuevo en un momento.",
     "settings.switch.read_failed": "VOOL no pudo leer este ajuste. Vuelve a abrir Ajustes para intentarlo de nuevo.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "En la línea {line}",
     "addons.publish_reason_codex_check": "Las revisiones del códice de habilidades rechazarían esta habilidad tal como está.",
     "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex.",
-    "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela."
+    "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela.",
+    "update.online_off": "El acceso a internet está desactivado, así que VOOL no busca actualizaciones.",
+    "vcs.online_off": "El acceso a internet está desactivado, así que VOOL no lee calendarios de internet. Los calendarios de este equipo siguen funcionando.",
+    "online_access.open_setting": "Ir al ajuste de acceso a internet"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

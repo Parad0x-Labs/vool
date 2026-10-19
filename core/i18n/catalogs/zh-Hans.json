@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。请稍后重试，或换用其他网络。没有存储任何内容。",
     "keys.test.gateway_blocked": "{label} 在查看密钥之前就拦截了此次检查{http}。密钥未被判定。",
     "settings.row.automatic_checks.label": "自行联网",
-    "settings.row.automatic_checks.help": "允许 VOOL 在你没有要求时自行联网。开启后，VOOL 可能会在启动时下载缺少的本地模型，并查看有哪些云端模型可用。如果这台电脑已设置接入公共 VOOL 网络，VOOL 还会在上线时告知该网络。你提出的问题不受影响：网络查询有单独的开关。默认关闭。",
+    "settings.row.automatic_checks.help": "允许 VOOL 在你没有要求时自行联网。开启后，VOOL 可能会在启动时下载缺少的本地模型、检查有哪些云端模型可用、检查更新，并同步你选择的在线日历。如果这台电脑已设置为加入公共 VOOL 网络，VOOL 还会在联网时告知该网络。关闭期间，VOOL 不会做其中任何一件事，即使你点击“检查更新”或“立即同步”也一样。你提出的问题不受影响：网络查询有自己的开关。默认关闭。",
     "settings.row.automatic_checks.local_only_note": "整台电脑已开启仅本地模式，因此此项保持关闭。设置中没有关闭仅本地模式的开关。",
     "settings.row.automatic_checks.retry_note": "VOOL 暂时无法更改此项。请稍后再试。",
     "settings.switch.read_failed": "VOOL 无法读取此设置。请重新打开设置再试一次。",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "第 {line} 行",
     "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。",
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
-    "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
+    "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。",
+    "update.online_off": "联网已关闭，因此 VOOL 不会检查更新。",
+    "vcs.online_off": "联网已关闭，因此 VOOL 不会读取互联网上的日历。这台电脑上的日历仍可正常使用。",
+    "online_access.open_setting": "前往联网设置"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

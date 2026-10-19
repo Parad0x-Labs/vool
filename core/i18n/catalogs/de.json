@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt. Versuche es später oder aus einem anderen Netz erneut. Nichts wurde gespeichert.",
     "keys.test.gateway_blocked": "{label} hat diese Prüfung blockiert, bevor der Schlüssel angesehen wurde{http}. Der Schlüssel wurde nicht beurteilt.",
     "settings.row.automatic_checks.label": "Von selbst online gehen",
-    "settings.row.automatic_checks.help": "Lässt VOOL von selbst online gehen, ohne dass du darum bittest. Wenn das an ist, kann VOOL beim Start ein fehlendes lokales Modell herunterladen und prüfen, welche Cloud-Modelle verfügbar sind. Ist dieser Computer für das öffentliche VOOL-Netzwerk eingerichtet, meldet VOOL diesem Netzwerk außerdem, wenn es online ist. Deine Fragen sind davon nicht betroffen: Websuchen haben einen eigenen Schalter. Standardmäßig aus.",
+    "settings.row.automatic_checks.help": "Erlaubt VOOL, von selbst online zu gehen, ohne dass du fragst. Wenn das an ist, kann VOOL beim Start ein fehlendes lokales Modell herunterladen, prüfen, welche Cloud-Modelle verfügbar sind, nach Updates suchen und die Online-Kalender synchronisieren, die du gewählt hast. Wenn dieser Computer für das öffentliche VOOL-Netz eingerichtet ist, meldet VOOL diesem Netz außerdem, wann es online ist. Solange das aus ist, tut VOOL nichts davon, auch nicht, wenn du „Nach Updates suchen“ oder „Jetzt synchronisieren“ drückst. Deine Fragen sind davon nicht betroffen: Websuchen haben einen eigenen Schalter. Standardmäßig aus.",
     "settings.row.automatic_checks.local_only_note": "Der Nur-lokal-Modus ist für diesen ganzen Computer an, deshalb bleibt das aus. In den Einstellungen gibt es keinen Schalter, um den Nur-lokal-Modus auszuschalten.",
     "settings.row.automatic_checks.retry_note": "VOOL konnte das gerade nicht ändern. Versuche es gleich noch einmal.",
     "settings.switch.read_failed": "VOOL konnte diese Einstellung nicht lesen. Öffne die Einstellungen erneut, um es noch einmal zu versuchen.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "In Zeile {line}",
     "addons.publish_reason_codex_check": "Die Prüfungen des Fertigkeiten-Codex würden diese Fertigkeit so ablehnen.",
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
-    "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
+    "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn.",
+    "update.online_off": "Der Online-Zugang ist aus, daher sucht VOOL nicht nach Updates.",
+    "vcs.online_off": "Der Online-Zugang ist aus, daher liest VOOL keine Kalender aus dem Internet. Kalender auf diesem Computer funktionieren weiter.",
+    "online_access.open_setting": "Zur Einstellung für den Online-Zugang"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

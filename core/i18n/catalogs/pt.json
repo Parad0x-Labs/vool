@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada. Tente mais tarde ou de outra rede. Nada foi armazenado.",
     "keys.test.gateway_blocked": "{label} bloqueou esta verificação antes de olhar para a chave{http}. A chave não foi julgada.",
     "settings.row.automatic_checks.label": "Ligar-se à internet por conta própria",
-    "settings.row.automatic_checks.help": "Permite que o VOOL se ligue à internet por conta própria, sem que peça. Quando está ativado, o VOOL pode transferir um modelo local em falta ao iniciar e verificar que modelos na nuvem estão disponíveis. Se este computador estiver configurado para a rede pública do VOOL, o VOOL também informa essa rede quando está online. As perguntas que faz não são afetadas: as pesquisas na web têm o seu próprio interruptor. Desligado por predefinição.",
+    "settings.row.automatic_checks.help": "Permite que o VOOL se ligue à internet por conta própria, sem que peça. Quando está ativado, o VOOL pode, ao iniciar, transferir um modelo local em falta, verificar que modelos na nuvem estão disponíveis, verificar atualizações e sincronizar os calendários online que escolheu. Se este computador estiver configurado para a rede pública VOOL, o VOOL também informa essa rede quando está online. Enquanto estiver desativado, o VOOL não faz nada disto, mesmo quando prime Verificar atualizações ou Sincronizar agora. As perguntas que faz não são afetadas: as pesquisas na web têm o seu próprio interruptor. Desativado por predefinição.",
     "settings.row.automatic_checks.local_only_note": "O modo apenas local está ligado para todo este computador, por isso isto fica desligado. As Configurações não têm um interruptor para desligar o modo apenas local.",
     "settings.row.automatic_checks.retry_note": "O VOOL não conseguiu alterar isto agora. Tente novamente daqui a pouco.",
     "settings.switch.read_failed": "O VOOL não conseguiu ler esta definição. Abra novamente as Configurações para tentar outra vez.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "Na linha {line}",
     "addons.publish_reason_codex_check": "As verificações do códice de habilidades recusariam esta habilidade tal como está.",
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
-    "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave."
+    "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave.",
+    "update.online_off": "O acesso à internet está desativado, por isso o VOOL não verifica atualizações.",
+    "vcs.online_off": "O acesso à internet está desativado, por isso o VOOL não lê calendários da internet. Os calendários deste computador continuam a funcionar.",
+    "online_access.open_setting": "Ir para a definição de acesso à internet"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

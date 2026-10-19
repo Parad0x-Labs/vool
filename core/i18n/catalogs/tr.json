@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi.",
     "settings.row.automatic_checks.label": "Kendi başına çevrimiçi olma",
-    "settings.row.automatic_checks.help": "VOOL'un siz istemeden kendi başına çevrimiçi olmasını sağlar. Bu açıkken VOOL başlarken eksik bir yerel modeli indirebilir ve hangi bulut modellerinin kullanılabildiğini kontrol edebilir. Bu bilgisayar herkese açık VOOL ağı için ayarlanmışsa, VOOL çevrimiçi olduğunda bunu o ağa da bildirir. Sorduğunuz sorular bundan etkilenmez: Web aramalarının kendi anahtarı vardır. Varsayılan olarak kapalı.",
+    "settings.row.automatic_checks.help": "VOOL’un siz istemeden kendi başına çevrimiçi olmasına izin verir. Bu açıkken VOOL başlarken eksik bir yerel modeli indirebilir, hangi bulut modellerinin kullanılabildiğini kontrol edebilir, güncellemeleri kontrol edebilir ve seçtiğiniz çevrimiçi takvimleri eşitleyebilir. Bu bilgisayar herkese açık VOOL ağı için ayarlanmışsa VOOL ayrıca çevrimiçi olduğunu o ağa bildirir. Bu kapalıyken VOOL, Güncellemeleri kontrol et veya Şimdi eşitle düğmesine bassanız bile bunların hiçbirini yapmaz. Sorduğunuz sorular etkilenmez: web aramalarının kendi anahtarı vardır. Varsayılan olarak kapalıdır.",
     "settings.row.automatic_checks.local_only_note": "Yalnızca yerel mod bu bilgisayarın tamamı için açık, bu yüzden bu kapalı kalır. Ayarlar'da yalnızca yerel modu kapatacak bir anahtar yok.",
     "settings.row.automatic_checks.retry_note": "VOOL bunu şu anda değiştiremedi. Birazdan tekrar deneyin.",
     "settings.switch.read_failed": "VOOL bu ayarı okuyamadı. Yeniden denemek için Ayarlar'ı tekrar açın.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "{line}. satırda",
     "addons.publish_reason_codex_check": "Beceri Kodeksinin kontrolleri bu beceriyi bu haliyle reddeder.",
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
-    "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
+    "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin.",
+    "update.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL güncellemeleri kontrol etmiyor.",
+    "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor.",
+    "online_access.open_setting": "Çevrimiçi erişim ayarına git"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

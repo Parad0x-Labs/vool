@@ -1265,6 +1265,7 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="upd-msg" id="updateMessage" data-testid="update-message" role="status"></div>
       <button type="button" class="pop-item" id="updateActionBtn" data-testid="update-action" hidden></button>
       <button type="button" class="pop-item" id="updateCheckBtn" data-i18n="update.action_check">Check for updates</button>
+      <button type="button" class="pop-item" id="updateOnlineBtn" data-testid="update-online-setting" data-i18n="online_access.open_setting" hidden>Go to the online access setting</button>
       <button type="button" class="pop-item" id="updateRollbackBtn" data-testid="update-rollback" hidden></button>
     </div>
   </div>
@@ -13503,6 +13504,8 @@ const updateBarFill = document.getElementById('updateBarFill');
 const updateActionBtn = document.getElementById('updateActionBtn');
 const updateCheckBtn = document.getElementById('updateCheckBtn');
 const updateRollbackBtn = document.getElementById('updateRollbackBtn');
+const updateOnlineBtn = document.getElementById('updateOnlineBtn');
+const UPDATE_ONLINE_OFF = pageT('update.online_off', 'Online access is off, so VOOL does not check for updates.');
 // The updater's state machine names stay exactly as shipped (phase keys below); only
 // their display words resolve through the catalog's update.* keys.
 const UPDATE_LABELS = {
@@ -13535,7 +13538,11 @@ function renderUpdateChip(payload) {
   else if (phase === 'unavailable') updateChip.classList.add('upd-off');
   updateVersionEl.textContent = payload.target_version ? pageTF('update.version_line', 'Version {version}', { version: payload.target_version }) : '';
   updateNotesEl.textContent = (payload.notes || '').trim();
-  updateMessageEl.textContent = payload.message || '';
+  // The outbound switch is the master over update checks: while it is off the popover says so and
+  // offers the way to the switch, instead of a check that would only look like it failed.
+  const onlineOff = payload.online_access === false;
+  updateMessageEl.textContent = onlineOff ? UPDATE_ONLINE_OFF : (payload.message || '');
+  if (updateOnlineBtn) updateOnlineBtn.hidden = !onlineOff;
   updateBar.hidden = !(phase === 'downloading' && payload.progress_percent != null);
   updateBarFill.style.width = `${payload.progress_percent || 0}%`;
   updateActionBtn.hidden = true; updateCheckBtn.hidden = false;
@@ -13595,12 +13602,24 @@ if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
   // Every press ends in a visible result line; a failed check used to change nothing at all.
   updateMessageEl.textContent = UPDATE_LABELS.checking;
   let ok = false;
+  let result = {};
   try { const r = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok); } catch (e) { ok = false; }
+    headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok);
+    result = await r.json().catch(() => ({})); } catch (e) { ok = false; }
+  if (result && (result.reason === 'online_access_off' || result.error === 'online_access_off')) {
+    updateMessageEl.textContent = UPDATE_ONLINE_OFF;
+    if (updateOnlineBtn) updateOnlineBtn.hidden = false;
+    return;
+  }
   if (!ok) { updateMessageEl.textContent = "Couldn't check for updates right now. Try again later."; return; }
   setTimeout(refreshUpdateStatus, 400);
 });
 if (updateRollbackBtn) updateRollbackBtn.addEventListener('click', () => pressUpdate('rollback'));
+if (updateOnlineBtn) updateOnlineBtn.addEventListener('click', () => {
+  updatePop.classList.remove('open');
+  updateChip.setAttribute('aria-expanded', 'false');
+  openSettings('permissions/automatic_checks');
+});
 setInterval(() => { if (!document.hidden) refreshUpdateStatus(); }, _updateFast ? 700 : 3500);
 refreshUpdateStatus();
 

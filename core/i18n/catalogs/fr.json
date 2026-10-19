@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
     "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée.",
     "settings.row.automatic_checks.label": "Se connecter de lui-même",
-    "settings.row.automatic_checks.help": "Permet à VOOL de se connecter à internet de lui-même, sans que vous le demandiez. Quand c'est activé, VOOL peut télécharger au démarrage un modèle local manquant et vérifier quels modèles cloud sont disponibles. Si cet ordinateur est configuré pour le réseau public VOOL, VOOL signale aussi à ce réseau quand il est en ligne. Les questions que vous posez ne sont pas concernées : les recherches web ont leur propre interrupteur. Désactivé par défaut.",
+    "settings.row.automatic_checks.help": "Permet à VOOL de se connecter de lui-même, sans que vous le demandiez. Quand cette option est activée, VOOL peut télécharger au démarrage un modèle local manquant, vérifier quels modèles cloud sont disponibles, rechercher des mises à jour et synchroniser les agendas en ligne que vous avez choisis. Si cet ordinateur est configuré pour le réseau public VOOL, VOOL signale aussi à ce réseau quand il est en ligne. Tant qu’elle est désactivée, VOOL ne fait rien de tout cela, même si vous appuyez sur Rechercher des mises à jour ou Synchroniser maintenant. Vos questions ne sont pas concernées : les recherches web ont leur propre interrupteur. Désactivé par défaut.",
     "settings.row.automatic_checks.local_only_note": "Le mode local uniquement est activé pour tout cet ordinateur, donc ceci reste désactivé. Les Réglages n'ont pas d'interrupteur pour désactiver le mode local uniquement.",
     "settings.row.automatic_checks.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
     "settings.switch.read_failed": "VOOL n'a pas pu lire ce réglage. Rouvrez les Réglages pour réessayer.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "À la ligne {line}",
     "addons.publish_reason_codex_check": "Les vérifications du codex des compétences refuseraient cette compétence en l'état.",
     "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
-    "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la."
+    "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
+    "update.online_off": "L’accès à internet est désactivé, donc VOOL ne recherche pas de mises à jour.",
+    "vcs.online_off": "L’accès à internet est désactivé, donc VOOL ne lit pas d’agendas sur internet. Les agendas de cet ordinateur continuent de fonctionner.",
+    "online_access.open_setting": "Aller au réglage d’accès à internet"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

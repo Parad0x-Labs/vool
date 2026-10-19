@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá. Hãy thử lại sau hoặc từ mạng khác. Không lưu gì cả.",
     "keys.test.gateway_blocked": "{label} đã chặn lần kiểm tra này trước khi xem khóa{http}. Khóa chưa được đánh giá.",
     "settings.row.automatic_checks.label": "Tự lên mạng",
-    "settings.row.automatic_checks.help": "Cho phép VOOL tự lên mạng mà không cần bạn yêu cầu. Khi bật, VOOL có thể tải về một mô hình cục bộ còn thiếu lúc khởi động và kiểm tra những mô hình đám mây nào đang có. Nếu máy tính này được thiết lập cho mạng VOOL công khai, VOOL cũng báo cho mạng đó biết khi mình đang trực tuyến. Những câu hỏi của bạn không bị ảnh hưởng: Tra cứu web có công tắc riêng. Mặc định tắt.",
+    "settings.row.automatic_checks.help": "Cho phép VOOL tự lên mạng mà không cần bạn yêu cầu. Khi bật, VOOL có thể tải về một mô hình cục bộ còn thiếu khi khởi động, kiểm tra những mô hình đám mây nào đang có, kiểm tra bản cập nhật và đồng bộ các lịch trực tuyến bạn đã chọn. Nếu máy tính này được thiết lập cho mạng VOOL công khai, VOOL cũng báo cho mạng đó khi nó trực tuyến. Khi tắt, VOOL không làm bất kỳ việc nào trong số này, kể cả khi bạn nhấn Kiểm tra bản cập nhật hoặc Đồng bộ ngay. Các câu hỏi bạn đặt ra không bị ảnh hưởng: Tra cứu web có công tắc riêng. Mặc định là tắt.",
     "settings.row.automatic_checks.local_only_note": "Chế độ chỉ cục bộ đang bật cho toàn bộ máy tính này, nên mục này vẫn tắt. Cài đặt không có công tắc để tắt chế độ chỉ cục bộ.",
     "settings.row.automatic_checks.retry_note": "VOOL chưa thể thay đổi mục này lúc này. Hãy thử lại sau giây lát.",
     "settings.switch.read_failed": "VOOL không đọc được cài đặt này. Hãy mở lại Cài đặt để thử lại.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "Ở dòng {line}",
     "addons.publish_reason_codex_check": "Các bước kiểm tra của bộ sưu tập kỹ năng sẽ không chấp nhận kỹ năng này ở dạng hiện tại.",
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
-    "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác."
+    "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác.",
+    "update.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không kiểm tra bản cập nhật.",
+    "vcs.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không đọc lịch từ internet. Lịch trên máy tính này vẫn hoạt động.",
+    "online_access.open_setting": "Đi tới cài đặt truy cập trực tuyến"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

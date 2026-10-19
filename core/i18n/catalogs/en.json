@@ -2389,7 +2389,7 @@
     "run.refused_reason": "VOOL did not run this turn: {reason}",
     "run.refused_status": "VOOL did not run this turn (HTTP {status}).",
     "settings.row.automatic_checks.label": "Go online on its own",
-    "settings.row.automatic_checks.help": "Lets VOOL go online on its own, without you asking. When this is on, VOOL may download a missing local model when it starts and check which cloud models are available. If this computer is set up for the public VOOL network, VOOL also tells that network when it is online. Questions you ask are not affected: Web lookups has its own switch. Off by default.",
+    "settings.row.automatic_checks.help": "Lets VOOL go online on its own, without you asking. When this is on, VOOL may download a missing local model when it starts, check which cloud models are available, check for updates and sync the online calendars you chose. If this computer is set up for the public VOOL network, VOOL also tells that network when it is online. While this is off, VOOL does none of these, even when you press Check for updates or Sync now. Questions you ask are not affected: Web lookups has its own switch. Off by default.",
     "settings.row.automatic_checks.local_only_note": "Local-only mode is on for this whole computer, so this stays off. Settings has no switch to turn local-only mode off.",
     "settings.row.automatic_checks.retry_note": "VOOL could not change this right now. Try again in a moment.",
     "settings.switch.read_failed": "VOOL could not read this setting. Reopen Settings to try again.",
@@ -2599,7 +2599,10 @@
     "addons.publish_line": "In line {line}",
     "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex.",
-    "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it."
+    "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it.",
+    "update.online_off": "Online access is off, so VOOL does not check for updates.",
+    "vcs.online_off": "Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.",
+    "online_access.open_setting": "Go to the online access setting"
   },
   "html_keys": [
     "bypass.modal_limits",

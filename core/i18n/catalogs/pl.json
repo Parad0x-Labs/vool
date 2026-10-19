@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony. Spróbuj później albo z innej sieci. Nic nie zapisano.",
     "keys.test.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony.",
     "settings.row.automatic_checks.label": "Samodzielne łączenie z internetem",
-    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem, bez twojej prośby. Gdy to jest włączone, VOOL może przy starcie pobrać brakujący model lokalny i sprawdzić, jakie modele w chmurze są dostępne. Jeśli ten komputer jest skonfigurowany do publicznej sieci VOOL, VOOL informuje też tę sieć, kiedy jest online. Twoje pytania nie są tym objęte: wyszukiwanie w sieci ma własny przełącznik. Domyślnie wyłączone.",
+    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem, bez Twojej prośby. Gdy ta opcja jest włączona, VOOL może przy starcie pobrać brakujący model lokalny, sprawdzić, które modele w chmurze są dostępne, sprawdzić aktualizacje i synchronizować wybrane przez Ciebie kalendarze online. Jeśli ten komputer jest skonfigurowany do publicznej sieci VOOL, VOOL informuje też tę sieć, kiedy jest online. Gdy ta opcja jest wyłączona, VOOL nie robi niczego z tych rzeczy, nawet gdy naciśniesz Sprawdź aktualizacje lub Synchronizuj teraz. Nie wpływa to na zadawane przez Ciebie pytania: wyszukiwanie w sieci ma własny przełącznik. Domyślnie wyłączone.",
     "settings.row.automatic_checks.local_only_note": "Tryb tylko lokalny jest włączony dla całego tego komputera, więc to pozostaje wyłączone. W Ustawieniach nie ma przełącznika, który wyłącza tryb tylko lokalny.",
     "settings.row.automatic_checks.retry_note": "VOOL nie mógł teraz tego zmienić. Spróbuj ponownie za chwilę.",
     "settings.switch.read_failed": "VOOL nie mógł odczytać tego ustawienia. Otwórz Ustawienia ponownie, aby spróbować jeszcze raz.",
@@ -2599,9 +2599,12 @@
     "addons.publish_line": "W wierszu {line}",
     "addons.publish_reason_codex_check": "Sprawdzenia w kodeksie umiejętności odrzuciłyby tę umiejętność w obecnej postaci.",
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
-    "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień."
+    "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień.",
+    "update.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie sprawdza aktualizacji.",
+    "vcs.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie odczytuje kalendarzy z internetu. Kalendarze na tym komputerze nadal działają.",
+    "online_access.open_setting": "Przejdź do ustawienia dostępu do internetu"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
