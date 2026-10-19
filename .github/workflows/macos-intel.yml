@@ -83,7 +83,7 @@ jobs:
       - name: Restore the Intel cryptography wheel built from the recorded recipe
         id: crypto-cache
         if: inputs.record_wheel != true
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.temp }}/crypto-wheel
           key: intel-crypto-${{ env.CRYPTO_VERSION }}-${{ env.CRYPTO_SDIST_SHA256 }}-openssl-${{ env.OPENSSL_SHA256 }}-maturin-${{ env.MATURIN_VERSION }}-rust-${{ env.RUST_TOOLCHAIN }}-v2
