@@ -2315,9 +2315,25 @@ def _argv_actions(argv: list[str]) -> set[PermissionAction]:
         # Fetches and runs a package that may not be installed yet.
         return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     operand = _first_operand(lowered_args)
+    after_operand = lowered_args[lowered_args.index(operand) + 1:] if operand else []
     if (
-        (base == "go" and (operand in {"get", "install"} or lowered_args[:2] == ["mod", "download"]))
+        (base == "go" and (operand in {"get", "install"} or lowered_args[:2] in (["mod", "download"], ["mod", "tidy"])))
+        # `go run pkg@v1` fetches the module it names.
+        or (base == "go" and operand in {"run", "build", "test", "generate"} and any("@" in item for item in after_operand))
         or (base == "deno" and operand in {"add", "install", "cache"})
+        # A remote module, or a reload, is a download.
+        or (base == "deno" and operand in {"run", "eval", "test", "compile"} and any(
+            item.startswith(("http://", "https://", "npm:", "jsr:")) or item in {"-r", "--reload"} or item.startswith("--reload=")
+            for item in after_operand))
+        # Fetch verbs the install markers above do not name.
+        or (base in {"pip", "pip3"} and operand == "download")
+        or (base == "cargo" and operand == "fetch")
+        or (base == "npm" and operand in {"exec", "x"})
+        or (base in {"pnpm", "yarn"} and operand == "dlx")
+        or (base == "bun" and operand == "x")
+        or (base == "uv" and operand == "tool")
+        or (base == "uv" and operand == "run" and any(
+            item.split("=", 1)[0] in {"--with", "--with-requirements", "--with-editable"} for item in after_operand))
     ):
         return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if base in _DELETE_BASES:

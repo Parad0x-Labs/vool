@@ -50,6 +50,9 @@ class GateDecision:
 
 # Git subcommands that genuinely change nothing on disk or in refs. Everything else is treated as
 # destructive (see _is_destructive_command), so an unknown or newly-added git verb fails CLOSED.
+# find's primaries that delete or run another program: never run on an approval from chat.
+_FIND_CHAT_REFUSED = frozenset({"-delete", "-exec", "-execdir", "-ok", "-okdir"})
+
 _GIT_READ_ONLY_SUBCOMMANDS = frozenset({
     "status", "diff", "show", "log", "rev-parse", "grep", "ls-files", "ls-tree", "ls-remote",
     "for-each-ref", "describe", "blame", "cat-file", "shortlog", "count-objects", "whatchanged",
@@ -368,6 +371,7 @@ class ExecutionGate:
                 mode=mode,
             )
         base_cmd = ExecutionGate._base_command(segments[0])
+        unrunnable = ""
         destructive = False
         read_only = True
         for argv in segments:
@@ -379,6 +383,16 @@ class ExecutionGate:
                     DECISION_DENIED,
                     {"decision": "blocked", "reason": "Command contains blocked destructive markers."},
                     mode=mode,
+                )
+            if segment_base == "find" and any(
+                str(item or "").lower() in _FIND_CHAT_REFUSED for item in argv[1:]
+            ):
+                # `find -delete` is a recursive delete and `-exec`/`-ok` run another program past every
+                # check above. Neither is run on an approval or a mode's allowance; a direct caller
+                # with no permission decision is answered below exactly as before.
+                unrunnable = unrunnable or (
+                    "`find` with -delete, -exec or -ok does not run from chat, even with approval. "
+                    "Delete files with rm one at a time, or run the program on each file directly."
                 )
             if segment_base == "git":
                 # The user's rules are a HARD block, reported before any approvable gate: a commit,
@@ -459,6 +473,27 @@ class ExecutionGate:
         # again here and the mode matrix is not re-derived. A command it does not cover --
         # another string, an action it did not allow -- is decided below exactly as before.
         authorization = ExecutionGate._covering_authorization(text, policy_mode=mode)
+        if authorization is not None and unrunnable:
+            return _receipted(
+                DECISION_DENIED,
+                {"decision": "blocked", "reason": unrunnable, "base_command": base_cmd},
+                mode=mode,
+            )
+        if authorization is None and ExecutionGate._approved_but_unreadable(text):
+            # The operator allowed this exact line, but VOOL cannot tell what it would do (`git -C`,
+            # `git -c`, an env option): it fails closed, and says so instead of asking again.
+            return _receipted(
+                DECISION_DENIED,
+                {
+                    "decision": "blocked",
+                    "reason": (
+                        "VOOL can't tell what this command would do, so it does not run from chat, "
+                        "even with approval. A plainer form usually works (for git, `cd <folder> && git ...`)."
+                    ),
+                    "base_command": base_cmd,
+                },
+                mode=mode,
+            )
         if authorization is not None:
             return _receipted(
                 DECISION_ALLOWED,
@@ -544,6 +579,17 @@ class ExecutionGate:
         return authorization
 
     @staticmethod
+    def _approved_but_unreadable(text: str) -> bool:
+        """A permission decision was published for exactly this line, and the line classifies as
+        unknown, so the decision cannot stand behind it."""
+        from core.mode_permission_policy import PermissionAction, command_actions, current_command_authorization
+
+        authorization = current_command_authorization()
+        if authorization is None or text not in authorization.commands:
+            return False
+        return PermissionAction.UNKNOWN_SIDE_EFFECT in command_actions(text)
+
+    @staticmethod
     def _rm_is_recursive(argv: list[str]) -> bool:
         for token in argv[1:]:
             item = str(token or "")
@@ -578,7 +624,9 @@ class ExecutionGate:
     def _base_command(argv: list[str]) -> str:
         if not argv:
             return ""
-        first = str(argv[0] or "").strip().lower()
+        # The program's own name: `/bin/rm -r x` is `rm -r x`, and every check keyed on the name
+        # (recursive delete, find's primaries, git's rules) must see it as such.
+        first = Path(str(argv[0] or "").strip()).name.lower()
         if first == "env":
             index = 1
             while index < len(argv):
@@ -586,7 +634,7 @@ class ExecutionGate:
                 if "=" in token and not token.startswith("-"):
                     index += 1
                     continue
-                return token.lower()
+                return Path(token).name.lower()
         return first
 
     @staticmethod

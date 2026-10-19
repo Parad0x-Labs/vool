@@ -127,7 +127,8 @@ def test_rm_asks_in_auto_and_deletes_only_after_allow(workspace, chat_autonomy) 
 
 @SANDBOX
 @pytest.mark.parametrize("command", ["rm -rf build", "rm -fr build", "rm -r -f build", "rm -R build", "rm --recursive build",
-                                     "rm --rec build", "ls && rm -r build"])
+                                     "rm --rec build", "ls && rm -r build", "/bin/rm -r build", "ls && /usr/bin/rm -fr build",
+                                     "find build -delete", "find build -mindepth 1 -execdir rm {} +"])
 def test_a_recursive_delete_is_refused_in_bypass_in_every_spelling(workspace, chat_autonomy, command) -> None:
     (workspace / "build").mkdir()
     (workspace / "build" / "x").write_text("x", encoding="utf-8")
@@ -347,3 +348,46 @@ def test_a_failed_or_refused_command_ends_the_turn_on_what_happened(workspace, c
     assert refused.status == "blocked_by_policy"
     assert "bash" in refused.user_safe_response_text
     assert not (workspace / "RAN").exists()
+
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["go run example.com/x@v1.0.0", "go mod tidy", "uv run --with requests python3 -c 1", "uv tool run ruff",
+     "bun x cowsay", "deno run https://example.invalid/x.ts", "deno run -r main.ts", "npm exec cowsay",
+     "pnpm dlx cowsay", "yarn dlx cowsay", "pip download x", "python3 -m pip download x", "cargo fetch"],
+)
+def test_a_fetch_that_installs_is_named_an_install(command: str) -> None:
+    assert PermissionAction.INSTALL_DEPENDENCIES in command_actions(command)
+
+
+@SANDBOX
+def test_auto_asks_before_a_fetch_and_run(workspace, chat_autonomy) -> None:
+    execution = _Turn(workspace, "auto").command("uv run --with requests python3 -c 1")
+    assert execution.status == "pending_approval", (execution.status, execution.response_text)
+
+
+@SANDBOX
+def test_an_approved_command_that_does_not_install_gets_no_network(workspace, registry) -> None:
+    script = (
+        "import urllib.request\n"
+        f"urllib.request.urlopen('htt' + 'p://127.0.0.1:{registry.port}/leak', timeout=3)\n"
+    )
+    (workspace / "fetch.py").write_text(script, encoding="utf-8")
+    turn = _Turn(workspace, "manual")
+    for command in ("python3 fetch.py", f"{registry.install()} ; python3 fetch.py"):
+        execution = turn.command(command, approval_token=turn.approve(turn.command(command)))
+        # A line mixing an install with anything else is refused before it runs; a plain script runs offline.
+        assert execution.status in {"executed", "command_failed", "blocked_by_policy"}, (command, execution.response_text)
+        assert "network_egress" not in execution.details, command
+        assert not any("leak" in path for path in registry.paths), command
+    assert registry.paths == [], "a line that is not only installs reached the network"
+
+
+@SANDBOX
+def test_an_approved_command_vool_cannot_read_is_refused_plainly(workspace) -> None:
+    turn = _Turn(workspace, "manual")
+    first = turn.command("git -C . status")
+    second = turn.command("git -C . status", approval_token=turn.approve(first))
+    assert second.status == "blocked_by_policy", second.response_text
+    assert "can't tell what this command would do" in second.user_safe_response_text

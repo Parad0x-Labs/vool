@@ -59,7 +59,13 @@ def _network_grant_reason(cmd: str) -> str:
         authorization = ExecutionGate._covering_authorization(cmd, policy_mode=policy.mode)
         if authorization is None:
             return ""
-        if not command_actions(cmd) & {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.USE_NETWORK}:
+        # The network is for installs only, and only when EVERY command in the line installs:
+        # `pip install x && python run.py` would otherwise give run.py the network too.
+        from core.command_line import parse_command_line
+
+        chain = parse_command_line(cmd)
+        segments = list(chain.segment_texts()) if chain is not None else [cmd]
+        if not all(PermissionAction.INSTALL_DEPENDENCIES in command_actions(segment) for segment in segments):
             return ""
         if authorization.operator_granted:
             return "you approved this command"
