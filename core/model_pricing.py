@@ -495,6 +495,7 @@ def estimate_call_usd(
     prompt_tokens: int,
     completion_tokens: int,
     attempts: int = 1,
+    include_cache_write: bool = True,
 ) -> CostEstimate:
     """What ``attempts`` calls of this shape cost, from tokens and the published price.
 
@@ -504,11 +505,32 @@ def estimate_call_usd(
     """
     price = lookup_model_price(provider_id, model_id, prompt_tokens=prompt_tokens)
     usd = price.usd_for(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, attempts=attempts)
+    source = price.source
+    # A call that carries prompt-cache breakpoints may WRITE its whole prompt to the cache, which
+    # the provider bills above the input rate. Reserve (and, absent a reported cost, settle) at
+    # that worst case; the same plan decides the wire in the adapter (core.prompt_cache).
+    #
+    # The lane is NOT re-derived here: the provider string that reaches this function cannot name
+    # every route the adapter recognises (a custom endpoint at openrouter.ai, an empty id), and a
+    # reservation must never be smaller than the wire it pays for. So the write price is held for
+    # every call whose MODEL could carry breakpoints; the adapter marks a subset of those.
+    from core.prompt_cache import reservation_cache_plan
+
+    plan = reservation_cache_plan(model_id)
+    if include_cache_write and plan.enabled and plan.write_multiplier > 1.0:
+        surcharge = (
+            max(0, int(prompt_tokens))
+            * float(price.prompt_usd_per_token)
+            * (plan.write_multiplier - 1.0)
+            * max(1, int(attempts))
+        )
+        usd = round(usd + surcharge, 8)
+        source = f"{source}; prompt at the {plan.write_multiplier}x cache-write rate"
     return CostEstimate(
         usd=usd,
         known=price.known,
         basis=price.basis or (BASIS_PUBLISHED_PRICE if price.known else BASIS_UNKNOWN_CEILING),
-        source=price.source,
+        source=source,
         provider_id=str(provider_id or ""),
         model_id=str(model_id or ""),
         prompt_tokens=max(0, int(prompt_tokens)),
@@ -591,6 +613,24 @@ def provider_reported_usd(usage: Any) -> float | None:
     return max(0.0, total)
 
 
+def _with_anthropic_cache_tokens(usage: Any, prompt_tokens: int) -> int:
+    """Anthropic's native usage counts cache reads and writes OUTSIDE ``input_tokens``; the prompt
+    total is their sum. A block that already says ``prompt_tokens`` (OpenAI/OpenRouter shape)
+    includes them and is left alone."""
+    try:
+        block = dict(usage or {})
+    except Exception:
+        return prompt_tokens
+    if "prompt_tokens" in block or "cache_creation_input_tokens" not in block:
+        return prompt_tokens
+    extra = 0
+    for name in ("cache_creation_input_tokens", "cache_read_input_tokens"):
+        value = block.get(name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+            extra += int(value)
+    return prompt_tokens + extra
+
+
 def settlement_usd(
     *,
     provider_id: str,
@@ -606,6 +646,7 @@ def settlement_usd(
     """
     reported = provider_reported_usd(usage)
     prompt_tokens, completion_tokens = usage_tokens(usage)
+    prompt_tokens = _with_anthropic_cache_tokens(usage, prompt_tokens)
     attempts = max(1, int(attempts))
     if reported is not None:
         return CostEstimate(
@@ -634,14 +675,48 @@ def settlement_usd(
             completion_tokens=0,
             attempts=attempts,
         )
-    return estimate_call_usd(
+    from core.prompt_cache import cache_write_prompt_tokens
+
+    written = cache_write_prompt_tokens(usage)
+    if written is None:
+        # No write count: settle at the worst case the reservation held.
+        return estimate_call_usd(
+            provider_id=provider_id,
+            model_id=model_id,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            attempts=attempts,
+        )
+    # The provider counted what it wrote: only those tokens carry the write surcharge. Cache READS
+    # stay at the full input rate here (no discount is assumed without a reported cost).
+    from core.prompt_cache import ANTHROPIC_CACHE_WRITE_MULTIPLIER, reservation_cache_plan
+
+    base = estimate_call_usd(
         provider_id=provider_id,
         model_id=model_id,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         attempts=attempts,
+        include_cache_write=False,
     )
-
+    written = min(written, prompt_tokens)
+    if written <= 0 or not reservation_cache_plan(model_id).enabled:
+        # Only a call VOOL can mark is billed a write surcharge; with the flag off, or for a model
+        # that caches on its own, settlement is what it was before breakpoints existed.
+        return base
+    price = lookup_model_price(provider_id, model_id, prompt_tokens=prompt_tokens)
+    surcharge = written * float(price.prompt_usd_per_token) * (ANTHROPIC_CACHE_WRITE_MULTIPLIER - 1.0) * attempts
+    return CostEstimate(
+        usd=round(base.usd + surcharge, 8),
+        known=base.known,
+        basis=base.basis,
+        source=f"{base.source}; {written} cache-written tokens at {ANTHROPIC_CACHE_WRITE_MULTIPLIER}x",
+        provider_id=base.provider_id,
+        model_id=base.model_id,
+        prompt_tokens=base.prompt_tokens,
+        completion_tokens=base.completion_tokens,
+        attempts=base.attempts,
+    )
 
 __all__ = [
     "BASIS_APPROVED_CEILING",
