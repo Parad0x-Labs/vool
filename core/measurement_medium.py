@@ -130,7 +130,7 @@ def requests_a_water_temperature(text: Any) -> bool:
     return any(_matches_any(token, _WATER_MEDIA) for token in tokens)
 
 
-__all__ = ["requests_a_water_temperature"]
+__all__ = ["requests_a_water_temperature", "setting_temperature_spans", "without_setting_temperatures"]
 
 
 # -- a conversion between measurement units is not a price -------------------------------------------
@@ -174,3 +174,70 @@ def requests_a_unit_conversion(text: Any) -> bool:
     quantity_units = {match.group(1) for match in _QUANTITY_UNIT_RE.finditer(folded) if match.group(1) in _MEASUREMENT_UNITS}
     target_units = {match.group(1) for match in _UNIT_TARGET_RE.finditer(folded) if match.group(1) in _MEASUREMENT_UNITS}
     return bool(quantity_units and (target_units - quantity_units))
+
+
+# -- the temperature of an appliance or a cooking process is not the air at a place ------------------
+#
+# Measured on the 0.7.2 train head (153148e, served daemon): "What oven temperature for roasting
+# potatoes, and how far apart should I space them on the tray?" was planned as a weather lookup for a
+# place called "roasting potatoes" and answered "I could not obtain a current reading". The weather
+# recognizer reads "temperature for <X>" as "the temperature for <place>". Same rule as water-versus-
+# air above: an oven setting, a fridge temperature or the internal temperature of a steak is a
+# different measurement from the atmosphere at a place, and no live provider answers it -- it is
+# ordinary knowledge. This section only finds those phrases; the weather lane decides what to do.
+#
+# The vocabularies are closed classes -- appliances a temperature is set on, cooking/handling
+# processes named in their -ing form after "for", and the qualifiers that make a temperature a
+# property of food or a process -- not words lifted from the reported question. Every phrase also
+# requires the temperature word itself, so "weather in Berlin" or a place name alone never matches,
+# and an appliance word after a preposition needs a determiner ("in the oven"), so a place that
+# happens to share a name with an appliance is not swallowed.
+_TEMPERATURE_WORD = r"(?:temp|temps|temperature|temperatures)"
+_APPLIANCE = (
+    r"(?:oven|ovens|fridge|fridges|refrigerator|freezer|freezers|grill|grills|barbecue|bbq|smoker|"
+    r"(?:air\s+|deep\s+)?fryer|fryers|stove|hob|pan|skillet|griddle|wok|slow\s+cooker|pressure\s+cooker|"
+    r"sous[\s-]?vide|kiln|dishwasher|washing\s+machine|dryer|kettle|toaster|microwave|incubator|thermostat|oil)"
+)
+_COOKING_PROCESS = (
+    r"(?:roasting|baking|cooking|frying|deep[\s-]?frying|grilling|broiling|searing|smoking|braising|"
+    r"poaching|simmering|proofing|proving|brewing|steeping|reheating|toasting|dehydrating|tempering|"
+    r"fermenting|storing|serving)"
+)
+_PROCESS_MODIFIER = r"(?:slow|deep|pan|oven|air|stir|shallow|reverse|low|high|cold|hot)"
+_TEMPERATURE_QUALIFIER = (
+    r"(?:internal|core|cooking|baking|roasting|frying|brewing|proofing|serving|storage|holding|smoking|grilling)"
+)
+_SETTING_TEMPERATURE_RE = re.compile(
+    r"\b(?:"
+    # "oven temperature", "air fryer temp", "the fridge's temperature"
+    rf"{_APPLIANCE}(?:'s)?\s+{_TEMPERATURE_WORD}"
+    # "temperature in the oven", "temperature of my fridge"
+    rf"|{_TEMPERATURE_WORD}\s+(?:of|in|on|inside|for)\s+(?:the|my|your|our|a|an)\s+{_APPLIANCE}"
+    # "temperature for roasting", "temperature for slow roasting"
+    rf"|{_TEMPERATURE_WORD}\s+for\s+(?:{_PROCESS_MODIFIER}[\s-]+)?{_COOKING_PROCESS}"
+    # "internal temperature", "serving temperature"
+    rf"|{_TEMPERATURE_QUALIFIER}\s+{_TEMPERATURE_WORD}"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def setting_temperature_spans(text: Any) -> tuple[tuple[int, int], ...]:
+    """Spans of `text` that ask for an appliance or cooking temperature, not the air at a place."""
+
+    value = str(text or "")
+    return tuple(match.span() for match in _SETTING_TEMPERATURE_RE.finditer(value))
+
+
+def without_setting_temperatures(text: Any) -> str:
+    """`text` with every appliance/cooking temperature phrase blanked, offsets preserved.
+
+    Blanking (not deleting) keeps every other clause readable at its own offsets, so a weather ask
+    in the same message ("What's the weather in Berlin, and what oven temperature for potatoes?")
+    is still recognized and still planned -- only the cooking phrase stops reading as a place.
+    """
+
+    value = str(text or "")
+    for start, end in setting_temperature_spans(value):
+        value = value[:start] + " " * (end - start) + value[end:]
+    return value
