@@ -229,6 +229,26 @@ def test_single_answer_export_is_named_after_its_chat() -> None:
     assert md.body.decode("utf-8") == "The fence is 2 m."
 
 
+def test_single_answer_of_an_unrenamed_chat_never_carries_its_question() -> None:
+    """The answer file leaves the question out, so its name, heading and PDF title must too."""
+    from pypdf import PdfReader
+
+    export._seed(user="FIRST-QUESTION-118 about my bank", assistant="Earlier answer.")
+    with export._request_scope("answer-two"):
+        export._seed(user="PRIVATE-QUESTION-452", assistant="The fence is 2 m.")
+    for fmt in ("pdf", "md", "txt"):
+        response = export._export(format=fmt, request_id="answer-two")
+        assert response.status == 200, response.body[:300]
+        assert _name(response) == f"VOOL answer - {_today()}.{fmt}"
+        disposition = response.headers["Content-Disposition"]
+        assert "QUESTION" not in disposition and "bank" not in disposition
+    pdf = PdfReader(BytesIO(export._export(format="pdf", request_id="answer-two").body))
+    assert "QUESTION" not in (pdf.metadata.title or "")
+    assert "QUESTION" not in "\n".join(page.extract_text() for page in pdf.pages)
+    # The whole chat still takes its name from its first message: that file holds it.
+    assert _name(export._export()) == f"FIRST-QUESTION-118 about my bank - VOOL chat - {_today()}.md"
+
+
 def test_an_emoji_in_the_chat_name_does_not_stop_the_pdf() -> None:
     from pypdf import PdfReader
 

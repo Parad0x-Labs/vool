@@ -574,7 +574,8 @@ def build_export_document(opts: ExportOptions, preview: bool) -> tuple[str | Non
     under, and a refusal never ships a quietly partial file.
     """
     turns, counts = scan_snapshot(opts.session_id)
-    opts.title = chat_title(opts.session_id, turns)
+    # A single answer's file holds only that answer, so its name must not come from a message.
+    opts.title = chat_title(opts.session_id, turns, from_messages=not opts.request_id)
     if opts.request_id:
         selected = [turn for turn in turns if turn.request_id == opts.request_id]
         if len(selected) != 1:
@@ -622,12 +623,14 @@ def build_export_document(opts: ExportOptions, preview: bool) -> tuple[str | Non
     return document, counts
 
 
-def chat_title(session_id: str, turns: list[_Turn]) -> str:
-    """The chat's name as the sidebar shows it, or "" for an untitled chat.
+def chat_title(session_id: str, turns: list[_Turn], *, from_messages: bool = True) -> str:
+    """The name an export carries (file name, heading, PDF title), or "" for none.
 
     The same rule ``list_conversation_sessions`` serves the sidebar with: a name the person
-    gave the chat wins, else the chat's first message (its first 80 characters). Only turns
-    this export already carries are read, so the name never shows anything the file does not.
+    gave the chat wins, else the chat's first message (its first 80 characters). The name
+    never carries message text the file leaves out: a whole-chat export contains every turn
+    read here, and a single-answer export (``from_messages=False``) contains only the answer,
+    so it is named only by a name the person gave the chat, never by the question it answers.
     """
     try:
         from core.persistent_memory import load_session_meta
@@ -636,7 +639,7 @@ def chat_title(session_id: str, turns: list[_Turn]) -> str:
     except Exception:
         custom = ""
     custom = _WHITESPACE.sub(" ", custom).strip()
-    if custom:
+    if custom or not from_messages:
         return custom
     for turn in turns:
         first = turn.user.strip()
