@@ -2948,6 +2948,45 @@ def _no_answer_terminal(reason_code: str, detail: str) -> dict[str, Any]:
     return no_answer_terminal(turn_id="", reason_code=reason_code, detail=detail)
 
 
+def _stopped_turn_recorder(
+    session_id: str, user_text: str, stream_context: dict[str, Any]
+) -> Callable[[], str] | None:
+    """The function that records this streamed turn as stopped, or None when it cannot be keyed.
+
+    Built while the stream starts, under the turn's own ingress context: the request id the turn's
+    transcript row is staged under and the app language the person reads are read here, once. A
+    turn whose ingress declared no commit boundary writes its rows at once and is not stopped here
+    (fail closed: nothing is written that could double an existing row).
+    """
+    from core.i18n.turn_locale import turn_text
+    from core.persistent_memory import TRANSCRIPT_COMMIT_BOUNDARY_KEY, append_conversation_event
+    from core.semantic.semantic_admissions import current_request_id
+
+    if not stream_context.get(TRANSCRIPT_COMMIT_BOUNDARY_KEY):
+        return None
+    request_id = str(current_request_id() or "")
+    if not request_id:
+        return None
+    # The words the page shows for an answer stopped before any of it arrived.
+    shown = turn_text("run.stopped_showing", "(stopped showing this answer)")
+
+    def _recorder() -> str:
+        try:
+            append_conversation_event(
+                session_id=session_id,
+                user_input=user_text,
+                assistant_output=shown,
+                source_context=stream_context,
+                stopped_request_id=request_id,
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("stopped turn could not be recorded")
+            return "unknown"
+        return "recorded"
+
+    return _recorder
+
+
 def no_answer_terminal_line(terminal: dict[str, Any], *, created_at: str | None = None) -> bytes:
     """One NDJSON line carrying typed NO_ANSWER_TERMINAL truth (A7 LAW 6).
 
@@ -3374,6 +3413,28 @@ def format_runtime_event_text(event: dict[str, Any]) -> str:
     return message + "\n" if message else ""
 
 
+#: The stopped-turn recorder of each streamed turn still running, keyed like the live-turn registry
+#: by (session_id, client turn_id). Registered with the turn's cancel Event and released by the
+#: worker on every exit path, next to ``unregister_turn``.
+_STOP_RECORDERS: dict[tuple[str, str], Callable[[], str]] = {}
+_STOP_RECORDERS_LOCK = threading.Lock()
+
+
+def record_stopped_turn(session_id: str, turn_id: str) -> str:
+    """Record the stopped turn ``(session_id, turn_id)`` now, as the person saw it.
+
+    Called by the cancel door once a cancel was acknowledged, so the record exists before the
+    cancel answers: a reload, a delete or the next message that follows the stop sees it. The
+    stream itself is left as it was (a client still reading gets the turn's typed cancel). Idempotent.
+    ``"not_running"`` when no streamed turn with that key is running (nothing is written).
+    """
+    with _STOP_RECORDERS_LOCK:
+        recorder = _STOP_RECORDERS.get((str(session_id or ""), str(turn_id or "")))
+    if recorder is None:
+        return "not_running"
+    return recorder()
+
+
 def stream_agent_with_events(
     runtime: RuntimeServices,
     user_text: str,
@@ -3502,8 +3563,19 @@ def _stream_agent_with_events_inner(
     consumed_queue_item = stream_context.get("consumed_queue_item")
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
     is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
+    stop_key = (str(session_id or ""), cancel_turn_id)
+    stop_recorder = _stopped_turn_recorder(session_id, user_text, stream_context) if cancel_turn_id else None
     if cancel_turn_id:
         stream_context["cancel_event"] = register_turn(session_id, cancel_turn_id)
+        if stop_recorder is not None:
+            with _STOP_RECORDERS_LOCK:
+                _STOP_RECORDERS[stop_key] = stop_recorder
+
+    def _release_stop_recorder() -> None:
+        if stop_recorder is not None:
+            with _STOP_RECORDERS_LOCK:
+                if _STOP_RECORDERS.get(stop_key) is stop_recorder:
+                    del _STOP_RECORDERS[stop_key]
     if is_task_turn:
         followup_continuity.begin_task(session_id, cancel_turn_id, user_text)
 
@@ -3551,6 +3623,7 @@ def _stream_agent_with_events_inner(
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
                 release_chat_turn_admission(session_id, admission_token)
+                _release_stop_recorder()
                 _release_followups()
 
         # F-01 (independent-proof repair): execute the turn under the ingress
@@ -3571,6 +3644,7 @@ def _stream_agent_with_events_inner(
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
                 release_chat_turn_admission(session_id, admission_token)
+                _release_stop_recorder()
                 _release_followups()
                 raise
         else:
@@ -3587,6 +3661,7 @@ def _stream_agent_with_events_inner(
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
         release_chat_turn_admission(session_id, admission_token)
+        _release_stop_recorder()
         _release_followups()
         if stream_id:
             unregister_runtime_event_sink(stream_id)
