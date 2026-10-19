@@ -2599,9 +2599,10 @@
     "addons.publish_line": "في السطر {line}",
     "addons.publish_reason_codex_check": "سترفض فحوص دليل المهارات هذه المهارة بحالتها الحالية.",
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
-    "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله."
+    "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله.",
+    "liveinfo.web_off.not_checked": "عمليات البحث في الويب متوقفة، لذلك لم أبحث في الويب وليست لدي إجابة حديثة. يمكنك تشغيلها من الإعدادات ← الخصوصية والأذونات ← عمليات البحث في الويب."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

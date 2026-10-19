@@ -2599,9 +2599,10 @@
     "addons.publish_line": "第 {line} 行",
     "addons.publish_reason_codex_check": "技能宝典的检查不会接受此技能的当前内容。",
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
-    "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
+    "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。",
+    "liveinfo.web_off.not_checked": "网络查询已关闭，所以我没有在网上搜索，也没有最新的答案。你可以在 设置 → 隐私与权限 → 网络查询 中打开。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

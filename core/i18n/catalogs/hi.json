@@ -2599,9 +2599,10 @@
     "addons.publish_line": "पंक्ति {line} में",
     "addons.publish_reason_codex_check": "कौशल कोडेक्स की जाँचें इस कौशल को इसके मौजूदा रूप में अस्वीकार कर देंगी।",
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
-    "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।"
+    "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
+    "liveinfo.web_off.not_checked": "वेब खोज बंद है, इसलिए मैंने वेब पर नहीं खोजा और मेरे पास कोई ताज़ा जवाब नहीं है। आप इसे सेटिंग्स → गोपनीयता और अनुमतियाँ → वेब खोज में चालू कर सकते हैं।"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

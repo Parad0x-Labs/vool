@@ -2599,9 +2599,10 @@
     "addons.publish_line": "{line} 行目",
     "addons.publish_reason_codex_check": "スキルコーデックスのチェックでは、このスキルはこのままでは受け付けられません。",
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
-    "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。"
+    "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。",
+    "liveinfo.web_off.not_checked": "ウェブ検索がオフなので、ウェブは検索しておらず、最新の答えはありません。設定 → プライバシーと権限 → ウェブ検索 でオンにできます。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

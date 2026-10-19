@@ -2,6 +2,20 @@ from __future__ import annotations
 
 
 def live_info_failure_text(*, query: str, mode: str) -> str:
+    # Every wording below reports a web lookup that ran. With web lookups off no lookup can
+    # run (the live-info preflight refuses before any search), so a caller that reaches this
+    # renderer anyway -- the degraded chat fallback after the refusal was set aside -- must
+    # say the web is off and nothing was checked, not claim a check that never happened.
+    from core import policy_engine
+
+    if not policy_engine.allow_web_fallback():
+        from core.i18n.turn_locale import turn_text
+
+        return turn_text(
+            "liveinfo.web_off.not_checked",
+            "Web lookups are off, so I did not search the web and have no current answer. "
+            "You can turn them on in Settings → Privacy & Permissions → Web lookups.",
+        )
     if mode == "weather":
         return f'I tried the live web lane for "{query}", but no current weather results came back.'
     if mode == "news":

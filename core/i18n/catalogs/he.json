@@ -2599,9 +2599,10 @@
     "addons.publish_line": "בשורה {line}",
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
-    "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו."
+    "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
+    "liveinfo.web_off.not_checked": "חיפושים באינטרנט כבויים, ולכן לא חיפשתי באינטרנט ואין לי תשובה עדכנית. אפשר להפעיל אותם בהגדרות ← פרטיות והרשאות ← חיפושים באינטרנט."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "00254c6247279be25ddd6c710647686589813fed2d3b4d836ba2c623b54cdbb7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
