@@ -43,6 +43,8 @@ WRITING_FOR_SOMEONE = [
     "write a love note for my wife to find in her lunchbox",
     "take note of how long the bread takes and tell me a recipe",
     "Make a 6-word title for a QA note about local routing",
+    "write a note to Sarah about the party",
+    "create a note for the teacher about the school trip",
 ]
 
 # (request, the body the notes tool must read from it)
@@ -60,7 +62,36 @@ KEEPING_A_NOTE = [
     ("write a note to my notes: renew the passport", "renew the passport"),
     ("make a note: water the plants on Friday", "water the plants on Friday"),
     ("write a note to self: call the bank", "call the bank"),
+    # Review of af37f78: "to <a thing to do>" and "for <a time or a thing>" name no person; these were
+    # saves on base and must stay saves.
+    ("take a note to buy milk", "buy milk"),
+    ("create a note to buy eggs", "buy eggs"),
+    ("take a note to call the dentist tomorrow", "call the dentist tomorrow"),
+    ("take a note for tomorrow: buy milk", "buy milk"),
+    ("take a note for work: send the invoice", "send the invoice"),
+    ("write down a note to call the bank", "call the bank"),
+    ("make a note to call the bank", "call the bank"),
+    ("jot a note for Monday: bins out", "bins out"),
+    # A clock time's colon is part of the words, never the separator.
+    ("take a note: the train leaves at 9:15", "the train leaves at 9:15"),
 ]
+
+# Saves whose words are a topic or a time, not content: the tool asks rather than keep a fragment
+# (base kept "30" from "at 10:30" as the note's body).
+SAVE_WITHOUT_READABLE_WORDS = [
+    "create a note for the meeting",
+    "save a note about the meeting at 10:30",
+    "take a note about the 9:15 train",
+    "save a note for tomorrow at 14:00 call the bank",
+    "save a note with the team at 10:30",
+]
+
+
+@pytest.mark.parametrize("text", SAVE_WITHOUT_READABLE_WORDS)
+def test_a_clock_time_or_topic_is_never_cut_into_a_note_fragment(text: str) -> None:
+    intent = parse_operator_action_intent(text)
+    assert intent is not None and intent.kind == "save_note", (text, intent)
+    assert parse_note_request(text)["body"] == "", parse_note_request(text)
 
 
 @pytest.mark.parametrize("text", WRITING_FOR_SOMEONE)

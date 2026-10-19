@@ -141,13 +141,44 @@ _STORE_NOTE_RE = re.compile(
 _RECORD_NOTE_RE = re.compile(
     r"\b(?P<verb>write|create|jot|take|make)\b(?P<between>[^\n!?.]*?)\bnote\b(?!-)(?P<after>[^\n!?.]*)", re.IGNORECASE
 )
-# A note addressed to someone ("to my neighbour", "for my son's teacher"); places the notes tool writes to
-# and "to self" are not someone.
+# A note addressed to a PERSON ("to my neighbour", "for my son's teacher", "to the school", "for Tom"). A bare
+# verb ("a note to buy milk"), a time ("for tomorrow") or a thing ("for the meeting", "for work") is not
+# someone: those notes are kept (review of af37f78: "take a note to buy milk" had stopped saving).
+_NOT_A_PERSON = (
+    r"(?:own\s+)?(?:notes?|notes\s+app|notebook|workspace|desktop|documents|downloads|folders?|files?|records?|list|"
+    r"shopping|calendar|diary|journal|work|job|project|meeting|trip|holiday|reference|later|tomorrow|today|week|weekend|"
+    r"morning|evening|class(?:es)?|exam|appointment|errands?|chores?)\b"
+)
+_PERSON_NOUN = (
+    r"(?:neighbou?rs?|teachers?|school|landlord|landlady|nurses?|doctor|postman|postwoman|babysitter|team|people|"
+    r"co-?workers?|colleagues?|boss|friends?|family|kids?|children|staff|guests?|hosts?|tenants?|clients?|customers?|"
+    r"manager|cleaner|plumber|council|committee|office|parents?|caretaker|coach|vet|dentist|courier|driver|"
+    r"mum|mom|dad|grandma|grandpa|aunt|uncle|wife|husband|partner|sister|brother|son|daughter)\b"
+)
 _NOTE_ADDRESSEE_RE = re.compile(
-    r"^\s*(?:to|for)\s+(?!(?:my|the)\s+(?:own\s+)?(?:notes?|notes\s+app|notebook|workspace|desktop|documents|downloads|folder|files?)\b"
-    r"|apple\s+notes\b|self\b|myself\b|later\b|future\s+reference\b)\S",
+    r"^\s*(?:to|for)\s+(?:"
+    r"(?:my|our|his|her|their|your)\s+(?!" + _NOT_A_PERSON + r")[\w'-]+"
+    r"|(?:the|a|an|this|that|these|those)\s+(?:[\w'-]+\s+)?" + _PERSON_NOUN +
+    r"|(?:him|her|them|everyone|everybody|someone|somebody)\b"
+    r"|" + _PERSON_NOUN + r")",
     re.IGNORECASE,
 )
+_NOT_A_NAME = re.compile(
+    r"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|"
+    r"August|September|October|November|December|Apple|I)\b"
+)
+_NOTE_NAMED_ADDRESSEE_RE = re.compile(r"^\s*(?:to|for)\s+(?P<name>[A-Z][a-z]+)\b")
+
+
+def _note_is_addressed(after: str) -> bool:
+    if _NOTE_ADDRESSEE_RE.match(after):
+        return True
+    named = _NOTE_NAMED_ADDRESSEE_RE.match(after)
+    return bool(named and not _NOT_A_NAME.match(named.group("name")))
+
+
+# A colon that separates the note's words: never one inside a clock time ("at 10:30").
+_NOTE_WORDS_COLON_RE = re.compile(r"^[^\n:]{0,40}?(?<!\d):(?!\d)")
 # "write me a note", "write my mum a little note": the person the words are for comes right after the verb.
 _NOTE_RECIPIENT_FIRST_RE = re.compile(r"^\s*(?:me|him|her|them|us|my\s+\w+|our\s+\w+)\s+(?:a|an|the|some)\b", re.IGNORECASE)
 # Notes that are writing by their kind, or by what they do ("a note thanking the nurse").
@@ -164,7 +195,7 @@ _COMPOSED_NOTE_PURPOSE_RE = re.compile(
 # What makes "write a note" a request to keep one, not to compose one.
 _WRITE_NOTE_STORE_CUE_RE = re.compile(
     r"^\s*(?:down|it\s+down|this\s+down|that\s+down)\b"  # write down a note / write it down as a note
-    r"|\b(?:titled|called|named)\b|\bwith\s*:|^\s*:|^\s*to\s+(?:my)?self\b"
+    r"|\b(?:titled|called|named)\b|\bwith\s*:(?!\d)|^\s*:(?!\d)|^\s*to\s+(?:my)?self\b"
     r"|\b(?:in|to|into|inside|on)\s+(?:my|the)\s+(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)\b|\bapple\s+notes\b",
     re.IGNORECASE,
 )
@@ -189,12 +220,14 @@ class _NoteSaveRecognizer:
                 continue  # only "make a note" itself: "make a title for a QA note" is writing
             if verb == "take" and re.match(r"^\s*of\b", after, re.IGNORECASE) and not between.strip():
                 continue  # "take note of how long it takes": pay attention, not a note
-            if verb != "jot" and (
-                _NOTE_ADDRESSEE_RE.match(after) or _NOTE_RECIPIENT_FIRST_RE.match(between)
+            # A storing cue (down, titled, "note:", "with:", into my notes, to self) decides first.
+            stores = bool(_WRITE_NOTE_STORE_CUE_RE.search(between) or _WRITE_NOTE_STORE_CUE_RE.search(after))
+            if not stores and verb != "jot" and (
+                _note_is_addressed(after) or _NOTE_RECIPIENT_FIRST_RE.match(between)
                 or _COMPOSED_NOTE_KIND_RE.search(between) or _COMPOSED_NOTE_PURPOSE_RE.match(after)
             ):
                 continue
-            if verb == "write" and not (_WRITE_NOTE_STORE_CUE_RE.search(between) or _WRITE_NOTE_STORE_CUE_RE.search(after)):
+            if verb == "write" and not stores and not _NOTE_WORDS_COLON_RE.match(after):
                 continue
             return match
         return None

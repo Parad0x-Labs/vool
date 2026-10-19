@@ -361,7 +361,7 @@ def parse_note_request(text: str) -> dict[str, Any]:
     quoted = re.findall(r'["\u201c]([^"\u201d]+)["\u201d]', raw)
     title = quoted[0].strip() if quoted else ""
     body = ""
-    labeled = re.search(r"\bwith\s+([A-Za-z][\w \-]{0,30}?)\s*:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+    labeled = re.search(r"\bwith\s+([A-Za-z][\w \-]{0,30}?)\s*(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
     bare = re.search(r"\bwith\s*:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
     unlabeled = re.search(r"\b(?:saying|that\s+says|containing|with\s+body|with\s+text)\s*:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
     if labeled:
@@ -379,8 +379,14 @@ def parse_note_request(text: str) -> dict[str, Any]:
         # is due", "note to self: call the bank", "write down a note that the key is under the mat".
         plain = (
             re.search(r"\b(?:saying|that\s+says|which\s+says)\s*:?\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
-            or re.search(r"\b(?:note|down)\b[^:\n\"“]{0,40}:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # A clock time's colon ("at 10:30") is part of the words, never the separator.
+            or re.search(r"\b(?:note|down)\b(?:[^:\n\"“]|(?<=\d):(?=\d)){0,40}?(?<!\d):(?!\d)\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
             or re.search(r"\bnote\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            # "take a note to buy milk": the words are the thing to do, not a person or a place.
+            or re.search(
+                r"\bnote\s+to\s+(?!(?:my|our|the|a|an|his|her|their|your|self|myself|me|him|them|us)\b)([a-z]+\b.*)$",
+                raw, re.DOTALL,
+            )
         )
         if plain:
             body = plain.group(1).strip()
