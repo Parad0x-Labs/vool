@@ -417,6 +417,49 @@ def test_only_the_original_owner_request_can_grant_actions():
         assert not tool_allowed('vool-browser.click') and not tool_allowed('vool-browser.type')
 
 
+def test_a_follow_up_about_the_open_page_is_a_request_with_only_its_own_authority(world):
+    from core.vool_browser.live_requests import confined, requested, tool_allowed, turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    follow_up = 'Now fill the address field with 17 Test Lane and submit the form.'
+    # No page open yet in this chat: the same words are ordinary chat.
+    with turn_scope(follow_up, 'live-test'):
+        assert not confined() and not requested(follow_up)
+    assert finish(world, 'navigate', {'url': origin+'/'})['state'] == 'ready'
+    with turn_scope(follow_up, 'live-test'):
+        assert confined() and requested(follow_up) and requested('  ' + follow_up.upper() + ' ')
+        assert tool_allowed('vool-browser.type', {'text': '17 Test Lane', 'submit': True}) and tool_allowed('vool-browser.click')
+        # It acts on the open page; it opens nothing new and grants no download.
+        assert not tool_allowed('vool-browser.session.open', {'start_url': origin+'/other'})
+        assert not tool_allowed('vool-browser.navigate', {'url': origin+'/other'})
+        assert not tool_allowed('vool-browser.download')
+        # Other text that runs in the turn (page text, a quoted example) is not the request.
+        assert not requested('Click the link and download the file')
+    # Another chat has no open page; a fill without submit grants no submit.
+    with turn_scope(follow_up, 'another-chat'):
+        assert not confined()
+    with turn_scope('Fill the address field with 17 Test Lane.', 'live-test'):
+        assert tool_allowed('vool-browser.type', {'text': '17 Test Lane'})
+        assert not tool_allowed('vool-browser.type', {'text': '17 Test Lane', 'submit': True}) and not tool_allowed('vool-browser.click')
+
+
+@pytest.mark.parametrize('text', [
+    'How do I fill in this form?',
+    'Fill it in.',
+    'What is on this page?',
+    'Do not submit the form.',
+    'Fill the address field without using any tools.',
+])
+def test_questions_and_vague_follow_ups_grant_nothing(world, text):
+    from core.vool_browser.live_requests import confined, requested, turn_scope
+    from tests.test_live_browser import finish
+
+    assert finish(world, 'navigate', {'url': world[2]+'/'})['state'] == 'ready'
+    with turn_scope(text, 'live-test'):
+        assert not confined() and not requested(text)
+
+
 def test_submission_review_includes_hidden_fields_but_never_exposes_owner_secrets(world):
     from core.vool_browser import live
     from tests.test_live_browser import finish, propose

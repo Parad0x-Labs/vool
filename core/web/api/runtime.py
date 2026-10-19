@@ -1954,7 +1954,7 @@ def _run_agent_locked(
             with contextlib.ExitStack() as clock_scope:
                 from core.vool_browser.live_requests import turn_scope as browser_turn_scope
 
-                clock_scope.enter_context(browser_turn_scope(user_text))
+                clock_scope.enter_context(browser_turn_scope(user_text, session_id))
                 if base_context.get("live_browser_wait_for_owner") and not runtime_active_clock.enabled():
                     clock_scope.enter_context(runtime_active_clock.task_clock())
                 result = runtime.agent.run_once(

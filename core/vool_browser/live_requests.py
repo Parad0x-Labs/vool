@@ -8,7 +8,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 _CONFINED = ContextVar("supervised_browser_turn", default=None)
 _BROWSER = r"(?:(?:the|a|an|my|our|built[\s-]?in|live|integrated|vool)\s+){0,4}browser\b"
-_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
+_CLAUSE = r"(?:^|[.;!?]\s*|\b(?:and|then)\s+)(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
 _ASK = re.compile(
     _CLAUSE + r"(?:use|open|launch|start|show)\s+" + _BROWSER
     + r"|" + _CLAUSE + r"(?:open|visit|browse|navigate|load)\b[^\n]{0,500}\b(?:in|with|using)\s+" + _BROWSER
@@ -29,18 +29,42 @@ def _instruction_text(raw: str) -> str:
     return _QUOTED.sub(value, raw)
 
 
-def requested(text: str) -> bool:
-    """An execution request, never an example, quoted page text or prohibition."""
+def _executable(raw: str) -> bool:
     from core.instructional_request import asks_for_instructions_not_execution
     from core.retrieval_constraints import analyze_retrieval_constraints
 
-    raw = str(text or "")
     if asks_for_instructions_not_execution(raw):
         return False
     constraints = analyze_retrieval_constraints(raw)
-    if constraints.forbids_all_tools or constraints.forbids_external_retrieval or constraints.forbids("web_fetch"):
+    return not (constraints.forbids_all_tools or constraints.forbids_external_retrieval or constraints.forbids("web_fetch"))
+
+
+def requested(text: str) -> bool:
+    """An execution request, never an example, quoted page text or prohibition.
+
+    A follow-up about the page already open in this chat ("fill in this form")
+    is a request too, but only for the turn whose own words made it one: the
+    turn boundary decides that once, from the chat's open page.
+    """
+
+    raw = str(text or "")
+    if not _executable(raw):
         return False
-    return bool(_ASK.search(_instruction_text(raw)))
+    if _ASK.search(_instruction_text(raw)):
+        return True
+    boundary = _CONFINED.get()
+    return bool(boundary and boundary.followup and _same_words(raw, boundary.text))
+
+
+def _words(text: str) -> str:
+    return " ".join(str(text or "").casefold().split())
+
+
+def _same_words(text: str, original: str) -> bool:
+    # The turn's own words as later readers hold them: trimmed or wrapped, not
+    # some other text (a page, a quoted example) that merely runs in this turn.
+    words, original = _words(text), _words(original)
+    return bool(words and original and (words in original or original in words))
 
 
 def _url(value: str) -> str:
@@ -59,10 +83,32 @@ def _asks(text: str, verbs: str) -> bool:
     return bool(positive and not negative)
 
 
+# A follow-up names the open page or one of its parts; a bare "fill it in" stays
+# ordinary chat, because nothing in its words says which page it means.
+_PAGE_PART = re.compile(
+    r"\b(?:this|that|the|its|their)\s+(?:(?:web\s*)?page|form|field|fields|box|button|link|site|website|address\s+field)\b",
+    re.IGNORECASE,
+)
+
+
+def _page_open(chat: str) -> bool:
+    from core.vool_browser import live
+
+    if not chat or not live.available():
+        return False
+    try:
+        item = live.session(chat)
+    except live.BrowserFault:
+        return False
+    return bool(item is not None and not item.closed and item.url)
+
+
 class _TurnBoundary:
-    def __init__(self, text: str):
+    def __init__(self, text: str, chat: str = ""):
         from core.instructional_request import asks_for_instructions_not_execution
 
+        self.text = str(text or "")
+        self.followup = False
         self.active = requested(text)
         executable = '' if asks_for_instructions_not_execution(text) else _instruction_text(text)
         self.urls = frozenset(_url(u.rstrip('.,;!?')) for u in _URL.findall(executable))
@@ -72,6 +118,12 @@ class _TurnBoundary:
         self.download = _asks(executable, r'download|save\s+(?:this|the)\s+(?:file|attachment)')
         self.open = bool(self.urls and (self.active or _asks(executable, r'open|browse|visit|navigate|load')))
         self.proposed_urls: set[str] = set()
+        # A follow-up acts on the page already open in this chat. Its authority is
+        # what its own words grant (fill, submit, follow); it opens nothing new
+        # unless it names an address itself.
+        if (not self.active and executable.strip() and _executable(self.text)
+                and (self.fill or self.submit or self.follow) and _PAGE_PART.search(executable) and _page_open(chat)):
+            self.active = self.followup = True
 
 
 def confined() -> bool:
@@ -86,7 +138,7 @@ def confine() -> None:
 
 
 @contextmanager
-def turn_scope(text: str):
+def turn_scope(text: str, chat: str = ""):
     """Child work inherits authority; later text can only activate confinement."""
     from core.remote_fetch_policy import remote_fetch_veto
 
@@ -96,7 +148,7 @@ def turn_scope(text: str):
             confine()
         yield
         return
-    boundary = _TurnBoundary(str(text or ''))
+    boundary = _TurnBoundary(str(text or ''), str(chat or ''))
     token = _CONFINED.set(boundary)
     try:
         with remote_fetch_veto(when=lambda: boundary.active):
