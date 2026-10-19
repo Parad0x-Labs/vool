@@ -460,6 +460,9 @@ def test_a_follow_up_about_the_open_page_is_a_request_with_only_its_own_authorit
     'Am I supposed to submit the form?',
     'Is it a good idea to log in on this page?',
     'Do I need to fill the address field?',
+    'I never asked you to submit the form.',
+    "I didn't want you to submit the form.",
+    'Nobody wants you to submit the form.',
 ])
 def test_questions_and_vague_follow_ups_grant_nothing(world, text):
     from core.vool_browser.live_requests import confined, requested, turn_scope
@@ -501,7 +504,7 @@ def test_submission_review_includes_hidden_fields_but_never_exposes_owner_secret
     assert item._forms==[] and not item._submission_previews and not item.profile.exists()
 
 
-@pytest.mark.parametrize('kind',['card','standard','amount','marked','iban','amount_only','ccnum'])
+@pytest.mark.parametrize('kind',['card','standard','amount','marked','iban','amount_only','ccnum','camel'])
 def test_known_payment_forms_are_refused_before_any_approval_or_effect(world,kind):
     from tests.test_live_browser import finish
 
@@ -750,12 +753,23 @@ def test_hidden_one_time_and_owner_typed_values_never_reach_the_model(world):
     assert nodes['code']['target'] == origin + '/review-submit' and nodes['code']['method'] == 'POST'
     finish(world, 'type', {'selector': nodes['code']['selector'], 'text': '918273'})
     finish(world, 'type', {'selector': next(n for n in item.nodes if n['name'] == 'nickname')['selector'], 'text': 'owner-typed-55'})
+    finish(world, 'click', {'selector': next(n for n in item.nodes if n['name'] == 'agree')['selector']})
     with turn_scope(f'Use the browser to open {origin}/private-fields', 'live-test'):
         seen = json.dumps(live.tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'}))
     assert 'hidden-token-417' in json.dumps(item.nodes)  # the owner's pane still shows the full address
     for private in ['hidden-token-417', '918273', 'owner-typed-55']:
         assert private not in seen
     assert 'kept' in seen  # a visible value nobody typed stays readable
+    agree = next(n for n in json.loads(seen)['nodes']['items'] if n['name'] == 'agree')
+    assert 'checked' not in agree and next(n for n in item.nodes if n['name'] == 'agree')['checked'] is True
+    # The owner sends the GET form: its address carries the hidden token, which the model never reads.
+    destination = next(n for n in item.nodes if n['name'] == 'destination')
+    finish(world, 'type', {'selector': destination['selector'], 'text': 'Riga', 'submit': True})
+    assert 'hidden-token-417' in item.url
+    with turn_scope(f'Use the browser to open {origin}/private-fields', 'live-test'):
+        seen = json.dumps([live.tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'}),
+                           live.tool_intent('vool-browser.session.status', {}, {'session_id': 'live-test'})])
+    assert 'hidden-token-417' not in seen and 'Riga' in seen and origin + '/find' in seen
 
 
 def test_a_model_proposal_needs_the_persons_turn(world):
@@ -823,3 +837,109 @@ def test_a_second_stop_waits_for_the_first_cleanup(world):
         assert clean.stopped and ('x', 'clean') not in live._SESSIONS and ('x', 'stuck') in live._SESSIONS
     finally:
         live._SESSIONS.pop(('x', 'stuck'), None)
+
+
+def test_a_model_scroll_reads_the_whole_observation_without_an_approval(world):
+    from core.vool_browser.live import tool_intent
+    from core.vool_browser.live_requests import turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    finish(world, 'navigate', {'url': origin+'/'})
+    with turn_scope(f'Use the browser to open {origin}/ and tell me the train time', 'live-test'):
+        observed = tool_intent('vool-browser.inspect', {'mode': 'scroll_down'}, {'session_id': 'live-test', 'surface': 'api', 'platform': 'web_companion'})
+    assert observed['ok'] and '14:36' in observed['page_text'] and 'Platform 2' in observed['page_text']
+    assert item.pending is None and item.state == 'ready' and requests == [('GET', '/')]
+
+
+def test_refusing_while_the_switch_goes_off_never_holds_the_session_lock_into_a_stop(world, monkeypatch):
+    from core.vool_browser import live
+    from tests.test_live_browser import propose
+
+    rig, item, origin, requests = world
+    token = propose(world, 'navigate', {'url': origin+'/'})
+    calls = []
+    real = live.available
+    monkeypatch.setattr(live, 'available', lambda: not calls.append(1) and len(calls) == 1 and real())
+    item._stop_lock.acquire()  # a stop already under way elsewhere
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            refusing = pool.submit(item.decide, token, False)
+            _until(lambda: len(calls) >= 2)
+            # The refusal has released the session lock before it waits for that stop.
+            assert item._mutex.acquire(timeout=5)
+            item._mutex.release()
+            item._stop_lock.release()
+            refusing.result(timeout=20)
+    finally:
+        if item._stop_lock.locked():
+            item._stop_lock.release()
+    assert item.closed and requests == []
+
+
+@pytest.mark.parametrize('approve', [True, False])
+def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(world, approve):
+    from core.agent_runtime.answer_coverage import COVERAGE_CONTEXT_KEY, units_matching_needle
+    from core.runtime_flags import override
+    from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live_requests import turn_scope
+    from tests._toolchain_fixtures import executor_kwargs
+
+    rig, item, origin, requests = world
+    request = f'Use the built-in browser to open {origin}/ and tell me the train time.'
+    kwargs = executor_kwargs('live-test', runtime_session_id='live-test', surface='api', platform='web_companion',
+                             mode='manual', live_browser_wait_for_owner=True)
+    context = kwargs['source_context']
+    context[COVERAGE_CONTEXT_KEY] = {'slices': [], 'answers': []}
+
+    def run():
+        with override('plugin_runtime_tools', True), turn_scope(request, 'live-test'):
+            return execute_tool_intent({'intent': 'vool-browser.session.open', 'arguments': {'start_url': origin+'/'}}, **kwargs)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(contextvars.copy_context().run, run)
+        _until(lambda: item.pending is not None)
+        rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': approve})
+        future.result(timeout=25)
+    record = context[COVERAGE_CONTEXT_KEY]
+    opening = units_matching_needle(request, origin)
+    assert opening and not set(opening) & set(units_matching_needle(request, 'train time'))
+    dispatch = record['dispatches'][-1]
+    assert dispatch['unit_ids'] == list(opening) and dispatch['operation'] == 'vool-browser.session.open'
+    if approve:
+        assert dispatch['state'] == 'SUCCEEDED' and requests == [('GET', '/')]
+        assert [a for a in record['answers'] if a.get('family') == 'vool_browser']
+        assert all(a.get('response') == '' for a in record['answers'] if a.get('family') == 'vool_browser')
+    else:
+        assert dispatch['state'] == 'FAILED' and dispatch['failure_reason'] == 'refused' and requests == []
+        assert not [a for a in record['answers'] if a.get('family') == 'vool_browser']
+
+
+def test_a_follow_up_about_the_open_page_reaches_the_browser_tools(world, monkeypatch):
+    import core.tool_offer_assembly as offers
+    from core.vool_browser import live
+
+    rig, old, origin, requests = world
+    old.stop()
+    chat = rig.canonical_session()  # the served chat's own id, as the page mints it
+    rig.post('/api/chat/session', {'session_id': chat, 'operation': 'create'})
+    item = live.LiveSession(chat, fixture_origin=origin)
+    live._SESSIONS[live._key(chat)] = item
+    status, proposal = rig.post('/api/browser/propose', {'chat': chat, 'op': 'navigate', 'args': {'url': origin+'/review'}})
+    rig.post('/api/browser/decide', {'chat': chat, 'id': proposal['proposal']['id'], 'approve': True})
+    _until(lambda: item.state == 'ready')
+    offered = []
+    assemble = offers.assemble_tool_offer
+
+    def watch(*args, **kwargs):
+        offer = assemble(*args, **kwargs)
+        offered.append(set(offer.intents))
+        return offer
+
+    monkeypatch.setattr(offers, 'assemble_tool_offer', watch)
+    rig.post('/api/chat', {'session_id': chat, 'model': 'vool', 'stream': True, 'messages': [
+        {'role': 'user', 'content': 'Now fill the address field with 17 Test Lane and submit the form.'}]})
+    # The turn is tool work for the open page: it is offered exactly what its words grant.
+    assert offered and {'vool-browser.type', 'vool-browser.click'} <= offered[0]
+    assert not {'vool-browser.session.open', 'vool-browser.navigate', 'vool-browser.download'} & offered[0]
+    item.stop()

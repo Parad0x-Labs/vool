@@ -78,6 +78,9 @@ def _url(value: str) -> str:
 _POLITE = re.compile(r"^\s*(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:please\s+)?(?:can|could|would|will)\s+you\b", re.IGNORECASE)
 
 
+_NEGATION = re.compile(r"\b(?:not|no|never|nobody|nothing|neither|nor|without|avoid|refrain|stop)\b|n't\b|\bno\s+one\b", re.IGNORECASE)
+
+
 def _asks(text: str, verbs: str) -> bool:
     # Ambiguous work stays read-only. The owner can make a new explicit request
     # or take over in the pane. A page cannot expand these frozen capabilities.
@@ -88,9 +91,14 @@ def _asks(text: str, verbs: str) -> bool:
     if negative:
         return False
     for sentence in re.split(r'(?<=[.!?])\s+|\n+', text):
-        positive = re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool)\s+to\s+)(?:' + verbs + r')\b', sentence, re.IGNORECASE)
-        if positive and (not sentence.rstrip().endswith('?') or _POLITE.match(sentence)):
-            return True
+        question = sentence.rstrip().endswith('?') and not _POLITE.match(sentence)
+        for clause in re.split(r'[,;:]|\bbut\b', sentence):
+            # A clause with any negation in it ("I never asked you to submit the form",
+            # "nobody wants you to submit it", "no need to submit it") grants nothing.
+            if question or _NEGATION.search(clause):
+                continue
+            if re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool)\s+to\s+)(?:' + verbs + r')\b', clause.strip(), re.IGNORECASE):
+                return True
     return False
 
 
@@ -199,6 +207,20 @@ def note_navigation_proposal(url: str) -> None:
     boundary = _CONFINED.get()
     if boundary is not None and boundary.active:
         boundary.proposed_urls.add(_url(url))
+
+
+def turn_request() -> str:
+    """The person's own words for this turn, as the browser boundary holds them."""
+    boundary = _CONFINED.get()
+    return boundary.text if boundary is not None else ""
+
+
+def written_addresses(text: str, target: str) -> tuple[str, ...]:
+    """The spellings in the person's words of the address a proposal opened, without a
+    trailing slash, so they bind to the words around them at word boundaries."""
+    wanted = _url(str(target or ''))
+    found = (raw.rstrip('.,;!?') for raw in _URL.findall(str(text or '')))
+    return tuple(dict.fromkeys(raw.rstrip('/') for raw in found if wanted and _url(raw) == wanted))
 
 
 def within_turn() -> bool:

@@ -57,10 +57,10 @@ def world(pact_rig, request):
                 content=b'<form method="post" action="/review-submit"><input name="address"><input type="image" name="go" alt="Go" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></form>'
             if path == '/private-fields':
                 content=b'''<form method="get" action="/find"><input type="hidden" name="token" value="hidden-token-417"><input name="destination"><button type="submit">Find</button></form>
-                <form method="post" action="/review-submit"><input name="code" autocomplete="one-time-code"><input name="nickname"><input name="action" value="kept"><input name="method" value="kept"><button type="submit">Send code</button></form>'''
+                <form method="post" action="/review-submit"><input name="code" autocomplete="one-time-code"><input name="nickname"><input name="action" value="kept"><input name="method" value="kept"><input type="checkbox" name="agree"><button type="submit">Send code</button></form>'''
             if path == '/payment':
                 kind=parse_qs(urlsplit(self.path).query).get('kind',['card'])[0]
-                field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>','iban':'<input name="recipient_iban"><input name="note">','amount_only':'<input name="amount"><input name="note">','ccnum':'<input name="ccnum">'}[kind]
+                field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>','iban':'<input name="recipient_iban"><input name="note">','amount_only':'<input name="amount"><input name="note">','ccnum':'<input name="ccnum">','camel':'<input name="recipientIban"><input name="paymentAmount">'}[kind]
                 content=('<form method="post" action="/review-submit">'+field+'<button type="submit">Send</button></form>').encode()
             if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a>'
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()

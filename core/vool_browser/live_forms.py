@@ -81,7 +81,8 @@ def payment_form(form: dict) -> bool:
     if any(str(control.get('autocomplete') or '').split()[-1].startswith(('cc-', 'transaction-'))
            for control in metadata if str(control.get('autocomplete') or '').split()):
         return True
-    normalized = {re.sub(r'[^a-z0-9]+', '_', name.casefold()).strip('_') for name in names}
+    # recipientIban, paymentAmount: camelCase words split like snake_case ones.
+    normalized = {re.sub(r'[^a-z0-9]+', '_', re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', name).casefold()).strip('_') for name in names}
     tokens = {token for name in normalized for token in name.split('_')}
     # Bank transfers and card numbers by their usual field names, and any amount field: a form
     # that moves money goes through the wallet, so an unrecognised one is refused, not reviewed.

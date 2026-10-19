@@ -3232,6 +3232,7 @@ def _dispatch_runtime_tool(
                 result = live_browser.tool_intent(intent, arguments, dict(source_context or {}))
             except live_browser.BrowserFault as exc:
                 result = {"ok": False, "status": str(exc)}
+            _account_browser_opening(source_context, intent, arguments, result)
             from core.i18n import catalog_for
 
             label = catalog_for(str((source_context or {}).get("ui_locale") or "en")).text("live.browser")
@@ -8064,3 +8065,55 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
 from core.agent_team import gate as _agent_team_gate
 
 _agent_team_gate.mark_installed()
+
+
+def _account_browser_opening(
+    source_context: dict[str, Any] | None, intent: str, arguments: dict[str, Any], result: dict[str, Any]
+) -> None:
+    """Report an owner-decided browser opening to the turn's demand accounting.
+
+    The clause that asked to open an address is served by the approved opening's receipt
+    (or provably not served when the owner refused it); without this the sweep can only
+    call it indeterminate. Bound to the unit whose own words name that address, read from
+    the person's turn, never from the model's arguments or the page. A pending approval is
+    not an outcome and records nothing.
+    """
+    if not isinstance(source_context, dict) or intent not in {"vool-browser.session.open", "vool-browser.navigate"}:
+        return
+    status = str(result.get("status") or "")
+    if status == "approval_required":
+        return
+    from core.agent_runtime.answer_coverage import (
+        COVERAGE_CONTEXT_KEY,
+        record_slice_answer,
+        units_matching_needle,
+    )
+    from core.vool_browser.live_requests import turn_request, written_addresses
+
+    request = turn_request()
+    target = str(arguments.get("start_url") if intent.endswith(".open") else arguments.get("url") or "")
+    needles = written_addresses(request, target)
+    units = units_matching_needle(request, *needles) if request and needles else ()
+    if not units:
+        return
+    receipt = result.get("receipt") if isinstance(result.get("receipt"), dict) else {}
+    succeeded = bool(result.get("ok")) and bool(receipt)
+    if succeeded:
+        record_slice_answer(
+            source_context,
+            text=request,
+            family="vool_browser",
+            response="",
+            reason="vool_browser_owner_approved_opening",
+            consumed_units=units,
+        )
+    record = source_context.get(COVERAGE_CONTEXT_KEY)
+    if isinstance(record, dict):
+        record["dispatches"] = [*list(record.get("dispatches") or []), {
+            "unit_ids": list(units),
+            "subtask_id": "browser:" + str(receipt.get("approved_proposal_id") or status or "refused"),
+            "operation": intent,
+            # A refused, stale or failed opening was dispatched and did not serve the clause.
+            "state": "SUCCEEDED" if succeeded else "FAILED",
+            "failure_reason": "" if succeeded else status,
+        }]

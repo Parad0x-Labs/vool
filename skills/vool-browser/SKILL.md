@@ -42,8 +42,9 @@ live view. The person opens Browser from the chat header and watches every step.
    element handles. Read that evidence before answering or choosing another step.
    `inspect` reads the current observation without another network request.
 4. Use only an observed selector for `click` or `type`. New observations replace
-   old handles. `inspect` mode `scroll_down` or `scroll_up` requests a reviewed
-   scroll. After each action, use the new observation, not remembered page state.
+   old handles. The page text and handles already cover the whole page, so there
+   is nothing to scroll for; scrolling the view is the person's, in the pane.
+   After each action, use the new observation, not remembered page state.
 5. Uploads are selected by the person in the pane. Attachment and submission
    have separate approvals. A download is bounded and retrieved by the person
    from that pane; no local path can select a file for upload or download.

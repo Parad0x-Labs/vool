@@ -350,6 +350,9 @@ class LiveSession:
         self._mutex = threading.RLock()
         self._stop_lock = threading.Lock()
         self._owner_filled: set[tuple[str, int, str]] = set()
+        # The current address came from submitting a GET form: its query holds the
+        # form's fields (hidden ones and the owner's entries), which a model never reads.
+        self._url_from_form = False
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=contextvars.Context().run, args=(self._run,), daemon=True, name="live-browser")
         self._thread.start()
@@ -735,22 +738,25 @@ class LiveSession:
                 raise BrowserFault("stale_approval")
             review = self._submission_previews.pop(proposal_id, None)
             self.pending = None  # consume before dispatch; no replay, even after failure
-            if not approve:
+            refused = not approve
+            if refused:
                 self._telemetry.pop(pending["id"], None)
                 self.state = "refused"
                 self._complete(pending["id"], {"ok": False, "status": "refused"})
-                return self.snapshot()
-            if pending["expires"] < time.monotonic() or pending["revision"] != self.revision:
+            elif pending["expires"] < time.monotonic() or pending["revision"] != self.revision:
                 self._telemetry.pop(pending["id"], None)
                 self.state = "refused"
                 raise BrowserFault("stale_approval")
-            self.state = "running"
-            pending["_telemetry"] = self._telemetry.pop(pending["id"], None)
-            pending["_review"] = review
-            # An owner-approved command has its own execution context. A nested
-            # caller cannot accidentally transfer model confinement or authority.
-            self._task = contextvars.Context().run(asyncio.run_coroutine_threadsafe, self._execute_bounded(pending), self._loop)
-            return {"ok": True, "state": "running"}
+            else:
+                self.state = "running"
+                pending["_telemetry"] = self._telemetry.pop(pending["id"], None)
+                pending["_review"] = review
+                # An owner-approved command has its own execution context. A nested
+                # caller cannot accidentally transfer model confinement or authority.
+                self._task = contextvars.Context().run(asyncio.run_coroutine_threadsafe, self._execute_bounded(pending), self._loop)
+        # A snapshot may stop a session whose switch went off; stopping takes the
+        # stop lock, so it is never reached while this session's mutex is held.
+        return self.snapshot() if refused else {"ok": True, "state": "running"}
 
     async def _execute_bounded(self, proposal: dict) -> None:
         try:
@@ -799,9 +805,14 @@ class LiveSession:
                 else:
                     self._download = ("download.bin", raw)
             elif op == "navigate":
+                self._url_from_form = False
                 self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                 await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
             elif op in {"click", "type", "upload"}:
+                self._url_from_form = bool(args.get("form", -1) >= 0 and args.get("method") == "GET"
+                                           and (args.get("submit") or (op == "click" and args.get("navigates"))))
+                if proposal.get("actor") == "owner" and op == "click" and not args.get("navigates"):
+                    self._owner_filled.add(self._field_key(args))
                 node = self._page.locator(args["selector"])
                 if await node.count() != 1 or not await node.is_visible():
                     raise BrowserFault("element_missing")
@@ -866,7 +877,7 @@ class LiveSession:
                     completed.update(copy.deepcopy(self.result["page"]))
                     completed["result"] = copy.deepcopy(self.result)
                     completed["nodes"] = {"content_class": "untrusted_page_evidence", "authority": "none", "items": self.model_nodes()}
-                self._complete(proposal["id"], completed)
+                self._complete(proposal["id"], self.for_model(completed))
 
     async def _observe(self) -> None:
         self.url = self._page.url
@@ -1128,6 +1139,24 @@ class LiveSession:
     def _field_key(self, node: dict) -> tuple[str, int, str]:
         return self.url.split("#")[0], int(node.get("form", -1)), str(node.get("name") or node.get("selector") or "")
 
+    def for_model(self, value: Any) -> Any:
+        """Model-facing output with a form-built address reduced to its path."""
+        full = self.url
+        if not self._url_from_form or "?" not in full:
+            return value
+        bare = urlunsplit(urlsplit(full)._replace(query="", fragment=""))
+
+        def strip(item: Any) -> Any:
+            if isinstance(item, str):
+                return item.replace(full, bare)
+            if isinstance(item, dict):
+                return {key: strip(entry) for key, entry in item.items()}
+            if isinstance(item, list):
+                return [strip(entry) for entry in item]
+            return item
+
+        return strip(copy.deepcopy(value))
+
     def model_nodes(self) -> list[dict]:
         """The observation as a model may read it: no value the owner typed and no
         form field carried in a GET form's address (hidden fields included)."""
@@ -1173,10 +1202,6 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
     if op in {"cancel", "session.close"}:
         item.stop()
         return {"ok": True, "status": "stopped"}
-    if op == "inspect" and arguments.get("mode") in {"scroll_up", "scroll_down"}:
-        if not remote_fetch_allowed_by_context(source_context):
-            raise BrowserFault("web_off")
-        return _tool_proposal(item, "scroll", {"direction": "up" if arguments["mode"] == "scroll_up" else "down"}, source_context)
     if op in {"session.status", "inspect"}:
         snap = item.snapshot()
         if op == "session.status":
@@ -1188,16 +1213,22 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
                 # the pane. Model status needs approval metadata, not its bytes.
                 snap["pending"] = {key: snap["pending"][key] for key in ("id", "op", "actor", "expires")}
             snap["status"] = "executed"
-            return snap
+            return item.for_model(snap)
         if snap["pending"]:
             return {"ok": False, "status": "approval_required", "view_url": "/browser?chat=" + quote(chat)}
         result = snap["result"]
         page = result.get("page")
         if not page or snap["state"] != "ready":
             return {"ok": False, "status": snap["state"] if snap["state"] != "ready" else "no_page"}
-        return {"ok": True, "status": "executed", "result": result,
-                "receipt": result.get("receipt"), **page,
-                "nodes": {"content_class": "untrusted_page_evidence", "authority": "none", "items": item.model_nodes()}}
+        observed = {"ok": True, "status": "executed", "result": result,
+                    "receipt": result.get("receipt"), **page,
+                    "nodes": {"content_class": "untrusted_page_evidence", "authority": "none", "items": item.model_nodes()}}
+        if arguments.get("mode") in {"scroll_up", "scroll_down"}:
+            # The page text and element list already span the whole page (scripts are
+            # off, nothing loads on scroll), so a scroll would show a reader nothing new.
+            # Moving the view is the owner's, in the pane; it needs no approval round.
+            observed["note"] = "The observation already covers the whole page; scrolling only moves the owner's view."
+        return item.for_model(observed)
     if op == "session.open":
         op = "navigate"
         arguments = {"url": arguments.get("start_url")}
