@@ -602,27 +602,50 @@ class RepoAuthority(Authority):
 
     @_exclusive
     def run_once(self) -> dict:
-        # All local instructions and required sources must be readable before any signed write.
+        # The team's instructions and the release list must be readable before any signed write.
         wanted = self._read_steps()
         released = self._discover_releases()
-        queue = self.upload_queue()
-        prepared = self.read_uploads(queue)
+        held = None
+        try:
+            queue = self.upload_queue()
+            prepared = self.read_uploads(queue)
+        except RegistryError as exc:
+            # A broken upload batch waits whole; the team's steps and the list already signed still go on.
+            held = str(exc)
+            if held.startswith("the server refused:"):
+                held = "the service refused the upload batch"  # the public log never shows the service's own text
+            queue, prepared = {"submissions": []}, []
         from registry_service.operations import summary
 
         moderation = summary(self.call("GET", "/authority/moderation"))
         report = {"steps": self.team_steps(wanted), "dropped": []}
         self.state["moderation"] = moderation
         report["releases_changed"] = self.follow_releases(released)
-        report["dropped"] = self.recheck()
         try:
-            report.update(super().run_once(queue=queue, prepared=prepared))
+            report["dropped"] = self.recheck()
+        except RegistryError as exc:
+            report["recheck_waiting"] = str(exc)  # the listed skills are looked at again next run
+        try:
+            report.update(super().run_once(queue=queue, prepared=prepared,
+                                           held=held and held + "; the uploads wait for the next run"))
         except BaseException:
             with contextlib.suppress(Exception):
                 self.checkpoint("Skill Codex: state after a stopped run")  # keep what was spent and decided
             raise
-        if report.get("stopped"):
+        if report.get("stopped") and "catalog" not in report:
             self.checkpoint("Skill Codex: review state before retry")
             return report
+        try:
+            self._mirror(report)
+        except RegistryError as exc:
+            if not report.get("stopped"):
+                raise
+            report["errors"].append("the public directory was not updated: " + str(exc))
+        self.checkpoint(self._summary())
+        return report
+
+    def _mirror(self, report: dict) -> None:
+        """The public directory and package copies follow the list the service now holds."""
         from registry_service.publication import publish
 
         try:
@@ -634,8 +657,6 @@ class RepoAuthority(Authority):
             report["presentation_waiting"] = True
         publish(self.repo / FOLDER, self.state["entries"], self.state["revoked"], self.state["marks"],
                 artifact=self._artifact, presentation=presentation)
-        self.checkpoint(self._summary())
-        return report
 
 
 def service_down(authority: RepoAuthority, exc: Exception) -> bool:

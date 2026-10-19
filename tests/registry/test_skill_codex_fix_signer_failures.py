@@ -5,7 +5,7 @@ import pytest
 
 from core.registry.codec import RegistryError
 from registry_service.github_authority import FOLDER, main
-from registry_service.model_review import NoAnswer
+from registry_service.model_review import ModelReview, NoAnswer
 from tests.registry.helpers import TARGET
 from tests.registry.test_skill_codex_authority import SKILL, creator, draft
 from tests.registry.test_skill_codex_github_signer import checkout, git, on_github, run, signer, team_steps
@@ -14,6 +14,11 @@ from tests.registry.test_skill_codex_github_signer import world as world
 
 def state_bytes(path):
     return {name: (path / FOLDER / name).read_bytes() for name in ("state.json", "private.bin")}
+
+
+def scripted_review(world, monkeypatch):
+    """The command builds its own review; it answers from the script, so a regression never reaches the paid provider."""
+    monkeypatch.setattr(ModelReview, "_post", lambda self, url, payload, headers: world.model(url, payload, headers))
 
 
 @pytest.mark.parametrize("failure", ["release", "steps"])
@@ -27,6 +32,7 @@ def test_command_stops_before_any_write_and_retries_unchanged_state(world, monke
     head = git(world.origin, "rev-parse", "main")
     for name, value in world.env.items():
         monkeypatch.setenv(name, value)
+    scripted_review(world, monkeypatch)
     calls = []
 
     def releases():
@@ -79,7 +85,7 @@ def test_review_failure_holds_the_entire_batch_and_keeps_paid_cost_for_retry(wor
     assert {item["signed"]["artifact_sha256"] for item in retry.state["entries"]} == {first["sha256"], second["sha256"]}
 
 
-@pytest.mark.parametrize("failure", ["down", "queue", "bytes", "moderation"])
+@pytest.mark.parametrize("failure", ["down", "moderation"])
 def test_unreadable_website_stops_before_state_changes_or_paid_calls(world, failure):
     _, token, csrf = creator(world, "101", "alice")
     draft(world, token, csrf, "alice/notes")
@@ -90,11 +96,8 @@ def test_unreadable_website_stops_before_state_changes_or_paid_calls(world, fail
     def transport(method, url, body, headers):
         if failure == "down":
             raise OSError("PRIVATE_TRANSPORT_TEXT")
-        if ((failure == "queue" and url.endswith("/authority/queue")) or
-                (failure == "moderation" and url.endswith("/authority/moderation"))):
+        if failure == "moderation" and url.endswith("/authority/moderation"):
             return 200, b'{}'
-        if failure == "bytes" and "/authority/submissions/" in url:
-            return 200, b'PRIVATE_BROKEN_BYTES'
         return world.transport(method, url, body, headers)
 
     authority = signer(world, path, transport=transport)
@@ -102,4 +105,36 @@ def test_unreadable_website_stops_before_state_changes_or_paid_calls(world, fail
         authority.run_once()
     assert world.model.calls == [] and not any(method == "POST" for method, _ in world.sent)
     assert state_bytes(path) == before and git(world.origin, "rev-parse", "main") == head
+    assert run(world)["admitted"] == ["alice/notes 1.0.0"]
+
+
+@pytest.mark.parametrize("failure", ["queue", "bytes", "refused"])
+def test_an_unreadable_upload_batch_waits_whole_and_nothing_in_it_is_paid_for_or_sent(world, monkeypatch, capsys,
+                                                                                    failure):
+    _, token, csrf = creator(world, "101", "alice")
+    draft(world, token, csrf, "alice/notes")
+    path = checkout(world)
+    for name, value in world.env.items():
+        monkeypatch.setenv(name, value)
+    scripted_review(world, monkeypatch)
+
+    def transport(method, url, body, headers):
+        if failure == "queue" and url.endswith("/authority/queue"):
+            return 200, b'{}'
+        if failure == "bytes" and "/authority/submissions/" in url:
+            return 200, b'PRIVATE_BROKEN_BYTES'
+        if failure == "refused" and url.endswith("/authority/queue"):
+            return 503, b'{"error":"PRIVATE_SERVICE_TEXT"}'
+        return world.transport(method, url, body, headers)
+
+    assert main(["run", "--repo", str(path)], transport=transport, clock=lambda: world.clock.t,
+                releases=lambda: [TARGET]) == 1
+    output = capsys.readouterr()
+    assert output.out.startswith("Stopped: " + {"queue": "the service returned an invalid upload queue",
+                                                "bytes": "the server sent different bytes",
+                                                "refused": "the service refused the upload batch"}[failure])
+    assert "PRIVATE_" not in output.out + output.err
+    assert world.model.calls == [] and json.loads(on_github(world, FOLDER + "/state.json"))["entries"] == []
+    assert not any(method == "POST" and "/authority/submissions/" in sent for method, sent in world.sent)
+    assert b"PRIVATE_" not in on_github(world, FOLDER + "/state.json")
     assert run(world)["admitted"] == ["alice/notes 1.0.0"]

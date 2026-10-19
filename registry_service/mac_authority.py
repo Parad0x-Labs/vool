@@ -457,7 +457,7 @@ class Authority:
         return prepared
 
     @_exclusive
-    def run_once(self, *, queue: dict | None = None, prepared: list | None = None) -> dict:
+    def run_once(self, *, queue: dict | None = None, prepared: list | None = None, held: str | None = None) -> dict:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
         self._review_stop = None
         self._batch_admissions = []
@@ -475,17 +475,18 @@ class Authority:
                 self._batch_admissions.append(result["admission"])
             if self._review_stop:
                 break
-        entries = self.state["entries"]
-        renewed = False if self._review_stop else self._renew()
+        # Listed skills renew from their saved verdicts, so this pays for nothing while the batch waits on the review.
+        renewed = self._renew()
         if self._review_stop:
-            self.state["entries"] = entries
             report["waiting"] = [item["package_id"] + " " + item["version"] for item in queue["submissions"]]
             report["stopped"] = self._review_stop
-            self.save()  # preserve paid costs and verdicts for the retry, without an admission or catalog write
+            self.save()  # preserve paid costs and verdicts for the retry, without an admission from this batch
+            self._keep_listed(report, renewed)
             return report
         self._deliver(report)
         if report.get("stopped"):
             self.save()
+            self._keep_listed(report, renewed)
             return report
         for item, raw, result in checked:
             label = item["package_id"] + " " + item["version"]
@@ -508,13 +509,34 @@ class Authority:
                 report["stopped"] = "the service did not confirm a decision; the next run retries"
             self.save()
             if report.get("stopped"):
+                self._keep_listed(report, renewed)
                 return report
+        if held:
+            report["stopped"] = held  # the batch could not be read: none of it was checked or signed
+            self._keep_listed(report, renewed)
+            self.save()
+            return report
         if renewed:
             self.state["unpublished"] = True
         if self.state.get("unpublished") or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
             report["catalog"] = self.publish()
         self.save()
         return report
+
+    def _keep_listed(self, report: dict, renewed: bool) -> None:
+        """A held batch signs nothing of its own, but the list already signed must not lapse for everyone.
+
+        Only admissions the service confirmed are in the entries, so this never lists an upload that still waits.
+        A signer that never published waits for its first complete run."""
+        if renewed:
+            self.state["unpublished"] = True
+        if not self.state.get("authorized_until"):
+            return
+        if self.state.get("unpublished") or self.state["authorized_until"] - self.now() < AUTHORIZE_BEFORE:
+            try:
+                report["catalog"] = self.publish()
+            except RegistryError as exc:
+                report["errors"].append("the signed list was not renewed: " + str(exc))
 
     # ---- hand actions ----
 

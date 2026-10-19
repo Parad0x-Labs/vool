@@ -83,8 +83,9 @@ def test_garbage_queue_is_refused_before_signing_any_upload(world, garbage):
         return world.transport(method, url, body, headers)
 
     authority = signer(world, checkout(world), transport=transport)
-    with pytest.raises(RegistryError, match="queue"):
-        authority.run_once()
+    report = authority.run_once()  # the whole batch waits; nothing in it is read, checked or signed
+    assert report["stopped"].startswith("the service returned an invalid upload queue")
+    assert report["admitted"] == [] and authority.state["entries"] == []
     assert not any(path.endswith(("/authority/catalog", "/authority/marks")) and method == "POST"
                    for method, path in world.sent)
 

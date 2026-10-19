@@ -66,7 +66,7 @@ is not implemented. Show only configured choices; provider registration is deplo
 
 ## Author submissions and updates
 
-Every public package metadata field receives the package's deterministic checks, paid-review inclusion and native install recheck. Render `@metadata.json` findings as metadata findings. Release notes have no bypass. A service failure or exhausted review budget holds the batch without admission; the signer retries with already paid verdicts retained. Import's `publish_when_checks_pass` field never replaces explicit checksum consent.
+Every public package metadata field receives the package's deterministic checks, paid-review inclusion and native install recheck. Render `@metadata.json` findings as metadata findings. Release notes have no bypass. A service failure or exhausted review budget holds the batch without admission; the signer retries with already paid verdicts retained and keeps renewing the list already signed meanwhile. Import's `publish_when_checks_pass` field never replaces explicit checksum consent.
 
 The MIT rights agreement and public-history consent are separate. First save and inspect the
 private submission. Then show its exact checksum and obtain a separate, unticked Publish decision.
