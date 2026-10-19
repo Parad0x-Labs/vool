@@ -1586,8 +1586,21 @@ function syncPilotCards(st, asked){
   // nothing here approves, rejects, quotes or pays.
   var pending = {};
   (st.pending || []).forEach(function(p){ if (p && p.proposal_id) pending[p.proposal_id] = true; });
-  var rows = {};
-  (st.in_flight || []).concat(st.transfers || []).forEach(function(t){ if (t && t.proposal_id && !rows[t.proposal_id]) rows[t.proposal_id] = t; });
+  // The transfers read model also carries refusal receipts (record_kind 'proposal_receipt'): a request that ended
+  // before any claim. That row is the receipt of an ended proposal, never a transfer, so it settles the card the
+  // way an ended proposal does instead of rendering a transfer line.
+  var rows = {}, ended = {};
+  (st.in_flight || []).concat(st.transfers || []).forEach(function(t){
+    if (!t || !t.proposal_id) return;
+    if (t.record_kind === 'proposal_receipt') { if (!ended[t.proposal_id] && t.proposal_state) ended[t.proposal_id] = t.proposal_state; return; }
+    if (!rows[t.proposal_id]) rows[t.proposal_id] = t;
+  });
+  function settleEnded(pid, entry, state){
+    entry.controls.remove();
+    entry.result.textContent = ENDED_TEXT[state] || ('This request ended (' + state + '). Nothing was signed or sent.');
+    entry.result.setAttribute('data-proposal-state', state);
+    delete pilotCards[pid];
+  }
   Object.keys(pilotCards).forEach(function(pid){
     if (pending[pid]) return;
     var entry = pilotCards[pid];
@@ -1597,16 +1610,15 @@ function syncPilotCards(st, asked){
       delete pilotCards[pid];
       return;
     }
+    if (ended[pid]) { settleEnded(pid, entry, ended[pid]); return; }
     if (entry.resolving) return;
     entry.resolving = true;
     getJson('/api/wallet/proposals/' + encodeURIComponent(pid)).then(function(j){
       var proposal = (j && j.proposal) || null;
       if (!proposal || !proposal.state) { entry.resolving = false; return; }
       if (proposal.state === 'pending_approval' || proposal.state === 'awaiting_signature') { entry.resolving = false; return; }  // a snapshot raced the record
-      entry.controls.remove();
-      entry.result.textContent = ENDED_TEXT[proposal.state] || ('This request ended (' + proposal.state + '). Nothing was signed or sent.');
-      entry.result.setAttribute('data-proposal-state', proposal.state);
-      delete pilotCards[pid];
+      if (pilotCards[pid] !== entry) return;  // settled meanwhile by a later snapshot
+      settleEnded(pid, entry, proposal.state);
     }).catch(function(){ entry.resolving = false; });
   });
 }
