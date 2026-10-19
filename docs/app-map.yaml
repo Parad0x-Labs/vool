@@ -880,7 +880,7 @@ rows:
     tests: [tests/wallet/test_wallet_chains.py]
     label: TESTED
     target_release: 0.7.0
-    note: Five chain keys ship, each with a main and a test variant; once the wallet is on, the network default is the main setting.
+    note: Six chain keys ship (Solana, Base, Ethereum, BNB Smart Chain, Arbitrum and Robinhood Chain), each with a main and a test variant; once the wallet is on, the network default is the main setting.
   - id: wallet-environment-switch
     title: Network environment switch in developer options
     area: crypto

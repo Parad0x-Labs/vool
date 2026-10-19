@@ -51,7 +51,7 @@ release.
 | Capability | State in this build |
 | --- | --- |
 | Crypto and wallet | Off by default. When you turn it on, VOOL uses mainnet; test networks are in Developer options. Every payment goes through VOOL's wallet, with its limits, your approval and a receipt. See [Wallet](../guides/wallet.md). |
-| Mainnet transfers | Native coins only; the Mainnet tokens (USDC on Solana and USDC on Base) exist for x402 payments only. |
+| Mainnet transfers | Native coins, and USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One, sent from a VOOL Wallet created on this device. USDC on Solana and Base is for payment channels only. A connected or watch-only account can receive and show its balance but cannot send from VOOL. |
 | Paying with x402 | Websites that ask for x402 payment in USDC on Base or Base Sepolia can be paid from your Crypto Pilot wallet: one approval with your PIN, within your limits. The website's payment service covers the network fee. **Settings → Crypto → Payment channels** has an on/off switch for each way the wallet can pay a website; a channel that's off refuses before anything is signed. No live mainnet payment has been made with this yet. Paying through Solana pay-kit is not included in the downloads; that channel shows as not usable. |
 | X | Drafting posts in chat, plus a guided setup that checks your keys read-only. No posting from VOOL in this release. |
 | Dictation | Temporarily unavailable in this beta build; it returns in an update. |
