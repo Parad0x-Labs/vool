@@ -675,21 +675,10 @@ def settlement_usd(
             completion_tokens=0,
             attempts=attempts,
         )
-    from core.prompt_cache import cache_write_prompt_tokens
-
-    written = cache_write_prompt_tokens(usage)
-    if written is None:
-        # No write count: settle at the worst case the reservation held.
-        return estimate_call_usd(
-            provider_id=provider_id,
-            model_id=model_id,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            attempts=attempts,
-        )
-    # The provider counted what it wrote: only those tokens carry the write surcharge. Cache READS
-    # stay at the full input rate here (no discount is assumed without a reported cost).
-    from core.prompt_cache import ANTHROPIC_CACHE_WRITE_MULTIPLIER, reservation_cache_plan
+    # Cache writes are priced from the call's own facts (what the adapter sent, what the provider
+    # reported), never from today's flag: see core.prompt_cache.cache_write_surcharge_tokens.
+    # Cache READS stay at the full input rate here (no discount is assumed without a reported cost).
+    from core.prompt_cache import ANTHROPIC_CACHE_WRITE_MULTIPLIER, cache_write_surcharge_tokens
 
     base = estimate_call_usd(
         provider_id=provider_id,
@@ -699,10 +688,8 @@ def settlement_usd(
         attempts=attempts,
         include_cache_write=False,
     )
-    written = min(written, prompt_tokens)
-    if written <= 0 or not reservation_cache_plan(model_id).enabled:
-        # Only a call VOOL can mark is billed a write surcharge; with the flag off, or for a model
-        # that caches on its own, settlement is what it was before breakpoints existed.
+    written = cache_write_surcharge_tokens(usage, model_id=model_id, prompt_tokens=prompt_tokens)
+    if written <= 0:
         return base
     price = lookup_model_price(provider_id, model_id, prompt_tokens=prompt_tokens)
     surcharge = written * float(price.prompt_usd_per_token) * (ANTHROPIC_CACHE_WRITE_MULTIPLIER - 1.0) * attempts
@@ -710,13 +697,14 @@ def settlement_usd(
         usd=round(base.usd + surcharge, 8),
         known=base.known,
         basis=base.basis,
-        source=f"{base.source}; {written} cache-written tokens at {ANTHROPIC_CACHE_WRITE_MULTIPLIER}x",
+        source=f"{base.source}; {written} prompt tokens at the {ANTHROPIC_CACHE_WRITE_MULTIPLIER}x cache-write rate",
         provider_id=base.provider_id,
         model_id=base.model_id,
         prompt_tokens=base.prompt_tokens,
         completion_tokens=base.completion_tokens,
         attempts=base.attempts,
     )
+
 
 __all__ = [
     "BASIS_APPROVED_CEILING",

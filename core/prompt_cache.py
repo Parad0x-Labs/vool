@@ -31,29 +31,26 @@ own OpenAI-compatibility endpoint does not take it, and the automatic providers 
 the wire. Everything is behind the ``prompt_cache_breakpoints`` runtime flag, OFF by default: with
 the flag off the payload is byte-identical to the one sent before this module existed.
 
-Placement (``VOOL_PROMPT_CACHE_PLACEMENT``)
--------------------------------------------
-* ``system`` (default): one breakpoint at the end of the leading system message. Tools and the
-  stable system text are cached; history is not.
-* ``system_history``: also a breakpoint on the last message before the per-turn directives, so the
-  chat history is cached too. That only pays when the route keeps the per-turn directives out of
-  the cached prefix; if the route folds every system message into one top-level system block, the
-  history breakpoint writes every turn and never reads. Measure before choosing it.
+Placement
+---------
+One breakpoint, at the end of the leading system message: tools and the stable system text are
+cached, the history is not. (A history breakpoint was tried and removed: when a route folds every
+system message into one top-level block, it writes every turn and never reads.)
+
+Billing facts
+-------------
+Settlement never asks today's flag what a past call did. It prices a cache write from what the
+provider reported, and holds the worst case when a markable model's response reports no write
+count (:func:`cache_write_surcharge_tokens`).
 """
 from __future__ import annotations
 
 import copy
-import os
 from dataclasses import dataclass
 from typing import Any
 
 #: Anthropic's 5-minute-TTL write price as a multiple of the input price.
 ANTHROPIC_CACHE_WRITE_MULTIPLIER = 1.25
-
-PLACEMENT_SYSTEM = "system"
-PLACEMENT_SYSTEM_HISTORY = "system_history"
-_PLACEMENTS = (PLACEMENT_SYSTEM, PLACEMENT_SYSTEM_HISTORY)
-PLACEMENT_ENV = "VOOL_PROMPT_CACHE_PLACEMENT"
 
 _EPHEMERAL = {"type": "ephemeral"}
 
@@ -64,14 +61,7 @@ class CachePlan:
 
     enabled: bool
     reason: str
-    placement: str = ""
     write_multiplier: float = 1.0
-
-
-def cache_placement() -> str:
-    """The configured placement; an unknown value falls back to the narrower ``system``."""
-    raw = str(os.environ.get(PLACEMENT_ENV) or "").strip().lower()
-    return raw if raw in _PLACEMENTS else PLACEMENT_SYSTEM
 
 
 def _is_anthropic_model(model_id: str) -> bool:
@@ -86,9 +76,9 @@ def cache_breakpoint_plan(*, openrouter_lane: bool, model_id: str, local_runtime
     (``core.paid_call_reservation``), so a call that may write the cache is always reserved at the
     write price.
 
-    The flag is read from the process environment, which VOOL sets once at boot and never changes
-    while serving, so the reservation and the send see the same answer. Settlement still charges the
-    provider-reported cost (or the reported writes) rather than trusting the reservation.
+    The flag is read when the call is made. Settlement does not read it again: it prices from what
+    the provider reported (:func:`cache_write_surcharge_tokens`), so flipping the flag between
+    reserve and settle cannot change what a past call is charged.
     """
     from core.runtime_flags import flag_enabled
 
@@ -100,7 +90,7 @@ def cache_breakpoint_plan(*, openrouter_lane: bool, model_id: str, local_runtime
         return CachePlan(False, "route_without_cache_control")
     if not _is_anthropic_model(model_id):
         return CachePlan(False, "model_caches_automatically_or_not_at_all")
-    return CachePlan(True, "anthropic_on_openrouter", cache_placement(), ANTHROPIC_CACHE_WRITE_MULTIPLIER)
+    return CachePlan(True, "anthropic_on_openrouter", ANTHROPIC_CACHE_WRITE_MULTIPLIER)
 
 
 def reservation_cache_plan(model_id: str) -> CachePlan:
@@ -130,22 +120,6 @@ def _marked_parts(content: Any) -> list[dict[str, Any]] | None:
     return None
 
 
-def _history_breakpoint_index(messages: list[dict[str, Any]]) -> int | None:
-    """The plain user/assistant message right before the per-turn directives, if there is one.
-
-    A tool exchange or another system message at the history's end gets no mark.
-    """
-    from core.internal_message_schema import is_turn_directives_message
-
-    directives = next((i for i, m in enumerate(messages) if i > 0 and is_turn_directives_message(m)), None)
-    if directives is None or directives < 2:
-        return None
-    message = messages[directives - 1]
-    if not isinstance(message, dict) or message.get("role") not in {"user", "assistant"} or message.get("tool_calls"):
-        return None
-    return directives - 1 if _marked_parts(message.get("content")) is not None else None
-
-
 def apply_cache_breakpoints(messages: list[dict[str, Any]], plan: CachePlan) -> tuple[list[dict[str, Any]], int]:
     """Return (messages with breakpoints, breakpoints placed). The input list is never mutated.
 
@@ -162,13 +136,6 @@ def apply_cache_breakpoints(messages: list[dict[str, Any]], plan: CachePlan) -> 
         if parts is not None:
             first["content"] = parts
             placed += 1
-    if plan.placement == PLACEMENT_SYSTEM_HISTORY:
-        index = _history_breakpoint_index(messages)
-        if index is not None:
-            parts = _marked_parts(marked[index].get("content"))
-            if parts is not None:
-                marked[index]["content"] = parts
-                placed += 1
     return (marked, placed) if placed else (messages, 0)
 
 
@@ -201,15 +168,39 @@ def cache_write_prompt_tokens(usage: Any) -> int | None:
     return None
 
 
+def bills_cache_writes_at_premium(model_id: str) -> bool:
+    """Anthropic bills the prompt tokens it writes to its cache above the input rate, on every route."""
+    model = str(model_id or "").strip().lower().lstrip("~")
+    return model.startswith("anthropic/") or model.startswith("claude")
+
+
+def cache_write_surcharge_tokens(usage: Any, *, model_id: str, prompt_tokens: int) -> int:
+    """Prompt tokens a settlement must price at the cache-write rate, from facts that cannot change.
+
+    Never from the flag as it stands at settlement: a past call is charged for what happened.
+
+    * The provider reported what it wrote: those tokens, for a model billed a write premium. A
+      reported write is billed whatever VOOL's flag says now, and a reported 0 is a real zero.
+    * Nothing reported, for a model VOOL can mark: every prompt token, the worst case. Whether
+      this call carried a breakpoint is not known here, and an unknown write is a liability.
+    * Anything else: no surcharge.
+    """
+    tokens = max(0, int(prompt_tokens))
+    if tokens <= 0 or not bills_cache_writes_at_premium(model_id):
+        return 0
+    written = cache_write_prompt_tokens(usage)
+    if written is not None:
+        return min(written, tokens)
+    return tokens if _is_anthropic_model(model_id) else 0
+
+
 __all__ = [
     "ANTHROPIC_CACHE_WRITE_MULTIPLIER",
-    "PLACEMENT_ENV",
-    "PLACEMENT_SYSTEM",
-    "PLACEMENT_SYSTEM_HISTORY",
     "CachePlan",
     "apply_cache_breakpoints",
+    "bills_cache_writes_at_premium",
     "cache_breakpoint_plan",
-    "cache_placement",
     "cache_write_prompt_tokens",
+    "cache_write_surcharge_tokens",
     "reservation_cache_plan",
 ]

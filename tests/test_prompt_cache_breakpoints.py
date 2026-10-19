@@ -13,7 +13,6 @@ import pytest
 from core import runtime_flags
 from core.internal_message_schema import TURN_DIRECTIVES_HEADER
 from core.prompt_cache import (
-    PLACEMENT_ENV,
     apply_cache_breakpoints,
     cache_breakpoint_plan,
     cache_write_prompt_tokens,
@@ -53,8 +52,7 @@ def test_only_claude_on_openrouter_is_marked(flag_on) -> None:
     assert not cache_breakpoint_plan(openrouter_lane=True, model_id=CLAUDE, local_runtime=True).enabled
 
 
-def test_system_placement_marks_the_stable_opening_and_keeps_the_text(flag_on, monkeypatch) -> None:
-    monkeypatch.delenv(PLACEMENT_ENV, raising=False)
+def test_system_placement_marks_the_stable_opening_and_keeps_the_text(flag_on) -> None:
     messages = _messages()
     before = copy.deepcopy(messages)
     out, placed = apply_cache_breakpoints(messages, cache_breakpoint_plan(openrouter_lane=True, model_id=CLAUDE))
@@ -66,22 +64,14 @@ def test_system_placement_marks_the_stable_opening_and_keeps_the_text(flag_on, m
     assert out[1:] == before[1:]
 
 
-def test_history_placement_marks_the_message_before_the_per_turn_block(flag_on, monkeypatch) -> None:
-    monkeypatch.setenv(PLACEMENT_ENV, "system_history")
-    out, placed = apply_cache_breakpoints(_messages(), cache_breakpoint_plan(openrouter_lane=True, model_id=CLAUDE))
-    assert placed == 2
-    assert out[2]["content"][0]["cache_control"] == {"type": "ephemeral"}
-    assert out[2]["content"][0]["text"] == "first answer"
-    assert out[3]["content"].startswith(TURN_DIRECTIVES_HEADER)  # the per-turn block is never marked
-
-
-def test_history_mark_skips_a_tool_call_at_the_history_end(flag_on, monkeypatch) -> None:
-    monkeypatch.setenv(PLACEMENT_ENV, "system_history")
+def test_only_the_system_opening_is_ever_marked(flag_on, monkeypatch) -> None:
+    """The history variant is gone: an old placement setting cannot bring a history mark back."""
+    monkeypatch.setenv("VOOL_PROMPT_CACHE_PLACEMENT", "system_history")
     messages = _messages()
-    messages[2] = {"role": "assistant", "content": None, "tool_calls": [{"id": "c1", "type": "function"}]}
     out, placed = apply_cache_breakpoints(messages, cache_breakpoint_plan(openrouter_lane=True, model_id=CLAUDE))
     assert placed == 1
-    assert out[2] == messages[2]
+    assert out[1:] == messages[1:]
+    assert out[3]["content"].startswith(TURN_DIRECTIVES_HEADER)  # the per-turn block is never marked
 
 
 def test_reservation_holds_the_write_price_on_every_route_that_could_mark(flag_on) -> None:
