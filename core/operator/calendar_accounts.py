@@ -16,6 +16,10 @@ Law:
   good sync when the account is shown, never stored as a guess.
 * Disconnecting stops future fetches and cancels that account's pending alerts. It cannot retract an alert
   already shown.
+* The outbound switch ("Go online on its own", network.outbound_enabled) is the master over every calendar
+  source that is reached over the network: while it is off nothing is fetched from it, neither by the
+  background sync nor by Sync now or Refresh calendar list, and the answer says so. Apple Calendar on this Mac
+  and a server address on this computer itself are not online and keep working.
 """
 from __future__ import annotations
 
@@ -55,6 +59,41 @@ PROVIDERS: dict[str, dict[str, str]] = {
         "links": "the event's URL when it has one",
     },
 }
+
+#: The refusal state when the outbound switch is off. It is not stored on the account: what the last real
+#: attempt proved stays as it was.
+ONLINE_ACCESS_OFF = "online_access_off"
+ONLINE_ACCESS_OFF_DETAIL = (
+    "Online access is off, so VOOL did not contact this calendar. "
+    "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
+)
+
+
+def outbound_switch_on() -> bool:
+    """The master switch as the one policy gate answers it; an unreadable setting is off."""
+    try:
+        from core import policy_engine
+
+        return policy_engine.automatic_outbound_enabled() is True
+    except Exception:
+        return False
+
+
+def _reached_on_this_computer(account: dict[str, Any]) -> bool:
+    """Apple Calendar (EventKit), or an account whose own server address names this computer literally (a CalDAV
+    server on this machine). No name is resolved: an empty address (the provider's public default) or a host name
+    that is not literally loopback counts as online."""
+    if str(account.get("provider") or "") == "eventkit":
+        return True
+    from core.provider_http import is_loopback_url
+
+    return is_loopback_url(str(account.get("base_url") or ""))
+
+
+def online_access_allowed(account: dict[str, Any]) -> bool:
+    """Whether VOOL may contact this account's source now."""
+    return _reached_on_this_computer(account) or outbound_switch_on()
+
 
 #: What to do next for each state an attempt can prove.
 RECOVERY: dict[str, str] = {
@@ -329,6 +368,9 @@ def discover_calendars(
         return {"ok": False, "status": "unknown_account", "calendars": []}
     if account["status"] == "disconnected":
         return {"ok": False, "status": "disconnected", "recovery": RECOVERY["disconnected"], "calendars": []}
+    if not online_access_allowed(account):
+        return {"ok": False, "status": ONLINE_ACCESS_OFF, "reason": ONLINE_ACCESS_OFF, "detail": ONLINE_ACCESS_OFF_DETAIL,
+                "calendars": list_selections(account_id, get_connection_fn=get_connection_fn)}
     now = now_fn()
     from core.effect_gateway import named_background_effect_scope
 
@@ -600,10 +642,12 @@ def settings_view(*, now_fn: Callable[[], str] = _utcnow, get_connection_fn: Cal
     except Exception as exc:
         bindings_error = type(exc).__name__
     return {"ok": True, "accounts": accounts, "providers": PROVIDERS, "bindings": bindings, "bindings_error": bindings_error,
-            "default_base_urls": dict(DEFAULT_BASE_URLS)}
+            "default_base_urls": dict(DEFAULT_BASE_URLS), "online_access": outbound_switch_on()}
 
 
 __all__ = [
+    "ONLINE_ACCESS_OFF",
+    "ONLINE_ACCESS_OFF_DETAIL",
     "PROVIDERS",
     "RECOVERY",
     "add_account",
@@ -616,6 +660,8 @@ __all__ = [
     "list_credential_bindings",
     "list_selections",
     "load_account",
+    "online_access_allowed",
+    "outbound_switch_on",
     "present_account",
     "presented",
     "reconnect_account",

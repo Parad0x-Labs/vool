@@ -30,7 +30,15 @@ from enum import Enum
 from pathlib import Path
 
 from core.updater.download import StagedDownloader
-from core.updater.feed import FeedConfig, automatic_checks_enabled, enable_automatic_checks, load_feed_config
+from core.updater.feed import (
+    ONLINE_ACCESS_OFF,
+    ONLINE_ACCESS_OFF_DETAIL,
+    FeedConfig,
+    automatic_checks_enabled,
+    enable_automatic_checks,
+    load_feed_config,
+    online_access_allowed,
+)
 from core.updater.health import HttpHealthProbe
 from core.updater.macos import ExternalScriptHelper, MacProcessHelper
 from core.updater.migrations import MigrationCatalog
@@ -392,6 +400,9 @@ class UpdateSubsystem:
             "recovery_action": (status.recovery_action if status else ""),
             "notes": "",
             "restart_pending": bool(self._paused_txid),
+            # The outbound switch as the check door reads it: False means no update check can go
+            # online until the user turns "Go online on its own" on.
+            "online_access": online_access_allowed(self.feed),
         }
         offer = self.service.current_offer() if self.service else None
         if offer is not None:
@@ -416,6 +427,15 @@ class UpdateSubsystem:
             payload = self.status_payload()
             payload["check_ok"] = False
             payload["detail"] = payload["unavailable_plain"]
+            return payload
+        if not online_access_allowed(self.feed):
+            # The outbound switch is the master: a pressed Check sends nothing while it is off, and
+            # the answer says why and where to turn it on instead of reading as a failed check.
+            # The press is not recorded as a check choice either, so nothing changes on disk.
+            payload = self.status_payload()
+            payload["check_ok"] = False
+            payload["reason"] = ONLINE_ACCESS_OFF
+            payload["detail"] = ONLINE_ACCESS_OFF_DETAIL
             return payload
         try:
             enable_automatic_checks(feed=self.feed, data_dir=self.data_dir)
