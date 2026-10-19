@@ -13772,8 +13772,8 @@ async function setupLineLoad() {
     if (!r.ok) { line.hidden = true; noModelState = null; noModelLinePaint(); return; }
     const d = await r.json();
     noModelState = (d && d.cloud_default && typeof d.cloud_default === 'object') ? d.cloud_default : null;
-    setupLineWanted = !!(d && d.show_chat_line);
-    const show = setupLineWanted;
+    const show = !!(d && d.show_chat_line);
+    setupLineWanted = show;   // the no-model notice (noModelLinePaint, below) may take this line over
     const text = document.getElementById('setupLineText');
     if (text && d && typeof d.done_count === 'number' && d.done_count > 0) {
       let prog = 'Finish setting up VOOL \u2014 ' + d.done_count + ' of ' + d.total + ' done.';
