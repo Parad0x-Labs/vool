@@ -2775,6 +2775,58 @@ def openai_chat_response(
     return payload
 
 
+def no_answer_chat_response(
+    exc: BaseException, model: str, *, openai_shape: bool
+) -> dict[str, Any]:
+    """The buffered reply for a turn whose answer finalization refused to commit.
+
+    `finalize_answer` refuses a turn whose obligations are still open -- by law an effect whose
+    outcome is unknown keeps its obligation open (`discharge_effect_obligation`), so a turn that
+    dispatched an action and lost its acknowledgement can commit no answer. The streamed lane
+    already ends such a turn with typed NO_ANSWER_TERMINAL truth (`stream_agent_with_events`); the
+    buffered lane let the same refusal escape the request, which ended as a bare HTTP 500 with
+    nothing a client could read. This is the buffered twin of that terminal frame: zero answer
+    bytes, the typed terminal on its own `vool_terminal` key, and never a success claim.
+    """
+    from core.error_surface import safe_error_text
+
+    detail = safe_error_text(exc, prefix="This turn failed before it finished: ")
+    try:
+        terminal = _no_answer_terminal("turn_failed", detail)
+    except Exception:
+        # The durable terminal row can itself be refused (fence or admission guards). The turn has
+        # still produced no answer, so the reply stays typed no-answer truth, unpersisted.
+        from core.finalization import no_answer_terminal
+
+        terminal = no_answer_terminal(turn_id="", reason_code="turn_failed", detail=detail, persist=False)
+    now = datetime.now(timezone.utc)
+    terminal = {**dict(terminal), "ts": terminal.get("ts") or now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
+    if openai_shape:
+        return {
+            "id": f"chatcmpl-{hashlib.sha256(f'{model}:{now.timestamp()}'.encode()).hexdigest()[:12]}",
+            "object": "chat.completion",
+            "created": int(now.timestamp()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": ""},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "vool_terminal": terminal,
+        }
+    return {
+        "model": model,
+        "created_at": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "message": {"role": "assistant", "content": ""},
+        "done": True,
+        "done_reason": "stop",
+        "vool_terminal": terminal,
+    }
+
+
 def _attach_root_cause_status(payload: dict[str, Any], commit: dict[str, Any]) -> None:
     """Rule 8 publication: the compact operator status beside the answer.
 

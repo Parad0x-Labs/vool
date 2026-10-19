@@ -54,6 +54,7 @@ from storage.adaptation_store import (
 from .runtime import (
     RuntimeServices,
     extract_user_message,
+    no_answer_chat_response,
     normalize_chat_history,
     ollama_chat_response,
     ollama_stream_chunks,
@@ -8152,7 +8153,24 @@ def _dispatch_post_inner(
                 logging.getLogger("vool.api").exception(
                     "school post-turn gate failed (session=%s)", session_id
                 )
-        payload = openai_chat_response(result, model, source_context) if normalized_path.startswith("/v1/") else ollama_chat_response(result, model, runtime, source_context)
+        from core.final_response_store import FinalizationRejected
+
+        try:
+            payload = openai_chat_response(result, model, source_context) if normalized_path.startswith("/v1/") else ollama_chat_response(result, model, runtime, source_context)
+        except FinalizationRejected as exc:
+            # The answer could not be committed (an action whose outcome is unknown keeps the
+            # turn's obligations open). Same truth the streamed lane ends with: typed no-answer,
+            # zero answer bytes -- not a bare 500, and never a success claim.
+            logging.getLogger("vool.api").warning(
+                "buffered chat turn ended with no committed answer (session=%s): %s", session_id, exc
+            )
+            return apply_runtime_headers(
+                json_response(
+                    200,
+                    no_answer_chat_response(exc, str(model), openai_shape=normalized_path.startswith("/v1/")),
+                ),
+                runtime,
+            )
         payload = _attach_work_receipt(payload, result=result, session_id=session_id)
         payload = _attach_profile_frame(payload, result=result)
         # R-7 (A-6): buffered lanes mark ATTEMPTED_UNKNOWN before the bytes
