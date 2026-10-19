@@ -39,7 +39,7 @@ jobs:
                   1
                   for dep in dependencies
                   for vuln in dep.get("vulns", [])
-                  if vuln.get("fixes")
+                  if vuln.get("fix_versions")
               )
               print(f"{name}: vulnerabilities={vulns} fixable={fixable}")
           PY
