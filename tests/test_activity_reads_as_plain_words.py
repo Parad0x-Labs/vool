@@ -335,3 +335,66 @@ def test_tool_rows_outside_live_data_keep_their_plain_titles() -> None:
     result = _tree(events)
     assert _titles(result, "edits") == ["Editing"]
     assert _titles(result, "tests") == ["Running tests"]
+
+
+# Failure types the runtime emits from core/ (stepped_audit, agent, orchestration.executor,
+# research_tool_loop_facade), with the messages those emit sites write.
+NAMED_FAILURES = [
+    ("audit_budget_refused", "audit stopped: budget_exhausted"),
+    ("conductor_integrity_failure", "Conductor plan cp-77: requirement accounting is broken"),
+    ("task_envelope_dependency_failed", "child env-12 failed: dependency dep-3 raised"),
+    ("task_envelope_restore_failed", "Restore of envelope env-12 failed: snapshot missing"),
+    ("task_envelope_capacity_blocked", "worker envelope `env-12` is blocked by capacity policy."),
+    ("attempt_claim_refused", "Execution claim refused for attempt attempt-9f: CAS lost. This executor aborts."),
+    ("code_task_refusal_returned", "workspace.write_file: refused. Returning the task's refusal to the model."),
+]
+
+
+def test_named_failures_are_visible_failure_lines_not_behind_the_scenes() -> None:
+    events = [
+        {"seq": i + 1, "event_type": t, "message": m, "client_turn_id": TURN} for i, (t, m) in enumerate(NAMED_FAILURES)
+    ]
+    result = _tree(events)
+    # audit_budget_refused closes a tool call; every other one is a step row in "What VOOL did".
+    assert _titles(result, "background") == []
+    shown = [i for c in result["cats"] for i in c["items"]]
+    assert len(shown) == len(NAMED_FAILURES)
+    titles = [i["title"] for i in shown]
+    assert "Worked on your request" not in titles
+    assert not [t for t in titles if ENGINE_TEXT.search(t)], titles
+    assert "Couldn’t start this attempt" in titles and "That step was refused" in titles
+    # Drawn as failures: the fail class on every one of them.
+    assert result["html"].count('class="xp-item fail"') == len(NAMED_FAILURES), result["html"]
+    for _, message in NAMED_FAILURES:
+        assert message in result["treeText"]
+
+
+def test_an_unknown_failure_fails_closed_to_a_visible_failure_line() -> None:
+    """Unknown type, failure by name or by its own status: visible, failed, calm, raw kept."""
+    events = [
+        {
+            "seq": 1,
+            "event_type": "widget_sync_rejected",
+            "message": "Widget sync rejected: WS_E42",
+            "client_turn_id": TURN,
+        },
+        {
+            "seq": 2,
+            "event_type": "widget_sync",
+            "message": "Widget sync: error E7",
+            "status": "error",
+            "client_turn_id": TURN,
+        },
+        {"seq": 3, "event_type": "widget_probe", "message": "probe p-1 ok=false", "ok": False, "client_turn_id": TURN},
+        {"seq": 4, "event_type": "widget_noted", "message": "noted n-1", "status": "recorded", "client_turn_id": TURN},
+    ]
+    result = _tree(events)
+    assert _titles(result, "runtime") == ["This step didn’t work"] * 3
+    assert _titles(result, "background") == ["Worked on your request"]
+    failed = next(c for c in result["cats"] if c["key"] == "runtime")["items"]
+    for item in failed:
+        assert item["sub"] == "What happened is in the details below."
+    assert result["html"].count('class="xp-item fail"') == 3
+    for raw in ("Widget sync rejected: WS_E42", "Widget sync: error E7", "probe p-1 ok=false"):
+        assert raw in result["treeText"]
+        assert raw not in json.dumps([i["title"] + i["sub"] for i in failed])

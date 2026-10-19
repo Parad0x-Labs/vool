@@ -7114,6 +7114,17 @@ const ACTIVITY_PLAIN_TITLES = {
   semantic_conservation_verdict: ['background', 'conservation', 'Checked nothing was lost from the answer'],
   mode_changed:                  ['background', 'mode_changed', 'Changed how VOOL works in this chat'],
   session_started:               ['background', 'session_started', 'Opened this chat'],
+  // Failures the runtime names by type. A fourth element 'fail' draws the row as a failure; these
+  // are never filed behind the scenes.
+  audit_budget_refused:          ['main', 'audit_refused', 'Stopped checking to stay within the limit', 'fail'],
+  audit_step:                    ['main', 'audit_step', 'Checked a step'],
+  conductor_integrity_failure:   ['main', 'plan_broken', 'The plan didn’t hold together, so it stopped', 'fail'],
+  task_envelope_dependency_failed: ['main', 'dependency_failed', 'A step it depended on didn’t work', 'fail'],
+  task_envelope_restore_failed:  ['main', 'restore_failed', 'Couldn’t restore earlier work', 'fail'],
+  task_envelope_capacity_blocked: ['main', 'capacity_blocked', 'Held back: too much was already running', 'fail'],
+  attempt_claim_refused:         ['main', 'attempt_refused', 'Couldn’t start this attempt', 'fail'],
+  code_task_refusal_returned:    ['main', 'step_refused', 'That step was refused', 'fail'],
+  tool_argument_rejected:        ['main', 'step_args_rejected', 'A step was set up wrong, so it asked again', 'fail'],
 };
 // The model rows name the model when the ledger recorded one (the person chose or sees that name in
 // the header); the provider id, lane and attempt plumbing stay in the details.
@@ -7135,6 +7146,20 @@ const ACTIVITY_PLAIN_LOOKUP_WHAT = {
   fx_quote:          ['fx', 'the exchange rate', 'fx', 'the exchange rate'],
 };
 const ACTIVITY_PLAIN_GENERIC = ['generic', 'Worked on your request'];
+// Fail closed on failures too: an event this table does not know, whose TYPE or own status says it
+// failed, must not read "Worked on your request" behind a collapsed group. It gets a visible
+// failure line with a calm sub-line; the raw text stays in the row's details.
+const ACTIVITY_FAIL_TYPE = /fail|refus|block|denied|deny|reject|error|abort|violation/i;
+const ACTIVITY_FAIL_STATUS = /^(fail|error|refus|denied|deny|reject|block|abort|timeout|timed_out)/i;
+function activityEventLooksFailed(e, t) {
+  if (ACTIVITY_FAIL_TYPE.test(t)) return true;
+  if (!e) return false;
+  if (e.ok === false) return true;
+  for (const field of ['status', 'state', 'lifecycle', 'lifecycle_state', 'result_state', 'outcome']) {
+    if (ACTIVITY_FAIL_STATUS.test(String(e[field] == null ? '' : e[field]).trim())) return true;
+  }
+  return /^(error:|rejected:)/i.test(String(e.result || ''));
+}
 function activityPlainT(id, english, params) {
   return params ? pageTF('activity.plain.' + id, english, params) : pageT('activity.plain.' + id, english);
 }
@@ -7190,8 +7215,9 @@ function activityPlainRow(e, machine, places) {
     const model = String(ledgerModelName(e) || '').trim();
     title = model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
   } else if (ACTIVITY_PLAIN_TITLES[t]) {
-    const [rowTier, id, english] = ACTIVITY_PLAIN_TITLES[t];
+    const [rowTier, id, english, kind] = ACTIVITY_PLAIN_TITLES[t];
     tier = rowTier;
+    if (kind === 'fail') { cls = 'fail'; icon = '✕'; }
     // A live-data plan's retrieval receipt repeats what the lookup's own row already says.
     if (t.indexOf('web_retrieval') === 0 && e.plan_id) tier = 'background';
     if (t === 'web_retrieval_completed' && activityRetrievalAllFailed(e)) {
@@ -7203,6 +7229,9 @@ function activityPlainRow(e, machine, places) {
   } else if (LEDGER_MAP[t] && LEDGER_MAP[t][2]) {
     // Already a plain label (attachments, file-change receipts): the label alone, never ": " + message.
     title = pageT('activity.ledger.' + t, LEDGER_MAP[t][2]);
+  } else if (activityEventLooksFailed(e, t)) {
+    return { cls: 'fail', icon: '✕', title: activityPlainT('step_failed', 'This step didn’t work'),
+      sub: activityPlainT('step_failed_sub', 'What happened is in the details below.'), tier: 'main', machine: row };
   } else {
     tier = 'background';
     title = activityPlainT(ACTIVITY_PLAIN_GENERIC[0], ACTIVITY_PLAIN_GENERIC[1]);
@@ -7375,7 +7404,10 @@ function priceReviewTargetForEvent(e) {
   return { provider: 'usepod', id: model, label: model };
 }
 function activityItemHtml(item, openState) {
-  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : 'run';
+  // A tool call's state comes from its pairing; a step row (no pairing) is drawn the way its own
+  // display says, so a failure there shows in the failure colour rather than as ordinary progress.
+  const stepCls = item.display && (item.display.cls === 'ok' || item.display.cls === 'fail') ? item.display.cls : 'run';
+  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : (item.status ? 'run' : stepCls);
   const icon = item.display ? item.display.icon : '•';
   const title = item.display ? item.display.title : (item.tool || 'Action');
   const sub = item.display ? item.display.sub : '';
