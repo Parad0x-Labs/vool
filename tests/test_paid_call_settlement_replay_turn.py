@@ -62,3 +62,27 @@ def test_a_paid_turn_whose_receipt_fails_is_charged_once(anthropic_lane, posts, 
     assert rows[0]["actual_usd"] > 0
     assert rows[0]["reserved_usd"] == 0
 
+
+
+def test_a_paid_turn_settled_twice_by_its_caller_is_charged_once(anthropic_lane, posts, monkeypatch) -> None:
+    """The router names the physical response it settles, so a replayed settlement books nothing."""
+    from core import memory_first_router
+
+    real_settle = memory_first_router.settle_owner_pick_paid_call
+    seen: list[str] = []
+
+    def _settle_twice(authorization, **kwargs):
+        seen.append(kwargs.get("invocation_id", ""))
+        real_settle(authorization, **kwargs)
+        real_settle(authorization, **kwargs)
+
+    monkeypatch.setattr(memory_first_router, "settle_owner_pick_paid_call", _settle_twice)
+    decision = _owner_turn(anthropic_lane, posts)
+
+    assert decision.used_model and len(posts.urls) == 1
+    assert len(seen) == 1 and seen[0].startswith("response-")
+    rows = _rows()
+    assert [row["status"] for row in rows] == ["settled"], rows
+    from core.paid_call_reservation import unverified_paid_charges
+
+    assert unverified_paid_charges() == []

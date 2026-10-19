@@ -4199,6 +4199,7 @@ class MemoryFirstRouter:
                     actual_usd=_response_actual_usd(manifest, response),
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
+                    invocation_id=response_id,
                 )
             from core.bootstrap_context import finalize_request_evidence
 
