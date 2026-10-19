@@ -130,9 +130,77 @@ _PROPOSE_EVENT_RE = re.compile(
 _RENAME_EVENT_RE = re.compile(
     r"\b(?:rename|retitle)\b[^\n!?.]*\b(?:event|meeting|calendar|it)\b|\bchange\s+the\s+title\s+of\b", re.IGNORECASE
 )
-_SAVE_NOTE_RE = re.compile(
-    r"\b(?:save|write|store|create|jot|take)\b[^\n!?.]*\bnote\b|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that)\s+down\b", re.IGNORECASE
+# Saving a note. "save"/"store" always ask the notes tool. The recording verbs ask it too, except when
+# the note is a piece of writing FOR someone: "write me a short note to my neighbour about the fence" asks
+# the model to write words, and was answered with the notes tool's ask-back (UX finding J-03, measured
+# 2026-10-19 on 153148eb). "write" alone composes; it saves only with a storing cue (write down, titled,
+# "with:", "note:", into my notes, note to self).
+_STORE_NOTE_RE = re.compile(
+    r"\b(?:save|store)\b[^\n!?.]*\bnote\b(?!-)|\bsave\s+meeting\s+notes\b|\bnote\s+(?:this|that|it)\s+down\b", re.IGNORECASE
 )
+_RECORD_NOTE_RE = re.compile(
+    r"\b(?P<verb>write|create|jot|take|make)\b(?P<between>[^\n!?.]*?)\bnote\b(?!-)(?P<after>[^\n!?.]*)", re.IGNORECASE
+)
+# A note addressed to someone ("to my neighbour", "for my son's teacher"); places the notes tool writes to
+# and "to self" are not someone.
+_NOTE_ADDRESSEE_RE = re.compile(
+    r"^\s*(?:to|for)\s+(?!(?:my|the)\s+(?:own\s+)?(?:notes?|notes\s+app|notebook|workspace|desktop|documents|downloads|folder|files?)\b"
+    r"|apple\s+notes\b|self\b|myself\b|later\b|future\s+reference\b)\S",
+    re.IGNORECASE,
+)
+# "write me a note", "write my mum a little note": the person the words are for comes right after the verb.
+_NOTE_RECIPIENT_FIRST_RE = re.compile(r"^\s*(?:me|him|her|them|us|my\s+\w+|our\s+\w+)\s+(?:a|an|the|some)\b", re.IGNORECASE)
+# Notes that are writing by their kind, or by what they do ("a note thanking the nurse").
+_COMPOSED_NOTE_KIND_RE = re.compile(
+    r"\b(?:thank[\s-]*you|thanks|sympathy|condolences?|farewell|goodbye|love|apology|get[\s-]*well|birthday|welcome"
+    r"|congratulations?|congrats|cover|excuse|permission|sick|apologetic|friendly|polite|kind|sweet|heartfelt|formal|cute)\s*$",
+    re.IGNORECASE,
+)
+_COMPOSED_NOTE_PURPOSE_RE = re.compile(
+    r"^\s*(?:thanking|congratulating|welcoming|apologi[sz]ing|asking|inviting|telling|explaining|reminding|wishing"
+    r"|introducing|excusing|requesting|letting|informing|saying\s+(?:sorry|thanks|thank\s+you|goodbye))\b",
+    re.IGNORECASE,
+)
+# What makes "write a note" a request to keep one, not to compose one.
+_WRITE_NOTE_STORE_CUE_RE = re.compile(
+    r"^\s*(?:down|it\s+down|this\s+down|that\s+down)\b"  # write down a note / write it down as a note
+    r"|\b(?:titled|called|named)\b|\bwith\s*:|^\s*:|^\s*to\s+(?:my)?self\b"
+    r"|\b(?:in|to|into|inside|on)\s+(?:my|the)\s+(?:own\s+)?(?:notes|notes\s+app|notebook|workspace)\b|\bapple\s+notes\b",
+    re.IGNORECASE,
+)
+
+
+class _NoteSaveRecognizer:
+    """`search(text)` like a compiled pattern: a match when the text asks to keep a note.
+
+    One recognizer for the parser and for composed-request co-presence (`core.local_operator_actions`), so a
+    note written for someone is never a save part of a composed request either."""
+
+    @staticmethod
+    def search(text: str) -> re.Match[str] | None:
+        text = str(text or "")
+        stored = _STORE_NOTE_RE.search(text)
+        if stored:
+            return stored
+        for match in _RECORD_NOTE_RE.finditer(text):
+            verb = match.group("verb").lower()
+            between, after = match.group("between"), match.group("after")
+            if verb == "make" and not re.fullmatch(r"\s*(?:an?\s+)?(?:quick\s+|short\s+|new\s+)?", between, re.IGNORECASE):
+                continue  # only "make a note" itself: "make a title for a QA note" is writing
+            if verb == "take" and re.match(r"^\s*of\b", after, re.IGNORECASE) and not between.strip():
+                continue  # "take note of how long it takes": pay attention, not a note
+            if verb != "jot" and (
+                _NOTE_ADDRESSEE_RE.match(after) or _NOTE_RECIPIENT_FIRST_RE.match(between)
+                or _COMPOSED_NOTE_KIND_RE.search(between) or _COMPOSED_NOTE_PURPOSE_RE.match(after)
+            ):
+                continue
+            if verb == "write" and not (_WRITE_NOTE_STORE_CUE_RE.search(between) or _WRITE_NOTE_STORE_CUE_RE.search(after)):
+                continue
+            return match
+        return None
+
+
+_SAVE_NOTE_RE = _NoteSaveRecognizer()
 _FIND_NOTES_RE = re.compile(
     r"\b(?:find|search|look\s+(?:up|for)|list|show)\b[^\n!?.]*\bnotes?\b", re.IGNORECASE
 )

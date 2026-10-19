@@ -374,6 +374,16 @@ def parse_note_request(text: str) -> dict[str, Any]:
         body = unlabeled.group(1).strip()
     elif quoted and len(quoted) >= 2:
         body = quoted[1].strip()
+    else:
+        # The plain ways people say what a note holds: "save a note saying buy milk", "take a note: the boiler
+        # is due", "note to self: call the bank", "write down a note that the key is under the mat".
+        plain = (
+            re.search(r"\b(?:saying|that\s+says|which\s+says)\s*:?\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\b(?:note|down)\b[^:\n\"“]{0,40}:\s*(.+)$", raw, re.IGNORECASE | re.DOTALL)
+            or re.search(r"\bnote\s+that\s+(.+)$", raw, re.IGNORECASE | re.DOTALL)
+        )
+        if plain:
+            body = plain.group(1).strip()
     wants_schedule = bool(re.search(r"\b(?:and\s+)?(?:schedule|add\s+it\s+to\s+(?:the\s+)?calendar|put\s+it\s+on\s+(?:the\s+)?calendar|book\s+it)\b", raw, re.IGNORECASE))
     return {"title": title, "body": body, "wants_schedule": wants_schedule}
 
@@ -400,7 +410,7 @@ def handle_save_note(
         return OperatorActionResult(
             ok=False,
             status="invalid_request",
-            response_text='I can save a note, but I need its content. Use a form like: save a note titled "Agenda" with: packaging and release checks.',
+            response_text="Happy to save a note, I just need its content. What should it say? You can tell me in one go, like: save a note that says call the plumber on Monday.",
             details={},
         )
     from core.operator.apple_notes import parse_notes_destination

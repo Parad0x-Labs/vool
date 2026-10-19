@@ -196,20 +196,25 @@ body.vn-motion-reduced .task-card .tc-stage { transition: none !important; }
 # ------------------------------------------------------------------- sprite data
 
 # ------------------------------------------------------- phrase library + reducer
-_VN_LIBRARY_JS = r"""// Typed phrase library (demo-companion-vooling-ux pass-001 doc 03 §4, verbatim).
+_VN_LIBRARY_JS = r"""// Typed phrase library (from demo-companion-vooling-ux pass-001 doc 03 §4; the every-turn buckets reworded plain).
 // Every rotating phrase belongs to exactly ONE activity category; every rotating text
 // ends with an ellipsis. Fixed-state copy lives in VN_FIXED and never rotates.
 const VN_LIBRARY = {
+  // UNDERSTANDING, PLANNING, ROUTING_PROVENANCE, MODEL_GENERATION, FINALIZING, WAITING_QUEUED, RETRYING
+  // and the generic RUNNING_TOOLS bucket narrate EVERY turn, plain chat included, so their words are
+  // plain and claim no specific work (UX finding J-03: a chat about a fence note read "Reading the
+  // brief…" and "Running the build…"). Work-specific words live only in the buckets a matching
+  // tool name selects.
   UNDERSTANDING: [
-    ["vooling", "Vooling…"], ["burrowing_context", "Burrowing into context…"],
-    ["untangling_task", "Untangling the task…"], ["reading_brief", "Reading the brief…"],
-    ["scanning_conversation", "Scanning the conversation…"], ["loading_prior_context", "Loading prior context…"],
-    ["getting_oriented", "Getting oriented…"], ["sizing_request", "Sizing up the request…"],
-    ["finding_thread", "Finding the thread…"], ["checking_ground", "Checking the ground…"]],
+    ["thinking", "Thinking…"], ["reading_message", "Reading your message…"],
+    ["thinking_it_over", "Thinking it over…"], ["getting_gist", "Getting the gist…"],
+    ["understanding_ask", "Working out what you need…"], ["taking_it_in", "Taking it in…"],
+    ["reading_it_through", "Reading it through…"], ["picking_up_meaning", "Picking up what you mean…"],
+    ["considering_question", "Considering your question…"], ["getting_bearings", "Getting my bearings…"]],
   PLANNING: [
-    ["mapping_work", "Mapping the work…"], ["laying_steps", "Laying out the steps…"],
-    ["sequencing_moves", "Sequencing the moves…"], ["drawing_route", "Drawing the route…"],
-    ["breaking_down", "Breaking down the task…"], ["choosing_lane", "Choosing the lane…"]],
+    ["thinking_through", "Thinking it through…"], ["working_out_steps", "Working out the steps…"],
+    ["planning_it_out", "Planning it out…"], ["deciding_start", "Deciding where to start…"],
+    ["putting_in_order", "Putting things in order…"], ["sketching_plan", "Sketching a plan…"]],
   WEB_RESEARCH: [
     ["searching_web", "Searching the web…"], ["running_across_web", "Running across the web…"],
     ["gathering_sources", "Gathering sources…"], ["following_references", "Following references…"],
@@ -226,11 +231,11 @@ const VN_LIBRARY = {
     ["patching_work", "Patching the work…"], ["shaping_artifacts", "Shaping the artifacts…"],
     ["laying_down_changes", "Laying down changes…"]],
   RUNNING_TOOLS: [
-    ["calling_required_tools", "Calling the required tools…"], ["gathering_tool_results", "Gathering tool results…"],
-    ["waiting_on_execution", "Waiting on execution…"], ["reconciling_tool_output", "Reconciling tool output…"],
-    ["following_process_tree", "Following the process tree…"], ["checking_runtime_health", "Checking runtime health…"],
-    ["inspecting_active_processes", "Inspecting active processes…"], ["tracing_execution_paths", "Tracing execution paths…"],
-    ["running_the_build", "Running the build…"], ["watching_process_land", "Watching the process run end-to-end…"]],
+    ["working_on_it", "Working on it…"], ["waiting_for_result", "Waiting for the result…"],
+    ["gathering_results", "Gathering the results…"], ["checking_result", "Checking the result…"],
+    ["getting_it_done", "Getting that done…"], ["on_it", "On it…"],
+    ["doing_the_work", "Doing the work…"], ["handling_now", "Handling that now…"],
+    ["fetching_needed", "Fetching what's needed…"], ["step_nearly_done", "Nearly there with this step…"]],
   TESTING_CI: [
     ["sweeping_test_suite", "Sweeping the test suite…"], ["sweeping_ci_workflows", "Sweeping CI workflows…"],
     ["checking_shell_gates", "Checking shell gates…"], ["replaying_failing_tests", "Replaying failing tests…"],
@@ -252,30 +257,37 @@ const VN_LIBRARY = {
     ["looking_stale_state", "Looking for stale state…"], ["replaying_failure_path", "Replaying the failure path…"],
     ["checking_served_boundary", "Checking the served boundary…"], ["testing_real_route", "Testing the real route…"]],
   ROUTING_PROVENANCE: [
-    ["routing_between_lanes", "Routing between lanes…"], ["following_model_provenance", "Following model provenance…"],
-    ["inspecting_provider_state", "Inspecting provider state…"], ["mapping_authority_path", "Mapping the authority path…"],
-    ["comparing_candidate_models", "Comparing candidate models…"], ["checking_locality", "Checking what stayed local…"]],
+    ["getting_ready", "Getting ready to answer…"], ["finding_best_way", "Finding the best way to answer…"],
+    ["choosing_how", "Choosing how to answer…"], ["getting_set_up", "Getting set up…"],
+    ["lining_up", "Lining things up…"], ["getting_everything_ready", "Getting everything ready…"]],
   SYNTHESIZING: [
     ["threading_findings", "Threading the findings…"], ["condensing_evidence", "Condensing the evidence…"],
     ["connecting_evidence", "Connecting the evidence…"], ["connecting_dots", "Connecting the dots…"],
     ["weaving_together", "Weaving it together…"], ["working_pieces", "Working through the pieces…"],
     ["drawing_throughline", "Drawing the through-line…"], ["distilling_matters", "Distilling what matters…"]],
   FINALIZING: [
-    ["assembling_answer", "Assembling the answer…"], ["assembling_result", "Assembling the result…"],
-    ["final_touches", "Applying final touches…"], ["preparing_final_output", "Preparing final output…"],
-    ["polishing", "Polishing…"], ["finalizing", "Finalizing…"], ["unfurling", "Unfurling…"]],
+    ["finishing_up", "Finishing up…"], ["almost_done", "Almost done…"],
+    ["final_touches", "Adding the final touches…"], ["tidying_answer", "Tidying up the answer…"],
+    ["wrapping_up", "Wrapping up…"], ["putting_together", "Putting it together…"],
+    ["just_about_ready", "Just about ready…"]],
   MODEL_GENERATION: [
-    ["drafting_reply", "Drafting the reply…"], ["composing_text", "Composing…"],
-    ["arriving_wording", "Arriving at the wording…"], ["pulling_threads_sentences", "Pulling threads into sentences…"],
-    ["saying_plainly", "Saying it plainly…"]],
+    ["writing", "Writing…"], ["writing_reply", "Writing the reply…"],
+    ["finding_words", "Finding the words…"], ["putting_into_words", "Putting it into words…"],
+    ["drafting_reply", "Drafting the reply…"]],
   WAITING_QUEUED: [
-    ["holding_position", "Holding position…"], ["queued_behind_work", "Queued behind current work…"],
-    ["standing_by", "Standing by…"], ["warming_up", "Warming up…"]],
+    ["waiting_turn", "Waiting my turn…"], ["standing_by", "Standing by…"],
+    ["getting_ready_again", "Getting ready…"], ["waiting_last_task", "Waiting for the last task to finish…"]],
   RETRYING: [
-    ["retrying_attempt", "Retrying the attempt…"], ["backing_off", "Backing off briefly…"],
-    ["another_angle", "Taking another angle…"], ["recovering_stumble", "Recovering from a stumble…"],
-    ["rerouting_failure", "Re-routing around the failure…"]],
+    ["trying_again", "Trying again…"], ["another_way", "Trying another way…"],
+    ["short_pause", "Taking a short pause, then trying again…"], ["another_go", "Giving it another go…"],
+    ["picking_up_again", "Picking up where I left off…"]],
 };
+// Words that name ONE kind of work: shown only while a tool of that kind is the turn's tool
+// (`view.lastTool`), never picked by rotation for an unrelated tool or a plain chat.
+const VN_TOOL_PHRASES = [
+  [["build", "compile"], ["running_the_build", "Running the build…"]],
+  [["process"], ["inspecting_active_processes", "Inspecting running programs…"]],
+];
 
 // Fixed-state copy: terminal/attention states never rotate and never sound cute.
 const VN_FIXED = {
@@ -550,10 +562,20 @@ function vnResolve(view) {
     r.state = "START"; r.category = "UNDERSTANDING"; r.tone = "start"; r.stage = "START";
   }
   if (r.category) {
-    const phrase = vnPhraseFor(view, r.category);
+    const phrase = vnToolPhrase(view, r.category) || vnPhraseFor(view, r.category);
     r.phraseId = phrase[0]; r.phraseText = phrase[1];
   }
   return r;
+}
+function vnToolPhrase(view, category) {
+  if (category !== "RUNNING_TOOLS") return null;
+  const tool = String(view.activeTool || view.lastTool || "").toLowerCase();
+  if (!tool) return null;
+  for (let i = 0; i < VN_TOOL_PHRASES.length; i++) {
+    const needles = VN_TOOL_PHRASES[i][0];
+    for (let j = 0; j < needles.length; j++) if (tool.indexOf(needles[j]) !== -1) return VN_TOOL_PHRASES[i][1];
+  }
+  return null;
 }
 // Deterministic phrase selection: the fingerprint is the category plus the seq (or the
 // arrival counter for seq-less producers). Same evidence -> same phrase; new evidence
