@@ -30,7 +30,7 @@ class TimeAuthority:
 
     Every new temporal primitive must bind through this class rather than calling
     ``datetime.now(...)`` directly. Existing call sites are grandfathered but
-    tracked in ``remaining-direct-clock-callers.tsv``.
+    tracked in ``docs/remaining-direct-clock-callers.tsv``.
     """
 
     #: The Python stdlib zoneinfo provider this authority delegates to.
