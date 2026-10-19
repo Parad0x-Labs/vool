@@ -2072,11 +2072,13 @@ class VoolAgent(
                 semantic_source=SemanticSource.FAST_PATH,
                 route_id="empty_turn_fast_path",
             )
-        runtime_source_context["runtime_session_id"] = session_id
         # Retained inline text is supplied material. Its example commands must not become
         # independent planner tasks; answer it with its document in one reasoning context.
         inline_document_turn = False
         if not private_turn and not forget_turn:
+            # Only a turn that may use the chat's documents gets its runtime session id here; private
+            # and forget turns keep the context their caller sent, as before the document change.
+            runtime_source_context["runtime_session_id"] = session_id
             from core import chat_attachments as _inline_documents
 
             _inline_origin = str(
