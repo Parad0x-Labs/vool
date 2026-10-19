@@ -206,7 +206,7 @@ const VN_LIBRARY = {
   // brief…" and "Running the build…"). Work-specific words live only in the buckets a matching
   // tool name selects.
   UNDERSTANDING: [
-    ["thinking", "Thinking…"], ["reading_message", "Reading your message…"],
+    ["thinking", "Giving it some thought…"], ["reading_message", "Reading your message…"],
     ["thinking_it_over", "Thinking it over…"], ["getting_gist", "Getting the gist…"],
     ["understanding_ask", "Working out what you need…"], ["taking_it_in", "Taking it in…"],
     ["reading_it_through", "Reading it through…"], ["picking_up_meaning", "Picking up what you mean…"],
