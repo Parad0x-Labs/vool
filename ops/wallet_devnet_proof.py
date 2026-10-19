@@ -9,8 +9,13 @@ What is recorded: network, public transaction signature, explorer URL, status, t
 the amount, and the timings. What is never recorded: the recovery phrase, the PIN, the sealed
 key. The ephemeral home (the only place the sealed key ever lived) is deleted at the end,
 funded or not. When the faucet refuses (rate limit, dry), the record says BLOCKED with the
-exact faucet error and nothing else is claimed. Mainnet is impossible by construction
-(core.wallet.config.ALLOWED_NETWORKS has no mainnet entry).
+exact faucet error and nothing else is claimed.
+
+The product wallet supports Mainnet; this proof deliberately does not use it. The script pins the
+run to the Test networks environment (VOOL_WALLET_NETWORK_ENVIRONMENT=testnet), points the testnet
+RPC at the public Solana devnet endpoint, sends its own faucet and status calls only to that
+endpoint, and pays from a freshly generated wallet that holds nothing but faucet devnet SOL. The
+recorded ``mainnet_possible: false`` describes this run, not the build.
 """
 from __future__ import annotations
 
