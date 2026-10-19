@@ -164,9 +164,10 @@ def settle_spend(
     the same transaction as the money, so settling that response again returns the row unchanged
     (``replayed``) instead of charging it twice, across restarts and concurrent callers.
 
-    ``add_to_ambiguous`` adds ``actual_usd`` to the charges already known on a row whose earlier
-    attempt left its outcome unknown; the sum is taken inside the transaction, so two settlements
-    racing on that row cannot lose one of the charges.
+    ``add_to_ambiguous`` settles against the row as it stands inside the transaction: on a row whose
+    earlier attempt left its outcome unknown, ``actual_usd`` is added to the charges already known
+    and the hold is kept, so a settlement racing a failed attempt can neither lose a charge nor
+    clear the hold.
     """
     _init_table()
     actual = None if actual_usd is None else round(max(0.0, float(actual_usd)), 8)
@@ -185,10 +186,14 @@ def settle_spend(
             raise KeyError(model_call_id)
         if row["status"] not in {"reserved", "billing_ambiguous"}:
             raise ValueError("reservation_already_finalized")
+        if add_to_ambiguous and row["status"] == "billing_ambiguous":
+            # Decided here, inside the transaction: the row's unknown attempt stays held and its
+            # known charges stay counted, whatever the caller read before.
+            billing_ambiguous = True
+            if actual is not None:
+                actual = round(actual + float(row["actual_usd"]), 8)
         if actual is None:
             actual = float(row["actual_usd"])
-        elif add_to_ambiguous and row["status"] == "billing_ambiguous":
-            actual = round(actual + float(row["actual_usd"]), 8)
         # Unknown billing remains a liability, not a zero-dollar settlement. Only
         # explicit reconciliation may clear this hold with a known total.
         held = float(row["reserved_usd"]) if billing_ambiguous else 0.0

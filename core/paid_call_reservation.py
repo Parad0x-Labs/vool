@@ -466,7 +466,9 @@ def settle_owner_pick_paid_call(
         before = get_spend_reservation(model_call_id)
         ambiguous = before is not None and before.status == "billing_ambiguous"
         options: dict[str, Any] = {"billing_ambiguous": ambiguous}
-        if ambiguous:
+        if ambiguous or invocation:
+            # The ledger re-reads the row inside its transaction: an earlier attempt that turned
+            # the row ambiguous after the read above keeps its hold and its known charges.
             options["add_to_ambiguous"] = True
         if invocation:
             options["invocation_id"] = invocation
@@ -528,7 +530,12 @@ def _post_supplemental_charge(
         task_id = str(getattr(capsule, "task_id", "") or "") or "unknown_task"
         hold = 0.0
         if usd is None:
-            hold = float(spend_limits().per_call_usd)
+            # The call's own approved ceiling, as reserved (the ledger row zeroes it on settlement),
+            # and never less than the per-call floor.
+            reservation = getattr(authorization, "reservation", None)
+            ceiling = getattr(reservation, "reserved_usd", 0.0)
+            ceiling = float(ceiling) if isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) else 0.0
+            hold = max(ceiling, float(spend_limits().per_call_usd))
         row = record_supplemental_charge(
             model_call_id,
             invocation_id=invocation_id,

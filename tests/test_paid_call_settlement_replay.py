@@ -263,3 +263,42 @@ def test_a_held_unknown_charge_blocks_the_next_reservation_like_any_other(monkey
     # Three cents charged and three call ceilings held: the task cannot fit another full call.
     with pytest.raises(PermissionError, match="per_task_spend_cap_exceeded"):
         _reserve("call-blocked")
+
+
+def test_an_unknown_outcome_on_a_closed_reservation_holds_the_calls_own_ceiling(monkeypatch):
+    """A large call reserved well above the per-call floor: its unknown second response holds that ceiling."""
+    big = SpendLimits(per_call_usd=10.0, per_task_usd=100.0, daily_usd=100.0, monthly_usd=100.0)
+    reservation = reserve_spend(
+        model_call_id="call-large",
+        task_id="task-large",
+        subtask_id="owner_explicit_model_pick",
+        model_id="claude-sonnet-4-5",
+        maximum_usd=7.05,
+        limits=big,
+    )
+    monkeypatch.setattr(pcr, "spend_limits", lambda: LIMITS)  # today's floor is $0.25
+    auth = SimpleNamespace(
+        model_call_id="call-large",
+        reservation=reservation,
+        escalation=SimpleNamespace(model_id="claude-sonnet-4-5", capsule=SimpleNamespace(task_id="task-large")),
+    )
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=0.90, invocation_id="response-a")
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=None, invocation_id="response-b")
+    assert _charged() == pytest.approx(0.90)
+    assert _held() == pytest.approx(7.05)
+
+
+def test_a_settlement_that_read_a_stale_status_keeps_a_concurrent_unknown_attempt_held(monkeypatch):
+    """The failed attempt turned the row ambiguous after the settlement read it as reserved."""
+    from core import model_spend_ledger
+
+    auth = _reserve("call-stale")
+    pcr.release_owner_pick_paid_call(auth, reason="call_failed")
+    stale = SimpleNamespace(status="reserved", actual_usd=0.0)
+    monkeypatch.setattr(model_spend_ledger, "get_spend_reservation", lambda _call_id: stale)
+    pcr.settle_owner_pick_paid_call(auth, actual_usd=CENT, invocation_id="response-b")
+    monkeypatch.undo()
+    row = get_spend_reservation("call-stale")
+    assert row.status == "billing_ambiguous"
+    assert row.reserved_usd == pytest.approx(0.25), "the unknown attempt's hold is not cleared"
+    assert row.actual_usd == pytest.approx(CENT)
