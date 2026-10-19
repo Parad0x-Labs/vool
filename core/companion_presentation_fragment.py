@@ -61,7 +61,9 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
 #companionLayer .vool-ninja.dragging .vn-hit { cursor: grabbing; }
 #companionLayer .vool-ninja:focus { outline: none; }
 #companionLayer .vn-caption:empty, #companionLayer .vn-menu:empty { display: none; }
-#companionLayer .vool-ninja:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); outline-offset: 2px; }
+/* Focus rings use the page accent, which each theme sets to read clearly on its own background;
+   the pet's status tone is a pale grey that all but vanished on Light. */
+#companionLayer .vool-ninja:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); outline-offset: 2px; }
 #companionLayer .vool-ninja.dragging { cursor: grabbing; opacity: .92; }
 #companionLayer .vool-ninja.over-critical { opacity: .6; }
 /* P2 layout law: the canvas owns a FIXED basis and the caption owns its own row beneath it.
@@ -120,7 +122,7 @@ body.vn-motion-reduced #companionLayer .vn-caption{transition:none}
   background: var(--panel, #14181f); color: var(--ink, #e6ebf2); border: 1px solid var(--border, #2a3140);
   border-radius: 8px; font-size: 11px; padding: 4px 8px; cursor: pointer;
 }
-#companionLayer .vn-restore:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); }
+#companionLayer .vn-restore:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); }
 #companionLayer .vn-restore .vn-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
   background: var(--vn-tone, #94a3b8); margin-right: 5px; vertical-align: 1px; }
 body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important; }
@@ -149,7 +151,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-ninja-menu button { display: block; width: 100%; text-align: left; background: none; border: none;
   color: inherit; padding: 6px 9px; border-radius: 7px; cursor: pointer; font-size: 12px; }
 .vool-ninja-menu button:hover { background: rgba(255,255,255,.06); }
-.vool-ninja-menu button:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); }
+.vool-ninja-menu button:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); }
 .vool-character-lab {
   position: fixed; inset: 0; z-index: 47; display: none; align-items: flex-start; justify-content: center;
   pointer-events: auto; background: rgba(5,7,10,.68); padding: min(11vh, 84px) 16px 24px;
@@ -176,7 +178,7 @@ body.vn-motion-reduced #companionLayer .vool-ninja { transition: none !important
 .vool-character-lab .vn-pack-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 6px; }
 .vool-character-lab .vn-pack-card { border: 1px solid var(--border,#39393f); border-radius: 8px; background: var(--field,#232326); color: inherit; padding: 7px; cursor: pointer; font-size: 10px; }
 .vool-character-lab .vn-pack-card.selected { border-color: var(--accent,#c3b8a8); color: var(--accent,#c3b8a8); }
-.vool-character-lab button:focus-visible { outline: 2px solid var(--vn-tone, #94a3b8); outline-offset: 2px; }
+.vool-character-lab button:focus-visible { outline: 2px solid var(--accent, var(--vn-tone, #94a3b8)); outline-offset: 2px; }
 @media (max-width: 520px) {
   .vool-character-lab .vn-lab-grid { grid-template-columns: 1fr; }
   .vool-character-lab .vn-character-card { display: grid; grid-template-columns: 80px 1fr; align-items: center; }
