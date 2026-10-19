@@ -310,6 +310,13 @@ def _client_conversation_history(
         if role == "assistant" and assistant_text_is_runtime_failure_notice(raw_content):
             normalized.append(failed_exchange_marker())
             continue
+        # A stopped turn's marker is status, not a reply: the exchange is closed, and the model
+        # never reads the page's "(stopped showing this answer)" as its own words.
+        from core.persistent_memory import _is_stopped_marker
+
+        if role == "assistant" and _is_stopped_marker(raw_content):
+            normalized.append(closed_exchange_marker())
+            continue
         # A9/RC-8: the erasure availability gate applies to EVERY transcript item
         # regardless of which carrier key delivered it (`client_conversation_history`
         # or `conversation_history`). A WITHHELD/ERASED payload surviving only in a
