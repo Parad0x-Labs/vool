@@ -15,6 +15,7 @@ import ipaddress
 import json
 import shutil
 import socket
+import tempfile
 import threading
 import time
 import uuid
@@ -40,6 +41,15 @@ _SESSIONS: dict[tuple[str, str], LiveSession] = {}
 
 class BrowserFault(ValueError):
     pass
+
+
+def _exited(process: Any) -> bool:
+    import psutil
+
+    try:
+        return process.status() == psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return True
 
 
 def _root() -> Path:
@@ -301,6 +311,9 @@ class LiveSession:
         self._execution_task = None
         self.cleanup_metrics = {}
         self._owned_processes: dict[int, float] = {}
+        # Chromium's own scratch directory (Unix sockets, temp files); created at
+        # launch, removed with the profile.
+        self._engine_tmp: Path | None = None
         self._driver_pid = 0
         self._download: tuple[str, bytes] | None = None
         self._proxy_server = None
@@ -423,6 +436,13 @@ class LiveSession:
         flags = [a for a in isolation_launch_flags(profile_dir=str(self.profile)) if not a.startswith("--user-data-dir=")]
         import os
 
+        # Chromium puts its Unix sockets under TMPDIR. A socket path is limited to
+        # about 100 bytes, and the profile path under the VOOL data directory can
+        # already be that long, so on Linux the engine died at launch (SIGTRAP) and
+        # every page answered page_failed. A short private directory of its own,
+        # owner-only and removed with the profile, keeps the sockets valid.
+        if self._engine_tmp is None:
+            self._engine_tmp = Path(tempfile.mkdtemp(prefix="vool-lb-"))
         self._proxy_server = await asyncio.start_server(self._deny_engine_network, '127.0.0.1', 0)
         proxy_port = self._proxy_server.sockets[0].getsockname()[1]
         # Only the approved Python gateway can reach a site. Chromium's background
@@ -432,7 +452,7 @@ class LiveSession:
             user_data_dir=str(self.profile), executable_path=binary, headless=True,
             args=flags, timeout=10000, chromium_sandbox=True,
             proxy={'server':f'http://127.0.0.1:{proxy_port}', 'bypass':'<-loopback>'},
-            downloads_path=str(self.profile / "downloads"), env={**os.environ, "TMPDIR": str(self.profile)},
+            downloads_path=str(self.profile / "downloads"), env={**os.environ, "TMPDIR": str(self._engine_tmp)},
             java_script_enabled=False, service_workers="block", accept_downloads=False,
             permissions=[], viewport={"width": 1100, "height": 720},
         )
@@ -873,6 +893,10 @@ class LiveSession:
             self._routes.clear()
             if self.profile.exists() or self.profile.is_symlink():
                 shutil.rmtree(self.profile)
+            if self._engine_tmp is not None:
+                if self._engine_tmp.exists() or self._engine_tmp.is_symlink():
+                    shutil.rmtree(self._engine_tmp)
+                self._engine_tmp = None
         except Exception as exc:
             self.cleanup_metrics["failure"] = type(exc).__name__
             self.state = "cleanup_failed"
@@ -910,6 +934,11 @@ class LiveSession:
                 if process.create_time() == self._owned_processes.get(process.pid):
                     process.kill()
         _, alive = psutil.wait_procs(alive, timeout=1)
+        # A killed engine child whose parent died first is reparented to PID 1. Where
+        # PID 1 does not reap (a container's own entry process), it stays a zombie: it
+        # has exited and holds nothing but its table entry, so it is stopped. Any
+        # process still running keeps the failure.
+        alive = [process for process in alive if not _exited(process)]
         if alive:
             raise BrowserFault("cleanup_failed")
 
