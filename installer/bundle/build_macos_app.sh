@@ -818,6 +818,10 @@ cat >"${APP}/Contents/Info.plist" <<PLIST
   <string>VOOL reads the calendars you choose in Settings to show your agenda and remind you of events. It adds or changes an event only after you approve it.</string>
   <key>NSContactsUsageDescription</key>
   <string>VOOL reads your contacts only when you import them, and shows you the list before anything is saved.</string>
+  <!-- Apple Notes (core/operator/apple_notes.py) runs through osascript, which macOS attributes to this app: the
+       Automation prompt for Notes shows this text, and without it the request is refused. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>VOOL works with Apple Notes only when you ask it to save, find or change a note.</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

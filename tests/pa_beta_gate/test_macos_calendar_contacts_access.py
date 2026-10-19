@@ -1,4 +1,4 @@
-"""pa_beta_gate -- Apple Calendar and Apple Contacts in the packaged Mac app.
+"""pa_beta_gate -- Apple Calendar, Apple Contacts, Apple Notes and the microphone in the packaged Mac app.
 
 The packaged app could never reach either: Info.plist carried no Calendars or Contacts purpose string, the
 bundle shipped neither pyobjc binding, the signed build's entitlements did not allow either resource, and VOOL
@@ -10,7 +10,7 @@ Privacy & Security.
 * Denied, restricted and write-only answers are typed refusals that name the System Settings pane; macOS shows
   its prompt only once, so none of them prompts again.
 * The bundle declares the purpose strings, ships both bindings from the lock and carries the hardened-runtime
-  entitlements the signed build needs.
+  entitlements the signed build needs, for the microphone and Apple Notes (Apple Events) too.
 
 LABELLED: the EventKit binding here is a double of pyobjc's class surface (authorization status, the two request
 selectors, the store's calendar list), driven by a scripted user answer. The real prompt needs the packaged app on
@@ -233,18 +233,25 @@ def _info_plist() -> dict:
     return plistlib.loads(filled.encode("utf-8"))
 
 
-def test_the_bundle_declares_the_calendar_and_contacts_purpose_strings():
+def test_the_bundle_declares_the_calendar_contacts_and_notes_purpose_strings():
     plist = _info_plist()
-    for key in ("NSCalendarsFullAccessUsageDescription", "NSCalendarsUsageDescription", "NSContactsUsageDescription"):
+    for key in ("NSCalendarsFullAccessUsageDescription", "NSCalendarsUsageDescription", "NSContactsUsageDescription",
+                "NSAppleEventsUsageDescription", "NSMicrophoneUsageDescription"):
         text = plist.get(key, "")
         assert isinstance(text, str) and len(text.split()) >= 8, f"Info.plist lacks a readable {key}: {text!r}"
         assert not re.search(r"EventKit|TCC|pyobjc|binding", text), f"developer words in {key}: {text}"
 
 
-def test_the_signed_build_may_reach_calendars_and_contacts_under_the_hardened_runtime():
-    entitlements = plistlib.loads(ENTITLEMENTS.read_bytes())
-    assert entitlements.get("com.apple.security.personal-information.calendars") is True
-    assert entitlements.get("com.apple.security.personal-information.addressbook") is True
+@pytest.mark.parametrize("entitlement", [
+    "com.apple.security.personal-information.calendars",    # Apple Calendar (EventKit)
+    "com.apple.security.personal-information.addressbook",  # Apple Contacts import
+    "com.apple.security.device.audio-input",                # the voice lane's microphone
+    "com.apple.security.automation.apple-events",           # Apple Notes through osascript
+])
+def test_the_signed_build_may_reach_each_resource_it_declares_a_purpose_for(entitlement):
+    """sign_macos_release.sh signs with the hardened runtime, which refuses these resources without the entitlement,
+    purpose string or not."""
+    assert plistlib.loads(ENTITLEMENTS.read_bytes()).get(entitlement) is True, f"VOOL.entitlements lacks {entitlement}"
 
 
 def test_the_bundle_ships_both_bindings_pinned_by_the_lock():

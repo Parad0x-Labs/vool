@@ -17,6 +17,11 @@
     macOS refuses Calendar and Contacts access without them, prompt or not. Apple Calendar and
     Apple Contacts import ask for access only when the user starts them (Info.plist carries the
     purpose strings).
+  device.audio-input: the voice lane records only when the user starts a voice request
+    (NSMicrophoneUsageDescription); under the hardened runtime the microphone is refused without it.
+  automation.apple-events: Apple Notes is reached through osascript and Notes' AppleScript
+    dictionary (NSAppleEventsUsageDescription); under the hardened runtime Apple Events are refused
+    without it.
 -->
 <plist version="1.0">
 <dict>
@@ -27,6 +32,10 @@
 	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
 	<key>com.apple.security.personal-information.addressbook</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.automation.apple-events</key>
 	<true/>
 </dict>
 </plist>
