@@ -2216,8 +2216,12 @@ function newChatState(chatId) {
     bypassGrant: null,
     approvalToken: '',
     pendingApproval: null,
+    // The run whose stream raised `pendingApproval`, and -- once it is allowed -- that run plus the
+    // grant, waiting to be resumed. An approval belongs to the TURN that asked: the resume re-sends
+    // that turn's own message under its own turn id, never whatever the chat said last.
+    pendingApprovalRun: null,
+    approvalResume: null,
     resumeApprovedTurn: false,
-    approvalResumeTurnId: '',
     recoveredLedger: [],
     // Every event this chat has ever recorded, in seq order -- the Activity tab's real source.
     // `recoveredLedger` stays the LAST turn's slice, which the Event log and the tab-visibility
@@ -2438,6 +2442,13 @@ function splitAssistantDisplayContent(text, metadata) {
   }
   return { content: content, display_metadata: displayMetadata };
 }
+// How much of the canonical transcript a turn sends: all of it, except for a resumed approval,
+// whose transcript ends at the message it answers (nothing, if that message is gone).
+function resumedTranscriptLength(run, owner) {
+  if (!run.approvalResume) return undefined;
+  const at = owner.history.indexOf(run.promptEntry);
+  return at < 0 ? 0 : canonicalMessagesForModel(owner.history.slice(0, at + 1)).length;
+}
 function canonicalMessagesForModel(history) {
   // Messages brought in from another app are history to read, never model input: they are
   // left out here, so continuing such a chat sends only what was said in VOOL.
@@ -2506,7 +2517,9 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
     // provenance, usage and response hashes belong to the display/audit envelope, not the prompt.
-    messages: canonicalMessagesForModel(owner.history),
+    // A resumed approval answers the message that asked, so its transcript ends there even when
+    // the chat has moved on: the server reads the LAST user message as the turn's request.
+    messages: canonicalMessagesForModel(owner.history).slice(0, resumedTranscriptLength(run, owner)),
     stream: true,
     stream_task_events: true,
     session_id: run.chatId,
@@ -6035,6 +6048,7 @@ function applyTaskEvent(run, ev) {
       // permission bar when that chat is on screen -- otherwise one chat's approval request would
       // appear above another chat's composer, and be answered there.
       showPermBar(run.chatId, ev);
+      if (ev.approval && ev.approval.approval_id) ownerOf(run).pendingApprovalRun = run;
       break;
     case 'verification.started':
       // The primary answer is done; the verifier now runs a second model call. Show
@@ -8490,6 +8504,10 @@ async function runTurn(text, queueItemId, opts) {
   // spent the draft, the queue item that owned them, or the resend of a failed turn -- and then
   // ride the run. Nothing after this line re-reads the composer's strip.
   const turnAttachments = Array.isArray(opts.attachments) ? opts.attachments.map((a) => Object.assign({}, a)) : [];
+  // A grant is held only for the resumed turn that carries it (resumeApprovedTurn). A NEW message
+  // is a different turn: whatever is still held in this chat (a resumed turn the server refused
+  // before it could act) must not ride on it.
+  if (!opts.resend) releaseApprovalTokenFor(chatId);
   let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
@@ -8504,6 +8522,9 @@ async function runTurn(text, queueItemId, opts) {
   }
   const run = adoptRun(chatId, newRun(chatId));
   run.userMsgEl = userMsgEl; run.userHistoryIndex = userHistoryIndex;
+  // The transcript entry this turn answers: the one it just recorded, or the one a resume names.
+  run.promptEntry = opts.resend ? (opts.promptEntry || null) : (owner.history[userHistoryIndex] || null);
+  run.approvalResume = !!opts.approvalResume;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -8529,7 +8550,7 @@ async function runTurn(text, queueItemId, opts) {
   let hasResponseCommit = false;
   run.text = '';
   try {
-    const lastUser = owner.history.slice().reverse().find((m) => m && m.role === 'user') || {};
+    const lastUser = run.promptEntry || owner.history.slice().reverse().find((m) => m && m.role === 'user') || {};
     // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
     // Local Only must override queued or trial models without a later page-state lookup.
     const chatModel = modelForChat(chatId);
@@ -13095,21 +13116,35 @@ function syncAnswerPendingSurfaces() {
 }
 // Re-send the approved turn IN THE CHAT THAT WAS APPROVED. The chat id is explicit, so an
 // approval granted in one chat can never resend into another.
+// It re-sends the message of the turn that ASKED, under that turn's id -- not the chat's latest
+// message, which may be a newer one sent (or queued) while the approval was being answered. The
+// grant is put in hand only here, as that turn goes out: the chat is busy from this call on, so no
+// other turn of this chat can be built while it is held.
 function resumeApprovedTurn(chatId) {
   const owner = chatState(chatId || displayedChat);
   if (!owner.resumeApprovedTurn || isChatBusy(owner.chatId)) return;
   owner.resumeApprovedTurn = false;
-  const lastUser = owner.history.slice().reverse().find((m) => m && m.role === 'user');
-  if (!lastUser) return;
-  if (owner.history.length && owner.history[owner.history.length - 1].role === 'assistant') {
+  const resume = owner.approvalResume; owner.approvalResume = null;
+  const asking = resume && resume.run;
+  const entry = asking && asking.promptEntry;
+  // Without the asking turn and its message there is nothing exact to resume: send nothing.
+  // Said, not silent: the operator allowed an action that will not run now.
+  if (!entry || owner.history.indexOf(entry) < 0 || !asking.turnId) {
+    releaseApprovalTokenFor(owner.chatId);
+    toast(pageT('permissions.approval_gone', 'This approval is no longer available.'));
+    return;
+  }
+  // The asking turn's own answer is replaced by the resumed one only when it is still the last
+  // entry; an answer to a later message is that message's, and stays.
+  if (asking.historyIndex >= 0 && asking.historyIndex === owner.history.length - 1 && owner.history[asking.historyIndex].role === 'assistant') {
     owner.history.pop();
     if (isDisplayed(owner.chatId)) {
       const bubbles = logEl.querySelectorAll('.msg.assistant');
       if (bubbles.length) bubbles[bubbles.length - 1].remove();
     }
   }
-  const resumeTurnId = owner.approvalResumeTurnId; owner.approvalResumeTurnId = '';
-  runTurn(lastUser.content, null, { resend: true, turnId: resumeTurnId, chatId: owner.chatId });
+  setApprovalToken(owner.chatId, resume.token);
+  runTurn(entry.content, null, { resend: true, turnId: asking.turnId, chatId: owner.chatId, promptEntry: entry, approvalResume: true });
 }
 // The permission bar only ever shows the DISPLAYED chat's request (showPermBar enforces that), so
 // resolving it resolves that chat's grant -- recorded in that chat's bucket, never a global one.
@@ -13128,6 +13163,9 @@ async function resolvePermission(decision, scope) {
   const owner = chatState(chatId);
   const goalApproval = owner.goalApproval;
   const approval = owner.pendingApproval; if (!approval || !approval.approval_id) { toast(pageT('permissions.approval_gone', 'This approval is no longer available.')); return; }
+  // The turn that asked, bound before the await: a message sent while the answer is on the wire
+  // becomes this chat's current run, and must not be mistaken for the one being approved.
+  const asking = owner.pendingApprovalRun;
   try {
     const data = await postMode({ op: 'resolve_approval', approval_id: approval.approval_id, decision: decision, scope: scope || 'once' });
     hidePermBar(); owner.pendingApproval = null; owner.goalApproval = null;
@@ -13142,8 +13180,7 @@ async function resolvePermission(decision, scope) {
       return;
     }
     if (decision === 'allow') {
-      setApprovalToken(chatId, approval.approval_id); owner.resumeApprovedTurn = true;
-      owner.approvalResumeTurnId = (owner.run && owner.run.turnId) || approval.task_id || '';
+      owner.approvalResume = { token: approval.approval_id, run: asking }; owner.resumeApprovedTurn = true;
       const grantedScope = (data.approval && data.approval.scope) || 'once';
       toast(grantedScope === 'project'
         ? pageT('permissions.toast_project', 'Allowed in this project: reads and in-project file writes. Deletes, moves, commands, network, and payments still ask.')
@@ -13154,7 +13191,9 @@ async function resolvePermission(decision, scope) {
             : pageT('permissions.toast_once', 'Approved once for this exact action.'))));
       if (!isChatBusy(chatId)) resumeApprovedTurn(chatId);
     } else {
-      releaseApprovalTokenFor(chatId); owner.resumeApprovedTurn = false; owner.approvalResumeTurnId = '';
+      releaseApprovalTokenFor(chatId);
+      // A denial answers its own request; an allowed one from an earlier turn still resumes.
+      if (!owner.approvalResume || owner.approvalResume.token === approval.approval_id) { owner.resumeApprovedTurn = false; owner.approvalResume = null; }
       if (owner.run) { owner.run.permission = false; owner.run.permissionDenied = true; owner.run.action = pageT('run.permission_denied', 'Permission denied'); renderCard(owner.run); }
       toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
     }
