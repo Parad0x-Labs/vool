@@ -22,7 +22,7 @@ in `core/bug_report/`:
 | 5. Reproduction synthesis | `synthesis.py` | local, model-free, deterministic markdown. Cloud restructuring is opt-in (`VOOL_BUG_REPORT_CLOUD_SYNTHESIS`, default **OFF**), accepts only `SanitizedMaterial` (a type whose constructor re-runs the scanner — dirty input fails closed), may only carry sections the local rendering built, and is re-scanned; anything unsafe falls back to local formatting. **The LLM never owns sanitization.** |
 | 6. Exact preview | `preview.py` | `payload_sha256` is the sha256 of the exact issue JSON the adapter will send; field/attachment removal rebuilds the payload (new hash ⇒ prior approval invalid); outbound hard-capped at 256 KiB |
 | 7. Explicit approval | `service.py` | consent manifest binds `(report_id, payload_sha256, removals, destination)`; requires `confirm=True`; submission rebuilds the preview from the draft and refuses on any mismatch (disk tamper, forged consent, destination swap, cross-report consent) |
-| 8. GitHub submission adapter | `github_adapter.py` | sends **exactly** the previewed bytes; credential from `NULLA_BUG_REPORT_GITHUB_TOKEN`/`GITHUB_TOKEN` read at call time, lives only in the Authorization header; **no credential, no network**; dedup (local receipt store, then destination search on the fingerprint marker) before create; real transport goes through the repo's one outbound door under `named_background_effect_scope("bug_report.submit")` |
+| 8. GitHub submission adapter | `github_adapter.py` | sends **exactly** the previewed bytes; credential from `VOOL_BUG_REPORT_GITHUB_TOKEN`/`GITHUB_TOKEN` read at call time, lives only in the Authorization header; **no credential, no network**; dedup (local receipt store, then destination search on the fingerprint marker) before create; real transport goes through the repo's one outbound door under `named_background_effect_scope("bug_report.submit")` |
 | 9. Durable receipt | `receipts.py` | append-only hash-chained JSONL recording **what left** (ids, hashes, sizes, field/attachment names, destination, issue URL, credential env-var **name**) — never content, never a credential value |
 
 Report schema (`schema.py`, strict unknown-key refusal everywhere): version + source SHA +
@@ -41,10 +41,10 @@ so the same crash reported twice with drifted titles dedups.
 - **HTTP API** (`core/web/api/service.py`): `POST /api/bug-report/{draft,preview,approve,submit}`,
   `GET /api/bug-report/{status,receipts}` — owner-local, JSON content-type, origin and loopback
   guards, unknown-body-field rejection, the same accept-once invocation ledger as every other POST.
-- **CLI** (`apps/nulla_cli.py`): `nulla bug-report draft|preview|approve|submit|status|receipts`
+- **CLI** (`apps/vool_cli.py`, run as `python -m apps.vool_cli`): `vool bug-report draft|preview|approve|submit|status|receipts`
   (`--log name:path` reads bounded log sources; `--json` everywhere).
-- Drafts live under `<NULLA_HOME>/data/bug_reports/drafts/<id>.json`; receipts at
-  `<NULLA_HOME>/data/bug_reports/receipts.jsonl`.
+- Drafts live under `<VOOL_HOME>/data/bug_reports/drafts/<id>.json`; receipts at
+  `<VOOL_HOME>/data/bug_reports/receipts.jsonl`.
 
 ## 3. Verification — what was actually run
 
@@ -54,7 +54,7 @@ so the same crash reported twice with drifted titles dedups.
   and disk fixtures under `tests/fixtures/bug_report/`): `python -m pytest <the 9 files> -q` →
   `131 passed`.
 - **Cumulative selection** (candidate): the 9 files + `test_architecture_composition_boundary`,
-  `test_secret_redaction`, `test_cloud_status_endpoint`, `test_nulla_api_server`,
+  `test_secret_redaction`, `test_cloud_status_endpoint`, the API server tests (now `test_vool_api_server`),
   `test_runtime_flags`, `test_app_version` → **291 passed, 2 failed**; the 2
   (`test_test_endpoint_probes_live_and_reports_green`, `test_test_endpoint_reports_red_on_401`)
   reproduce **identically on the untouched base worktree at `b3f5117f`** (live probe returns
@@ -82,7 +82,7 @@ so the same crash reported twice with drifted titles dedups.
   bounds/poisons (commit `e5a46c3b`) and re-proven RED. That is the §6b.4 discipline working:
   the backstop was real, but each layer now fails its own named test.
 - **Lint:** `ruff check` clean on `core/bug_report/` and all 9 test files. Touched legacy files
-  (`core/web/api/service.py`, `apps/nulla_cli.py`, `core/runtime_flags.py`) carry exactly their
+  (`core/web/api/service.py`, the CLI now at `apps/vool_cli.py`, `core/runtime_flags.py`) carry exactly their
   5 base findings (3×N811, 1×I001, 1×F821 — all pre-existing; the one new SIM115 I introduced was
   fixed). `git diff --check` clean.
 - **Secret scan of the diff:** the only token-shaped strings in the staged diff are the synthetic
@@ -105,7 +105,7 @@ so the same crash reported twice with drifted titles dedups.
 4. **Cloud synthesis, when opted into, trusts the section filter + re-scan.** A model can still
    rephrase sanitized prose within an allowed section; it cannot add sections or content that
    survives the scan. Default OFF.
-5. **Receipts chain is append-only, not access-controlled** — it sits in `NULLA_HOME` with the
+5. **Receipts chain is append-only, not access-controlled** — it sits in `VOOL_HOME` with the
    rest of the runtime's local data.
 6. **`ops/verify.py` did not run here** (3.12.13 pin vs this environment; known operator-lane
    constraint) — the authoritative full-shard gate remains the operator's pre-push step.
@@ -151,13 +151,13 @@ console calls, `esc()` on every interpolated server string):
 6. States: draft → submitting → **submitted** (issue link + receipt note) / **duplicate**
    (existing issue link) / **failed** (explicit "draft still stored locally" + Retry).
 
-**Adapter override:** `NULLA_BUG_REPORT_GITHUB_API_ROOT` points the submission adapter at a
+**Adapter override:** `VOOL_BUG_REPORT_GITHUB_API_ROOT` points the submission adapter at a
 self-hosted GitHub root (also the local fake in the proof). The door, named scope
 (`bug_report.submit`), credential handling and dedup rules are unchanged for any root.
 
 **Browser proof** (`ops/bug_report_browser_proof.py` — run as `python -m ops.bug_report_browser_proof`;
 script mode imports the foreign main checkout, the known ops-tool trap): the production
-Starlette app served by uvicorn on loopback, isolated `NULLA_HOME`, a seeded failed turn whose
+Starlette app served by uvicorn on loopback, isolated `VOOL_HOME`, a seeded failed turn whose
 diagnostics carry poison secrets (`ghp_PROOFpoison…`, `/Users/proofsecretuser/…`), and a local
 fake GitHub recording every request. Driven in real Chrome:
 
@@ -170,7 +170,7 @@ fake GitHub recording every request. Driven in real Chrome:
 - **sweeps:** full live DOM (826 KB, dialog open) contains neither poison; the fake's request
   log shows no poison in any body/URL with `[redacted-api-key]`/`[redacted-user]` markers
   present in the payload and the fingerprint marker intact; receipts are metadata-only with the
-  credential recorded as `env:NULLA_BUG_REPORT_GITHUB_TOKEN`; the only poison hit under the
+  credential recorded as `env:<token variable>` (today `env:VOOL_BUG_REPORT_GITHUB_TOKEN`); the only poison hit under the
   isolated home is the app's own sqlite event store — the raw source candidates sanitizes,
   which never leaves the machine;
 - **screenshots** at 1280×800 and 390×844: `docs/evidence/bug-report-browser-20260901/`
@@ -213,7 +213,7 @@ report there and presses GitHub's own Submit. A link longer than 7,500 character
 only and the report goes to the clipboard. The same consent rule applies as for sending: no approval
 means 409, and a payload hash that changed since approval means 409. **Copy report**
 (`method: "clipboard"`) and **Save a local copy** need no approval because nothing leaves the machine.
-Sending with `NULLA_BUG_REPORT_GITHUB_TOKEN` still works and is shown only when a token is configured
+Sending with `VOOL_BUG_REPORT_GITHUB_TOKEN` still works and is shown only when a token is configured
 (`token_available` on `GET /api/bug-report/destination`, which reports a boolean only).
 
 **Wrong-answer reports.** Every saved answer has **Report** and 👎 next to Copy. Highlighting text
