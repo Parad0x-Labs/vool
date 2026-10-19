@@ -349,10 +349,10 @@ function vpHintT(key, fallback){
 }
 function vpMountHint(){
   var input = document.getElementById('input');
-  if (!input || document.getElementById('vpHint')) return;
+  if (!input) return;
   var host = input.closest('.composer-row') ? input.closest('.composer-row').parentNode : input.parentNode;
   if (!host) return;
-  var hint = document.createElement('div');
+  var hint = document.getElementById('vpHint') || document.createElement('div');
   hint.id = 'vpHint';
   hint.innerHTML = '<kbd>' + vpCombo('K') + '</kbd> ' + vpHintT('palette.hint_palette', 'palette')
     + ' \u00b7 <kbd>' + vpCombo('N') + '</kbd> ' + vpHintT('palette.hint_new_chat', 'new chat')
@@ -375,6 +375,7 @@ function vpMountHint(){
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', vpMountHint);
 else vpMountHint();
+window.addEventListener('pywebviewready', vpMountHint);
 loadRegistry();
 
 document.addEventListener('keydown', function(ev){
