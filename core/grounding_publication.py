@@ -147,10 +147,10 @@ def is_typed_refusal_text(text: str) -> bool:
     attestation, destroying the actionable reason the operator was refused for.
     """
     from core.agent_runtime.builder.pinned_generation import PINNED_BUILD_REFUSAL_LEAD
-    from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD
+    from core.final_answer_authorship import UNCERTIFIED_AUTHOR_NOTICE_LEAD, no_model_notice_leads
 
     body = str(text or "").lstrip()
-    leads = (*_ALL_REFUSAL_LEADS, UNCERTIFIED_AUTHOR_NOTICE_LEAD, PINNED_BUILD_REFUSAL_LEAD)
+    leads = (*_ALL_REFUSAL_LEADS, UNCERTIFIED_AUTHOR_NOTICE_LEAD, *no_model_notice_leads(), PINNED_BUILD_REFUSAL_LEAD)
     return any(body.startswith(lead) for lead in leads)
 
 

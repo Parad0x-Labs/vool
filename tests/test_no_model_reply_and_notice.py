@@ -367,3 +367,18 @@ def test_the_reply_gets_a_real_button_and_folded_details_in_any_language(page_ri
     quoted = page.evaluate(probe, "You said: I can't answer yet because no AI model is set up on this computer.")
     assert quoted["button"] == "", quoted
     assert not errors, errors
+
+
+def test_the_no_model_reply_in_every_language_never_feeds_a_later_prompt(home) -> None:
+    # A refusal is for the reader, not material for the next prompt: memory hydration and the
+    # client-history gate drop anything is_typed_refusal_text recognises. The old reply was caught
+    # by the uncertified-author lead; the plain reply must be caught in every shipped language.
+    from core.final_answer_authorship import no_model_notice_text
+    from core.grounding_publication import is_typed_refusal_text
+    from core.i18n.locales import ui_catalog_tags
+    from core.persistent_memory import _assistant_text_unavailable
+
+    for tag in ui_catalog_tags():
+        reply = no_model_notice_text(tag)
+        assert is_typed_refusal_text(reply), tag
+        assert _assistant_text_unavailable(reply, ""), tag
