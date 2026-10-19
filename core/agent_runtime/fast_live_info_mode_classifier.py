@@ -106,13 +106,18 @@ def _looks_like_live_weather_request(text: str) -> bool:
     sea?" answered "Balctic Sea: Clear, 15 C ... Source: wttr.in" while the sea surface was near
     18 C. Declining here leaves the turn to lanes that can either find the right measurement or say
     they could not; see `core.measurement_medium`.
+
+    Nor is the temperature of an appliance or a cooking process: "What oven temperature for roasting
+    potatoes" matched `temperature for <place>` and was served as a weather lookup for a place
+    called "roasting potatoes" (measured on the served daemon, 153148e). Those phrases are blanked
+    before the match, so a weather ask in the same message is still recognized.
     """
 
-    from core.measurement_medium import requests_a_water_temperature
+    from core.measurement_medium import requests_a_water_temperature, without_setting_temperatures
 
     if requests_a_water_temperature(text):
         return False
-    return bool(_WEATHER_LIVE_REQUEST_RE.search(text))
+    return bool(_WEATHER_LIVE_REQUEST_RE.search(without_setting_temperatures(text)))
 
 
 @lru_cache(maxsize=4096)
