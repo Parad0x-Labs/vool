@@ -31,6 +31,9 @@ from tests.test_conversation_intent_served import (  # openrouter: the module-sc
         "My flat is 24b, the buzzer is broken, write a note for the courier.",
         "Unit 30b keeps the spare keys; who should I ask for them?",
         "Flat 24b — which model of kettle should I buy?",
+        "Ship it to 30B Kings Road, London, and tell me the cost.",
+        "The meeting is on floor 30b, room 12; draft the invite.",
+        "Leave it at 24b Mill Lane, by the blue door.",
     ],
 )
 def test_addresses_and_unit_numbers_are_not_heavy_demands(text):
@@ -47,6 +50,12 @@ def test_addresses_and_unit_numbers_are_not_heavy_demands(text):
         ("answer with qwen3 32b", "32b"),
         ("switch to llama-3.1-405b for this one", "405b"),
         ("try mixtral-8x22b", "176b"),
+        # sizes asked for bare, the way people type them
+        ("switch to 32b", "32b"),
+        ("can you use 70b for this", "70b"),
+        ("answer with llama 3.1 70b", "70b"),
+        ("use deepseek 671b please", "671b"),
+        ("use the 32b qwen", "32b"),
     ],
 )
 def test_model_size_requests_still_count(text, marker):

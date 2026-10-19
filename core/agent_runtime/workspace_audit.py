@@ -701,17 +701,24 @@ _AUDIT_TARGET_RE = re.compile(
 # write into a workspace whose path ran through a folder named "review" opened the read-only
 # audit lane and the file was never written. A token is a path when it is rooted ("/", "~/",
 # "./", "../", "C:\\"), or has two or more separators and something only a path carries (a
-# digit, "_", an inner ".") or a trailing separator. Slash-joined words stay prose: "review/audit",
-# "examine/inspect/vet", "launch-blocker/risk/defect".
+# digit, "_", an inner ".") or a trailing separator, or when a location word leads it ("inside
+# projects/review/alpha", "in work\\review", "folder code-review/notes"). Other slash-joined
+# words stay prose: "review/audit", "examine/inspect/vet", "launch-blocker/risk/defect".
 _PATH_TOKEN_RE = re.compile(
     r"(?<!\S)[`'\"]?(?:(?:~|\.{1,2}|[A-Za-z]:)?[\\/][^\s`'\"]*"
     r"|(?=[^\s`'\"]*(?:[\d_]|\.[^\s`'\"]))[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/]?"
     r"|[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+){2,}[\\/])[`'\"]?"
 )
 
+_LOCATED_PATH_RE = re.compile(
+    r"(?i)(\b(?:inside|in|into|under|within|at|to|from|folder|directory|dir|path|workspace|named|called)\s+)"
+    r"[`'\"]?[^\s`'\"/\\]+(?:[\\/][^\s`'\"/\\]+)+[\\/]?[`'\"]?"
+)
+
 
 def _without_path_tokens(text: str) -> str:
-    return _PATH_TOKEN_RE.sub(" ", _AUDIT_TARGET_RE.sub(" ", str(text or "")))
+    without_targets = _AUDIT_TARGET_RE.sub(" ", str(text or ""))
+    return _PATH_TOKEN_RE.sub(" ", _LOCATED_PATH_RE.sub(r"\1 ", without_targets))
 
 
 def audit_target_in(text: str) -> str:

@@ -56,6 +56,9 @@ def test_explicit_writes_run_when_the_workspace_path_names_audit_words(tmp_path,
         "Inside ~/projects/review/app create main.py with exactly this code: print(1)",
         "Inside C:\\Users\\me\\review\\alpha create util.py with exactly this code: x = 1",
         "Inside artifacts/run_2/review/out create util.py with exactly this code: x = 1",
+        "Inside projects/review/alpha create util.py with exactly this code: x = 1",
+        "Inside work\\review\\app create main.py with exactly this code: print(1)",
+        "In the folder named review/failure create a.txt with exactly this content: OK",
     ],
 )
 def test_a_folder_named_review_is_not_an_audit_request(text):
@@ -76,3 +79,18 @@ def test_a_folder_named_review_is_not_an_audit_request(text):
 )
 def test_real_audit_requests_still_open_the_audit(text):
     assert looks_like_code_audit_request(text) is True
+
+
+def test_an_explicit_write_into_a_relative_review_path_runs(tmp_path):
+    root = tmp_path / "ws"
+    (root / "code-review" / "failure-notes" / "drafts").mkdir(parents=True)
+    agent = VoolAgent(backend_name="test-backend", device="path-words", persona_id="default")
+    agent.start()
+    context = {"operating_mode": "auto", "surface": "openclaw", "platform": "openclaw", "workspace": str(root.resolve())}
+    result = agent.run_once(
+        "Inside code-review/failure-notes/drafts create plan.txt with exactly this content: RELATIVE-OK",
+        session_id_override="openclaw:path-words-relative",
+        source_context=context,
+    )
+    assert result["mode"] == "tool_executed", result.get("response")
+    assert (root / "code-review" / "failure-notes" / "drafts" / "plan.txt").read_text(encoding="utf-8") == "RELATIVE-OK"

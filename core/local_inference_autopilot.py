@@ -1446,14 +1446,17 @@ def _largest_parameter_size_b(*sources: str) -> float:
     return best
 
 
-#: In the USER'S OWN WORDS a size token is a model request only when it reads as one: attached to a
-#: model name ("qwen3:32b", "llama-70b", "mixtral-8x22b"), right after a versioned family word
-#: ("qwen3 32b"), or followed by model vocabulary ("a 70b model", "the 35b heavy lane", "the 405b
-#: variant"). Measured 2026-10-19: a form fixture's random address "18620b" was read as an
-#: 18,620B demand and the turn never reached the model; "Flat 24b" or "unit 30b" would do the same.
-#: The pinned `requested_model` keeps the plain size parse: it IS a model name.
+#: In the USER'S OWN WORDS a size token is a model request unless it reads as part of an address,
+#: unit or reference. Measured 2026-10-19: a form fixture's random address "18620b Harbour Road" was
+#: read as an 18,620B demand and the turn never reached the model; "Flat 24b" or "floor 30b" would do
+#: the same. People also ask for sizes bare ("switch to 32b", "use llama 3.1 70b", "70b please"), so
+#: the rule drops only what reads as a place: a size within two words after an address/unit word
+#: ("flat is 24b"), a size followed by a street name, or a bare count no released model has. A size
+#: attached to a model name ("qwen3:32b", "llama-70b", "mixtral-8x22b") or followed by model
+#: vocabulary ("a 70b model", "the 35b heavy lane") always counts. The pinned `requested_model` keeps
+#: the plain size parse: it IS a model name.
 _USER_SIZE_TOKEN_RE = re.compile(
-    r"(?<![\w.])(?P<name>[a-z][\w.]*[-:/])?(?P<size>(?:\d+\s*x\s*)?\d+(?:\.\d+)?\s*b)\b", re.IGNORECASE
+    r"(?<![\w.])(?P<name>[a-z][\w.]*[-:/])?(?P<size>(?:\d+\s*x\s*)?(?P<count>\d+(?:\.\d+)?)\s*b)\b", re.IGNORECASE
 )
 _MODEL_FOLLOW_WORDS = frozenset(
     {
@@ -1461,6 +1464,36 @@ _MODEL_FOLLOW_WORDS = frozenset(
         "weights", "variant", "variants", "version", "versions", "checkpoint", "checkpoints", "quant",
     }
 )
+_ADDRESS_LEAD_WORDS = frozenset(
+    {
+        "flat", "apt", "apartment", "unit", "suite", "room", "floor", "level", "route", "rte", "house", "no",
+        "number", "#", "building", "bldg", "block", "gate", "platform", "seat", "locker", "box", "door", "plot",
+        "lot", "bay", "pier", "berth", "dock", "row", "aisle", "section", "page", "exit", "bus", "highway", "hwy",
+        "ward", "cell", "bed", "cabin", "deck", "terminal", "track", "postcode", "zip", "ref", "reference", "order",
+        "invoice", "ticket",
+    }
+)
+_STREET_WORDS = frozenset(
+    {
+        "road", "rd", "street", "st", "avenue", "ave", "drive", "dr", "way", "close", "court", "ct", "boulevard",
+        "blvd", "place", "pl", "terrace", "crescent", "square", "sq", "highway", "hwy", "lane", "ln", "parade",
+        "row", "walk", "mews", "gardens", "hill",
+    }
+)
+#: No released model has a bare parameter count anywhere near this; a bare "18620b" is a reference.
+_MAX_BARE_MODEL_SIZE_B = 2000.0
+
+
+def _reads_as_street(after: list[str]) -> bool:
+    """A street name follows: up to two capitalised words, then a street word ("Harbour Road")."""
+
+    for index, word in enumerate(after[:3]):
+        bare = word.strip(",;:.!?()\"'")
+        if index and bare.lower() in _STREET_WORDS and all(w.strip(",;:.!?()\"'")[:1].isupper() for w in after[:index]):
+            return True
+        if not bare[:1].isupper():
+            return False
+    return False
 
 
 def _user_model_size_text(text: str) -> str:
@@ -1475,11 +1508,18 @@ def _user_model_size_text(text: str) -> str:
             continue
         before = cleaned[: match.start()].split()
         after = cleaned[match.end():].split()
-        previous = before[-1].strip(",;:()\"'").lower() if before else ""
+        leading = {word.strip(",;:()\"'").rstrip(".").lower() for word in before[-2:]}
         following = after[0].strip(",;:.!?()\"'").lower() if after else ""
-        versioned_family = any(ch.isalpha() for ch in previous) and any(ch.isdigit() for ch in previous)
-        if following in _MODEL_FOLLOW_WORDS or versioned_family:
+        if following in _MODEL_FOLLOW_WORDS:
             kept.append(size)
+            continue
+        try:
+            count = float(match.group("count"))
+        except (TypeError, ValueError):
+            continue
+        if leading & _ADDRESS_LEAD_WORDS or _reads_as_street(after) or count > _MAX_BARE_MODEL_SIZE_B:
+            continue
+        kept.append(size)
     return " ".join(kept)
 
 
