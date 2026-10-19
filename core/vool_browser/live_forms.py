@@ -46,6 +46,11 @@ OBSERVE = r'''() => {
       target:target.slice(0,4096),target_too_long:target.length>4096,method,
       password_form:!!f&&forms[form].password,
       options:e.tagName==='SELECT'?[...e.options].slice(0,100).map(o=>({value:o.value,label:o.label.slice(0,120)})):[],
+      // The control's current state, so a reader can see what a fill already did.
+      // Password values and file contents never leave the renderer.
+      ...(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)&&!['password','file','submit','button','reset','image'].includes(e.type)
+        ?(['checkbox','radio'].includes(e.type)?{checked:e.checked}:{value:String(e.value||'').slice(0,2000),value_truncated:String(e.value||'').length>2000})
+        :{}),
       payment:!!e.closest('[data-payment]')};
   });
   return {nodes,forms};
