@@ -996,6 +996,21 @@ TRANSCRIPT_COMMIT_BOUNDARY_KEY = "transcript_commit_boundary"
 TRANSCRIPT_COMMIT_STATE_COMMITTED = "committed"
 TRANSCRIPT_COMMIT_STATE_UNSEALED = "unsealed"
 TRANSCRIPT_COMMIT_STATE_NO_ANSWER = "no_answer_terminal"
+#: The person stopped the turn before its answer was sealed: the row holds their message and the
+#: stopped marker they saw, written once at the stop (``append_conversation_event`` with
+#: ``stopped_request_id``).
+TRANSCRIPT_COMMIT_STATE_STOPPED = "stopped"
+#: How each served request's transcript turn ended, for the requests that ended through the seal
+#: or a flush (``_OUTCOME_RECORDED``) or through a stop (``_OUTCOME_STOPPED``), keyed by request id.
+#: A stopped turn keeps running until its worker notices the stop; whatever it writes under its
+#: request id afterwards is a draft the person never saw, so it is dropped instead of landing as a
+#: second or replacement turn. Request ids are unique per request (a Try again is a new request),
+#: so an entry never touches another turn. Bounded: the oldest entries go first; an entry is only
+#: needed while that request's worker can still be running. In memory only.
+_TRANSCRIPT_OUTCOMES: dict[str, str] = {}
+_TRANSCRIPT_OUTCOMES_MAX = 512
+_OUTCOME_RECORDED = "recorded"
+_OUTCOME_STOPPED = "stopped"
 
 
 def append_conversation_event(
@@ -1007,6 +1022,7 @@ def append_conversation_event(
     response_class: str | None = None,
     access_policy: ContextAccessPolicy | None = None,
     persist_now: bool = False,
+    stopped_request_id: str = "",
 ) -> None:
     """Record one user/assistant exchange in the conversation log and the derived memory stores.
 
@@ -1014,11 +1030,26 @@ def append_conversation_event(
     ``source_context["transcript_commit_boundary"]`` is set) the row is staged and written by
     ``core.finalization.finalize_answer`` with the committed bytes -- see the staging note above.
     ``persist_now`` is the explicit opt-out for a caller that owns its own commit semantics.
+    ``stopped_request_id`` records the turn of that request as stopped by the person, with
+    ``assistant_output`` the words they were shown (see ``_record_stopped_turn``).
     """
     if _memory_persistence_suppressed(source_context, session_id):
         return
+    if stopped_request_id:
+        _record_stopped_turn(
+            stopped_request_id,
+            session_id=session_id,
+            user_input=user_input,
+            shown_text=assistant_output,
+            source_context=source_context,
+        )
+        return
     declared = bool((source_context or {}).get(TRANSCRIPT_COMMIT_BOUNDARY_KEY)) if isinstance(source_context, dict) else False
     request_id = "" if (persist_now or not declared) else _current_request_lineage()
+    if request_id and _transcript_request_stopped(request_id):
+        # The person stopped this turn and its stopped row is already written: a late finish
+        # neither adds a turn nor replaces it with a draft nobody saw.
+        return
     if request_id and transcript_commit_boundary_open(request_id):
         _stage_conversation_event(
             request_id,
@@ -1059,6 +1090,67 @@ def transcript_commit_boundary_open(request_id: str) -> bool:
         return False
     with _TRANSCRIPT_STAGE_LOCK:
         return key in _OPEN_TRANSCRIPT_BOUNDARIES
+
+
+def _note_transcript_outcome_locked(request_id: str, outcome: str) -> None:
+    _TRANSCRIPT_OUTCOMES.pop(request_id, None)
+    _TRANSCRIPT_OUTCOMES[request_id] = outcome
+    while len(_TRANSCRIPT_OUTCOMES) > _TRANSCRIPT_OUTCOMES_MAX:
+        del _TRANSCRIPT_OUTCOMES[next(iter(_TRANSCRIPT_OUTCOMES))]
+
+
+def _transcript_request_stopped(request_id: str) -> bool:
+    """True when the person stopped ``request_id``'s turn and its stopped row was recorded."""
+    key = str(request_id or "")
+    if not key:
+        return False
+    with _TRANSCRIPT_STAGE_LOCK:
+        return _TRANSCRIPT_OUTCOMES.get(key) == _OUTCOME_STOPPED
+
+
+def _record_stopped_turn(
+    request_id: str,
+    *,
+    session_id: str,
+    user_input: str,
+    shown_text: str,
+    source_context: dict[str, Any] | None = None,
+) -> str:
+    """Record a turn the person stopped, once, as what they saw: their message and ``shown_text``.
+
+    Called when the stop is acknowledged, while the turn's worker may still be running. Drafts the
+    turn already staged are discarded (the person never saw them) and every later row under this
+    request id is dropped by ``append_conversation_event``. Returns ``"stopped"`` when this call
+    recorded the turn, ``"already_stopped"`` when an earlier call did, ``"already_recorded"`` when
+    the turn had already been written through its seal or a flush (that row is the record; nothing
+    is added), and ``"unknown"`` without a request id (nothing can be keyed, so nothing is written).
+    """
+    key = str(request_id or "")
+    if not key:
+        return "unknown"
+    with _TRANSCRIPT_STAGE_LOCK:
+        outcome = _TRANSCRIPT_OUTCOMES.get(key)
+        if outcome == _OUTCOME_STOPPED:
+            return "already_stopped"
+        if outcome == _OUTCOME_RECORDED:
+            return "already_recorded"
+        _note_transcript_outcome_locked(key, _OUTCOME_STOPPED)
+        _STAGED_TRANSCRIPT_EVENTS.pop(key, None)
+        _OPEN_TRANSCRIPT_BOUNDARIES.discard(key)
+    _write_staged_row(
+        {
+            "session_id": session_id,
+            "user_input": user_input,
+            "assistant_output": "",
+            "source_context": source_context,
+            "response_class": None,
+            "access_policy": None,
+            "request_id": key,
+        },
+        assistant_text=str(shown_text or ""),
+        commit_state=TRANSCRIPT_COMMIT_STATE_STOPPED,
+    )
+    return "stopped"
 
 
 def _stage_conversation_event(request_id: str, event: dict[str, Any]) -> None:
@@ -1108,6 +1200,7 @@ def persist_staged_conversation_event(
         row = rows.pop(0)
         if not rows:
             del _STAGED_TRANSCRIPT_EVENTS[key]
+        _note_transcript_outcome_locked(key, _OUTCOME_RECORDED)
     _write_staged_row(row, assistant_text=str(committed_text or ""), commit_state=commit_state, extra_fields=extra_fields)
     return True
 
@@ -1131,6 +1224,8 @@ def flush_staged_conversation_events(
     with _TRANSCRIPT_STAGE_LOCK:
         rows = _STAGED_TRANSCRIPT_EVENTS.pop(key, [])
         _OPEN_TRANSCRIPT_BOUNDARIES.discard(key)
+        if rows:
+            _note_transcript_outcome_locked(key, _OUTCOME_RECORDED)
     for row in rows:
         _write_staged_row(row, assistant_text=assistant_text, commit_state=commit_state)
     return len(rows)

@@ -6768,6 +6768,13 @@ def _dispatch_post_inner(
         if not cancel_session or not cancel_turn:
             return apply_runtime_headers(json_response(400, {"error": "missing session_id or turn_id"}), runtime)
         state = request_cancel(cancel_session, cancel_turn)
+        if state == "cancelled":
+            # The stopped turn is recorded before this answers, as the person saw it: whatever
+            # follows the stop (a reload, the next message, deleting the chat) finds it, and the
+            # turn's late finish cannot add or replace it.
+            from core.web.api.runtime import record_stopped_turn
+
+            record_stopped_turn(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
     if normalized_path in {"/api/goal/pause", "/api/goal/resume", "/api/goal/stop", "/api/goal/retry"}:
