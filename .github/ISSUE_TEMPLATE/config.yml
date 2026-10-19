@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: General Discussion
     url: https://discord.gg/WuqCDnyfZ8
-    about: Join the NULLA Discord for questions, ideas, and chat.
+    about: Join the Parad0x Labs Discord for VOOL questions, ideas, and chat.
   - name: Security Vulnerability
     url: https://github.com/Parad0x-Labs/vool/security/advisories/new
     about: Report security issues privately via GitHub Security Advisories.
