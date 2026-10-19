@@ -51,9 +51,16 @@ def world(pact_rig, request):
                 content=b'<form method="post" action="/review-submit"><input type="hidden" name="destination" value="fixture-destination"><input name="address"><input name="password" type="password"><button name="decision" value="save" type="submit">Send address</button></form>'
             if path == '/unreviewable':
                 content=('<form method="post" action="/review-submit">'+''.join('<input type="hidden" name="field'+str(i)+'" value="x">' for i in range(201))+'<button type="submit">Send</button></form>').encode()
+            if path == '/enter':
+                content=b'<form method="post" action="/review-submit"><input name="note"><button name="op" value="delete_account" type="submit">Delete account</button><button name="op" value="save" type="submit">Save</button></form>'
+            if path == '/image':
+                content=b'<form method="post" action="/review-submit"><input name="address"><input type="image" name="go" alt="Go" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></form>'
+            if path == '/private-fields':
+                content=b'''<form method="get" action="/find"><input type="hidden" name="token" value="hidden-token-417"><input name="destination"><button type="submit">Find</button></form>
+                <form method="post" action="/review-submit"><input name="code" autocomplete="one-time-code"><input name="nickname"><input name="action" value="kept"><input name="method" value="kept"><button type="submit">Send code</button></form>'''
             if path == '/payment':
                 kind=parse_qs(urlsplit(self.path).query).get('kind',['card'])[0]
-                field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>'}[kind]
+                field={'card':'<input name="cardnumber">','standard':'<input name="value" autocomplete="cc-number">','amount':'<input type="hidden" name="amount" value="17"><input type="hidden" name="currency" value="EUR"><input name="address">','marked':'<input name="address" data-payment>','iban':'<input name="recipient_iban"><input name="note">','amount_only':'<input name="amount"><input name="note">','ccnum':'<input name="ccnum">'}[kind]
                 content=('<form method="post" action="/review-submit">'+field+'<button type="submit">Send</button></form>').encode()
             if path == '/other': content=b'<h1>Last train: 22:14</h1><a href="/">Back</a>'
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()
@@ -181,7 +188,8 @@ def test_links_takeover_scroll_stop_and_policy_veto(world):
     assert '22:14' in snap['result']['page']['text'],snap
     rig.post('/api/browser/takeover',{'chat':'live-test','value':True})
     from core.vool_browser.live import BrowserFault, tool_intent
-    with pytest.raises(BrowserFault,match='paused'):
+    from core.vool_browser.live_requests import turn_scope
+    with turn_scope(f'Use the browser to open {origin}/','live-test'), pytest.raises(BrowserFault,match='paused'):
         tool_intent('vool-browser.navigate',{'url':origin+'/'},{'session_id':'live-test','surface':'api','platform':'web_companion'})
     snap=finish(world,'navigate',{'url':origin+'/'})
     snap=finish(world,'scroll',{'direction':'down'});assert snap['state']=='ready'
@@ -333,8 +341,10 @@ def test_chat_tool_only_proposes_and_model_cannot_consume_approval(world):
     from core.command_registry.execute import ExecutionContext, execute_command
     from core.command_registry.registry import reset_registry
     from core.runtime_execution_tools import execute_runtime_tool
+    from core.vool_browser.live_requests import turn_scope
     reset_registry()
-    result=execute_runtime_tool('vool-browser.session.open', {'session':'ignored','start_url':origin+'/', 'approved':True}, source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
+    with turn_scope(f'Use the browser to open {origin}/','live-test'):
+        result=execute_runtime_tool('vool-browser.session.open', {'session':'ignored','start_url':origin+'/', 'approved':True}, source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
     assert result is not None and not result.ok and result.status=='approval_required'
     assert requests==[] and not item.profile.exists()
     token=item.pending['id']
@@ -346,7 +356,8 @@ def test_chat_tool_only_proposes_and_model_cannot_consume_approval(world):
     rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':False})
     # Turning the new setting off cannot fall back to the earlier tool lane.
     status,data=rig.post('/api/browser/settings',{'enabled':False});assert status==200,data
-    result=execute_runtime_tool('vool-browser.session.open', {'session':'ignored','start_url':origin+'/'},source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
+    with turn_scope(f'Use the browser to open {origin}/','live-test'):
+        result=execute_runtime_tool('vool-browser.session.open', {'session':'ignored','start_url':origin+'/'},source_context={'session_id':'live-test','surface':'api','platform':'web_companion'})
     assert result is not None and not result.ok and requests==[]
 
 
@@ -382,8 +393,9 @@ def test_manual_tool_proposes_without_the_legacy_approval_lane(world):
     rig,item,origin,requests=world
     from core.runtime_flags import override
     from core.tool_intent_executor import execute_tool_intent
+    from core.vool_browser.live_requests import turn_scope
     from tests._toolchain_fixtures import executor_kwargs
-    with override('plugin_runtime_tools',True):
+    with override('plugin_runtime_tools',True), turn_scope(f'Use the browser to open {origin}/','live-test'):
         result=execute_tool_intent({'intent':'vool-browser.session.open','arguments':{'session':'manual','start_url':origin+'/'}},**executor_kwargs('live-test',runtime_session_id='live-test',surface='api',platform='web_companion',mode='manual'))
     assert not result.ok and result.status=='approval_required',result
     assert item.pending and requests==[] and not item.profile.exists()

@@ -94,8 +94,7 @@ def set_enabled(value: bool) -> dict[str, Any]:
         temp.write_text(json.dumps({"enabled": value}))
         temp.replace(target)
         if not value:
-            for item in list(_SESSIONS.values()):
-                item.stop()
+            _stop_each(list(_SESSIONS.items()))
     return settings()
 
 
@@ -149,11 +148,69 @@ def stop_chat(chat: str) -> None:
             _SESSIONS.pop(key, None)
 
 
+def _stop_each(items: list[tuple[tuple[str, str], LiveSession]]) -> None:
+    # One failed cleanup does not leave the other browsers running. Each failed
+    # session stays registered so its purge can be retried.
+    failure = None
+    for key, item in items:
+        try:
+            item.stop()
+            _SESSIONS.pop(key, None)
+        except BrowserFault as exc:
+            failure = failure or exc
+    if failure is not None:
+        raise failure
+
+
 def stop_all() -> None:
     with _LOCK:
-        for item in list(_SESSIONS.values()):
-            item.stop()
-        _SESSIONS.clear()
+        _stop_each(list(_SESSIONS.items()))
+
+
+def _sent_fields(content_type: str, body: bytes) -> list[tuple[str, str, bool]] | None:
+    kind = content_type.split(";")[0].strip().lower()
+    try:
+        if kind == "application/x-www-form-urlencoded":
+            return [(name, value, False) for name, value in parse_qsl(body.decode("utf-8", "strict"), keep_blank_values=True, strict_parsing=bool(body))]
+        if kind == "multipart/form-data":
+            from email.parser import BytesParser
+
+            message = BytesParser().parsebytes(b"Content-Type: " + content_type.encode("latin-1") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
+            if not message.is_multipart() or message.defects:
+                return None
+            sent = []
+            for part in message.get_payload():
+                name = part.get_param("name", header="content-disposition")
+                filename = part.get_param("filename", header="content-disposition")
+                if not isinstance(name, str) or (filename is not None and not isinstance(filename, str)):
+                    return None
+                payload = part.get_payload(decode=True) or b""
+                sent.append((name, filename if filename is not None else payload.decode("utf-8", "strict"), filename is not None))
+            return sent
+    except (UnicodeError, ValueError):
+        return None
+    return None
+
+
+def _sent_as_reviewed(content_type: str | None, body: bytes | None, reviewed: list[dict] | None) -> bool:
+    """A submission goes out only as the owner reviewed it: the same fields in the same
+    order and the same values (a password's value is never shown, so only its name is).
+    Anything that cannot be read back, such as an unknown encoding, is refused."""
+    if reviewed is None:
+        return False
+    sent = _sent_fields(str(content_type or ""), body or b"")
+    if sent is None or len(sent) != len(reviewed):
+        return False
+    def lines(text: str) -> str:
+        # Browsers send line breaks as CRLF; the reviewed form data holds them as typed.
+        return text.replace("\r\n", "\n").replace("\r", "\n")
+
+    for (name, value, is_file), field in zip(sent, reviewed, strict=True):
+        if lines(name) != lines(field["name"]) or is_file != bool(field.get("file")):
+            return False
+        if not field.get("secret") and lines(value) != lines(field["value"]):
+            return False
+    return True
 
 
 def _canonical_url(value: Any) -> str:
@@ -291,6 +348,8 @@ class LiveSession:
         self._telemetry: dict[str, Any] = {}
         self._lease_cleanup = None
         self._mutex = threading.RLock()
+        self._stop_lock = threading.Lock()
+        self._owner_filled: set[tuple[str, int, str]] = set()
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=contextvars.Context().run, args=(self._run,), daemon=True, name="live-browser")
         self._thread.start()
@@ -491,6 +550,10 @@ class LiveSession:
                 await route.abort()
                 return
             permit["used"] = True
+            if request.method != "GET" and not _sent_as_reviewed(await request.header_value("content-type"), request.post_data_buffer, permit.get("fields")):
+                self._blocked = "submission_changed"
+                await route.abort()
+                return
             status, headers, raw = await asyncio.to_thread(_fetch, request.url, request.method, await request.all_headers(), request.post_data_buffer, self.fixture_origin, (self._stopped, permit["cancelled"]), {"session_id": self.chat, "private_chat": self.private}, False, permit.get("telemetry"))
             if self.closed or self._permit is not permit or not available():
                 await route.abort()
@@ -620,6 +683,11 @@ class LiveSession:
                         if sum(k == node["name"] for k, _ in pairs) != 1:
                             raise BrowserFault("invalid_input")
                         pairs = [(k, text if k == node["name"] else v) for k, v in pairs]
+                        submitter = self._forms[node["form"]].get("default_submit") if node.get("form", -1) >= 0 else None
+                        if submitter and submitter.get("image"):
+                            raise BrowserFault("invalid_input")
+                        if submitter and submitter.get("name"):
+                            pairs.append((submitter["name"], submitter.get("value", "")))
                         safe["target"] = urlunsplit(parts._replace(query=urlencode(pairs)))
                 if op == "upload":
                     file = args.get("file")
@@ -665,7 +733,7 @@ class LiveSession:
             pending = self.pending
             if not pending or pending["id"] != proposal_id:
                 raise BrowserFault("stale_approval")
-            self._submission_previews.pop(proposal_id, None)
+            review = self._submission_previews.pop(proposal_id, None)
             self.pending = None  # consume before dispatch; no replay, even after failure
             if not approve:
                 self._telemetry.pop(pending["id"], None)
@@ -678,6 +746,7 @@ class LiveSession:
                 raise BrowserFault("stale_approval")
             self.state = "running"
             pending["_telemetry"] = self._telemetry.pop(pending["id"], None)
+            pending["_review"] = review
             # An owner-approved command has its own execution context. A nested
             # caller cannot accidentally transfer model confinement or authority.
             self._task = contextvars.Context().run(asyncio.run_coroutine_threadsafe, self._execute_bounded(pending), self._loop)
@@ -745,17 +814,20 @@ class LiveSession:
                         await node.select_option(value=args["text"])
                     else:
                         await node.fill(args["text"])
+                    if proposal.get("actor") == "owner":
+                        self._owner_filled.add(self._field_key(args))
                     if args.get("submit"):
-                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
+                        self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
                         async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
                             await node.press("Enter")
-                else:
-                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
-                    if args.get("navigates"):
-                        async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
-                            await node.click()
-                    else:
+                elif args.get("navigates"):
+                    self._permit = {"url": args["target"], "method": args["method"], "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry"), "fields": proposal.get("_review")}
+                    async with self._page.expect_navigation(wait_until="domcontentloaded", timeout=TIMEOUT * 1000):
                         await node.click()
+                else:
+                    # A control that does not navigate (a checkbox, a plain button) is
+                    # allowed no request at all.
+                    await node.click()
             elif op == "scroll":
                 await self._page.mouse.wheel(0, -600 if args["direction"] == "up" else 600)
             outcome = "ready" if not self._blocked else self._blocked
@@ -767,6 +839,7 @@ class LiveSession:
             outcome = "ready" if self._download else (self._blocked or (str(exc) if isinstance(exc, BrowserFault) else "page_failed"))
         finally:
             proposal.pop("_telemetry", None)
+            proposal.pop("_review", None)
             if self._permit:
                 self._permit["cancelled"].set()
             self._permit = None
@@ -792,7 +865,7 @@ class LiveSession:
                 if outcome == "ready" and self.result.get("page"):
                     completed.update(copy.deepcopy(self.result["page"]))
                     completed["result"] = copy.deepcopy(self.result)
-                    completed["nodes"] = {"content_class": "untrusted_page_evidence", "authority": "none", "items": copy.deepcopy(self.nodes)}
+                    completed["nodes"] = {"content_class": "untrusted_page_evidence", "authority": "none", "items": self.model_nodes()}
                 self._complete(proposal["id"], completed)
 
     async def _observe(self) -> None:
@@ -809,6 +882,9 @@ class LiveSession:
             form = self._forms[node['form']] if node['form'] >= 0 else None
             if form is not None and payment_form(form):
                 node['payment'] = True
+            if node.get('payment'):
+                node.pop('value', None)
+                node.pop('value_truncated', None)
         text = (await self._page.locator("body").inner_text())[:50000]
         self.result["page"] = Untrusted.wrap(text, url=self.url, origin=urlsplit(self.url).netloc, title=(await self._page.title())[:300])
         self.frame = base64.b64encode(await self._page.screenshot(type="jpeg", quality=65, timeout=3000)).decode()
@@ -850,8 +926,14 @@ class LiveSession:
             self.state = "ready"
 
     def stop(self) -> None:
+        # A second stop waits for the first one's cleanup and reports its real end;
+        # it never answers "stopped" while the profile may still be on disk.
+        with self._stop_lock:
+            self._stop()
+
+    def _stop(self) -> None:
         with self._mutex:
-            if self.closed and self.state != "cleanup_failed":
+            if self.closed and self.state == "stopped":
                 return
             self.closed = True
             self.pending = None
@@ -1043,6 +1125,22 @@ class LiveSession:
         self._download = None
         return result
 
+    def _field_key(self, node: dict) -> tuple[str, int, str]:
+        return self.url.split("#")[0], int(node.get("form", -1)), str(node.get("name") or node.get("selector") or "")
+
+    def model_nodes(self) -> list[dict]:
+        """The observation as a model may read it: no value the owner typed and no
+        form field carried in a GET form's address (hidden fields included)."""
+        with self._mutex:
+            nodes = copy.deepcopy(self.nodes)
+        for node in nodes:
+            if self._field_key(node) in self._owner_filled:
+                for key in ("value", "value_truncated", "checked"):
+                    node.pop(key, None)
+            if node.get("form", -1) >= 0 and node.get("method") == "GET" and node.get("target"):
+                node["target"] = urlunsplit(urlsplit(node["target"])._replace(query=""))
+        return nodes
+
 
 def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
     """The existing chat tool seam; tool payloads only propose, never decide."""
@@ -1099,7 +1197,7 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
             return {"ok": False, "status": snap["state"] if snap["state"] != "ready" else "no_page"}
         return {"ok": True, "status": "executed", "result": result,
                 "receipt": result.get("receipt"), **page,
-                "nodes": {"content_class": "untrusted_page_evidence", "authority": "none", "items": snap["nodes"]}}
+                "nodes": {"content_class": "untrusted_page_evidence", "authority": "none", "items": item.model_nodes()}}
     if op == "session.open":
         op = "navigate"
         arguments = {"url": arguments.get("start_url")}
@@ -1107,6 +1205,12 @@ def tool_intent(intent: str, arguments: dict, source_context: dict) -> dict:
 
 
 def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: dict) -> dict:
+    from core.vool_browser.live_requests import within_turn
+
+    # A model proposal needs a person's turn to answer to. A caller that never
+    # opened one (another channel, a background job) proposes nothing.
+    if not within_turn():
+        raise BrowserFault("request_scope_required")
     proposed = item.propose(op, arguments)
     if op == "navigate":
         from core.vool_browser.live_requests import note_navigation_proposal

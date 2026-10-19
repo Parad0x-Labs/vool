@@ -1,12 +1,12 @@
 """Owner approval resumes the real tool call; losing the view purges its context."""
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import nullcontext
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -25,13 +25,14 @@ def _until(predicate, seconds=20):
     assert predicate()
 
 
-def _execute(origin, *, cancel=None, chat='live-test', confine=False):
+def _execute(origin, *, cancel=None, chat='live-test'):
     from core.runtime_flags import override
     from core.tool_intent_executor import execute_tool_intent
     from core.vool_browser.live_requests import turn_scope
     from tests._toolchain_fixtures import executor_kwargs
 
-    with override('plugin_runtime_tools', True), turn_scope(f'Use the browser to open {origin}') if confine else nullcontext():
+    # The model's call runs inside the person's turn, as every chat turn does.
+    with override('plugin_runtime_tools', True), turn_scope(f'Use the browser to open {origin}', chat):
         return execute_tool_intent(
             {'intent': 'vool-browser.session.open', 'arguments': {'session': 'beta', 'start_url': origin}},
             **executor_kwargs(chat, runtime_session_id=chat, surface='api',
@@ -209,7 +210,7 @@ def test_browser_turn_is_confined_but_owner_can_approve_its_real_page(world):
     # An independent owner HTTP context can approve the constrained model's
     # proposal. Its transport owns separate authority and only shares telemetry.
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(contextvars.copy_context().run, lambda: _execute(origin+'/', confine=True))
+        future = pool.submit(contextvars.copy_context().run, lambda: _execute(origin+'/'))
         _until(lambda: item.pending is not None)
         assert requests == []
         rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': True})
@@ -442,6 +443,11 @@ def test_a_follow_up_about_the_open_page_is_a_request_with_only_its_own_authorit
     with turn_scope('Fill the address field with 17 Test Lane.', 'live-test'):
         assert tool_allowed('vool-browser.type', {'text': '17 Test Lane'})
         assert not tool_allowed('vool-browser.type', {'text': '17 Test Lane', 'submit': True}) and not tool_allowed('vool-browser.click')
+    with turn_scope('Fill in this form with 17 Test Lane, no need to submit it.', 'live-test'):
+        assert confined() and tool_allowed('vool-browser.type', {'text': '17 Test Lane'})
+        assert not tool_allowed('vool-browser.type', {'text': '17 Test Lane', 'submit': True})
+    with turn_scope('Can you fill the address field with 17 Test Lane and submit the form?', 'live-test'):
+        assert tool_allowed('vool-browser.type', {'text': '17 Test Lane', 'submit': True})
 
 
 @pytest.mark.parametrize('text', [
@@ -450,6 +456,10 @@ def test_a_follow_up_about_the_open_page_is_a_request_with_only_its_own_authorit
     'What is on this page?',
     'Do not submit the form.',
     'Fill the address field without using any tools.',
+    'Is it safe to submit this form?',
+    'Am I supposed to submit the form?',
+    'Is it a good idea to log in on this page?',
+    'Do I need to fill the address field?',
 ])
 def test_questions_and_vague_follow_ups_grant_nothing(world, text):
     from core.vool_browser.live_requests import confined, requested, turn_scope
@@ -491,7 +501,7 @@ def test_submission_review_includes_hidden_fields_but_never_exposes_owner_secret
     assert item._forms==[] and not item._submission_previews and not item.profile.exists()
 
 
-@pytest.mark.parametrize('kind',['card','standard','amount','marked'])
+@pytest.mark.parametrize('kind',['card','standard','amount','marked','iban','amount_only','ccnum'])
 def test_known_payment_forms_are_refused_before_any_approval_or_effect(world,kind):
     from tests.test_live_browser import finish
 
@@ -673,3 +683,143 @@ def test_prompt_catalog_names_the_actual_native_functions_and_parameters(world):
     assert 'respond__direct(message)' in rendered
     assert 'vool_browser__type(selector, text, submit, session)' in rendered
     assert requests==[] and item.pending is None
+
+
+def test_a_fill_sent_with_enter_shows_the_button_the_browser_will_send(world):
+    from tests.test_live_browser import finish, propose
+
+    rig, item, origin, requests = world
+    snapshot = finish(world, 'navigate', {'url': origin+'/enter'})
+    note = next(n for n in snapshot['nodes'] if n['name'] == 'note')
+    token = propose(world, 'type', {'selector': note['selector'], 'text': 'hello', 'submit': True})
+    status, state = rig.get('/api/browser/state?chat=live-test')
+    # Enter sends the form's first submit button; the owner sees it before approving.
+    assert {f['name']: f['value'] for f in state['pending']['submission']} == {'note': 'hello', 'op': 'delete_account'}
+    rig.post('/api/browser/decide', {'chat': 'live-test', 'id': token, 'approve': True})
+    _until(lambda: item.state != 'running')
+    assert item.state == 'ready' and requests[-1][:2] == ('POST', '/review-submit')
+    assert requests[-1][2] == b'note=hello&op=delete_account'
+
+
+def test_a_submission_that_differs_from_the_review_is_not_sent():
+    from core.vool_browser.live import _sent_as_reviewed
+
+    reviewed = [{'name': 'note', 'value': 'hello', 'secret': False, 'file': False},
+                {'name': 'password', 'value': '••••••', 'secret': True, 'file': False}]
+    form = 'application/x-www-form-urlencoded'
+    assert _sent_as_reviewed(form, b'note=hello&password=anything', reviewed)
+    assert _sent_as_reviewed(form + '; charset=UTF-8', b'note=hello&password=', reviewed)
+    for body in [b'note=hello&password=x&op=delete_account', b'note=bye&password=x', b'password=x&note=hello', b'note=hello']:
+        assert not _sent_as_reviewed(form, body, reviewed)
+    assert not _sent_as_reviewed('text/plain', b'note=hello\r\npassword=x\r\n', reviewed)
+    assert not _sent_as_reviewed(form, b'note=hello&password=x', None)
+    multipart = (b'--b\r\nContent-Disposition: form-data; name="note"\r\n\r\nline one\r\nline two\r\n'
+                 b'--b\r\nContent-Disposition: form-data; name="doc"; filename="a.txt"\r\nContent-Type: text/plain\r\n\r\nbytes\r\n--b--\r\n')
+    assert _sent_as_reviewed('multipart/form-data; boundary=b', multipart, [
+        {'name': 'note', 'value': 'line one\nline two', 'secret': False, 'file': False},
+        {'name': 'doc', 'value': 'a.txt', 'secret': False, 'file': True}])
+    assert not _sent_as_reviewed('multipart/form-data; boundary=b', multipart, [
+        {'name': 'note', 'value': 'line one\nline two', 'secret': False, 'file': False},
+        {'name': 'doc', 'value': 'b.txt', 'secret': False, 'file': True}])
+
+
+def test_an_image_submit_button_is_refused_before_any_approval(world):
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    snapshot = finish(world, 'navigate', {'url': origin+'/image'})
+    image = next(n for n in snapshot['nodes'] if n['type'] == 'image')
+    assert image['navigates'], image
+    status, result = rig.post('/api/browser/propose', {'chat': 'live-test', 'op': 'click', 'args': {'selector': image['selector']}})
+    assert status == 409 and result['error'] == 'invalid_input', (image, result)
+    address = next(n for n in snapshot['nodes'] if n['name'] == 'address')
+    status, result = rig.post('/api/browser/propose', {'chat': 'live-test', 'op': 'type', 'args': {'selector': address['selector'], 'text': 'x', 'submit': True}})
+    assert status == 409 and result['error'] == 'invalid_input'
+    assert item.pending is None and requests == [('GET', '/image')]
+
+
+def test_hidden_one_time_and_owner_typed_values_never_reach_the_model(world):
+    from core.vool_browser import live
+    from core.vool_browser.live_requests import turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    snapshot = finish(world, 'navigate', {'url': origin+'/private-fields'})
+    nodes = {n['name']: n for n in snapshot['nodes'] if n['name']}
+    # Form controls named "action" and "method" do not hide the form's own address.
+    assert nodes['code']['target'] == origin + '/review-submit' and nodes['code']['method'] == 'POST'
+    finish(world, 'type', {'selector': nodes['code']['selector'], 'text': '918273'})
+    finish(world, 'type', {'selector': next(n for n in item.nodes if n['name'] == 'nickname')['selector'], 'text': 'owner-typed-55'})
+    with turn_scope(f'Use the browser to open {origin}/private-fields', 'live-test'):
+        seen = json.dumps(live.tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'}))
+    assert 'hidden-token-417' in json.dumps(item.nodes)  # the owner's pane still shows the full address
+    for private in ['hidden-token-417', '918273', 'owner-typed-55']:
+        assert private not in seen
+    assert 'kept' in seen  # a visible value nobody typed stays readable
+
+
+def test_a_model_proposal_needs_the_persons_turn(world):
+    from core.vool_browser.live import BrowserFault, tool_intent
+
+    rig, item, origin, requests = world
+    with pytest.raises(BrowserFault, match='request_scope_required'):
+        tool_intent('vool-browser.navigate', {'url': origin+'/'}, {'session_id': 'live-test', 'surface': 'api', 'platform': 'web_companion'})
+    assert item.pending is None and requests == []
+
+
+def test_following_a_link_never_opens_an_address_from_the_page(world):
+    from core.vool_browser.live_requests import tool_allowed, turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    finish(world, 'navigate', {'url': origin+'/'})
+    with turn_scope(f'Use the browser to open {origin}/ and click the Later trains link', 'live-test'):
+        assert tool_allowed('vool-browser.click')
+        assert tool_allowed('vool-browser.navigate', {'url': origin+'/'})
+        assert not tool_allowed('vool-browser.navigate', {'url': origin+'/secret'})
+
+
+def test_a_second_stop_waits_for_the_first_cleanup(world):
+    from core.vool_browser.live import BrowserFault
+
+    rig, item, origin, requests = world
+    from tests.test_live_browser import finish
+    finish(world, 'navigate', {'url': origin+'/'})
+    close, released = item._close, threading.Event()
+
+    async def slow_close():
+        await asyncio.to_thread(released.wait, 5)
+        await close()
+
+    item._close = slow_close
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(item.stop)
+        _until(lambda: item.state == 'stopping')
+        second = pool.submit(item.stop)
+        time.sleep(.3)
+        assert not second.done() and item.profile.exists()
+        released.set()
+        first.result(timeout=20)
+        second.result(timeout=20)
+    assert item.state == 'stopped' and not item.profile.exists()
+
+    class Stuck:
+        def stop(self):
+            raise BrowserFault('cleanup_failed')
+
+    class Clean:
+        stopped = False
+
+        def stop(self):
+            self.stopped = True
+
+    from core.vool_browser import live
+
+    clean = Clean()
+    live._SESSIONS.update({('x', 'stuck'): Stuck(), ('x', 'clean'): clean})
+    try:
+        with pytest.raises(BrowserFault, match='cleanup_failed'):
+            live._stop_each([(('x', 'stuck'), live._SESSIONS[('x', 'stuck')]), (('x', 'clean'), clean)])
+        assert clean.stopped and ('x', 'clean') not in live._SESSIONS and ('x', 'stuck') in live._SESSIONS
+    finally:
+        live._SESSIONS.pop(('x', 'stuck'), None)

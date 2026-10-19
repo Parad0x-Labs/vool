@@ -75,12 +75,23 @@ def _url(value: str) -> str:
         return ''
 
 
+_POLITE = re.compile(r"^\s*(?:(?:now|next|ok|okay|alright|great|good|thanks)[,!]?\s+){0,2}(?:please\s+)?(?:can|could|would|will)\s+you\b", re.IGNORECASE)
+
+
 def _asks(text: str, verbs: str) -> bool:
     # Ambiguous work stays read-only. The owner can make a new explicit request
     # or take over in the pane. A page cannot expand these frozen capabilities.
-    positive = re.search(r'(?:' + _CLAUSE + r'|\bto\s+)(?:' + verbs + r')\b', text, re.IGNORECASE)
-    negative = re.search(r"\b(?:do\s+not|don't|never|without)\s+(?:\w+\s+){0,2}(?:" + verbs + r')\b', text, re.IGNORECASE)
-    return bool(positive and not negative)
+    # Only an instruction grants: "submit the form", "I want you to submit it" or
+    # "can you submit it?". A question about the action ("is it safe to submit
+    # this form?") and a prohibition ("no need to submit it") grant nothing.
+    negative = re.search(r"\b(?:do\s+not|don't|never|without|no\s+need\s+to|not\s+to|refrain\s+from|avoid)\s+(?:\w+\s+){0,2}(?:" + verbs + r')\b', text, re.IGNORECASE)
+    if negative:
+        return False
+    for sentence in re.split(r'(?<=[.!?])\s+|\n+', text):
+        positive = re.search(r'(?:' + _CLAUSE + r'|\b(?:you|vool)\s+to\s+)(?:' + verbs + r')\b', sentence, re.IGNORECASE)
+        if positive and (not sentence.rstrip().endswith('?') or _POLITE.match(sentence)):
+            return True
+    return False
 
 
 # A follow-up names the open page or one of its parts; a bare "fill it in" stays
@@ -168,10 +179,12 @@ def tool_allowed(intent: str, arguments: dict | None = None) -> bool:
     if intent in {'vool-browser.session.open', 'vool-browser.navigate'}:
         if not boundary.open:
             return False
+        # Only an address the person wrote can be opened. Following a link on the
+        # page is a click on an observed element, never an address the page supplied.
         if arguments is None:
-            return boundary.follow or bool(boundary.urls - boundary.proposed_urls)
+            return bool(boundary.urls - boundary.proposed_urls)
         destination = _url(str(arguments.get('start_url') if intent.endswith('.open') else arguments.get('url')))
-        return destination not in boundary.proposed_urls and (destination in boundary.urls or boundary.follow)
+        return destination not in boundary.proposed_urls and destination in boundary.urls
     if intent == 'vool-browser.click':
         return boundary.follow or boundary.submit
     if intent == 'vool-browser.type':
@@ -186,6 +199,10 @@ def note_navigation_proposal(url: str) -> None:
     boundary = _CONFINED.get()
     if boundary is not None and boundary.active:
         boundary.proposed_urls.add(_url(url))
+
+
+def within_turn() -> bool:
+    return _CONFINED.get() is not None
 
 
 def submission_allowed() -> bool:

@@ -8,15 +8,26 @@ import re
 # is evaluated. Password values and file bytes never leave the renderer here.
 OBSERVE = r'''() => {
   document.querySelectorAll('[data-vool-live]').forEach(e => e.removeAttribute('data-vool-live'));
+  // A control named "action", "method", "elements" or "closest" shadows the form's own
+  // property, so form state is read through the prototype, never the element.
+  const F=HTMLFormElement.prototype, own=(f,p)=>Object.getOwnPropertyDescriptor(F,p).get.call(f);
+  const within=(e,s)=>Element.prototype.closest.call(e,s), has=(f,s)=>Element.prototype.querySelector.call(f,s);
+  const submits=e=>(e.tagName==='BUTTON'&&e.type==='submit')||(e.tagName==='INPUT'&&['submit','image'].includes(e.type));
+  // Values a person keeps to themselves: never shown to a reader of the observation.
+  const private_=e=>e.type==='password'||!!within(e,'[data-payment]')
+    ||String(e.autocomplete||'').split(/\s+/).some(t=>/^(cc-|transaction-)|^(one-time-code|current-password|new-password)$/.test(t));
   const elements=[...document.querySelectorAll('a,button,input,textarea,select')]
     .filter(e=>e.getClientRects().length && getComputedStyle(e).visibility!=='hidden').slice(0,100);
   const references=[...new Set(elements.map(e=>e.form).filter(Boolean))];
   const forms=references.map(f=>{
-    const controls=[...f.elements].slice(0,201);
+    const controls=[...own(f,'elements')].slice(0,201);
+    // The form's default button in tree order. Image buttons are not in form.elements.
+    const submitter=[...document.querySelectorAll('button,input')].find(e=>e.form===f&&submits(e));
     const metadata=controls.map(e=>({name:e.name||'',id:e.id||'',autocomplete:e.autocomplete||'',type:e.type||''}));
     const secret=new Set(controls.filter(e=>e.type==='password').map(e=>e.name));
-    const result={fields:[],metadata,reviewable:f.elements.length<=200,password:secret.size>0,
-      payment:!!f.closest('[data-payment]')||!!f.querySelector('[data-payment]')};
+    const result={fields:[],metadata,reviewable:own(f,'elements').length<=200,password:secret.size>0,
+      payment:!!within(f,'[data-payment]')||!!has(f,'[data-payment]'),
+      default_submit:submitter?{name:submitter.name||'',value:submitter.type==='image'?'':(submitter.value||''),image:submitter.type==='image'}:null};
     if(!result.reviewable)return result;
     let size=0;
     for(const [name,value] of new FormData(f)) {
@@ -32,26 +43,26 @@ OBSERVE = r'''() => {
   });
   const nodes=elements.map((e,i)=>{
     e.setAttribute('data-vool-live',String(i));const f=e.form, form=f?references.indexOf(f):-1;
-    const method=f?(e.getAttribute('formmethod')||f.method||'GET').toUpperCase():'GET';
-    let target=e.href||(f?new URL(e.getAttribute('formaction')||f.action,document.baseURI).href:location.href);
+    const method=f?(e.getAttribute('formmethod')||own(f,'method')||'GET').toUpperCase():'GET';
+    let target=e.href||(f?new URL(e.getAttribute('formaction')||own(f,'action'),document.baseURI).href:location.href);
     if(f && method==='GET' && forms[form].reviewable && !forms[form].password) {
       const address=new URL(target),fields=new URLSearchParams();
       for(const field of forms[form].fields)fields.append(field.name,field.value);
-      if(e.type==='submit' && e.name)fields.append(e.name,e.value);
+      if(submits(e) && e.type!=='image' && e.name)fields.append(e.name,e.value);
       address.search=fields.toString();target=address.href;
     }
     return {selector:'[data-vool-live="'+i+'"]',tag:e.tagName.toLowerCase(),name:e.name||'',form,
       label:(e.innerText||e.getAttribute('aria-label')||e.getAttribute('name')||e.type||'').slice(0,120),
-      type:e.type||'',navigates:!!e.href||!!f&&e.type==='submit',submit_value:e.type==='submit'?e.value:'',
+      type:e.type||'',navigates:!!e.href||!!f&&submits(e),submit_value:submits(e)&&e.type!=='image'?e.value:'',
       target:target.slice(0,4096),target_too_long:target.length>4096,method,
       password_form:!!f&&forms[form].password,
       options:e.tagName==='SELECT'?[...e.options].slice(0,100).map(o=>({value:o.value,label:o.label.slice(0,120)})):[],
       // The control's current state, so a reader can see what a fill already did.
-      // Password values and file contents never leave the renderer.
-      ...(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)&&!['password','file','submit','button','reset','image'].includes(e.type)
+      // Password, card, one-time-code and payment values and file contents never leave the renderer.
+      ...(['INPUT','TEXTAREA','SELECT'].includes(e.tagName)&&!['password','file','submit','button','reset','image'].includes(e.type)&&!private_(e)
         ?(['checkbox','radio'].includes(e.type)?{checked:e.checked}:{value:String(e.value||'').slice(0,2000),value_truncated:String(e.value||'').length>2000})
         :{}),
-      payment:!!e.closest('[data-payment]')};
+      payment:!!within(e,'[data-payment]')};
   });
   return {nodes,forms};
 }'''
@@ -71,7 +82,14 @@ def payment_form(form: dict) -> bool:
            for control in metadata if str(control.get('autocomplete') or '').split()):
         return True
     normalized = {re.sub(r'[^a-z0-9]+', '_', name.casefold()).strip('_') for name in names}
-    return bool(normalized & {'amount', 'amount_minor', 'total', 'price', 'charge', 'payment_amount'}
+    tokens = {token for name in normalized for token in name.split('_')}
+    # Bank transfers and card numbers by their usual field names, and any amount field: a form
+    # that moves money goes through the wallet, so an unrecognised one is refused, not reviewed.
+    if tokens & {'iban', 'bic', 'swift', 'routing', 'ccnum', 'ccnumber', 'cvv', 'cvc', 'amount'}:
+        return True
+    if normalized & {'account_number', 'accountnumber', 'bank_account', 'sort_code', 'sortcode', 'cc_number', 'cc_num'}:
+        return True
+    return bool(normalized & {'total', 'price', 'charge'}
                 and normalized & {'currency', 'currency_code', 'payment_currency'})
 
 
@@ -84,6 +102,12 @@ def submission_preview(form: dict, node: dict, args: dict) -> list[dict]:
         if len(selected) != 1:
             raise ValueError('ambiguous_form_field')
         selected[0]['value'] = '••••••' if selected[0]['secret'] else str(args.get('text') or '')
-    if node.get('type') == 'submit' and node.get('name'):
-        fields.append({'name':node['name'],'value':node.get('submit_value',''),'secret':False,'file':False,'bytes':0})
+    # The button that sends the form is part of what is sent: the clicked one, or for a fill
+    # sent with Enter the form's first submit button, exactly as the browser picks it.
+    submitter = {'name': node.get('name') or '', 'value': node.get('submit_value', ''), 'image': node.get('type') == 'image'} \
+        if node.get('navigates') and node.get('form', -1) >= 0 and not args.get('submit') else form.get('default_submit')
+    if submitter and submitter.get('image'):
+        raise ValueError('image_submit')
+    if submitter and submitter.get('name'):
+        fields.append({'name':submitter['name'],'value':submitter.get('value',''),'secret':False,'file':False,'bytes':0})
     return fields
