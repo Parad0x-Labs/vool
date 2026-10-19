@@ -1446,6 +1446,43 @@ def _largest_parameter_size_b(*sources: str) -> float:
     return best
 
 
+#: In the USER'S OWN WORDS a size token is a model request only when it reads as one: attached to a
+#: model name ("qwen3:32b", "llama-70b", "mixtral-8x22b"), right after a versioned family word
+#: ("qwen3 32b"), or followed by model vocabulary ("a 70b model", "the 35b heavy lane", "the 405b
+#: variant"). Measured 2026-10-19: a form fixture's random address "18620b" was read as an
+#: 18,620B demand and the turn never reached the model; "Flat 24b" or "unit 30b" would do the same.
+#: The pinned `requested_model` keeps the plain size parse: it IS a model name.
+_USER_SIZE_TOKEN_RE = re.compile(
+    r"(?<![\w.])(?P<name>[a-z][\w.]*[-:/])?(?P<size>(?:\d+\s*x\s*)?\d+(?:\.\d+)?\s*b)\b", re.IGNORECASE
+)
+_MODEL_FOLLOW_WORDS = frozenset(
+    {
+        "model", "models", "llm", "llms", "lane", "lanes", "heavy", "param", "params", "parameter", "parameters",
+        "weights", "variant", "variants", "version", "versions", "checkpoint", "checkpoints", "quant",
+    }
+)
+
+
+def _user_model_size_text(text: str) -> str:
+    """Only the size tokens in user text that read as a model reference, space-joined."""
+
+    cleaned = _without_runtime_identifiers(str(text or ""))
+    kept: list[str] = []
+    for match in _USER_SIZE_TOKEN_RE.finditer(cleaned):
+        size = match.group("size")
+        if match.group("name"):
+            kept.append(size)
+            continue
+        before = cleaned[: match.start()].split()
+        after = cleaned[match.end():].split()
+        previous = before[-1].strip(",;:()\"'").lower() if before else ""
+        following = after[0].strip(",;:.!?()\"'").lower() if after else ""
+        versioned_family = any(ch.isalpha() for ch in previous) and any(ch.isdigit() for ch in previous)
+        if following in _MODEL_FOLLOW_WORDS or versioned_family:
+            kept.append(size)
+    return " ".join(kept)
+
+
 def _explicit_heavy_requested(*, user_text: str, source_context: dict[str, Any] | None) -> bool:
     """Whether THIS turn genuinely asked for a heavy model -- see `explicit_heavy`'s field comment.
 
@@ -1473,7 +1510,7 @@ def _explicit_heavy_requested(*, user_text: str, source_context: dict[str, Any] 
         return True
     # sized in the text's own case: the size regexes ignore case, and a base58 identifier (a Solana address or
     # signature) is recognisable only with its case intact -- lowercasing it first would turn it back into a size
-    return _largest_parameter_size_b(requested, text) >= _HEAVY_PARAMETER_FLOOR_B
+    return _largest_parameter_size_b(requested, _user_model_size_text(text)) >= _HEAVY_PARAMETER_FLOOR_B
 
 
 def _requested_heavy_marker(*, user_text: str, source_context: dict[str, Any] | None) -> str | None:
@@ -1481,7 +1518,7 @@ def _requested_heavy_marker(*, user_text: str, source_context: dict[str, Any] | 
 
     requested = str((source_context or {}).get("requested_model") or "")
     text = str(user_text or "")
-    size = _largest_parameter_size_b(requested, text)
+    size = _largest_parameter_size_b(requested, _user_model_size_text(text))
     if size < _HEAVY_PARAMETER_FLOOR_B:
         return None
     return f"{size:g}b"
