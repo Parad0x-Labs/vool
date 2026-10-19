@@ -24,6 +24,11 @@ Each table gets one of three actions:
   not complete.
 * ``artifact`` -- an archived artifact: the packed file and its manifest row are both removed.
 * ``queue`` -- a queued message: one that already ran is redacted, one still waiting is kept.
+* ``goal`` -- the chat's explicit /goal record (``core.goal_workflow``): redacted like a state record, and a
+  goal that is not finished and whose working text (objective, acceptance, plan steps, execution binding)
+  carried the words is stopped and its worker fenced, so it never runs on blanked text. A step's settled
+  reason and answer excerpt, the last reason and superseded revisions are record only: blanked, and the
+  goal goes on.
 
 A row that carried the words also loses every nested digest (``request_sha256``,
 ``original_request_hash``, any ``*_hash``/``*_sha256``/``*_digest`` leaf): an unsalted digest of a short
@@ -185,12 +190,18 @@ _INVENTORY: tuple[_Table, ...] = (
         "seen_curiosity_topic_ids_json", "seen_curiosity_run_ids_json", "seen_agent_ids_json",
         "last_active_agents", "snooze_until", "last_prompted_at", "interaction_mode", "smalltalk_repeat_count",
         "updated_at")),
+    # The chat's explicit /goal record (core/goal_workflow.py): objective, acceptance, plan and step results.
+    _Table("chat_goals", "goal", _SESSION, _cols(
+        "goal_id", "session_id", "project_id", "state", "revision", "current_step_id", "created_at", "updated_at",
+        "ended_at", "started_at", "paused_at", "paused_seconds", "created_turn_id", "model", "worker_epoch")),
     # An agent-team member started from a chat: its record is re-adopted by id after a restart, so it stays.
     _Table("agents", "redact", _SESSION, _cols(
         "agent_id", "team_id", "key", "importance", "effective_importance", "depth", "parent_id", "state",
         "run_token", "pid", "create_time", "launched_at", "ended_at", "exit_code", "progress_done",
         "progress_planned", "running_seconds", "session_id")),
 )
+
+_GOAL_IDENTITIES = ROW_IDENTITIES | next(spec.structural for spec in _INVENTORY if spec.name == "chat_goals")
 
 #: Session-scoped tables whose words are not run history and are not this operation's to erase:
 #: objects the person made and manages themselves (a scheduled reminder, the chat's own list of
@@ -589,6 +600,16 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str, command: 
         _erase_finalizations([*matched, *unswept])
         if _unswept_finalizations(conn, spec, owners):
             raise RuntimeError("finalization derivative sweep is incomplete")
+    elif spec.action == "goal":
+        from core.goal_workflow import forget_goal_row, stop_goals_after_forget
+
+        # A goal row is rewritten whole from what was read, so it is read again under the write lock: a
+        # worker's save that committed after the first read is erased, not overwritten by the older row.
+        conn.execute("BEGIN IMMEDIATE")
+        matched, _ = _carrying(conn, spec, owners, token)
+        stopped = [forget_goal_row(conn, row, token) for row in matched]
+        conn.commit()
+        stop_goals_after_forget([goal for goal in stopped if goal is not None])
     elif spec.action == "artifact":
         for row in matched:
             path = Path(str(row["file_path"] or "")).expanduser()
@@ -814,6 +835,17 @@ def carries_forgotten_words(chat_id: str, texts: Iterable[Any]) -> bool:
     # Ids, stamps and digests the runtime made are not words (a request id's hex never "is" a forgotten 12).
     values = [text for text in texts if text and not _runtime_made(text)]
     return any(text_carries(text, token) for text in values for token in tokens)
+
+
+def goal_words_carry(value: Any, token: str) -> bool:
+    """Whether part of a chat goal (a field, the plan, the binding) carries ``token``, read the way the forget
+    sweep reads a ``chat_goals`` row: runtime-made identities and counters are not words."""
+    return carries(_without_bookkeeping(_without_nested_identities(value, _GOAL_IDENTITIES)), token)
+
+
+def goal_words_redacted(value: Any, token: str) -> Any:
+    """Part of a chat goal with every leaf that carries ``token`` blanked, as the forget sweep blanks it."""
+    return _redacted(value, token, _GOAL_IDENTITIES)
 
 
 def resweep_forgotten_run_history(chat_id: str) -> int:

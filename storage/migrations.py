@@ -1555,6 +1555,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_message_queue_idem
 ON message_queue(session_id, idempotency_key)
 WHERE idempotency_key != '';
 
+-- The explicit /goal workflow's ONE durable aggregate per row: objective, acceptance, the
+-- plan revision with stable step ids and dependencies, goal lifecycle state, and references
+-- (turn ids) back to the canonical attempts. It deliberately holds no tool receipts, spend
+-- accounting, worker ownership or checkpoint state — those stay in their existing owners
+-- (runtime_checkpoints / runtime_session_events / runtime_tool_receipts) and are referenced
+-- by turn id. Owned by core/goal_workflow.py.
+CREATE TABLE IF NOT EXISTS chat_goals (
+    goal_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    project_id TEXT NOT NULL DEFAULT '',
+    objective TEXT NOT NULL,
+    acceptance TEXT NOT NULL DEFAULT '',
+    plan_json TEXT NOT NULL DEFAULT '{}',
+    state TEXT NOT NULL DEFAULT 'queued',
+    revision INTEGER NOT NULL DEFAULT 0,
+    current_step_id TEXT NOT NULL DEFAULT '',
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    ended_at REAL,
+    started_at REAL,
+    paused_at REAL,
+    paused_seconds REAL NOT NULL DEFAULT 0,
+    created_turn_id TEXT NOT NULL DEFAULT '',
+    last_reason TEXT NOT NULL DEFAULT '',
+    model TEXT NOT NULL DEFAULT '',
+    exec_context_json TEXT NOT NULL DEFAULT '{}',
+    worker_epoch INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_goals_session
+ON chat_goals(session_id, created_at DESC);
+
 -- Last grounded machine read per session, so an elliptical follow-up ("ok what about D?",
 -- "the biggest file on that drive") re-runs the real tool scoped to the right drive even if the
 -- server restarted between turns. Structured conversational reference (entity_type/value/source
@@ -2211,6 +2243,12 @@ STORE_VERSION_LEDGER: tuple[tuple[int, str], ...] = (
         "fire_generation; adds calendar_accounts, calendar_selections, calendar_event_projections, "
         "notification_items, notification_deliveries, notification_preferences and "
         "native_notification_requests.",
+    ),
+    (
+        9,
+        "Goal workflow: adds chat_goals (the explicit /goal workflow's one durable aggregate "
+        "per goal: objective, acceptance, plan revision with stable step ids, lifecycle "
+        "state, turn-id references) and its session index.",
     ),
 )
 
