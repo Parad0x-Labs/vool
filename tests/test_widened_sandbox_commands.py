@@ -54,6 +54,40 @@ def test_each_command_names_what_it_does(command: str, expected: set) -> None:
     assert set(command_actions(command)) == expected
 
 
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("env git commit -qam wip", {PermissionAction.GIT_COMMIT}),
+        ("env A=1 rm notes.txt", {PermissionAction.DELETE_FILES}),
+        ("env -i B=2 pip install x", {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}),
+        ("env -u HOME -- git push", {PermissionAction.GIT_PUSH}),
+        ("ls && env git push", {PermissionAction.RUN_SAFE_COMMANDS, PermissionAction.GIT_PUSH}),
+        ("env -S 'git push'", {PermissionAction.UNKNOWN_SIDE_EFFECT}),
+        ("env -C /tmp rm x", {PermissionAction.UNKNOWN_SIDE_EFFECT}),
+    ],
+)
+def test_a_command_wrapped_in_env_is_named_by_what_it_runs(command: str, expected: set) -> None:
+    assert set(command_actions(command)) == expected
+
+
+@SANDBOX
+@pytest.mark.parametrize("command", ["env git commit -qam wip", "env A=1 rm notes.txt"])
+def test_an_env_wrapped_commit_or_delete_still_asks_in_auto(workspace, chat_autonomy, command) -> None:
+    execution = _Turn(workspace, "auto").command(command)
+    assert execution.status == "pending_approval", (command, execution.status, execution.response_text)
+    assert (workspace / "notes.txt").exists()
+
+
+@SANDBOX
+def test_the_approval_card_shows_the_whole_command_line(workspace, chat_autonomy) -> None:
+    line = "python3 -m pytest -q 2>&1 | tail -3 && rm notes.txt"
+    execution = _Turn(workspace, "auto").command(line)
+    assert execution.status == "pending_approval"
+    request = dict(execution.details["approval_request"])
+    assert request["action"] == f"Run this command: {line}"
+    assert request["command"] == line
+
+
 # ------------------------------------------------------------------------------------------------
 # New tools
 # ------------------------------------------------------------------------------------------------

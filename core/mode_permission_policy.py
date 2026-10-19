@@ -2278,6 +2278,31 @@ def _argv_actions(argv: list[str]) -> set[PermissionAction]:
     if not argv:
         return {PermissionAction.UNKNOWN_SIDE_EFFECT}
     base = Path(str(argv[0])).name.lower()
+    if base == "env":
+        # `env NAME=value cmd ...` runs cmd: it does what cmd does. `env git commit` read as a plain
+        # side-effecting command let Auto commit (or `env rm x` delete) without the prompt the
+        # bare spelling gets. Any env option beyond -i/-u/-0 (-S splits a string into a new
+        # command line, -C changes directory) is not classified here at all.
+        index = 1
+        while index < len(argv):
+            token = str(argv[index])
+            if token in {"-i", "--ignore-environment", "-0", "--null", "-"}:
+                index += 1
+            elif token in {"-u", "--unset"}:
+                index += 2
+            elif token.startswith("--unset="):
+                index += 1
+            elif token == "--":
+                index += 1
+                break
+            elif token.startswith("-"):
+                return {PermissionAction.UNKNOWN_SIDE_EFFECT}
+            elif "=" in token:
+                index += 1
+            else:
+                break
+        wrapped = [str(item) for item in argv[index:]]
+        return _argv_actions(wrapped) if wrapped else {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if base == "git":
         return _git_actions(argv)
     lowered_args = [str(item).lower() for item in argv[1:]]
@@ -3585,11 +3610,24 @@ def _new_approval_request(
             display_intent, display_arguments = inner_intent, arguments["arguments"]
             # The diff the operator reviews is of the file the TASK writer replaces.
             display_context = _step_execution_context(source_context, arguments) or source_context
+    # A command is approved by reading it: the card names the exact line that will run, whole,
+    # never just the tool that runs it.
+    command_line = ""
+    if display_intent == "sandbox.run_command" or (
+        display_intent in {"workspace.run_tests", "workspace.run_lint", "workspace.run_formatter"}
+    ):
+        command_line = str(display_arguments.get("command") or display_arguments.get("cmd") or "").strip()
+    action_text = (
+        f"Run this command: {command_line}"
+        if command_line
+        else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
+    )
     request = {
         "approval_id": token,
         "task_id": task_id,
         "intent": intent,
-        "action": f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else ""),
+        "action": action_text,
+        **({"command": command_line} if command_line else {}),
         "affected_resources": _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": _approval_effect_summary(actions),
         "reversible": bool(edit_batch or PermissionAction.GIT_COMMIT in actions),
