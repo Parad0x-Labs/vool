@@ -1483,6 +1483,18 @@ def execute_grounded_turn(
             })
             source_context["response_control"] = control
 
+    # Name the check that set the model reply aside (codes only) on the turn's response control,
+    # which the API payload and the terminal trace carry, and on the durable run audit below.
+    from core.agent_runtime.reply_rejection import reply_rejection_receipt
+
+    reply_rejection = reply_rejection_receipt(
+        model_execution, rendered_via=rendered_via, response_reason=response_reason,
+    )
+    if reply_rejection is not None and isinstance(source_context, dict):
+        control = dict(source_context.get("response_control") or {})
+        control["reply_rejection"] = reply_rejection
+        source_context["response_control"] = control
+
     # Verifier gate -> visible caveat: if an independent verifier flagged this answer
     # (needs_review set by the router), prepend a short draft caveat so the user knows
     # it did not pass verification. Non-blocking; a passing / verifier-unavailable /
@@ -1990,6 +2002,7 @@ def execute_grounded_turn(
             "adaptive_research_uncertainty": adaptive_research.admitted_uncertainty,
             "source_surface": (source_context or {}).get("surface"),
             "source_platform": (source_context or {}).get("platform"),
+            **({"reply_rejection": reply_rejection} if reply_rejection is not None else {}),
         },
     )
 
@@ -2030,6 +2043,7 @@ def execute_grounded_turn(
         task_id=task.task_id,
         task_class=str(classification.get("task_class") or "unknown"),
         **({"fulfillment_outcome": terminal_outcome.to_dict()} if terminal_outcome.is_unfulfilled else {}),
+        **({"reply_rejection": reply_rejection} if reply_rejection is not None else {}),
     )
     agent._finalize_runtime_checkpoint(
         source_context,
