@@ -1,7 +1,9 @@
 import contextlib
 import contextvars
+import os
 import shlex
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from core import policy_engine
@@ -304,60 +306,104 @@ class ExecutionGate:
                     {"decision": "blocked", "reason": "Command contains blocked destructive markers."},
                     mode=mode,
                 )
+        # A CHAINED line (`pytest -q 2>&1 | tail -5`, `cd app && npm test`) is split by the one
+        # grammar the sandbox runs (core.command_line) and every command in it is checked here on
+        # its own; syntax outside that grammar refuses the whole line.
+        from core.command_line import CommandLineRefused, parse_command_line
+
         try:
-            argv = shlex.split(text, posix=True)
-        except ValueError:
+            chain = parse_command_line(text)
+        except CommandLineRefused as exc:
             return _receipted(
                 DECISION_DENIED,
-                {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
+                {"decision": "blocked", "reason": str(exc)},
                 mode=mode,
             )
-        # TOKEN-LEVEL compound guard. The sandbox executes argv directly (never a shell),
-        # so a metacharacter inside a QUOTED argument (python -c 'import x; do_y()',
-        # grep 'foo|bar') is data, not composition. A marker as its OWN token — or a
-        # newline anywhere — still separates commands and stays blocked. The previous
-        # raw-text scan was quote-blind and refused every legitimate `python -c` repro
-        # step a code task produces.
-        if "\n" in text or any(
-            token in {"&&", "||", ";", "|", "`"} or token.startswith("$(")
-            for token in argv
-        ):
-            return _receipted(
-                DECISION_DENIED,
-                {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
-                mode=mode,
-            )
-        if not argv:
+        segment_cwd = cwd
+        if chain is not None:
+            if os.name == "nt":
+                return _receipted(
+                    DECISION_DENIED,
+                    {"decision": "blocked", "reason": "Chained commands are not supported on Windows; run them one at a time."},
+                    mode=mode,
+                )
+            segments = [[str(word) for word in segment.argv] for segment in chain.segments]
+            if chain.cd is not None:
+                segment_cwd, cd_refusal = ExecutionGate._chained_cd_target(
+                    chain.cd, cwd=cwd, workspace_root=policy.workspace_root
+                )
+                if cd_refusal:
+                    return _receipted(
+                        DECISION_DENIED,
+                        {"decision": "blocked", "reason": cd_refusal},
+                        mode=mode,
+                    )
+        else:
+            try:
+                argv = shlex.split(text, posix=True)
+            except ValueError:
+                return _receipted(
+                    DECISION_DENIED,
+                    {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
+                    mode=mode,
+                )
+            # TOKEN-LEVEL compound guard. A single command executes as argv directly (never a
+            # shell), so a metacharacter inside a QUOTED argument (python -c 'import x; do_y()',
+            # grep 'foo|bar') is data, not composition. A marker as its OWN token -- or a newline
+            # anywhere -- that the chain grammar did not accept stays blocked.
+            if "\n" in text or any(
+                token in {"&&", "||", ";", "|", "`"} or token.startswith("$(")
+                for token in argv
+            ):
+                return _receipted(
+                    DECISION_DENIED,
+                    {"decision": "blocked", "reason": "Compound shell syntax is not allowed in sandbox commands."},
+                    mode=mode,
+                )
+            segments = [argv]
+        if not segments or not all(segments):
             return _receipted(
                 DECISION_DENIED,
                 {"decision": "blocked", "reason": "Empty command."},
                 mode=mode,
             )
-        base_cmd = ExecutionGate._base_command(argv)
-        if base_cmd == "git":
-            # The user's rules are a HARD block, reported before any approvable gate: a commit,
-            # tag or push carrying a word the user banned from git is refused outright, so nobody
-            # is asked to approve a command a rule forbids. Narrow-only: no match grants nothing.
-            from core.user_rules import sandbox_git_check
-
-            git_at = next((i for i, token in enumerate(argv) if str(token).strip().lower() == "git"), 0)
-            rules_verdict = sandbox_git_check([str(t) for t in argv[git_at:]], cwd=cwd)
-            ruled = rules_verdict.refusal
-            if ruled is None and rules_verdict.note:
-                rule_override.append(rules_verdict.note)
-            if ruled is not None:
+        base_cmd = ExecutionGate._base_command(segments[0])
+        destructive = False
+        read_only = True
+        for argv in segments:
+            segment_base = ExecutionGate._base_command(argv)
+            if segment_base == "rm" and ExecutionGate._rm_is_recursive(argv):
+                # `rm -rf` is a hard marker above; every other spelling of a recursive delete
+                # (`rm -fr`, `rm -r -f`, `rm --recursive`) is the same act and is refused the same way.
                 return _receipted(
                     DECISION_DENIED,
-                    {
-                        "decision": "blocked",
-                        "reason": ruled.reason,
-                        "base_command": base_cmd,
-                        "user_rule": "refused",
-                    },
+                    {"decision": "blocked", "reason": "Command contains blocked destructive markers."},
                     mode=mode,
                 )
-        destructive = ExecutionGate._is_destructive_command(base_cmd, argv, lowered)
-        read_only = ExecutionGate._is_read_only_command(base_cmd, argv)
+            if segment_base == "git":
+                # The user's rules are a HARD block, reported before any approvable gate: a commit,
+                # tag or push carrying a word the user banned from git is refused outright, so nobody
+                # is asked to approve a command a rule forbids. Narrow-only: no match grants nothing.
+                from core.user_rules import sandbox_git_check
+
+                git_at = next((i for i, token in enumerate(argv) if str(token).strip().lower() == "git"), 0)
+                rules_verdict = sandbox_git_check([str(t) for t in argv[git_at:]], cwd=segment_cwd)
+                ruled = rules_verdict.refusal
+                if ruled is None and rules_verdict.note:
+                    rule_override.append(rules_verdict.note)
+                if ruled is not None:
+                    return _receipted(
+                        DECISION_DENIED,
+                        {
+                            "decision": "blocked",
+                            "reason": ruled.reason,
+                            "base_command": segment_base,
+                            "user_rule": "refused",
+                        },
+                        mode=mode,
+                    )
+            destructive = destructive or ExecutionGate._is_destructive_command(segment_base, argv, lowered)
+            read_only = read_only and ExecutionGate._is_read_only_command(segment_base, argv)
         writes_workspace = not read_only
         if not policy_engine.get("execution.allow_sandbox_execution", False):
             if policy_engine.get("execution.allow_simulation", True):
@@ -404,6 +450,25 @@ class ExecutionGate:
                     "base_command": base_cmd,
                     "destructive": str(destructive).lower(),
                     "read_only": str(read_only).lower(),
+                },
+                mode=mode,
+            )
+        # Every hard refusal above still applies. Past them, the permission controller's ALLOW
+        # for THIS dispatch stands behind exactly the command it decided on (an approval the
+        # operator gave for it, a grant, or the mode's own allowance), so it is not asked for
+        # again here and the mode matrix is not re-derived. A command it does not cover --
+        # another string, an action it did not allow -- is decided below exactly as before.
+        authorization = ExecutionGate._covering_authorization(text, policy_mode=mode)
+        if authorization is not None:
+            return _receipted(
+                DECISION_ALLOWED,
+                {
+                    "decision": "sandbox",
+                    "reason": "Sandbox execution allowed by the permission decision for this call.",
+                    "base_command": base_cmd,
+                    "destructive": str(destructive).lower(),
+                    "read_only": str(read_only).lower(),
+                    "authorized_by": authorization.granted_by or "mode",
                 },
                 mode=mode,
             )
@@ -462,6 +527,52 @@ class ExecutionGate:
             },
             mode=mode,
         )
+
+    @staticmethod
+    def _covering_authorization(text: str, *, policy_mode: str):
+        """The published controller ALLOW that covers this exact command, decided in this turn's
+        mode, or None."""
+        from core.mode_permission_policy import OperatingMode, current_command_authorization, normalize_mode
+
+        authorization = current_command_authorization()
+        if authorization is None or not authorization.covers(text):
+            return None
+        # The controller reads a missing or unknown mode as Manual; so does this check.
+        turn_mode = normalize_mode(policy_mode, allow_legacy=False) or OperatingMode.MANUAL
+        if turn_mode is not authorization.mode:
+            return None
+        return authorization
+
+    @staticmethod
+    def _rm_is_recursive(argv: list[str]) -> bool:
+        for token in argv[1:]:
+            item = str(token or "")
+            if item == "--":
+                return False
+            if item.startswith("--") and len(item) > 2 and "recursive".startswith(item[2:].split("=", 1)[0]):
+                return True  # GNU accepts any unambiguous prefix: --r, --rec, ...
+            if item.startswith("-") and not item.startswith("--") and any(flag in item[1:] for flag in "rR"):
+                return True
+        return False
+
+    @staticmethod
+    def _chained_cd_target(target: str, *, cwd: str, workspace_root: str) -> tuple[str, str]:
+        """Where a chain's leading `cd <target>` lands, and why it may not (empty when it may)."""
+        root_text = str(workspace_root or cwd or "").strip()
+        refused = f"`cd {target}` leaves the workspace, so the line was not run."
+        if not root_text:
+            return "", refused
+        try:
+            root = Path(root_text).resolve()
+            base = Path(str(cwd or root_text)).resolve()
+            landed = (base / Path(str(target))).resolve()
+        except (OSError, RuntimeError, ValueError):
+            return "", refused
+        if landed != root and not landed.is_relative_to(root):
+            return "", refused
+        if not landed.is_dir():
+            return "", f"`cd {target}`: there is no folder by that name here, so the line was not run."
+        return str(landed), ""
 
     @staticmethod
     def _base_command(argv: list[str]) -> str:
@@ -562,6 +673,11 @@ class ExecutionGate:
         if autonomy_mode == "balanced":
             return False
         if autonomy_mode == "hands_off":
+            return False
+        if autonomy_mode == "auto":
+            # Auto is the owner's opt-in to run routine local work unprompted, so it is never
+            # stricter than the default hands_off. Destructive commands asked above; the mode
+            # matrix recheck in evaluate_command still has the final word on side effects.
             return False
         return not read_only
 

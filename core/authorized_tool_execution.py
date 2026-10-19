@@ -44,6 +44,8 @@ from core.mode_permission_policy import (
     PermissionDecision,
     PermissionEffect,
     decide_tool_call,
+    publish_command_authorization,
+    withdraw_command_authorization,
 )
 
 # The permission-verdict statuses this boundary produces for a call it did not execute. Refusal is
@@ -74,6 +76,35 @@ def permission_payload(decision: PermissionDecision | None) -> dict[str, Any]:
         "reason": str(decision.reason or ""),
         "route": _BOUNDARY_SURFACE,
     }
+
+
+_VALIDATION_INTENTS = frozenset({"workspace.run_tests", "workspace.run_lint", "workspace.run_formatter"})
+
+
+def commands_for_call(intent: str, arguments: dict[str, Any] | None) -> tuple[str, ...]:
+    """The exact command texts the handler for this call hands to the sandbox gate.
+
+    Mirrors the handlers: `sandbox.run_command` runs its `command` (or `cmd`); the validation tools
+    run the command `validation_command` picks, rewritten by `runtime_validation_command`; a code-task
+    step runs its inner call. Any other intent runs no command this decision may stand behind.
+    """
+    name = str(intent or "").strip().lower()
+    args = dict(arguments or {})
+    if name == "sandbox.run_command":
+        return (str(args.get("command") or args.get("cmd") or "").strip(),)
+    if name in _VALIDATION_INTENTS:
+        try:
+            from core.execution.validation_tools import runtime_validation_command, validation_command
+
+            return (runtime_validation_command(validation_command(name, args)),)
+        except Exception:
+            return ()
+    if name == "code.task.step":
+        inner = str(args.get("intent") or "").strip().lower()
+        inner_args = args.get("arguments")
+        if inner and not inner.startswith("code.task.") and isinstance(inner_args, dict):
+            return commands_for_call(inner, inner_args)
+    return ()
 
 
 def authorize_runtime_tool(
@@ -281,12 +312,18 @@ def execute_authorized_runtime_tool(
     if task_id:
         context.setdefault("_blackbox_task_id", str(task_id))
     runtime = _runtime_execution_tools()
-    execution = runtime.execute_runtime_tool(
-        intent,
-        arguments,
-        source_context=context,
-        trusted_local_only=trusted_local_only,
-    )
+    # The sandbox gate below cannot see this decision on its own; for this one dispatch it may
+    # honour it, for exactly the command texts this call runs (`commands_for_call`), and no longer.
+    authorization = publish_command_authorization(intent, decision, commands_for_call(intent, arguments))
+    try:
+        execution = runtime.execute_runtime_tool(
+            intent,
+            arguments,
+            source_context=context,
+            trusted_local_only=trusted_local_only,
+        )
+    finally:
+        withdraw_command_authorization(authorization)
     if execution is None:
         return None
     details = dict(getattr(execution, "details", {}) or {})
@@ -304,5 +341,6 @@ def execute_authorized_runtime_tool(
 __all__ = [
     "REFUSAL_STATUSES",
     "authorize_runtime_tool",
+    "commands_for_call",
     "execute_authorized_runtime_tool",
 ]
