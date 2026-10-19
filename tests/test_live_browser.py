@@ -66,7 +66,7 @@ def world(pact_rig, request):
             if path == '/cookie-result': content=('<h1>Cookie: '+self.headers.get('Cookie','')+'</h1>').encode()
             if path == '/find':
                 fields=parse_qs(urlsplit(self.path).query)
-                content=('<h1>'+fields.get('destination',[''])[0]+' '+fields.get('service',[''])[0]+' 18:42</h1>').encode()
+                content=('<h1>'+fields.get('destination',[''])[0]+' '+fields.get('service',[''])[0]+' 18:42</h1><input name="remark">').encode()
             if path in {'/gzip','/bomb'}:
                 import gzip
                 content=gzip.compress(b'<h1>Early service 06:05</h1>' if path=='/gzip' else b'x'*2_000_001)

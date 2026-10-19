@@ -809,8 +809,10 @@ class LiveSession:
                 self._permit = {"url": args["url"].split("#")[0], "method": "GET", "used": False, "op": op, "cancelled": threading.Event(), "telemetry": proposal.get("_telemetry")}
                 await self._page.goto(args["url"], wait_until="domcontentloaded", timeout=TIMEOUT * 1000)
             elif op in {"click", "type", "upload"}:
-                self._url_from_form = bool(args.get("form", -1) >= 0 and args.get("method") == "GET"
-                                           and (args.get("submit") or (op == "click" and args.get("navigates"))))
+                # Only an action that leaves the page decides whether the next address was built by a form;
+                # a fill on the result page keeps the address it was given.
+                if args.get("submit") or (op == "click" and args.get("navigates")):
+                    self._url_from_form = bool(args.get("form", -1) >= 0 and args.get("method") == "GET")
                 if proposal.get("actor") == "owner" and op == "click" and not args.get("navigates"):
                     self._owner_filled.add(self._field_key(args))
                 node = self._page.locator(args["selector"])

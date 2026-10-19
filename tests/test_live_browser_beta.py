@@ -770,6 +770,14 @@ def test_hidden_one_time_and_owner_typed_values_never_reach_the_model(world):
         seen = json.dumps([live.tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'}),
                            live.tool_intent('vool-browser.session.status', {}, {'session_id': 'live-test'})])
     assert 'hidden-token-417' not in seen and 'Riga' in seen and origin + '/find' in seen
+    # A later fill on the result page leaves the same form-built address in place, so it stays hidden.
+    finish(world, 'type', {'selector': next(n for n in item.nodes if n['name'] == 'remark')['selector'], 'text': 'owner-typed-56'})
+    assert 'hidden-token-417' in item.url
+    with turn_scope(f'Use the browser to open {origin}/private-fields', 'live-test'):
+        seen = json.dumps([live.tool_intent('vool-browser.inspect', {}, {'session_id': 'live-test'}),
+                           live.tool_intent('vool-browser.session.status', {}, {'session_id': 'live-test'})])
+    for private in ['hidden-token-417', 'owner-typed-56']:
+        assert private not in seen
 
 
 def test_a_model_proposal_needs_the_persons_turn(world):
