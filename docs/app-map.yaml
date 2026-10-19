@@ -1154,7 +1154,7 @@ rows:
     title: Calendar accounts and sync
     area: other
     ui: [calendar_accounts_panel]
-    wired: ["/api/calendar/accounts", "/api/calendar/accounts/add", "/api/calendar/accounts/disconnect", "/api/calendar/accounts/discover", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/reconnect", "/api/calendar/accounts/select", "/api/calendar/sync"]
+    wired: ["/api/calendar/accounts", "/api/calendar/accounts/add", "/api/calendar/accounts/disconnect", "/api/calendar/accounts/discover", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/reconnect", "/api/calendar/accounts/remove", "/api/calendar/accounts/select", "/api/calendar/sync"]
     default: []
     tests: [tests/pa_beta_gate/test_v5_served_calendar_effect_phase.py]
     label: TESTED
