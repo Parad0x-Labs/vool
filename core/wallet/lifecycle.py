@@ -494,8 +494,8 @@ class PaymentLifecycle:
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         from core.wallet import transfers
 
-        if transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) != custody.PILOT_SEAL_POLICY and spec.is_evm:
-            # a native-coin transfer on an EVM Crypto Pilot row from a connected or watch-only account: only a Crypto
+        if spec.is_evm and spec.is_mainnet and transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) != custody.PILOT_SEAL_POLICY:
+            # a native-coin transfer on an EVM mainnet Crypto Pilot row from a connected or watch-only account: only a Crypto
             # Pilot wallet sends on this row, and the EIP-3009 simulation below is not a native transfer's. Refused
             # typed and truthfully here, before any chain read, quote or approval prompt.
             end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=FAULT_SEND_NEEDS_VOOL_WALLET,
@@ -802,10 +802,6 @@ class PaymentLifecycle:
         self._require_channel_on(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
-        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
-            # only a Crypto Pilot wallet moves funds through this lane; another custody (a connected or watch-only
-            # account) is refused before any approval prompt, credential or quote use, with what is really wrong
-            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)
         paykit_binding = self._require_paykit_quote(proposal, quote, spec) if str(proposal.origin) in proposals.PAYKIT_ORIGINS else None
         sdk_binding = self._require_x402_sdk_quote(proposal, quote, spec) if str(proposal.origin) == proposals.ORIGIN_X402_SDK else None
@@ -834,6 +830,11 @@ class PaymentLifecycle:
         if proposal.origin == proposals.ORIGIN_DNA_FEE:
             # a fee collection is approved WITH its provider payment, never on a sheet of its own
             raise self._fault("wallet_quote_mismatch", proposal, reason="dna_fee_collection_rides_its_payment")
+        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
+            # only a Crypto Pilot wallet moves funds through this lane; another custody (a connected or watch-only
+            # account) is refused before any approval prompt or credential, with what is really wrong. The quote and
+            # recipient bindings above answer first: a changed contact stays the refusal the owner must see.
+            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         challenge = approval_module.ApprovalChallengeV3.for_quote(proposal, quote)
         decision = approver.approve(challenge)
         if not approval_module.decision_binds_v3(decision, challenge):

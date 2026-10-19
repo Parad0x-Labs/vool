@@ -7,7 +7,8 @@ The recovery phrase crosses this seam exactly once, in the pocket-creation respo
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator
+import functools
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from core.request_trust import is_loopback_host
@@ -137,12 +138,22 @@ def _request_locale(headers: dict[str, Any] | None, query: dict[str, list[str]] 
         reset_turn_locale(token)
 
 
-def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
-    with _request_locale(headers, query):
-        return _handle_wallet_get(path, query, client_host=client_host)
+def _in_request_locale(*, reads_query: bool) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Run a door handler inside `_request_locale`. A decorator, not a renamed inner handler: the command census reads
+    each door's route literals from the body of the function that carries the public name."""
+    def wrap(handler: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(handler)
+        def bound(path: str, payload: Any, *, headers: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+            with _request_locale(headers, payload if reads_query else None):
+                if reads_query:
+                    return handler(path, payload, **kwargs)
+                return handler(path, payload, headers=headers, **kwargs)
+        return bound
+    return wrap
 
 
-def _handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "") -> Any:
+@_in_request_locale(reads_query=True)
+def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "") -> Any:
     if not is_loopback_host(client_host):
         return _json(403, {"ok": False, "error": "owner_local_required"})
     from core.wallet.status import wallet_status
@@ -261,14 +272,10 @@ def _recovery_door(path: str, body: dict[str, Any], *, source_context: dict[str,
     return _json(404, {"ok": False, "error": "not found"})
 
 
+@_in_request_locale(reads_query=False)
 def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     """``headers`` are the real request's headers. A caller without a request behind it (the command-dispatch
     projection) passes none, and a trusted door refuses it: loopback alone never authorizes a trusted door."""
-    with _request_locale(headers):
-        return _handle_wallet_post(path, body, client_host=client_host, headers=headers)
-
-
-def _handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     if not is_loopback_host(client_host):
         return _json(403, {"ok": False, "error": "owner_local_required"})
     body = body if isinstance(body, dict) else {}
