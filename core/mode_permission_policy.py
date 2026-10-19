@@ -12,6 +12,7 @@ one of those harder boundaries.
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import difflib
 import hashlib
 import hmac
@@ -106,6 +107,10 @@ class PermissionDecision:
     actions: tuple[PermissionAction, ...]
     reason: str
     approval_request: dict[str, Any] | None = None
+    #: Who allowed the call when it was not the mode itself: "exact_approval" (the operator's
+    #: approval token matched this call), "task_grant", "project_grant" or "internal_scope".
+    #: Empty for a mode-matrix ALLOW and for every non-ALLOW.
+    granted_by: str = ""
 
     @property
     def allowed(self) -> bool:
@@ -2085,7 +2090,7 @@ _SED_SAFE_LONG_OPTIONS = frozenset(
 _SED_SIMPLE_COMMANDS = frozenset("pPdD=lnNgGhHxzF")
 _SED_ADDRESS = re.compile(r"(?:\d+(?:~\d+)?|\$|/(?:[^/\\\n]|\\.)*/[IM]*)")
 _DELETE_BASES = frozenset({"rm", "rmdir", "unlink", "shred"})
-_PACKAGE_TOOLS = frozenset({"pip", "pip3", "uv", "npm", "pnpm", "yarn", "cargo", "gem", "brew", "apt", "apt-get", "poetry"})
+_PACKAGE_TOOLS = frozenset({"pip", "pip3", "uv", "npm", "pnpm", "yarn", "bun", "cargo", "gem", "brew", "apt", "apt-get", "poetry"})
 
 
 def _git_option_writes(token: str, *, subcommand: str) -> bool:
@@ -2266,16 +2271,67 @@ def _sed_is_read_only(argv: list[str]) -> bool:
 def _command_actions(command: str) -> set[PermissionAction]:
     command_text = str(command or "")
     # Commands execute through a shell-capable sandbox. A read command followed by redirection,
-    # substitution, a pipeline, or another command is no longer a bounded read.
+    # substitution, a pipeline, or another command is no longer a bounded read -- unless the line
+    # is a chain in the one grammar the sandbox runs (core.command_line): then each command in it
+    # is classified on its own and the line does everything its commands do, the union.
     if any(marker in command_text for marker in ("\n", ";", "&&", "||", "|", ">", "<", "`", "$(")):
-        return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+        from core.command_line import CommandLineRefused, parse_command_line
+
+        try:
+            chain = parse_command_line(command_text)
+        except CommandLineRefused:
+            chain = None
+        if chain is None:
+            return {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+        union: set[PermissionAction] = set()
+        for segment in chain.segments:
+            union |= _argv_actions([str(item) for item in segment.argv])
+        return union or {PermissionAction.UNKNOWN_SIDE_EFFECT}
     try:
         argv = shlex.split(command_text, posix=True)
     except ValueError:
         return {PermissionAction.UNKNOWN_SIDE_EFFECT}
+    return _argv_actions(argv)
+
+
+# Tools that fetch a package and run it in one step, like `npx`.
+_FETCH_AND_RUN_TOOLS = frozenset({"npx", "pnpx", "uvx", "bunx"})
+
+
+def _first_operand(arguments: list[str]) -> str:
+    return next((item for item in arguments if not item.startswith("-")), "")
+
+
+def _argv_actions(argv: list[str]) -> set[PermissionAction]:
+    """The permission actions of ONE command, already split into words."""
     if not argv:
         return {PermissionAction.UNKNOWN_SIDE_EFFECT}
     base = Path(str(argv[0])).name.lower()
+    if base == "env":
+        # `env NAME=value cmd ...` runs cmd: it does what cmd does. `env git commit` read as a plain
+        # side-effecting command let Auto commit (or `env rm x` delete) without the prompt the
+        # bare spelling gets. Any env option beyond -i/-u/-0 (-S splits a string into a new
+        # command line, -C changes directory) is not classified here at all.
+        index = 1
+        while index < len(argv):
+            token = str(argv[index])
+            if token in {"-i", "--ignore-environment", "-0", "--null", "-"}:
+                index += 1
+            elif token in {"-u", "--unset"}:
+                index += 2
+            elif token.startswith("--unset="):
+                index += 1
+            elif token == "--":
+                index += 1
+                break
+            elif token.startswith("-"):
+                return {PermissionAction.UNKNOWN_SIDE_EFFECT}
+            elif "=" in token:
+                index += 1
+            else:
+                break
+        wrapped = [str(item) for item in argv[index:]]
+        return _argv_actions(wrapped) if wrapped else {PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if base == "git":
         return _git_actions(argv)
     lowered_args = [str(item).lower() for item in argv[1:]]
@@ -2284,8 +2340,30 @@ def _command_actions(command: str) -> set[PermissionAction]:
     if base in _PACKAGE_TOOLS:
         if any(marker in lowered_args for marker in ("install", "add", "update", "upgrade", "sync", "i", "ci")):
             return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
-    if base in {"npx", "pnpx"}:
+    if base in _FETCH_AND_RUN_TOOLS:
         # Fetches and runs a package that may not be installed yet.
+        return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
+    operand = _first_operand(lowered_args)
+    after_operand = lowered_args[lowered_args.index(operand) + 1:] if operand else []
+    if (
+        (base == "go" and (operand in {"get", "install"} or lowered_args[:2] in (["mod", "download"], ["mod", "tidy"])))
+        # `go run pkg@v1` fetches the module it names.
+        or (base == "go" and operand in {"run", "build", "test", "generate"} and any("@" in item for item in after_operand))
+        or (base == "deno" and operand in {"add", "install", "cache"})
+        # A remote module, or a reload, is a download.
+        or (base == "deno" and operand in {"run", "eval", "test", "compile"} and any(
+            item.startswith(("http://", "https://", "npm:", "jsr:")) or item in {"-r", "--reload"} or item.startswith("--reload=")
+            for item in after_operand))
+        # Fetch verbs the install markers above do not name.
+        or (base in {"pip", "pip3"} and operand == "download")
+        or (base == "cargo" and operand == "fetch")
+        or (base == "npm" and operand in {"exec", "x"})
+        or (base in {"pnpm", "yarn"} and operand == "dlx")
+        or (base == "bun" and operand == "x")
+        or (base == "uv" and operand == "tool")
+        or (base == "uv" and operand == "run" and any(
+            item.split("=", 1)[0] in {"--with", "--with-requirements", "--with-editable"} for item in after_operand))
+    ):
         return {PermissionAction.INSTALL_DEPENDENCIES, PermissionAction.RUN_SIDE_EFFECTING_COMMANDS}
     if base in _DELETE_BASES:
         return {PermissionAction.DELETE_FILES}
@@ -2319,6 +2397,85 @@ def command_is_read_only(command: str) -> bool:
     actually enforced by `decide_tool_call`.
     """
     return _command_actions(command) == {PermissionAction.RUN_SAFE_COMMANDS}
+
+
+# ---------------------------------------------------------------------------------------------
+# The decision that stands behind the ONE runtime-tool call now executing.
+#
+# The sandbox gate (core.execution_gate.ExecutionGate.evaluate_command) sits below this controller
+# and used to decide every command again from the mode matrix and its own rules, with no way to see
+# that the operator had just approved exactly that command: an approved `git commit` was refused a
+# second time, and in Auto nothing but a read ran at all. The authorized execution boundary
+# publishes the ALLOW it is acting on here, for the duration of that one dispatch only, and the gate
+# honours it for a command it covers: the same command text the controller decided on, whose own
+# actions are all among the actions that were allowed. Everything else is decided as before.
+# ---------------------------------------------------------------------------------------------
+
+#: Grants that come from the operator themselves for this call or task, as opposed to a mode's
+#: standing allowance. Only these (or Bypass) ever open the network for an install.
+OPERATOR_GRANTS = frozenset({"exact_approval", "task_grant"})
+
+
+@dataclass(frozen=True)
+class CommandAuthorization:
+    intent: str
+    mode: OperatingMode
+    actions: frozenset[PermissionAction]
+    granted_by: str
+    #: The exact command texts the call that was decided runs (stripped).
+    commands: frozenset[str]
+
+    def covers(self, command: str) -> bool:
+        text = str(command or "").strip()
+        if not text or text not in self.commands:
+            return False
+        actions = _command_actions(text)
+        if not actions or PermissionAction.UNKNOWN_SIDE_EFFECT in actions:
+            return False
+        return actions <= self.actions
+
+    @property
+    def operator_granted(self) -> bool:
+        return self.granted_by in OPERATOR_GRANTS
+
+
+_COMMAND_AUTHORIZATION: contextvars.ContextVar[CommandAuthorization | None] = contextvars.ContextVar(
+    "vool_command_authorization", default=None
+)
+
+
+def publish_command_authorization(
+    intent: str, decision: PermissionDecision | None, commands: Iterable[str]
+) -> contextvars.Token | None:
+    """Publish an ALLOW for the dispatch about to run. Anything but an ALLOW publishes nothing."""
+    if decision is None or decision.effect is not PermissionEffect.ALLOW:
+        return None
+    texts = frozenset(text for text in (str(item or "").strip() for item in commands) if text)
+    if not texts:
+        return None
+    return _COMMAND_AUTHORIZATION.set(
+        CommandAuthorization(
+            intent=str(intent or ""),
+            mode=decision.mode,
+            actions=frozenset(decision.actions),
+            granted_by=str(decision.granted_by or ""),
+            commands=texts,
+        )
+    )
+
+
+def withdraw_command_authorization(token: contextvars.Token | None) -> None:
+    if token is None:
+        return
+    try:
+        _COMMAND_AUTHORIZATION.reset(token)
+    except (ValueError, RuntimeError):
+        # A token from another context cannot be reset here; clear rather than leave it standing.
+        _COMMAND_AUTHORIZATION.set(None)
+
+
+def current_command_authorization() -> CommandAuthorization | None:
+    return _COMMAND_AUTHORIZATION.get()
 
 
 _WORKSPACE_WRITE_SIDE_EFFECTS = frozenset(
@@ -3498,11 +3655,24 @@ def _new_approval_request(
             display_intent, display_arguments = inner_intent, arguments["arguments"]
             # The diff the operator reviews is of the file the TASK writer replaces.
             display_context = _step_execution_context(source_context, arguments) or source_context
+    # A command is approved by reading it: the card names the exact line that will run, whole,
+    # never just the tool that runs it.
+    command_line = ""
+    if display_intent == "sandbox.run_command" or (
+        display_intent in {"workspace.run_tests", "workspace.run_lint", "workspace.run_formatter"}
+    ):
+        command_line = str(display_arguments.get("command") or display_arguments.get("cmd") or "").strip()
+    action_text = (
+        f"Run this command: {command_line}"
+        if command_line
+        else f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else "")
+    )
     request = {
         "approval_id": token,
         "task_id": task_id,
         "intent": intent,
-        "action": f"Run {display_intent}" + (" through code.task.step" if display_intent != intent else ""),
+        "action": action_text,
+        **({"command": command_line} if command_line else {}),
         "affected_resources": _affected_resources_display(display_arguments, display_context),
         "expected_side_effects": _approval_effect_summary(actions),
         "reversible": bool(edit_batch or PermissionAction.GIT_COMMIT in actions),
@@ -3665,6 +3835,7 @@ def _decide_tool_call(
             mode=mode,
             actions=actions,
             reason="Exact action approval matched this task, target, and side-effect class.",
+            granted_by="exact_approval",
         ), meta
 
     with _LOCK:
@@ -3695,6 +3866,7 @@ def _decide_tool_call(
             mode=mode,
             actions=actions,
             reason="This non-edit action type was approved for the current task and mode revision.",
+            granted_by="task_grant",
         ), meta
 
     # Project permissions can only narrow mode permissions, never widen them.
@@ -3738,6 +3910,7 @@ def _decide_tool_call(
                     f"Internal authority '{internal_scope.get('label') or ''}' explicitly covers "
                     f"{_approval_effect_summary(actions)}."
                 ),
+                granted_by="internal_scope",
             ), meta
 
     effects = [MODE_PERMISSION_MATRIX[mode][action] for action in actions]
@@ -3775,6 +3948,7 @@ def _decide_tool_call(
                 mode=mode,
                 actions=actions,
                 reason="This project allows low-risk reads and in-project writes without a new prompt.",
+                granted_by="project_grant",
             ), meta
         meta["approval_requested"] = True
         if not consume:
