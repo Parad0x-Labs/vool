@@ -1675,7 +1675,8 @@ function openSheet(p, cardControls, cardResult, opener){
   function gate(){
     if (closed) return;
     later.textContent = decisionStarted ? 'Close' : 'Decide later';
-    var ok = !!quote && !invalid && !expired() && !busy;
+    var blocked = !!quote && !!(quote.fields || {}).approval_unavailable;
+    var ok = !!quote && !invalid && !expired() && !busy && !blocked;
     approve.disabled = !ok;
     if (quote && !invalid && expired()) setState('This preview expired. Refresh it to read the current balance and fees before approving.', true);
   }
@@ -1774,6 +1775,15 @@ function openSheet(p, cardControls, cardResult, opener){
     if (method === 'pin') cred.inputMode = 'numeric';
     var primary = r.primary_action || 'Approve and send';
     approve.textContent = method === 'device' ? 'Approve with Touch ID / password: ' + primary.replace(/^Approve and /, '') : primary;
+    if (f.approval_unavailable) {
+      // a connected or watch-only account: the preview is real, but this sheet cannot approve it, so no credential is
+      // asked; the server's words say what is really wrong. Cancelling the request still works.
+      cred.hidden = true; forgot.hidden = true; approve.hidden = true;
+      setState(f.approval_unavailable.message || 'This account cannot send from here. Nothing was signed or sent.', true);
+      state.setAttribute('data-approval-unavailable', f.approval_unavailable.code || '');
+      gate(); return;
+    }
+    approve.hidden = false; state.removeAttribute('data-approval-unavailable');
     setState(f.companion ? 'This approval covers exactly the two actions shown: the payment and the collection of previously accrued fees. Nothing else, nothing later.' : 'This approval covers only this transfer, exactly as shown.');
     gate();
   }

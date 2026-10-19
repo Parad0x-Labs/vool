@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "Этот баланс показывает только собственную монету сети; токены не включены.",
     "contacts.recipient.identity_changed": "Этот контакт изменился. Ещё раз проверьте получателя и точный адрес.",
     "wallet.commands.description": "Счета кошелька, подтверждения и квитанции. Криптовалюты по умолчанию отключены; после включения используется основная сеть.",
+    "fault.wallet_send_needs_vool_wallet.message": "С этого аккаунта нельзя отправлять из VOOL в этой сети: здесь отправляет только VOOL Wallet, созданный на этом устройстве. Подключённый аккаунт или аккаунт для просмотра по-прежнему может получать средства и показывать баланс. Ничего не подписано и не отправлено. Чтобы отправить, выберите VOOL Wallet на этом устройстве и попробуйте снова.",
+    "fault.wallet_send_needs_vool_wallet.action": "Отправьте из VOOL Wallet на этом устройстве или из приложения самого подключённого кошелька; в этой сети VOOL ничего не подписывает за подключённый аккаунт или аккаунт для просмотра.",
     "activity.category.changes": "Изменённые файлы",
     "activity.category.commands": "Команды",
     "activity.category.edits": "Вызовы правок",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex.",
     "keys.test.invalid": "{label} отклонил ключ{http}. Проверьте его заново или замените."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

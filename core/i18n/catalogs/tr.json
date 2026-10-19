@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "Bu bakiye yalnızca ağın yerel parasını gösterir; tokenlar dahil değildir.",
     "contacts.recipient.identity_changed": "Bu kişi değişti. Alıcıyı ve tam adresi yeniden kontrol edin.",
     "wallet.commands.description": "Cüzdan hesapları, onaylar ve makbuzlar. Kripto varsayılan olarak kapalıdır; açıldığında ana ağ kullanılır.",
+    "fault.wallet_send_needs_vool_wallet.message": "Bu hesap bu ağda VOOL'dan gönderemez: burada yalnızca bu cihazda oluşturulan bir VOOL Wallet gönderir. Bağlı veya yalnızca-izleme hesabı yine de alabilir ve bakiyesini gösterebilir. Hiçbir şey imzalanmadı veya gönderilmedi. Göndermek için bu cihazdaki bir VOOL Wallet'ı seçip tekrar deneyin.",
+    "fault.wallet_send_needs_vool_wallet.action": "Bu cihazdaki bir VOOL Wallet'tan ya da bağlı cüzdanın kendi uygulamasından gönderin; bu ağda VOOL, bağlı veya yalnızca-izleme hesabı için hiçbir şey imzalamaz.",
     "activity.category.changes": "Değişen dosyalar",
     "activity.category.commands": "Komutlar",
     "activity.category.edits": "Düzenleme çağrıları",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

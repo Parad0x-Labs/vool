@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "यह शेष राशि केवल नेटवर्क का मूल सिक्का दिखाती है; टोकन शामिल नहीं हैं।",
     "contacts.recipient.identity_changed": "इस संपर्क में बदलाव हुआ है। प्राप्तकर्ता और पूरा पता फिर से जाँचें।",
     "wallet.commands.description": "वॉलेट खाते, स्वीकृतियाँ और रसीदें। क्रिप्टो डिफ़ॉल्ट रूप से बंद है; चालू करने पर मुख्य नेटवर्क का उपयोग होता है।",
+    "fault.wallet_send_needs_vool_wallet.message": "यह खाता इस नेटवर्क पर VOOL से नहीं भेज सकता: यहाँ केवल इसी डिवाइस पर बनाया गया VOOL Wallet भेजता है। जुड़ा हुआ या केवल-देखना खाता अब भी प्राप्त कर सकता है और अपना शेष दिखा सकता है। कुछ भी हस्ताक्षरित या भेजा नहीं गया। भेजने के लिए, इस डिवाइस का VOOL Wallet चुनें और फिर से कोशिश करें।",
+    "fault.wallet_send_needs_vool_wallet.action": "इस डिवाइस के VOOL Wallet से भेजें, या जुड़े हुए वॉलेट के अपने ऐप से भेजें; इस नेटवर्क पर VOOL किसी जुड़े हुए या केवल-देखना खाते के लिए कुछ भी हस्ताक्षर नहीं करता।",
     "activity.category.changes": "बदली गई फ़ाइलें",
     "activity.category.commands": "कमांड",
     "activity.category.edits": "संपादन कॉल",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "यह कौशल VOOL की अपनी सुरक्षा जाँच में पास नहीं हुआ, इसलिए VOOL ने इसे न रखा और न इंस्टॉल किया। आप Skill Codex को इसकी रिपोर्ट कर सकते हैं।",
     "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।"
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

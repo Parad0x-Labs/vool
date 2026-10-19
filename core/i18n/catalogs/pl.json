@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "To saldo pokazuje tylko rodzimą monetę sieci; tokeny nie są uwzględnione.",
     "contacts.recipient.identity_changed": "Ten kontakt się zmienił. Sprawdź ponownie odbiorcę i dokładny adres.",
     "wallet.commands.description": "Konta portfela, zatwierdzenia i potwierdzenia. Kryptowaluty są domyślnie wyłączone; po włączeniu używana jest sieć główna.",
+    "fault.wallet_send_needs_vool_wallet.message": "To konto nie może wysyłać z VOOL w tej sieci: wysyła tu tylko VOOL Wallet utworzony na tym urządzeniu. Konto połączone lub w trybie podglądu nadal może odbierać środki i pokazywać saldo. Nic nie podpisano ani nie wysłano. Aby wysłać, wybierz VOOL Wallet na tym urządzeniu i spróbuj ponownie.",
+    "fault.wallet_send_needs_vool_wallet.action": "Wyślij z VOOL Wallet na tym urządzeniu albo z aplikacji połączonego portfela; w tej sieci VOOL niczego nie podpisuje za konto połączone lub w trybie podglądu.",
     "activity.category.changes": "Zmienione pliki",
     "activity.category.commands": "Polecenia",
     "activity.category.edits": "Wywołania edycji",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Ta umiejętność nie przeszła własnych kontroli bezpieczeństwa VOOL, więc VOOL jej nie zachował ani nie zainstalował. Możesz ją zgłosić w Skill Codex.",
     "keys.test.invalid": "{label} odrzucił klucz{http}. Sprawdź go ponownie albo podmień."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

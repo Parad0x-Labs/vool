@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "此余额仅显示该网络的原生币，不包含代币。",
     "contacts.recipient.identity_changed": "此联系人已更改。请重新核对收款人和完整地址。",
     "wallet.commands.description": "钱包账户、授权和收据。加密货币功能默认关闭；启用后使用主网。",
+    "fault.wallet_send_needs_vool_wallet.message": "此账户无法在此网络上通过 VOOL 发送：这里只有在此设备上创建的 VOOL Wallet 可以发送。已连接或仅观察的账户仍可接收并显示余额。没有签名或发送任何内容。 如需发送，请选择此设备上的 VOOL Wallet 后重试。",
+    "fault.wallet_send_needs_vool_wallet.action": "请从此设备上的 VOOL Wallet 发送，或从已连接钱包自己的应用发送；在此网络上，VOOL 不会为已连接或仅观察的账户签名任何内容。",
     "activity.category.changes": "已更改的文件",
     "activity.category.commands": "命令",
     "activity.category.edits": "编辑调用",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
     "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "Số dư này chỉ hiển thị đồng tiền gốc của mạng; không bao gồm token.",
     "contacts.recipient.identity_changed": "Liên hệ này đã thay đổi. Hãy kiểm tra lại người nhận và địa chỉ chính xác.",
     "wallet.commands.description": "Tài khoản ví, phê duyệt và biên nhận. Tiền mã hóa mặc định bị tắt; khi bật sẽ sử dụng mạng chính.",
+    "fault.wallet_send_needs_vool_wallet.message": "Tài khoản này không thể gửi từ VOOL trên mạng này: ở đây chỉ VOOL Wallet tạo trên thiết bị này mới gửi được. Tài khoản đã kết nối hoặc chỉ-xem vẫn có thể nhận và hiển thị số dư. Chưa ký hay gửi gì. Để gửi, hãy chọn một VOOL Wallet trên thiết bị này rồi thử lại.",
+    "fault.wallet_send_needs_vool_wallet.action": "Hãy gửi từ một VOOL Wallet trên thiết bị này, hoặc từ chính ứng dụng của ví đã kết nối; trên mạng này VOOL không ký gì cho tài khoản đã kết nối hoặc chỉ-xem.",
     "activity.category.changes": "Tệp đã đổi",
     "activity.category.commands": "Lệnh",
     "activity.category.edits": "Lượt gọi sửa",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

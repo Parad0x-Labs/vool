@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "This balance shows only the network's native coin; tokens are not included.",
     "contacts.recipient.identity_changed": "This contact changed. Review the recipient and exact address again.",
     "wallet.commands.description": "Wallet accounts, approvals and receipts. Crypto is off by default; mainnet is used when enabled.",
+    "fault.wallet_send_needs_vool_wallet.message": "This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again.",
+    "fault.wallet_send_needs_vool_wallet.action": "Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network.",
     "activity.category.changes": "Files changed",
     "activity.category.commands": "Commands",
     "activity.category.edits": "Edit tool calls",

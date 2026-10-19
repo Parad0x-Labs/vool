@@ -226,6 +226,11 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         page.wait_for_selector("#vwSheet")
         expect(page.locator("#vwSheet")).to_contain_text(RECIPIENT)
         expect(page.locator("#vwSheet")).to_contain_text("Aster")
+        # a connected account previews but cannot approve here: no credential is asked, and the sheet says why
+        expect(page.locator("#vwSheetState")).to_have_attribute("data-approval-unavailable", "wallet_send_needs_vool_wallet")
+        expect(page.locator("#vwSheetState")).to_contain_text("only a VOOL Wallet created on this device sends here")
+        expect(page.locator("#vwSheetCredential")).to_be_hidden()
+        expect(page.locator("#vwSheetApprove")).to_be_hidden()
         _shot(page, "07-mainnet-send-review")
         _activate(page, "#vwSheetCancel")
         page.wait_for_selector("#vwSheet", state="detached")

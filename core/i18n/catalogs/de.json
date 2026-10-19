@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "Dieser Kontostand zeigt nur die eigene Währung des Netzwerks; Token sind nicht enthalten.",
     "contacts.recipient.identity_changed": "Dieser Kontakt wurde geändert. Prüfe den Empfänger und die genaue Adresse erneut.",
     "wallet.commands.description": "Wallet-Konten, Freigaben und Belege. Krypto ist standardmäßig ausgeschaltet; nach dem Einschalten wird das Hauptnetz verwendet.",
+    "fault.wallet_send_needs_vool_wallet.message": "Dieses Konto kann in VOOL auf diesem Netzwerk nicht senden: Hier sendet nur ein VOOL Wallet, das auf diesem Gerät erstellt wurde. Ein verbundenes oder Nur-Ansicht-Konto kann weiterhin empfangen und seinen Kontostand zeigen. Nichts wurde signiert oder gesendet. Um zu senden, wähle ein VOOL Wallet auf diesem Gerät und versuche es erneut.",
+    "fault.wallet_send_needs_vool_wallet.action": "Sende von einem VOOL Wallet auf diesem Gerät oder aus der App des verbundenen Wallets selbst; VOOL signiert auf diesem Netzwerk nichts für ein verbundenes oder Nur-Ansicht-Konto.",
     "activity.category.changes": "Geänderte Dateien",
     "activity.category.commands": "Befehle",
     "activity.category.edits": "Bearbeitungsaufrufe",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

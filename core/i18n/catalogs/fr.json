@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "Ce solde affiche uniquement la monnaie native du réseau ; les jetons ne sont pas inclus.",
     "contacts.recipient.identity_changed": "Ce contact a changé. Vérifiez à nouveau le destinataire et son adresse exacte.",
     "wallet.commands.description": "Comptes du portefeuille, autorisations et reçus. Les cryptomonnaies sont désactivées par défaut ; le réseau principal est utilisé après activation.",
+    "fault.wallet_send_needs_vool_wallet.message": "Ce compte ne peut pas envoyer depuis VOOL sur ce réseau : seul un VOOL Wallet créé sur cet appareil envoie ici. Un compte connecté ou en lecture seule peut toujours recevoir et afficher son solde. Rien n'a été signé ni envoyé. Pour envoyer, choisissez un VOOL Wallet de cet appareil, puis réessayez.",
+    "fault.wallet_send_needs_vool_wallet.action": "Envoyez depuis un VOOL Wallet de cet appareil, ou depuis l'application du portefeuille connecté ; sur ce réseau, VOOL ne signe rien pour un compte connecté ou en lecture seule.",
     "activity.category.changes": "Fichiers modifiés",
     "activity.category.commands": "Commandes",
     "activity.category.edits": "Appels d'édition",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "Cette compétence n'a pas réussi les vérifications de sécurité propres à VOOL, donc VOOL ne l'a ni gardée ni installée. Vous pouvez la signaler au Skill Codex.",
     "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la."
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

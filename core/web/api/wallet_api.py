@@ -6,6 +6,8 @@ The recovery phrase crosses this seam exactly once, in the pocket-creation respo
 """
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Iterator
 from typing import Any
 
 from core.request_trust import is_loopback_host
@@ -114,7 +116,33 @@ def _prepared(proposal: proposals.TransactionProposal, *, source_context: dict[s
     return _ok({"proposal": prepared.to_dict(), "duplicate": duplicate})
 
 
-def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "") -> Any:
+@contextlib.contextmanager
+def _request_locale(headers: dict[str, Any] | None, query: dict[str, list[str]] | None = None) -> Iterator[None]:
+    """Bind the app language this request's page chose (?ui_locale= > the vool_ui_locale cookie) while the wallet
+    builds its words, so receipt labels and refusal texts read in that language. A request that names none (a
+    command-dispatch projection, a chat turn's own tool call) leaves the locale already bound untouched."""
+    from core.i18n.catalog import resolve_render_locale
+    from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
+    from core.web.api.service import _ui_locale_cookie
+
+    query_locale = str(((query or {}).get("ui_locale") or [""])[0] or "")
+    cookie_locale = _ui_locale_cookie(headers)
+    if not (query_locale.strip() or cookie_locale.strip()):
+        yield
+        return
+    token = bind_turn_locale(resolve_render_locale(query_locale, cookie_locale, "en"))
+    try:
+        yield
+    finally:
+        reset_turn_locale(token)
+
+
+def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
+    with _request_locale(headers, query):
+        return _handle_wallet_get(path, query, client_host=client_host)
+
+
+def _handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "") -> Any:
     if not is_loopback_host(client_host):
         return _json(403, {"ok": False, "error": "owner_local_required"})
     from core.wallet.status import wallet_status
@@ -236,6 +264,11 @@ def _recovery_door(path: str, body: dict[str, Any], *, source_context: dict[str,
 def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     """``headers`` are the real request's headers. A caller without a request behind it (the command-dispatch
     projection) passes none, and a trusted door refuses it: loopback alone never authorizes a trusted door."""
+    with _request_locale(headers):
+        return _handle_wallet_post(path, body, client_host=client_host, headers=headers)
+
+
+def _handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     if not is_loopback_host(client_host):
         return _json(403, {"ok": False, "error": "owner_local_required"})
     body = body if isinstance(body, dict) else {}

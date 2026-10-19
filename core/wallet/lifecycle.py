@@ -49,6 +49,9 @@ from core.wallet.errors import WalletFault
 from core.wallet.security import wallet_fault
 
 AUTHORITY = "core.wallet.lifecycle"
+# a Crypto Pilot row sends only from a Crypto Pilot wallet: a connected or watch-only account is told so, typed
+FAULT_SEND_NEEDS_VOOL_WALLET = "wallet_send_needs_vool_wallet"
+REASON_PILOT_SEND_NEEDS_VOOL_WALLET = "pilot_send_needs_vool_wallet"
 #: The effect-budget contract's two wallet operations (core.effect_budget on build/effect-budgets-p1-20260902,
 #: tip a94a4a48 / implementation 4190b717): reserve BEFORE authorization, consume immediately BEFORE execution,
 #: terminal exactly once. Both are opened at the claim, before any key is touched.
@@ -491,6 +494,13 @@ class PaymentLifecycle:
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         from core.wallet import transfers
 
+        if transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) != custody.PILOT_SEAL_POLICY and spec.is_evm:
+            # a native-coin transfer on an EVM Crypto Pilot row from a connected or watch-only account: only a Crypto
+            # Pilot wallet sends on this row, and the EIP-3009 simulation below is not a native transfer's. Refused
+            # typed and truthfully here, before any chain read, quote or approval prompt.
+            end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=FAULT_SEND_NEEDS_VOOL_WALLET,
+                        detail={"reason": REASON_PILOT_SEND_NEEDS_VOOL_WALLET}, reason=REASON_PILOT_SEND_NEEDS_VOOL_WALLET)
+            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason=REASON_PILOT_SEND_NEEDS_VOOL_WALLET, mode=profile.mode)
         if spec.is_evm and transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) == custody.PILOT_SEAL_POLICY:
             # a native-coin transfer from a Crypto Pilot wallet: the chain's identity, the stack and the asset are
             # proven here; the exact fee is the quote's, minted on the approval sheet. Nothing is signed here.
@@ -792,6 +802,10 @@ class PaymentLifecycle:
         self._require_channel_on(proposal)
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         profile = custody.require_wallet(proposal.wallet_id, source_context=self.source_context)
+        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
+            # only a Crypto Pilot wallet moves funds through this lane; another custody (a connected or watch-only
+            # account) is refused before any approval prompt, credential or quote use, with what is really wrong
+            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         quote = quotes.require_open_quote(quote_id, proposal=proposal, quote_digest=quote_digest, account_address=profile.public_key, source_context=self.source_context)
         paykit_binding = self._require_paykit_quote(proposal, quote, spec) if str(proposal.origin) in proposals.PAYKIT_ORIGINS else None
         sdk_binding = self._require_x402_sdk_quote(proposal, quote, spec) if str(proposal.origin) == proposals.ORIGIN_X402_SDK else None
@@ -824,9 +838,6 @@ class PaymentLifecycle:
         decision = approver.approve(challenge)
         if not approval_module.decision_binds_v3(decision, challenge):
             self._refuse_pilot_approval(proposal, decision, reason=decision.reason or "challenge_mismatch")
-        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
-            # only a Crypto Pilot wallet moves funds through this lane; another custody is refused before any prompt
-            raise self._fault("wallet_signing_unavailable", proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         if not capabilities.pilot_transfer_ready(spec):
             # the credential is proven first (a wrong PIN is a counted attempt on any row), then the lane stops typed
             self._prove_pilot_credential(proposal, profile, decision)

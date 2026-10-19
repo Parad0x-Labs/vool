@@ -8,6 +8,8 @@
     "wallet.balance.native_only": "この残高にはネットワークのネイティブ通貨のみが表示され、トークンは含まれません。",
     "contacts.recipient.identity_changed": "この連絡先は変更されました。受取人と正確なアドレスをもう一度確認してください。",
     "wallet.commands.description": "ウォレットのアカウント、承認、領収書。暗号資産の機能は初期設定ではオフで、有効にするとメインネットを使用します。",
+    "fault.wallet_send_needs_vool_wallet.message": "このアカウントはこのネットワークでVOOLから送金できません：ここで送金できるのはこの端末で作成したVOOL Walletだけです。接続済みまたは閲覧専用のアカウントでも受け取りと残高表示はできます。何も署名・送信されていません。 送金するには、この端末のVOOL Walletを選んでもう一度お試しください。",
+    "fault.wallet_send_needs_vool_wallet.action": "この端末のVOOL Walletから送金するか、接続しているウォレット自身のアプリから送金してください。このネットワークでVOOLが接続済みまたは閲覧専用のアカウントのために署名することはありません。",
     "activity.category.changes": "変更されたファイル",
     "activity.category.commands": "コマンド",
     "activity.category.edits": "編集呼び出し",
@@ -2607,7 +2609,7 @@
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
     "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。"
   },
-  "source_catalog_sha256": "f3b6c4fce3f8dfcd7c1455d120810b3a800f1b5b68bd00064068cd2c5904cd5f",
+  "source_catalog_sha256": "964b47c8a94da1b04ef92e501d74d545098b73da2801df61b2a4e26ae4fa9bc8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
