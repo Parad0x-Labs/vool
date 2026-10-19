@@ -3575,6 +3575,40 @@ wheels = [
 ]
 
 [[package]]
+name = "pyobjc-framework-contacts"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "(python_full_version < '3.11' and sys_platform == 'emscripten') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay') or (sys_platform == 'win32' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+    { name = "pyobjc-framework-cocoa", marker = "(python_full_version < '3.11' and sys_platform == 'emscripten') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay') or (sys_platform == 'win32' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/f6/5d3b2216c6c9e75c3818e67d9fac36da2410969f5191a2ad4d25c2cc28cb/pyobjc_framework_contacts-12.2.2.tar.gz", hash = "sha256:de1626f28aaf9b61aee9efeeb3396864c8ec0cbb92ed2b6ac24675032a585d31", size = 48996, upload-time = "2026-08-11T19:44:05.501Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/f4/625d76b43d0557cb57b27c4eb5852cace8bbea0fba4b275d4e4bccaa0a64/pyobjc_framework_contacts-12.2.2-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:62dd5826a164b69e8fe79f4147c37fcda76c1fe07c15739d088c7c0511e04e70", size = 12090, upload-time = "2026-08-11T19:32:54.442Z" },
+    { url = "https://files.pythonhosted.org/packages/86/29/3db06849f85203eaa8b4b847ff81db27b0ca4262962f3f924fa00b8f2f91/pyobjc_framework_contacts-12.2.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:36d1ca69f650e762de08f1165deac1c35c6144a6824923c11a57479fefe1efdf", size = 12093, upload-time = "2026-08-11T19:32:55.458Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/54/94ede9d0d2eb35add91abf0e1ccf2f0a7697db9af14b2fce80bbaedb38e1/pyobjc_framework_contacts-12.2.2-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:4495207f3b0237df458b8c6a9e6f83d8c993eb7bb078e2ce16b37446de0088d4", size = 12177, upload-time = "2026-08-11T19:32:56.207Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/a4/e841e0c486841c67e3c13680038f7366d12674588d2948211ab10fb9d644/pyobjc_framework_contacts-12.2.2-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:9739b76a5956506ae054460249308b3d464207bb76e1b944463cfa77b1a80689", size = 12187, upload-time = "2026-08-11T19:32:57.085Z" },
+    { url = "https://files.pythonhosted.org/packages/62/1a/e3be00476b752b28fd8c3992329d41c14a2a58f82ae26c0c22c175b008f9/pyobjc_framework_contacts-12.2.2-cp313-cp313t-macosx_10_13_universal2.whl", hash = "sha256:64bc9501dd6ba51cb7345415f2bb7c41c7435ab4080050a03a3e8f268c585f30", size = 12352, upload-time = "2026-08-11T19:32:57.799Z" },
+    { url = "https://files.pythonhosted.org/packages/05/8e/d20e5997f23b47f2acfae34d2b0f4832840f0c8c2b97febfb27231a38ac1/pyobjc_framework_contacts-12.2.2-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:fb36b95198bc65c5eead94b3c018d531e297be0c4fe2b12ccfda04ee4c079c3f", size = 12260, upload-time = "2026-08-11T19:32:58.668Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/1d/686462fe5270be9c168266eb1e9539167e925d21d0160880304c9dbf633d/pyobjc_framework_contacts-12.2.2-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:c60027c2f3647dfe9190e42b6f289ff5e2fd3303b12ca713a30d557d4c771b2a", size = 12415, upload-time = "2026-08-11T19:32:59.878Z" },
+    { url = "https://files.pythonhosted.org/packages/92/f0/f9aa12ba808c3a8b5da5eb8b6ec18eef0ed3a776eaf3b314d63bb9a7cb5f/pyobjc_framework_contacts-12.2.2-cp315-cp315-macosx_10_15_universal2.whl", hash = "sha256:56c75783d57a95fd49e78f228d3cee50a37a85455ee5b8a5949459a0e878ea53", size = 12261, upload-time = "2026-08-11T19:33:00.622Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/98/7dd9957d2d00713144166255e5aa17f4cfe97afef312c1f2280532fb3d66/pyobjc_framework_contacts-12.2.2-cp315-cp315t-macosx_10_15_universal2.whl", hash = "sha256:ac8836f926fb0d2a9cc709a0781def425c64bd0ed1aa85e4b421f1a04724909a", size = 12412, upload-time = "2026-08-11T19:33:01.471Z" },
+]
+
+[[package]]
+name = "pyobjc-framework-eventkit"
+version = "12.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyobjc-core", marker = "(python_full_version < '3.11' and sys_platform == 'emscripten') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay') or (sys_platform == 'win32' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+    { name = "pyobjc-framework-cocoa", marker = "(python_full_version < '3.11' and sys_platform == 'emscripten') or (python_full_version < '3.11' and sys_platform == 'win32') or (sys_platform != 'emscripten' and sys_platform != 'win32') or (sys_platform == 'emscripten' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay') or (sys_platform == 'win32' and extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/61/5d3974325bd80ba7ebfd5998fac085a1e014bff2119738003c3c7db537bd/pyobjc_framework_eventkit-12.2.2.tar.gz", hash = "sha256:f20a2f8cf55693f9d36f2c33a19325b56cb97fb544186658271c2d554e2a8f42", size = 33996, upload-time = "2026-08-11T19:44:24.631Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5f/db/1e9cbbce52e0629dd0582599e55c1fc1c846d5dc0f9ec5c9bed2c4f6a0c9/pyobjc_framework_eventkit-12.2.2-py2.py3-none-any.whl", hash = "sha256:f9f604ca02f4b7e4e89abe019eeb4ad31c872f2e94cfe2f5dd237af838997f54", size = 6952, upload-time = "2026-08-11T19:35:17.956Z" },
+]
+
+[[package]]
 name = "pyobjc-framework-quartz"
 version = "12.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4908,6 +4942,8 @@ companion = [
     { name = "zstandard" },
 ]
 desktop = [
+    { name = "pyobjc-framework-contacts", marker = "sys_platform == 'darwin' or (extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
+    { name = "pyobjc-framework-eventkit", marker = "sys_platform == 'darwin' or (extra == 'extra-4-vool-models' and extra == 'extra-4-vool-pay')" },
     { name = "pywebview" },
 ]
 dev = [
@@ -4998,6 +5034,8 @@ requires-dist = [
     { name = "psutil", specifier = ">=5.9" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pynacl", specifier = ">=1.5" },
+    { name = "pyobjc-framework-contacts", marker = "sys_platform == 'darwin' and extra == 'desktop'", specifier = "==12.2.2" },
+    { name = "pyobjc-framework-eventkit", marker = "sys_platform == 'darwin' and extra == 'desktop'", specifier = "==12.2.2" },
     { name = "pypdf", specifier = "==6.20.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.1.1" },
     { name = "pytest", marker = "extra == 'proof'", specifier = ">=7.0" },

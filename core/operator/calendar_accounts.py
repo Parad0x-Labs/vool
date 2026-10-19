@@ -224,7 +224,9 @@ def present_account(account: dict[str, Any], *, now_iso: str, stale_after_minute
         if last_ok is not None and now is not None and now - last_ok > timedelta(minutes=stale_after_minutes):
             status = "stale"
     view["status"] = status
-    view["recovery"] = RECOVERY.get(status, "")
+    # Apple Calendar's refusal is macOS's, not a provider's: its detail names the System Settings step, so the
+    # generic "reconnect the account" line would point the wrong way.
+    view["recovery"] = "" if status == "denied" and account.get("provider") == "eventkit" else RECOVERY.get(status, "")
     return view
 
 
@@ -277,6 +279,8 @@ def classify_calendar_error(exc: BaseException) -> tuple[str, str]:
     if isinstance(exc, CalendarRefusedError):
         if exc.reason in {"os_binding_unavailable", "unsupported"}:
             return "unsupported", str(exc.detail or exc.reason)[:200]
+        if exc.reason == "os_permission_denied":
+            return "denied", str(exc.detail or "macOS refused access to this calendar")[:300]
         if exc.status_code == 401:
             return "revoked", "the provider answered HTTP 401"
         if exc.status_code == 403:
@@ -323,7 +327,11 @@ def discover_calendars(
     get_connection_fn: Callable[[], Any] = _default_connection,
     adapter_factory: Callable[[dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any]:
-    """Read the account's calendars from the provider and record them. Existing choices are kept."""
+    """Read the account's calendars from the provider and record them. Existing choices are kept.
+
+    This is the user's own step (Add account, Refresh calendar list), so an adapter that needs an operating-system
+    permission asks for it here, and only here: Apple Calendar shows the macOS prompt the first time. Sync and
+    alerts never ask."""
     account = load_account(account_id, get_connection_fn=get_connection_fn)
     if account is None:
         return {"ok": False, "status": "unknown_account", "calendars": []}
@@ -335,6 +343,9 @@ def discover_calendars(
     try:
         with named_background_effect_scope(DISCOVERY_SCOPE_NAME):
             adapter = (adapter_factory or build_adapter)(account)
+            request_access = getattr(adapter, "request_access", None)
+            if callable(request_access):
+                request_access()
             calendars = list(adapter.list_calendars())
     except Exception as exc:
         status, detail = classify_calendar_error(exc)

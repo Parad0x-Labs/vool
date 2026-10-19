@@ -614,6 +614,8 @@ stage_self_contained() {
   # the packaging test fails the build if this list drops them again.
   # The x402 Foundation SDK (the optional `x402` extra, with web3 at the lock's version) lets a Crypto Pilot wallet pay
   # x402 offers in USDC on Base (core/wallet/x402_sdk.py); without it that payment channel refuses typed.
+  # Apple Calendar (core/kas/adapters/eventkit_mac.py) and Apple Contacts import (core/contacts/importers/apple.py)
+  # import pyobjc's EventKit and Contacts modules; without them both answer os_binding_unavailable in the app.
   # bash-3.2-safe: an empty array under set -u is "unbound" unless guarded
   # --python-platform pins wheel selection to the target. A host cache holding the other
   # architecture's wheels cannot contaminate the bundle: an arm64 CPython that loads an
@@ -637,6 +639,7 @@ stage_self_contained() {
       zstandard \
       "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \
       "x402[evm]==2.25.0" "web3==8.0.0" \
+      "pyobjc-framework-EventKit==12.2.2" "pyobjc-framework-Contacts==12.2.2" \
     || die "lean dependency install failed"
 
   # Deterministic bytecode for the embedded runtime: wipe any install-time caches, then compile
@@ -805,6 +808,16 @@ cat >"${APP}/Contents/Info.plist" <<PLIST
   <string>VOOL uses the microphone only when you start a voice request, and the audio never leaves this Mac unless you send it.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>VOOL transcribes what you dictate so it can act on it. Transcription runs on this Mac by default.</string>
+  <!-- Apple Calendar and Apple Contacts. macOS asks only when the user connects Apple Calendar or starts a contacts
+       import in VOOL; without these strings it never shows the prompt (it refuses, or ends the process) and VOOL never
+       appears in Privacy & Security.
+       macOS 14 and later read the FullAccess key; the plain key covers a build with an older floor. -->
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>VOOL reads the calendars you choose in Settings to show your agenda and remind you of events. It adds or changes an event only after you approve it.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>VOOL reads the calendars you choose in Settings to show your agenda and remind you of events. It adds or changes an event only after you approve it.</string>
+  <key>NSContactsUsageDescription</key>
+  <string>VOOL reads your contacts only when you import them, and shows you the list before anything is saved.</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>
