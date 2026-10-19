@@ -15,6 +15,7 @@ from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
     parse_native_tool_calls,
@@ -652,6 +653,8 @@ def _assert_transport_accepted(response: dict[str, Any]) -> None:
 
 
 def _translation_failure_code(exc: Exception) -> str:
+    if isinstance(exc, ToolArgumentSchemaError):
+        return "schema_validation_failed"
     if isinstance(exc, MalformedToolArgumentsError):
         return "malformed_arguments"
     if isinstance(exc, DuplicateToolCallError):

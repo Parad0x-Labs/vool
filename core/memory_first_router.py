@@ -33,6 +33,7 @@ from core.candidate_knowledge_lane import build_task_hash, get_exact_candidate, 
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
 )
@@ -2988,6 +2989,7 @@ class MemoryFirstRouter:
                 method_name: str,
                 task_request: ModelRequest,
             ) -> ModelResponse:
+                nonlocal call_request
                 from core.output_budget_policy import manifest_declares_reasoning
 
                 attempt = 1
@@ -2995,6 +2997,55 @@ class MemoryFirstRouter:
                     try:
                         return _call_adapter_task(method_name, task_request)
                     except Exception as exc:
+                        # Only arguments that parsed but broke the offered schema are re-asked.
+                        # Text that is not JSON, or a missing call, stays a closed refusal.
+                        if isinstance(exc, ToolArgumentSchemaError):
+                            from core.provider_call_deadline import deadline_expired
+                            from core.tool_schema_recovery import (
+                                admit_paid_tool_correction,
+                                corrected_tool_request,
+                            )
+
+                            # Selection has not crossed the executor. Re-generate rather
+                            # than rename/drop arguments or turn a schema error into an
+                            # answer-only call. One shared retry budget; never replay work.
+                            can_correct = (
+                                output_mode == "tool_intent" and bool(task_request.tools)
+                                and attempt == 1 and task_request.allow_provider_retry
+                                and not _model_request_cancelled(task_request)
+                                and not deadline_expired(task_request)
+                            )
+                            if can_correct:
+                                corrected = corrected_tool_request(task_request)
+                                free = (
+                                    provider_cost_class(manifest) == "free_local"
+                                    or is_verified_free_cloud_manifest(manifest)
+                                )
+                                can_correct = free or admit_paid_tool_correction(
+                                    manifest=manifest, authorization=paid_authorization,
+                                    original=task_request, corrected=corrected,
+                                    prompt_tokens=_int_attr(task, "prompt_tokens"),
+                                )
+                            if not can_correct:
+                                # The final refusal carries the LAST validation result.
+                                call_request.metadata["tool_call_resolution"] = dict(
+                                    task_request.metadata.get("tool_call_resolution") or {}
+                                )
+                                raise
+                            _emit_model_routing_event(
+                                source_context, "model.call_retrying",
+                                "Tool arguments failed schema validation; asking the same "
+                                "model to correct the selection once before execution.",
+                                **identity, provider_id=manifest.provider_id,
+                                model_id=manifest.model_name,
+                                error_class=ProviderErrorClass.MALFORMED_TOOL_CALL.value,
+                                retry_index=attempt,
+                                retry_policy="same_model_tool_schema_correction",
+                            )
+                            attempt += 1
+                            task_request = corrected
+                            call_request = corrected
+                            continue
                         error_class = classify_error_class(exc)
                         exhausted = (
                             error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
@@ -4322,11 +4373,20 @@ class MemoryFirstRouter:
             # provider/model pairing, unlike RequiredToolsNotOfferedError above (which is a runtime
             # capability mismatch, not model behavior). Never executed: the exception unwound
             # before any tool dispatch could see it.
-            error_kind = {
-                UnknownToolNameError: "unknown_tool_name",
-                MalformedToolArgumentsError: "malformed_tool_arguments",
-                DuplicateToolCallError: "duplicate_tool_call",
-            }.get(type(exc), "malformed_tool_call")
+            # isinstance, not the exact type: a schema violation is a typed subclass of
+            # MalformedToolArgumentsError and keeps that error kind.
+            error_kind = next(
+                (
+                    kind
+                    for error_type, kind in (
+                        (UnknownToolNameError, "unknown_tool_name"),
+                        (MalformedToolArgumentsError, "malformed_tool_arguments"),
+                        (DuplicateToolCallError, "duplicate_tool_call"),
+                    )
+                    if isinstance(exc, error_type)
+                ),
+                "malformed_tool_call",
+            )
             # The tool loop decides what a zero-executed-steps turn becomes AFTER this frame has
             # unwound, and "the model expressed a call the runtime refused" must stay
             # distinguishable there from "the provider never answered" — otherwise the refused
@@ -4366,7 +4426,10 @@ class MemoryFirstRouter:
             if paid_authorization is not None:
                 release_owner_pick_paid_call(
                     paid_authorization,
-                    reason=error_kind,
+                    # The provider replied: a refused call can still be billed.
+                    # In particular, denying the corrective dispatch must not
+                    # release the first attempt as if nothing had been sent.
+                    reason="call_failed",
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
                 )
