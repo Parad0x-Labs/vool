@@ -2023,7 +2023,11 @@ def execute_grounded_turn(
         source_context,
         event_type="task_failed" if terminal_outcome.is_unfulfilled else "task_completed",
         message=(
-            "Task did not meet its completion requirements."
+            # The Activity panel shows this line under "Failed". When no model could answer, say
+            # that; the generic sentence read as if a model had answered and been graded short.
+            "No model was available to answer this message."
+            if terminal_outcome.is_unfulfilled and "chat_model_unavailable_degraded" in terminal_outcome.failure_codes
+            else "Task did not meet its completion requirements."
             if terminal_outcome.is_unfulfilled
             else f"Completed task with final response: {agent._runtime_preview(response)}"
         ),
