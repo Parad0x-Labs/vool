@@ -24,6 +24,7 @@ present itself as owner-local by setting a body field.
 """
 from __future__ import annotations
 
+import ipaddress
 from typing import Any
 
 # Server-stamped key: True only when the request provably came from the owner's local
@@ -114,11 +115,14 @@ RESERVED_TRUST_KEYS = (
 # surface is set by trusted local code and cannot be forged).
 _OWNER_SURFACES = frozenset({"cli", "desktop", "local", ""})
 
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"})
-
-
 def is_loopback_host(host: str) -> bool:
     """True when ``host`` is a loopback address (the machine owner's own session).
+
+    ``host`` is a socket peer address. It is parsed as an IP address (IPv4, IPv6, an IPv6 zone or
+    brackets, and an IPv4-mapped IPv6 address unwrapped to its IPv4 form), never matched by string
+    prefix: ``127.evil.com`` or ``127.0.0.1.example`` is a name, not a loopback address, and fails.
+    The one name accepted is ``localhost`` itself, which some in-process callers pass; a real
+    socket peer is always an address, so no remote caller can present it.
 
     Empty/unknown -> False (fail closed): a request whose peer we cannot confirm as loopback
     is not treated as owner-local.
@@ -126,10 +130,97 @@ def is_loopback_host(host: str) -> bool:
     h = str(host or "").strip().lower()
     if not h:
         return False
-    if h in _LOOPBACK_HOSTS:
+    if h == "localhost":
         return True
-    # 127.0.0.0/8 is entirely loopback.
-    return h.startswith("127.")
+    if h.startswith("[") and h.endswith("]"):
+        h = h[1:-1]
+    h = h.split("%", 1)[0]
+    try:
+        address = ipaddress.ip_address(h)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
+    return bool(address.is_loopback)
+
+
+#: The peer a trusted in-process caller names when it forwards a request on the owner's behalf
+#: AFTER doing its own authentication (for example the mobile companion, once a paired phone's
+#: grant and device signature have both verified). Nothing on the wire can produce it: the
+#: servers always pass the real socket peer.
+IN_PROCESS_OWNER_PEER = "127.0.0.1"
+
+# Command-registry projections that run inside the owner's own process with no network boundary
+# (the ``vool`` terminal commands). Every other projection (api, model, chat, core) must carry the
+# real transport peer in ``ExecutionContext.extra["client_host"]``; without it the peer is unknown
+# and owner-local checks fail closed.
+_IN_PROCESS_OWNER_PROJECTIONS = frozenset({"cli"})
+
+
+def execution_peer_host(ctx: Any) -> str:
+    """The transport peer of one command-registry execution, or ``""`` when it is unknown."""
+
+    extra = getattr(ctx, "extra", None) or {}
+    if "client_host" in extra:
+        return str(extra.get("client_host") or "")
+    if str(getattr(ctx, "projection", "") or "") in _IN_PROCESS_OWNER_PROJECTIONS:
+        return IN_PROCESS_OWNER_PEER
+    return ""
+
+
+# Registry capabilities that change the owner's own settings, keys or providers. A command that
+# declares one runs only for the owner's own session (a loopback peer), whatever its route or
+# its own permission gate says, so a command added later with the same capability is covered
+# without a route of its own being gated.
+OWNER_LOCAL_CAPABILITIES = frozenset({"change_settings", "change_provider_configuration"})
+_OWNER_LOCAL_CAPABILITY_PREFIXES = ("settings.",)
+
+
+def capability_requires_owner_local(capability: str) -> bool:
+    cap = str(capability or "").strip()
+    return cap in OWNER_LOCAL_CAPABILITIES or cap.startswith(_OWNER_LOCAL_CAPABILITY_PREFIXES)
+
+
+# What a turn that is NOT the owner's own session may still run: a paired phone, a channel, or any
+# other device on the network "can chat and read; they can never inherit owner-gated privileges"
+# (core.channel_gateway). These read only public information. Everything else -- files and folders
+# on this computer, notes, calendar, mail, contacts, the profile, media projects, the browser
+# profile, repositories, skills, the wallet, the owner's X account -- is the owner's own.
+REMOTE_TURN_TOOL_INTENTS = frozenset({
+    "respond.direct",
+    "capability.expand_family",
+    "web.fetch",
+    "browser.render",
+    "web.chain_lookup",
+    "token.research",
+    "token.launches",
+    "token.performance",
+    "token.flow",
+    "marketplace.search_listings",
+    "sell.quote",
+})
+
+
+#: What the person on the other device reads when a tool is refused for that reason.
+REMOTE_TURN_REFUSAL_TEXT = (
+    "I can't do that from another device. Opening files, using your accounts or changing anything "
+    "on this computer only works in VOOL on the computer itself."
+)
+
+
+def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
+    """``""`` when this tool may run for this turn; otherwise why it may not.
+
+    Only a server-stamped ``_owner_local: False`` refuses (an HTTP turn from another device, a
+    channel turn). A context without the stamp never crossed the HTTP boundary and is unaffected.
+    """
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    if OWNER_LOCAL_KEY not in sc or bool(sc.get(OWNER_LOCAL_KEY)):
+        return ""
+    if str(intent or "").strip() in REMOTE_TURN_TOOL_INTENTS:
+        return ""
+    return "owner_local_required"
 
 
 def strip_reserved_trust_keys(source_context: Any) -> dict[str, Any]:
@@ -182,10 +273,17 @@ def turn_is_owner_authored(source_context: Any) -> bool:
 
 
 __all__ = [
+    "IN_PROCESS_OWNER_PEER",
+    "OWNER_LOCAL_CAPABILITIES",
     "OWNER_LOCAL_KEY",
+    "REMOTE_TURN_REFUSAL_TEXT",
+    "REMOTE_TURN_TOOL_INTENTS",
     "RESERVED_TRUST_KEYS",
     "TURN_AUTHOR_KEY",
+    "capability_requires_owner_local",
+    "execution_peer_host",
     "is_loopback_host",
+    "remote_turn_tool_refusal",
     "request_is_owner_local",
     "strip_reserved_trust_keys",
     "turn_author_from_request",

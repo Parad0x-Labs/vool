@@ -86,6 +86,61 @@ def json_response(status: int, payload: Any, *, headers: dict[str, str] | None =
     )
 
 
+
+# ---- Owner-local doors: one table, checked once at the top of dispatch_get / dispatch_post ----
+# These read or change the owner's own chats, settings, keys, files, sessions and spend. They answer
+# only the owner's own session (a loopback socket peer, core.request_trust.is_loopback_host on the
+# REAL peer the servers pass). A daemon started with --bind on a LAN address for the mobile companion
+# accepts Host: 127.0.0.1 from any device that sends it, so the Host guard is no owner check; this is.
+# Doors that check the peer inline further down keep doing so; the paired phone reaches what it needs
+# through /api/mobile/companion after its own grant and device-signature checks.
+_OWNER_LOCAL_GET_PATHS = frozenset({
+    "/api/commands",
+    "/api/chat/sessions",
+    "/api/chat/history",
+    "/api/chat/pins",
+    "/api/settings/prefs",
+    "/api/settings/credentials",
+    "/api/files",
+    "/api/files/raw",
+    "/api/runtime/sessions",
+    "/api/runtime/events",
+    "/api/runtime/control-plane/status",
+    "/api/repoops/sessions",
+    "/api/repoops/session",
+    "/api/cloud/keys",
+    "/api/cloud/status",
+    "/api/cloud/spend-limits",
+    "/api/connections",
+    "/api/onboarding/state",
+    "/api/learning/procedures",
+    "/api/bug-report/receipts",
+})
+_OWNER_LOCAL_POST_PATHS = frozenset({
+    "/api/settings/prefs",
+    "/api/settings/credentials",
+    "/api/cloud/test",
+    "/api/adaptation/loop/tick",
+    "/api/credits/settle",
+    "/v1/credits/settle",
+    "/api/search/detect",
+})
+# Every path under these prefixes, for both methods (the command registry: its schema and its one
+# dispatch door, which runs any registered command).
+_OWNER_LOCAL_PREFIXES = ("/api/commands/",)
+
+
+def owner_local_door(normalized_path: str, method: str) -> bool:
+    """Whether ``normalized_path`` is an owner-local door for ``method`` ("GET" or "POST")."""
+    paths = _OWNER_LOCAL_GET_PATHS if method == "GET" else _OWNER_LOCAL_POST_PATHS
+    return normalized_path in paths or normalized_path.startswith(_OWNER_LOCAL_PREFIXES)
+
+
+def _owner_local_door_refusal(normalized_path: str, method: str, client_host: str) -> ApiResponse | None:
+    if owner_local_door(normalized_path, method) and not is_loopback_host(client_host):
+        return json_response(403, {"ok": False, "error": "owner_local_required"})
+    return None
+
 def _bypass_setup_options(session_id: str) -> dict[str, Any]:
     from core.context_namespace import authoritative_chat_workspace
     from core.mode_permission_policy import _workspace_root_confined, current_chat_bypass_grant
@@ -868,6 +923,10 @@ def dispatch_get(
         recognition (its own composer control).
         """
         return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
+
+    owner_refusal = _owner_local_door_refusal(normalized_path, "GET", client_host)
+    if owner_refusal is not None:
+        return apply_runtime_headers(owner_refusal, runtime)
 
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
@@ -3084,6 +3143,10 @@ def dispatch_post(
         # would otherwise raise AttributeError -> 500. Fail cleanly instead.
         return apply_runtime_headers(json_response(400, {"error": "body must be a JSON object"}), runtime)
 
+    owner_refusal = _owner_local_door_refusal(normalized_path, "POST", client_host)
+    if owner_refusal is not None:
+        return apply_runtime_headers(owner_refusal, runtime)
+
     if normalized_path == "/api/addons":
         from core.web.api.addon_api import handle_addon_post
         status, payload = handle_addon_post(body, headers, client_host)
@@ -3093,7 +3156,7 @@ def dispatch_post(
     if normalized_path == "/api/commands/dispatch":
         from core.command_registry.api import handle_commands_dispatch
 
-        status, payload = handle_commands_dispatch(body)
+        status, payload = handle_commands_dispatch(body, client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(status, payload), runtime)
     # ---- Signed-updater operations (2026-09-01 amendment): one authority, two presses.
     if normalized_path == "/api/update/check":

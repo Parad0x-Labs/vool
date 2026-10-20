@@ -33,8 +33,18 @@ def handle_commands_get(path: str, query: dict[str, list[str]]):
     return 404, {"error": "unknown commands route", "path": path}
 
 
-def handle_commands_dispatch(body: dict[str, Any]):
-    """POST /api/commands/dispatch {command_id, input, approval_context?}."""
+def handle_commands_dispatch(
+    body: dict[str, Any],
+    *,
+    client_host: str = "",
+    headers: dict[str, Any] | None = None,
+):
+    """POST /api/commands/dispatch {command_id, input, approval_context?}.
+
+    ``client_host`` is the real socket peer and rides into the execution context, so every
+    owner-local check inside a command sees the transport fact. A caller that passes none gets
+    an unknown peer, which those checks refuse.
+    """
     command_id = str(body.get("command_id") or body.get("command") or "").strip()
     if not command_id:
         return 400, {"ok": False, "fault": {"code": "usage", "detail": {"reason": "command_id is required"}}}
@@ -47,7 +57,11 @@ def handle_commands_dispatch(body: dict[str, Any]):
     envelope = execute_command(
         command_id,
         input_data,
-        context=ExecutionContext(projection="api", approval_context=approval_context),
+        context=ExecutionContext(
+            projection="api",
+            approval_context=approval_context,
+            extra={"client_host": str(client_host or ""), "headers": dict(headers or {})},
+        ),
     )
     status = 200 if envelope.ok else _fault_status(envelope.execution.exit_code)
     return status, envelope.to_json()
