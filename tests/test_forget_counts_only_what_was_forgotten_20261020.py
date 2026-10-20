@@ -241,6 +241,43 @@ def test_a_forget_leaves_no_terms_in_the_full_text_index_pages(isolated_pages):
     assert _carriers_outside_the_revocation_ledger(Path(isolated_pages), "birch") == {}
 
 
+class _SqliteBuiltWithoutSecureDelete:
+    """The sqlite3 module as a build that leaves deleted bytes in free pages by default (the Mac's may)."""
+
+    def __getattr__(self, name):
+        return getattr(sqlite3, name)
+
+    def connect(self, *args, **kwargs):
+        conn = sqlite3.connect(*args, **kwargs)
+        conn.execute("PRAGMA secure_delete=OFF")
+        return conn
+
+
+def test_a_forget_leaves_no_erased_bytes_in_free_pages_on_a_build_without_secure_delete(isolated_pages, monkeypatch):
+    """The ledger holds only the token "silver birch"; the stored sentence around it must leave the file too."""
+    import core.vool_memory
+    from tests.test_question_date_time_leg_20261002 import _ingest
+
+    monkeypatch.setattr(core.vool_memory, "sqlite3", _SqliteBuiltWithoutSecureDelete())
+    chat = "forget-count-free-pages"
+    _ingest(isolated_pages, chat, [(1792400000.0, "My favourite tree is the silver birch."),
+                                   (1792400100.0, "My harbor lantern is painted signal green.")])
+    memory_db = Path(isolated_pages) / "data" / "memory" / "vool_memory.db"
+    sentence = b"tree is the silver birch"
+
+    def file_bytes_hold(needle: bytes) -> list[str]:
+        files = [memory_db, memory_db.with_name(memory_db.name + "-wal"), memory_db.with_name(memory_db.name + "-shm")]
+        return [path.name for path in files if path.exists() and needle in path.read_bytes()]
+
+    assert file_bytes_hold(sentence), "probe is blind: the sentence never reached the database files"
+
+    handled, reply = command(isolated_pages, chat, "Forget silver birch.")
+
+    assert handled and reply.startswith("Forget applied"), reply
+    assert file_bytes_hold(sentence) == []
+    assert file_bytes_hold(b"harbor lantern is painted signal green"), "the words nobody forgot must stay"
+
+
 def test_served_forget_counts_only_memory_and_forgets_the_named_label(served):
     """The real daemon and /api/chat door with the certified scripted model: the reported message in a chat that
     stored the label, then the same words again."""
