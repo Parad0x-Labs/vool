@@ -83,7 +83,7 @@ _TIME_FOLLOWUP_EXCLUSION_MARKERS = (
     "queue",
     "work",
 )
-_FILE_TOKEN = r"[A-Za-z0-9_./-]+\.(?:(?i:csv|tsv)|toml|json|ya?ml|md|txt|py|ts|tsx|js|jsx)"
+_FILE_TOKEN = r"[A-Za-z0-9_./-]+\.(?:toml|json|ya?ml|md|txt|py|ts|tsx|js|jsx)"
 _WORKSPACE_READ_FILE_RE = re.compile(rf"(?P<path>{_FILE_TOKEN})")
 # A named file with a MUTATION intent is not a read -- defer to the writer/builder lanes.
 _WORKSPACE_MUTATION_INTENT_RE = re.compile(
@@ -910,7 +910,7 @@ def maybe_handle_direct_workspace_runtime_request(
 
     if turn_supplies_its_own_content(user_input, source_context=source_context):
         return None
-    direct_reads = _direct_workspace_read_requests(user_input, for_synthesis=True)
+    direct_reads = _direct_workspace_read_requests(user_input)
     if direct_reads and _names_only_absent_proper_noun_products(user_input, direct_reads, workspace_root):
         # "What is the latest stable version of Node.js?" -- measured served (c5463c47): the
         # inverted gate read `Node.js` as a file and the whole answer became "There is no file at
@@ -922,11 +922,6 @@ def maybe_handle_direct_workspace_runtime_request(
         # verb keeps every read.
         return None
     if direct_reads:
-        from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
-        from core.agent_runtime.workspace_question_evidence import MAX_DISCOVERY_BYTES, record_evidence
-
-        synthesis = any(file_question_requires_synthesis(user_input, str(request["path"]))
-                        for request in direct_reads)
         executions = []
         # A turn that CARRIES the file it names is self-contained in the same sense as a turn
         # that pastes it (MF-17 above). Measured on the served composer, 2026-09-02: "Read
@@ -954,36 +949,33 @@ def maybe_handle_direct_workspace_runtime_request(
             attached = attached_by_name.get(_attachment_lookup_name(str(read_request.get("path") or "")))
             if attached is not None:
                 execution = _read_attached_file(attached, read_request)
-                if synthesis and isinstance(source_context, dict):
-                    record_evidence(agent, source_context, "attachment.read_file", read_request, execution)
-                else:
-                    _emit_workspace_tool_events(
-                        agent, source_context, intent="attachment.read_file", execution=execution,
-                        path=str(attached.get("name") or ""),
-                    )
+                _emit_workspace_tool_events(
+                    agent,
+                    source_context,
+                    intent="attachment.read_file",
+                    execution=execution,
+                    path=str(attached.get("name") or ""),
+                )
                 _record_attachment_fast_read(agent, source_context, attached)
                 executions.append(execution)
                 continue
-            read_context = dict(source_context or {})
-            if synthesis:
-                read_context["_workspace_context_read_byte_budget"] = MAX_DISCOVERY_BYTES
             execution = execute_runtime_tool(
-                "workspace.read_file", read_request, source_context=read_context,
+                "workspace.read_file",
+                read_request,
+                source_context=dict(source_context or {}),
             )
             # A tool that cannot run at all is not a partial answer. Stand down and let the rest of
             # the front door decide, exactly as the single-file path did.
             if execution is None:
                 return None
-            if synthesis and isinstance(source_context, dict):
-                record_evidence(agent, source_context, "workspace.read_file", read_request, execution)
-            else:
-                _emit_workspace_tool_events(
-                    agent, source_context, intent="workspace.read_file", execution=execution,
-                    path=str(read_request.get("path") or ""),
-                )
+            _emit_workspace_tool_events(
+                agent,
+                source_context,
+                intent="workspace.read_file",
+                execution=execution,
+                path=str(read_request.get("path") or ""),
+            )
             executions.append(execution)
-        if synthesis and any(item.ok for item in executions):
-            return None
         response = _render_direct_workspace_read_response(
             user_input, executions[0].response_text, executions[0].details
         )
@@ -1238,7 +1230,7 @@ def names_files_only_in_speech(text: str) -> bool:
     return all(str(token).strip().casefold() in spoken for token in named)
 
 
-def _direct_workspace_read_request(user_input: str, *, for_synthesis: bool = False) -> dict[str, object] | None:
+def _direct_workspace_read_request(user_input: str) -> dict[str, object] | None:
     text = " ".join(str(user_input or "").split()).strip()
     text = _SPACED_WORKSPACE_EXTENSION_RE.sub(r"\g<stem>.\g<ext>", text)
     # A build/create request is NOT a read, even when it says "show me the created files" or names a
@@ -1275,10 +1267,6 @@ def _direct_workspace_read_request(user_input: str, *, for_synthesis: bool = Fal
     # never typed, which reads as a statement about the one they did. Decline and let the machine
     # read lane, which understands host paths, take it.
     if path.startswith(("/", "~")) or re.match(r"^[A-Za-z]:[\\/]", path):
-        return None
-    from core.agent_runtime.tabular_evidence import file_question_requires_synthesis
-
-    if not for_synthesis and file_question_requires_synthesis(text, path):
         return None
     window = _requested_line_window(text)
     if window is not None:
@@ -1319,7 +1307,7 @@ _MIN_SHARED_READ_LINES = 400
 _MAX_NAMED_READ_FILES = 4
 
 
-def _direct_workspace_read_requests(user_input: str, *, for_synthesis: bool = False) -> list[dict[str, object]]:
+def _direct_workspace_read_requests(user_input: str) -> list[dict[str, object]]:
     """Every file the message names, not just the first one.
 
     `_WORKSPACE_READ_FILE_RE` is `.search()`, so `_direct_workspace_read_request` returns the FIRST
@@ -1338,7 +1326,7 @@ def _direct_workspace_read_requests(user_input: str, *, for_synthesis: bool = Fa
     had run. A partial answer presented as a whole one is the failure mode both share.
     """
 
-    first = _direct_workspace_read_request(user_input, for_synthesis=for_synthesis)
+    first = _direct_workspace_read_request(user_input)
     if not first:
         return []
     text = " ".join(str(user_input or "").split()).strip()
