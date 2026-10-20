@@ -914,6 +914,7 @@
     "run.review_action": "以下の正確な操作を確認してください。",
     "run.status_completed": "完了",
     "run.status_stopped": "停止しました",
+    "run.status_stopping": "停止しています…",
     "run.status_waiting": "承認を待っています",
     "run.stop": "停止",
     "run.stop_title": "このターンを停止 — このマシンで実行中のタスクをキャンセルし、回答を止めます。",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "実行前に各操作を確認してください。ページのスクリプトは無効です。支払いにはウォレットを使ってください。",
     "settings.row.live_browser.label": "ブラウザー"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -914,6 +914,7 @@
     "run.review_action": "아래의 정확한 작업을 검토하세요.",
     "run.status_completed": "완료됨",
     "run.status_stopped": "중지됨",
+    "run.status_stopping": "중지하는 중…",
     "run.status_waiting": "승인을 기다리는 중",
     "run.stop": "중지",
     "run.stop_title": "이 턴 중지 — 이 컴퓨터에서 실행 중인 작업을 취소하고 답변을 멈춥니다.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "실행 전에 각 작업을 확인하세요. 페이지 스크립트는 꺼져 있습니다. 결제에는 지갑을 사용하세요.",
     "settings.row.live_browser.label": "브라우저"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

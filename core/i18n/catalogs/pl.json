@@ -914,6 +914,7 @@
     "run.review_action": "Przejrzyj dokładne działanie poniżej.",
     "run.status_completed": "Ukończono",
     "run.status_stopped": "Zatrzymano",
+    "run.status_stopping": "Zatrzymywanie…",
     "run.status_waiting": "Czeka na Twoją zgodę",
     "run.stop": "Zatrzymaj",
     "run.stop_title": "Zatrzymaj tę turę — anuluje uruchomione zadanie na twoim komputerze i przerywa odpowiedź.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Sprawdź każdą czynność przed wykonaniem. Skrypty stron są wyłączone. Do płatności używaj portfela.",
     "settings.row.live_browser.label": "Przeglądarka"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

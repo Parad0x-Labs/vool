@@ -914,6 +914,7 @@
     "run.review_action": "Revisa abajo la acción exacta.",
     "run.status_completed": "Completado",
     "run.status_stopped": "Detenido",
+    "run.status_stopping": "Deteniendo…",
     "run.status_waiting": "Esperando tu permiso",
     "run.stop": "Detener",
     "run.stop_title": "Detiene este turno — cancela la tarea en ejecución en tu máquina y corta la respuesta.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Revisa cada acción antes de ejecutarla. Los scripts de las páginas están desactivados. Usa la cartera para pagar.",
     "settings.row.live_browser.label": "Navegador"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

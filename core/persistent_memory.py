@@ -1020,6 +1020,57 @@ _TRANSCRIPT_OUTCOMES: dict[str, str] = {}
 _TRANSCRIPT_OUTCOMES_MAX = 512
 _OUTCOME_RECORDED = "recorded"
 _OUTCOME_STOPPED = "stopped"
+# The seals that hold a claim (``_claim_transcript_seal`` .. ``_end_transcript_seal``), each with
+# the Event a stop that lands meanwhile waits on, and that stop's own record. Never evicted: an
+# entry lives exactly as long as its seal, so both are bounded by the seals in flight.
+_SEALS_IN_FLIGHT: dict[str, threading.Event] = {}
+_STOPS_PENDING_SEAL: dict[str, dict[str, Any]] = {}
+# What a served turn learns from its exchange (memory extraction, the turn-context page), held
+# until the transcript says how the turn ended (``after_transcript_records``): run once the answer
+# is recorded or the request ends without a stop, dropped when the person stopped the turn. An
+# entry lives no longer than its request's boundary.
+_WORK_AFTER_RECORD: dict[str, list[Any]] = {}
+
+
+def after_transcript_records(request_id: str, work: Any) -> str:
+    """Run ``work`` once ``request_id``'s turn is recorded as answered; never for a stopped turn.
+
+    The turn's worker reaches what it learns from the exchange before the seal may have run (the
+    stream seals after the worker returns), so the decision is the transcript's, made once: an
+    answer that was recorded runs the work (``"ran"``, now or when it is recorded: ``"held"``), a
+    stop drops it (``"dropped"``). A request without an open commit boundary runs it at once.
+    """
+    key = str(request_id or "")
+    if key:
+        with _TRANSCRIPT_STAGE_LOCK:
+            if _stopped_locked(key):
+                return "dropped"
+            if _TRANSCRIPT_OUTCOMES.get(key) != _OUTCOME_RECORDED and (
+                key in _OPEN_TRANSCRIPT_BOUNDARIES or key in _SEALS_IN_FLIGHT
+            ):
+                # It runs later, on whichever thread records the answer: under this caller's own
+                # context (its request binding and trust), never under the recorder's.
+                import contextvars
+
+                caller = contextvars.copy_context()
+                _WORK_AFTER_RECORD.setdefault(key, []).append(lambda: caller.run(work))
+                return "held"
+    _run_held_work([work])
+    return "ran"
+
+
+def _take_held_work_locked(key: str) -> list[Any]:
+    """The work held for ``key``: what to run now, or nothing when the turn was stopped."""
+    work = _WORK_AFTER_RECORD.pop(key, [])
+    return [] if _stopped_locked(key) else work
+
+
+def _run_held_work(work: list[Any]) -> None:
+    for item in work:
+        try:
+            item()
+        except Exception:
+            logging.getLogger(__name__).exception("work held for the transcript record failed")
 
 
 def append_conversation_event(
@@ -1032,7 +1083,7 @@ def append_conversation_event(
     access_policy: ContextAccessPolicy | None = None,
     persist_now: bool = False,
     stopped_request_id: str = "",
-) -> None:
+) -> str | None:
     """Record one user/assistant exchange in the conversation log and the derived memory stores.
 
     Under a served turn whose ingress declared its commit boundary (an A0 request id is bound and
@@ -1040,15 +1091,15 @@ def append_conversation_event(
     ``core.finalization.finalize_answer`` with the committed bytes -- see the staging note above.
     ``persist_now`` is the explicit opt-out for a caller that owns its own commit semantics.
     ``stopped_request_id`` records that request's turn as stopped by the person: their message
-    with an empty assistant side (``assistant_output`` is not stored; see ``_record_stopped_turn``).
+    with an empty assistant side (``assistant_output`` is not stored; see ``_record_stopped_turn``)
+    and returns what that stop decided; every other path returns None.
     """
     if _memory_persistence_suppressed(source_context, session_id):
         return
     if stopped_request_id:
-        _record_stopped_turn(
+        return _record_stopped_turn(
             stopped_request_id, session_id=session_id, user_input=user_input, source_context=source_context
         )
-        return
     declared = bool((source_context or {}).get(TRANSCRIPT_COMMIT_BOUNDARY_KEY)) if isinstance(source_context, dict) else False
     request_id = "" if (persist_now or not declared) else _current_request_lineage()
     if request_id:
@@ -1109,6 +1160,52 @@ def _note_transcript_outcome_locked(request_id: str, outcome: str) -> None:
         del _TRANSCRIPT_OUTCOMES[next(iter(_TRANSCRIPT_OUTCOMES))]
 
 
+def _claim_transcript_seal(request_id: str) -> bool:
+    """The seal's claim on ``request_id``, taken before the commit is built: one linearization point.
+
+    False when the person's stop was recorded first: the turn is stopped and its answer must not be
+    committed. True otherwise: from here a stop waits for the seal (see ``_end_transcript_seal``).
+    """
+    key = str(request_id or "")
+    if not key:
+        return True
+    with _TRANSCRIPT_STAGE_LOCK:
+        if _stopped_locked(key):
+            return False
+        if _TRANSCRIPT_OUTCOMES.get(key) != _OUTCOME_RECORDED:
+            _SEALS_IN_FLIGHT.setdefault(key, threading.Event())
+        return True
+
+
+def _end_transcript_seal(request_id: str, *, committed: bool) -> str:
+    """Close the seal's claim. ``committed``: the answer was durably bound (it is the turn's record).
+
+    A stop that arrived during the seal is recorded now when the seal failed (``"stopped"``), and
+    is otherwise moot: the answer it raced was committed first (``"committed"``).
+    """
+    key = str(request_id or "")
+    if not key:
+        return "unknown"
+    with _TRANSCRIPT_STAGE_LOCK:
+        pending = _STOPS_PENDING_SEAL.pop(key, None)
+        sealed = _SEALS_IN_FLIGHT.pop(key, None)
+        if sealed is not None and committed:
+            _note_transcript_outcome_locked(key, _OUTCOME_RECORDED)
+        held = _take_held_work_locked(key) if committed else []
+    try:
+        if committed:
+            verdict = "committed"
+        elif pending is not None:
+            verdict = _record_stopped_turn(key, **pending)
+        else:
+            verdict = "released"
+    finally:
+        if sealed is not None:
+            sealed.set()  # a stop waiting on this seal reads the verdict now
+    _run_held_work(held)
+    return verdict
+
+
 def _transcript_request_stopped(request_id: str) -> bool:
     """True when the person stopped ``request_id``'s turn and its stopped row was recorded."""
     key = str(request_id or "")
@@ -1133,6 +1230,11 @@ def _record_stopped_turn(
     ``"already_stopped"`` when an earlier call did, ``"already_recorded"`` when the turn had
     already been written through its seal or a flush (that row is the record; nothing is added),
     and ``"unknown"`` without a request id (nothing can be keyed, so nothing is written).
+
+    A stop that lands while the seal holds its claim waits for that seal (bounded by the seal
+    itself: its ``finally`` always ends the claim) and then returns the seal's verdict: the answer
+    was committed (``"already_recorded"``) or the bind failed and the stop was recorded
+    (``"stopped"``).
     """
     key = str(request_id or "")
     if not key:
@@ -1142,13 +1244,25 @@ def _record_stopped_turn(
             return "already_stopped"
         if _TRANSCRIPT_OUTCOMES.get(key) == _OUTCOME_RECORDED:
             return "already_recorded"
-        if key in _OPEN_TRANSCRIPT_BOUNDARIES:
-            # The request is still open: its request-end flush will retire the id.
-            _LIVE_STOPPED_REQUESTS.add(key)
+        if key in _SEALS_IN_FLIGHT:
+            # The seal claimed this turn first and is binding its answer now. The stop waits for
+            # that outcome: recorded as stopped if the seal fails, nothing more if it commits.
+            _STOPS_PENDING_SEAL[key] = {"session_id": session_id, "user_input": user_input, "source_context": source_context}
+            sealed = _SEALS_IN_FLIGHT[key]
         else:
-            _note_transcript_outcome_locked(key, _OUTCOME_STOPPED)
-        _STAGED_TRANSCRIPT_EVENTS.pop(key, None)
-        _OPEN_TRANSCRIPT_BOUNDARIES.discard(key)
+            sealed = None
+            if key in _OPEN_TRANSCRIPT_BOUNDARIES:
+                # The request is still open: its request-end flush will retire the id.
+                _LIVE_STOPPED_REQUESTS.add(key)
+            else:
+                _note_transcript_outcome_locked(key, _OUTCOME_STOPPED)
+            _STAGED_TRANSCRIPT_EVENTS.pop(key, None)
+            _OPEN_TRANSCRIPT_BOUNDARIES.discard(key)
+            _WORK_AFTER_RECORD.pop(key, None)  # nothing is learned from a turn the person stopped
+    if sealed is not None:
+        sealed.wait()
+        with _TRANSCRIPT_STAGE_LOCK:
+            return "stopped" if _stopped_locked(key) else "already_recorded"
     _write_staged_row(
         {
             "session_id": session_id,
@@ -1210,6 +1324,7 @@ def _stage_conversation_event(request_id: str, event: dict[str, Any]) -> str:
     boundary is not open (the caller writes the row at once, as a writer outliving its request).
     """
     stale: list[tuple[str, dict[str, Any]]] = []
+    held: list[Any] = []
     now = time.monotonic()
     with _TRANSCRIPT_STAGE_LOCK:
         if _stopped_locked(request_id):
@@ -1228,8 +1343,10 @@ def _stage_conversation_event(request_id: str, event: dict[str, Any]) -> str:
                     stale.extend((key, row) for row in rows)
                 del _STAGED_TRANSCRIPT_EVENTS[key]
                 _OPEN_TRANSCRIPT_BOUNDARIES.discard(key)
+                held.extend(_take_held_work_locked(key))
     for _key, row in stale:
         _write_staged_row(row, assistant_text=None, commit_state=TRANSCRIPT_COMMIT_STATE_UNSEALED)
+    _run_held_work(held)
     return outcome
 
 
@@ -1260,6 +1377,7 @@ def persist_staged_conversation_event(
     with _TRANSCRIPT_STAGE_LOCK:
         if _stopped_locked(key):
             _STAGED_TRANSCRIPT_EVENTS.pop(key, None)
+            _WORK_AFTER_RECORD.pop(key, None)
             return False
         rows = _STAGED_TRANSCRIPT_EVENTS.get(key)
         if not rows:
@@ -1268,7 +1386,9 @@ def persist_staged_conversation_event(
         if not rows:
             del _STAGED_TRANSCRIPT_EVENTS[key]
         _note_transcript_outcome_locked(key, _OUTCOME_RECORDED)
+        held = _take_held_work_locked(key)
     _write_staged_row(row, assistant_text=str(committed_text or ""), commit_state=commit_state, extra_fields=extra_fields)
+    _run_held_work(held)
     return True
 
 
@@ -1301,8 +1421,14 @@ def flush_staged_conversation_events(
                 _note_transcript_outcome_locked(key, _OUTCOME_STOPPED)
         elif rows:
             _note_transcript_outcome_locked(key, _OUTCOME_RECORDED)
+        # The boundary is closed: what the turn held runs now, unless the person stopped it or the
+        # turn ended with no answer (nothing was published to learn from).
+        held = _take_held_work_locked(key)
+        if commit_state == TRANSCRIPT_COMMIT_STATE_NO_ANSWER:
+            held = []
     for row in rows:
         _write_staged_row(row, assistant_text=assistant_text, commit_state=commit_state)
+    _run_held_work(held)
     return len(rows)
 
 
