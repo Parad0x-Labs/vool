@@ -11,7 +11,7 @@ from typing import Any
 
 X_READ_INTENTS = frozenset({
     "x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists", "x.usage",
-    "x.spaces", "x.dms", "x.account", "x.feedback.list", "x.results",
+    "x.spaces", "x.dms", "x.account", "x.feedback.list", "x.results", "x.replies.unanswered",
 })
 X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status"})
 X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS | {"x.feedback.save"}
@@ -60,6 +60,12 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
                                "Rating saved." if data.get("status") == "saved" else
                                ("Your ratings." if data.get("ok") else "No rating was saved."), data)
         return _result(intent, outcome, keys=("id", "rating", "summary"))
+    if intent == "x.replies.unanswered":
+        from core.x_results import unanswered
+
+        return _result(intent, unanswered(str(args.get("post") or ""), next_token=str(args.get("next_token") or ""),
+                                         max_results=args.get("max_results", 25)),
+                       keys=("posts", "next_token", "coverage", "answer_status", "reset_at"))
     if intent == "x.results":
         from core.x_results import results
 

@@ -8,7 +8,8 @@ from tests._credential_intelligence_support import isolated_home, vault_home
 
 
 def test_rating_is_explicit_scoped_bounded_and_never_automatically_a_voice_sample(vault_home):
-    from core import x_feedback as f, x_voice_profile as v
+    from core import x_feedback as f
+    from core import x_voice_profile as v
 
     row = f.save('project:one', 10, 'A clear release note.', comment='Keep this concise.')
     assert row['ok']
@@ -34,7 +35,8 @@ def test_invalid_ratings_do_not_write(vault_home, rating):
 
 
 def test_pause_restart_reset_and_prompt_integration(vault_home):
-    from core import x_feedback as f, x_voice_profile as v
+    from core import x_feedback as f
+    from core import x_voice_profile as v
 
     f.save('global', 3, 'Plain release note.', comment='Too vague about the change.')
     assert 'Too vague' in v.voice_segment_for_turn('Write an X post about our release.')

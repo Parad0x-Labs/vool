@@ -3256,6 +3256,10 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
     window = {"start_time": "string optional (ISO date/time, UTC)", "end_time": "string optional (ISO date/time, UTC)"}
     return [
         _x_read_contract(
+            "x.replies.unanswered", "Read comments on one own post with no answer observed in a complete recent own-reply search. Partial candidate pages are labelled. Draft and propose each reply separately; every reply needs its own app approval. No sends or automatic proposals.",
+            "x.replies.unanswered", "read unanswered comments on own posts", {"post": "string", **page},
+            {"posts": "list", "coverage": "string", "answer_status": "string", "next_token": "string"}, connected),
+        _x_read_contract(
             "x.results", "Refresh observed views and interactions of up to ten own posts, storing IDs and numbers only. Missing metrics are not available. Comparisons require equal ages. No automatic retry.",
             "x.results", "observe own-post results at comparable ages", {"posts": "list[string] optional, own post IDs"},
             {"posts": "list", "comparisons": "list", "deleted": "list", "unavailable": "list", "reset_at": "integer|null"}, connected),

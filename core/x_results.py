@@ -159,7 +159,7 @@ def results(posts: Any = None) -> x_api.XResult:
                              {'posts': refreshed, 'comparisons': _comparable(refreshed), 'deleted': deleted,
                               'unavailable': unavailable})
     except x_api.XReadError as exc:
-        return x_api.XResult(False, exc.status, exc.message, {})
+        return x_api.XResult(False, exc.status, exc.message, {'reset_at': getattr(exc, 'reset_at', None)})
     except (ValueError, TypeError, OSError, LockUnavailable):
         return x_api.XResult(False, 'store_or_metrics_unreadable', 'Could not safely read or save these post results.', {})
 
@@ -179,16 +179,39 @@ def unanswered(post: str, *, next_token: str = '', max_results: int = 25) -> x_a
             'query': f'conversation_id:{pid}', 'max_results': size, 'next_token': next_token,
             'tweet.fields': x_api.POST_FIELDS, 'expansions': 'author_id', 'user.fields': x_api.USER_FIELDS})
         raw = [p for p in payload.get('data', []) if isinstance(p, dict)]
-        answered = {str(ref.get('id')) for p in raw if str(p.get('author_id')) == me
-                    for ref in p.get('referenced_tweets', []) if ref.get('type') == 'replied_to'}
+        answered = set()
+        own_cursor = ""
+        for _page_index in range(3):
+            own = x_api._request('/2/tweets/search/recent', {
+                'query': f'conversation_id:{pid} from:{me}', 'max_results': size,
+                'next_token': own_cursor, 'tweet.fields': x_api.POST_FIELDS})
+            for item in own.get('data', []):
+                if isinstance(item, dict) and str(item.get('author_id')) == me:
+                    answered.update(str(ref.get('id')) for ref in item.get('referenced_tweets', [])
+                                    if isinstance(ref, dict) and ref.get('type') == 'replied_to')
+            own_cursor = str((own.get('meta') or {}).get('next_token') or '')
+            if not own_cursor:
+                break
+        if own_cursor:
+            return x_api.XResult(False, 'incomplete_coverage',
+                                 'The recent answer search is incomplete. No replies were labelled unanswered.',
+                                 {'posts': [], 'coverage': 'incomplete'})
+        from core import x_actions
+
+        # A waiting, in-flight, uncertain or just-sent local reply must not be proposed again.
+        with x_actions._lock:
+            actions = x_actions._current()['actions'].values()
+            answered.update(str((a.get('payload') or {}).get('post_id')) for a in actions
+                            if a.get('kind') == 'reply' and (a.get('account') or {}).get('id') == me
+                            and a.get('state') in {'pending', 'sending', 'unknown', 'sent'})
         candidates = [p for p in raw if str(p.get('author_id')) != me and str(p.get('id')) != pid
                       and str(p.get('conversation_id')) == pid and str(p.get('id')) not in answered
-                      and any(ref.get('type') == 'replied_to' for ref in p.get('referenced_tweets', []))]
-        # Recent search is not exhaustive, even when no next token is returned. Never claim proof
-        # of absence across pages or across the seven-day window.
+                      and any(ref.get('type') == 'replied_to' for ref in p.get('referenced_tweets', []) if isinstance(ref, dict))]
         rows = [x_api.shape_post(p, x_api._users_by_id(payload)) for p in candidates]
         return x_api.XResult(True, 'executed', 'Replies with no answer observed in this page. Review each and propose one reply at a time; each needs its own approval.',
                              {'posts': rows, 'next_token': str((payload.get('meta') or {}).get('next_token') or ''),
-                              'coverage': 'partial: recent search page only', 'answer_status': 'not observed in this page'})
+                              'coverage': 'candidate page only; complete own-reply search within recent seven-day window',
+                              'answer_status': 'no answer observed in complete recent own-reply search'})
     except x_api.XReadError as exc:
-        return x_api.XResult(False, exc.status, exc.message, {})
+        return x_api.XResult(False, exc.status, exc.message, {'reset_at': getattr(exc, 'reset_at', None)})
+

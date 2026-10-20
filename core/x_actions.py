@@ -165,7 +165,6 @@ def _who(target: dict[str, Any]) -> str:
 def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None = None):
     """Freeze one action for the user to approve. Reads the target from X; sends nothing."""
     from core import x_api
-
     from core.x_voice_profile import turn_scope
 
     args = dict(arguments or {})
