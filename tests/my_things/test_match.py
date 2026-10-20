@@ -76,3 +76,39 @@ def test_served_match_exact_ambiguous_no_match_and_actual_photo(daemon):
     assert result["state"] in {"unavailable", "unreadable"} and not result["candidates"]
     for record in (one, two):
         assert call(base, "delete", {"id": record["id"], "revision": 1, "confirm": True})[0] == 200
+
+
+def test_served_ocr_scratch_is_private_and_removed_on_read_and_empty_photo(daemon):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from core.artifact_readers.vision_tool import ocr_available
+
+    base, home = daemon
+    root = home / "data" / "my_things" / "read_scratch"
+    observed = []
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(call, base, "read", {"file": file("label.png", label_photo(), "photo")})
+        while not future.done():
+            for path in root.rglob("input.png") if root.exists() else []:
+                try:
+                    assert path.resolve().is_relative_to(home.resolve())
+                    assert path.stat().st_mode & 0o777 == 0o600
+                    assert path.parent.stat().st_mode & 0o777 == 0o700
+                    observed.append(str(path.relative_to(home)))
+                except FileNotFoundError:
+                    pass  # completion may remove it between directory listing and stat
+            time.sleep(.005)
+        status, result, _ = future.result()
+    assert status == 200
+    if ocr_available():
+        assert result["reading"]["state"] == "read" and observed
+    else:
+        assert result["reading"]["state"] == "unavailable" and not observed
+    assert not list(root.rglob("input.png"))
+    empty = io.BytesIO()
+    Image.new("RGB", (300, 100), "white").save(empty, format="PNG")
+    result = call(base, "read", {"file": file("empty.png", empty.getvalue(), "photo")})[1]
+    assert result["reading"]["state"] == ("unreadable" if ocr_available() else "unavailable")
+    assert not list(root.rglob("*"))
+    assert all(b"MODEL WH-1000" not in path.read_bytes() for path in home.rglob("*") if path.is_file())

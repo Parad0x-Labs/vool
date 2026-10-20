@@ -94,7 +94,14 @@ def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = Tr
                 data = strip_image_metadata(data, media_type)
             except ValueError:
                 raise ThingsError("bad_image", "This photo could not be saved safely. Try a different copy.") from None
-    return {"id": uuid.uuid4().hex, "name": name, "kind": kind, "data": base64.b64encode(data).decode("ascii"), "size": len(data)}
+    payload = {"id": uuid.uuid4().hex, "name": name, "kind": kind, "data": base64.b64encode(data).decode("ascii"), "size": len(data)}
+    if strip_metadata:
+        from core.my_things.reading import read_local
+
+        reading = read_local(data, name)
+        payload["extracted_text"] = reading.get("text", "")
+        payload["text_state"] = reading["state"]
+    return payload
 
 
 class ThingsStore:
@@ -177,7 +184,7 @@ class ThingsStore:
         return {**record, "id": thing_id, "revision": row[1]}
 
     def _public(self, record):
-        return {**record, "files": [{k: v for k, v in file.items() if k != "data"} for file in record["files"]]}
+        return {**record, "files": [{k: v for k, v in file.items() if k not in {"data", "extracted_text", "text_state"}} for file in record["files"]]}
 
     def list(self) -> list[dict]:
         if not (self.root / "records.sqlite3").exists():

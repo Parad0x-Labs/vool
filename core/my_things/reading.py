@@ -1,14 +1,60 @@
 """Local text evidence; no model or network path exists in this reader."""
 from __future__ import annotations
 
+import io
+import os
 import re
+import shutil
+import tempfile
 from pathlib import PurePath
 
 from core.artifact_readers import image, read
-from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
+from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderResult, ReaderUnavailable, ReaderUnit
 from core.my_things.store import ThingsError
 
 MAX_TEXT = 32000
+
+
+def _read_image(data: bytes, name: str):
+    """Use the existing confined OCR API with private, caller-owned scratch."""
+    from PIL import Image
+
+    from core.artifact_readers._sandbox import extraction_budget
+    from core.artifact_readers.vision_tool import OCR_MAX_EDGE, TOOL_VERSION, ocr_available, ocr_text_with_confidence
+    from core.my_things.store import _private
+    from core.runtime_paths import active_data_dir
+
+    width, height = image.dimensions(data)  # includes the existing decompression-bomb refusal
+    if not ocr_available():
+        raise ReaderUnavailable("Local photo reading is unavailable.", code="ocr_unavailable")
+    if not width or not height:
+        raise ReaderRefused("This photo cannot be decoded.", code="invalid_image")
+    parent = active_data_dir() / "my_things"
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    _private(parent, 0o700)
+    root = parent / "read_scratch"
+    root.mkdir(exist_ok=True, mode=0o700)
+    _private(root, 0o700)
+    from pathlib import Path
+
+    scratch = Path(tempfile.mkdtemp(prefix="photo-", dir=root))
+    try:
+        with extraction_budget(scratch=scratch):
+            with Image.open(io.BytesIO(data)) as original:
+                frame = original.convert("RGB")
+                longest = max(frame.size)
+                if longest > OCR_MAX_EDGE:
+                    scale = OCR_MAX_EDGE / longest
+                    frame = frame.resize((max(1, int(frame.width * scale)), max(1, int(frame.height * scale))), Image.Resampling.LANCZOS)
+                path = scratch / "input.png"
+                with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as handle:
+                    frame.save(handle, format="PNG")
+            text, facts = ocr_text_with_confidence(path, scratch=scratch)
+            return ReaderResult(fmt="image", extractor=f"{facts['engine']} {TOOL_VERSION}",
+                                units=(ReaderUnit(locator=f"text in {name}", kind="section", text=text),),
+                                meta={"ocr": facts})
+    finally:
+        shutil.rmtree(scratch)
 
 
 def read_local(data: bytes, name: str) -> dict:
@@ -23,7 +69,7 @@ def read_local(data: bytes, name: str) -> dict:
         return {"state": "read", "text": text, "source": "attached text", "warnings": []}
     try:
         is_image = data.startswith((b"\x89PNG\r\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")) or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")
-        result = image.read(data, name=name) if is_image else read(data, name=name, extension=extension)
+        result = _read_image(data, name) if is_image else read(data, name=name, extension=extension)
     except ReaderUnavailable:
         return {"state": "unavailable", "text": "", "message": "Reading the words in this photo is not available on this computer. Enter its model or serial number instead."}
     except (ReaderFailed, ReaderRefused):

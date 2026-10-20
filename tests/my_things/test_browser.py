@@ -6,6 +6,7 @@ from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
 
+from core.artifact_readers.vision_tool import ocr_available
 from tests.my_things.test_match import label_photo
 from tests.my_things.test_served import call, daemon
 
@@ -71,10 +72,23 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             expect(page.get_by_role("heading", name="Synthetic headphones", exact=True)).to_be_visible()
             page.get_by_label("Match a photo · Photo", exact=True).set_input_files(str(photo))
             page.get_by_role("button", name="Match a photo", exact=True).click()
-            expect(page.get_by_role("heading", name="A saved thing matches this label", exact=True)).to_be_visible(timeout=120000)
-            expect(page.locator("#myThingsRoot pre")).to_contain_text("MODEL WH-1000")
-            shot(page, "03-photo-evidence")
-            page.get_by_role("button", name="Attach a file", exact=True).click()
+            if ocr_available():
+                expect(page.get_by_role("heading", name="A saved thing matches this label", exact=True)).to_be_visible(timeout=120000)
+                expect(page.locator("#myThingsRoot pre")).to_contain_text("MODEL WH-1000")
+                shot(page, "03-photo-evidence")
+                page.get_by_role("button", name="Attach a file", exact=True).click()
+            else:
+                expect(page.get_by_role("heading", name="These words could not be read reliably. Try a clearer photo or enter the details yourself.", exact=True)).to_be_visible()
+                assert call(base, "match", {"file": {"name": "label.png", "kind": "photo", "data": __import__("base64").b64encode(photo.read_bytes()).decode()}})[1]["state"] == "unavailable"
+                shot(page, "03-photo-unavailable")
+                page.locator("nav.mt-list").get_by_role("button", name="Synthetic headphones", exact=True).click()
+                page.get_by_role("button", name="Edit", exact=True).click()
+                page.locator("#mt-model").fill("WH-1000")
+                page.get_by_role("button", name="Save", exact=True).click()
+                expect(page.get_by_role("heading", name="Synthetic headphones", exact=True)).to_be_visible()
+                page.get_by_role("combobox", name="Attach a file", exact=True).select_option("photo")
+                page.get_by_label("Attach a file · Note", exact=True).set_input_files(str(photo))
+                page.get_by_role("button", name="Attach a file", exact=True).click()
             expect(page.get_by_role("heading", name="Synthetic headphones", exact=True)).to_be_visible()
             page.get_by_label("Describe what happened", exact=True).fill("The left speaker stopped working")
             page.get_by_role("button", name="Prepare a return", exact=True).click()
@@ -93,7 +107,11 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             box.write_bytes(label_photo("Voltage: 12 V"))
             page.get_by_label("Read words from a photo · Photo", exact=True).set_input_files(str(box))
             page.get_by_role("button", name="Read words from a photo", exact=True).click()
-            expect(page.get_by_label("Words on the box or delivery note", exact=True)).to_have_value("Voltage: 12 V", timeout=30000)
+            if ocr_available():
+                expect(page.get_by_label("Words on the box or delivery note", exact=True)).to_have_value("Voltage: 12 V", timeout=30000)
+            else:
+                expect(page.get_by_role("status")).to_contain_text("These words could not be read reliably")
+                page.get_by_label("Words on the box or delivery note", exact=True).fill("Voltage: 12 V")
             page.get_by_role("button", name="Compare details", exact=True).click()
             expect(page.locator("#mt-result")).to_contain_text("5 V / 12 V")
             expect(page.locator("#mt-result")).to_contain_text("Overall compatibility has not been verified")
