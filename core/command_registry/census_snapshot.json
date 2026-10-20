@@ -1912,6 +1912,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:POST:/api/calendar/accounts/remove": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/remove",
+      "note": "calendar lane operator action (account remove)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:POST:/api/calendar/accounts/select": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/calendar/accounts/select",
@@ -3189,7 +3196,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 309,
+    "EXTERNAL_TRANSPORT_ONLY": 310,
     "GENERATED_ADAPTER": 137,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8

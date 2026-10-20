@@ -3147,7 +3147,7 @@ def dispatch_post(
         "/api/notifications/audio", "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test",
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
-        "/api/calendar/accounts/reconnect",
+        "/api/calendar/accounts/reconnect", "/api/calendar/accounts/remove",
         "/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove",
     }:
         if not is_loopback_host(client_host):
@@ -3204,6 +3204,11 @@ def dispatch_post(
                 return apply_runtime_headers(json_response(409, result), runtime)
             view = {**calendar_accounts.presented(result), "ok": True}
             return apply_runtime_headers(json_response(200, view), runtime)
+        if normalized_path == "/api/calendar/accounts/remove":
+            # VOOL forgets its own copy of the account; the provider and the credential binding are never touched.
+            result = calendar_accounts.remove_account(account_id)
+            status_code = 200 if result.get("ok") else 404 if result.get("reason") == "unknown_account" else 409
+            return apply_runtime_headers(json_response(status_code, result), runtime)
         if normalized_path == "/api/notifications/read":
             result = notification_center.mark_read(body.get("notification_ids"))
             return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)

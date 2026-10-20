@@ -16,6 +16,8 @@ Law:
   good sync when the account is shown, never stored as a guess.
 * Disconnecting stops future fetches and cancels that account's pending alerts. It cannot retract an alert
   already shown.
+* Removing forgets the account and everything VOOL copied from it. It never writes to the provider and never touches
+  the credential binding the account named.
 """
 from __future__ import annotations
 
@@ -56,24 +58,23 @@ PROVIDERS: dict[str, dict[str, str]] = {
     },
 }
 
-#: What to do next for each state an attempt can prove.
+#: What to do next for each state an attempt can prove. Each step names what is on the account's own card in Settings
+#: (Refresh calendar list, Reconnect, Remove account), never "Settings" itself. The Calendars panel shows these through
+#: the ``vcs.recovery.<state>`` catalog keys, whose English text is this text.
 RECOVERY: dict[str, str] = {
     "configured": "Refresh the calendar list, choose calendars, then turn on sync.",
     "connected": "",
-    "revoked": "The provider no longer accepts this account's credential. Reconnect the account in Settings; "
-               "VOOL keeps the alerts it already scheduled but cannot see changes until then.",
-    "denied": "The provider refused access to this calendar. Check the account's calendar permission, then reconnect it in Settings.",
+    "revoked": "The provider no longer accepts this account's sign-in. Check the sign-in under API Keys, then refresh the calendar list. Alerts already scheduled stay, but VOOL cannot see changes until then.",
+    "denied": "The provider refused access to this calendar. Check the account's calendar permission, then refresh the calendar list.",
     "rate_limited": "The provider asked VOOL to slow down. VOOL tries again later on its own.",
-    "offline": "The provider could not be reached. VOOL retries on its own; check the network or the server address.",
-    "egress_refused": "This VOOL keeps network access off for this request (local-only mode or a permission rule). "
-                      "Change that setting to sync this account.",
-    "unreadable": "The provider answered with data VOOL could not read as a calendar. VOOL kept the alerts it had; "
-                  "try again later or reconnect the account.",
-    "calendar_missing": "A chosen calendar is no longer on the account. Refresh the calendar list in Settings.",
-    "unsupported": "This calendar source cannot be used on this machine as configured.",
-    "provider_error": "The provider returned an error. VOOL retries on its own.",
+    "offline": "The provider could not be reached. VOOL tries again on its own; check the network or the server address.",
+    "egress_refused": "Network access is off for this account (local-only mode or a permission rule). Turn it on to sync this account.",
+    "unreadable": "The provider sent something VOOL could not read as a calendar. VOOL kept the alerts it had; refresh the calendar list later.",
+    "calendar_missing": "A chosen calendar is no longer on the account. Refresh the calendar list.",
+    "unsupported": "This calendar source cannot be used on this computer as set up. You can remove this account.",
+    "provider_error": "The provider returned an error. VOOL tries again on its own.",
     "stale": "VOOL has not refreshed this account recently, so recent changes may be missing.",
-    "disconnected": "Disconnected. Reconnect the account in Settings to fetch events and schedule alerts again.",
+    "disconnected": "Disconnected. Reconnect to fetch events and schedule alerts again, or remove the account.",
 }
 
 
@@ -355,6 +356,10 @@ def discover_calendars(
     conn = get_connection_fn()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT 1 FROM calendar_accounts WHERE account_id = ?", (account_id,)).fetchone() is None:
+            # Removed while the provider was being read: record nothing, so no calendar is left without its account.
+            conn.rollback()
+            return {"ok": False, "status": "unknown_account", "calendars": []}
         conn.execute("UPDATE calendar_selections SET present = 0 WHERE account_id = ?", (account_id,))
         for calendar in calendars:
             stated = getattr(calendar, "can_write", None)
@@ -589,6 +594,64 @@ def reconnect_account(
     return result
 
 
+def remove_account(
+    account_id: str,
+    *,
+    now_fn: Callable[[], str] = _utcnow,
+    get_connection_fn: Callable[[], Any] = _default_connection,
+) -> dict[str, Any]:
+    """Forget an account: its record, its calendar choices, the events VOOL copied from it and its pending alerts.
+
+    Any account can be removed, in whatever state the last attempt left it: a half-made or broken account must not
+    have to be disconnected first, and removing does everything a disconnect does. VOOL only forgets its own copy.
+    Nothing is sent to the provider, so the real calendar is never changed, and the credential binding the account
+    named is left alone: the binding belongs to API Keys and may serve other accounts. Alerts already shown stay in
+    the bell as history; pending ones are cancelled first (so a macOS notification VOOL scheduled is withdrawn) and
+    then deleted. An account that is being synced right now is not removed; the caller is asked to try again.
+    """
+    from core.operator import calendar_alerts
+
+    account = load_account(account_id, get_connection_fn=get_connection_fn)
+    if account is None:
+        return {"ok": False, "reason": "unknown_account"}
+    # The per-account sync lock: a sync holding it is reading and writing this account's events and alerts. A sync
+    # that starts after the removal finds no account (or no chosen calendars) and writes nothing.
+    lock = calendar_alerts._account_lock(account_id)
+    if not lock.acquire(blocking=False):
+        return {"ok": False, "reason": "sync_in_progress", "detail": "This account is syncing right now. Try again in a moment."}
+    try:
+        cancelled = calendar_alerts.cancel_calendar_alerts(
+            account_id=account_id, reason="account removed", now_fn=now_fn, get_connection_fn=get_connection_fn,
+        )
+        conn = get_connection_fn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM calendar_accounts WHERE account_id = ?", (account_id,)).fetchone() is None:
+                conn.rollback()
+                return {"ok": False, "reason": "unknown_account"}
+            # Alert rows a bell item points at are that item's history (snooze and details read them); the rest of
+            # this account's alerts, pending or long finished, are deleted with the events they came from.
+            alerts = conn.execute(
+                """
+                DELETE FROM reminder_requests
+                WHERE source_kind = 'calendar_alert' AND status IN ('scheduled', 'cancelled', 'expired')
+                  AND source_ref IN (SELECT event_key FROM calendar_event_projections WHERE account_id = ?)
+                  AND NOT EXISTS (SELECT 1 FROM notification_items i WHERE i.schedule_id = reminder_requests.reminder_id)
+                """,
+                (account_id,),
+            ).rowcount
+            events = conn.execute("DELETE FROM calendar_event_projections WHERE account_id = ?", (account_id,)).rowcount
+            calendars = conn.execute("DELETE FROM calendar_selections WHERE account_id = ?", (account_id,)).rowcount
+            conn.execute("DELETE FROM calendar_accounts WHERE account_id = ?", (account_id,))
+            conn.commit()
+        finally:
+            conn.close()
+    finally:
+        lock.release()
+    return {"ok": True, "account_id": account_id, "removed": True, "label": account.get("label") or "",
+            "alerts_cancelled": cancelled, "alerts_deleted": alerts, "events_deleted": events, "calendars_deleted": calendars}
+
+
 def presented(account: dict[str, Any], *, now_fn: Callable[[], str] = _utcnow,
               get_connection_fn: Callable[[], Any] = _default_connection) -> dict[str, Any]:
     """One account as Settings shows it, with its calendars."""
@@ -631,6 +694,7 @@ __all__ = [
     "presented",
     "reconnect_account",
     "record_sync_result",
+    "remove_account",
     "select_calendar",
     "set_opt_in",
     "settings_view",
