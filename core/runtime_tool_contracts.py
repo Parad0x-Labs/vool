@@ -221,7 +221,10 @@ def _runtime_tool_contracts_raw(*, web_available_fn: Any = None) -> list[Runtime
 
     wallet_tools_enabled = _wallet_enabled()
     media_studio_enabled = bool(policy_engine.get("media.studio_enabled", True))
+    from core.my_things.tools import contracts as things_contracts
+
     return [
+        *things_contracts(),
         RuntimeToolContract(
             intent="workspace.list_tree",
             description="List the visible file and directory tree inside the active workspace.",

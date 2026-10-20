@@ -3415,6 +3415,10 @@ def _dispatch_runtime_tool(
             return _skill_inspect(arguments)
         if intent in {"skill.export", "skill.import", "skill.remove", "skill.pack"}:
             return _covered(lambda: _skill_share_tool(intent, arguments, source_context))
+        if intent in {"things.search", "things.match", "things.prepare"}:
+            from core.my_things.tools import run as things_tool
+
+            return things_tool(intent, arguments, source_context)
         if intent in {"contacts.search", "contacts.resolve", "contacts.save", "contacts.update", "contacts.delete"}:
             return _contacts_tool(intent, arguments, source_context)
         if intent in {"profile.remember", "profile.forget", "profile.list"}:
