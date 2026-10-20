@@ -105,3 +105,17 @@ def test_rating_route_owner_only_and_uses_frozen_action(vault_home, monkeypatch)
     assert result.status == 403
     assert x_feedback.inspect('global')['entries'] == []
     assert x_actions.handle({'action': 'voice'})[0] == 400
+
+
+def test_model_rating_write_requires_the_normal_manual_mode_approval(vault_home):
+    from core.mode_permission_policy import PermissionEffect, decide_tool_call, reset_mode_permission_state
+
+    reset_mode_permission_state()
+    decision = decide_tool_call(
+        intent='x.feedback.save', arguments={'rating': 9, 'text': 'A concrete note.'},
+        task_id='rating-manual-policy', source_context={
+            'surface': 'desktop', '_owner_local': True, 'operating_mode': 'manual',
+            'workspace_root': str(vault_home), 'runtime_session_id': 'rating-manual-policy',
+        },
+    )
+    assert decision.effect is PermissionEffect.REQUIRE_APPROVAL

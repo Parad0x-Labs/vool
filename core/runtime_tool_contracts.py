@@ -3357,7 +3357,7 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
         RuntimeToolContract(
             intent='x.feedback.save', description='Record only an explicit N/10 rating and verbatim comment in the current user turn. No inferred ratings. Give action_id from this chat, or text quoted in the user turn.', tool_surface="x", capability_id='x.feedback.save',
             capability_claim='Record only an explicit N/10 rating and verbatim comment in the current user turn. No inferred ratings. Give action_id from this chat, or text quoted in the user turn.', supported=True, unsupported_reason="", input_schema={'rating': 'integer 1-10', 'comment': 'string optional, verbatim user comment', 'action_id': 'string optional', 'text': 'string optional, exact user-quoted draft', 'kind': 'string optional'}, output_schema={'id': 'string', 'rating': 'integer'},
-            side_effect_class='workspace_write', permission_actions=('write_files',), approval_requirement="none",
+            side_effect_class='workspace_write', permission_actions=('write_files',), approval_requirement="runtime_policy",
             timeout_policy="local_only_default", retry_policy="none", artifact_emission="none",
             error_contract="returns_structured_error_result",
         ),
