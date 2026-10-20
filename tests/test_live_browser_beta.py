@@ -663,7 +663,11 @@ def test_actual_engine_profile_sandbox_and_network_rejector_are_owned(world):
     item.stop()
     assert not item.profile.exists() and not item._proxy_clients and item._proxy_server is None
     for pid,created in owned:
-        try:assert psutil.Process(pid).create_time()!=created
+        # Ended means gone, reused, or an exited zombie left with a non-reaping PID 1 (as in a
+        # container); a process still running fails.
+        try:
+            process=psutil.Process(pid)
+            assert process.create_time()!=created or process.status()==psutil.STATUS_ZOMBIE
         except psutil.NoSuchProcess:pass
 
 
