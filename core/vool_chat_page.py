@@ -4761,7 +4761,10 @@ function provenanceBlockHtml(rawLine, renderedLine) {
 // The code-block Copy label in the UI language. The renderer is also lifted out and run on its
 // own (rich copy, sanitised exports), where the page's catalog lookup may not exist: English then.
 function codeCopyLabel(key, fallback) { return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; }
-function renderRichText(el, text) {
+// `state` (optional) carries the one thing a block hands to the blocks after it -- where a
+// restarted "1." list continues (`olResumeAt`) -- in and out, so text rendered in pieces that
+// split at block boundaries reads exactly like the whole (the live stream paints that way).
+function renderRichText(el, text, state) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
   // Index-aligned with `lines`: escaping adds and removes no newlines, so line i of the escaped
@@ -4863,7 +4866,7 @@ function renderRichText(el, text) {
   // Paragraphs and code blocks between lists keep it — the model writes numbered steps split by
   // commentary, and each piece restarting at 1 read "1. 1. 1.". Any other block (a heading, a
   // rule, a table, a quote, another kind of list) starts the numbering over.
-  let olResumeAt = 0;
+  let olResumeAt = (state && state.olResumeAt) || 0;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -4987,6 +4990,7 @@ function renderRichText(el, text) {
   // Drop a bare local render path that trails the image (the fast-path echoes it) - the image and
   // its actions replace it; showing the raw path as text is just noise.
   html = html.replace(/(<img class="chat-img"[^>]*>)\s*(?:<br>)?\s*\/[^\s<]+\.(?:png|jpe?g|webp|gif)\b/gi, '$1');
+  if (state) state.olResumeAt = olResumeAt;
   el.innerHTML = html;
 }
 
@@ -5547,10 +5551,66 @@ function streamingPreviewText(text) {
   if (link) return link[1] ? t.slice(0, nl + 1 + link.index) : holdFrom(link.index);
   return t;
 }
+// A long answer repaints only its unfinished end. Everything before the last settled block
+// boundary is rendered once and kept; each paint renders the rest. A boundary is a line that
+// starts flush left after a blank line, outside a code block, and is neither a list item nor the
+// last (still growing) line: every block above it is closed and none can reach past it, so pieces
+// split there render to exactly the same markup as the whole answer (the list numbering it
+// carries rides in `state`). A long answer used to cost a full re-render of everything so far on
+// every paint -- about a third of the page's time on a 95k-character answer.
+const STREAM_FREEZE_MIN = 4000;
+function streamSettledCut(text, from) {
+  let fence = null;
+  let cut = from;
+  let pos = from;
+  let prevBlank = false;
+  while (true) {
+    const nl = text.indexOf('\n', pos);
+    if (nl < 0) break;                               // the last line is still being written
+    const line = text.slice(pos, nl);
+    if (fence) {
+      const close = line.match(/^\s*(`{3,}|~{3,})\s*$/);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+      prevBlank = false;
+    } else {
+      const open = line.match(/^\s*(`{3,}|~{3,})(\w*)\s*$/);
+      if (prevBlank && pos > from && /^\S/.test(line) && !/^(?:\d+[.)]|[-*+])\s/.test(line)) cut = pos;
+      if (open) fence = open[1];
+      prevBlank = !line.trim();
+    }
+    pos = nl + 1;
+  }
+  return cut;
+}
+function appendRendered(el, text, state) {
+  const part = document.createElement('div');
+  renderRichText(part, text, state);
+  while (part.firstChild) el.appendChild(part.firstChild);
+}
 function paintStreamingText(run) {
-  if (!run.textEl) return;
-  run.textEl.dataset.streaming = '1';
-  renderRichText(run.textEl, streamingPreviewText(run.text));
+  const el = run.textEl;
+  if (!el) return;
+  el.dataset.streaming = '1';
+  const shown = streamingPreviewText(run.text);
+  let kept = run.streamKept;
+  if (shown.length < STREAM_FREEZE_MIN) {
+    run.streamKept = null;
+    renderRichText(el, shown);
+    return;
+  }
+  if (!kept || kept.el !== el || !shown.startsWith(kept.text) || el.childNodes.length < kept.nodes) {
+    kept = run.streamKept = { el: el, text: '', nodes: 0, olResumeAt: 0 };
+    el.textContent = '';
+  }
+  while (el.childNodes.length > kept.nodes) el.removeChild(el.lastChild);
+  const cut = streamSettledCut(shown, kept.text.length);
+  if (cut > kept.text.length) {
+    const state = { olResumeAt: kept.olResumeAt };
+    appendRendered(el, shown.slice(kept.text.length, cut), state);
+    kept.text = shown.slice(0, cut); kept.nodes = el.childNodes.length; kept.olResumeAt = state.olResumeAt;
+  }
+  appendRendered(el, shown.slice(kept.text.length), { olResumeAt: kept.olResumeAt });
+  el.dataset.raw = shown;
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
@@ -5572,6 +5632,7 @@ function scheduleStreamPaint(run) {
 }
 function endStreamPaint(run) {
   if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+  run.streamKept = null;
   if (run.textEl) delete run.textEl.dataset.streaming;
 }
 
