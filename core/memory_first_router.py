@@ -851,6 +851,20 @@ def _operator_cancel_marker_fired(source_context: dict[str, Any] | None) -> bool
         return False
 
 
+def _request_or_turn_cancel_check(request: ModelRequest, source_context: dict[str, Any] | None):
+    """The request's own cancel check; for a request built without one, the turn's cancel marker.
+
+    The marker only, never the deadline: a deadline keeps ending the call the way it always has.
+    No marker in the context leaves the request exactly as its caller built it.
+    """
+    if request.cancel_check is not None:
+        return request.cancel_check
+    context = source_context or {}
+    if context.get("cancel_event") is None and context.get("cancellation_token") is None:
+        return None
+    return lambda: _operator_cancel_marker_fired(source_context)
+
+
 def _cancel_check(source_context: dict[str, Any] | None):
     from core.provider_call_deadline import deadline_expired
 
@@ -2596,6 +2610,9 @@ class MemoryFirstRouter:
                 model_call_id=model_call_id,
                 response_id="",
                 metadata={**(request.metadata or {})},
+                # A request its caller built without the turn's cancel (the conductor's own calls)
+                # still stops with the turn: the person's cancel marker only, never the deadline.
+                cancel_check=_request_or_turn_cancel_check(request, source_context),
             )
         else:
             # Not a dataclass: this branch mutates the caller's object in place and cannot be
