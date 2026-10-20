@@ -2619,7 +2619,7 @@
     "xs.forget": "نسيان التقييم",
     "xs.forget_scope": "يؤدي نسيان التقييمات إلى إزالة الإرشادات المحفوظة ونماذج الأسلوب المرتبطة بها. قد تظل الملاحظات موجودة في المحادثات السابقة."
   },
-  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
+  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

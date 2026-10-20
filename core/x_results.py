@@ -245,5 +245,3 @@ def unanswered(post: str, *, next_token: str = '', max_results: int = 25) -> x_a
         return x_api.XResult(False, exc.status, exc.message, {'reset_at': getattr(exc, 'reset_at', None)})
     except (OSError, ValueError, TypeError, RuntimeError):
         return x_api.XResult(False, 'store_unreadable', 'Could not safely check your replies.', {})
-
-

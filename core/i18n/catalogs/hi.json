@@ -2619,7 +2619,7 @@
     "xs.forget": "रेटिंग भूलें",
     "xs.forget_scope": "रेटिंग भूलने से उनके सहेजे गए सुझाव और शैली के नमूने हट जाते हैं। पुरानी चैट में प्रतिक्रिया अभी भी मौजूद हो सकती है।"
   },
-  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
+  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

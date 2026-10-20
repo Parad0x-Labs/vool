@@ -2619,7 +2619,7 @@
     "xs.forget": "Bewertung vergessen",
     "xs.forget_scope": "Beim Vergessen werden die gespeicherten Bewertungshinweise und Stimmbeispiele entfernt. Frühere Chats können das Feedback weiterhin enthalten."
   },
-  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
+  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

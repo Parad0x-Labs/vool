@@ -2619,7 +2619,7 @@
     "xs.forget": "이 평가 잊기",
     "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 이전 채팅에는 피드백이 남아 있을 수 있습니다."
   },
-  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
+  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
