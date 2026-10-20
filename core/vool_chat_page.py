@@ -2502,6 +2502,7 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     // Sent only while this tab shows private chat: if another tab ended it meanwhile, the server
     // still keeps this message unsaved, because the person sent it believing it would be.
     ...(owner.privateChat ? { private_chat: true } : {}),
+    surface: 'desktop',
     model: modelId,
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
@@ -5089,6 +5090,7 @@ function mountAnswerExport(host, chatId, requestId) {
 }
 
 async function mountProofChip(host, chatId, requestId, presentationSelection) {
+  if (window.VoolXSocial && requestId) window.VoolXSocial.mount(host, chatId, requestId);
   if (typeof mountAnswerExport === 'function') mountAnswerExport(host, chatId, requestId);
   const id = String(requestId || '');
   if (!host || !id) return null;
@@ -13833,6 +13835,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.ui_chip_fragment import render_chip_fragment
     from core.wallet_fragment import render_wallet_fragment
+    from core.x_social_fragment import render_x_social_fragment
 
     return (
         render_chip_fragment(),
@@ -13850,6 +13853,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_companion_fragment(),
         render_wallet_fragment(),
         render_contacts_fragment(),
+        render_x_social_fragment(),
     )
 
 

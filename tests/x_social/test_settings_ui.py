@@ -47,7 +47,7 @@ def test_rating_voice_pause_forget_on_the_served_settings_page(fake_x, vault_hom
         out=Path(os.environ['SOCIAL_SHOTS']);out.mkdir(parents=True,exist_ok=True)
         card.screenshot(path=str(out/'settings-rating.png'))
         card.get_by_role('button',name='Use as a voice sample',exact=True).click()
-        page.wait_for_function("document.querySelector('.vx-rating [role=status]').textContent === 'Saved.'")
+        card.locator('[data-voice-added="1"]').wait_for()
         assert len(x_voice_profile.inspect('global')['samples'])==1
         assert x_feedback.inspect('global')['entries'][0]['rating']==9
         assert fake_x.writes()==[]

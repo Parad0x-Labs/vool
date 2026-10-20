@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 import time
@@ -34,6 +35,21 @@ def _load() -> dict:
     state = json.loads(path.read_text())
     if not isinstance(state, dict) or not isinstance(state.get('accounts'), dict):
         raise ValueError('unreadable results')
+    for aid, posts in state['accounts'].items():
+        if not isinstance(aid, str) or not aid.isdigit() or not isinstance(posts, dict) or len(posts) > MAX_STORED_POSTS:
+            raise ValueError('invalid results account')
+        for pid, rows in posts.items():
+            if not isinstance(pid, str) or not pid.isdigit() or not isinstance(rows, list) or not rows or len(rows) > MAX_SNAPSHOTS:
+                raise ValueError('invalid snapshots')
+            for row in rows:
+                if not isinstance(row, dict) or not isinstance(row.get('metrics'), dict) or set(row['metrics']) != set(METRICS):
+                    raise ValueError('invalid metrics')
+                if set(row) != {'post_id', 'captured_at', 'created_at', 'age_seconds', 'label', 'metrics'} or row['post_id'] != pid or row['label'] != 'observed':
+                    raise ValueError('invalid observation')
+                if any(type(row.get(k)) not in (int, float) or not math.isfinite(row[k]) or row[k] < 0 for k in ('captured_at', 'created_at', 'age_seconds')):
+                    raise ValueError('invalid observation time')
+                if any(v is not None and (type(v) is not int or v < 0) for v in row['metrics'].values()):
+                    raise ValueError('invalid metric count')
     return state
 
 
@@ -74,7 +90,10 @@ def _write(account_id: str, post_id: str, snapshot: dict | None) -> list[dict]:
 
 def _observation(post: dict, now: float) -> dict:
     created_at = str(post.get('created_at') or '')
-    created = datetime.fromisoformat(created_at.replace('Z', '+00:00')).timestamp()
+    parsed = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+    if parsed.tzinfo is None:
+        raise ValueError('post time needs timezone')
+    created = parsed.timestamp()
     if created > now or not post.get('author_id'):
         raise ValueError('invalid post age')
     metrics = post.get('public_metrics')
@@ -109,11 +128,21 @@ def results(posts: Any = None) -> x_api.XResult:
     try:
         account = _account()
         account_id = str(account['id'])
+        with PublicationLock(data_path('x_results.lock')):
+            _load()  # unreadable history refuses before a paid read
         if posts is None or posts == []:
             # Refresh retained posts too, so a later confirmed deletion erases their snapshots.
             with PublicationLock(data_path('x_results.lock')):
                 stored = _load()['accounts'].get(account_id, {})
-            ids = list(stored)[-MAX_POSTS:]
+            from core import x_actions
+
+            with x_actions._lock:
+                actions = x_actions._current()["actions"].values()
+                sent = [str((a.get("result") or {}).get("post_id")) for a in actions
+                        if a.get("kind") in {"post", "reply", "quote"} and a.get("state") == "sent"
+                        and (a.get("account") or {}).get("id") == account_id
+                        and (a.get("result") or {}).get("post_id")]
+            ids = list(dict.fromkeys([*stored, *sent]))[-MAX_POSTS:]
             if not ids:
                 timeline = x_api.user_posts('me', max_results=10)
                 if not timeline.ok:
@@ -214,4 +243,7 @@ def unanswered(post: str, *, next_token: str = '', max_results: int = 25) -> x_a
                               'answer_status': 'no answer observed in complete recent own-reply search'})
     except x_api.XReadError as exc:
         return x_api.XResult(False, exc.status, exc.message, {'reset_at': getattr(exc, 'reset_at', None)})
+    except (OSError, ValueError, TypeError, RuntimeError):
+        return x_api.XResult(False, 'store_unreadable', 'Could not safely check your replies.', {})
+
 

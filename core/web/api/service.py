@@ -5302,6 +5302,17 @@ def _dispatch_post_inner(
         _xs_status, _xs_payload = _cr_forward("x.setup", dict(body), client_host=client_host)
         return apply_runtime_headers(json_response(_xs_status, _xs_payload), runtime)
 
+    if normalized_path == "/api/x/cards":
+        refusal = _credential_page_refusal(headers, client_host)
+        if refusal:
+            return apply_runtime_headers(json_response(403, {"ok": False, "cards": []}), runtime)
+        if set(body) - {"session_id", "request_id"} or any(not isinstance(body.get(k), str) or not 0 < len(body[k]) <= 200 for k in ("session_id", "request_id")):
+            return apply_runtime_headers(json_response(400, {"ok": False, "cards": []}), runtime)
+        from core.x_actions import chat_cards
+
+        payload = chat_cards(body["session_id"], body["request_id"])
+        return apply_runtime_headers(json_response(200 if payload["ok"] else 400, payload), runtime)
+
     if normalized_path == "/api/x/feedback":
         refusal = _credential_page_refusal(headers, client_host)
         if refusal:

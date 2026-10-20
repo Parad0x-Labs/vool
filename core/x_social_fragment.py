@@ -5,14 +5,14 @@ from __future__ import annotations
 def render_x_social_fragment() -> str:
     return r'''<style>
 .vx-social{display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:12px;padding:14px;margin:10px 0;color:var(--ink);background:var(--panel)}
-.vx-social p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.vx-social button,.vx-social input,.vx-social textarea,.vx-social select{font:inherit;border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:var(--field,var(--bg));color:var(--ink)}
-.vx-social button{cursor:pointer}.vx-social button:disabled{opacity:.5;cursor:default}.vx-social .vx-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.vx-social textarea{width:100%;box-sizing:border-box;resize:vertical}.vx-social .vx-note{font-size:12px;color:var(--muted)}
+.vx-social label{display:flex;align-items:center;gap:8px}.vx-social p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.vx-social button,.vx-social input,.vx-social textarea,.vx-social select{font:inherit;border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:var(--field,var(--bg));color:var(--ink)}
+.vx-social button{cursor:pointer}.vx-social button.vx-approve{background:var(--accent);color:var(--bg);font-weight:600}.vx-social button:disabled{opacity:.5;cursor:default}.vx-social .vx-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.vx-social textarea{width:100%;box-sizing:border-box;resize:vertical}.vx-social .vx-note{font-size:12px;color:var(--muted)}
 </style><script>
 (function(){'use strict';
 function t(k,f){try{const v=VOOLT(k);if(v&&v!==k)return v;}catch(e){}return f;}
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;}
 async function call(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();return {ok:r.ok&&j.ok!==false,data:j};}
-function button(label,fn){const b=node('button','',label);b.type='button';b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}finally{b.disabled=false;}});return b;}
+function button(label,fn){const b=node('button','',label);b.type='button';b.addEventListener('click',async()=>{b.disabled=true;b.setAttribute('aria-busy','true');try{await fn();}finally{b.disabled=false;b.removeAttribute('aria-busy');}});return b;}
 function rating(host,a){
  if(!a.text||!['post','reply','quote'].includes(a.kind))return;
  const form=node('div','vx-social vx-rating');const label=node('label','',t('xs.rating','Your rating'));const score=node('select');score.setAttribute('aria-label',t('xs.rating','Your rating'));
@@ -22,7 +22,8 @@ function rating(host,a){
  row.appendChild(button(t('xs.save','Save rating'),async()=>{
    if(!score.value){score.focus();return;}
    try{const r=await call('/api/x/feedback',{action:'save',action_id:a.id,rating:Number(score.value),comment:comment.value});note.textContent=r.ok?t('xs.saved','Saved.'):t('xs.failed','Could not save this change. Try again.');
-   if(r.ok&&Number(score.value)>=9&&!row.querySelector('[data-voice]')){const v=button(t('xs.voice','Use as a voice sample'),async()=>{const o=await call('/api/x/feedback',{action:'voice',scope:a.feedback_scope||'global',id:r.data.id});note.textContent=o.ok?t('xs.saved','Saved.'):t('xs.failed','Could not save this change. Try again.');});v.dataset.voice='1';row.appendChild(v);}
+   if(r.ok){const previous=row.querySelector('[data-voice]');if(previous)previous.remove();}
+   if(r.ok&&Number(score.value)>=9){const v=button(t('xs.voice','Use as a voice sample'),async()=>{note.textContent='';const o=await call('/api/x/feedback',{action:'voice',scope:a.feedback_scope||'global',id:r.data.id});note.textContent=o.ok?t('xs.saved','Saved.'):t('xs.failed','Could not save this change. Try again.');if(o.ok)v.dataset.voiceAdded='1';});v.dataset.voice='1';row.appendChild(v);}
    }catch(e){note.textContent=t('xs.failed','Could not save this change. Try again.');}
  }));form.append(row,note);host.appendChild(form);
 }
@@ -39,6 +40,46 @@ async function manager(host,scope){
  }
  await draw();
 }
-window.VoolXSocial={rating:rating,manager:manager};
+
+const mounts=new Map();
+function mount(host,session,request){
+ if(!host||!session||!request)return;
+ const key=session+':'+request;
+ if(mounts.has(key)&&mounts.get(key).host===host)return;
+ const entry={host:host,session:session,request:request,versions:new Map()};mounts.set(key,entry);refresh(entry);
+}
+async function refresh(entry){
+ if(!entry.host.isConnected)return;
+ let result;try{result=await call('/api/x/cards',{session_id:entry.session,request_id:entry.request});}catch(e){return;}
+ if(!result.ok||!entry.host.isConnected)return;
+ for(const a of result.data.cards||[]){
+  if(entry.versions.get(a.id)===a.state)continue;
+  entry.versions.set(a.id,a.state);
+  const previous=entry.host.querySelector('[data-x-action="'+a.id+'"]');if(previous)previous.remove();
+  const card=node('section','vx-social vx-approval');card.dataset.xAction=a.id;
+  card.appendChild(node('strong','',a.summary||a.kind));
+  card.appendChild(node('p','vx-note','@'+((a.account||{}).username||'?')+' · '+String(a.weighted_length||0)+'/280'));
+  if(a.text)card.appendChild(node('p','',a.text));
+  if((a.target||{}).text)card.appendChild(node('p','vx-note',a.target.text));
+  const targetUrl=String((a.target||{}).url||'');
+  if(/^https:\/\/x\.com\/[A-Za-z0-9_\/]+$/.test(targetUrl)){const link=node('a','',t('xact.open_on_x','Open on X ↗'));link.href=targetUrl;link.target='_blank';link.rel='noopener noreferrer';card.appendChild(link);}
+  const note=node('p','vx-note');note.setAttribute('role','status');card.appendChild(note);
+  if(a.state==='pending'){
+   const row=node('div','vx-row');
+   async function act(action){
+    row.querySelectorAll('button').forEach(b=>b.disabled=true);
+    try{const r=await call('/api/x/activity',{action:action,action_id:a.id,...(action==='approve'?{hash:a.hash}:{})});note.textContent=r.data.message||'';
+     entry.versions.delete(a.id);await refresh(entry);
+    }catch(e){note.textContent=t('xact.lost_answer','VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.');}
+   }
+   const yes=button(t('xact.approve','Approve and send'),()=>act('approve'));yes.classList.add('vx-approve');row.appendChild(yes);
+   row.appendChild(button(t('xact.decline','Decline'),()=>act('decline')));card.appendChild(row);rating(card,a);
+  }else{note.textContent=t('xact.state_'+a.state,a.message||a.state);if(a.state==='sent')rating(card,a);}
+  entry.host.appendChild(card);
+ }
+}
+setInterval(()=>{for(const [key,e] of mounts){if(!e.host.isConnected)mounts.delete(key);else refresh(e);}},3000);
+window.VoolXSocial={rating:rating,manager:manager,mount:mount};
+
 })();
 </script>'''

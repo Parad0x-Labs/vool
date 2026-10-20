@@ -249,6 +249,11 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
             payload["list_id"] = lid
     except x_api.XReadError as exc:
         return _result(False, exc.status, exc.message + " Nothing was proposed.")
+    from core.turn_contract import PRINCIPAL_OWNER_LOCAL, TurnRequest
+
+    turn = (source_context or {}).get("turn_request")
+    owner_chat = bool(isinstance(turn, TurnRequest) and turn.trust_principal == PRINCIPAL_OWNER_LOCAL
+                      and turn.surface == "desktop" and (source_context or {}).get("turn_author", "owner") == "owner")
     now = time.time()
     action = {
         "id": "xa_" + secrets.token_hex(8), "kind": kind, "payload": payload,
@@ -257,6 +262,8 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
         "session": _session(source_context),
         "feedback_scope": turn_scope(source_context),
+        "owner_local_chat": owner_chat,
+        "request_id": turn.request_id if isinstance(turn, TurnRequest) else "",
     }
     action["summary"] = summary(action)
     with _lock:
@@ -270,6 +277,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
                            "Approve or decline some in Settings > API Keys > X first. Nothing was proposed.")
         state["actions"][action["id"]] = action
         _save(state)
+    _notify_chat_proposal(action, source_context or {})
     note = x_usage.action_refusal()
     message = (f"{action['summary']} is ready and waiting for your approval. Nothing has been sent to X. "
                "Approve or decline it in Settings > API Keys > X.")
@@ -585,3 +593,37 @@ def handle(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 
 
 __all__ = ["KINDS", "approve", "decline", "handle", "overview", "pending", "propose", "public", "recent", "status_for_model"]
+
+
+def chat_cards(session_id: str, request_id: str) -> dict[str, Any]:
+    """Only the guarded owner-local HTTP surface calls this; never a model tool."""
+    if not session_id or not request_id:
+        return {"ok": False, "cards": []}
+    try:
+        state = _current()
+        cards = [public(a, for_settings=True) for a in state["actions"].values()
+                 if a.get("owner_local_chat") is True and a.get("session") == session_id
+                 and a.get("request_id") == request_id and a.get("state") in {"pending", "sending", "sent", "unknown", "failed", "expired", "declined"}]
+        return {"ok": True, "cards": cards}
+    except RuntimeError:
+        return {"ok": False, "cards": []}
+
+
+def _notify_chat_proposal(action: dict[str, Any], context: dict[str, Any]) -> None:
+    if not action.get("owner_local_chat"):
+        return
+    try:
+        from core.i18n.catalog import catalog_for
+        from core.operator import notification_center
+
+        catalog = catalog_for(str(context.get("ui_locale") or "en"))
+        notification_center.record_item(
+            dedupe_key="x-action:" + action["id"], source_kind="background_run",
+            title=catalog.format("xact.waiting_title", count=1),
+            body=catalog.text("xact.section_title"), session_id=action["session"],
+            payload={"event_type": "task_pending_approval", "section": "needs", "status": "needs approval",
+                     "x_action_id": action["id"], "request_id": action["request_id"], "audio_eligible": False},
+        )
+    except Exception:
+        # Notification delivery cannot change a frozen proposal or its send decision.
+        return

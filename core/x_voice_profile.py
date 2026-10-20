@@ -303,7 +303,13 @@ def voice_segment_for_turn(
 
     scope = turn_scope(source_context)
     state = _scope_state(_read_store(home), scope)
-    samples = [s for s in state["samples"] if str(s.get("text") or "").strip()]
+    from core.x_feedback import inspect as inspect_feedback
+
+    ratings = inspect_feedback(scope, home=home)
+    active_rating_ids = {row["id"] for row in ratings["entries"]} if ratings["ok"] and not ratings.get("paused") else set()
+    samples = [s for s in state["samples"] if str(s.get("text") or "").strip()
+               and (not str(s.get("source") or "").startswith("x-feedback:")
+                    or str(s["source"]).split(":", 1)[1] in active_rating_ids)]
     if not samples or state.get("paused"):
         return feedback
 

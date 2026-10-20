@@ -3317,6 +3317,7 @@ function widgetXActivity(host) {
       const card = el('div', 'x-action-card');
       const summary = a.summary || a.kind;
       card.appendChild(el('strong', null, summary));
+      card.appendChild(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'));
       if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       const t = a.target || {};
       const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
