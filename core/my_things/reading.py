@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from pathlib import PurePath
 
-from core.artifact_readers import read
+from core.artifact_readers import image, read
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderUnavailable
 from core.my_things.store import ThingsError
 
@@ -22,7 +22,8 @@ def read_local(data: bytes, name: str) -> dict:
             return {"state": "unreadable", "text": "", "message": "This file could not be read completely. Use a smaller text file."}
         return {"state": "read", "text": text, "source": "attached text", "warnings": []}
     try:
-        result = read(data, name=name, extension=extension)
+        is_image = data.startswith((b"\x89PNG\r\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")) or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")
+        result = image.read(data, name=name) if is_image else read(data, name=name, extension=extension)
     except ReaderUnavailable:
         return {"state": "unavailable", "text": "", "message": "Reading the words in this photo is not available on this computer. Enter its model or serial number instead."}
     except (ReaderFailed, ReaderRefused):
