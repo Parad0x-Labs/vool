@@ -141,3 +141,25 @@ def test_served_settings_off_refuses_then_recovers(daemon):
     assert call(base, "save", {"fields": {"name": "No"}, "confirm": True})[0] == 409
     assert call(base, "preferences", {"enabled": True})[0] == 200
     assert call(base)[1]["things"] == []
+
+
+def test_corrupted_ciphertext_fails_closed_on_served_reads_and_matches(daemon):
+    base, home = daemon
+    item = call(base, "save", {"fields": {"name": "Synthetic encrypted device", "model": "TX-4821"}, "confirm": True})[1]["thing"]
+    objects = home / "data" / "my_things" / "objects" / item["id"]
+    path = next(p for p in objects.rglob("*") if p.is_file())
+    original = path.read_bytes()
+    envelope = json.loads(original)
+    ciphertext = bytearray(base64.b64decode(envelope["ct"]))
+    ciphertext[0] ^= 1
+    envelope["ct"] = base64.b64encode(ciphertext).decode()
+    path.write_text(json.dumps(envelope))
+    try:
+        status, response, _ = call(base)
+        assert status == 503 and response["ok"] is False and "things" not in response
+        status, response, _ = call(base, "match", {"file": file("label.txt", "TX-4821", "photo")})
+        assert status == 503 and "candidates" not in response
+    finally:
+        path.write_bytes(original)
+    assert call(base)[1]["things"][0]["id"] == item["id"]
+    assert call(base, "delete", {"id": item["id"], "revision": 1, "confirm": True})[0] == 200

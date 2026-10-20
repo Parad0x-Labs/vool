@@ -33,3 +33,15 @@ def test_real_runtime_tools_only_return_matched_records_for_a_proven_owner_turn(
     assert execute_runtime_tool("things.search", {"query": "Cedar radio"}, source_context={"_owner_local": True}).ok is False
     assert execute_runtime_tool("things.search", {"query": "Cedar radio"}, source_context={**ctx, "_owner_local": False}).ok is False
     assert execute_runtime_tool("things.search", {"query": "Cedar radio"}, source_context={**ctx, "turn_author": "agent"}).ok is False
+
+
+def test_private_records_are_not_offered_to_a_model_before_admission_is_integrated(store):
+    from core.capability_graph import _CANONICAL_FAMILIES, model_visible_specs
+    from core.runtime_tool_contracts import runtime_tool_contracts
+
+    contracts = [c for c in runtime_tool_contracts() if c.intent.startswith("things.")]
+    assert {c.intent for c in contracts} == {"things.search", "things.match", "things.prepare"}
+    assert all(not c.model_visible for c in contracts)
+    for family in _CANONICAL_FAMILIES:
+        offered = model_visible_specs(user_text="Find my saved headphones in My things", family_hint=family)
+        assert all(not spec["intent"].startswith("things.") for spec in offered)

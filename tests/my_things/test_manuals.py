@@ -73,6 +73,8 @@ def test_manual_preview_and_explicit_save_on_the_real_served_door(online_daemon)
             pass
         def do_GET(self):
             requests.append(self.path)
+            if self.path == "/slow":
+                threading.Event().wait(13)
             data = b"Synthetic manual CEDAR-44120: clean the filter."
             content_type = "text/plain"
             if self.path == "/binary":
@@ -101,6 +103,9 @@ def test_manual_preview_and_explicit_save_on_the_real_served_door(online_daemon)
         for route in ("/binary", "/partial"):
             status, refused, _ = call(base, "manual", {"id": item["id"], "url": url + route, "confirm": True})
             assert status == 409 and refused["error"] == "manual_format", refused
+        status, refused, _ = call(base, "manual", {"id": item["id"], "url": url + "/slow", "confirm": True})
+        assert status == 409 and refused["error"] == "manual_refused"
+        assert call(base)[1]["things"][0]["files"] == []
         saved = call(base, "attach", {"id": item["id"], "revision": 1, "file": file("manual.txt", result["text"], "manual")})[1]["thing"]
         assert len(saved["files"]) == 1 and saved["files"][0]["kind"] == "manual"
         assert call(base, "delete", {"id": item["id"], "revision": saved["revision"], "confirm": True})[0] == 200

@@ -9,6 +9,8 @@ from core.my_things.store import ThingsError, ThingsStore
 
 
 def contracts():
+    # Private-record admission is blocked at the canonical demand owner. Keep these
+    # owner-local until that integration proves a turn needs the matched records.
     from core.runtime_tool_contracts import RuntimeToolContract
 
     specs = [
@@ -16,7 +18,7 @@ def contracts():
         ("match", "Match label text the owner supplied against saved model and serial identifiers, showing exact evidence. Ambiguous results require a choice.", {"text": "string (label text from the owner's message)"}),
         ("prepare", "Prepare a draft return or repair request, warranty check or specification comparison for one saved thing named by the owner. Never sends anything.", {"id": "string (matched thing id)", "kind": "string (return|repair|warranty|fits|delivery)", "issue": "string optional", "observed": "string optional"}),
     ]
-    return [RuntimeToolContract(intent="things." + name, description=description, tool_surface="my_things", capability_id="my_things.read", capability_claim="read only matched private household records and prepare drafts", supported=True, unsupported_reason="", input_schema=schema, output_schema={"result": "object"}, side_effect_class="read_only", approval_requirement="none", timeout_policy="local_only_default", retry_policy="none", artifact_emission="none", error_contract="returns_structured_error_result", permission_actions=("read_files",)) for name, description, schema in specs]
+    return [RuntimeToolContract(intent="things." + name, description=description, tool_surface="my_things", capability_id="my_things.read", capability_claim="read only matched private household records and prepare drafts", supported=True, unsupported_reason="", input_schema=schema, output_schema={"result": "object"}, side_effect_class="read_only", approval_requirement="none", timeout_policy="local_only_default", retry_policy="none", artifact_emission="none", error_contract="returns_structured_error_result", permission_actions=("read_files",), model_visible=False) for name, description, schema in specs]
 
 
 def run(intent, arguments, source_context):

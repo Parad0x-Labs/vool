@@ -105,7 +105,7 @@ def test_file_names_cannot_escape_the_packet(store, name):
 
 
 def test_invalid_fields_are_refused_without_persistence(store):
-    for fields in ({"name": ""}, {"name": "x", "warranty_end": "later"}, {"name": "x", "unknown": "x"}):
+    for fields in ({"name": ""}, {"name": "x", "warranty_end": "later"}, {"name": "x", "bought_on": "20260302"}, {"name": "x", "warranty_end": "2026-02-30"}, {"name": "x", "unknown": "x"}):
         with pytest.raises(ThingsError):
             store.save(fields)
     assert not store.root.exists()
@@ -140,3 +140,33 @@ def test_stored_png_metadata_is_removed_through_existing_attachment_api(store):
     record = store.get(saved["id"], with_files=True)
     import base64
     assert b"private-metadata-WILLOW-99241" not in base64.b64decode(record["files"][0]["data"])
+
+
+def test_a_store_cannot_follow_a_profile_switch_with_an_old_root(store, tmp_path, monkeypatch):
+    item = store.save({"name": "Bound to this profile"})
+    old_home = str(store.home)
+    new_home = tmp_path / "other-profile"
+    monkeypatch.setenv("VOOL_HOME", str(new_home))
+    with pytest.raises(ThingsError, match="profile changed"):
+        store.get(item["id"])
+    with pytest.raises(ThingsError, match="profile changed"):
+        store.save({"name": "Do not cross profiles"})
+    assert not new_home.exists()
+    monkeypatch.setenv("VOOL_HOME", old_home)
+    assert store.get(item["id"])["name"] == "Bound to this profile"
+
+
+def test_forget_collects_interrupted_encrypted_revisions_and_temporary_copies(store):
+    item = store.save({"name": "Current record"})
+    with store._tx() as conn:
+        record = store._load(conn, item["id"])
+        record["notes"] = "obsolete-ORCHARD-47291"
+        cas = store._cas(item["id"])
+        ref, _ = cas.put(json.dumps(record).encode())
+        orphan = cas.path_for_id(ref)
+        interrupted = orphan.with_name(".interrupted.tmp")
+        interrupted.write_bytes(orphan.read_bytes())
+    assert orphan.exists() and interrupted.exists()
+    assert store.forget("ORCHARD-47291") == {"status": "verified", "removed": 0}
+    assert not orphan.exists() and not interrupted.exists()
+    assert store.get(item["id"])["name"] == "Current record"

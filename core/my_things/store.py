@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
-from core.runtime_paths import active_data_dir
+from core.runtime_paths import active_data_dir, active_vool_home
 from storage.blackbox.cas import EncryptedBlobStore
 
 FIELDS = ("name", "maker", "model", "serial", "bought_on", "bought_from", "price", "warranty_end", "notes", "specs", "order_items")
@@ -62,7 +62,9 @@ def clean_fields(fields: dict) -> dict:
     for field in ("bought_on", "warranty_end"):
         if clean[field]:
             try:
-                date.fromisoformat(clean[field])
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", clean[field]):
+                    raise ValueError("use a full date")
+                clean[field] = date.fromisoformat(clean[field]).isoformat()
             except ValueError:
                 raise ThingsError("bad_date", "Use a full date, or leave it empty if you do not know it.") from None
     return clean
@@ -90,10 +92,15 @@ def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = Tr
 class ThingsStore:
     def __init__(self, *, runtime_home: str | Path | None = None):
         data = Path(runtime_home).resolve() / "data" if runtime_home is not None else active_data_dir()
+        self.home = Path(runtime_home).resolve() if runtime_home is not None else active_vool_home().resolve()
+        if self.home != active_vool_home().resolve():
+            raise ThingsError("home_changed", "Your active profile changed. Open My things again before continuing.", 409)
         self.root = data / "my_things"
 
     @contextmanager
     def _tx(self):
+        if self.home != active_vool_home().resolve():
+            raise ThingsError("home_changed", "Your active profile changed. Open My things again before continuing.", 409)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         _private(self.root, 0o700)
         path = self.root / "records.sqlite3"
@@ -195,6 +202,7 @@ class ThingsStore:
             objects = self.root / "objects"
             if not objects.exists():
                 return
+            _private(objects, 0o700)
             for folder in objects.iterdir():
                 _id(folder.name)
                 _private(folder, 0o700)
@@ -202,9 +210,12 @@ class ThingsStore:
                     shutil.rmtree(folder)
                 else:
                     cas = self._cas(folder.name)
-                    for ref in list(cas.iter_ids()):
-                        if ref != live[folder.name]:
-                            cas.delete(ref)
+                    current = cas.path_for_id(live[folder.name])
+                    # Interrupted atomic CAS writes may leave a sealed temporary file.
+                    # It is an obsolete copy too, even though iter_ids excludes it.
+                    for path in folder.rglob("*"):
+                        if path.is_file() and path != current:
+                            path.unlink()
 
     def save(self, fields: dict, *, thing_id: str = "", revision: int = 0, files: list[dict] | None = None) -> dict:
         clean = clean_fields(fields)
