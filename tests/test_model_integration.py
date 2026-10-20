@@ -173,7 +173,7 @@ class ModelIntegrationTests(unittest.TestCase):
                 "weight_location": "external",
                 "redistribution_allowed": True,
                 "runtime_dependency": "openai-compatible-local-runtime",
-                "capabilities": ["format"],
+                "capabilities": ["format", "summarize", "structured_json"],
                 "runtime_config": {"base_url": "http://127.0.0.1:8000"},
                 "enabled": True,
             }

@@ -107,7 +107,11 @@ def test_drone_role_prefers_local_qwen_lane() -> None:
 
     assert ranked
     assert ranked[0].provider_name == "local-qwen-http"
-    assert {manifest.provider_name for manifest in ranked[:2]} == {"local-qwen-http", "remote-generic"}
+    # summary_block requires {summarize, structured_json}: remote-generic (JSON-less) is not
+    # eligible for this turn while a complete candidate exists, so the second swarm slot goes
+    # to the next COMPLETE candidate (kimi-remote) instead of a partial-coverage one
+    # (auto-router-selection-20261002 eligibility law).
+    assert {manifest.provider_name for manifest in ranked[:2]} == {"local-qwen-http", "kimi-remote"}
 
 
 def test_queen_role_prefers_kimi_when_present() -> None:
