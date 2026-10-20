@@ -142,13 +142,13 @@ def test_export_carries_every_message_past_the_legacy_cut() -> None:
     response = _export()
     assert response.status == 200
     body = response.body.decode("utf-8")
-    assert "Messages: 120 in 60 turns" in body
+    assert "· 120 messages" in body
     # Both ends of a conversation longer than every legacy cap: first turn and last.
     assert "question number 0" in body
     assert "answer number **0**" in body
     assert "question number 59" in body
     assert "answer number **59**" in body
-    assert "no message truncation" in body
+    assert "could not be read" not in body  # nothing is declared missing
 
 
 def test_export_collects_under_a_stable_snapshot(monkeypatch) -> None:
@@ -169,7 +169,7 @@ def test_export_collects_under_a_stable_snapshot(monkeypatch) -> None:
     body = response.body.decode("utf-8")
     assert "a concurrent message" not in body
     assert "a concurrent answer" not in body
-    assert "Messages: 6 in 3 turns" in body
+    assert "· 6 messages" in body
 
 
 # --------------------------------------------------------------------------- #
@@ -199,8 +199,8 @@ def test_trim_between_scan_and_format_cannot_change_the_export(monkeypatch) -> N
     body = response.body.decode("utf-8")
     assert "trim case q0" in body and "trim case a0" in body
     assert "trim case q3" in body and "trim case a3" in body
-    assert "Messages: 8 in 4 turns" in body
-    assert "Complete: yes" in body
+    assert "· 8 messages" in body
+    assert "could not be read" not in body  # nothing is declared missing
 
 
 def test_counts_and_completeness_match_delivered_contents() -> None:
@@ -213,7 +213,7 @@ def test_counts_and_completeness_match_delivered_contents() -> None:
     assistant_sections = body.count("\n## Assistant")
     assert user_sections == preview["user_messages"] == 2
     assert assistant_sections == preview["assistant_messages"] == 2
-    assert f"Messages: {user_sections + assistant_sections} in {preview['turns']} turns" in body
+    assert f"· {user_sections + assistant_sections} messages" in body
 
 
 def test_malformed_blank_and_invalid_rows_are_counted_not_lost() -> None:
@@ -229,7 +229,7 @@ def test_malformed_blank_and_invalid_rows_are_counted_not_lost() -> None:
     preview = json.loads(_export(preview="1").body)
     assert preview["unreadable_rows"] == 3
     body = _export().body.decode("utf-8")
-    assert "Unreadable log rows skipped and disclosed: 3" in body
+    assert "3 saved parts of this chat could not be read, so they are not in this file." in body
     assert "before garbage" in body and "after garbage" in body
 
 
@@ -482,15 +482,15 @@ def test_withheld_payload_is_never_exported() -> None:
 def test_timestamps_are_opt_in_and_honest() -> None:
     _seed(user="when was this", assistant="just now **really**")
     default_body = _export().body.decode("utf-8")
-    assert "turn completed" not in default_body
-    assert "Timestamps: off" in default_body
+    assert "(answered " not in default_body
+    assert "Times show when each answer finished." not in default_body
     stamped = _export(timestamps="1").body.decode("utf-8")
     # The persisted completion time is shown, on the assistant side only — the store has
     # no separately-recorded user send instant, and none may be invented for it.
-    assert stamped.count("turn completed") == 1
-    assert "## Assistant (turn completed" in stamped
-    assert "## User (turn completed" not in stamped
-    assert "Timestamps: assistant-side completion times only" in stamped
+    assert stamped.count("(answered ") == 1
+    assert "## Assistant (answered " in stamped
+    assert "## User (answered " not in stamped
+    assert "Times show when each answer finished." in stamped
 
 
 def test_attachment_references_without_bytes() -> None:
@@ -515,7 +515,7 @@ def test_attachment_references_without_bytes() -> None:
     assert "never the file bytes" in body
     without = _export(no_attachments="1").body.decode("utf-8")
     assert "Attachment reference: notes-week1.txt" not in without
-    assert "Attachment references: excluded at your request." in without
+    assert "Attached files are left out, as you chose." in without
 
 
 def test_txt_and_md_formats_and_disposition() -> None:

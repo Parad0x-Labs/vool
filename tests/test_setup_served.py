@@ -84,12 +84,14 @@ def test_fresh_home_shows_the_line_not_the_checklist_and_the_window_walks_skips_
     page.wait_for_selector("#input", timeout=30_000)
     assert page.evaluate("document.getElementById('pactCard')") is None, "the eight-step checklist is gone"
     page.wait_for_selector("#setupLine:not([hidden])", timeout=15_000)
-    assert "four quick steps" in page.inner_text("#setupLine").lower()
+    # This home has no model, so the line takes its no-model form (one line at a time); its
+    # button opens the same Setup window at the "Where should it think?" step.
+    assert "needs an ai model" in page.inner_text("#setupLine").lower()
     page.fill("#input", DRAFT)
     href_before = page.evaluate("location.href")
 
     # Open the window the way the chat opens Settings when popups are blocked: the same frame overlay.
-    page.click("#setupLineOpen")
+    page.click("#noModelLineOpen")
     page.wait_for_selector("#settingsFrameOverlay:not([hidden])", timeout=15_000)
     _wait_frame(page)
     assert page.evaluate("document.getElementById('settingsFrame').contentWindow.location.pathname") == "/setup"
@@ -200,7 +202,11 @@ def test_settings_entry_ticks_a_step_configured_in_settings_and_vanishes_when_ev
     chat.goto(daemon.base_url + "/chat", wait_until="domcontentloaded")
     chat.wait_for_selector("#input", timeout=30_000)
     # The markup starts hidden, so `hidden === true` alone would pass before the state fetch decides.
+    # Setup is done, so the setup reminder is gone; with still no model in this home the same line
+    # stays only in its no-model form (not dismissible until a model can answer).
     chat.wait_for_function(
-        "(() => { const l = document.getElementById('setupLine'); return l.dataset.loaded === '1' && l.hidden === true; })()",
+        "(() => { const l = document.getElementById('setupLine'); return l.dataset.loaded === '1'"
+        " && (l.hidden === true || l.classList.contains('no-model-line')); })()",
         timeout=15_000)
+    assert not chat.locator("#setupLineOpen").is_visible(), "the finished setup reminder must not come back"
     chat.close()

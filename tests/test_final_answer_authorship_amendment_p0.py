@@ -74,11 +74,13 @@ def _clean_authorship_state():
             conn.close()
 
     _clear()
+    # The registered local model is the one these tests drive, so it counts as running whether
+    # or not a real Ollama listens on this machine (otherwise the turn gets the no-model notice).
     with mock.patch(
         "adapters.openai_compatible_adapter.OpenAICompatibleAdapter"
         ".tool_certification_runtime_identity",
         return_value=dict(_RUNTIME_IDENTITY),
-    ):
+    ), mock.patch("core.local_model_presence.local_model_running", return_value=True):
         yield
     _clear()
 

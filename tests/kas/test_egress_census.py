@@ -45,6 +45,7 @@ KNOWN_DIRECT_EGRESS: dict[str, tuple[int, str]] = {
     "core/system_resources.py": (1, "verified: a local resource probe"),
     "core/resource_governor.py": (5, "verified: local resource probes"),
     "core/llamacpp_capability_probe.py": (2, "verified: a local llama.cpp probe"),
+    "tools/auto_router_audit_20261002/audit_lib/guard_transport.py": (1, "verified: audit harness guard; it refuses every http(s) urlopen and passes only non-http schemes (file:// fixture reads) to the saved urlopen"),
     "tools/native_window_startup_drive.py": (1, "verified: development driver reads loopback native-runtime health"),
     "tools/profile_chat_turn_stream.py": (3, "verified: development driver reads chat, proof, and history from its isolated loopback daemon"),
     # --- found by the census, not yet read by this lane ---
