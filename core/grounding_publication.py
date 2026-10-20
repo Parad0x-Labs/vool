@@ -737,13 +737,23 @@ def typed_refusal(lifecycle: GroundingLifecycle, *, failed_stage: str) -> str:
     return "\n\n".join(parts)
 
 
+#: Requirement reasons that make a turn a live-data ask (core.execution_requirements).
+_LIVE_DATA_REASON_CODES = frozenset(
+    {"live_data_request", "multipart_live_data_request", "live_data_continuation_inherited"}
+)
+
+
 def _records_only_support(lifecycle: GroundingLifecycle) -> bool:
     """The turn's support was this chat's memory records and nothing a lookup returned, and the question asks about
     someone those records name (a live ask in a chat that happens to have records keeps the live notice)."""
 
     records = tuple(getattr(lifecycle, "memory_records", ()) or ())
     if not records or (
-        lifecycle.bound_notes
+        # A live ask is never a records question, even when the absence gate found nothing in a
+        # fresh chat: its lookup ran (and failed), or its requirement names live data.
+        lifecycle.retrieval_outcome
+        or _LIVE_DATA_REASON_CODES.intersection(lifecycle.reason_codes or ())
+        or lifecycle.bound_notes
         or lifecycle.retrieved_notes
         or lifecycle.typed_observations
         or lifecycle.computed_values
