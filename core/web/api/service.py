@@ -898,6 +898,11 @@ def dispatch_get(
         return handle_chat_asset_get(normalized_path)
 
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        # Media Studio reads and writes the owner's projects and serves their media files: owner-local
+        # only, like the other private doors. A daemon started with --bind on a LAN address must not
+        # hand a peer the editor, its projects or a file proxy.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_get
 
         return handle_media_editor_get(normalized_path, query)
@@ -2340,6 +2345,8 @@ def dispatch_get(
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
         # The Media Studio child editor. Recovered from feature/media-studio-m1 (2026-08-25),
         # whose worker docstring names VOOL as the host process. Additive: a new route only.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_get
 
         return handle_media_editor_get(normalized_path, query)
@@ -4370,6 +4377,8 @@ def _dispatch_post_inner(
     request_id: str = "",
 ) -> ApiResponse:
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_post
 
         return handle_media_editor_post(normalized_path, body)
@@ -5939,6 +5948,8 @@ def _dispatch_post_inner(
         return apply_runtime_headers(json_response(council_status, council_payload), runtime)
 
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_post
 
         return handle_media_editor_post(normalized_path, body)
