@@ -3,20 +3,23 @@
 While it is off, no online calendar is contacted: not by the background sync, not for an account whose sync the
 user turned on, not by Sync now and not by Refresh calendar list. Each refusal says so, the account keeps what its
 last real attempt proved (no failure backoff, no lost alerts), and an unreadable switch counts as off. Apple
-Calendar on this Mac and a server address on this computer are not online and are not refused. With the switch
-on the same account goes back to its provider.
+Calendar on this Mac and a server address on this computer are not online and are not refused, and the online
+accounts held back never crowd them out of a worker tick. With the switch on the same account goes back to its
+provider.
 
-The real worker, the real adapter factory and the served routes run under a socket guard that records and
-refuses every connection or name lookup that would leave this computer. With the switch on, the suite's own
-network seal stops the dialled request first, so the switch-on half reads the transport failure instead.
+How "contacted" is observed: the real worker, the real adapter factory and the served routes run with a recorder
+on the outbound door's dispatch point (``remote_fetch_policy.note_remote_fetch_attempt``, called after every gate
+has passed and immediately before the request is handed to urllib). The recorder refuses every request that would
+leave this computer right there, as a network failure, so the tests never go online themselves.
 """
 from __future__ import annotations
 
 import copy
-import ipaddress
-import socket
+from urllib.parse import urlsplit
 
 import pytest
+
+from core.provider_http import is_loopback_url
 
 from ._pc_calendar_rig import T0, Clock, api_get, api_post, prepare_home
 
@@ -33,37 +36,25 @@ def _set_switch(monkeypatch, on: bool) -> None:
     monkeypatch.setattr(policy_engine, "_POLICY_CACHE", policy)
 
 
-def _local(host) -> bool:
-    name = host.decode() if isinstance(host, bytes) else str(host or "")
-    if name in ("", "localhost"):
-        return True
-    try:
-        return ipaddress.ip_address(name.split("%")[0]).is_loopback
-    except ValueError:
-        return False
-
-
 @pytest.fixture
-def guard(monkeypatch):
-    """Records, then refuses, every connection and name lookup that would leave this computer."""
-    attempts: list[tuple[str, str]] = []
-    real_connect, real_lookup = socket.socket.connect, socket.getaddrinfo
+def dialled(monkeypatch):
+    """Hosts of every request the outbound door was about to dispatch that would leave this computer. Such a request
+    is refused right there as a network failure, so nothing leaves this computer."""
+    from urllib.error import URLError
 
-    def connect(sock, address):
-        if sock.family in (socket.AF_INET, socket.AF_INET6) and isinstance(address, tuple) and not _local(address[0]):
-            attempts.append(("connect", str(address[0])))
-            raise ConnectionRefusedError("socket guard")
-        return real_connect(sock, address)
+    from core import remote_fetch_policy
 
-    def lookup(host, *args, **kwargs):
-        if not _local(host):
-            attempts.append(("lookup", str(host)))
-            raise socket.gaierror(socket.EAI_NONAME, "socket guard")
-        return real_lookup(host, *args, **kwargs)
+    hosts: list[str] = []
+    real = remote_fetch_policy.note_remote_fetch_attempt
 
-    monkeypatch.setattr(socket.socket, "connect", connect)
-    monkeypatch.setattr(socket, "getaddrinfo", lookup)
-    return attempts
+    def record(url, *args, **kwargs):
+        if not is_loopback_url(str(url)):
+            hosts.append(str(urlsplit(str(url)).hostname or url))
+            raise URLError("refused at the outbound door by the test")
+        return real(url, *args, **kwargs)
+
+    monkeypatch.setattr(remote_fetch_policy, "note_remote_fetch_attempt", record)
+    return hosts
 
 
 class _Calendar:
@@ -97,7 +88,7 @@ def _connect_online_account(clock, monkeypatch, base_url: str = ONLINE) -> str:
     return account["account_id"]
 
 
-def test_background_sync_of_an_opted_in_account_stays_offline_with_the_switch_off(home, monkeypatch, guard):
+def test_background_sync_of_an_opted_in_account_stays_offline_with_the_switch_off(home, monkeypatch, dialled):
     from core.operator import calendar_accounts, calendar_alerts
 
     account_id = _connect_online_account(home, monkeypatch)
@@ -105,10 +96,10 @@ def test_background_sync_of_an_opted_in_account_stays_offline_with_the_switch_of
     _set_switch(monkeypatch, False)
     worker = calendar_alerts.CalendarAlertSync(now_fn=home)
     for _tick in range(3):
-        reports = worker.run_due_once()
-        assert [r["status"] for r in reports] == ["online_access_off"], reports
+        assert worker.run_due_once() == [], "a held-back online account must not be synced or take a worker slot"
+        assert calendar_alerts.sync_account(account_id, now_fn=home)["status"] == "online_access_off"
         home.advance(minutes=11)
-    assert guard == [], f"the background calendar sync went online with the switch off: {guard}"
+    assert dialled == [], f"the background calendar sync went online with the switch off: {dialled}"
     after = calendar_accounts.load_account(account_id)
     for field in ("status", "status_detail", "sync_failures", "last_sync_ok_at", "sync_enabled"):
         assert after[field] == before[field], field
@@ -117,17 +108,16 @@ def test_background_sync_of_an_opted_in_account_stays_offline_with_the_switch_of
     local_id = _connect_online_account(home, monkeypatch, base_url="http://127.0.0.1:9/dav")
     _set_switch(monkeypatch, False)
     assert calendar_alerts.sync_account(local_id, now_fn=home)["status"] != "online_access_off"
-    assert guard == []
+    assert dialled == []
 
-    # The same account and the same real worker contact the provider once the switch is on.
+    # The same account and the same real worker go to the provider once the switch is on.
     _set_switch(monkeypatch, True)
     reports = worker.run_due_once()
-    # Under pytest the suite's own network seal stops the request before this guard sees it; the
-    # transport failure is the proof the provider was really dialled.
-    assert [(r["status"], r["detail"]) for r in reports] == [("offline", "the provider could not be reached (transport_failed)")]
+    assert [r["account_id"] for r in reports] == [account_id]
+    assert dialled == ["caldav.example.net"], dialled
 
 
-def test_sync_now_and_refresh_list_routes_refuse_calmly_with_the_switch_off(home, monkeypatch, guard):
+def test_sync_now_and_refresh_list_routes_refuse_calmly_with_the_switch_off(home, monkeypatch, dialled):
     account_id = _connect_online_account(home, monkeypatch)
     _set_switch(monkeypatch, False)
 
@@ -143,16 +133,17 @@ def test_sync_now_and_refresh_list_routes_refuse_calmly_with_the_switch_off(home
 
     status, view = api_get("/api/calendar/accounts")
     assert status == 200 and view["online_access"] is False
-    assert guard == []
+    assert dialled == []
 
     _set_switch(monkeypatch, True)
     status, view = api_get("/api/calendar/accounts")
     assert view["online_access"] is True
     status, synced = api_post("/api/calendar/sync", {"account_id": account_id})
     assert synced["reports"][0]["status"] == "offline", synced
+    assert dialled == ["caldav.example.net"], dialled
 
 
-def test_unreadable_switch_fails_closed(home, monkeypatch, guard):
+def test_unreadable_switch_fails_closed(home, monkeypatch, dialled):
     from core import policy_engine
     from core.operator import calendar_alerts
 
@@ -163,4 +154,30 @@ def test_unreadable_switch_fails_closed(home, monkeypatch, guard):
 
     monkeypatch.setattr(policy_engine, "automatic_outbound_enabled", unreadable)
     assert calendar_alerts.sync_account(account_id, now_fn=home)["status"] == "online_access_off"
-    assert guard == []
+    assert dialled == []
+
+
+def test_held_back_online_accounts_never_crowd_out_a_calendar_on_this_computer(home, monkeypatch, dialled):
+    from core.operator import calendar_alerts
+    from core.operator.calendar_alerts import WORKER_ACCOUNTS_PER_TICK
+    from storage.db import get_connection
+
+    online = [_connect_online_account(home, monkeypatch, base_url=f"https://caldav{n}.example.net/dav")
+              for n in range(WORKER_ACCOUNTS_PER_TICK + 2)]
+    local_id = _connect_online_account(home, monkeypatch, base_url="http://127.0.0.1:9/dav")
+    conn = get_connection()
+    try:  # every online account has waited longer than the local one
+        conn.executemany("UPDATE calendar_accounts SET next_sync_due_at = ? WHERE account_id = ?",
+                         [("2026-09-21T06:00:00+00:00", account) for account in online])
+        conn.execute("UPDATE calendar_accounts SET next_sync_due_at = ? WHERE account_id = ?",
+                     ("2026-09-21T06:30:00+00:00", local_id))
+        conn.commit()
+    finally:
+        conn.close()
+    _set_switch(monkeypatch, False)
+    worker = calendar_alerts.CalendarAlertSync(now_fn=home)
+    assert worker.due_accounts() == [local_id]
+    assert [r["account_id"] for r in worker.run_due_once()] == [local_id]
+    assert dialled == []
+    _set_switch(monkeypatch, True)
+    assert len(worker.due_accounts()) == WORKER_ACCOUNTS_PER_TICK
