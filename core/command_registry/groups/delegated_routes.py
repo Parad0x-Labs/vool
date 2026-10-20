@@ -53,7 +53,10 @@ class RouteInput:
 
 
 def _peer(ctx: Any) -> str:
-    return str((getattr(ctx, "extra", None) or {}).get("client_host") or "127.0.0.1")
+    # The real transport peer; a missing one is unknown and fails closed (never assumed loopback).
+    from core.request_trust import execution_peer_host
+
+    return execution_peer_host(ctx)
 
 
 def _gate_owner_local(_inp: Any, ctx: Any) -> AuthorityDecision:
@@ -458,10 +461,18 @@ def _media_editor_action(action: str):
     def _run(inp: RouteInput, ctx: Any) -> Any:
         from core.web.api.media_editor_api import handle_media_editor_post
 
+        # Media Studio opens and writes the owner's own files, so every action (the read-only
+        # "open" too, whose spec is an open read) is the owner's own session only, the same rule
+        # the /media-editor HTTP door applies.
+        decision = _gate_owner_local(inp, ctx)
+        if not decision.granted:
+            return HandlerFault(
+                fault_code="permission_denied",
+                summary=f"media editor {action} refused: {decision.reason}",
+                detail={"legacy_status": 403, "ok": False, "error": "owner_local_required"},
+            )
         return _response_to_result(
-            handle_media_editor_post(
-                f"/media-editor/{action}", dict(inp.body or {}), client_host=_peer(ctx)
-            ),
+            handle_media_editor_post(f"/media-editor/{action}", dict(inp.body or {})),
             summary=f"media editor {action}",
         )
 

@@ -3713,6 +3713,31 @@ def execute_runtime_tool(
     workspace root the dispatch resolves against is replaced by that workspace, so even an
     approved builder seat cannot reach the operator's checkout through a relative path.
     """
+    # Remote-turn fence: a turn the server stamped as NOT the owner's own session (a request from
+    # another device on the network, a paired phone, a channel) can chat and read public
+    # information, never reach this computer's files, notes, mail, accounts or settings.
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+    remote_refusal = remote_turn_tool_refusal(intent, source_context)
+    if remote_refusal:
+        return RuntimeExecutionResult(
+            handled=True,
+            ok=False,
+            status=remote_refusal,
+            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            details={
+                "reason": remote_refusal,
+                "executed": False,
+                "observation": _tool_observation(
+                    intent=intent,
+                    tool_surface="owner_local_gate",
+                    ok=False,
+                    status=remote_refusal,
+                    reason=remote_refusal,
+                ),
+            },
+        )
+
     from core.agent_team import gate as agent_team_gate
 
     # Agent-team write gate: a call made for an agent's chat session may only read, or write

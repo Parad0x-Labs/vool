@@ -97,7 +97,10 @@ class BumpGenerationInput:
 
 
 def _peer(ctx: Any) -> str:
-    return str((getattr(ctx, "extra", None) or {}).get("client_host") or "127.0.0.1")
+    # The real transport peer; a missing one is unknown and fails closed (never assumed loopback).
+    from core.request_trust import execution_peer_host
+
+    return execution_peer_host(ctx)
 
 
 def _gate_owner_local(_inp: Any, ctx: Any) -> AuthorityDecision:
