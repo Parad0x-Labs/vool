@@ -33,7 +33,7 @@ def test_mixed_profile_keeps_original_argument_bytes(tmp_path):
     context = {"chat_id": chat, "runtime_home": str(profile)}
     agent = VoolAgent(backend_name="test-backend", device="lossless-profile", persona_id="default")
     result = agent.run_once(prompt, session_id_override=chat, source_context=context)
-    assert 'matched "storage label MINT-84".' in result["response"], result
+    assert 'matched "MINT-84".' in result["response"], result
     from core.memory.command_result import verified_forget_outcome
 
     outcome = verified_forget_outcome(

@@ -92,7 +92,7 @@ def test_one_target_stored_and_one_not_reports_each(isolated_pages):
 
     assert handled, reply
     assert reply.splitlines() == [
-        f'Nothing was removed. Forget found no memory in this chat that matched "my locker code {CODE}".',
+        f'Nothing was removed. Forget found no memory in this chat that matched "{CODE}".',
         "Forget applied. Removed 1 memory entry.",
     ], reply
     assert _live_entries() == []
@@ -114,6 +114,20 @@ def test_two_targets_with_nothing_stored_say_nothing_was_removed_for_each(isolat
     ], reply
     words = _session_words(chat)
     assert LABEL.casefold() not in words.casefold() and CODE not in words, words
+
+
+def test_a_described_label_forgets_the_value_stored_in_a_sentence(isolated_pages):
+    """At 153148eb and v0.7.1, "Forget storage label MINT-84." after "my storage label is MINT-84." answered "Nothing
+    was removed" and the label stayed: the description was searched with the value as one string."""
+    chat = "forget-count-described-value"
+    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+    _remember(isolated_pages, chat, f"my harbor lantern is painted {BYSTANDER}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget storage label {LABEL}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    live = "\n".join(_live_entries())
+    assert LABEL not in live and BYSTANDER in live
 
 
 def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):

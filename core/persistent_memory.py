@@ -295,6 +295,17 @@ _FORGET_TARGET_RE = re.compile(
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
+# "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value of
+# four or more characters carrying a digit is taken: a sentence ("forget that the code changed", "forget the gate
+# code is QX-4471") is never narrowed, and a short number ("forget Bob's code 42") keeps its description, which
+# is what tells it apart from every other 42.
+_FORGET_DESCRIBED_VALUE_RE = re.compile(
+    r"^(?:the\s+|my\s+)?(?:old\s+|previous\s+|exact\s+)?(?:[a-z][a-z'-]*\s+){0,2}"
+    r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+"
+    r"(?P<value>(?=\S{4})[^\s\d]*\d\S*)"
+    r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
+    re.IGNORECASE,
+)
 _FORGET_TOLD_YOU_ABOUT_RE = re.compile(
     r"^(?:what|everything|anything|all)\s+(?:that\s+)?i(?:'ve|\s+have)?\s+"
     r"(?:told\s+you|said(?:\s+to\s+you)?|shared(?:\s+with\s+you)?|gave\s+you)\s+about\s+(?=\S)",
@@ -625,7 +636,7 @@ def _normalize_forget_target(raw_target: str) -> str:
     # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
     # lead-in is how people say it, not part of anything they stored.
     target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
-    match = _FORGET_TARGET_RE.fullmatch(target)
+    match = _FORGET_TARGET_RE.fullmatch(target) or _FORGET_DESCRIBED_VALUE_RE.fullmatch(target)
     if match:
         target = match.group("value")
     target = re.sub(
