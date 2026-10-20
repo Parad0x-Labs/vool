@@ -215,6 +215,8 @@ _BOOKKEEPING_KEY_RE = re.compile(
     r"(?:^|_)(?:ms|us|ns|sec|secs|seconds|elapsed|duration|latency|count|total|seq|sequence|step|steps|index|idx"
     r"|attempt|attempts|retries|bytes|size|tokens|used|version|generation|depth|pid|exit_code|port|offset|limit"
     r"|budget|priority|timestamp|epoch|confidence|score|ratio|rate)$")
+#: A detached signature as the runtime stores it: standard or url-safe base64 of 64 bytes or more, no spaces.
+_SIGNATURE_RE = re.compile(r"[A-Za-z0-9+/_-]{86,}={0,2}")
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -853,16 +855,32 @@ def resweep_forgotten_run_history(chat_id: str) -> int:
 # ── verification ─────────────────────────────────────────────────────────────
 
 
+def _without_signatures(value: Any) -> Any:
+    """A runtime signature (base64 under ``signature``) is random letters and digits, not the person's words.
+
+    Measured on CI after the 0.7.2 merge: a provider call's record keeps its base64 signature in two places, and
+    "Forget 20." on the 20th ended "could not be verified ... provider invocation manifests" because one signature
+    held "...kt20Uj..."; a two-digit number stands alone in about one signature in 1,250 and a three-letter word in
+    one in 330, and every model call adds a record. A ``signature`` that holds anything but base64 is still read.
+    """
+    if isinstance(value, Mapping):
+        return {key: _without_signatures(item) for key, item in value.items()
+                if not (key == "signature" and isinstance(item, str) and _SIGNATURE_RE.fullmatch(item))}
+    if isinstance(value, list):
+        return [_without_signatures(item) for item in value]
+    return value
+
+
 def _unclassified_payload(row: Mapping[str, Any]) -> list[Any]:
-    """A session-scoped table nobody classified: its words, without ids, stamps and counters."""
+    """A session-scoped table nobody classified: its words, without ids, stamps, counters and signatures."""
     words: list[Any] = []
-    for key, value in dict(row).items():
+    for key, value in _without_signatures(dict(row)).items():
         if key in ROW_IDENTITIES or _runtime_made(value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
-            value = _decoded(value)
+            value = _without_signatures(_decoded(value))
         words.append(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES)))
     return words
 
