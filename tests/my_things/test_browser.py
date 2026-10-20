@@ -43,6 +43,18 @@ def shot(page, name):
         page.screenshot(path=str(Path(target) / (name + ".png")), full_page=True)
 
 
+def enter_photo_details_manually(page, name, photo):
+    page.locator("nav.mt-list").get_by_role("button", name=name, exact=True).click()
+    page.get_by_role("button", name="Edit details", exact=True).click()
+    page.locator("#mt-model").fill("WH-1000")
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(page.get_by_role("heading", name=name, exact=True)).to_be_visible()
+    page.get_by_role("combobox", name="Attach a file", exact=True).select_option("photo")
+    page.get_by_label("Attach a file · Note", exact=True).set_input_files(str(photo))
+    page.get_by_role("button", name="Attach a file", exact=True).click()
+    expect(page.get_by_role("button", name=photo.name + " · Photo", exact=True)).to_be_visible()
+
+
 def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
     base, home = daemon
     receipt = tmp_path / "receipt.txt"
@@ -82,14 +94,7 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
                 expect(page.get_by_role("heading", name="Reading words in photos is not available on this computer. Enter the details yourself.", exact=True)).to_be_visible()
                 assert call(base, "match", {"file": {"name": "label.png", "kind": "photo", "data": base64.b64encode(photo.read_bytes()).decode()}})[1]["state"] == "unavailable"
                 shot(page, "03-photo-unavailable")
-                page.locator("nav.mt-list").get_by_role("button", name="Synthetic headphones", exact=True).click()
-                page.get_by_role("button", name="Edit", exact=True).click()
-                page.locator("#mt-model").fill("WH-1000")
-                page.get_by_role("button", name="Save", exact=True).click()
-                expect(page.get_by_role("heading", name="Synthetic headphones", exact=True)).to_be_visible()
-                page.get_by_role("combobox", name="Attach a file", exact=True).select_option("photo")
-                page.get_by_label("Attach a file · Note", exact=True).set_input_files(str(photo))
-                page.get_by_role("button", name="Attach a file", exact=True).click()
+                enter_photo_details_manually(page, "Synthetic headphones", photo)
             expect(page.get_by_role("heading", name="Synthetic headphones", exact=True)).to_be_visible()
             page.get_by_label("Describe what happened", exact=True).fill("The left speaker stopped working")
             page.get_by_role("button", name="Prepare a return", exact=True).click()
@@ -149,3 +154,32 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
     record_browser_children(ended=True)
     for item in call(base)[1]["things"]:
         assert call(base, "delete", {"id": item["id"], "revision": item["revision"], "confirm": True})[0] == 200
+
+
+def test_browser_real_unavailable_format_uses_the_same_manual_entry_flow(daemon, tmp_path):
+    # This exercises the unavailable UI on every host without faking the platform
+    # or a decoder. PNG platform behavior is asserted in the combined journey above.
+    base, _ = daemon
+    item = call(base, "save", {"fields": {"name": "Manual fallback item"}, "confirm": True})[1]["thing"]
+    photo = tmp_path / "unsupported-label.svg"
+    photo.write_text('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><text x="5" y="30">MODEL WH-1000</text></svg>')
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True, executable_path=os.environ.get("VOOL_BROWSER_BINARY") or None)
+        try:
+            page = browser.new_page()
+            page.goto(base + "/my-things?ui_locale=en")
+            page.get_by_label("Match a photo · Photo", exact=True).set_input_files(str(photo))
+            page.get_by_role("button", name="Match a photo", exact=True).click()
+            expect(page.get_by_role("heading", name="Reading words in photos is not available on this computer. Enter the details yourself.", exact=True)).to_be_visible()
+            current = next(r for r in call(base)[1]["things"] if r["id"] == item["id"])
+            assert current["model"] == "" and current["files"] == []
+            enter_photo_details_manually(page, "Manual fallback item", photo)
+            expect(page.get_by_role("status")).to_contain_text("Saved")
+            shot(page, "08-unavailable-manual-entry")
+            current = next(r for r in call(base)[1]["things"] if r["id"] == item["id"])
+            assert current["model"] == "WH-1000" and current["files"][0]["kind"] == "photo"
+        finally:
+            browser.close()
+    record_browser_children(ended=True)
+    current = next(r for r in call(base)[1]["things"] if r["id"] == item["id"])
+    assert call(base, "delete", {"id": item["id"], "revision": current["revision"], "confirm": True})[0] == 200

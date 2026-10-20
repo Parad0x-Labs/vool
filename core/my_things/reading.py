@@ -17,8 +17,6 @@ MAX_TEXT = 32000
 
 def _read_image(data: bytes, name: str):
     """Use the existing confined OCR API with private, caller-owned scratch."""
-    from PIL import Image
-
     from core.artifact_readers._sandbox import extraction_budget
     from core.artifact_readers.vision_tool import OCR_MAX_EDGE, TOOL_VERSION, ocr_available, ocr_text_with_confidence
     from core.my_things.store import _private
@@ -27,6 +25,10 @@ def _read_image(data: bytes, name: str):
     width, height = image.dimensions(data)  # includes the existing decompression-bomb refusal
     if not ocr_available():
         raise ReaderUnavailable("Local photo reading is unavailable.", code="ocr_unavailable")
+    try:
+        from PIL import Image
+    except ImportError:
+        raise ReaderUnavailable("Local photo decoding is unavailable.", code="image_decoder_unavailable") from None
     if not width or not height:
         raise ReaderRefused("This photo cannot be decoded.", code="invalid_image")
     parent = active_data_dir() / "my_things"
