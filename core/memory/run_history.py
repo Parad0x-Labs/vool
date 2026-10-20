@@ -907,6 +907,27 @@ def _without_signatures(value: Any) -> Any:
     return value
 
 
+#: A runtime-made value that is only a number: nested inside a row it may be the person's own number ("14").
+_BARE_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _without_runtime_ids(value: Any) -> Any:
+    """Nested ids and stamps the runtime made (a uuid, a prefixed hex id, a timestamp) are not the person's words.
+
+    Measured on the 0.7.2 release smoke (9ef0e1ad, one run in three): a call record held the context manifest id
+    "efd9c38b-8bb9-4148-ba14-f785b7e9d944", its group "ba14" read as the number 14, and "Forget 14." stayed
+    unverified; the pending erasure then kept every memory of that chat from being read, so "teal" looked lost.
+    A nested value that is only a number stays: it may be the person's own.
+    """
+    if isinstance(value, Mapping):
+        return {key: _without_runtime_ids(item) for key, item in value.items()
+                if not (isinstance(item, str) and _runtime_made(item) and not _BARE_NUMBER_RE.fullmatch(item))}
+    if isinstance(value, list):
+        return [_without_runtime_ids(item) for item in value
+                if not (isinstance(item, str) and _runtime_made(item) and not _BARE_NUMBER_RE.fullmatch(item))]
+    return value
+
+
 def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
     """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures."""
     signed = table in _RUNTIME_SIGNED_TABLES
@@ -919,7 +940,7 @@ def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
         if key.endswith("_json"):
             value = _decoded(value)
             value = _without_signatures(value) if signed else value
-        words.append(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES)))
+        words.append(_without_bookkeeping(_without_runtime_ids(_without_nested_identities(value, ROW_IDENTITIES))))
     return words
 
 
