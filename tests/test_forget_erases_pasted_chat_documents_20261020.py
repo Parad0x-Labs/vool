@@ -163,6 +163,35 @@ def test_a_home_whose_forget_authority_was_lost_carries_no_document(isolated_pag
     assert _carried(chat) == []
 
 
+def test_a_forget_that_starts_while_a_turn_reads_a_new_homes_documents_keeps_its_words_out(tmp_path, monkeypatch):
+    """Review of 20ac941: the "never held memory" answer was taken once, before any document was read. A forget
+    that started its barrier after that answer, while the turn was reading the document, did not stop its carry."""
+    import core.chat_attachments as ca
+    import core.runtime_paths as runtime_paths
+    from core.memory import revocation
+
+    monkeypatch.setenv("VOOL_HOME", str(tmp_path))
+    runtime_paths.configure_runtime_home(tmp_path)
+    try:
+        chat = _chat("forget-paste-new-home-race")
+        record = ca.stage_document(session_id=chat, data=(FACT + "\n" + INVENTORY).encode("utf-8"))
+        ca.bind_to_turn(session_id=chat, turn_id="t1", attachment_ids=[record["id"]])
+        assert revocation.memory_home_is_new(), "probe is blind: the home already held memory"
+        read = ca._open_regular
+
+        def read_while_a_forget_starts(path):
+            # The same chat's forget opens its barrier between the turn's first look and its read of the bytes.
+            if Path(path).name == f"{record['id']}.bin":
+                revocation.begin(chat, "4417", tmp_path)
+            return read(path)
+
+        monkeypatch.setattr(ca, "_open_regular", read_while_a_forget_starts)
+
+        assert not any("4417" in entry["text"] for entry in _carried(chat))
+    finally:
+        runtime_paths.configure_runtime_home(None)
+
+
 def test_the_words_pasted_again_after_a_forget_are_not_carried_into_later_turns(isolated_pages):
     chat = _chat("forget-paste-again")
     _paste(chat, FACT + "\n" + INVENTORY, turn="t1")
