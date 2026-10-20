@@ -49,13 +49,15 @@ def test_encrypted_records_edit_export_stale_and_delete(store):
     conn.close()
 
 
-def test_forget_scans_file_text_and_conservatively_erases_unreadable_binary(store):
+def test_forget_erases_matching_text_and_preserves_unrelated_unreadable_files(store):
     store.save({"name": "One"}, files=[file_payload("a.txt", b"erase-CEDAR-8172", "receipt")])
-    store.save({"name": "Two"}, files=[file_payload("label.png", b"\x89PNG\r\n", "photo")])
+    unknown = store.save({"name": "Two"}, files=[file_payload("unknown.bin", b"\xff\x00opaque", "manual")])
     keep = store.save({"name": "Keep this"})
-    assert store.forget("CEDAR-8172") == {"status": "verified", "removed": 2}
-    assert [r["id"] for r in store.list()] == [keep["id"]]
+    assert store.forget("CEDAR-8172") == {"status": "incomplete", "removed": 1, "unreadable_files": 1}
+    assert {r["id"] for r in store.list()} == {keep["id"], unknown["id"]}
     assert store.forget("CEDAR-8172")["removed"] == 0
+    assert store.forget("Two") == {"status": "verified", "removed": 1}
+    assert [r["id"] for r in store.list()] == [keep["id"]]
 
 
 def test_disabled_store_refuses_reads_and_writes_but_allows_deletion(store):
@@ -70,11 +72,30 @@ def test_disabled_store_refuses_reads_and_writes_but_allows_deletion(store):
     assert store.list() == []
 
 
-def test_missing_key_source_refuses_without_a_plaintext_fallback(store, monkeypatch, tmp_path):
-    monkeypatch.setenv("VOOL_BLACKBOX_CAS_KEYS_FILE", str(tmp_path / "absent"))
+def test_missing_key_source_refuses_without_a_plaintext_fallback(store):
+    from core import credential_store
+    from core.my_things.keys import KEY_NAME
+
+    item = store.save({"name": "Keep encrypted", "model": "KK-9221"})
+    ciphertext = {p: p.read_bytes() for p in (store.root / "objects").rglob("*") if p.is_file()}
+    assert credential_store.delete_credential(KEY_NAME)
+    with pytest.raises(ThingsError, match="private storage"):
+        store.get(item["id"])
     with pytest.raises(ThingsError, match="private storage"):
         store.save({"name": "never plaintext"})
+    assert ciphertext == {p: p.read_bytes() for p in (store.root / "objects").rglob("*") if p.is_file()}
     assert b"never plaintext" not in (store.root / "records.sqlite3").read_bytes()
+
+
+def test_household_keys_survive_independent_flight_recorder_rotation(store):
+    from core.blackbox.coverage.cas_keys import persist_keyring, resolve_keyring
+
+    item = store.save({"name": "Independent record"})
+    blackbox = resolve_keyring()
+    assert blackbox is not None
+    rotated = blackbox.rotated().without_version(blackbox.current)
+    persist_keyring(rotated)
+    assert store.get(item["id"])["name"] == "Independent record"
 
 
 @pytest.mark.parametrize("name", ["../secret", "a/b", "a\\b", "\x00", ""])
@@ -88,3 +109,34 @@ def test_invalid_fields_are_refused_without_persistence(store):
         with pytest.raises(ThingsError):
             store.save(fields)
     assert not store.root.exists()
+
+
+def test_symlinked_object_storage_refuses_before_writing_outside_store(store, tmp_path):
+    item = store.save({"name": "Safe radio"})
+    import shutil
+    folder = store.root / "objects" / item["id"]
+    shutil.rmtree(folder)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    folder.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ThingsError, match="safely"):
+        store.save({"name": "Do not write outside"}, thing_id=item["id"], revision=1)
+    assert list(outside.iterdir()) == []
+
+
+def test_forget_normalizes_unicode_and_matches_values_with_quotes(store):
+    store.save({"name": 'Ｈｅａｄｐｈｏｎｅｓ "Cedar"'})
+    assert store.forget('headphones "cedar"') == {"status": "verified", "removed": 1}
+    assert store.list() == []
+
+
+def test_stored_png_metadata_is_removed_through_existing_attachment_api(store):
+    from PIL import Image, PngImagePlugin
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text("Comment", "private-metadata-WILLOW-99241")
+    raw = io.BytesIO()
+    Image.new("RGB", (24, 24), "white").save(raw, format="PNG", pnginfo=meta)
+    saved = store.save({"name": "Photo"}, files=[file_payload("photo.png", raw.getvalue(), "photo")])
+    record = store.get(saved["id"], with_files=True)
+    import base64
+    assert b"private-metadata-WILLOW-99241" not in base64.b64decode(record["files"][0]["data"])

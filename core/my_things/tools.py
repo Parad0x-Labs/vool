@@ -51,7 +51,7 @@ def run(intent, arguments, source_context):
             if not isinstance(text, str) or text.casefold() not in words.casefold():
                 raise ThingsError("text_required", "Use the label text from your own message.")
             payload = match_text(text, store.list())
-        else:
+        elif intent == "things.prepare":
             if set(arguments) - {"id", "kind", "issue", "observed"}:
                 raise ThingsError("bad_fields", "Choose one saved thing and a draft action.")
             record = store.get(arguments.get("id"))
@@ -62,6 +62,8 @@ def run(intent, arguments, source_context):
                 if not isinstance(value, str) or (value and value.casefold() not in words.casefold()):
                     raise ThingsError("text_required", "Use the details from your own message.")
             payload = prepare(record, kind=arguments.get("kind"), issue=arguments.get("issue", ""), observed=arguments.get("observed", ""), arrived=[])
+        else:
+            return result(False, "unknown_action", "That action is not available for My things.")
         return result(True, "ok", json.dumps(payload, ensure_ascii=False), payload)
     except ThingsError as exc:
         return result(False, exc.code, exc.message)

@@ -91,7 +91,7 @@ def packet(record, *, kind, issue):
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("request-draft.txt", result["draft"])
-        archive.writestr("facts.json", json.dumps({k: v for k, v in record.items() if k != "files"}, ensure_ascii=False, indent=2))
+        archive.writestr("facts.json", json.dumps({k: record[k] for k in ("name", "maker", "model", "serial", "bought_on", "bought_from", "price", "warranty_end") if record.get(k)}, ensure_ascii=False, indent=2))
         for file in record.get("files", []):
             if file["kind"] in {"receipt", "photo"}:
                 archive.writestr("attachments/" + file["id"] + "-" + file["name"], base64.b64decode(file["data"], validate=True))

@@ -2660,7 +2660,15 @@
     "things.retry": "This could not be completed. Check the details and try again.",
     "things.warranty_unknown": "Warranty end is unknown.",
     "things.warranty_within": "Within the saved warranty dates; coverage is not verified.",
-    "things.warranty_expired": "The saved warranty end date has passed."
+    "things.warranty_expired": "The saved warranty end date has passed.",
+    "things.manual_url": "Manual web address",
+    "things.manual_fetch": "Open the manual online",
+    "things.manual_save": "Keep this manual",
+    "things.manual_warning": "Opening this address uses online access. Nothing is saved until you choose to keep it.",
+    "things.online_off": "Online access is off. You can attach a manual you already have.",
+    "things.read_photo": "Read words from a photo",
+    "things.choose_file": "Choose file",
+    "things.choose_saved": "Choose a saved thing from the list."
   },
   "html_keys": [
     "bypass.modal_limits",

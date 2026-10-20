@@ -30,7 +30,7 @@ def test_exact_match_has_quote_and_partial_model_is_not_a_match():
 
 
 def test_two_saved_things_require_a_choice():
-    both = records() + [{"id": "c", "name": "Second pair", "model": "WH-1000"}]
+    both = [*records(), {"id": "c", "name": "Second pair", "model": "WH-1000"}]
     result = match_text("WH-1000", both)
     assert result["state"] == "choose" and len(result["candidates"]) == 2
     assert all(candidate["evidence"] for candidate in result["candidates"])

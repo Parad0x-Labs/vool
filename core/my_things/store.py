@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 import sqlite3
+import unicodedata
 import uuid
 import zipfile
 from contextlib import contextmanager
@@ -67,19 +68,29 @@ def clean_fields(fields: dict) -> dict:
     return clean
 
 
-def file_payload(name: str, data: bytes, kind: str) -> dict:
+def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = True) -> dict:
     if kind not in {"receipt", "manual", "photo", "note"}:
         raise ThingsError("bad_kind", "Choose a receipt, manual, photo or note.")
-    if not isinstance(name, str) or not name.strip() or len(name) > 180 or any(c in name for c in "/\\\x00"):
+    if not isinstance(name, str) or not name.strip() or len(name) > 180 or any(ord(c) < 32 or ord(c) == 127 or c in "/\\" for c in name):
         raise ThingsError("bad_filename", "Choose a file with a simple name.")
     if not data or len(data) > MAX_FILE_BYTES:
         raise ThingsError("file_size", "Choose a file smaller than 8 MB that is not empty.")
+    if strip_metadata:
+        from core.chat_attachments import strip_image_metadata
+
+        media_type = "image/png" if data.startswith(b"\x89PNG\r\n") else "image/jpeg" if data.startswith(b"\xff\xd8\xff") else "image/webp" if data.startswith(b"RIFF") and data[8:12] == b"WEBP" else ""
+        if media_type:
+            try:
+                data = strip_image_metadata(data, media_type)
+            except ValueError:
+                raise ThingsError("bad_image", "This photo could not be saved safely. Try a different copy.") from None
     return {"id": uuid.uuid4().hex, "name": name, "kind": kind, "data": base64.b64encode(data).decode("ascii"), "size": len(data)}
 
 
 class ThingsStore:
-    def __init__(self):
-        self.root = active_data_dir() / "my_things"
+    def __init__(self, *, runtime_home: str | Path | None = None):
+        data = Path(runtime_home).resolve() / "data" if runtime_home is not None else active_data_dir()
+        self.root = data / "my_things"
 
     @contextmanager
     def _tx(self):
@@ -105,12 +116,22 @@ class ThingsStore:
             conn.close()
 
     def _cas(self, thing_id: str):
-        from core.blackbox.coverage.cas_keys import resolve_keyring
+        from core.my_things.keys import resolve
 
-        keys = resolve_keyring()
+        keys = resolve(self.root)
         if keys is None:
             raise ThingsError("locked", "Your private storage is unavailable. Nothing was saved.", 503)
-        return EncryptedBlobStore(self.root / "objects" / _id(thing_id), keys)
+        objects = self.root / "objects"
+        folder = objects / _id(thing_id)
+        for path in (objects, folder):
+            if path.is_symlink():
+                raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+            path.mkdir(parents=True, exist_ok=True, mode=0o700)
+            _private(path, 0o700)
+        for path in folder.rglob("*"):
+            if path.is_symlink():
+                raise ThingsError("unsafe_storage", "Your things could not be opened safely.", 503)
+        return EncryptedBlobStore(folder, keys)
 
     def _enabled(self, conn):
         row = conn.execute("SELECT enabled FROM preferences WHERE id=1").fetchone()
@@ -231,34 +252,51 @@ class ThingsStore:
     def forget(self, token: str) -> dict:
         """Owner registration seam. Encrypted records are scanned, including file bytes and names.
 
-        Erase the entire thing if metadata or any file carries the target. Undecodable binary
-        files are conservatively erased too: a byte scan cannot prove absence in compressed data.
-        This deliberately removes more than textual matching, and reports the count.
+        Erase an entire thing if metadata or an attached text carries the target. An unreadable
+        binary file on another record blocks verification; it never authorizes deleting that
+        unrelated record. The caller must keep forget incomplete until all carriers are known.
         """
         if not isinstance(token, str) or len(token.strip()) < 2:
             raise ThingsError("bad_target", "Give the exact words to forget.")
         if not (self.root / "records.sqlite3").exists():
             return {"status": "verified", "removed": 0}
-        needle = token.casefold()
+        def normalized(value):
+            return unicodedata.normalize("NFKC", value).casefold()
+
+        def carries(value):
+            if isinstance(value, str):
+                return needle in normalized(value)
+            if isinstance(value, dict):
+                return any(carries(v) for v in value.values())
+            if isinstance(value, list):
+                return any(carries(v) for v in value)
+            return False
+
+        needle = normalized(token)
         removed = 0
+        unreadable = 0
         with self._tx() as conn:
             for (thing_id,) in conn.execute("SELECT id FROM records").fetchall():
                 record = self._load(conn, thing_id)
-                encoded = json.dumps({k: v for k, v in record.items() if k != "files"}, ensure_ascii=False).casefold()
-                erase = needle in encoded
-                for file in record["files"]:
-                    raw = base64.b64decode(file["data"], validate=True)
-                    try:
-                        words = raw.decode("utf-8")
-                    except UnicodeDecodeError:
-                        erase = True
-                    else:
-                        erase = erase or needle in words.casefold() or needle in file["name"].casefold()
+                erase = carries({k: v for k, v in record.items() if k != "files"})
+                unknown_files = 0
+                if not erase:
+                    from core.my_things.reading import read_local
+
+                    for file in record["files"]:
+                        raw = base64.b64decode(file["data"], validate=True)
+                        reading = read_local(raw, file["name"])
+                        if reading["state"] != "read":
+                            unknown_files += 1
+                        else:
+                            erase = erase or carries(reading["text"]) or carries(file["name"])
+                if not erase:
+                    unreadable += unknown_files
                 if erase:
                     conn.execute("DELETE FROM records WHERE id=?", (thing_id,))
                     removed += 1
         self._collect()
-        return {"status": "verified", "removed": removed}
+        return {"status": "incomplete" if unreadable else "verified", "removed": removed, **({"unreadable_files": unreadable} if unreadable else {})}
 
     def export(self) -> bytes:
         with self._tx() as conn:

@@ -13,7 +13,7 @@ def _only(body, keys):
         raise ThingsError("bad_fields", "Check the request and try again.")
 
 
-def upload(body):
+def upload(body, *, sanitize=False):
     name, kind, encoded = body.get("name"), body.get("kind"), body.get("data")
     if not isinstance(encoded, str) or len(encoded) > ((MAX_FILE_BYTES + 2) // 3) * 4:
         raise ThingsError("file_size", "Choose a file smaller than 8 MB.")
@@ -21,7 +21,7 @@ def upload(body):
         data = base64.b64decode(encoded, validate=True)
     except (ValueError, binascii.Error):
         raise ThingsError("bad_file", "This file could not be read. Choose it again.") from None
-    return file_payload(name, data, kind)
+    return file_payload(name, data, kind, strip_metadata=sanitize)
 
 
 def _download(data, name):
@@ -42,7 +42,7 @@ def action(path, body):
         _only(body, {"fields", "id", "revision", "confirm", "file"})
         if body.get("confirm") is not True:
             raise ThingsError("confirmation_required", "Review the details, then choose Save.", 409)
-        files = [upload(body["file"])] if isinstance(body.get("file"), dict) else None
+        files = [upload(body["file"], sanitize=True)] if isinstance(body.get("file"), dict) else None
         if "file" in body and files is None:
             raise ThingsError("bad_file", "Choose the file again.")
         result = {"thing": store.save(body.get("fields"), thing_id=body.get("id", ""), revision=body.get("revision", 0), files=files)}
@@ -50,19 +50,40 @@ def action(path, body):
         _only(body, {"id", "revision", "file"})
         if not isinstance(body.get("file"), dict):
             raise ThingsError("bad_file", "Choose the file again.")
-        result = {"thing": store.attach(body.get("id"), body.get("revision"), upload(body["file"]))}
+        result = {"thing": store.attach(body.get("id"), body.get("revision"), upload(body["file"], sanitize=True))}
     elif name == "delete":
         _only(body, {"id", "revision", "confirm"})
         if body.get("confirm") is not True:
             raise ThingsError("confirmation_required", "Confirm that you want to delete this thing and its files.", 409)
         result = store.delete(body.get("id"), body.get("revision"))
+    elif name == "file":
+        _only(body, {"id", "file_id"})
+        from urllib.parse import quote
+
+        from core.web.api.service import ApiResponse
+
+        record = store.get(body.get("id"), with_files=True)
+        file = next((file for file in record["files"] if file["id"] == body.get("file_id")), None)
+        if file is None:
+            raise ThingsError("missing", "This file is no longer attached.", 404)
+        return ApiResponse(200, "application/octet-stream", base64.b64decode(file["data"], validate=True), headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": "attachment; filename*=UTF-8''" + quote(file["name"], safe="")})
     elif name == "export":
         _only(body, set())
         return _download(store.export(), "my-things.zip")
+    elif name == "read":
+        _only(body, {"file"})
+        from core.my_things.reading import read_local
+
+        if not store.preferences()["enabled"]:
+            raise ThingsError("disabled", "My things is turned off.", 409)
+        file = upload(body.get("file", {}))
+        result = {"reading": read_local(base64.b64decode(file["data"]), file["name"])}
     elif name == "propose":
         _only(body, {"file"})
         from core.my_things.reading import proposal
 
+        if not store.preferences()["enabled"]:
+            raise ThingsError("disabled", "My things is turned off.", 409)
         file = upload(body.get("file", {}))
         result = proposal(base64.b64decode(file["data"]), file["name"])
     elif name == "match":

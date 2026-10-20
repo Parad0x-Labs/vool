@@ -32,7 +32,7 @@ def read_local(data: bytes, name: str) -> dict:
     ocr = result.meta.get("ocr", {})
     if not text.strip():
         return {"state": "unreadable", "text": "", "message": "No readable words were found. Try a clearer photo, or enter the model number."}
-    if len(text) > MAX_TEXT or result.meta.get("truncated"):
+    if len(text) > MAX_TEXT or result.meta.get("truncated") or result.omitted:
         return {"state": "unreadable", "text": "", "message": "This file could not be read completely. Use a smaller file."}
     if ocr and (float(ocr.get("mean_confidence", 0)) < 0.8 or ocr.get("low_confidence_lines", 0)):
         return {"state": "uncertain", "text": text, "message": "Some letters are unclear. Check these words before using them.", "warnings": list(result.warnings)}

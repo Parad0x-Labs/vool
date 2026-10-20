@@ -18,9 +18,8 @@ from urllib.request import Request, urlopen
 import pytest
 
 
-@pytest.fixture(scope="module")
-def daemon(tmp_path_factory):
-    home = tmp_path_factory.mktemp("my-things-served")
+@contextlib.contextmanager
+def served(home, *, online=False):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
@@ -28,6 +27,9 @@ def daemon(tmp_path_factory):
     # No default model endpoint may touch an operator's local model service.
     env.update(OLLAMA_HOST=f"http://127.0.0.1:{port}", VOOL_OLLAMA_URL=f"http://127.0.0.1:{port}")
     env.pop("PYTEST_CURRENT_TEST", None)
+    if online:
+        subprocess.run([sys.executable, "-c", "from core import policy_engine; policy_engine.set_operator_policy_values({'network.outbound_enabled': True, 'system.local_only_mode': False, 'system.allow_web_fallback': True})"], env=env, check=True)
+
     log = (home / "daemon.log").open("wb")
     process = subprocess.Popen([sys.executable, "-m", "apps.vool_api_server", "--bind", "127.0.0.1", "--port", str(port)], env=env, stdout=log, stderr=subprocess.STDOUT)
     process_log = os.environ.get("VOOL_THINGS_PROCESS_LOG")
@@ -61,6 +63,18 @@ def daemon(tmp_path_factory):
         log.close()
 
 
+@pytest.fixture(scope="module")
+def daemon(tmp_path_factory):
+    with served(tmp_path_factory.mktemp("my-things-served")) as instance:
+        yield instance
+
+
+@pytest.fixture(scope="module")
+def online_daemon(tmp_path_factory):
+    with served(tmp_path_factory.mktemp("my-things-online"), online=True) as instance:
+        yield instance
+
+
 def call(base, action="", body=None, headers=None):
     request = Request(base + "/api/my-things" + ("/" + action if action else ""), data=None if body is None else json.dumps(body).encode(), headers={"Content-Type": "application/json", **(headers or {})})
     try:
@@ -88,6 +102,11 @@ def test_served_add_proposal_confirmation_edit_attach_export_and_delete(daemon):
     item = saved["thing"]
     status, attached, _ = call(base, "attach", {"id": item["id"], "revision": 1, "file": file("manual.txt", "User instructions", "manual")})
     assert status == 200 and len(attached["thing"]["files"]) == 2
+    file_id = attached["thing"]["files"][0]["id"]
+    download = call(base, "file", {"id": item["id"], "file_id": file_id})
+    assert download[0] == 200 and download[1] == b"Synthetic receipt MARBLE-33913"
+    assert download[2]["Cache-Control"] == "no-store"
+    assert call(base, "file", {"id": item["id"], "file_id": "missing"})[0] == 404
     assert call(base, "save", {"id": item["id"], "revision": 1, "fields": {"name": "Stale"}, "confirm": True})[0] == 409
     status, raw, headers = call(base, "export", {})
     assert status == 200 and headers["Cache-Control"] == "no-store"
@@ -117,6 +136,8 @@ def test_served_settings_off_refuses_then_recovers(daemon):
     base, _ = daemon
     assert call(base, "preferences", {"enabled": False})[0] == 200
     assert call(base)[0] == 409
+    assert call(base, "propose", {"file": file("receipt.txt", "Item: No")})[0] == 409
+    assert call(base, "read", {"file": file("label.txt", "Model: No", "photo")})[0] == 409
     assert call(base, "save", {"fields": {"name": "No"}, "confirm": True})[0] == 409
     assert call(base, "preferences", {"enabled": True})[0] == 200
     assert call(base)[1]["things"] == []

@@ -12,7 +12,7 @@ from tests.my_things.test_served import call, daemon, file
 
 
 def record():
-    return {"name": "Synthetic radio", "model": "RX-9112", "bought_on": "2026-01-01", "bought_from": "Example shop", "price": "49.00 EUR", "warranty_end": "2027-01-01", "specs": "Voltage: 5 V\nConnector: USB-C", "order_items": "Radio\nCable", "files": [file_payload("receipt.txt", b"Synthetic invoice RIVER-4231", "receipt"), file_payload("manual.txt", b"Private unrelated instructions", "manual")]}
+    return {"name": "Synthetic radio", "model": "RX-9112", "bought_on": "2026-01-01", "bought_from": "Example shop", "price": "49.00 EUR", "warranty_end": "2027-01-01", "specs": "Voltage: 5 V\nConnector: USB-C", "order_items": "Radio\nCable", "notes": "Private unrelated personal note", "files": [file_payload("receipt.txt", b"Synthetic invoice RIVER-4231", "receipt"), file_payload("manual.txt", b"Private unrelated instructions", "manual")]}
 
 
 def test_warranty_uses_only_saved_date_and_missing_is_unknown():
@@ -29,6 +29,7 @@ def test_packets_contain_drafts_and_chosen_evidence_not_unrelated_manuals():
         assert archive.read("request-draft.txt").decode() == result["draft"]
         assert b"Synthetic invoice RIVER-4231" in [archive.read(n) for n in archive.namelist()]
         assert all(b"Private unrelated instructions" not in archive.read(n) for n in archive.namelist())
+        assert b"Private unrelated personal note" not in archive.read("facts.json")
     with pytest.raises(ThingsError):
         packet(record(), kind="repair", issue="")
 
