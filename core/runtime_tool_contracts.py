@@ -3256,6 +3256,10 @@ def _x_contracts(connected: bool) -> list[RuntimeToolContract]:
     window = {"start_time": "string optional (ISO date/time, UTC)", "end_time": "string optional (ISO date/time, UTC)"}
     return [
         _x_read_contract(
+            "x.results", "Refresh observed views and interactions of up to ten own posts, storing IDs and numbers only. Missing metrics are not available. Comparisons require equal ages. No automatic retry.",
+            "x.results", "observe own-post results at comparable ages", {"posts": "list[string] optional, own post IDs"},
+            {"posts": "list", "comparisons": "list", "deleted": "list", "unavailable": "list", "reset_at": "integer|null"}, connected),
+        _x_read_contract(
             "x.search",
             "Search X posts. Give `token` (a contract address, a $CASHTAG or a coin name) or a raw X `query` "
             "(X search operators work: from:, to:, -is:retweet, lang:, url:, conversation_id:). Returns posts with "

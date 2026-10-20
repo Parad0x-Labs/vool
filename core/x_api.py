@@ -219,7 +219,11 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
             body = json.loads((exc.read(64 * 1024) or b"{}").decode("utf-8"))
         except Exception:
             body = None
-        raise _for_path(path, _http_failure(int(exc.code or 0), body)) from None
+        failure = _for_path(path, _http_failure(int(exc.code or 0), body))
+        if int(exc.code or 0) == 429:
+            raw_reset = str((exc.headers or {}).get("x-rate-limit-reset") or "")
+            failure.reset_at = int(raw_reset) if raw_reset.isdigit() else None
+        raise failure from None
     except XReadError:
         raise
     except Exception as exc:
