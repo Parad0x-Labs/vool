@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "ウォレットのアカウント、承認、領収書。暗号資産の機能は初期設定ではオフで、有効にするとメインネットを使用します。",
     "wallet.receipt.cancelled": "キャンセル済み",
     "wallet.receipt.not_sent": "未送信",
-    "wallet.receipt.not_sent_detail": "署名も送信も行われていません。"
+    "wallet.receipt.not_sent_detail": "署名も送信も行われていません。",
+    "run.queue_claim_stuck": "このメッセージは取り出されましたが開始できず、待機列にも戻せませんでした。記録は残っています。復旧するには VOOL を再起動してください。",
+    "run.queue_claim_stuck_summary": "取り出したメッセージを開始することも待機列に戻すこともできませんでした",
+    "run.queue_reroute_failed": "チャットがターンを終えようとしているため、メッセージを待機列に入れられませんでした。本文はこのチャットの下書きに戻しました。",
+    "run.queue_reroute_failed_summary": "このチャットがターンを終えようとしているため、メッセージを待機列に入れられませんでした",
+    "run.queue_rerouted": "待機中 — このチャットは別のウィンドウでターンを終えようとしています。",
+    "run.queue_rerouted_summary": "チャットの実行中のターンの後ろで待機中",
+    "run.queue_returned": "待機中 — このチャットの現在のターンが終わるのを待っています。",
+    "run.queue_returned_summary": "チャットの実行中のターンの後ろで待機列に戻しました"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

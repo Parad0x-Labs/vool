@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Wallet-Konten, Freigaben und Belege. Krypto ist standardmäßig ausgeschaltet; nach dem Einschalten wird das Hauptnetz verwendet.",
     "wallet.receipt.cancelled": "Abgebrochen",
     "wallet.receipt.not_sent": "Nicht gesendet",
-    "wallet.receipt.not_sent_detail": "Es wurde nichts signiert oder gesendet."
+    "wallet.receipt.not_sent_detail": "Es wurde nichts signiert oder gesendet.",
+    "run.queue_claim_stuck": "Diese Nachricht wurde übernommen, konnte aber nicht starten und nicht in die Warteschlange zurückgelegt werden. Sie bleibt gespeichert; starte VOOL neu, um sie wiederherzustellen.",
+    "run.queue_claim_stuck_summary": "Die übernommene Nachricht konnte weder starten noch in die Warteschlange zurück",
+    "run.queue_reroute_failed": "Der Chat beendet gerade einen Zug, und die Nachricht konnte nicht in die Warteschlange gestellt werden. Ihr Text steht wieder im Entwurf dieses Chats.",
+    "run.queue_reroute_failed_summary": "Dieser Chat beendet gerade einen Zug, und die Nachricht konnte nicht in die Warteschlange gestellt werden",
+    "run.queue_rerouted": "In der Warteschlange — dieser Chat beendet gerade einen Zug in einem anderen Fenster.",
+    "run.queue_rerouted_summary": "In der Warteschlange hinter dem laufenden Zug des Chats",
+    "run.queue_returned": "In der Warteschlange — wartet, bis der aktuelle Zug in diesem Chat fertig ist.",
+    "run.queue_returned_summary": "Zurück in die Warteschlange hinter den laufenden Zug des Chats"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

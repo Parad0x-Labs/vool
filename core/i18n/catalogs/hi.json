@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "वॉलेट खाते, स्वीकृतियाँ और रसीदें। क्रिप्टो डिफ़ॉल्ट रूप से बंद है; चालू करने पर मुख्य नेटवर्क का उपयोग होता है।",
     "wallet.receipt.cancelled": "रद्द किया गया",
     "wallet.receipt.not_sent": "नहीं भेजा गया",
-    "wallet.receipt.not_sent_detail": "न कुछ हस्ताक्षरित किया गया, न भेजा गया।"
+    "wallet.receipt.not_sent_detail": "न कुछ हस्ताक्षरित किया गया, न भेजा गया।",
+    "run.queue_claim_stuck": "यह संदेश लिया गया था, पर शुरू नहीं हो सका और कतार में वापस भी नहीं रखा जा सका। यह दर्ज रहता है; इसे वापस पाने के लिए VOOL को फिर से शुरू करें।",
+    "run.queue_claim_stuck_summary": "लिया गया संदेश न शुरू हो सका, न कतार में लौट सका",
+    "run.queue_reroute_failed": "चैट एक बारी पूरी कर रही है और संदेश कतार में नहीं रखा जा सका। उसका टेक्स्ट इस चैट के ड्राफ़्ट में वापस रख दिया गया।",
+    "run.queue_reroute_failed_summary": "यह चैट एक बारी पूरी कर रही है और संदेश कतार में नहीं रखा जा सका",
+    "run.queue_rerouted": "कतार में — यह चैट दूसरी विंडो में एक बारी पूरी कर रही है।",
+    "run.queue_rerouted_summary": "चैट की चल रही बारी के पीछे कतार में",
+    "run.queue_returned": "कतार में — इस चैट की मौजूदा बारी पूरी होने का इंतज़ार है।",
+    "run.queue_returned_summary": "चैट की चल रही बारी के पीछे कतार में वापस रखा गया"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

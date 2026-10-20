@@ -123,6 +123,13 @@ def live_session_ids() -> frozenset[str]:
         return frozenset(session_id for session_id, _ in _TURNS if session_id)
 
 
+def live_turn_ids(session_id: str) -> frozenset[str]:
+    """The turn ids with a live worker in one session."""
+    sid = str(session_id or "").strip()
+    with _LOCK:
+        return frozenset(turn_id for session, turn_id in _TURNS if session == sid and turn_id)
+
+
 def active_turn_count() -> int:
     """Live turns currently registered (tests / diagnostics)."""
     with _LOCK:

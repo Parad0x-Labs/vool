@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "钱包账户、授权和收据。加密货币功能默认关闭；启用后使用主网。",
     "wallet.receipt.cancelled": "已取消",
     "wallet.receipt.not_sent": "未发送",
-    "wallet.receipt.not_sent_detail": "未进行任何签名或发送。"
+    "wallet.receipt.not_sent_detail": "未进行任何签名或发送。",
+    "run.queue_claim_stuck": "这条消息已被取出，但未能开始，也未能放回队列。它仍有记录；重新启动 VOOL 即可恢复。",
+    "run.queue_claim_stuck_summary": "已取出的消息既未能开始，也未能放回队列",
+    "run.queue_reroute_failed": "对话正在结束一轮，消息未能加入队列。其文本已放回此对话的草稿。",
+    "run.queue_reroute_failed_summary": "此对话正在结束一轮，消息未能加入队列",
+    "run.queue_rerouted": "排队中 — 此对话正在另一个窗口中结束一轮。",
+    "run.queue_rerouted_summary": "排在对话正在进行的这一轮之后",
+    "run.queue_returned": "排队中 — 正在等待此对话的当前这一轮结束。",
+    "run.queue_returned_summary": "已放回队列，排在对话正在进行的这一轮之后"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

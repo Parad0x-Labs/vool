@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Comptes du portefeuille, autorisations et reçus. Les cryptomonnaies sont désactivées par défaut ; le réseau principal est utilisé après activation.",
     "wallet.receipt.cancelled": "Annulé",
     "wallet.receipt.not_sent": "Non envoyé",
-    "wallet.receipt.not_sent_detail": "Rien n’a été signé ni envoyé."
+    "wallet.receipt.not_sent_detail": "Rien n’a été signé ni envoyé.",
+    "run.queue_claim_stuck": "Ce message a été pris en charge mais n’a pas pu démarrer, ni être remis dans la file d’attente. Il reste enregistré ; redémarrez VOOL pour le récupérer.",
+    "run.queue_claim_stuck_summary": "Le message pris en charge n’a pas pu démarrer ni revenir dans la file d’attente",
+    "run.queue_reroute_failed": "La conversation termine un tour et le message n’a pas pu être mis en file d’attente. Son texte a été remis dans le brouillon de cette conversation.",
+    "run.queue_reroute_failed_summary": "Cette conversation termine un tour et le message n’a pas pu être mis en file d’attente",
+    "run.queue_rerouted": "En file d’attente — cette conversation termine un tour dans une autre fenêtre.",
+    "run.queue_rerouted_summary": "En file d’attente derrière le tour en cours de la conversation",
+    "run.queue_returned": "En file d’attente — en attente de la fin du tour en cours dans cette conversation.",
+    "run.queue_returned_summary": "Remis dans la file d’attente derrière le tour en cours de la conversation"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

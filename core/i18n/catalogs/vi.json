@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Tài khoản ví, phê duyệt và biên nhận. Tiền mã hóa mặc định bị tắt; khi bật sẽ sử dụng mạng chính.",
     "wallet.receipt.cancelled": "Đã hủy",
     "wallet.receipt.not_sent": "Chưa gửi",
-    "wallet.receipt.not_sent_detail": "Chưa ký hoặc gửi bất cứ nội dung nào."
+    "wallet.receipt.not_sent_detail": "Chưa ký hoặc gửi bất cứ nội dung nào.",
+    "run.queue_claim_stuck": "Tin nhắn này đã được lấy ra nhưng không thể bắt đầu, và không thể trả lại hàng đợi. Nó vẫn được lưu lại; hãy khởi động lại VOOL để khôi phục.",
+    "run.queue_claim_stuck_summary": "Tin nhắn đã lấy ra không thể bắt đầu hay trở lại hàng đợi",
+    "run.queue_reroute_failed": "Cuộc trò chuyện đang kết thúc một lượt và không thể đưa tin nhắn vào hàng đợi. Nội dung đã được trả lại bản nháp của cuộc trò chuyện này.",
+    "run.queue_reroute_failed_summary": "Cuộc trò chuyện này đang kết thúc một lượt và không thể đưa tin nhắn vào hàng đợi",
+    "run.queue_rerouted": "Trong hàng đợi — cuộc trò chuyện này đang kết thúc một lượt ở cửa sổ khác.",
+    "run.queue_rerouted_summary": "Trong hàng đợi, sau lượt đang chạy của cuộc trò chuyện",
+    "run.queue_returned": "Trong hàng đợi — đang chờ lượt hiện tại của cuộc trò chuyện này kết thúc.",
+    "run.queue_returned_summary": "Đã trả lại hàng đợi, sau lượt đang chạy của cuộc trò chuyện"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

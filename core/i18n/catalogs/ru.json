@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Счета кошелька, подтверждения и квитанции. Криптовалюты по умолчанию отключены; после включения используется основная сеть.",
     "wallet.receipt.cancelled": "Отменено",
     "wallet.receipt.not_sent": "Не отправлено",
-    "wallet.receipt.not_sent_detail": "Ничего не было подписано или отправлено."
+    "wallet.receipt.not_sent_detail": "Ничего не было подписано или отправлено.",
+    "run.queue_claim_stuck": "Это сообщение было взято из очереди, но не смогло начаться и не было возвращено в очередь. Оно сохранено; перезапустите VOOL, чтобы восстановить его.",
+    "run.queue_claim_stuck_summary": "Взятое сообщение не смогло начаться и не вернулось в очередь",
+    "run.queue_reroute_failed": "Чат завершает ход, и сообщение не удалось поставить в очередь. Его текст возвращён в черновик этого чата.",
+    "run.queue_reroute_failed_summary": "Этот чат завершает ход, и сообщение не удалось поставить в очередь",
+    "run.queue_rerouted": "В очереди — этот чат завершает ход в другом окне.",
+    "run.queue_rerouted_summary": "В очереди за идущим ходом чата",
+    "run.queue_returned": "В очереди — ждёт завершения текущего хода в этом чате.",
+    "run.queue_returned_summary": "Возвращено в очередь за идущим ходом чата"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

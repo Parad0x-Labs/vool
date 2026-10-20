@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Cuentas de la cartera, aprobaciones y recibos. Las criptomonedas están desactivadas de forma predeterminada; al activarlas se usa la red principal.",
     "wallet.receipt.cancelled": "Cancelado",
     "wallet.receipt.not_sent": "No enviado",
-    "wallet.receipt.not_sent_detail": "No se ha firmado ni enviado nada."
+    "wallet.receipt.not_sent_detail": "No se ha firmado ni enviado nada.",
+    "run.queue_claim_stuck": "Este mensaje se tomó pero no pudo empezar, y no se pudo devolver a la cola. Sigue guardado; reinicia VOOL para recuperarlo.",
+    "run.queue_claim_stuck_summary": "El mensaje tomado no pudo empezar ni volver a la cola",
+    "run.queue_reroute_failed": "El chat está terminando un turno y el mensaje no se pudo poner en cola. Su texto se restauró en el borrador de este chat.",
+    "run.queue_reroute_failed_summary": "Este chat está terminando un turno y el mensaje no se pudo poner en cola",
+    "run.queue_rerouted": "En cola — este chat está terminando un turno en otra ventana.",
+    "run.queue_rerouted_summary": "En cola detrás del turno activo del chat",
+    "run.queue_returned": "En cola — esperando a que termine el turno actual de este chat.",
+    "run.queue_returned_summary": "Devuelto a la cola detrás del turno activo del chat"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

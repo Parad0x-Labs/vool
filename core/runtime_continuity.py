@@ -6,8 +6,10 @@ import copy
 import hashlib
 import json
 import logging
+import os
 import sqlite3
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -146,6 +148,7 @@ def reset_runtime_continuity_state() -> None:
     # `machine_read_memory` leak fixed in cf20052: a per-test reset that covers the database and
     # not the memory beside it. Imported here rather than at module scope to keep this module free
     # of agent_runtime imports.
+    _ADMITTED_TURNS.clear()  # the admission registry is exactly such a beside-the-db store
     for module_name, clear_name in (
         ("core.agent_runtime.active_finding", "clear_active_findings"),
         ("core.agent_runtime.audit_session", "clear_audit_capsules"),
@@ -3118,14 +3121,205 @@ def list_queued_messages(session_id: str, *, statuses: tuple[str, ...] = _QUEUE_
     return [_queue_row_to_dict(row) for row in rows]
 
 
+# ---- Chat admission: one ordinary turn per owner-local session, claim-to-end -----------------
+#
+# ``core.live_turns`` answers "is a worker executing now". Two windows it cannot see, both
+# measured by the frozen delivery review (artifacts/git-queue-review-20260930):
+#   1. claim -> turn start: the queue had handed TWO different in_flight rows to two tabs
+#      before either worker registered;
+#   2. POST accept -> first stream pull: a direct send is accepted while its registration has
+#      not happened yet (a dead client never pulls the generator).
+# The admission registry reserves the session across both windows and hands the reservation to
+# the turn at POST time (a claimed dispatch consumes its own claim by presenting the
+# queue_item_id; any other presenter is refused). The worker's unregister -- or the item's
+# terminal op -- releases it. An abandoned reservation (page closed before dispatch) is
+# bounded by a lease, so a never-started claim can never hold the chat forever; a daemon
+# restart clears the registry exactly when startup recovery resets the interrupted in_flight
+# rows. In-memory on purpose: it coordinates pages of ONE loopback daemon, the same scope the
+# queue door itself serves.
+
+_ADMITTED_TURNS: dict[str, dict[str, Any]] = {}  # session_id -> {"token", "kind", "created"}
+
+
+def _admission_lease_seconds() -> float:
+    raw = str(os.environ.get("VOOL_ADMISSION_LEASE_SECONDS") or "").strip()
+    try:
+        return max(1.0, float(raw)) if raw else 30.0
+    except ValueError:
+        return 30.0
+
+
+def _admission_record_locked(session_id: str, now: float) -> dict[str, Any] | None:
+    """The session's live reservation, dropping it when its lease has lapsed."""
+    record = _ADMITTED_TURNS.get(session_id)
+    if record is None:
+        return None
+    if now - float(record["created"]) > _admission_lease_seconds():
+        _ADMITTED_TURNS.pop(session_id, None)
+        return None
+    return record
+
+
+def _chat_turn_active_locked(session_id: str) -> bool:
+    from core.live_turns import live_session_ids
+
+    return session_id in live_session_ids() or _admission_record_locked(session_id, time.monotonic()) is not None
+
+
+def chat_turn_active(session_id: str) -> bool:
+    """True while this chat's one ordinary-turn slot is taken: a worker is executing for the
+    session, or an admitted claim/turn holds it in the claim-to-start window (see the
+    admission registry above). This is the one-slot-per-chat law the queue and the chat door
+    enforce; the live-turn registry remains the truth for worker lifetime."""
+    clean = str(session_id or "").strip()
+    if not clean:
+        return False
+    with _LOCK:
+        return _chat_turn_active_locked(clean)
+
+
+def chat_slot_held_by_other(session_id: str, mine: frozenset[str] | set[str]) -> bool:
+    """True while the chat's slot is held by something the asking page does not own.
+
+    ``mine`` is the asking page's own recent turn ids and claimed queue_item_ids. A page that
+    reads its OWN turn (a worker still finalizing after the answer arrived, or its own claim's
+    reservation) must not mistake it for another tab's turn and queue its next message behind
+    itself. Answers only a yes/no: no other holder's id or words leave the server."""
+    clean = str(session_id or "").strip()
+    if not clean:
+        return False
+    own = {str(t or "").strip() for t in (mine or ()) if str(t or "").strip()}
+    from core.live_turns import live_turn_ids
+
+    with _LOCK:
+        if any(turn_id not in own for turn_id in live_turn_ids(clean)):
+            return True
+        record = _admission_record_locked(clean, time.monotonic())
+        return record is not None and str(record["token"]) not in own
+
+
+def admitted_chat_turn_token(session_id: str) -> str:
+    """The token (queue_item_id or turn_id) currently holding the session's admission, or ''.
+    Diagnostics and tests: the state itself is only changed through the owning operations."""
+    clean = str(session_id or "").strip()
+    with _LOCK:
+        record = _admission_record_locked(clean, time.monotonic())
+        return str(record["token"]) if record else ""
+
+
+def chat_admission_free_for(session_id: str, queue_item_id: str = "") -> bool:
+    """Read-only precheck: may THIS request start an ordinary turn for the session?
+
+    Mirrors :func:`admit_chat_turn`'s law without taking anything: refused while a worker
+    executes or another claim/turn holds the reservation -- except that a presenter carrying
+    exactly the reserved claim's queue_item_id MAY proceed (it is that claim's own dispatch,
+    and the atomic gate will consume the claim). Kept as a separate read so the door's early
+    fast-fail never rejects a request its own reservation is holding for it."""
+    clean = str(session_id or "").strip()
+    claim_id = str(queue_item_id or "").strip()
+    if not clean:
+        return True
+    from core.live_turns import live_session_ids
+
+    with _LOCK:
+        if clean in live_session_ids():
+            return False
+        record = _admission_record_locked(clean, time.monotonic())
+        if record is None:
+            return True
+        return bool(claim_id) and record.get("kind") == "claim" and str(record["token"]) == claim_id
+
+
+def admit_chat_turn(session_id: str, turn_id: str, *, queue_item_id: str = "") -> dict[str, Any]:
+    """Atomically take the session's one ordinary-turn admission for this turn.
+
+    Refused while a worker executes for the session or another claim/turn holds the
+    reservation. A queued dispatch consumes ITS OWN claim: when the presented
+    ``queue_item_id`` is exactly the reserved claim's item, the reservation transfers to this
+    turn. Presenting any other id (someone else's claim, an already-consumed one) is refused
+    -- a caller cannot steal a claim by naming its item. Returns ``{"admitted": bool,
+    "reason": ...}``.
+    """
+    clean = str(session_id or "").strip()
+    token = str(turn_id or "").strip()
+    claim_id = str(queue_item_id or "").strip()
+    if not clean:
+        return {"admitted": False, "reason": "invalid_admission_request"}
+    if not token:
+        # A caller that carries no turn identity (remote-API-shaped requests reaching the
+        # loopback door, CLI smokes) cannot be bridged: there is no token to reserve or to
+        # release at a worker's end. The one-slot law still applies to it -- refused while a
+        # worker executes or a claim holds the session -- but it takes no reservation of its
+        # own, exactly its pre-admission behavior.
+        with _LOCK:
+            if _chat_turn_active_locked(clean):
+                return {"admitted": False, "reason": "turn_active"}
+            return {"admitted": True, "reason": "unreserved"}
+    from core.live_turns import live_session_ids
+
+    now = time.monotonic()
+    with _LOCK:
+        # A worker is EXECUTING for this session: refused outright. The session's own
+        # admission reservation is NOT consulted here -- consuming one's own claim below is
+        # the whole point (the combined truth in _chat_turn_active_locked would make this
+        # request refuse itself).
+        if clean in live_session_ids():
+            return {"admitted": False, "reason": "turn_active"}
+        record = _admission_record_locked(clean, now)
+        if record is not None:
+            if claim_id and record.get("kind") == "claim" and str(record["token"]) == claim_id:
+                # Consume our own valid claim: the reservation now bridges to this turn.
+                _ADMITTED_TURNS[clean] = {"token": token, "kind": "turn", "created": now}
+                return {"admitted": True, "reason": "claim_consumed"}
+            return {"admitted": False, "reason": "already_admitted"}
+        _ADMITTED_TURNS[clean] = {"token": token, "kind": "turn", "created": now}
+        return {"admitted": True, "reason": "admitted"}
+
+
+def release_chat_turn_admission(session_id: str, token: str) -> bool:
+    """Release the session's admission when (and only when) ``token`` still holds it. The
+    worker's end-of-turn paths and a claim's terminal op call this; a stale release from an
+    expired reservation cannot free a newer admission."""
+    clean = str(session_id or "").strip()
+    tok = str(token or "").strip()
+    if not clean or not tok:
+        return False
+    with _LOCK:
+        record = _ADMITTED_TURNS.get(clean)
+        if record is not None and str(record["token"]) == tok:
+            _ADMITTED_TURNS.pop(clean, None)
+            return True
+        return False
+
+
+def reset_chat_turn_admission() -> None:
+    """Drop every admission. Tests only -- real work in flight must never call this."""
+    with _LOCK:
+        _ADMITTED_TURNS.clear()
+
+
 def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str = "", expected_queue_item_id: str = "") -> dict[str, Any] | None:
-    """Atomically claim the oldest pending message for a session (pending -> in_flight). The
-    compare-and-swap UPDATE (WHERE status='pending') guarantees exactly-once dispatch: two
-    racing claimers (double pump, two tabs, reconnect) cannot both win the same item."""
+    """Atomically claim the oldest pending message for a session (pending -> in_flight) AND
+    reserve the session's one ordinary-turn admission for the claim.
+
+    The compare-and-swap UPDATE (WHERE status='pending') still guarantees per-item
+    exactly-once dispatch, and the admission reservation -- taken in the same locked
+    transaction -- guarantees per-session exclusivity across the claim-to-start window: two
+    tabs can no longer hold two different in_flight rows before either turn registers. The
+    dispatch POST consumes the reservation by presenting this claim's queue_item_id
+    (:func:`admit_chat_turn`); completing, cancelling or releasing the item frees it; an
+    abandoned claim frees it when its lease lapses. A claim for a chat whose slot is taken
+    (executing worker or live reservation) answers None -- callers distinguish "empty" from
+    "slot busy" with :func:`chat_turn_active`."""
     clean = str(session_id or "").strip()
     if not clean:
         return None
     with _LOCK:
+        if _chat_turn_active_locked(clean):
+            return None
+        now = time.monotonic()
+        if _admission_record_locked(clean, now) is not None:
+            return None
         conn = _conn()
         try:
             row = conn.execute(
@@ -3137,14 +3331,14 @@ def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str =
             qid = str(row["queue_item_id"])
             if expected_queue_item_id and qid != expected_queue_item_id:
                 return None
-            now = _utcnow()
             cur = conn.execute(
                 "UPDATE message_queue SET status = 'in_flight', lease_owner = ?, turn_id = ?, updated_at = ? WHERE queue_item_id = ? AND status = 'pending'",
-                (str(lease_owner or ""), str(turn_id or ""), now, qid),
+                (str(lease_owner or ""), str(turn_id or ""), _utcnow(), qid),
             )
             conn.commit()
             if cur.rowcount != 1:
                 return None  # lost the race; another claimer took it
+            _ADMITTED_TURNS[clean] = {"token": qid, "kind": "claim", "created": now}
             return _queue_row_to_dict(conn.execute("SELECT * FROM message_queue WHERE queue_item_id = ?", (qid,)).fetchone())
         finally:
             conn.close()
@@ -3156,12 +3350,19 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dic
     with _LOCK:
         conn = _conn()
         try:
+            row = conn.execute("SELECT session_id FROM message_queue WHERE queue_item_id = ? LIMIT 1", (clean,)).fetchone()
             now = _utcnow()
             conn.execute("UPDATE message_queue SET status = ?, updated_at = ?, completed_at = ? WHERE queue_item_id = ?", (valid, now, now, clean))
             _blank_private_queue_text(conn, clean)
             conn.commit()
         finally:
             conn.close()
+        # A terminal op on a still-reserved claim frees the chat's admission immediately (the
+        # lease would free it eventually; this is the owner's own release).
+        if row is not None:
+            record = _admission_record_locked(str(row["session_id"]), time.monotonic())
+            if record is not None and record.get("kind") == "claim" and str(record["token"]) == clean:
+                _ADMITTED_TURNS.pop(str(row["session_id"]), None)
     return get_queue_item(clean)
 
 
@@ -3178,6 +3379,47 @@ def _blank_private_queue_text(conn: Any, queue_item_id: str) -> None:
             "UPDATE message_queue SET payload_json = ? WHERE queue_item_id = ? AND status != 'pending' AND status != 'in_flight'",
             ("{}", queue_item_id),
         )
+
+
+def release_claimed_queue_item(queue_item_id: str, *, session_id: str = "") -> dict[str, Any] | None:
+    """Return a claimed, still-unstarted message to its pending FIFO position.
+
+    The owning operation for a claimed message whose turn was refused before execution (the
+    typed chat-turn-active 409): identity, payload, attachments, idempotency key and seq --
+    the message's FIFO position -- are all preserved; only the claim stamps are cleared, so
+    the next claim dispatches the ORIGINAL row, never a copy at the tail.
+
+    Ownership-checked: the item must still be in_flight for this session, and its admission
+    must not have been consumed by a running turn (a transferred reservation means a dispatch
+    owns this item now -- a late or foreign release must not touch it). Returns the updated
+    row, or None when this caller does not own the claim."""
+    clean = str(queue_item_id or "").strip()
+    if not clean:
+        return None
+    with _LOCK:
+        conn = _conn()
+        try:
+            row = conn.execute("SELECT * FROM message_queue WHERE queue_item_id = ? LIMIT 1", (clean,)).fetchone()
+            if row is None or str(row["status"]) != "in_flight":
+                return None
+            owner_session = str(row["session_id"])
+            if session_id and str(session_id) != owner_session:
+                return None
+            record = _admission_record_locked(owner_session, time.monotonic())
+            if record is not None and record.get("kind") == "turn":
+                return None  # a dispatch consumed this claim; the turn owns the item now
+            cur = conn.execute(
+                "UPDATE message_queue SET status = 'pending', lease_owner = '', turn_id = '', updated_at = ? WHERE queue_item_id = ? AND status = 'in_flight'",
+                (_utcnow(), clean),
+            )
+            conn.commit()
+            if int(cur.rowcount or 0) != 1:
+                return None
+            if record is not None and str(record["token"]) == clean:
+                _ADMITTED_TURNS.pop(owner_session, None)
+            return _queue_row_to_dict(conn.execute("SELECT * FROM message_queue WHERE queue_item_id = ?", (clean,)).fetchone())
+        finally:
+            conn.close()
 
 
 def cancel_queue_item(queue_item_id: str, *, session_id: str = "") -> bool:
@@ -3211,6 +3453,9 @@ def recover_stale_queue_items() -> int:
     to pending so it is not lost. A clean reconnect leaves pending items untouched, so nothing is
     re-run twice; only a genuinely interrupted turn is retried. Returns the count reset."""
     with _LOCK:
+        # Interrupted claims' admissions are gone with their pages; a fresh process starts
+        # with an empty registry anyway, and a runtime recovery call must match that state.
+        _ADMITTED_TURNS.clear()
         conn = _conn()
         try:
             cur = conn.execute("UPDATE message_queue SET status = 'pending', lease_owner = '', updated_at = ? WHERE status = 'in_flight'", (_utcnow(),))

@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Cüzdan hesapları, onaylar ve makbuzlar. Kripto varsayılan olarak kapalıdır; açıldığında ana ağ kullanılır.",
     "wallet.receipt.cancelled": "İptal edildi",
     "wallet.receipt.not_sent": "Gönderilmedi",
-    "wallet.receipt.not_sent_detail": "Hiçbir şey imzalanmadı veya gönderilmedi."
+    "wallet.receipt.not_sent_detail": "Hiçbir şey imzalanmadı veya gönderilmedi.",
+    "run.queue_claim_stuck": "Bu mesaj alındı ama başlayamadı ve sıraya geri konamadı. Kayıtlı kalıyor; kurtarmak için VOOL’u yeniden başlat.",
+    "run.queue_claim_stuck_summary": "Alınan mesaj ne başlayabildi ne de sıraya dönebildi",
+    "run.queue_reroute_failed": "Sohbet bir turu bitiriyor ve mesaj sıraya alınamadı. Metni bu sohbetin taslağına geri kondu.",
+    "run.queue_reroute_failed_summary": "Bu sohbet bir turu bitiriyor ve mesaj sıraya alınamadı",
+    "run.queue_rerouted": "Sırada — bu sohbet başka bir pencerede bir turu bitiriyor.",
+    "run.queue_rerouted_summary": "Sohbetin süren turunun arkasında sırada",
+    "run.queue_returned": "Sırada — bu sohbetteki mevcut turun bitmesi bekleniyor.",
+    "run.queue_returned_summary": "Sohbetin süren turunun arkasına, sıraya geri alındı"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

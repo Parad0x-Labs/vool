@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "حسابات المحفظة والموافقات والإيصالات. العملات المشفّرة معطّلة افتراضيًا؛ تُستخدم الشبكة الرئيسية عند تفعيلها.",
     "wallet.receipt.cancelled": "أُلغي",
     "wallet.receipt.not_sent": "لم يُرسل",
-    "wallet.receipt.not_sent_detail": "لم يُوقَّع أو يُرسل أي شيء."
+    "wallet.receipt.not_sent_detail": "لم يُوقَّع أو يُرسل أي شيء.",
+    "run.queue_claim_stuck": "تم حجز هذه الرسالة لكنها لم تبدأ، ولم يمكن إعادتها إلى قائمة الانتظار. تبقى محفوظة؛ أعد تشغيل VOOL لاستعادتها.",
+    "run.queue_claim_stuck_summary": "لم تبدأ الرسالة المحجوزة ولم تعد إلى قائمة الانتظار",
+    "run.queue_reroute_failed": "المحادثة تُنهي دورًا ولم يمكن وضع الرسالة في قائمة الانتظار. أُعيد نصها إلى مسودة هذه المحادثة.",
+    "run.queue_reroute_failed_summary": "هذه المحادثة تُنهي دورًا ولم يمكن وضع الرسالة في قائمة الانتظار",
+    "run.queue_rerouted": "في قائمة الانتظار — هذه المحادثة تُنهي دورًا في نافذة أخرى.",
+    "run.queue_rerouted_summary": "في قائمة الانتظار خلف الدور الجاري في المحادثة",
+    "run.queue_returned": "في قائمة الانتظار — بانتظار انتهاء الدور الحالي في هذه المحادثة.",
+    "run.queue_returned_summary": "أُعيدت إلى قائمة الانتظار خلف الدور الجاري في المحادثة"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

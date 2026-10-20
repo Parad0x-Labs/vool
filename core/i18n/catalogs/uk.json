@@ -2815,9 +2815,17 @@
     "wallet.commands.description": "Рахунки гаманця, підтвердження та квитанції. Криптовалюти типово вимкнено; після ввімкнення використовується основна мережа.",
     "wallet.receipt.cancelled": "Скасовано",
     "wallet.receipt.not_sent": "Не надіслано",
-    "wallet.receipt.not_sent_detail": "Нічого не було підписано чи надіслано."
+    "wallet.receipt.not_sent_detail": "Нічого не було підписано чи надіслано.",
+    "run.queue_claim_stuck": "Це повідомлення було взято з черги, але не змогло початися і не було повернуто в чергу. Воно збережене; перезапустіть VOOL, щоб відновити його.",
+    "run.queue_claim_stuck_summary": "Взяте повідомлення не змогло початися і не повернулося в чергу",
+    "run.queue_reroute_failed": "Чат завершує хід, і повідомлення не вдалося поставити в чергу. Його текст повернуто в чернетку цього чату.",
+    "run.queue_reroute_failed_summary": "Цей чат завершує хід, і повідомлення не вдалося поставити в чергу",
+    "run.queue_rerouted": "У черзі — цей чат завершує хід в іншому вікні.",
+    "run.queue_rerouted_summary": "У черзі за поточним ходом чату",
+    "run.queue_returned": "У черзі — чекає завершення поточного ходу в цьому чаті.",
+    "run.queue_returned_summary": "Повернуто в чергу за поточним ходом чату"
   },
-  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
+  "source_catalog_sha256": "46b556f0f3dab871503b786027c908bfd91e8350fd00405f4288e14ef4c19e30",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
