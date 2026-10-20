@@ -273,3 +273,20 @@ def test_scheduled_check_starts_when_the_switch_is_turned_on_after_boot(updates,
         time.sleep(0.05)
     assert calls == [FEED_URL]
     assert subsystem.service._thread is not None and subsystem.service._thread.is_alive()
+
+
+@pytest.mark.parametrize("source", ["auto_check", "env_override"])
+def test_shipped_auto_check_and_feed_override_stay_offline_with_the_switch_off(tmp_path, monkeypatch, source):
+    from core.updater.feed import automatic_checks_enabled, load_feed_config
+
+    config = tmp_path / "feed.json"
+    if source == "auto_check":
+        config.write_text(json.dumps({"manifest_url": FEED_URL, "auto_check": True}))
+        feed = load_feed_config(config_path=config, env={})
+    else:
+        config.write_text("{}")
+        feed = load_feed_config(config_path=config, env={"VOOL_UPDATE_MANIFEST_URL": FEED_URL})
+    _set_switch(monkeypatch, True)
+    assert automatic_checks_enabled(feed=feed, data_dir=tmp_path) is True
+    _set_switch(monkeypatch, False)
+    assert automatic_checks_enabled(feed=feed, data_dir=tmp_path) is False
