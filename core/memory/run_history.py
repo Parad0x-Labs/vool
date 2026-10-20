@@ -226,6 +226,11 @@ _BOOKKEEPING_KEY_RE = re.compile(
     r"(?:^|_)(?:ms|us|ns|sec|secs|seconds|elapsed|duration|latency|count|total|seq|sequence|step|steps|index|idx"
     r"|attempt|attempts|retries|bytes|size|tokens|used|version|generation|depth|pid|exit_code|port|offset|limit"
     r"|budget|priority|timestamp|epoch|confidence|score|ratio|rate)$")
+#: An ed25519 signature as the runtime stores it: base64 of 64 bytes, padded, or url-safe unpadded.
+_SIGNATURE_RE = re.compile(r"[A-Za-z0-9+/]{86}==|[A-Za-z0-9_-]{86}")
+#: Tables whose ``signature`` is one the runtime signed itself (the provider gateway's call records). A ``signature``
+#: elsewhere may be one the person pasted (a transaction signature in a tool's arguments) and is read as words.
+_RUNTIME_SIGNED_TABLES = frozenset({"provider_invocation_manifests"})
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -885,16 +890,35 @@ def resweep_forgotten_run_history(chat_id: str) -> int:
 # ── verification ─────────────────────────────────────────────────────────────
 
 
-def _unclassified_payload(row: Mapping[str, Any]) -> list[Any]:
-    """A session-scoped table nobody classified: its words, without ids, stamps and counters."""
+def _without_signatures(value: Any) -> Any:
+    """A runtime signature (base64 under ``signature``) is random letters and digits, not the person's words.
+
+    Measured on CI after the 0.7.2 merge: a provider call's record keeps its base64 signature in two places, and
+    "Forget 20." on the 20th ended "could not be verified ... provider invocation manifests" because one signature
+    held "...kt20Uj..."; a two-digit number stands alone in about one signature in 1,250 and a three-letter word in
+    one in 330, and every model call adds a record. Only that table's own signatures are left out; a ``signature``
+    that holds anything but an ed25519 signature is still read.
+    """
+    if isinstance(value, Mapping):
+        return {key: _without_signatures(item) for key, item in value.items()
+                if not (key == "signature" and isinstance(item, str) and _SIGNATURE_RE.fullmatch(item))}
+    if isinstance(value, list):
+        return [_without_signatures(item) for item in value]
+    return value
+
+
+def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
+    """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures."""
+    signed = table in _RUNTIME_SIGNED_TABLES
     words: list[Any] = []
-    for key, value in dict(row).items():
+    for key, value in (_without_signatures(dict(row)) if signed else dict(row)).items():
         if key in ROW_IDENTITIES or _runtime_made(value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
+            value = _without_signatures(value) if signed else value
         words.append(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES)))
     return words
 
@@ -949,7 +973,7 @@ def _verify_database(conn: Any, tables: set[str], chat_id: str, token: str, veri
                 f"SELECT * FROM {_quoted(table)} WHERE {_quoted(scope)} = ? OR {_quoted(scope)} IS NULL "
                 f"OR {_quoted(scope)} = ''", (chat_id,),
             ).fetchall()
-            return any(carries(_unclassified_payload(row), token) for row in rows)
+            return any(carries(_unclassified_payload(row, table), token) for row in rows)
 
         verify(UNCLASSIFIED_PREFIX + table, unclassified)
 
