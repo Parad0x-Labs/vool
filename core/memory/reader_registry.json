@@ -195,6 +195,7 @@
     "begin_group": "authority",
     "prepare": "authority",
     "initialize_memory_home": "authority",
+    "memory_home_is_new": "authority",
     "poison": "authority",
     "begin": "authority",
     "complete": "authority",
