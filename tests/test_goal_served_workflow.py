@@ -389,9 +389,29 @@ def test_duplicate_start_asks_one_clarification_and_never_restarts() -> None:
         text = "".join(item.get("message", {}).get("content", "") for item in _lines(second.body) if isinstance(item.get("message"), dict))
         assert "already active" in text
         assert _goal_ids() == [goal_id], "no second goal row may be created"
-        # revise is the real correction path: same row, new objective, plan re-derived.
+        # revise is the real correction path: same row, new objective, plan re-derived. It is
+        # sent while step one still holds; the gate opens only once revise has fenced the
+        # worker, so the goal cannot finish before the revision reaches it.
+        from core.goal_workflow import active_worker
+
+        revise_result: dict[str, Any] = {}
+
+        def _send_revise() -> None:
+            revise_result["response"] = _dispatch_chat(
+                {"messages": [{"role": "user", "content": "/goal revise the sharpened objective"}], "turn_id": "goal-turn-d3"}
+            )
+
+        sender = threading.Thread(target=_send_revise)
+        sender.start()
+        deadline = time.monotonic() + 15.0
+        while time.monotonic() < deadline:
+            worker = active_worker(goal_id)
+            if worker is None or worker.fence_requested.is_set():
+                break
+            time.sleep(0.01)
         agent.step_gate.set()
-        revise = _dispatch_chat({"messages": [{"role": "user", "content": "/goal revise the sharpened objective"}], "turn_id": "goal-turn-d3"})
+        sender.join(timeout=30.0)
+        revise = revise_result["response"]
         assert revise.status == 200
         agent.step_gate = None
         goal = _wait_goal_terminal_or_holding(goal_id)
