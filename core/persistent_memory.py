@@ -296,9 +296,9 @@ _FORGET_TARGET_RE = re.compile(
     re.IGNORECASE,
 )
 # "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value of
-# four or more characters carrying a digit is taken: a sentence ("forget that the code changed", "forget the gate
-# code is QX-4471") is never narrowed, and a short number ("forget Bob's code 42") keeps its description, which
-# is what tells it apart from every other 42.
+# four or more characters carrying a digit is a candidate: a sentence ("forget that the code changed", "forget the
+# gate code is QX-4471") is never one, and a short number ("forget Bob's code 42") keeps its description. The
+# value alone becomes the target only where nothing else this chat remembers holds it (`_described_forget_value`).
 _FORGET_DESCRIBED_VALUE_RE = re.compile(
     r"^(?:the\s+|my\s+)?(?:old\s+|previous\s+|exact\s+)?(?:[a-z][a-z'-]*\s+){0,2}"
     r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+"
@@ -636,7 +636,7 @@ def _normalize_forget_target(raw_target: str) -> str:
     # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
     # lead-in is how people say it, not part of anything they stored.
     target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
-    match = _FORGET_TARGET_RE.fullmatch(target) or _FORGET_DESCRIBED_VALUE_RE.fullmatch(target)
+    match = _FORGET_TARGET_RE.fullmatch(target)
     if match:
         target = match.group("value")
     target = re.sub(
@@ -646,6 +646,64 @@ def _normalize_forget_target(raw_target: str) -> str:
         flags=re.IGNORECASE,
     )
     return target.strip(" .,!?")
+
+
+_FORGET_DESCRIPTION_FILLER = frozenset({"the", "my", "old", "previous", "exact"})
+
+
+def _described_forget_value(
+    token: str,
+    *,
+    access_policy: ContextAccessPolicy,
+    chat_id: str,
+    runtime_home: str | None,
+) -> tuple[str, str]:
+    """Whether a described value ("storage label MINT-84") names one memory stored in other words.
+
+    Returns ("value", value) when exactly one active memory holds the value, it also holds every description
+    word, and nothing else this chat remembers or said holds the value: forgetting the value then forgets that
+    memory and nothing else. Returns ("ambiguous", "") when the value is held elsewhere as well, so forgetting it
+    would also erase another memory (review of 9efc9e8: "Forget Bob's locker code 5906." erased Alice's 5906).
+    Returns ("", "") when the target is not a described value or the words as typed already match.
+    """
+    from core.memory.carriers import forget_needle_in
+
+    match = _FORGET_DESCRIBED_VALUE_RE.fullmatch(token)
+    if match is None:
+        return "", ""
+    value = match.group("value").strip(" .,!?")
+    described = token[: match.start("value")].split()
+    words = [word for word in described if word.casefold() not in _FORGET_DESCRIPTION_FILLER]
+    rows = [
+        str(row.get("text") or "")
+        for row in memory_entries._load_erasure_rows(memory_entries_path())
+        if memory_entries._memory_command_row_allowed(row, access_policy=access_policy)
+    ]
+    if any(forget_needle_in(text, token) for text in rows):
+        return "", ""
+    holders = [text for text in rows if forget_needle_in(text, value)]
+    if not holders:
+        return "", ""
+    described_holders = [text for text in holders if all(forget_needle_in(text, word) for word in words)]
+    if len(holders) != 1 or len(described_holders) != 1:
+        return ("ambiguous", "") if described_holders else ("", "")
+    from core.context_retrieval import _open_memory_for_runtime
+
+    memory = _open_memory_for_runtime(runtime_home)
+    if memory is None:
+        return "ambiguous", ""
+    try:
+        with memory._lock:
+            bodies = [str(row[0]) for row in memory._conn.execute(
+                "SELECT body FROM source_occurrences WHERE chat_scope = ? AND status = 'active'", (chat_id,),
+            ).fetchall()]
+    finally:
+        memory.close()
+    # What the chat said with the value but without its description is another memory of that value.
+    if any(forget_needle_in(body, value) and not all(forget_needle_in(body, word) for word in words)
+           for body in bodies):
+        return "ambiguous", ""
+    return "value", value
 
 
 def _referential_forget_token(
@@ -2149,6 +2207,18 @@ def maybe_handle_memory_command(
                 return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
             if not referential:
                 token = _normalize_forget_target(argument)
+                try:
+                    described, value = _described_forget_value(
+                        token, access_policy=resolved_policy, chat_id=resolved_session,
+                        runtime_home=str((source_context or {}).get("runtime_home") or "").strip() or None)
+                except Exception as exc:
+                    LOGGER.warning("described forget target could not be resolved: %s", type(exc).__name__)
+                    described, value = "", ""
+                if described == "ambiguous":
+                    return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
+                if described == "value":
+                    token = value
+                    referential = True
             if referential and token:
                 for home, _op in list(independent_operations):
                     independent_operations.append((home, revocation.begin(resolved_session, token, home)))
