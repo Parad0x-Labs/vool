@@ -8089,7 +8089,7 @@ def _account_browser_opening(
     receipt = result.get("receipt") if isinstance(result.get("receipt"), dict) else {}
     if not (result.get("ok") and receipt):
         return
-    from core.agent_runtime.answer_coverage import units_matching_needle
+    from core.agent_runtime.answer_coverage import demand_units, units_matching_needle
     from core.conductor import obligation_ledger
     from core.vool_browser.live_requests import turn_request, written_addresses
 
@@ -8101,7 +8101,13 @@ def _account_browser_opening(
     needles = written_addresses(request, target)
     # Units are named in the set's own frozen request text, the text the sweep decomposes.
     minted = obligation_ledger.request_text(active[0], active[1]) or request
+    # A spelling of the opened address also matches as the start of a longer one
+    # ("https://shop.example" inside "https://shop.example/orders"), so a unit counts only when
+    # an address it names is the one opened.
+    texts = {unit.unit_id: unit.text for unit in demand_units(minted)}
     for unit_id in units_matching_needle(minted, *needles) if needles else ():
+        if not written_addresses(texts.get(unit_id, ""), target):
+            continue
         obligation_ledger.record_slice_consumption(
             active[0],
             active[1],

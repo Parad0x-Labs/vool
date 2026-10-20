@@ -899,7 +899,9 @@ def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(w
     from tests._toolchain_fixtures import executor_kwargs
 
     rig, item, origin, requests = world
-    request = f'Use the built-in browser to open {origin}/ and find the next train to Northport.'
+    # The second address starts with the first one; opening the first must not count for it.
+    request = (f'Use the built-in browser to open {origin}/ and find the next train to Northport, '
+               f'then open {origin}/find and list the fares.')
     # The turn's set, minted the way the turn opens it; the tool runs on a COPY of the
     # turn context, as the tool loop runs it, so nothing kept on that copy can count.
     opened = ol.open_obligation_set(request_text=request, obligations=[
@@ -919,9 +921,11 @@ def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(w
         _until(lambda: item.pending is not None)
         rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': approve})
         future.result(timeout=25)
-    opening = units_matching_needle(request, origin)
+    longer = units_matching_needle(request, origin + '/find')
+    opening = tuple(unit for unit in units_matching_needle(request, origin) if unit not in longer)
     train = units_matching_needle(request, 'next train')
-    assert opening and train and not set(opening) & set(train)
+    assert opening and train and longer and not set(opening) & set(train)
+    train += longer
     states = {row['unit_id']: row['state'] for row in ol.sweep_demand_obligations(opened['set_id'], opened['version'])}
     # No dispatch row is filed, so a clause the model answers from the page is never accused.
     assert ol.slice_dispatches(opened['set_id'], opened['version']) == ()
