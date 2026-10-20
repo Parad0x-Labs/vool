@@ -149,6 +149,7 @@ def reset_runtime_continuity_state() -> None:
     # not the memory beside it. Imported here rather than at module scope to keep this module free
     # of agent_runtime imports.
     _ADMITTED_TURNS.clear()  # the admission registry is exactly such a beside-the-db store
+    _TOKENLESS_CONSUMED_CLAIMS.clear()
     for module_name, clear_name in (
         ("core.agent_runtime.active_finding", "clear_active_findings"),
         ("core.agent_runtime.audit_session", "clear_audit_capsules"),
@@ -3139,6 +3140,9 @@ def list_queued_messages(session_id: str, *, statuses: tuple[str, ...] = _QUEUE_
 # queue door itself serves.
 
 _ADMITTED_TURNS: dict[str, dict[str, Any]] = {}  # session_id -> {"token", "kind", "created"}
+# Claims a dispatch with no turn token consumed: no reservation is left to show a turn owns the
+# item, so a late release must find it here and not return a running message to the queue.
+_TOKENLESS_CONSUMED_CLAIMS: set[str] = set()
 
 
 def _admission_lease_seconds() -> float:
@@ -3250,9 +3254,20 @@ def admit_chat_turn(session_id: str, turn_id: str, *, queue_item_id: str = "") -
         # loopback door, CLI smokes) cannot be bridged: there is no token to reserve or to
         # release at a worker's end. The one-slot law still applies to it -- refused while a
         # worker executes or a claim holds the session -- but it takes no reservation of its
-        # own, exactly its pre-admission behavior.
+        # own, exactly its pre-admission behavior. A queued dispatch presenting exactly the
+        # reserved claim's item is that claim's own turn: the claim is consumed (there is no
+        # turn token to bridge it to) instead of refusing the dispatch it was holding the slot for.
+        from core.live_turns import live_session_ids
+
         with _LOCK:
-            if _chat_turn_active_locked(clean):
+            if clean in live_session_ids():
+                return {"admitted": False, "reason": "turn_active"}
+            record = _admission_record_locked(clean, time.monotonic())
+            if record is not None:
+                if claim_id and record.get("kind") == "claim" and str(record["token"]) == claim_id:
+                    _ADMITTED_TURNS.pop(clean, None)
+                    _TOKENLESS_CONSUMED_CLAIMS.add(claim_id)
+                    return {"admitted": True, "reason": "claim_consumed_unreserved"}
                 return {"admitted": False, "reason": "turn_active"}
             return {"admitted": True, "reason": "unreserved"}
     from core.live_turns import live_session_ids
@@ -3296,6 +3311,7 @@ def reset_chat_turn_admission() -> None:
     """Drop every admission. Tests only -- real work in flight must never call this."""
     with _LOCK:
         _ADMITTED_TURNS.clear()
+        _TOKENLESS_CONSUMED_CLAIMS.clear()
 
 
 def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str = "", expected_queue_item_id: str = "") -> dict[str, Any] | None:
@@ -3357,6 +3373,7 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dic
             conn.commit()
         finally:
             conn.close()
+        _TOKENLESS_CONSUMED_CLAIMS.discard(clean)
         # A terminal op on a still-reserved claim frees the chat's admission immediately (the
         # lease would free it eventually; this is the owner's own release).
         if row is not None:
@@ -3408,6 +3425,8 @@ def release_claimed_queue_item(queue_item_id: str, *, session_id: str = "") -> d
             record = _admission_record_locked(owner_session, time.monotonic())
             if record is not None and record.get("kind") == "turn":
                 return None  # a dispatch consumed this claim; the turn owns the item now
+            if clean in _TOKENLESS_CONSUMED_CLAIMS:
+                return None  # a dispatch with no turn token consumed it; that turn owns the item
             cur = conn.execute(
                 "UPDATE message_queue SET status = 'pending', lease_owner = '', turn_id = '', updated_at = ? WHERE queue_item_id = ? AND status = 'in_flight'",
                 (_utcnow(), clean),
@@ -3456,6 +3475,7 @@ def recover_stale_queue_items() -> int:
         # Interrupted claims' admissions are gone with their pages; a fresh process starts
         # with an empty registry anyway, and a runtime recovery call must match that state.
         _ADMITTED_TURNS.clear()
+        _TOKENLESS_CONSUMED_CLAIMS.clear()
         conn = _conn()
         try:
             cur = conn.execute("UPDATE message_queue SET status = 'pending', lease_owner = '', updated_at = ? WHERE status = 'in_flight'", (_utcnow(),))
