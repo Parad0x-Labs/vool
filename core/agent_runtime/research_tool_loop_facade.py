@@ -1165,7 +1165,13 @@ class ResearchToolLoopFacadeMixin:
         checkpoint_id = self._runtime_checkpoint_id(source_context)
         checkpoint = self._get_runtime_checkpoint(checkpoint_id) if checkpoint_id else None
         checkpoint_state = dict((checkpoint or {}).get("state") or {})
-        if self._should_keep_ai_first_chat_lane(
+        from core.tool_offer_assembly import matched_skill_tool_intents
+
+        skill_tools_available = matched_skill_tool_intents(
+            effective_input, task_class=str(classification.get("task_class", "unknown")),
+            source_context=source_context,
+        )
+        if not skill_tools_available and self._should_keep_ai_first_chat_lane(
             user_input=effective_input,
             classification=classification,
             interpretation=interpretation,

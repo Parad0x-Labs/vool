@@ -2616,9 +2616,10 @@
     "xs.resume": "평가 사용 재개",
     "xs.pause": "평가 사용 일시 중지",
     "xs.reset": "모든 평가 잊기",
-    "xs.forget": "이 평가 잊기"
+    "xs.forget": "이 평가 잊기",
+    "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 이전 채팅에는 피드백이 남아 있을 수 있습니다."
   },
-  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
+  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

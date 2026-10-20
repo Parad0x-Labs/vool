@@ -28,10 +28,12 @@ function rating(host,a){
  }));form.append(row,note);host.appendChild(form);
 }
 async function manager(host,scope){
- const box=node('section','vx-social');host.appendChild(box);
+ const box=node('section','vx-social');box.dataset.feedbackScope=scope;host.appendChild(box);
  async function draw(){
   let out;try{out=await call('/api/x/feedback',{action:'list',scope:scope});}catch(e){return;}
-  if(!out.ok)return;box.replaceChildren(node('strong','',t('xs.ratings','Your ratings')));
+  if(!out.ok){box.replaceChildren(node('p','vx-note',t('xs.failed','Could not save this change. Try again.')));return;}
+  box.replaceChildren(node('strong','',t('xs.ratings','Your ratings')+' · '+(scope==='global'?t('settings.profile.scope_name.global','Everywhere'):t('settings.profile.scope_name.project','One project')+': '+scope.slice(8))));
+  box.appendChild(node('p','vx-note',t('xs.forget_scope','Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.')));
   const data=out.data;const row=node('div','vx-row');const note=node('p','vx-note');note.setAttribute('role','status');
   async function change(payload){try{const r=await call('/api/x/feedback',Object.assign({scope:scope},payload));if(r.ok)await draw();else note.textContent=t('xs.failed','Could not save this change. Try again.');}catch(e){note.textContent=t('xs.failed','Could not save this change. Try again.');}}
   row.appendChild(button(data.paused?t('xs.resume','Resume ratings'):t('xs.pause','Pause ratings'),()=>change({action:'pause',paused:!data.paused})));
@@ -79,7 +81,11 @@ async function refresh(entry){
  }
 }
 setInterval(()=>{for(const [key,e] of mounts){if(!e.host.isConnected)mounts.delete(key);else refresh(e);}},3000);
-window.VoolXSocial={rating:rating,manager:manager,mount:mount};
+async function managers(host,scopes){
+ try{const stored=await call('/api/x/feedback',{action:'scopes'});if(stored.ok)for(const scope of stored.data.scopes||[])scopes.add(scope);}catch(e){}
+ for(const scope of scopes)await manager(host,scope);
+}
+window.VoolXSocial={rating:rating,manager:manager,managers:managers,mount:mount};
 
 })();
 </script>'''

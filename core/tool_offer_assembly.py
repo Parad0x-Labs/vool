@@ -14,9 +14,8 @@ Now both call `assemble_tool_offer`. It:
   families, follow-up inheritance, turn expansions — all of `model_visible_specs`);
 - ranks installed skills against the user's words and renders the matched bodies with
   **provenance** (plugin id, file) under hard **bounds** (`MAX_SKILLS`, `MAX_SKILL_CHARS`);
-- lets a matched skill's ``allowed-tools`` NARROW the ranked fill, never widen it: reserved seats
-  and explicitly demanded intents stay, an unavailable or unoffered tool is never seated because a
-  skill named it;
+- seats available tools declared by matched installed guidance before narrowing ranked fill;
+  reserved seats and explicitly demanded intents stay, unavailable and owner-only tools never seat;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
   audited against what was offered.
 
@@ -557,6 +556,37 @@ def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[d
     return result
 
 
+def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
+    """Resolve declarations through the ordinary availability/owner-only graph."""
+    if not guidance.allowed_tools:
+        return ()
+    from core.capability_graph import _HARD_MAX_CANDIDATES, model_visible_specs
+
+    allowed = set(guidance.allowed_tools)
+    return tuple(
+        str(spec["intent"])
+        for spec in model_visible_specs(
+            explicit_intents=tuple(guidance.allowed_tools), max_candidates=_HARD_MAX_CANDIDATES
+        )
+        if spec.get("intent") in allowed
+    )
+
+
+def matched_skill_tool_intents(
+    user_text: str, *, task_class: str = "", source_context: dict[str, Any] | None = None
+) -> tuple[str, ...]:
+    """The same bounded installed guidance used by the offer, never a caller-supplied stamp.
+
+    Admission means the model may choose a tool. Execution still consults the mode,
+    network, usage and action approval authorities independently.
+    """
+    return _available_skill_tools(skill_guidance_for(
+        str(user_text or ""), task_class=str(task_class or ""),
+        task_chars=MAX_TOOL_LANE_SKILL_CHARS, doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
+        source_context=source_context,
+    ))
+
+
 def assemble_tool_offer(
     *,
     user_text: str = "",
@@ -615,23 +645,6 @@ def assemble_tool_offer(
     from core.tool_offer_state import turn_family_expansions
 
     expansions = turn_family_expansions(source_context) if source_context is not None else ()
-    specs = list(
-        model_visible_specs(
-            family_hint=resolved_hint,
-            family_hints=tuple(family_hints),
-            toolset_hints=tuple(toolset_hints),
-            explicit_intents=(*task_seats, *repo_seats, *work_seats),
-            user_text=str(user_text or ""),
-            source_context=source_context,
-            expanded_families=expansions,
-            max_candidates=int(max_candidates or _DEFAULT_MAX_CANDIDATES),
-        )
-    )
-    specs = _scope_download_specs(specs, str(user_text or ""))
-    if task_seats and "code.task.open" not in task_seats:
-        # Continue the journal's active task instead of offering a second opening
-        # merely because the original repair words still demand code.task.open.
-        specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
     guidance = skill_guidance_for(
         str(user_text or ""),
         task_class=str(task_class or ""),
@@ -639,6 +652,30 @@ def assemble_tool_offer(
         doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
         source_context=source_context if isinstance(source_context, dict) else None,
     )
+    skill_seats = _available_skill_tools(guidance)
+    # Grow only for rendered, available declarations, inside the graph's hard cap.
+    # An explicit caller budget remains authoritative; unrelated turns keep eight seats.
+    budget = max_candidates if max_candidates is not None else max(
+        _DEFAULT_MAX_CANDIDATES,
+        len(set((*task_seats, *repo_seats, *work_seats, *skill_seats, *_ALWAYS_VISIBLE))),
+    )
+    specs = list(
+        model_visible_specs(
+            family_hint=resolved_hint,
+            family_hints=tuple(family_hints),
+            toolset_hints=tuple(toolset_hints),
+            explicit_intents=(*task_seats, *repo_seats, *work_seats, *skill_seats),
+            user_text=str(user_text or ""),
+            source_context=source_context,
+            expanded_families=expansions,
+            max_candidates=int(budget),
+        )
+    )
+    specs = _scope_download_specs(specs, str(user_text or ""))
+    if task_seats and "code.task.open" not in task_seats:
+        # Continue the journal's active task instead of offering a second opening
+        # merely because the original repair words still demand code.task.open.
+        specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
     if guidance.allowed_tools:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)
         specs = _narrow(specs, allowed=guidance.allowed_tools, keep=set(_ALWAYS_VISIBLE) | explicit | set(work_seats))

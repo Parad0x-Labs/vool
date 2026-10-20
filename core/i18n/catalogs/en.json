@@ -2616,7 +2616,8 @@
     "xs.resume": "Resume ratings",
     "xs.pause": "Pause ratings",
     "xs.reset": "Forget all ratings",
-    "xs.forget": "Forget rating"
+    "xs.forget": "Forget rating",
+    "xs.forget_scope": "Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback."
   },
   "html_keys": [
     "bypass.modal_limits",
@@ -2644,5 +2645,6 @@
     "settings.usage_heading",
     "settings.usage_help",
     "pay.scope_usepod"
-  ]
+  ],
+  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b"
 }

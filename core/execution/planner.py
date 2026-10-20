@@ -334,7 +334,7 @@ def should_attempt_tool_intent(
     source_context = dict(source_context or {})
     surface = str(source_context.get("surface") or "").strip().lower()
     platform = str(source_context.get("platform") or "").strip().lower()
-    tool_capable_surfaces = {"channel", "openclaw", "api", "cli", "terminal", "local", ""}
+    tool_capable_surfaces = {"channel", "openclaw", "api", "desktop", "cli", "terminal", "local", ""}
     tool_capable_platforms = {"openclaw", "telegram", "discord", "local", "cli", ""}
     if surface not in tool_capable_surfaces and platform not in tool_capable_platforms:
         return False
@@ -530,6 +530,11 @@ def should_attempt_tool_intent(
             _without_attachment_references(text, attachment_names), task_class=task_class
         ):
             return False
+
+    from core.tool_offer_assembly import matched_skill_tool_intents
+
+    if matched_skill_tool_intents(text, task_class=task_class, source_context=source_context):
+        return True
 
     # Everything above this line is structural: a surface that cannot run tools, or no text to
     # act on. Everything below it is the keyword allowlist — an attempt to guess, from the raw
@@ -2842,6 +2847,12 @@ def plan_tool_workflow(
     executed_steps: list[dict[str, Any]],
     source_context: dict[str, Any] | None,
 ) -> WorkflowPlannerDecision:
+    # A matched installed workflow owns its tool selection. Generic web inference
+    # must not replace its X/account/note context with an unrelated public fetch.
+    from core.tool_offer_assembly import matched_skill_tool_intents
+
+    if matched_skill_tool_intents(user_text, task_class=task_class, source_context=source_context):
+        return WorkflowPlannerDecision(handled=False, reason="matched_skill_workflow")
     raw_text = str(user_text or "")
     text = " ".join(raw_text.split()).strip()
     lowered = f" {text.lower()} "

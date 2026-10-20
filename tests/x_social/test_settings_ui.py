@@ -59,6 +59,15 @@ def test_rating_voice_pause_forget_on_the_served_settings_page(fake_x, vault_hom
         page.get_by_role('button',name='Forget rating',exact=True).wait_for(state='detached')
         assert x_feedback.inspect('global')['entries']==[]
         assert x_voice_profile.inspect('global')['samples']==[]
+        assert x_feedback.save('project:orchard',8,'A project note.',comment='Keep it exact.')['ok']
+        page.reload()
+        project=page.locator('[data-feedback-scope="project:orchard"]')
+        project.get_by_text('Keep it exact.',exact=True).wait_for()
+        assert project.get_by_text('Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.',exact=True).is_visible()
+        project.screenshot(path=str(out/'ratings-scopes.png'))
+        project.get_by_role('button',name='Forget rating',exact=True).click()
+        project.get_by_text('Keep it exact.',exact=True).wait_for(state='detached')
+        assert x_feedback.inspect('project:orchard')['entries']==[]
         assert not errors,errors
     finally:
         browser.close();manager.stop();server.shutdown();server.server_close();thread.join(3);resource('port',server.server_port,'closed')

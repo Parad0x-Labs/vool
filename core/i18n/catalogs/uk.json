@@ -2616,9 +2616,10 @@
     "xs.resume": "Відновити використання оцінок",
     "xs.pause": "Призупинити використання оцінок",
     "xs.reset": "Забути всі оцінки",
-    "xs.forget": "Забути оцінку"
+    "xs.forget": "Забути оцінку",
+    "xs.forget_scope": "Видалення оцінок прибирає збережені поради й пов’язані зразки стилю. Відгуки можуть залишитися в попередніх чатах."
   },
-  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
+  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

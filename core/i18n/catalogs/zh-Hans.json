@@ -2616,9 +2616,10 @@
     "xs.resume": "恢复使用评分",
     "xs.pause": "暂停使用评分",
     "xs.reset": "忘记所有评分",
-    "xs.forget": "忘记此评分"
+    "xs.forget": "忘记此评分",
+    "xs.forget_scope": "忘记评分会移除已保存的指导和文风样本。过去的聊天中可能仍保留这些反馈。"
   },
-  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
+  "source_catalog_sha256": "486f8bdbe59b6bd3bf02ba427743819d9e2701741b56475d6a6a6388f537e68b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

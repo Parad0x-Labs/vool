@@ -3404,7 +3404,7 @@ function widgetXActivity(host) {
     }
     if (window.VoolXSocial) {
       const scopes = new Set(['global', ...[...pending,...recent].map(a => a.feedback_scope || 'global')]);
-      for (const scope of scopes) window.VoolXSocial.manager(host, scope);
+      await window.VoolXSocial.managers(host, scopes);
     }
     showNote();
   };

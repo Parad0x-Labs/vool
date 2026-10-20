@@ -88,7 +88,7 @@ def test_real_daemon_chat_card_approves_once_and_ratings_feed_the_next_draft(vau
         card.get_by_role('button',name='Approve and send',exact=True).click()
         page.wait_for_function("document.querySelector('.vx-approval [role=status]').textContent === 'Sent'")
         assert len([r for r in requests if r[0]=='POST'])==1
-        assert [r for r in requests if r[0]=='POST'][0][2]=={'text':TEXT,'quote_tweet_id':'555'}
+        assert next(r for r in requests if r[0]=='POST')[2]=={'text':TEXT,'quote_tweet_id':'555'}
         deadline=time.monotonic()+10
         while time.monotonic()<deadline:
             chain=json.loads(evidence.read_text())
@@ -101,7 +101,7 @@ def test_real_daemon_chat_card_approves_once_and_ratings_feed_the_next_draft(vau
         card.get_by_label('Your rating',exact=True).select_option('10');card.get_by_label('Comment (optional)',exact=True).fill('Keep the checkpoint detail concrete.')
         card.get_by_role('button',name='Save rating',exact=True).click();card.get_by_role('button',name='Use as a voice sample',exact=True).wait_for()
         card.screenshot(path=str(shots/'chat-rating.png'))
-        from core import x_feedback,x_voice_profile
+        from core import x_feedback, x_voice_profile
         assert 'Keep the checkpoint detail' in x_voice_profile.voice_segment_for_turn('Write an X post about a build.')
         assert x_voice_profile.inspect('global')['samples']==[]
         assert x_feedback.forget('global')['ok']
