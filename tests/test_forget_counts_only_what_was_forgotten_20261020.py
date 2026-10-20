@@ -139,6 +139,18 @@ def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):
     assert _live_entries() == ["my harbor lantern is painted signal green."]
 
 
+def test_an_apostrophe_is_no_quote_and_keeps_two_targets_apart(isolated_pages):
+    chat = "forget-count-possessive"
+    _remember(isolated_pages, chat, "the kids' toys live in the attic.")
+    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+    _remember(isolated_pages, chat, "my harbor lantern is painted signal green.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget the kids' toys. Forget {LABEL}.")
+
+    assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
+    assert _live_entries() == ["my harbor lantern is painted signal green."]
+
+
 def test_a_short_number_keeps_its_description(isolated_pages):
     """Only the described value of four or more characters stands alone: "Bob's code 42" is not every 42."""
     chat = "forget-count-short-number"

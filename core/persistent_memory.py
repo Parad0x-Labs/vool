@@ -577,7 +577,7 @@ def _forget_command_arguments(text: str) -> list[str]:
     arguments: list[str] = []
     seen: set[str] = set()
     clauses = _FORGET_NEXT_TARGET_RE.split(text)
-    if len(clauses) > 1 and any(not _quotes_balanced(clause) for clause in clauses):
+    if len(clauses) > 1 and _split_inside_quotes(text):
         # The "forget" sits inside a quoted phrase ("Forget the phrase 'stop and forget me'"): one target.
         return [parsed.group(1)]
     for clause in clauses:
@@ -591,12 +591,15 @@ def _forget_command_arguments(text: str) -> list[str]:
     return arguments
 
 
-def _quotes_balanced(text: str) -> bool:
-    """No quoted phrase opens in this text without closing in it (an apostrophe inside a word is no quote)."""
-    if text.count('"') % 2 or text.count("\u201c") != text.count("\u201d"):
-        return False
-    singles = re.findall(r"(?:(?<![\w])['\u2018]|['\u2019](?![\w]))", text)
-    return len(singles) % 2 == 0
+_FORGET_QUOTED_SPAN_RE = re.compile(r"""(?<!\w)["\u201c'\u2018].+?["\u201d'\u2019](?!\w)""")
+
+
+def _split_inside_quotes(text: str) -> bool:
+    """True when a target boundary falls inside a quoted phrase. A quote opens only before a word and closes only
+    after one, so "the kids' toys" and 5'11" quote nothing."""
+    spans = [match.span() for match in _FORGET_QUOTED_SPAN_RE.finditer(text)]
+    return any(start < boundary.start() < end for boundary in _FORGET_NEXT_TARGET_RE.finditer(text)
+               for start, end in spans)
 
 
 def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> tuple[str, str, dict[str, Any]]:
