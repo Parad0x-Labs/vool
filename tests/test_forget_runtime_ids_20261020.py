@@ -99,3 +99,24 @@ def test_the_smoke_record_is_kept_as_written(isolated_pages):
     finally:
         conn.close()
     assert [json.loads(row[0])["context_manifest_id"] for row in stored] == [SMOKE_ID]
+
+
+def test_a_chat_left_dark_by_the_old_check_reads_again_after_the_forget_is_said_again(isolated_pages, monkeypatch):
+    """A 0.7.2 pre-release home already stuck on such a record: after the upgrade, saying the forget again completes
+    the open erasure, and the chat's other memories are read again."""
+    import core.memory.run_history as run_history
+
+    chat = "release-forget-digit-check"
+    _remember(isolated_pages, chat, "my favourite colour is teal.")
+    _remember(isolated_pages, chat, "my locker is 14.")
+    _record_call("", SMOKE_ID)
+    with monkeypatch.context() as before_the_fix:  # the check as 9ef0e1ad shipped it: nested ids read as words
+        before_the_fix.setattr(run_history, "_without_runtime_ids", lambda value: value)
+        handled, reply = command(isolated_pages, chat, "Forget 14.")
+        assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
+    assert _facts(chat) == []  # the open erasure keeps every memory of the chat from being read
+
+    handled, reply = command(isolated_pages, chat, "Forget 14.")
+
+    assert handled and "could not be verified" not in reply, reply
+    assert _facts(chat) == ["my favourite colour is teal."]
