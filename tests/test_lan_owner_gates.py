@@ -14,11 +14,15 @@ from dataclasses import dataclass
 import pytest
 
 from core.request_trust import (
+    HTTP_INGRESS_KEY,
     IN_PROCESS_OWNER_PEER,
     OWNER_LOCAL_KEY,
     execution_peer_host,
+    in_process_owner_extra,
     is_loopback_host,
+    owner_peer_for_turn,
     remote_turn_tool_refusal,
+    turn_is_remote,
 )
 from core.runtime_paths import configure_runtime_home
 from core.web.api.runtime import RuntimeServices
@@ -100,10 +104,22 @@ OWNER_GETS = [
     "/api/repoops/sessions", "/api/repoops/session", "/api/cloud/keys", "/api/cloud/status",
     "/api/cloud/spend-limits", "/api/connections", "/api/onboarding/state",
     "/api/learning/procedures", "/api/bug-report/receipts",
+    "/api/cloud/diagnostics", "/api/runtime/capabilities", "/v1/runtime/capabilities", "/api/projects",
+    "/api/runtime/usage", "/v1/runtime/usage", "/api/credits/balance", "/v1/credits/balance",
+    "/api/runtime/receipts", "/api/reminders", "/api/runtime/unresolved-effects", "/api/chat/proof",
+    "/api/adaptation/status", "/api/adaptation/loop", "/api/adaptation/jobs", "/api/adaptation/job-events",
+    "/api/adaptation/evals", "/api/model-tool-certification", "/api/runtime/changes", "/api/bug-report/status",
+    "/api/cloud/usepod/discovery", "/api/cloud/usepod/x402/unresolved", "/api/oauth/status", "/api/plugins",
+    "/api/plugins/lifecycle", "/api/skills", "/api/addons", "/api/models/local", "/api/cloud/models",
+    "/api/cloud/providers", "/api/search/providers", "/api/discovery", "/api/intake/quarantine/list",
+    # fail closed: a door nobody has classified yet is the owner's
+    "/api/a-route-added-next-month", "/v1/a-route-added-next-month",
 ]
 OWNER_POSTS = [
     "/api/commands/dispatch", "/api/settings/prefs", "/api/settings/credentials", "/api/cloud/test",
     "/api/adaptation/loop/tick", "/api/credits/settle", "/v1/credits/settle", "/api/search/detect",
+    "/api/search/test", "/api/chain/test", "/api/cloud/auto-model", "/api/generate",
+    "/api/a-route-added-next-month",
 ]
 
 
@@ -193,8 +209,13 @@ def test_the_execution_peer_is_the_transport_fact_or_unknown():
     assert execution_peer_host(_Ctx("model", {})) == ""
     assert execution_peer_host(_Ctx("api", {"client_host": LAN_PEER})) == LAN_PEER
     assert execution_peer_host(_Ctx("api", {"client_host": ""})) == ""
-    # the owner's own terminal runs in-process, with no network boundary to cross
-    assert execution_peer_host(_Ctx("cli", {})) == IN_PROCESS_OWNER_PEER
+    # no projection is the owner by itself: the owner's own terminal names itself explicitly
+    assert execution_peer_host(_Ctx("cli", {})) == ""
+    assert execution_peer_host(_Ctx("cli", in_process_owner_extra())) == IN_PROCESS_OWNER_PEER
+    # a command the model runs for a turn is the owner's only on an explicitly owner-local turn
+    assert owner_peer_for_turn({OWNER_LOCAL_KEY: True}) == IN_PROCESS_OWNER_PEER
+    for turn in ({OWNER_LOCAL_KEY: False}, {OWNER_LOCAL_KEY: "true"}, {HTTP_INGRESS_KEY: True}, {}, None):
+        assert owner_peer_for_turn(turn) == "", turn
 
 
 _HANDLER_CALLS: list[str] = []
@@ -238,8 +259,9 @@ def _unrouted_settings_registry():
         ("api", {"client_host": "::ffff:192.168.1.55"}, False),
         ("api", {}, False),
         ("model", {}, False),
+        ("cli", {}, False),
         ("api", {"client_host": OWNER_PEER}, True),
-        ("cli", {}, True),
+        ("cli", {"client_host": IN_PROCESS_OWNER_PEER}, True),
     ],
 )
 def test_a_settings_capability_is_owner_local_whatever_the_route(projection, extra, allowed):
@@ -288,11 +310,86 @@ def test_media_editor_commands_are_owner_local_and_no_longer_crash():
 # ---- chat turns from another device ----------------------------------------------------------------
 
 
-def test_remote_turn_fence_only_acts_on_the_server_stamp():
+def test_remote_turn_fence_fails_closed_on_served_turns():
     assert remote_turn_tool_refusal("machine.read_file", {OWNER_LOCAL_KEY: False}) == "owner_local_required"
     assert remote_turn_tool_refusal("machine.read_file", {OWNER_LOCAL_KEY: True}) == ""
+    # a turn the HTTP service admitted with no stamp, or with anything but an explicit True, is remote
+    for unknown in ({HTTP_INGRESS_KEY: True}, {HTTP_INGRESS_KEY: True, OWNER_LOCAL_KEY: None},
+                    {HTTP_INGRESS_KEY: True, OWNER_LOCAL_KEY: "true"}, {OWNER_LOCAL_KEY: 1}):
+        assert turn_is_remote(unknown), unknown
+        assert remote_turn_tool_refusal("machine.read_file", unknown) == "owner_local_required", unknown
+    assert not turn_is_remote({HTTP_INGRESS_KEY: True, OWNER_LOCAL_KEY: True})
+    # a context built in-process (never crossed the HTTP boundary) is not a remote turn
     assert remote_turn_tool_refusal("machine.read_file", {"surface": "cli"}) == ""
     assert remote_turn_tool_refusal("web.fetch", {OWNER_LOCAL_KEY: False}) == ""
+    # a browser cannot be pinned to checked public addresses, so it is the owner's only
+    assert remote_turn_tool_refusal("browser.render", {OWNER_LOCAL_KEY: False}) == "owner_local_required"
+
+
+def test_the_ingress_stamps_cannot_come_from_a_request_body():
+    from core.request_trust import strip_reserved_trust_keys
+
+    assert strip_reserved_trust_keys({HTTP_INGRESS_KEY: False, OWNER_LOCAL_KEY: True, "surface": "api"}) == {
+        "surface": "api"}
+
+
+def test_every_served_turn_carries_an_explicit_owner_local_state(monkeypatch):
+    from core.web.api import runtime as runtime_mod
+
+    seen: list = []
+
+    class _Agent:
+        def run_once(self, user_text, *, session_id_override=None, source_context=None):
+            seen.append(dict(source_context or {}))
+            return {"response": "ok", "confidence": 1.0}
+
+    services = RuntimeServices(display_name="VOOL")
+    services.agent = _Agent()
+    for given, expected in (({}, False), ({OWNER_LOCAL_KEY: False}, False), ({OWNER_LOCAL_KEY: "yes"}, False),
+                            ({OWNER_LOCAL_KEY: True}, True)):
+        seen.clear()
+        try:
+            runtime_mod.run_agent(services, "hello", source_context=dict(given), workspace_root_provider=lambda: "")
+        except Exception:
+            pass  # the turn's own post-processing is not under test; the agent saw its context
+        assert seen, given
+        assert seen[0][HTTP_INGRESS_KEY] is True, given
+        assert seen[0][OWNER_LOCAL_KEY] is expected, given
+
+
+def test_generate_stamps_the_peer_it_came_from(runtime):
+    from core.web.api.service import dispatch_post
+
+    contexts: list = []
+
+    def _run_agent(runtime_, text, *, session_id=None, source_context=None, workspace_root_provider=None):
+        contexts.append(dict(source_context or {}))
+        return {"response": "ok", "confidence": 1.0}
+
+    response = dispatch_post(path="/api/generate", body={"prompt": "hi", "stream": False},
+                             headers={"Host": "127.0.0.1:11435"}, runtime=runtime, model_name="vool",
+                             workspace_root_provider=lambda: "", client_host=OWNER_PEER, run_agent_provider=_run_agent)
+    assert response.status == 200, response.body
+    assert contexts and contexts[0][OWNER_LOCAL_KEY] is True
+
+
+def test_a_command_the_model_runs_for_a_turn_carries_that_turns_peer(monkeypatch):
+    from core.command_registry import execute as execute_mod
+    from core.command_registry import model_tools
+
+    seen: list = []
+    real = execute_mod.execute_command
+
+    def _spy(command_id, input_data=None, *, context=None, **kw):
+        seen.append(dict(context.extra))
+        return real(command_id, input_data, context=context, **kw)
+
+    monkeypatch.setattr(execute_mod, "execute_command", _spy)
+    tool = model_tools.tool_intent_for("status.show")
+    for turn, expected in (({OWNER_LOCAL_KEY: True}, IN_PROCESS_OWNER_PEER), ({OWNER_LOCAL_KEY: False}, ""), (None, "")):
+        seen.clear()
+        model_tools.execute_model_command(tool, {}, source_context=turn)
+        assert seen and seen[0]["client_host"] == expected, (turn, seen)
 
 
 def test_a_remote_turn_cannot_read_the_owners_files(tmp_path):
@@ -329,3 +426,139 @@ def test_a_remote_turn_cannot_run_the_local_operator_lane():
     owner = execute_operator_tool("operator.inspect_processes", {}, task_id="t", session_id="s",
                                   source_context={OWNER_LOCAL_KEY: True})
     assert owner.ok is True, owner.response_text
+
+
+# ---- the doors that stay open to the network ------------------------------------------------------
+
+PUBLIC_GETS = ["/api/tags", "/v1/models", "/api/runtime/version", "/v1/runtime/version", "/v1/healthz",
+               "/healthz", "/api/chat/attachments/limits", "/api/mobile/info"]
+
+
+@pytest.mark.parametrize("path", PUBLIC_GETS)
+def test_public_doors_answer_another_device(path, runtime):
+    response = _get(path, runtime=runtime, client_host=LAN_PEER)
+    assert response.status == 200, (path, response.body)
+
+
+def test_a_chat_from_another_device_is_admitted_as_a_non_owner_turn(runtime):
+    # /api/chat stays reachable (the phone and other chat clients use it); the 400 is the door's own
+    # answer to a body with no message, not the owner gate.
+    response = _post("/api/chat", {"messages": []}, runtime=runtime, client_host=LAN_PEER)
+    assert response.status == 400, response.body
+    assert _json(response).get("error") != "owner_local_required"
+
+
+def test_the_raw_upload_doors_refuse_another_device(runtime):
+    from core.web.api.service import dispatch_upload
+
+    for path in ("/api/chat/attachments/upload", "/api/session/bundle/upload", "/api/chat/import/upload"):
+        response = dispatch_upload(path=path, raw_body=b"hello", runtime=runtime, client_host=LAN_PEER,
+                                   headers={"X-VOOL-Session-Id": "openclaw:00000000000000000000",
+                                            "X-VOOL-Attachment-Name": "note.txt"})
+        assert response.status == 403, (path, response.body)
+
+
+# ---- what a turn from another device may fetch -----------------------------------------------------
+
+
+@pytest.fixture()
+def local_web_server(monkeypatch):
+    """A real HTTP server on this computer, standing for a local service (a model server, a browser
+    debugging port, a development server). It records every request that reaches it. Web access is
+    on, as the owner sets it in Settings."""
+    import http.server
+    import threading
+
+    from core import policy_engine
+
+    monkeypatch.setattr(policy_engine, "allow_web_fallback", lambda: True)
+
+    hits: list[str] = []
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            if self.path.startswith("/redirect-to/"):
+                self.send_response(302)
+                self.send_header("Location", self.path[len("/redirect-to/"):].replace("|", "/"))
+                self.end_headers()
+                return
+            body = b"local service: owner-only data 7731"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1], hits
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("target", ["http://127.0.0.1:{port}/", "http://localhost:{port}/", "http://[::1]:{port}/",
+                                    "http://169.254.169.254/latest/meta-data/", "http://10.0.0.1:11434/api/tags",
+                                    "http://192.168.1.1/", "http://printer.local/", "http://0.0.0.0:{port}/"])
+def test_a_remote_turn_cannot_fetch_this_computer_or_its_network(target, local_web_server):
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    port, hits = local_web_server
+    url = target.format(port=port)
+    result = execute_runtime_tool("web.fetch", {"url": url},
+                                  source_context={OWNER_LOCAL_KEY: False, HTTP_INGRESS_KEY: True})
+    assert result is not None and result.ok is False, url
+    assert result.status == "private_target_refused", (url, result.status, result.response_text)
+    assert "7731" not in result.response_text
+    assert hits == [], "no request may reach a local service for a remote turn"
+
+
+def test_the_operator_lane_fetch_refuses_the_same_targets_for_a_remote_turn(local_web_server):
+    from tools.web.http_fetch import http_fetch_text
+
+    port, hits = local_web_server
+    refused = http_fetch_text(f"http://127.0.0.1:{port}/", timeout_s=2, public_only=True)
+    assert refused["status"] == "private_target_refused" and "7731" not in refused["text"]
+    assert hits == []
+
+
+def test_a_redirect_into_the_local_network_is_refused_at_its_hop(local_web_server, monkeypatch):
+    """The first hop is admitted (this test admits exactly the local server's address as if it were
+    public, standing for a public site that redirects); the redirect's own target is checked again
+    before its socket opens."""
+    from core import remote_turn_fetch
+
+    port, hits = local_web_server
+    real_check = remote_turn_fetch._address_is_public
+    monkeypatch.setattr(remote_turn_fetch, "_address_is_public", lambda a: a == "127.0.0.1" or real_check(a))
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    for hop in ("http:||169.254.169.254|latest|meta-data", "http:||printer.local|", "http:||10.1.2.3:9222|json"):
+        hits.clear()
+        result = execute_runtime_tool("web.fetch", {"url": f"http://127.0.0.1:{port}/redirect-to/{hop}"},
+                                      source_context={OWNER_LOCAL_KEY: False, HTTP_INGRESS_KEY: True})
+        assert result is not None and result.status == "private_target_refused", (hop, result.response_text)
+        assert hits == [f"/redirect-to/{hop}"], "only the admitted first hop is ever contacted"
+    # an allowed redirect is followed: back to the admitted server
+    hits.clear()
+    remote_turn_fetch_result = execute_runtime_tool(
+        "web.fetch", {"url": f"http://127.0.0.1:{port}/redirect-to/http:||127.0.0.1:{port}|page"},
+        source_context={OWNER_LOCAL_KEY: False, HTTP_INGRESS_KEY: True})
+    assert remote_turn_fetch_result.ok is True, remote_turn_fetch_result.response_text
+    assert hits == [f"/redirect-to/http:||127.0.0.1:{port}|page", "/page"]
+
+
+def test_the_owner_still_fetches_their_own_local_service(local_web_server):
+    from core.runtime_execution_tools import execute_runtime_tool
+
+    port, hits = local_web_server
+    owner = execute_runtime_tool("web.fetch", {"url": f"http://127.0.0.1:{port}/"},
+                                 source_context={OWNER_LOCAL_KEY: True, HTTP_INGRESS_KEY: True})
+    assert owner is not None and owner.ok is True, owner.response_text
+    assert hits == ["/"]

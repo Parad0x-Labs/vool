@@ -89,59 +89,58 @@ def json_response(status: int, payload: Any, *, headers: dict[str, str] | None =
 
 
 
-# ---- Owner-local doors: one table, checked once at the top of dispatch_get / dispatch_post ----
-# These read or change the owner's own chats, settings, keys, files, sessions and spend. They answer
-# only the owner's own session (a loopback socket peer, core.request_trust.is_loopback_host on the
-# REAL peer the servers pass). A daemon started with --bind on a LAN address for the mobile companion
-# accepts Host: 127.0.0.1 from any device that sends it, so the Host guard is no owner check; this is.
-# Doors that check the peer inline further down keep doing so; the paired phone reaches what it needs
-# through /api/mobile/companion after its own grant and device-signature checks.
-_OWNER_LOCAL_GET_PATHS = frozenset({
-    "/api/commands",
-    "/api/chat/sessions",
-    "/api/chat/history",
-    "/api/chat/pins",
-    "/api/settings/prefs",
-    "/api/settings/credentials",
-    "/api/files",
-    "/api/files/raw",
-    "/api/runtime/sessions",
-    "/api/runtime/events",
-    "/api/runtime/control-plane/status",
-    "/api/repoops/sessions",
-    "/api/repoops/session",
-    "/api/cloud/keys",
-    "/api/cloud/status",
-    "/api/cloud/spend-limits",
-    "/api/connections",
-    "/api/onboarding/state",
-    "/api/learning/procedures",
-    "/api/bug-report/receipts",
+# ---- Owner-local doors: fail closed, checked once at the top of dispatch_get / dispatch_post ----
+# Every /api/ and /v1/ door answers only the owner's own session (a loopback socket peer,
+# core.request_trust.is_loopback_host on the REAL peer the servers pass), except the short list of
+# public doors below. A daemon started with --bind on a LAN address for the mobile companion accepts
+# Host: 127.0.0.1 from any device that sends it, so the Host guard is no owner check; this is. A new
+# route is owner-only until someone adds it here on purpose. Doors that check the peer inline further
+# down keep doing so.
+#
+# Public, and why:
+#   /api/tags, /v1/models, /api/show       the Ollama/OpenAI-compatible model list and card (no data)
+#   /api/runtime/version, /v1/...version   the build stamp a client checks compatibility against
+#   /v1/healthz                            liveness (/healthz is outside /api/ and stays open too)
+#   /api/chat, /v1/chat/completions        a chat turn; from another device it runs as a non-owner turn
+#                                          (no history resume, no profile, no tools on this computer)
+#   /api/chat/attachments/limits           fixed upload limits
+#   /api/web0/resolve, /api/null, /v1/null public name resolution
+#   /api/mobile/*                          the phone's pairing and companion doors; each one does its
+#                                          own owner-local or device-signature check
+_PUBLIC_GET_PATHS = frozenset({
+    "/api/tags",
+    "/v1/models",
+    "/api/runtime/version",
+    "/v1/runtime/version",
+    "/v1/healthz",
+    "/api/chat/attachments/limits",
+    "/api/web0/resolve",
 })
-_OWNER_LOCAL_POST_PATHS = frozenset({
-    "/api/settings/prefs",
-    "/api/settings/credentials",
-    "/api/cloud/test",
-    "/api/adaptation/loop/tick",
-    "/api/credits/settle",
-    "/v1/credits/settle",
-    "/api/search/detect",
+_PUBLIC_POST_PATHS = frozenset({
+    "/api/chat",
+    "/v1/chat/completions",
+    "/api/show",
+    "/api/null",
+    "/v1/null",
 })
-# Every path under these prefixes, for both methods (the command registry: its schema and its one
-# dispatch door, which runs any registered command).
-_OWNER_LOCAL_PREFIXES = ("/api/commands/",)
+_PUBLIC_PREFIXES = ("/api/mobile/",)
+_OWNER_LOCAL_ROOTS = ("/api/", "/v1/")
 
 
 def owner_local_door(normalized_path: str, method: str) -> bool:
     """Whether ``normalized_path`` is an owner-local door for ``method`` ("GET" or "POST")."""
-    paths = _OWNER_LOCAL_GET_PATHS if method == "GET" else _OWNER_LOCAL_POST_PATHS
-    return normalized_path in paths or normalized_path.startswith(_OWNER_LOCAL_PREFIXES)
+    path = str(normalized_path or "")
+    if not (path.startswith(_OWNER_LOCAL_ROOTS) or path in {"/api", "/v1"}):
+        return False
+    public = _PUBLIC_GET_PATHS if method == "GET" else _PUBLIC_POST_PATHS
+    return not (path in public or path.startswith(_PUBLIC_PREFIXES))
 
 
 def _owner_local_door_refusal(normalized_path: str, method: str, client_host: str) -> ApiResponse | None:
     if owner_local_door(normalized_path, method) and not is_loopback_host(client_host):
         return json_response(403, {"ok": False, "error": "owner_local_required"})
     return None
+
 
 def _bypass_setup_options(session_id: str) -> dict[str, Any]:
     from core.context_namespace import authoritative_chat_workspace
@@ -1727,7 +1726,7 @@ def dispatch_get(
 
         response = _first_run_api.handle_pact_get(normalized_path, query, runtime, client_host=client_host)
         if response is None:
-            response = _first_run_api.handle_provider_get(normalized_path, query, runtime)
+            response = _first_run_api.handle_provider_get(normalized_path, query, runtime, client_host=client_host)
         return response
 
     if normalized_path in {"/api/profile", "/api/profile/export"}:
@@ -1773,7 +1772,7 @@ def dispatch_get(
         # clients and resolved through the profile authority (A8-gated), never the JSON field.
         from core.command_registry.legacy import forward as _cr_forward
 
-        _sp_status, _sp_payload = _cr_forward("settings.prefs.list", {})
+        _sp_status, _sp_payload = _cr_forward("settings.prefs.list", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_sp_status, _sp_payload), runtime)
 
     if normalized_path == "/api/settings/credentials":
@@ -1782,7 +1781,7 @@ def dispatch_get(
         # only). Loopback-only, like every route (Host-header guard applies upstream).
         from core.command_registry.legacy import forward as _cr_forward
 
-        _sc_status, _sc_payload = _cr_forward("settings.credentials.list", {})
+        _sc_status, _sc_payload = _cr_forward("settings.credentials.list", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_sc_status, _sc_payload), runtime)
 
     if normalized_path == "/api/contacts":
@@ -1792,7 +1791,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _cl_status, _cl_payload = _cr_forward("contacts.book.list", {"payload": {"query": (query.get("q") or [""])[0]}})
+        _cl_status, _cl_payload = _cr_forward("contacts.book.list", {"payload": {"query": (query.get("q") or [""])[0]}}, client_host=client_host)
         return apply_runtime_headers(json_response(_cl_status, _cl_payload), runtime)
 
     if normalized_path == "/api/contacts/detail":
@@ -1801,7 +1800,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _cd_status, _cd_payload = _cr_forward("contacts.book.detail", {"payload": {"contact_id": (query.get("id") or [""])[0]}})
+        _cd_status, _cd_payload = _cr_forward("contacts.book.detail", {"payload": {"contact_id": (query.get("id") or [""])[0]}}, client_host=client_host)
         return apply_runtime_headers(json_response(_cd_status, _cd_payload), runtime)
 
     if normalized_path == "/api/contacts/resolve":
@@ -1811,7 +1810,7 @@ def dispatch_get(
         from core.command_registry.legacy import forward as _cr_forward
 
         _cz_payload_in = {key: (query.get(key) or [""])[0] for key in ("name", "kind", "label", "network", "chain", "channel", "account")}
-        _cz_status, _cz_payload = _cr_forward("contacts.book.resolve", {"payload": _cz_payload_in})
+        _cz_status, _cz_payload = _cr_forward("contacts.book.resolve", {"payload": _cz_payload_in}, client_host=client_host)
         return apply_runtime_headers(json_response(_cz_status, _cz_payload), runtime)
 
     if normalized_path == "/api/contacts/options":
@@ -1820,7 +1819,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _co_status, _co_payload = _cr_forward("contacts.book.options", {"payload": {}})
+        _co_status, _co_payload = _cr_forward("contacts.book.options", {"payload": {}}, client_host=client_host)
         return apply_runtime_headers(json_response(_co_status, _co_payload), runtime)
 
 
@@ -1832,7 +1831,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _ea_status, _ea_payload = _cr_forward("email.accounts.list", {})
+        _ea_status, _ea_payload = _cr_forward("email.accounts.list", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_ea_status, _ea_payload), runtime)
     if normalized_path == "/api/email/recovery":
         # Owner-local, read-only: the draft store's recovery hold in plain terms -- what was preserved,
@@ -1843,7 +1842,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _er_status, _er_payload = _cr_forward("email.recovery.status", {})
+        _er_status, _er_payload = _cr_forward("email.recovery.status", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_er_status, _er_payload), runtime)
 
     if normalized_path == "/api/contacts/suggestions":
@@ -1852,7 +1851,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _cs_status, _cs_payload = _cr_forward("contacts.book.suggestions", {"payload": {}})
+        _cs_status, _cs_payload = _cr_forward("contacts.book.suggestions", {"payload": {}}, client_host=client_host)
         return apply_runtime_headers(json_response(_cs_status, _cs_payload), runtime)
 
     if normalized_path == "/api/contacts/import/sources":
@@ -1862,7 +1861,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _ci_status, _ci_payload = _cr_forward("contacts.import.sources", {"payload": {}})
+        _ci_status, _ci_payload = _cr_forward("contacts.import.sources", {"payload": {}}, client_host=client_host)
         return apply_runtime_headers(json_response(_ci_status, _ci_payload), runtime)
 
     if normalized_path == "/api/contacts/operations":
@@ -1871,7 +1870,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _cop_status, _cop_payload = _cr_forward("contacts.operations.list", {"payload": {}})
+        _cop_status, _cop_payload = _cr_forward("contacts.operations.list", {"payload": {}}, client_host=client_host)
         return apply_runtime_headers(json_response(_cop_status, _cop_payload), runtime)
 
     if normalized_path == "/api/contacts/operations/detail":
@@ -1880,7 +1879,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _cod_status, _cod_payload = _cr_forward("contacts.operations.detail", {"payload": {"operation_id": (query.get("id") or [""])[0]}})
+        _cod_status, _cod_payload = _cr_forward("contacts.operations.detail", {"payload": {"operation_id": (query.get("id") or [""])[0]}}, client_host=client_host)
         return apply_runtime_headers(json_response(_cod_status, _cod_payload), runtime)
 
     if normalized_path == "/api/contacts/credential":
@@ -1889,7 +1888,7 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _ccs_status, _ccs_payload = _cr_forward("contacts.credential.status", {"payload": {}})
+        _ccs_status, _ccs_payload = _cr_forward("contacts.credential.status", {"payload": {}}, client_host=client_host)
         return apply_runtime_headers(json_response(_ccs_status, _ccs_payload), runtime)
 
     if normalized_path == "/api/cloud/providers":
@@ -1946,7 +1945,7 @@ def dispatch_get(
         # Test button is the only path that spends a provider request).
         from core.command_registry.legacy import forward as _cr_forward
 
-        _sr_status, _sr_payload = _cr_forward("search.providers", {})
+        _sr_status, _sr_payload = _cr_forward("search.providers", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_sr_status, _sr_payload), runtime)
 
     if normalized_path == "/api/discovery":
@@ -2227,7 +2226,7 @@ def dispatch_get(
             _subsystem = get_update_subsystem()
             if _subsystem is not None:
                 _subsystem.ensure_background_checks()
-        _us_status, payload = _cr_forward("update.status", {})
+        _us_status, payload = _cr_forward("update.status", {}, client_host=client_host)
         return apply_runtime_headers(json_response(_us_status, payload), runtime)
 
     if normalized_path == "/api/memory/entries":
@@ -2391,7 +2390,7 @@ def dispatch_get(
             try:
                 from core.command_registry.legacy import forward as _cr_forward
 
-                council_status, council_payload = _cr_forward("council.scorecard", {"run_id": scorecard_run})
+                council_status, council_payload = _cr_forward("council.scorecard", {"run_id": scorecard_run}, client_host=client_host)
             except ValueError:
                 council_status, council_payload = 400, {"ok": False, "error": "invalid run id"}
         elif normalized_path == "/api/council/lock":
@@ -2402,11 +2401,11 @@ def dispatch_get(
 
             from core.command_registry.legacy import forward as _cr_forward
 
-            council_status, council_payload = _cr_forward("council.lock", {})
+            council_status, council_payload = _cr_forward("council.lock", {}, client_host=client_host)
         elif normalized_path == "/api/council/runs":
             from core.command_registry.legacy import forward as _cr_forward
 
-            council_status, council_payload = _cr_forward("council.runs", {"limit": 20})
+            council_status, council_payload = _cr_forward("council.runs", {"limit": 20}, client_host=client_host)
         elif normalized_path == "/api/council/events":
             # `seq` resolves ONE event — what a snapshot's `text_ref` points at, so the
             # full report text is fetched from the record on demand instead of being
@@ -2417,6 +2416,7 @@ def dispatch_get(
             council_status, council_payload = _cr_forward(
                 "council.events",
                 {"run_id": str((query.get("run") or [""])[0] or ""), "after": (query.get("after") or ["0"])[0], "seq": _cr_seq if _cr_seq is not None else ""},
+                client_host=client_host,
             )
         else:
             run_param = str((query.get("run") or [""])[0] or "").strip()
@@ -2424,7 +2424,7 @@ def dispatch_get(
                 return apply_runtime_headers(json_response(400, {"ok": False, "error": "missing run parameter"}), runtime)
             from core.command_registry.legacy import forward as _cr_forward
 
-            council_status, council_payload = _cr_forward("council.status", {"run_id": run_param})
+            council_status, council_payload = _cr_forward("council.status", {"run_id": run_param}, client_host=client_host)
         return apply_runtime_headers(json_response(council_status, council_payload), runtime)
 
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
@@ -2466,7 +2466,7 @@ def dispatch_get(
         from core.command_registry.legacy import forward as _cr_forward
 
         try:
-            _cr_status, payload = _cr_forward("models.current", {})
+            _cr_status, payload = _cr_forward("models.current", {}, client_host=client_host)
             if not isinstance(payload, dict) or _cr_status != 200:
                 raise RuntimeError("unavailable")
             if "session_id" in query:
@@ -3266,7 +3266,7 @@ def dispatch_post(
 
         _uc_status, payload = _cr_forward(
             "update.check", {}, approval_context={"gesture": "web-ui-press", "origin": "web-ui"}
-        )
+        , client_host=client_host)
         if isinstance(payload, dict):
             payload = dict(payload)
             payload.setdefault("ok", bool(payload.get("check_ok", _uc_status == 200)))
@@ -3409,6 +3409,7 @@ def dispatch_post(
             {key: str(body.get(key) or '') for key in ('expected_app_path', 'expected_data_dir')}
             if _ur_command == 'update.rollback' else {"resolve_destructive": str(body.get("resolve_destructive") or "").strip()},
             approval_context={"gesture": "web-ui-press", "origin": "web-ui"},
+            client_host=client_host,
         )
         if isinstance(payload, dict):
             payload = dict(payload)
@@ -3815,6 +3816,11 @@ def dispatch_upload(
 
     def _out(response: ApiResponse) -> ApiResponse:
         return apply_runtime_headers(response, runtime) if runtime is not None else response
+
+    # Every raw door (chat attachments, session bundles, chat-export imports) stores bytes in the
+    # owner's data: owner-local first, whatever each door checks after.
+    if not is_loopback_host(client_host):
+        return _out(json_response(403, {"ok": False, "error": "owner_local_required"}))
 
     if path == "/api/chat/import/upload":
         # An export zip of chats from another AI app, picked in Settings: kept owner-only under
@@ -4899,6 +4905,7 @@ def _dispatch_post_inner(
                         # the client-supplied string never becomes grant authority.
                         "workspace_root": authoritative_root if body_until_off else "",
                     },
+                    client_host=client_host,
                 )
                 if _ab_status != 200:
                     detail = _ab_payload.get("detail") if isinstance(_ab_payload, dict) else None
@@ -5064,6 +5071,7 @@ def _dispatch_post_inner(
                     # `resolve_approval` stays the authority on whether a scope may mint at all.
                     "scope": str(body.get("scope") or "once"),
                 },
+                client_host=client_host,
             )
             if not isinstance(approval, dict) or _ra_status != 200:
                 return apply_runtime_headers(json_response(409, {"error": "approval is missing, stale, or already resolved"}), runtime)
@@ -5472,7 +5480,7 @@ def _dispatch_post_inner(
             return apply_runtime_headers(json_response(400, {"error": "missing provider"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _st_status, _st_payload = _cr_forward("search.test", {"provider": _sp.strip().lower()})
+        _st_status, _st_payload = _cr_forward("search.test", {"provider": _sp.strip().lower()}, client_host=client_host)
         return apply_runtime_headers(json_response(_st_status, _st_payload), runtime)
 
     if normalized_path == "/api/chain/test":
@@ -5508,7 +5516,7 @@ def _dispatch_post_inner(
             return apply_runtime_headers(json_response(400, {"error": "missing provider"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()})
+        _ct_status, _ct_payload = _cr_forward("chain.test", {"provider": _cp.strip().lower()}, client_host=client_host)
         return apply_runtime_headers(json_response(_ct_status, _ct_payload), runtime)
 
     if normalized_path in ("/api/chat/import/preview", "/api/chat/import/start", "/api/chat/import/discard"):
@@ -6110,7 +6118,7 @@ def _dispatch_post_inner(
             unknown_cc = set(body.keys()) - {"run_id"}
             if unknown_cc:
                 return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(unknown_cc)}"}), runtime)
-            council_status, council_payload = _cr_forward("council.stop", {"run_id": str(body.get("run_id") or "")})
+            council_status, council_payload = _cr_forward("council.stop", {"run_id": str(body.get("run_id") or "")}, client_host=client_host)
             return apply_runtime_headers(json_response(council_status, council_payload), runtime)
         if normalized_path == "/api/council/seat":
             # One operator decision about one failed seat: retry it, point it at another
@@ -6124,7 +6132,7 @@ def _dispatch_post_inner(
             _seat_in = {"run_id": str(body.get("run_id") or ""), "seat_id": str(body.get("seat_id") or ""), "action": str(body.get("action") or "")}
             if body.get("model"):
                 _seat_in["model"] = str(body.get("model"))
-            council_status, council_payload = _cr_forward("council.seat", _seat_in)
+            council_status, council_payload = _cr_forward("council.seat", _seat_in, client_host=client_host)
             return apply_runtime_headers(json_response(council_status, council_payload), runtime)
         if normalized_path == "/api/council/resume":
             unknown_rs = set(body.keys()) - {"run_id"}
@@ -6133,12 +6141,13 @@ def _dispatch_post_inner(
             _rs_host = _cc_header("host").strip() or "127.0.0.1:11435"
             council_status, council_payload = _cr_forward(
                 "council.resume", {"run_id": str(body.get("run_id") or ""), "base_url": f"http://{_rs_host}"}
-            )
+            , client_host=client_host)
             return apply_runtime_headers(json_response(council_status, council_payload), runtime)
         _cc_host = _cc_header("host").strip() or "127.0.0.1:11435"
         council_status, council_payload = _cr_forward(
             "council.convene",
             {"payload": dict(body), "base_url": f"http://{_cc_host}", "workspace_root": str(workspace_root_provider() or "")},
+            client_host=client_host,
         )
         return apply_runtime_headers(json_response(council_status, council_payload), runtime)
 
@@ -6187,7 +6196,7 @@ def _dispatch_post_inner(
             return apply_runtime_headers(json_response(400, {"error": "missing or invalid record_id"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
-        _mf_status, _mf_payload = _cr_forward("memory.forget", {"record_id": record_id.strip()})
+        _mf_status, _mf_payload = _cr_forward("memory.forget", {"record_id": record_id.strip()}, client_host=client_host)
         return apply_runtime_headers(json_response(_mf_status, _mf_payload), runtime)
 
     if normalized_path.startswith("/api/bug-report/"):
@@ -7725,7 +7734,12 @@ def _dispatch_post_inner(
                 runtime,
                 task_text,
                 session_id=null_req.session_id,
-                source_context={"surface": "null_protocol", "null_uri": uri_str, "service": null_req.uri.service},
+                source_context={
+                    "surface": "null_protocol",
+                    "null_uri": uri_str,
+                    "service": null_req.uri.service,
+                    OWNER_LOCAL_KEY: is_loopback_host(client_host),
+                },
                 workspace_root_provider=workspace_root_provider,
             )
         except Exception as exc:
@@ -8719,6 +8733,7 @@ def _dispatch_post_inner(
             result = run_agent_provider(
                 runtime,
                 prompt,
+                source_context={OWNER_LOCAL_KEY: is_loopback_host(client_host)},
                 workspace_root_provider=workspace_root_provider,
             )
         except Exception as exc:

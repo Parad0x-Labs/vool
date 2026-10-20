@@ -6946,7 +6946,10 @@ def main() -> int:
         print("Vool agent started. Provide --input for one-shot execution.")
         return 0
 
-    result = agent.run_once(str(args.input))
+    from core.request_trust import in_process_owner_source_context
+
+    # the owner's own terminal one-shot: the owner-local stamp is named here, not inferred
+    result = agent.run_once(str(args.input), source_context=in_process_owner_source_context())
     # R-8 (K-11): one-shot CLI serves the SEALED commit bytes -- commit-first,
     # mirroring vool_chat.py; raw response text only as typed no-answer frame.
     _cli_commit = (

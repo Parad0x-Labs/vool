@@ -169,9 +169,12 @@ def main() -> int:
             # GENERATED_ADAPTER: the command registry owns this action (status.show);
             # the REPL renders from the typed envelope, never a second declaration.
             from core.command_registry.execute import ExecutionContext, execute_command
+            from core.request_trust import in_process_owner_extra
             from core.vool_user_summary import render_user_summary
 
-            envelope = execute_command("status.show", {}, context=ExecutionContext(projection="chat"))
+            envelope = execute_command(
+                "status.show", {}, context=ExecutionContext(projection="chat", extra=in_process_owner_extra())
+            )
             if envelope.ok:
                 print(render_user_summary(envelope.data))
             else:

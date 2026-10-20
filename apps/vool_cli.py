@@ -173,9 +173,10 @@ def cmd_summary(json_mode: bool = False, limit: int = 5) -> int:
     _bootstrap_cli_storage()
     # GENERATED_ADAPTER: the command registry owns this action (status.show).
     from core.command_registry.execute import ExecutionContext, execute_command
+    from core.request_trust import in_process_owner_extra
     from core.vool_user_summary import render_user_summary
 
-    envelope = execute_command("status.show", {}, context=ExecutionContext(projection="cli"))
+    envelope = execute_command("status.show", {}, context=ExecutionContext(projection="cli", extra=in_process_owner_extra()))
     if not envelope.ok:
         print(envelope.summary)
         return 1
