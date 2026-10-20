@@ -12,11 +12,22 @@ from pathlib import Path
 
 from core.plugin_package import capture_package, execution_directory
 from core.registry.artifact import inspect, materialize
-from core.registry.codec import RegistryError, canonical, decode, require
+from core.registry.codec import (
+    FAILED_SAFETY_CHECKS,
+    NEWER_VERSION_REQUIRED,
+    RegistryError,
+    canonical,
+    decode,
+    require,
+    version_key,
+)
 from core.registry.trust import verify
 
 _INSTALL_LOCK = threading.RLock()
 STATE_NAME = "registry_trust.sqlite"
+# The Skill Codex checks VOOL runs again on this device, on every kind of package. Wording and licence rules stay
+# the Skill Codex's own, and install() validates the native format and the signed dependencies itself.
+TEXT_CHECKS = ("archive", "secrets", "instructions-primary", "native-boundaries")
 
 
 def home() -> Path:
@@ -146,6 +157,56 @@ def recover(plugin_id: str, root: Path) -> None:
     plugin_catalog.invalidate_storage_listing()
 
 
+def unsafe(artifact: dict, raw: bytes) -> bool:
+    """A signature alone never installs a package: VOOL runs the Skill Codex's safety checks again itself.
+
+    If whoever signs the list were ever taken over, a package that asks for keys, installs software or
+    tries to get around VOOL's own rules still stops here. A skill also may not carry or declare code.
+    """
+    from core.registry import checks
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="vool-registry-check-") as scratch:
+            outcome = checks.run(raw, Path(scratch), targets=[])
+    except OSError:
+        raise  # this device's own trouble (disk, permissions), not the package's
+    except Exception:
+        return True  # a package the checks can't finish on is not checked, and unchecked never installs
+    # No results means the checks stopped early (a skill too long to read in full).
+    if not outcome["results"]:
+        return True
+    findings = [item for name in TEXT_CHECKS for item in outcome["findings"].get(name, [])]
+    if artifact["metadata"]["kind"] == "skill":
+        # Where a file sits is the Skill Codex's own tidiness rule; install() checks the native layout itself.
+        findings += [item for item in outcome["findings"].get("code", []) if item.get("rule") != "layout"]
+    return bool(findings)
+
+
+def _installed_admission(catalog, receipt, record, package_id: str, now: int) -> dict:
+    """Verify an old receipt at installation time, using its retained trust root."""
+    from core.registry.trust import root_document, validate_entry
+
+    try:
+        require(isinstance(receipt, dict) and receipt.get("schema") == "vool.registry.install.v1" and
+                type(receipt.get("root_version")) is int and type(receipt.get("accepted_at")) is int and
+                receipt["accepted_at"] <= now, "invalid install receipt")
+        row = catalog.db.execute("SELECT root FROM root_history WHERE version=?", (receipt["root_version"],)).fetchone()
+        require(row, "installed registry receipt trust history is missing; existing installation was kept")
+        envelope = decode(row[0], 65536)
+        root = root_document(envelope["signed"], receipt["accepted_at"])
+        require(root["version"] == receipt["root_version"], "receipt root version mismatch")
+        verify(envelope, root, "root")
+        prior = verify(receipt["admission"], root, "admission")
+        validate_entry(prior, root, receipt["accepted_at"])
+        require(prior["metadata"]["id"] == package_id and prior["plugin_id"] == record.plugin_id and
+                prior["metadata"]["version"] == record.version and
+                prior["native_digest"] == record.verified_digest and
+                prior["dependencies"] == record.verified_dependencies, "installed receipt and record differ")
+        return prior
+    except (RegistryError, OSError, sqlite3.Error, KeyError, TypeError, ValueError):
+        raise RegistryError("installed registry receipt or record could not be verified; existing installation was kept") from None
+
+
 def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             accepted: bool, enable: bool, now: int) -> dict:
     """Explicit owner consent. Public review cannot grant a runtime permission."""
@@ -156,6 +217,8 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     entry = catalog.resolve(package_id, version, target=target, now=now)
     artifact = inspect(raw)
     authority = manifest_authority(artifact["manifest"])
+    # Only VOOL writes the "vool" block (it marks a pack as the owner's own); a downloaded package never may.
+    require("vool" not in artifact["manifest"], "a package cannot say how VOOL made it")
     from core.registry.rules import analyze
 
     require(not analyze(artifact["files"])["conflicts"], "instructions cannot override VOOL native controls")
@@ -169,6 +232,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     # Only the application-owned state path may authorize the runtime predicate.
     require(Path(catalog.db.execute("PRAGMA database_list").fetchone()[2]).resolve() ==
             (home() / "config" / STATE_NAME).resolve(), "client trust state belongs to another runtime")
+    refused = unsafe(artifact, raw)  # before the locks: the checks take a moment and need none of them
     root = plugin_catalog.configured_plugins_root()
     destination = root / "plugins" / plugin_id
     with _INSTALL_LOCK, plugin_lifecycle._lock, _filesystem_lock(root) as scratch, execution_directory(scratch) as owned:
@@ -179,6 +243,7 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
         findings = native_format_findings(snapshot, artifact)
         require(not findings, "native skill validation failed: " + "; ".join(
             item["path"] + ": " + item["reason"] for item in findings))
+        require(not refused, FAILED_SAFETY_CHECKS)  # after the format check, so a malformed package keeps its reason
         recover(plugin_id, root)
         for dependency, pin in entry["dependencies"].items():
             child = plugin_lifecycle.record_for(dependency)
@@ -186,11 +251,16 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
                     "approved dependency closure is not installed and available")
         previous = plugin_lifecycle.record_for(plugin_id)
         receipt_path = _receipt_path(plugin_id)
-        old_receipt = decode(receipt_path.read_bytes()) if receipt_path.exists() else None
+        try:
+            old_receipt = decode(receipt_path.read_bytes(), 65536) if receipt_path.exists() else None
+        except (OSError, RegistryError):
+            raise RegistryError("installed registry receipt could not be read; existing installation was kept") from None
         if destination.exists():
             require(previous and previous.source == "registry:" + package_id and old_receipt,
                     "installation would overwrite an existing local package")
             require(capture_package(destination).digest == previous.verified_digest, "existing package was edited; preserve it before updating")
+            prior = _installed_admission(catalog, old_receipt, previous, package_id, now)
+            require(version_key(version) > version_key(prior["metadata"]["version"]), NEWER_VERSION_REQUIRED)
         else:
             require(previous is None or previous.stage == plugin_lifecycle.STAGE_UNINSTALLED,
                     "plugin identity already belongs to another installation")
@@ -255,8 +325,9 @@ def preview(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
     boundaries["native_control_overlaps"] = notices(
         set(entry["native_rule_review"]["overlaps"]) | {item["control"] for item in boundaries["native_control_overlaps"]})
     require(value["sha256"] == entry["artifact_sha256"] and len(raw) == entry["artifact_length"], "preview input differs from admission")
+    require(not unsafe(value, raw), FAILED_SAFETY_CHECKS)
     return {"id": package_id, "version": version, "sha256": value["sha256"], "metadata": value["metadata"], **boundaries,
-            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"],
+            **manifest_authority(value["manifest"]), "dependencies": entry["dependencies"], "targets": entry["targets"],
             "instructions": {name: data.decode("utf-8") for name, data in value["files"].items() if name.endswith("/SKILL.md")},
             "files": [{key: val for key, val in item.items() if key != "content"} for item in value["entries"]],
             "reviewed": True, "installed": False, "enabled": False}

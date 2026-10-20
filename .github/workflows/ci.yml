@@ -5,6 +5,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+    # The default types plus the two draft transitions. A draft PR runs only the fast `verify`
+    # leg (lint + canonical collection); marking it ready (`ready_for_review`) starts the full
+    # suite on the same head, and moving it back to draft (`converted_to_draft`) starts a
+    # verify-only run whose shared concurrency group cancels the full round in flight. Drafts
+    # cannot be merged, so every mergeable head still runs every shard.
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
     inputs:
       focused_ci:
@@ -36,6 +42,12 @@ jobs:
     timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
+      - name: Draft pull request notice
+        # Says on the run page why the shards, macOS and build jobs show as skipped.
+        if: github.event_name == 'pull_request' && github.event.pull_request.draft
+        run: >-
+          echo "::notice title=Draft PR - verify only::The full suite (10 shards, macOS, build)
+          runs when this pull request is marked ready for review. This run is not merge evidence."
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -74,6 +86,9 @@ jobs:
     timeout-minutes: 150
     runs-on: ubuntu-latest
     needs: verify
+    # Draft PRs stop after `verify`; pushes, manual runs and ready PRs always run this job.
+    # (`if` without a status function keeps the implicit success() on `needs: verify`.)
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
@@ -309,6 +324,9 @@ jobs:
     timeout-minutes: 90
     runs-on: macos-latest
     needs: verify
+    # Draft PRs stop after `verify`; pushes, manual runs and ready PRs always run this job.
+    # (`if` without a status function keeps the implicit success() on `needs: verify`.)
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     steps:
       - uses: actions/checkout@v7
         with:

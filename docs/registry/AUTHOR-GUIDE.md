@@ -1,6 +1,6 @@
 # Creating, submitting and installing a VOOL skill
 
-An author submits instructions and their licence. Independent review determines whether those exact package bytes can appear in the reviewed registry. Public review does not grant runtime permissions, approve spending or authorize installation.
+An author submits instructions and their licence. Automatic checks and signed admission determine whether those exact package bytes appear in Skill Codex. Public review does not grant runtime permissions, approve spending or authorize installation.
 
 The following commands match `vool-community` and `python -m tools.community_skills`. Use tooling from a verified released VOOL build that supports this protocol. The private website, public community repositories, independent scanners and production trust anchor require separate activation; a proposed URL or a source checkout does not prove they are available.
 
@@ -10,7 +10,8 @@ The following commands match `vool-community` and `python -m tools.community_ski
 |---|---|---|
 | Private website skill form | Skill instructions, complete licence, package metadata | After successful private prepublication checks and your consent to the exact checksum |
 | SDK artifact through private website | Complete native package, lint report and canonical artifact | After the same private checks and exact-checksum consent |
-| Direct GitHub contribution | Canonical SDK artifact in your fork, then a PR | At the first push to a public repository, before independent admission review |
+| GitHub import | Your public repository, ref and skill folder; link the owning GitHub identity | Source is already public; registry publication requires exact-checksum consent |
+| Direct GitHub contribution | Canonical SDK artifact in your fork, then a PR | At the first push to a public repository; separate protected PR admission must be activated |
 
 For a simple instruction-only skill, the private form avoids Git, source-commit selection and manual package assembly. Plugins and skills with additional files use the complete SDK artifact. The form accepts one SKILL.md and one licence; it does not accept an attachment tree.
 
@@ -61,7 +62,41 @@ The open [Agent Skills specification](https://agentskills.io/specification) desc
 
 Place the **complete MIT licence text** in a file named `LICENSE` and replace its copyright line with the actual rights holder and year. An original example licence is supplied beside the example skill in this documentation's example package. The [MIT licence template](https://choosealicense.com/licenses/mit/) is available for authors who choose it. Do not replace another author's licence or copyright when adapting their work. Include every applicable licence/notice for bundled material and disclose the upstream provenance. A metadata string such as `MIT` is not a substitute for the licence file or proof of redistribution rights.
 
+## Automatic publishing: website or GitHub import
+
+All public package text, including release notes, title, summary, licence label, source links and other metadata, receives the same checks as the instructions. Findings for outer fields use `@metadata.json`; the review model sees those fields too. Unsupported fields, malformed text and values over their limits are refused before signing. Keep notes descriptive: installation commands, secret requests and hidden instructions are refused here as in SKILL.md.
+
+An unavailable review service or exhausted review budget leaves the batch waiting; it does not publish partially reviewed uploads. Already completed paid verdicts survive retry. `publish_when_checks_pass` on an import is a compatibility field, never permission to publish; explicitly consent to the returned checksum.
+
+Installed updates require a higher version, including after a valid signing-key rotation. A current version says that it is up to date and asks the person to check back. An unreadable receipt preserves the installed files and refuses the update.
+
+Sign in with a configured GitHub, Google or Apple provider. Standalone email-link/password sign-in
+is not implemented. A linked GitHub identity is required for GitHub import. Authors choose a stable
+namespace and accept the MIT rights agreement. Publishing requires an account at least 14 days old,
+counted from the older GitHub or registry account; the API gives the eligible date.
+
+Choose the written-skill form for one SKILL.md, upload a canonical SDK package for additional files,
+or import your own public GitHub folder. All three feed the same checks and signer. Inspect the
+private result, then explicitly consent to its exact checksum becoming permanent public history.
+The rights agreement is separate from this Publish decision; neither checkbox defaults to checked.
+
+The automatic signer checks consented bytes, follows released VOOL target metadata, and rechecks
+listed packages daily. Passing bytes appear in the signed catalog and are mirrored into its GitHub
+repository under `authority/packages/`, with `authority/registry.json` and `authority/CATALOG.md`.
+Failed submissions stay private and show findings; unavailable checks leave them waiting. This is
+implemented local behavior, not proof that production keys, provider accounts or website pages exist.
+
+> Automated checks cover package compatibility and known threat patterns for the listed VOOL builds.
+> They do not guarantee that a skill is free of malicious behavior. Community skills are provided
+> as is, without warranty. Inspect the files and use them at your own risk.
+
+Compatibility checks validate package/native format; they do not establish observed execution on
+every platform. The separate Tested mark means the team tested exact bytes. See the full package
+licence for its terms. A notice does not override applicable law.
+
 ## Private website skill form
+
+A skill you made in VOOL can start here from the app: in My add-ons > Skills, press "Publish to Skill Codex" on it. VOOL runs this form's checks on your device, including the automatic checks. When the check passes, "Open Skill Codex" opens this form in your browser with the skill's name, description and SKILL.md filled in, and VOOL sends nothing itself. Skills you imported from someone's file, skills with extra files, or marked `local-only: true`, stay in VOOL (see [Publishing from VOOL](SKILL-CODEX.md#publishing-from-vool)).
 
 Sign in through an available identity provider. Choose a stable public namespace before submitting. The namespace must belong to your authenticated account; public social handles are author-supplied and are not verification badges. The profile API refuses namespace changes once one is chosen. The name remains reserved after account deletion. Direct public publications also reserve their publisher; linking a reserved name later requires a separate verified maintainer process.
 
@@ -75,11 +110,13 @@ Supply these metadata fields, with **no `source` field**:
   "summary": "Summarize supplied meeting notes with decisions and action owners.",
   "category": "productivity",
   "subcategory": "meetings",
-  "license": "MIT"
+  "license": "MIT",
+  "languages": ["en"],
+  "needs": []
 }
 ```
 
-Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has exactly the documented fields, plus an optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): ten main categories, each with its own subcategories, for example `productivity` / `meetings`. Any other value is refused.
+Both ID segments accept lowercase letters, digits and hyphens, start with a letter or digit and are at most 64 characters. `vool`, `parad0x-labs`, `official` and `native` are reserved publisher namespaces. Metadata has the documented fields, optional `release_notes` and optional `title`: a plain-text display name of at most 60 characters, without `<` or `>`. `languages` is required for every new upload: 1 to 30 language codes the skill works in, such as `en`, `lt` or `pt-BR`, or exactly `["any"]` when the skill does not depend on the user's language. Versions signed before this field existed show no languages. `needs` is optional: ids from the fixed list in `core/registry/requirements.py` (served at `GET /registry/api/requirements`), naming what outside the package the skill relies on: `search_web`, `llm_cloud`, `chain_data` (a Helius, Alchemy, Solscan or Etherscan key), `solana_rpc` (VOOL's Solana connection setting), `wallet`, `browser` or `files`. `lint` and `pack` print a notice when SKILL.md clearly uses one of these and `needs` leaves it out, and the website shows a similar notice after a draft, upload or GitHub import; the notice does not block. Versions use `major.minor.patch`, optionally followed by a lowercase prerelease; build suffixes such as `+build1` are unsupported. Category and subcategory must be slugs from the fixed registry list in `core/registry/categories.py` (served at `GET /registry/api/categories`): eleven main categories, each with its own subcategories, for example `productivity` / `meetings` or `privacy-security` / `scams-phishing`. Any other value is refused. Slugs are never renamed or removed; new ones may be added in later versions, so read the list rather than copying it. A skill written in this form has no picture files; add an icon or banner through GitHub import or an uploaded package (see [Optional picture and banner](#optional-picture-and-banner)).
 
 The form sends a same-origin JSON request to `POST /registry/api/drafts`:
 
@@ -105,15 +142,45 @@ This example is website code for an authenticated same-origin page. Browser cook
 
 The complete JSON body is limited to 32,768 bytes, including licence, instructions and metadata. This limit is smaller than the maximum each individual text field could otherwise represent. Drafts retain no secret-bearing payload after detected local secret findings. An upload receiving HTTP 201 may still have `state: rejected` or `held`; display the returned state rather than declaring success from the status code.
 
+## Automatic form and GitHub import requests
+
+The automatic form sends `{metadata,skill_markdown,agreement:"mit-own-work-v1"}` to `POST /drafts`.
+It omits both `source` and `license_text`; the service writes a complete MIT licence in the publisher's
+name. The earlier JavaScript example with `license_text` uses the separately reviewed legacy flow.
+
+GitHub import sends this body to `POST /registry/api/imports`, with session/Origin/CSRF:
+
+```json
+{
+  "repository": "actual-owner/actual-source-repository",
+  "ref": "main",
+  "path": "meeting-brief",
+  "metadata": {
+    "id": "your-namespace/meeting-brief", "kind": "skill", "version": "1.0.0",
+    "summary": "Summarize supplied notes with decisions and action owners.",
+    "category": "productivity", "subcategory": "meetings", "license": "MIT",
+    "languages": ["en"], "release_notes": "First published version."
+  },
+  "publish_when_checks_pass": false,
+  "agreement": "mit-own-work-v1"
+}
+```
+
+The linked GitHub account must own the public repository. The service resolves the ref to an exact
+commit and returns it as `source`; metadata must omit source. Even the legacy
+`publish_when_checks_pass:true` flag does not replace separate checksum consent. A successful HTTP
+201 can still carry a refusal: read state and findings. See [the complete contract](WEBSITE-HANDOVER.md)
+for every request, response, quota and refusal.
+
 ## SDK packaging with real source provenance
 
 Keep three identities separate:
 
 1. The stable package ID is `publisher/name`.
 2. `metadata.source` names the GitHub repository, exact 40-character source commit and source path where the original authored content exists.
-3. Independent publication evidence names a later community-repository commit containing `packages/<artifact-sha256>.json`. Authors do not invent that future commit or insert it back into already-packed metadata.
+3. Legacy independent publication evidence names a later community-repository commit containing `packages/<artifact-sha256>.json`. Automatic publication mirrors exact bytes at `authority/packages/<artifact-sha256>.json`. Authors do not invent that future commit or insert it back into already-packed metadata.
 
-For a new skill, first commit the source SKILL.md and complete licence in an author-owned source repository. Publish that source commit only with the author's authorization, then record its real SHA. Generate the native package outside the checkout. The generated manifest and `registry.json` are distribution metadata; the reviewer still verifies source provenance and the final public artifact separately.
+For the GitHub-source/legacy PR route, first commit the source SKILL.md and complete licence in an author-owned source repository. Publish that source commit only with the author's authorization, then record its real SHA. Generate the native package outside the checkout. The generated manifest and `registry.json` are distribution metadata; the reviewer still verifies source provenance and the final public artifact separately.
 
 Assume the authored files are `source-repo/meeting-brief/SKILL.md` and `source-repo/meeting-brief/LICENSE`. Run the following in a new author-owned working directory with the installed SDK on PATH. Set `SOURCE_REPOSITORY` to the actual `owner/repository`, `SOURCE_COMMIT` to the exact committed and authorized upstream source SHA, and `PUBLISHER_NAMESPACE` to your chosen namespace. These variables are factual inputs; a syntactically valid fabricated SHA is invalid provenance.
 
@@ -132,6 +199,7 @@ info = {
     'kind': 'skill', 'version': '1.0.0',
     'summary': 'Summarize supplied meeting notes with decisions and action owners.',
     'category': 'productivity', 'subcategory': 'meetings', 'license': 'MIT',
+    'languages': ['en'],
     'source': {'repository': os.environ['SOURCE_REPOSITORY'],
                'commit': commit, 'path': 'meeting-brief'}
 }
@@ -165,7 +233,57 @@ Keep the SDK output, scratch, metadata input and `.git` checkout outside this di
 
 For private upload, the website sends the artifact's **unaltered bytes** to `POST /registry/api/submissions` with `Content-Type: application/vnd.vool.registry+json`, same-origin session and `X-Vool-CSRF`. Do not parse and pretty-print the artifact: canonical transport bytes determine its checksum.
 
+### A package for automatic website upload
+
+For a package authored for private upload, replace the GitHub `source` object in `metadata.json`
+before `init` with `{"upload_id":"<fresh 32-hex identifier>","namespace":"your-namespace"}`.
+Generate the identifier with `python -c 'import secrets; print(secrets.token_hex(16))'`. This identifies
+an authored upload; it is not a verified GitHub commit. Keep the complete MIT licence and use the
+same `init`, `lint`, `pack`, `check` commands. Upload the unmodified output bytes with
+`X-Vool-Agreement: mit-own-work-v1`; inspect the returned checksum, then explicitly consent.
+Packages claiming GitHub source use the import route instead of this automatic upload route.
+
+Automatic skills contain instructions and optional PNG pictures, with no executable files,
+scripts, manifest tools/permissions, credential bindings or `vool` section. They cannot instruct
+software installation, terminal commands, secret entry, wallet transfers or overrides of native
+rules. Write advice in plain words; quoted dangerous commands are still checked. The legacy plugin
+protocol is broader and does not make those packages eligible for automatic skill admission.
+
+## Optional picture and banner
+
+A skill can show a square icon in search results and in VOOL, and a wide banner on its website page. Both are optional. Put the files inside the package directory, then name them in `registry.json` after `init`:
+
+```json
+  "icon": "assets/icon.png",
+  "banner": "assets/banner.png"
+```
+
+`lint` and `pack` record each file's checksum in the signed metadata as `{"path": ..., "sha256": ...}` and report what they read under `pictures`. `init` refuses these fields because the files are not there yet.
+
+- PNG only. SVG, GIF, WebP, animation and links to other sites are refused. JPEG photos must be saved again as PNG.
+- Icon: square, 128 to 1024 pixels, at most 256 KB. 512 x 512 works well. It is shown at about 52 pixels with rounded corners on light and dark backgrounds, so give it a solid background of its own, a simple shape and no small text.
+- Banner: 960 to 3000 pixels wide, 240 to 1200 tall, 2.5 to 4 times as wide as tall, at most 1 MB. 1500 x 500 works well.
+- Export without metadata. Hidden notes saved inside the file (camera details, location, editor notes) and colour profiles are refused; most editors call this "Export for web" or "Remove metadata".
+
+A person looks at every new picture before it shows on the website or in VOOL; until then the skill shows the standard placeholder. A picture is not approved when it claims VOOL approval, verification or safety, shows a QR code, wallet address or link, asks for a wallet recovery phrase, uses another brand's logo, impersonates someone, or has adult content. A changed picture is a new file and is reviewed again.
+
+With GitHub import, name the pictures by their path inside the imported folder.
+
+## When someone reports your skill
+
+People can report a skill on the website as a scam, harmful, copied, a misleading picture, broken or something else. Reports are private, and nobody sees how many a skill has or who sent them. When three accounts older than a day report a skill as a scam, harmful or copied, its downloads pause until a person on our side looks. People who try to download it meanwhile see that downloads are paused. A pause is not a verdict: if the reports don't hold up, downloads continue and the notes are deleted; if they do, that version is removed from the next signed catalog. You cannot report your own skill.
+
 ## Private states, failed review and public consent
+
+Automatic submissions start in `checking` with `consent:0` after instant checks. After exact-checksum
+consent they remain `checking` until signed review makes them `refused`, or `admitted` then `published`.
+Review outages leave them waiting; unconsented bytes never enter paid review or public projection.
+Automatic waiting submissions expire after 35 days. Findings name check, path and reason, optionally
+line, safe quote and rule. Fix the cited source, keep secrets out, bump a published version, and
+submit fresh bytes. There is no general automated rewrite or guarantee that a suggestion fixes every
+issue. Ten uploads/account/day applies to all routes.
+
+The following states describe the separately reviewed legacy route:
 
 | API state | Meaning and author action |
 |---|---|
@@ -180,7 +298,7 @@ For private upload, the website sends the artifact's **unaltered bytes** to `POS
 
 Use `GET /registry/api/submissions` and `GET /registry/api/submissions/<id>` to inspect your own status. The current API has no per-submission edit/delete route or revoke-consent route. New bytes require a new submission and new review. Do not repeatedly resubmit just because a scanner is pending: the quota is ten submissions per account per day, and quarantine expires after seven days. Login renewal is needed after an expired session; do not lose the local author draft when login fails.
 
-After `preflighted` or `reviewed`, show the exact artifact checksum and licence, then obtain an explicit author decision about **permanent public GitHub history**. If authorized, send:
+For automatic `checking`, or legacy `preflighted`/`reviewed`, show the exact artifact checksum and licence, then obtain an explicit author decision about **permanent public GitHub history**. If authorized, send:
 
 ```javascript
 // submission and csrf came from authenticated same-origin API responses.
@@ -194,7 +312,7 @@ const result = await response.json();
 if (!response.ok) throw new Error(result.error || 'Consent refused; recheck status.');
 ```
 
-No checkbox should default to consent, and “save private draft” never implies publication. Export rechecks evidence freshness and current ownership, consent, state and unchanged artifact/review bytes after verification. Already-exported files are outside that recheck; an isolated publisher receipt/consume protocol remains activation work. Changing bytes, policy or reviewed target requires fresh applicable evidence. Account deletion removes private account state; it cannot erase licensed public Git history. The present queue worker only exports an outbox; an automated GitHub publisher and submission PR-link callback are activation work.
+No checkbox should default to consent, and “save private draft” never implies publication. Export rechecks evidence freshness and current ownership, consent, state and unchanged artifact/review bytes after verification. Already-exported files are outside that recheck; an isolated publisher receipt/consume protocol remains activation work. Changing bytes, policy or reviewed target requires fresh applicable evidence. Account deletion removes private account state; it cannot erase licensed public Git history. The legacy queue worker exports an outbox. The automatic signer mirrors passing consented packages without a PR; a separate public PR admission workflow remains activation work.
 
 ## Direct GitHub contribution
 
@@ -235,7 +353,7 @@ The independent source reviewer binds the public artifact to the exact candidate
 
 ## Immutable updates and resubmissions
 
-Keep the same stable package ID. If a version has already been published, its bytes cannot be replaced. Change both `registry.json` version and `.codex-plugin/plugin.json` version together, commit the changed authored source, record its new true source pin, then lint, pack and submit again. A fresh output filename avoids overwriting a previous artifact. Changing SKILL.md, licence, metadata, native files or executable bits changes the reviewed package identity.
+Keep the same stable package ID. If a version has already been published, its bytes cannot be replaced. Add `release_notes` describing the changes: trimmed plain text, 1–2,000 characters, no controls or angle brackets. Notes are signed and scanned with the package. Change both `registry.json` version and `.codex-plugin/plugin.json` version together, commit the changed authored source, record its new true source pin, then lint, pack and submit again. A fresh output filename avoids overwriting a previous artifact. Changing SKILL.md, licence, metadata, native files or executable bits changes the reviewed package identity.
 
 For a held unpublished candidate, fix the owning content and submit a fresh checksum. A version bump is required for any replacement of a published version; using a new version for a revised unpublished submission also makes recovery clearer. Previous consent and reports do not approve new bytes. A failed new version leaves an earlier approved version intact. Stars/download-request totals follow the stable ID, not each version.
 
@@ -243,11 +361,16 @@ Installation checks the **actual released VOOL version, exact source commit and 
 
 ## Anonymous discovery and native installation
 
-Website browsing uses `GET /registry/api/catalog`; it returns the latest compatible approved version per stable ID. `GET /registry/api/catalog?channel=discovery` exposes existing upstream discovery with the notice that import compatibility is separate from registry admission. The initial API has no server search/category filter query contract: the frontend may filter the returned rows locally. Stars require login; browse and download do not. Download counts are served request tickets, not unique people or installation telemetry.
+Website browsing uses `GET /registry/api/catalog`; it returns the latest approved version per stable ID across currently signed targets; native VOOL narrows that to its exact released build. `GET /registry/api/catalog?channel=discovery` exposes existing upstream discovery with the notice that import compatibility is separate from registry admission. Use `q`, `category`, `subcategory`, `origin` and `sort=stars|updated|downloads|newest`; unknown/repeated parameters are refused. Categories have exactly two levels from `/categories`, with no recursive tree. Website stars require login (one account per stable ID); browse and download do not. GitHub repository stars are separate. Maintainers set editor picks and features through signed `team-steps.txt` lines; app and GitHub directory show them only for listed packages. Download counts are served request tickets, not unique people or installation telemetry.
 
 In the local VOOL Add-ons page, choose **Skill Codex → Browse Skill Codex → Download for inspection**. Review the full file inventory, instructions, source, licence, requested permissions and native-control overlaps. Then make an explicit choice between **Install without enabling** and **Install and enable**, or cancel. No website login is required. The website has no install endpoint into the local app and must not present a remote POST as local owner consent.
 
 Native controls always prevail: budgets, spend authorization, currency handling, settings, access controls and approval. Review notices explain overlaps; they grant no authority. Valid enabled installations may work offline; new installs require fresh trust metadata, and known revocations or edited packages block offers.
+
+Maintainer `removed`/`suspended` lines withdraw skills from the next signed list and current GitHub
+directory. Website availability follows that list; native offers and known-copy revocations update
+on explicit Browse. Previously downloaded public bytes and Git history cannot be erased remotely.
+Stale metadata refuses new installs; a valid local copy can work offline until a known withdrawal.
 
 ## Copyable assignment for an assistant
 

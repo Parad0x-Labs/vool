@@ -1,0 +1,314 @@
+{
+  "about": "Numbers behind docs/benchmarks/v0.7-memory-locomo.md and its charts. Every value is copied from the run reports named under each run's source; make_charts.py draws the SVG charts from this file.",
+  "official_150": {
+    "title": "Official round: 150 never-used LoCoMo questions",
+    "date": "2026-10-06",
+    "questions": 150,
+    "reader": "z-ai/glm-5.3-flashx (OpenRouter), temperature 0, reasoning low",
+    "grader": "openai/gpt-4o-2024-08-06, LongMemEval answer-check prompt",
+    "source": "REPORT-OFFICIAL-FINAL.md, SIDE-BY-SIDE-V12-V13-V14.md (results JSON: RESULTS-FINAL-OFFICIAL.json, OFFICIAL-CARD-v13.json, OFFICIAL-CARD-v14.json)",
+    "systems": {
+      "VOOL v12": {
+        "right": 124,
+        "f1": 0.52,
+        "cost_per_q": 0.0033,
+        "tokens_per_q": 9600,
+        "cached_share": 0.14,
+        "calls_per_q": 3.01,
+        "median_s": 11.2,
+        "p90_s": 14.4,
+        "partly": 6,
+        "abstained": 2,
+        "confident_wrong": 18,
+        "ingest_median_s": 62.5
+      },
+      "Hermes": {
+        "right": 94,
+        "f1": 0.237,
+        "cost_per_q": 0.0046,
+        "tokens_per_q": 33500,
+        "cached_share": 0.86,
+        "calls_per_q": 6.51,
+        "median_s": 16.2,
+        "p90_s": 30.0,
+        "partly": 0,
+        "abstained": 21,
+        "confident_wrong": 35,
+        "ingest_median_s": 2.8
+      },
+      "OpenClaw": {
+        "right": 107,
+        "f1": 0.321,
+        "cost_per_q": 0.01,
+        "tokens_per_q": 51800,
+        "cached_share": 0.65,
+        "calls_per_q": 4.02,
+        "median_s": 15.6,
+        "p90_s": 24.0,
+        "partly": 2,
+        "abstained": 10,
+        "confident_wrong": 31,
+        "ingest_median_s": 12.5
+      }
+    },
+    "later_vool_arms": {
+      "VOOL v13": {
+        "right": 126,
+        "median_s": 10.8,
+        "p90_s": 13.0,
+        "dont_know": 2,
+        "confident_wrong": 17
+      },
+      "VOOL v14": {
+        "right": 125,
+        "median_s": 10.5,
+        "p90_s": 12.5,
+        "dont_know": 3,
+        "confident_wrong": 20
+      }
+    },
+    "categories": {
+      "single-hop": {
+        "n": 62,
+        "VOOL v12": 54,
+        "Hermes": 46,
+        "OpenClaw": 48
+      },
+      "adversarial": {
+        "n": 35,
+        "VOOL v12": 32,
+        "Hermes": 20,
+        "OpenClaw": 30
+      },
+      "temporal": {
+        "n": 24,
+        "VOOL v12": 23,
+        "Hermes": 20,
+        "OpenClaw": 20
+      },
+      "multi-hop": {
+        "n": 21,
+        "VOOL v12": 10,
+        "Hermes": 4,
+        "OpenClaw": 4
+      },
+      "open-domain": {
+        "n": 8,
+        "VOOL v12": 5,
+        "Hermes": 4,
+        "OpenClaw": 5
+      }
+    },
+    "mcnemar": {
+      "VOOL v12 vs OpenClaw": {
+        "only_first": 25,
+        "only_second": 8,
+        "p": 0.00455
+      },
+      "VOOL v12 vs Hermes": {
+        "only_first": 39,
+        "only_second": 9,
+        "p": "<0.001"
+      },
+      "Hermes vs OpenClaw": {
+        "p": 0.07894
+      }
+    }
+  },
+  "round_3": {
+    "title": "Round 3: 130 unseen LoCoMo questions",
+    "date": "2026-10-06",
+    "questions": 130,
+    "reader": "z-ai/glm-5.3-flashx, reasoning low",
+    "grader": "z-ai/glm-5.3-flashx with the LongMemEval prompt (not GPT-4o)",
+    "source": "REPORT-ROUND3.md (results JSON: RESULTS-ROUND3.json)",
+    "systems": {
+      "VOOL v12": {
+        "right": 102,
+        "answered": 130,
+        "f1": 0.536,
+        "cost_per_q": 0.0034,
+        "tokens_per_q": 9800,
+        "median_s": 11.0,
+        "p90_s": 13.2,
+        "worker_errors": 0
+      },
+      "Hermes": {
+        "right": 95,
+        "answered": 130,
+        "f1": 0.307,
+        "cost_per_q": 0.0055,
+        "tokens_per_q": 40400,
+        "median_s": 17.3,
+        "p90_s": 27.6,
+        "worker_errors": 0
+      },
+      "OpenClaw": {
+        "right": 93,
+        "answered": 130,
+        "f1": 0.325,
+        "cost_per_q": 0.0103,
+        "tokens_per_q": 56400,
+        "median_s": 14.6,
+        "p90_s": 26.3,
+        "worker_errors": 1
+      }
+    },
+    "mcnemar": {
+      "VOOL v12 vs Hermes": {
+        "only_first": 20,
+        "only_second": 13,
+        "p": 0.296
+      },
+      "VOOL v12 vs OpenClaw": {
+        "only_first": 22,
+        "only_second": 14,
+        "p": 0.243,
+        "matched": 129
+      }
+    }
+  },
+  "dev_200": {
+    "title": "Pilot: 200 LoCoMo questions VOOL was developed on",
+    "date": "2026-10-05",
+    "questions": 200,
+    "reader": "z-ai/glm-5.3-flashx, temperature 0, reasoning low, output cap 2048",
+    "grader": "z-ai/glm-5.3-flashx with the LongMemEval prompt",
+    "source": "REPORT-H2H.md",
+    "systems": {
+      "VOOL v7": {
+        "right": 163,
+        "f1": 0.4885,
+        "cost_per_q": 0.0033,
+        "tokens_per_q": 9607,
+        "median_s": 24.7,
+        "p90_s": 41.5
+      },
+      "Hermes": {
+        "right": 139,
+        "f1": 0.281,
+        "cost_per_q": 0.0062,
+        "tokens_per_q": 48853,
+        "median_s": 31.7,
+        "p90_s": 57.1
+      },
+      "OpenClaw": {
+        "right": 142,
+        "f1": 0.306,
+        "cost_per_q": 0.0111,
+        "tokens_per_q": 62617,
+        "median_s": 41.0,
+        "p90_s": 68.7
+      }
+    },
+    "mcnemar": {
+      "VOOL v7 vs Hermes": {
+        "only_first": 40,
+        "only_second": 16,
+        "p": 0.0018
+      },
+      "VOOL v7 vs OpenClaw": {
+        "only_first": 34,
+        "only_second": 13,
+        "p": 0.0031
+      }
+    }
+  },
+  "full_locomo": {
+    "title": "Full LoCoMo: all 1,986 questions",
+    "date": "2026-10-06",
+    "questions": 1986,
+    "reader": "z-ai/glm-5.3-flashx, temperature 0, reasoning low",
+    "grader": "openai/gpt-4o-2024-08-06, LongMemEval answer-check prompt",
+    "source": "REPORT-FULL-LOCOMO.md (per-question files in the results package)",
+    "categories": {
+      "single-hop": {
+        "n": 841,
+        "VOOL v14": 745,
+        "Full transcript": 776
+      },
+      "temporal": {
+        "n": 321,
+        "VOOL v14": 275,
+        "Full transcript": 290
+      },
+      "multi-hop": {
+        "n": 282,
+        "VOOL v14": 178,
+        "Full transcript": 211
+      },
+      "open-domain": {
+        "n": 96,
+        "VOOL v14": 53,
+        "Full transcript": 53
+      },
+      "adversarial": {
+        "n": 446,
+        "VOOL v14": 394,
+        "Full transcript": 320
+      }
+    },
+    "totals": {
+      "non-adversarial": {
+        "n": 1540,
+        "VOOL v14": 1251,
+        "Full transcript": 1330
+      },
+      "all": {
+        "n": 1986,
+        "VOOL v14": 1645,
+        "Full transcript": 1650
+      }
+    },
+    "tokens_per_q": {
+      "VOOL v14": 9700,
+      "Full transcript": 21300
+    },
+    "billed_answering_usd": {
+      "VOOL v14": 6.65,
+      "Full transcript": 4.11
+    }
+  },
+  "v07_ship_check": {
+    "title": "VOOL 0.7 release-candidate memory on the official 150 (ship check)",
+    "date": "2026-10-10/11",
+    "questions": 150,
+    "reader": "z-ai/glm-5.3-flashx, temperature 0, max_tokens 2048, reasoning low",
+    "grader": "openai/gpt-4o-2024-08-06, temperature 0, frozen LongMemEval prompt",
+    "source": "BENCH-V07-20261010.md, gate150.json, summary.json (ship-check evidence)",
+    "right": 123,
+    "baseline_v12_right": 124,
+    "gains": 7,
+    "losses": 8,
+    "p": 1.0,
+    "non_adversarial_right": 92,
+    "non_adversarial_n": 115,
+    "categories": {
+      "single-hop": 54,
+      "adversarial": 31,
+      "temporal": 22,
+      "multi-hop": 11,
+      "open-domain": 5
+    },
+    "f1_mean": 0.5449,
+    "reader_tokens_per_q": 11418.5,
+    "workflow_latency_median_s": 20.98,
+    "full_set": {
+      "status": "stopped, not finished (network error on one provider call)",
+      "attempted": 1603,
+      "scored": 1600,
+      "matched_prefix_right": 1290,
+      "matched_prefix_v14_right": 1323,
+      "matched_prefix_n": 1600,
+      "matched_non_adversarial_right": 983,
+      "matched_non_adversarial_v14_right": 1011,
+      "matched_non_adversarial_n": 1246,
+      "unscored_empty_replies": 2
+    },
+    "billed_usd": {
+      "total": 7.61,
+      "reader": 7.02,
+      "grader": 0.59
+    }
+  }
+}

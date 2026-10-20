@@ -125,7 +125,7 @@ def test_off_list_category_is_refused_by_sdk_and_listed_taxonomy_is_served(tmp_p
         assert main(["init", str(target), "--metadata", str(meta), "--license-file", str(licence)]) == 1
         assert "registry category list" in capsys.readouterr().out
         assert not target.exists()
-    assert len(TAXONOMY) == 10
+    assert len(TAXONOMY) == 11
     *_, app, _, _, _ = setup_service(tmp_path / "service")
     with TestClient(app, base_url="https://registry.test") as client:
         served = client.get(PREFIX + "/categories").json()["categories"]
@@ -155,3 +155,77 @@ def test_optional_title_is_kept_as_plain_display_text_and_bad_titles_are_refused
         assert main(["init", str(target), "--metadata", str(meta), "--license-file", str(licence)]) == 1
         assert "invalid title" in capsys.readouterr().out
         assert not target.exists()
+
+
+def test_languages_and_needs_are_signed_metadata_and_new_versions_must_declare_languages(tmp_path, capsys):
+    from core.registry.artifact import metadata
+
+    _, _, info = artifact_fixture(tmp_path)
+    for languages in (["en"], ["en", "lt", "pt-BR", "zh-Hant", "es-419"], ["any"]):
+        assert metadata({**info, "languages": languages})["languages"] == languages
+    for needs in ([], ["search_web", "wallet"], ["chain_data", "solana_rpc", "browser", "files", "llm_cloud"]):
+        assert metadata({**info, "needs": needs})["needs"] == needs
+    for bad in ([], ["any", "en"], ["EN"], ["en", "en"], ["english"], [f"x{i:02d}" for i in range(31)], [1], "en", [{}]):
+        with pytest.raises(RegistryError, match="languages"):
+            metadata({**info, "languages": bad})
+    for bad in (["telepathy"], ["wallet", "wallet"], "wallet", [None], [["wallet"]]):
+        with pytest.raises(RegistryError, match="needs"):
+            metadata({**info, "needs": bad})
+    # Earlier signed packages without the fields stay valid; new uploads must declare languages.
+    legacy = {key: value for key, value in info.items() if key != "languages"}
+    assert metadata(legacy) == legacy
+    licence = tmp_path / "licence.txt"
+    licence.write_text("Test fixture licence.")
+    meta = tmp_path / "legacy.json"
+    meta.write_bytes(canonical(legacy))
+    assert main(["init", str(tmp_path / "no-languages"), "--metadata", str(meta), "--license-file", str(licence)]) == 1
+    assert "languages required" in capsys.readouterr().out and not (tmp_path / "no-languages").exists()
+    raw, root, _ = artifact_fixture(tmp_path / "old")
+    old = pack(root, legacy, tmp_path / "old-scratch")
+    stored = tmp_path / "old.vool.json"
+    stored.write_bytes(old)
+    assert main(["check", str(stored), "--scratch", str(tmp_path / "check-scratch")]) == 1
+    assert "languages required" in capsys.readouterr().out
+    store = Store(tmp_path / "accounts.sqlite")
+    account = store.identity("github", "1", now=NOW)
+    store.profile(account, {"namespace": "alice", "bio": "", "handles": {}})
+    with pytest.raises(RegistryError, match="languages required"):
+        store.upload(account, old, now=NOW)
+    assert store.upload(account, raw, now=NOW)["state"] in {"quarantined", "held"}
+
+
+def test_requirements_list_names_the_services_vool_can_be_set_up_with(tmp_path):
+    from starlette.testclient import TestClient
+
+    from core.cloud_providers import PROVIDERS
+    from core.registry.requirements import NEEDS, public_requirements
+    from core.search_providers import SEARCH_PROVIDERS
+
+    listed = {row["id"]: row for row in public_requirements()}
+    assert list(listed) == list(NEEDS) == ["search_web", "llm_cloud", "chain_data", "solana_rpc", "wallet", "browser", "files"]
+    assert listed["search_web"]["providers"] == [cfg.label for cfg in SEARCH_PROVIDERS.values()]
+    assert "Brave Search" in listed["search_web"]["providers"]
+    assert listed["llm_cloud"]["providers"] == [cfg.label for cfg in PROVIDERS.values()]
+    assert {row["kind"] for row in listed.values()} == {"provider", "vool"}
+    assert all(row["providers"] == [] for row in listed.values() if row["kind"] == "vool")
+    assert all(row["providers"] for row in listed.values() if row["kind"] == "provider")
+
+
+def test_sdk_notices_needs_the_instructions_use_without_blocking(tmp_path, capsys):
+    import json
+
+    _, _, info = artifact_fixture(tmp_path)
+    licence = tmp_path / "licence.txt"
+    licence.write_text("Test fixture licence.")
+    for needs, expected in (([], {"search_web", "wallet"}), (["search_web", "wallet"], set())):
+        meta = tmp_path / f"needs-{len(needs)}.json"
+        meta.write_bytes(canonical({**info, "needs": needs}))
+        source = tmp_path / f"needs-src-{len(needs)}"
+        assert main(["init", str(source), "--metadata", str(meta), "--license-file", str(licence)]) == 0
+        skill = next((source / "skills").iterdir()) / "SKILL.md"
+        skill.write_text(skill.read_text() + "Use web.search for recent prices, then wallet.propose a payment the user approves.\n")
+        capsys.readouterr()
+        assert main(["lint", str(source), "--scratch", str(tmp_path / f"scratch-{len(needs)}")]) == 0
+        report = json.loads(capsys.readouterr().out)
+        assert report["status"] == "preflight_passed" and report["findings"] == []
+        assert {item["need"] for item in report["needs_notices"]} == expected

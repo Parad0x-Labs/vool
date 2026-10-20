@@ -22,9 +22,10 @@ a bare key must never be stolen from the composer, and the companion's own eleme
 from __future__ import annotations
 
 _PALETTE_CSS = """
-#vpHint{font-size:10px;color:var(--muted,#9aa1af);text-align:center;padding:3px 0 6px;font-family:ui-monospace,Menlo,monospace;letter-spacing:.03em}
-#vpHint kbd{background:var(--field,#1d2129);border:1px solid var(--border,#262b35);border-radius:4px;padding:0 5px;font-size:9px}
+#vpHint{font-size:11px;color:var(--muted,#9aa1af);text-align:center;padding:3px 0 6px;font-family:ui-monospace,Menlo,monospace;letter-spacing:.03em}
+#vpHint kbd{background:var(--field,#1d2129);border:1px solid var(--border,#262b35);border-radius:4px;padding:0 5px;font-size:10px}
 @media(max-width:900px){#vpHint{display:none}}
+@media(max-height:600px){#vpHint{display:none}}
 #vpOverlay{position:fixed;inset:0;background:rgba(5,7,10,.6);z-index:1200;display:flex;
   align-items:flex-start;justify-content:center}
 #vpOverlay[hidden]{display:none}
@@ -44,8 +45,8 @@ _PALETTE_CSS = """
 .vp-item.vp-unavail{opacity:.55}
 .vp-badge{font-size:9px;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--border,#262b35);
   border-radius:4px;padding:1px 5px;color:var(--muted,#9aa1af);flex:none}
-.vp-badge.vp-mut{color:#e0b34d;border-color:#6a5320}
-.vp-badge.vp-desc{color:#e06c75;border-color:#6a2a30}
+.vp-badge.vp-mut{color:var(--warn,#cfae6e);border-color:var(--border,#262b35)}
+.vp-badge.vp-desc{color:var(--bad,#d08a82);border-color:var(--border,#262b35)}
 .vp-reason{font-size:10px;color:var(--muted,#9aa1af);display:block;margin-top:2px}
 #vpForm{padding:10px 18px 14px;border-top:1px solid var(--border,#262b35);font-size:12px;color:var(--ink,#e8eaf0)}
 #vpForm label{display:block;margin:8px 0 3px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#9aa1af)}
@@ -54,7 +55,10 @@ _PALETTE_CSS = """
 #vpForm .vp-run{margin-top:12px;width:100%;padding:8px;border-radius:8px;border:1px solid var(--border,#262b35);
   background:var(--field,#1d2129);color:var(--ink,#e8eaf0);font:inherit;font-size:13px;cursor:pointer}
 #vpResult{padding:10px 18px 14px;border-top:1px solid var(--border,#262b35);font-size:12px;max-height:22vh;overflow-y:auto}
-#vpResult .vp-ok{color:#7ee2a8}#vpResult .vp-fault{color:#e06c75}
+#vpResult .vp-ok{color:var(--ok,#8fb59a)}#vpResult .vp-fault{color:var(--bad,#d08a82)}
+/* Light theme (core/ui_palette.py): the status tints take the light palette's own colours. */
+:root[data-theme="light"] .vp-badge.vp-mut{color:var(--warn)}:root[data-theme="light"] .vp-badge.vp-desc{color:var(--bad)}:root[data-theme="light"] #vpResult .vp-ok{color:var(--success)}:root[data-theme="light"] #vpResult .vp-fault{color:var(--bad)}
+@media (prefers-color-scheme: light){:root[data-theme="system"] .vp-badge.vp-mut{color:var(--warn)}:root[data-theme="system"] .vp-badge.vp-desc{color:var(--bad)}:root[data-theme="system"] #vpResult .vp-ok{color:var(--success)}:root[data-theme="system"] #vpResult .vp-fault{color:var(--bad)}}
 #vpResult .vp-receipts{margin-top:6px;font-family:ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted,#9aa1af)}
 #vpResult .vp-next{margin-top:6px}
 #vpResult .vp-next button{font:inherit;font-size:11px;background:none;border:1px solid var(--border,#262b35);
@@ -70,6 +74,15 @@ if (window.VoolPalette) return;
 var ACTIONS = [];
 var REGISTRY = [];          // fetched from GET /api/commands/palette — NEVER hardcoded here
 var SCHEMA = null;          // fetched from GET /api/commands/schema (typed argument forms)
+// The registry is the operator's command centre (logs, receipts, wallet approvals, repair stages).
+// It is real, but it is not what a person pressing Ctrl+K for "new chat" should be handed: by
+// default the palette lists the page's own actions only. "Show developer commands" (a row of the
+// palette itself, remembered per browser) brings every registry row back, unchanged.
+var DEV_KEY = 'vool.palette.developer_commands';
+function devCommandsOn(){ try { return window.localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } }
+function setDevCommands(on){ try { if (on) window.localStorage.setItem(DEV_KEY, '1'); else window.localStorage.removeItem(DEV_KEY); } catch (e) {} }
+var IS_MAC = /Mac|iPhone|iPad/.test((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
+var MOD = IS_MAC ? '\u2318' : 'Ctrl+';
 function pageActions(){ return window.VoolPageActions || null; }
 function fetchJson(url, opts){
   return fetch(url, opts || {}).then(function(r){ return r.json().catch(function(){ return null; }); });
@@ -83,25 +96,57 @@ function loadRegistry(){
   fetchJson('/api/commands/schema').then(function(data){ SCHEMA = data || null; });
 }
 function companion(){ return window.VoolCompanion || null; }
-function register(id, label, run, kbd){
-  ACTIONS.push({ id: String(id), label: String(label), run: run, kbd: kbd || '' });
+function register(id, label, run, kbd, keywords){
+  ACTIONS.push({ id: String(id), label: String(label), run: run, kbd: kbd || '', keywords: String(keywords || '') });
+}
+// "setup" finds "Set up VOOL": spaces and dots are ignored, and a row may carry other words for itself.
+function squash(t){ return String(t || '').toLowerCase().replace(/[\\s.\u2026]+/g, ''); }
+function actionMatches(action, query){
+  if (!query) return true;
+  if (action.label.toLowerCase().indexOf(query) !== -1) return true;
+  var q = squash(query);
+  return !!q && squash(action.label + ' ' + (action.keywords || '')).indexOf(q) !== -1;
 }
 
-register('new-chat', 'New chat', function(){ var p = pageActions(); if (p) p.newChat(); }, '\\⌘N');
-register('toggle-activity', 'Toggle Activity panel', function(){ var p = pageActions(); if (p) p.togglePanel(); }, '\\⌘J');
-register('model-menu', 'Switch model\\…', function(){ var p = pageActions(); if (p) p.openModelMenu(); }, '\\⌘M');
-register('mode-menu', 'Autonomy mode\\…', function(){ var p = pageActions(); if (p) p.openModeMenu(); });
-register('settings', 'Open Settings', function(){ var p = pageActions(); if (p) p.openSettings(); }, '\\⌘,');
-register('council', 'Council control room', function(){ var p = pageActions(); if (p) p.openCouncil(); });
-register('plugins', 'Plugins\\…', function(){ var p = pageActions(); if (p) p.openPlugins(); });
-register('skills', 'Skills\\…', function(){ var p = pageActions(); if (p) p.openSkills(); });
-register('files', 'Generated files\\…', function(){ var p = pageActions(); if (p) p.openFiles(); });
+function clickId(id){ var el = document.getElementById(id); if (el && !el.disabled) el.click(); }
+register('new-chat', 'New chat', function(){ var p = pageActions(); if (p) p.newChat(); }, MOD + 'N');
+register('search-chat', 'Search this chat', function(){ clickId('searchBtn'); }, MOD + 'Shift+F');
+register('search-chats', 'Find a chat by name', function(){ var f = document.getElementById('vxFilter'); if (f) f.focus(); }, MOD + 'F');
+register('export-chat', 'Export this chat\\…', function(){ clickId('exportBtn'); });
+register('pinned', 'Pinned messages', function(){ clickId('pinBtn'); });
+register('toggle-activity', 'Show or hide activity', function(){ var p = pageActions(); if (p) p.togglePanel(); }, MOD + 'J');
+register('model-menu', 'Choose a model\\…', function(){ var p = pageActions(); if (p) p.openModelMenu(); }, MOD + 'M');
+register('mode-menu', 'How much VOOL may do alone\\…', function(){ var p = pageActions(); if (p) p.openModeMenu(); });
+register('setup', 'Set up VOOL\\…', function(){ var p = pageActions(); if (p && p.openSetup) p.openSetup(''); }, '', 'setup getting started finish setup');
+register('settings', 'Open settings', function(){ var p = pageActions(); if (p) p.openSettings(); }, MOD + ',');
+register('council', 'Council\\…', function(){ var p = pageActions(); if (p) p.openCouncil(); });
+register('plugins', 'Skills & plugins\\…', function(){ var p = pageActions(); if (p) p.openPlugins(); });
+register('files', 'Files VOOL made\\…', function(){ var p = pageActions(); if (p) p.openFiles(); });
+register('report', 'Report a problem\\…', function(){ clickId('reportBtn'); });
 register('contacts', 'Contacts\\…', function(){ var p = pageActions(); if (p && p.openContacts) p.openContacts(); });
 register('insert-contact', 'Insert a saved contact\\…', function(){ if (window.VoolContacts) window.VoolContacts.chooseIntoComposer({}); });
-register('focus-composer', 'Focus composer', function(){ var p = pageActions(); if (p) p.focusComposer(); });
-register('companion-lab', 'Companion: Character Lab\\…', function(){ var c = companion(); if (c && c.openCharacterLab) c.openCharacterLab(); });
-register('companion-dock', 'Companion: dock in corner', function(){ var c = companion(); if (c && c.dock) c.dock(); });
-register('companion-hide', 'Companion: hide', function(){ var c = companion(); if (c && c.hide) c.hide(); });
+register('focus-composer', 'Go to the message box', function(){ var p = pageActions(); if (p) p.focusComposer(); });
+register('companion-lab', 'Pet: choose a character\\…', function(){ var c = companion(); if (c && c.openCharacterLab) c.openCharacterLab(); });
+register('companion-dock', 'Pet: move to the corner', function(){ var c = companion(); if (c && c.dock) c.dock(); });
+register('companion-hide', 'Pet: hide', function(){ var c = companion(); if (c && c.hide) c.hide(); });
+// Chats by name: "Go to chat: <title>" rows come from the sidebar list the page already rendered.
+function chatRows(query){
+  if (!query) return [];
+  var rows = [];
+  document.querySelectorAll('#sessions .session[data-id]').forEach(function(row){
+    var titleEl = row.querySelector('.s-title');
+    var title = titleEl ? titleEl.textContent.trim() : '';
+    if (!title || title.toLowerCase().indexOf(query) === -1) return;
+    rows.push({ id: 'chat:' + row.getAttribute('data-id'), label: 'Go to chat: ' + title, kbd: '',
+      run: function(){ if (titleEl) titleEl.click(); } });
+  });
+  return rows.slice(0, 8);
+}
+function devToggleRow(){
+  var on = devCommandsOn();
+  return { id: 'dev-toggle', label: on ? 'Hide developer commands' : 'Show developer commands', kbd: '', keepOpen: true,
+    run: function(){ setDevCommands(!on); renderList(); } };
+}
 
 var overlay = document.createElement('div');
 overlay.id = 'vpOverlay';
@@ -135,9 +180,12 @@ function registryRow(command, index){
 }
 function renderList(){
   var query = inputEl.value.trim().toLowerCase();
-  var pageMatches = ACTIONS.filter(function(action){ return !query || action.label.toLowerCase().indexOf(query) !== -1; });
+  var pageMatches = ACTIONS.filter(function(action){ return actionMatches(action, query); });
+  pageMatches = pageMatches.concat(chatRows(query));
+  var devRow = devToggleRow();
+  if (!query || devRow.label.toLowerCase().indexOf(query) !== -1 || 'developer'.indexOf(query) === 0) pageMatches.push(devRow);
   var tokens = query ? query.toLowerCase().split(/\\s+/).filter(Boolean) : [];
-  var registryMatches = REGISTRY.filter(function(c){
+  var registryMatches = (devCommandsOn() ? REGISTRY : []).filter(function(c){
     if (!tokens.length) return true;
     var hay = (c.command_id + ' ' + (c.aliases || []).join(' ') + ' ' + c.group + ' ' + c.label).toLowerCase();
     return tokens.every(function(token){ return hay.indexOf(token) !== -1; });
@@ -149,7 +197,7 @@ function renderList(){
         if (action.command) return registryRow(action.command, index);
         return '<div class="vp-item' + (index === selected ? ' vp-sel' : '') + '" role="option"' +
           ' aria-selected="' + (index === selected) + '" data-vp="' + esc(action.id) + '">' +
-          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(action.kbd) + '</span>' : '') +
+          esc(action.label) + (action.kbd ? '<span class="vp-kbd">' + esc(typeof voolKeyLabel === 'function' ? voolKeyLabel(action.kbd) : action.kbd) + '</span>' : '') +
           '</div>';
       }).join('')
     : '<div class="vp-empty">No matching command</div>';
@@ -245,6 +293,7 @@ function runSelected(){
   var action = visible[selected];
   if (!action) return;
   if (action.command) { showForm(action.command); return; }
+  if (action.keepOpen) { try { action.run(); } catch (err) {} inputEl.focus(); return; }
   closePalette();
   try { action.run(); } catch (err) { /* an action failing must not brick the palette */ }
 }
@@ -301,6 +350,16 @@ function vpMountHint(){
     + ' \u00b7 <kbd>⌘F</kbd> ' + vpHintT('palette.hint_search_chats', 'search chats')
     + ' \u00b7 <kbd>⌘,</kbd> ' + vpHintT('palette.hint_settings', 'settings')
     + ' \u00b7 <kbd>Esc</kbd> ' + vpHintT('palette.hint_esc_stop', 'stop');
+  // The key caps name the keys THIS keyboard has: ⌘ on a Mac, Ctrl everywhere else. In a plain
+  // browser tab Ctrl+N belongs to the browser (it opens a window), so it is not advertised there.
+  if (!IS_MAC) {
+    if (typeof voolKeyLabelsIn === 'function') voolKeyLabelsIn(hint);
+    else hint.querySelectorAll('kbd').forEach(function(k){ k.textContent = k.textContent.replace('\u2318', 'Ctrl+'); });
+    if (!(window.pywebview && window.pywebview.api)) {
+      var parts = hint.innerHTML.split(' \u00b7 ');
+      hint.innerHTML = parts.filter(function(part){ return part.indexOf('<kbd>Ctrl+N</kbd>') === -1; }).join(' \u00b7 ');
+    }
+  }
   host.appendChild(hint);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', vpMountHint);
@@ -327,6 +386,21 @@ document.addEventListener('keydown', function(ev){
 // ---- the Esc cascade ---------------------------------------------------------------------
 // Capture phase runs before every legacy bubble listener: snapshot what was open AT PRESS TIME.
 var escSawOpenSurface = false;
+// The companion shells (.vool-ninja-menu/-pop, .vool-character-lab) sit in the page from boot,
+// hidden with display:none. Present-but-hidden must not count as "a menu is open": only a
+// surface the user can actually see owns Escape.
+function surfaceReallyOpen(el){
+  if (!el || el.hidden) return false;
+  if (el.style && el.style.display === 'none') return false;
+  var cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
+  if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+  return true;
+}
+function isShown(el){
+  // Hidden by attribute or style, or laid out to nothing where layout is known.
+  if (!surfaceReallyOpen(el)) return false;
+  return typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
+}
 function anyLegacySurfaceOpen(){
   if (!overlay.hidden) return true;
   var ids = ['settingsOverlay', 'councilOverlay', 'pluginsOverlay', 'bypassOverlay', 'pinOverlay'];
@@ -334,8 +408,20 @@ function anyLegacySurfaceOpen(){
     var el = document.getElementById(ids[i]);
     if (el && !el.hidden) return true;
   }
-  if (document.querySelector('.pop.open')) return true;
-  if (document.querySelector('.vool-ninja-menu, .vool-ninja-pop, .vool-character-lab')) return true;
+  if (document.querySelector('.pop.open, .popover.open')) return true;
+  var overlays = document.querySelectorAll('.modal-overlay');
+  for (var k = 0; k < overlays.length; k++) if (!overlays[k].hidden && isShown(overlays[k])) return true;
+  var emotes = document.getElementById('vxEmotePop');
+  if (emotes && isShown(emotes)) return true;
+  if (document.getElementById('emojiPicker') || document.getElementById('projMenu') || document.getElementById('textPromptDialog')) return true;
+  var floating = ['vfEventCard', 'vfPop'];
+  for (var f = 0; f < floating.length; f++) { var fl = document.getElementById(floating[f]); if (fl && isShown(fl)) return true; }
+  if (document.body && document.body.classList && document.body.classList.contains('sidebar-open') && window.matchMedia && window.matchMedia('(max-width: 720px)').matches) return true;
+  // The pet's menu, info pop and Character Lab are ALWAYS in the DOM (hidden with display:none),
+  // so presence proves nothing: only one that is actually showing owns this Esc. Testing presence
+  // made every bare Esc look "owned" and "Esc stop" never stopped a run.
+  var pet = document.querySelectorAll('.vool-ninja-menu, .vool-ninja-pop, .vool-character-lab');
+  for (var j = 0; j < pet.length; j++) if (isShown(pet[j])) return true;
   return false;
 }
 document.addEventListener('keydown', function(ev){

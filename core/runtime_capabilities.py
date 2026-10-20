@@ -199,9 +199,9 @@ def _gpu_driver_compat_capability(probe: Any) -> dict[str, Any]:
 
 
 _WEB_OPT_IN_REASON = (
-    "Live web lookup is opt-in and OFF in the local-only profile. "
-    "To enable it, run a non-local-only profile (and/or set VOOL_ENABLE_WEB=1 when not local-only). "
-    "In local-only the no-egress guarantee overrides the opt-in, so VOOL_ENABLE_WEB=1 alone will not turn it on."
+    "Live web lookup is off by default. Turn it on in Settings > Privacy & Permissions > Web lookups; "
+    "on the command line, VOOL_ENABLE_WEB=1 does the same when not local-only. "
+    "In local-only the no-egress guarantee overrides the opt-in, so neither turns it on."
 )
 
 

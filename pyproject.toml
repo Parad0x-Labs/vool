@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.1"
+version = "0.7.2"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -89,7 +89,7 @@ models = [
     "transformers>=4.48",
     "peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "aiohttp>=3.14.3",  # Security floor for model/data download clients.
+    "aiohttp>=3.14.4",  # Security floor for model/data download clients.
     "datasets>=3.2",
     "huggingface_hub>=0.28",
 ]
@@ -110,7 +110,7 @@ runtime = [
     "transformers>=4.48",
     "peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "aiohttp>=3.14.3",  # Security floor for model/data download clients.
+    "aiohttp>=3.14.4",  # Security floor for model/data download clients.
     "datasets>=3.2",
     "huggingface_hub>=0.28",
     "playwright>=1.52,<2.0",
@@ -175,6 +175,7 @@ vool-registry = "registry_service.cli:main"
 # secret redaction cannot see a recovery phrase.
 "core.wallet" = ["bip39_english.txt"]
 "core.registry" = ["trusted-root.json"]
+"registry_service" = ["curation.json"]
 
 [tool.setuptools.packages.find]
 include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "ops*", "retrieval*", "channels*", "tools*", "relay*", "installer*", "registry_service*"]

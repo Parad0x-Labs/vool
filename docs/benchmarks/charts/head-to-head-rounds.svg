@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="374" viewBox="0 0 760 374" role="img" aria-labelledby="title desc">
+<title id="title">VOOL vs Hermes vs OpenClaw: every head-to-head round</title><desc id="desc">Official 150 · v12: VOOL 124/150 (82.7%), Hermes 94/150 (62.7%), OpenClaw 107/150 (71.3%); Round 3, 130 · v12: VOOL 102/130 (78.5%), Hermes 95/130 (73.1%), OpenClaw 93/130 (71.5%); Pilot 200 · v7: VOOL 163/200 (81.5%), Hermes 139/200 (69.5%), OpenClaw 142/200 (71.0%)</desc>
+<style>svg{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s-vool:#2a78d6;--s-hermes:#eb6834;--s-openclaw:#1baf7a;--s-full-transcript:#a3a29b;}@media (prefers-color-scheme: dark){svg{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s-vool:#3987e5;--s-hermes:#d95926;--s-openclaw:#199e70;--s-full-transcript:#6f6e69;}}text{font-family:system-ui, -apple-system, "Segoe UI", sans-serif;fill:var(--ink)}.t{font-size:17px;font-weight:600}.st{font-size:12.5px;fill:var(--ink2)}.lb{font-size:13px}.v{font-size:12.5px;font-variant-numeric:tabular-nums}.ax{font-size:11.5px;fill:var(--muted);font-variant-numeric:tabular-nums}.g{stroke:var(--grid);stroke-width:1}.b{stroke:var(--axis);stroke-width:1}</style>
+<rect width="760" height="374" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="34">VOOL vs Hermes vs OpenClaw: every head-to-head round</text>
+<text class="st" x="24" y="54">LoCoMo questions answered right; same reader model (GLM 5.3 flashx) for all three in each round.</text>
+<rect x="24" y="72" width="12" height="12" rx="3" fill="var(--s-vool)"/>
+<text class="lb" x="42" y="82">VOOL</text>
+<rect x="83" y="72" width="12" height="12" rx="3" fill="var(--s-hermes)"/>
+<text class="lb" x="101" y="82">Hermes</text>
+<rect x="157" y="72" width="12" height="12" rx="3" fill="var(--s-openclaw)"/>
+<text class="lb" x="175" y="82">OpenClaw</text>
+<line class="b" x1="200.0" y1="92" x2="200.0" y2="318"/>
+<text class="ax" x="200.0" y="334" text-anchor="middle">0%</text>
+<line class="g" x1="312.5" y1="92" x2="312.5" y2="318"/>
+<text class="ax" x="312.5" y="334" text-anchor="middle">25%</text>
+<line class="g" x1="425.0" y1="92" x2="425.0" y2="318"/>
+<text class="ax" x="425.0" y="334" text-anchor="middle">50%</text>
+<line class="g" x1="537.5" y1="92" x2="537.5" y2="318"/>
+<text class="ax" x="537.5" y="334" text-anchor="middle">75%</text>
+<line class="g" x1="650.0" y1="92" x2="650.0" y2="318"/>
+<text class="ax" x="650.0" y="334" text-anchor="middle">100%</text>
+<text class="lb" x="188" y="131.5" text-anchor="end">Official 150 · v12</text>
+<path d="M200.0,98.0h368.0a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-368.0z" fill="var(--s-vool)"/>
+<text class="v" x="578.0" y="111.5">124/150 (82.7%)</text>
+<path d="M200.0,118.0h278.0a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-278.0z" fill="var(--s-hermes)"/>
+<text class="v" x="488.0" y="131.5">94/150 (62.7%)</text>
+<path d="M200.0,138.0h317.0a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-317.0z" fill="var(--s-openclaw)"/>
+<text class="v" x="527.0" y="151.5">107/150 (71.3%)</text>
+<text class="lb" x="188" y="207.5" text-anchor="end">Round 3, 130 · v12</text>
+<path d="M200.0,174.0h349.1a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-349.1z" fill="var(--s-vool)"/>
+<text class="v" x="559.1" y="187.5">102/130 (78.5%)</text>
+<path d="M200.0,194.0h324.8a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-324.8z" fill="var(--s-hermes)"/>
+<text class="v" x="534.8" y="207.5">95/130 (73.1%)</text>
+<path d="M200.0,214.0h317.9a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-317.9z" fill="var(--s-openclaw)"/>
+<text class="v" x="527.9" y="227.5">93/130 (71.5%)</text>
+<text class="lb" x="188" y="283.5" text-anchor="end">Pilot 200 · v7</text>
+<path d="M200.0,250.0h362.8a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-362.8z" fill="var(--s-vool)"/>
+<text class="v" x="572.8" y="263.5">163/200 (81.5%)</text>
+<path d="M200.0,270.0h308.8a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-308.8z" fill="var(--s-hermes)"/>
+<text class="v" x="518.8" y="283.5">139/200 (69.5%)</text>
+<path d="M200.0,290.0h315.5a4.0,4.0 0 0 1 4.0,4.0v10.0a4.0,4.0 0 0 1 -4.0,4.0h-315.5z" fill="var(--s-openclaw)"/>
+<text class="v" x="525.5" y="303.5">142/200 (71.0%)</text>
+<text class="st" x="24" y="358">Graded by GPT-4o (official 150) or GLM 5.3 flashx (others). VOOL was tuned on the pilot&#x27;s 200 questions.</text>
+</svg>

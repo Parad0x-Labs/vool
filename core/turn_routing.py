@@ -798,9 +798,29 @@ def _events_path() -> Path:
 
 _EVENTS_LOCK = threading.Lock()
 _EVENTS_APPEND_MAX = 4096
+# A private turn's routing records (core.private_chat) stay in this process: a file row would name
+# the chat for good, and a failure row keeps the message. Readers (retry linkage, the failure
+# explanation) still find them while VOOL runs. Bounded; the oldest drop first.
+_PRIVATE_EVENTS: list[dict[str, Any]] = []
+_PRIVATE_EVENTS_MAX = 256
+
+
+def _row_is_private(row: dict[str, Any]) -> bool:
+    try:
+        from core.private_chat import turn_is_private
+
+        chat = str(row.get("session_id") or row.get("conversation_ref") or "")
+        return turn_is_private(None, chat)
+    except Exception:
+        return True
 
 
 def _append_event(row: dict[str, Any]) -> None:
+    if _row_is_private(row):
+        with _EVENTS_LOCK:
+            _PRIVATE_EVENTS.append(dict(row))
+            del _PRIVATE_EVENTS[:-_PRIVATE_EVENTS_MAX]
+        return
     with _EVENTS_LOCK:
         path = _events_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -817,10 +837,8 @@ def _append_event(row: dict[str, Any]) -> None:
 
 def _read_events() -> list[dict[str, Any]]:
     path = _events_path()
-    if not path.exists():
-        return []
     rows: list[dict[str, Any]] = []
-    for candidate in (path, path.with_suffix(".jsonl.1")):
+    for candidate in (path, path.with_suffix(".jsonl.1")) if path.exists() else ():
         if not candidate.exists():
             continue
         try:
@@ -838,7 +856,10 @@ def _read_events() -> list[dict[str, Any]]:
         if candidate is path:
             break
     # Rotated file first (older), then current — stable chronological order.
-    return rows
+    with _EVENTS_LOCK:
+        held = [dict(row) for row in _PRIVATE_EVENTS]
+    # Held rows were recorded in this process, after everything already in the file.
+    return rows + held
 
 
 def record_routing_provenance(plan: TurnRoutingPlan) -> None:

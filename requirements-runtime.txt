@@ -22,7 +22,7 @@ torch>=2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'
 transformers>=4.48
 peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'
 accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'
-aiohttp>=3.14.3
+aiohttp>=3.14.4
 datasets>=3.2
 huggingface_hub>=0.28
 playwright>=1.52,<2.0

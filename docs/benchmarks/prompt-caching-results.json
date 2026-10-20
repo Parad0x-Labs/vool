@@ -1,0 +1,38 @@
+{
+  "about": "Numbers behind docs/benchmarks/prompt-caching.md and its charts. Every value is copied from the two bench reports named under source; make_prompt_caching_charts.py draws the SVG charts from this file.",
+  "tasks": {
+    "quick_chat": {"name": "Quick dinner chat", "turns": 16, "max_points": 32},
+    "long_doc": {"name": "Long pasted document", "turns": 16, "max_points": 32},
+    "files": {"name": "Files in a folder", "turns": 12, "max_points": 24}
+  },
+  "turns_per_setup": 44,
+  "max_points": 88,
+  "grader": "openai/gpt-4.1-mini on OpenRouter, blind, written reference facts, 0-2 points per turn",
+  "run4": {
+    "date": "2026-10-15",
+    "request_shape": "VOOL sent only the latest message with the chat id",
+    "source": "ops/prompt_cache_bench report for run 4, costs re-derived after the running-total fix",
+    "billed_usd_key_meter": 4.09,
+    "setups": {
+      "claude_code": {"name": "Claude Code", "model": "anthropic/claude-sonnet-4.5", "cache": "its own", "usd": 1.3671, "prompt_tokens": 2345311, "cached_tokens": 2214625, "median_s": 8.008, "points": 85, "by_task": {"quick_chat": 31, "long_doc": 30, "files": 24}},
+      "vool_claude_off": {"name": "VOOL, Claude, cache off", "model": "anthropic/claude-sonnet-4.5", "cache": "off", "usd": 0.6273, "prompt_tokens": 178025, "cached_tokens": 0, "median_s": 7.834, "points": 42, "by_task": {"quick_chat": 29, "long_doc": 9, "files": 4}},
+      "vool_claude_system": {"name": "VOOL, Claude, system cache", "model": "anthropic/claude-sonnet-4.5", "cache": "system", "usd": 0.5675, "prompt_tokens": 180833, "cached_tokens": 30124, "median_s": 7.963, "points": 41, "by_task": {"quick_chat": 27, "long_doc": 10, "files": 4}},
+      "vool_claude_history": {"name": "VOOL, Claude, system + history cache", "model": "anthropic/claude-sonnet-4.5", "cache": "system+history", "usd": 0.5831, "prompt_tokens": 178599, "cached_tokens": 31236, "median_s": 8.398, "points": 43, "by_task": {"quick_chat": 30, "long_doc": 9, "files": 4}},
+      "vool_gpt": {"name": "VOOL, GPT-4.1-mini", "model": "openai/gpt-4.1-mini", "cache": "provider automatic", "usd": 0.0483, "prompt_tokens": 120074, "cached_tokens": 18432, "median_s": 5.96, "points": 44, "by_task": {"quick_chat": 31, "long_doc": 11, "files": 2}},
+      "vool_kimi": {"name": "VOOL, Kimi K3", "model": "moonshotai/kimi-k3", "cache": "provider automatic", "usd": 0.5936, "prompt_tokens": 128945, "cached_tokens": 11549, "cache_unreported_calls": 9, "median_s": 10.054, "points": 48, "by_task": {"quick_chat": 32, "long_doc": 10, "files": 6}}
+    }
+  },
+  "run5": {
+    "date": "2026-10-15",
+    "request_shape": "VOOL got the whole chat on every turn, as its chat page sends it",
+    "source": "ops/prompt_cache_bench report for run 5",
+    "billed_usd_key_meter": 2.57,
+    "setups": {
+      "vool_claude_off": {"name": "VOOL, Claude, cache off", "model": "anthropic/claude-sonnet-4.5", "cache": "off", "usd": 0.6482, "prompt_tokens": 187947, "cached_tokens": 0, "median_s": 7.453, "points": 45, "by_task": {"quick_chat": 27, "long_doc": 14, "files": 4}},
+      "vool_claude_system": {"name": "VOOL, Claude, system cache", "model": "anthropic/claude-sonnet-4.5", "cache": "system", "usd": 0.5860, "prompt_tokens": 192409, "cached_tokens": 30124, "median_s": 7.442, "points": 50, "by_task": {"quick_chat": 30, "long_doc": 12, "files": 8}},
+      "vool_claude_history": {"name": "VOOL, Claude, system + history cache", "model": "anthropic/claude-sonnet-4.5", "cache": "system+history", "usd": 0.6189, "prompt_tokens": 190637, "cached_tokens": 32461, "median_s": 7.723, "points": 43, "by_task": {"quick_chat": 29, "long_doc": 14, "files": 0}},
+      "vool_gpt": {"name": "VOOL, GPT-4.1-mini", "model": "openai/gpt-4.1-mini", "cache": "provider automatic", "usd": 0.0499, "prompt_tokens": 120476, "cached_tokens": 13440, "median_s": 5.832, "points": 52, "by_task": {"quick_chat": 32, "long_doc": 15, "files": 5}},
+      "vool_kimi": {"name": "VOOL, Kimi K3", "model": "moonshotai/kimi-k3", "cache": "provider automatic", "usd": 0.5807, "prompt_tokens": 136926, "cached_tokens": 14643, "cache_unreported_calls": 6, "median_s": 9.573, "points": 51, "by_task": {"quick_chat": 32, "long_doc": 16, "files": 3}}
+    }
+  }
+}

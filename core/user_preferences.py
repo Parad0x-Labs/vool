@@ -14,6 +14,7 @@ class UserPreferences:
     humor_percent: int = 20
     user_address: str = ""  # how VOOL addresses the user (a name/handle), e.g. "Alex", "boss", "ser"
     deep_reasoning: bool = False  # local thinking model reasons before answering — OFF by default (fast chat)
+    show_answer_details: bool = False  # the provenance line under answers — OFF by default (no dev text for normal users)
     character_mode: str = ""
     tone_hint: str = "direct"
     boundaries_mode: str = "user_defined"
@@ -33,6 +34,9 @@ class UserPreferences:
     wallet_enabled: bool = False    # 🧪 experimental crypto wallet -- OFF by default; the Settings switch, not an env var
     wallet_enabled_generation: int = 0  # counts changes of the switch; a signed wallet transfer compares it before sending
     zcash_invoices_enabled: bool = False  # Zcash private invoices (watch-only, core/zcash) -- OFF by default
+    # "Use the model's own tools" (core/model_own_tools.py): a pinned cloud model gets no VOOL tools
+    # and, where its provider really offers one, its provider's own web search. OFF by default.
+    model_own_tools: bool = False
     speech_notice_dismissed: bool = False  # durable even in private native web sessions
     # First-run setup (core/setup_progress.py). The flow persists ONLY these two: which steps the
     # user skipped and whether the "Complete setup" reminder was dismissed. Done-ness is never
@@ -188,6 +192,7 @@ def load_preferences() -> UserPreferences:
             humor_percent=_clamp_pct(int(raw.get("humor_percent", 20))),
             user_address=str(raw.get("user_address", "")).strip()[:60],
             deep_reasoning=bool(raw.get("deep_reasoning", False)),
+            show_answer_details=bool(raw.get("show_answer_details", False)),
             character_mode=str(raw.get("character_mode", "")).strip()[:120],
             tone_hint=str(raw.get("tone_hint", "direct")).strip()[:32] or "direct",
             boundaries_mode=_normalize_boundaries(str(raw.get("boundaries_mode", "user_defined"))),
@@ -204,6 +209,8 @@ def load_preferences() -> UserPreferences:
             wallet_enabled=bool(raw.get("wallet_enabled", False)),
             wallet_enabled_generation=max(0, int(raw.get("wallet_enabled_generation", 0) or 0)),
             zcash_invoices_enabled=bool(raw.get("zcash_invoices_enabled", False)),
+            # Only a stored JSON true turns it on: a string, a number or a damaged file reads OFF.
+            model_own_tools=raw.get("model_own_tools") is True,
             ram_reserve_pct=min(80, max(10, int(raw.get("ram_reserve_pct", 20)))),
             daily_token_budget=max(0, int(raw.get("daily_token_budget", 0))),
             timezone=_validate_timezone(str(raw.get("timezone", "") or "")),
@@ -226,6 +233,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["boundaries_mode"] = _normalize_boundaries(str(payload.get("boundaries_mode", "user_defined")))
     payload["autonomy_mode"] = _normalize_autonomy(str(payload.get("autonomy_mode", "hands_off")))
     payload["communication_style"] = _normalize_communication_style(str(payload.get("communication_style", "casual")))
+    payload["show_answer_details"] = bool(payload.get("show_answer_details", False))
     payload["show_workflow"] = bool(payload.get("show_workflow", False))
     payload["hive_followups"] = bool(payload.get("hive_followups", True))
     payload["idle_research_assist"] = bool(payload.get("idle_research_assist", True))
@@ -234,6 +242,7 @@ def save_preferences(prefs: UserPreferences) -> Path:
     payload["wallet_enabled"] = bool(payload.get("wallet_enabled", False))
     payload["wallet_enabled_generation"] = max(0, int(payload.get("wallet_enabled_generation", 0) or 0))
     payload["zcash_invoices_enabled"] = bool(payload.get("zcash_invoices_enabled", False))
+    payload["model_own_tools"] = payload.get("model_own_tools") is True
     payload["ram_reserve_pct"] = min(80, max(10, int(payload.get("ram_reserve_pct", 20))))
     payload["daily_token_budget"] = max(0, int(payload.get("daily_token_budget", 0)))
     payload["timezone"] = _validate_timezone(str(payload.get("timezone", "") or ""))
@@ -356,6 +365,13 @@ def maybe_handle_preference_command(user_text: str) -> tuple[bool, str]:
             f"accept_hive_tasks={'on' if prefs.accept_hive_tasks else 'off'}, "
             f"social_commons={'on' if prefs.social_commons else 'off'}."
         )
+
+    # "use the model's own tools" / "use VOOL's tools" (core/model_own_tools.py owns the wording).
+    from core.model_own_tools import handle_tools_command
+
+    tools_handled, tools_reply = handle_tools_command(text)
+    if tools_handled:
+        return True, tools_reply
 
     humor = _HUMOR_RE.search(text)
     if humor:

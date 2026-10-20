@@ -46,6 +46,25 @@ class DemandSignals:
     write_demand: bool = False
 
 
+# Market-watch evidence (used by the watch.* rules below). An address is an EVM address or a
+# base58 Solana address; a ticker is upper case as typed (or $-prefixed); a condition is a price
+# after above/below or a percent. The watch noun is "watch(es)" after a determiner or a subject,
+# never the verb "watching" on its own.
+_WATCH_ADDRESS = r"(?:\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+_WATCH_TICKER = r"(?:\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b(?-i:[A-Z][A-Z0-9]{1,9})\b)"
+_WATCH_CONDITION = (
+    r"(?:\b(?:above|below|over|under|past)\s+\$?\d"
+    r"|\b(?:goes?|gets?|is|trades?|moves?|rises?|drops?|falls?|dips?|pumps?|dumps?|crosses?|hits?|reaches?)"
+    r"\s+(?:to\s+|by\s+)?\$?\d"
+    r"|\d+(?:\.\d+)?\s*%)"
+)
+_WATCH_NOUN = (
+    r"\b(?:the|this|that|my|all|these|those|its|price|wallet|token|coin)\s+watch(?:es)?\b"
+    r"|\b(?-i:[A-Z][A-Z0-9]{1,9})\s+watch(?:es)?\b"
+)
+_WATCHING_SUBJECT = r"\bwatching\s+(?:this|that|the|my)\s+(?:wallet|token|coin|price)\b"
+
+
 # Each rule: (intent, family, pattern). Patterns are noun+verb anchored phrases, matched
 # case-insensitively against the whole message. Order is irrelevant to the result; the
 # tuples exist so a single compiled pass covers everything.
@@ -81,6 +100,27 @@ def is_explicit_code_repair(text: str) -> bool:
         and not asks_for_instructions_not_execution(text)
     )
 
+
+# -- market data tools (core/market_data): every branch needs a market anchor in the SAME sentence --
+# A token anchor (an EVM or Solana address, a $TICKER, "this/that token|coin|mint") or a collected
+# dataset's id (md_<hex>). Trade words alone are ordinary English ("grab the candles from the store",
+# "my thesis is due tomorrow", "delete the dataset I uploaded for the ML class"), so none of the
+# market rules seats on them without the anchor.
+_MARKET_TOKEN_ANCHOR = (
+    r"\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
+    r"|\b(?:this|that)\s+(?:token|coin|memecoin|mint)\b"
+)
+_MARKET_DATASET_ANCHOR = r"\bmd_[0-9a-f]{3,}\b|\bmarket\s+datasets?\b"
+
+
+def _market_rule(branch: str, *, datasets: bool = False) -> re.Pattern[str]:
+    """``branch`` and an anchor both inside one sentence (lookaheads from the sentence start)."""
+    anchor = _MARKET_TOKEN_ANCHOR + ("|" + _MARKET_DATASET_ANCHOR if datasets else "")
+    return re.compile(rf"(?:^|(?<=[.?!]))(?=[^.?!]*?(?:{anchor}))(?=[^.?!]*?(?:{branch}))", re.I)
+
+#: the token a buy/sell activity question names: an address, a $TICKER, or "this/that token"
+_FLOW_TOKEN = (r"(?:\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
+               r"|\b(?:this|that|the|my)\s+(?:token|coin|memecoin)\b)")
 
 _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     # -- repository operations (RepoOps control plane) ------------------------
@@ -134,6 +174,10 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("wallet.payment_status", "wallet", re.compile(r"\bpay-[0-9a-f]{20}\b|\b(?:status|state)\b[^.?!]{0,40}?\b(?:payment|proposal)\b", re.I)),
     ("wallet.simulate", "wallet", re.compile(r"\bsimulate\b[^.?!]{0,40}?\b(?:payment|proposal|transaction)\b", re.I)),
     ("x402.propose", "wallet", re.compile(r"\bx402\b[^.?!]{0,80}?\b(?:fetch|get|access|pay|paid|buy|resource|offer)\b|\b(?:fetch|access)\b[^.?!]{0,60}?\bpaid\b", re.I)),
+    # pay-per-answer AI (core/x402_ai): the owner's own paid service, named as such; asking it only parks a payment
+    ("ai.paid_ask", "wallet", re.compile(
+        r"\b(?:ask|use|query|try)\b[^.?!]{0,30}?\b(?:paid|pay[\s-]?per[\s-]?answer)\s+(?:ai|model|llm|service|endpoint)\b"
+        r"|\bask\b[^.?!]{0,60}?\b(?:with|over|via|through|using|paying\s+with)\s+x402\b", re.I)),
     ("wallet.status", "wallet", re.compile(r"\bwallet\b[^.?!]{0,30}?\b(?:status|balance|limits?)\b|\b(?:my|the)\s+wallet\b", re.I)),
     # -- Zcash private invoices (core/zcash; seated only when the lane is on, since the contracts exist only then) --
     # every pattern is anchored on the coin's own name, so no other money talk seats them
@@ -148,6 +192,88 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         r"\b(?:sol|solana|eth|ethereum|base|bnb|bsc|robinhood\s+chain|on[- ]?chain|address|token|mint|contract)\b"
         r"|\b(?:sol|solana|eth|ethereum|bnb|bsc|on[- ]?chain|token|mint)\b[^.?!]{0,30}?\b(?:balances?|holders?|holdings|transactions?|history|supply)\b"
         r"|\b0x[0-9a-fA-F]{40}\b|\b0x[0-9a-fA-F]{64}\b", re.I)),
+    # -- token research (core/token_research; read-only facts, creator, links, early X posts) --
+    # a research verb near a token word, a creator/deployer question, or a mint/freeze-rights question
+    ("token.research", "web", re.compile(
+        r"\b(?:research|dig\s+into|look\s+into|due\s+diligence|dd\s+on|analy[sz]e|check\s+out|tell\s+me\s+about)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|memecoin|mint|ca)\b|\$[A-Za-z][A-Za-z0-9]{1,9}\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\b(?:deployer|creator|dev)\b[^.?!]{0,60}?\b(?:token|coin|contract|mint|launch\w*|deploy\w*)\b"
+        r"|\bwho\s+(?:made|created|deployed|launched|minted)\b[^.?!]{0,60}?"
+        r"(?:\b(?:token|coin|contract|mint|this|it)\b|\b0x[0-9a-fA-F]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b)"
+        r"|\bwhat\s+else\b[^.?!]{0,40}?\b(?:launch|deploy|creat|made|ma[dk]e)\w*"
+        r"|\b(?:mint|freeze)\s+authority\b", re.I)),
+    # how calls did: "how did his calls do", "track record", "did that call pump"
+    ("token.performance", "web", re.compile(
+        r"\bhow\s+(?:did|has|have|do)\b[^.?!]{0,60}?\bcalls?\b[^.?!]{0,30}?\b(?:do|done|go|gone|perform\w*)\b"
+        r"|\btrack\s+record\b[^.?!]{0,60}?\b(?:calls?|tokens?|coins?|picks?)\b"
+        r"|\b(?:calls?|tokens?|coins?|picks?)\b[^.?!]{0,60}?\btrack\s+record\b"
+        r"|\b(?:win\s*rate|hit\s*rate)\b[^.?!]{0,40}?\b(?:calls?|caller|picks?)\b", re.I)),
+    # buy/sell activity: "is this token being bought or sold", "buy volume for $FDOG", "who is selling $WIF".
+    # Every branch needs the token itself (an address, a $TICKER, or "this/that token") right where the
+    # question names it, so a sentence that only shares a word ("token of love", "selling activity in my
+    # store") never seats it.
+    ("token.flow", "web", re.compile(
+        _FLOW_TOKEN + r"[^.?!]{0,40}?\bbeing\s+(?:bought\s+or\s+sold|sold\s+or\s+bought)\b"
+        r"|\b(?:buy|sell)(?:ing)?(?:\s*(?:and|or|/)\s*(?:buy|sell)(?:ing)?)?\s+(?:volume|pressure|flow|activity)\s+(?:on|for|of|in)\s+"
+        + _FLOW_TOKEN + r"|\bwho(?:'s|\s+is)\s+(?:buying|selling)\s+" + _FLOW_TOKEN, re.I)),
+    # new tokens: "new launches", "newest tokens", "latest memecoins on solana", "fresh mints"
+    ("token.launches", "web", re.compile(
+        r"\b(?:new(?:est)?|latest|fresh|recent(?:ly)?)\s+(?:token\s+|coin\s+|memecoin\s+)?(?:launch(?:es|ed)?|tokens|coins|memecoins|mints)\b"
+        r"|\b(?:tokens|coins|memecoins)\s+(?:launched|created|minted)\s+(?:today|recently|just\s+now|in\s+the\s+last)\b", re.I)),
+    # -- market watches (core/market_watch; watch a wallet or a price and get an alert) --
+    # Seated only on crypto evidence: a wallet/token noun WITH an address or ticker, or an
+    # alert shape whose subject is a token and whose condition is a price or a percent.
+    # "track my package to this address", "notify me if the deploy goes red", "stop watching
+    # TV" and "pause the alert sound" seat nothing.
+    ("watch.add", "web", re.compile(
+        rf"\b(?:watch|track|monitor|keep\s+(?:an?\s+)?eye\s+on)\b[^.?!]{{0,60}}?"
+        rf"(?:\b(?:wallet|address)\b[^.?!]{{0,40}}?{_WATCH_ADDRESS}"
+        rf"|\b(?:token|coin|mint|price)\b[^.?!]{{0,40}}?(?:{_WATCH_ADDRESS}|{_WATCH_TICKER})"
+        rf"|(?:{_WATCH_ADDRESS}|{_WATCH_TICKER})[^.?!]{{0,30}}?\b(?:wallet|token|coin|price)\b)"
+        rf"|\b(?:(?:alert|notify|warn|ping)\s+me|(?:tell|let)\s+me(?:\s+know)?)\b[^.?!]{{0,20}}?\b(?:when|if|once)\b"
+        rf"[^.?!]{{0,40}}?(?:{_WATCH_ADDRESS}|{_WATCH_TICKER}|\b(?:token|coin)\b)[^.?!]{{0,40}}?{_WATCH_CONDITION}",
+        re.I)),
+    ("watch.list", "web", re.compile(
+        r"\bwhat\s+am\s+i\s+watching\b"
+        r"|\b(?:list|show|see|check)\b[^.?!]{0,40}?\b(?:my|the)\s+(?:watches|watch\s+list)\b"
+        r"|\b(?:my|the)\s+(?:watches|watch\s+list)\b[^.?!]{0,40}?\b(?:list|show|what|open)\b", re.I)),
+    ("watch.remove", "web", re.compile(
+        rf"\b(?:stop|remove|delete|drop|cancel)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})"
+        rf"|\bunwatch\b", re.I)),
+    ("watch.pause", "web", re.compile(
+        rf"\b(?:pause|suspend|mute)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})", re.I)),
+    ("watch.resume", "web", re.compile(
+        rf"\b(?:resume|unpause|unmute|restart)\b[^.?!]{{0,60}}?(?:{_WATCH_NOUN}|{_WATCHING_SUBJECT})", re.I)),
+    # -- market data collection (core/market_data; trades collected locally, then analyzed in code) --
+    # each branch also needs a market anchor in the same sentence (_market_rule above)
+    # collect: a collecting verb near trade words, trades asked for a token, or a buy/sell-pressure question
+    ("market.collect", "web", _market_rule(
+        r"\b(?:collect|pull|gather|grab|download|fetch)\b[^.?!]{0,60}?"
+        r"\b(?:trades?|swaps?|trading\s+(?:data|history|activity)|market\s+data|candles?)\b"
+        r"|\b(?:trades?|swaps?)\b[^.?!]{0,40}?\b(?:for|of|on)\b"
+        r"|\blast\s+(?:\d+\s*)?(?:hours?|days?|weeks?)\s+of\s+(?:\w+\s+){0,2}?trades?\b"
+        r"|\b(?:being\s+)?bought\s+or\s+sold\b|\b(?:buy|sell)(?:ing)?\s+pressure\b")),
+    # the stored datasets themselves: "list the market datasets", "what market datasets do you have"
+    ("market.datasets", "web", _market_rule(
+        r"\b(?:list|show)\b[^.?!]{0,40}?\bdatasets?\b"
+        r"|\bdatasets?\b[^.?!]{0,40}?\b(?:do\s+you\s+(?:have|know)|are\s+(?:there|stored|saved)|have\s+you\s+collected)\b"
+        r"|\bmy\s+(?:collected\s+)?(?:market\s+)?datasets?\b", datasets=True)),
+    # deleting a stored dataset or its collected data
+    ("market.dataset_delete", "web", _market_rule(
+        r"\b(?:delete|remove|drop|clear|forget)\b[^.?!]{0,50}?\bdatasets?\b"
+        r"|\b(?:delete|remove|drop|clear)\b[^.?!]{0,50}?\bcollected\s+(?:market\s+)?(?:data|trades?)\b"
+        r"|\bdatasets?\b[^.?!]{0,30}?\b(?:deleted|removed|dropped)\b", datasets=True)),
+    # "what patterns do you see in md_…", "analyze the trades for $BONK"
+    ("market.analyze", "web", _market_rule(
+        r"\b(?:what|any)\s+patterns?\b[^.?!]{0,60}?\b(?:do|did|can)\s+you\s+see\b"
+        r"|\b(?:analy[sz]e|find\s+patterns?\s+in|look\s+for\s+patterns?\s+in)\b[^.?!]{0,60}?"
+        r"\b(?:dataset|collected\s+(?:data|trades?)|market\s+data|trades?)\b"
+        r"|\bpatterns?\s+in\s+the\s+(?:data|trades?|dataset|numbers?)\b", datasets=True)),
+    # "check my thesis on $BONK: ...", "my theory about this token is that ..."
+    ("market.thesis_check", "web", _market_rule(
+        r"\b(?:check|test|verify|validate)\b[^.?!]{0,40}?\b(?:my|the|this|that|a)\s+thesis\b"
+        r"|\bthesis\b[^.?!]{0,40}?\b(?:is|holds?|true|right|correct|wrong|supported|contradicted)\b"
+        r"|\bmy\s+(?:theory|hypothesis|idea)\b[^.?!]{0,60}?\b(?:is|that)\b", datasets=True)),
     # -- workspace execution/validation -------------------------------------
     (
         "workspace.run_tests",
@@ -491,6 +617,85 @@ _RULES: tuple[tuple[str, str, re.Pattern[str]], ...] = (
             re.I,
         ),
     ),
+    # -- X reads and actions with the user's own keys (core/x_api.py, core/x_actions.py) ----
+    # Verb+noun anchored like the rest of this table: searching X, who called a token, an
+    # account's posts, or acting on X. A passing mention of X or Twitter seats nothing. An action
+    # seat is a PROPOSAL only; nothing reaches X until the user approves it in Settings.
+    (
+        "x.token_callers",
+        "x",
+        re.compile(
+            r"\b(?:who|which\s+(?:accounts?|people|influencers?|kols?))\b[^.?!]{0,40}?"
+            r"\b(?:called|calls|shill(?:ed|s|ing)?|posted|tweeted|pushed|mentioned)\b[^.?!]{0,60}?"
+            r"(?:\$[A-Za-z][A-Za-z0-9_]{0,14}\b|\b0x[a-fA-F0-9]{40}\b|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b"
+            r"|\b(?:tokens?|coins?|memecoins?|ca|contract\s+address)\b)"
+            r"|\b(?:callers?|kols?|shillers?)\b[^.?!]{0,30}?\b(?:of|for|behind)\b[^.?!]{0,40}?"
+            r"(?:\$[A-Za-z]|\b0x[a-fA-F0-9]{6}|\b[1-9A-HJ-NP-Za-km-z]{32,44}\b|\b(?:tokens?|coins?)\b)",
+            re.I,
+        ),
+    ),
+    (
+        "x.search",
+        "x",
+        re.compile(
+            r"\b(?:search|find|look\s+up|look\s+for|check|scan|monitor|track|pull|show\s+me)\b[^.?!]{0,60}?"
+            r"\b(?:on|in|from|across)\s+(?:x|twitter)\b(?!\.)"
+            r"|\b(?:search|check|scan)\s+(?:x|twitter)\s+(?:for|about)\b"
+            r"|\b(?:tweets?|(?:x|twitter)\s+posts?)\s+(?:about|mentioning|on|for|with)\s+"
+            r"(?:\$[A-Za-z]|\b0x[a-fA-F0-9]{6}|[1-9A-HJ-NP-Za-km-z]{32,44}\b|(?:this|that|the)\s+(?:token|coin|ca)\b)",
+            re.I,
+        ),
+    ),
+    (
+        "x.user_posts",
+        "x",
+        re.compile(
+            r"(?<![\w@])@[A-Za-z0-9_]{1,15}(?:'s|’s)?\s+(?:(?:past|previous|old|recent|latest|last)\s+)?"
+            r"(?:tweets|posts|timeline|calls|replies|mentions|likes|followers)\b"
+            r"|\b(?:his|her|their|its)\s+(?:past|previous|old|earlier)\s+(?:calls|tweets|posts)\b",
+            re.I,
+        ),
+    ),
+    (
+        "x.action.propose",
+        "x",
+        re.compile(
+            r"\b(?:post|tweet|publish|reply|retweet|repost|quote)\b[^.?!]{0,60}?\b(?:on|to)\s+(?:x|twitter)\b(?!\.)"
+            r"|\b(?:tweet|retweet|repost)\s+(?:this|that|it)\b"
+            r"|\b(?:follow|unfollow)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:like|retweet|repost|reply\s+to|quote)\s+(?:this|that|the)\s+(?:tweet|post)\b"
+            r"|\b(?:mute|unmute)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:dm|message)\s+@[A-Za-z0-9_]{1,15}\b"
+            r"|\b(?:hide|unhide)\s+(?:this|that|the|a)\s+repl(?:y|ies)\b"
+            r"|\b(?:create|make|start)\s+(?:an?\s+)?(?:x|twitter)\s+list\b"
+            r"|\badd\s+@[A-Za-z0-9_]{1,15}\s+to\s+(?:my\s+)?(?:\w+\s+)?list\b",
+            re.I,
+        ),
+    ),
+    ("x.spaces", "x", re.compile(r"\b(?:x|twitter)\s+spaces?\b|\bspaces?\s+(?:on|from)\s+(?:x|twitter)\b"
+                                r"|\b(?:live|scheduled|upcoming)\s+spaces?\b", re.I)),
+    ("x.dms", "x", re.compile(r"\bmy\s+(?:x|twitter)\s+(?:dms?|direct\s+messages?|inbox)\b"
+                             r"|\b(?:dms?|direct\s+messages?)\s+(?:on|from|in)\s+(?:x|twitter)\b", re.I)),
+    ("x.account", "x", re.compile(r"\bwho\s+(?:have\s+)?i\s+(?:muted|blocked)\b|\bmy\s+(?:muted|blocked)\s+(?:accounts?|list)\b"
+                                 r"|\bmy\s+(?:x|twitter)\s+trends\b|\b(?:x|twitter)\s+api\s+(?:usage|cap)\b", re.I)),
+    # Your own X reads ("fetch my last 2 tweets", "check my mentions on X", "my X timeline") and
+    # questions about what someone posted ("what did @bob post today?"). Reads only.
+    (
+        "x.user_posts",
+        "x",
+        re.compile(
+            r"\bmy\s+(?:(?:last|latest|recent|newest|past|previous|old|top)\s+)?(?:\d{1,3}\s+|few\s+|couple\s+(?:of\s+)?)?"
+            r"(?:tweets|(?:x|twitter)\s+(?:posts|mentions|likes|timeline|feed))\b"
+            r"|\bmy\s+(?:(?:home\s+)?timeline|mentions|feed|likes)\s+(?:on|from)\s+(?:x|twitter)\b(?!\.)"
+            r"|\bwho\s+(?:has\s+|have\s+)?(?:mentioned|tagged|replied\s+to)\s+me\s+on\s+(?:x|twitter)\b(?!\.)"
+            r"|\bwhat\s+(?:did|has|have|does|is|was)\s+@[A-Za-z0-9_]{1,15}\s+(?:been\s+)?(?:tweet|post|say|said|share)"
+            r"|\bwhat\s+(?:did|has|have|does|is|was)\s+[^.?!]{1,40}?\s+(?:been\s+)?"
+            r"(?:tweet(?:ed|ing)?|post(?:ed|ing)?|said|say(?:ing)?)\b[^.?!]{0,40}?\b(?:on|to)\s+(?:x|twitter)\b(?!\.)",
+            re.I,
+        ),
+    ),
+    ("x.user", "x", re.compile(r"\b(?:find|search\s+for|look\s+for)\s+(?:x|twitter)\s+accounts?\b"
+                              r"|\baccounts?\s+on\s+(?:x|twitter)\s+(?:called|named|about)\b", re.I)),
     # -- mcp (family-level: server tools are dynamic) ------------------------------
     # matched separately below via the mcp.<server>. prefix vocabulary
 )
@@ -904,6 +1109,31 @@ def asks_for_a_file(text: str) -> bool:
     return bool(_REQUEST_RE.search(raw))
 
 
+# An X action is proposed only when the words ask VOOL to act. A question about what someone
+# posted ("what did elon post today on x"), a how-to ("how do I post on X?") or words inside
+# quotes are not asks to act, even though they hold an action verb.
+_X_QUOTED = re.compile(r"\"[^\"]{0,400}\"|“[^”]{0,400}”|‘[^’]{0,400}’")
+_X_NOT_AN_ASK = re.compile(
+    r"\bwhat\s+(?:did|has|have|does|is|was)\b[^.?!]{0,40}?\b(?:post(?:ed|ing)?|tweet(?:ed|ing)?|repost(?:ed)?|retweet(?:ed)?)\b"
+    r"|\bhow\s+(?:do|can|should|would)\s+(?:i|you|we|one|people)\b"
+    r"|\bhow\s+to\s+(?:post|tweet|reply|repost|retweet|quote|like|follow|mute|dm)\b",
+    re.I,
+)
+_X_ASK_TO_ACT = re.compile(
+    r"(?:^|[.!?:;]\s*|\b(?:please|pls|plz|can\s+you|could\s+you|would\s+you|will\s+you|go\s+ahead\s+and|now|then|and|also|"
+    r"just|want\s+you\s+to|need\s+you\s+to|i'?d\s+like\s+you\s+to|help\s+me)\s+)"
+    r"(?:post|tweet|publish|reply|retweet|repost|quote|like|follow|unfollow|mute|unmute|dm|message|hide|unhide|create|make|start|add)\b",
+    re.I,
+)
+
+
+def _x_action_asked(cleaned: str) -> bool:
+    words = _X_QUOTED.sub(" ", cleaned)
+    if not any(p.search(words) for i, _f, p in _RULES if i == "x.action.propose"):
+        return False
+    return not _X_NOT_AN_ASK.search(words) or bool(_X_ASK_TO_ACT.search(words))
+
+
 def resolve_demand_signals(text: str) -> DemandSignals:
     """Resolve the user's words into explicit intents and required families.
 
@@ -939,7 +1169,9 @@ def resolve_demand_signals(text: str) -> DemandSignals:
                 # pattern, so the reason a database turn did NOT seat the skill is a
                 # named law instead of a regex that quietly failed to match.
                 continue
-            if intent == "web.chain_lookup" and is_wallet_move:
+            if intent == "x.action.propose" and not _x_action_asked(cleaned):
+                continue
+            if intent in {"web.chain_lookup", "token.research"} and is_wallet_move:
                 # A send/pay turn belongs to VOOL's wallet alone (its caps, approval and
                 # receipt): the destination address in the words is not a chain-data
                 # question, so the read-only lookup is not offered beside the proposal.

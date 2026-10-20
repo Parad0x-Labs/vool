@@ -1,0 +1,95 @@
+{
+  "source_head": "2aefa381e3a02599bb18dec2649a9e6a041d54b5",
+  "license": "MIT",
+  "review_status": "UNREVIEWED: not for real messages",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "06590bfb7c08d5bd9abd1355229ece6194e8b8f9e48f7b17663717e3aaf29a8d"
+    },
+    {
+      "path": "PROTOCOL.md",
+      "sha256": "dbbd407a98c6b6e95625f5b0a6c5aa498487f93d930b46b3afb79b31be0f4451"
+    },
+    {
+      "path": "README.md",
+      "sha256": "13a32988e28324f2d0592b2e14cce30741e1c5e5d056ed3add59cca1c7f7d1d2"
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "418505115efe08ecd5a84c72a6f4156729dc95baf06d70581944e641ea93cfc3"
+    },
+    {
+      "path": "THIRD-PARTY.md",
+      "sha256": "bcff94151e2f83cf8b2a6725dadf4a659efb26f387755483bcfb549c68f362fd"
+    },
+    {
+      "path": "demo.mjs",
+      "sha256": "7bc8d2667af24fdb4fee0b6d469d742ef6bc39947de2f863928ed70e669e39d7"
+    },
+    {
+      "path": "package.json",
+      "sha256": "83a1a549cea317ec29dc9abf81f711c63761e95da5f07eb8691ab8407e1ad5e5"
+    },
+    {
+      "path": "src/client.mjs",
+      "sha256": "aa2d5e0764cd34aa9d03a32440e659b17da800c3213dfacdd94ca348bd1ce1e2"
+    },
+    {
+      "path": "src/crypto.mjs",
+      "sha256": "6c3a13ec5feee3dc7cb88438e448f3456b12a9111bee4610482bbc04284b8050"
+    },
+    {
+      "path": "src/index.mjs",
+      "sha256": "090c1ed665ad9383478d29b8449c66b68b20b90fd33443377a2deca2c77de8c1"
+    },
+    {
+      "path": "src/session.mjs",
+      "sha256": "c3865a49bf4a900eb6453f0ca472611063eebc4d32a1bb1d39686131d9024b78"
+    },
+    {
+      "path": "src/store.mjs",
+      "sha256": "657fa91a2881759defab90dbc8f6df9bab50da4f6b13be937fe25d851172d6d3"
+    },
+    {
+      "path": "test/bounds.test.mjs",
+      "sha256": "860262dc48fa54f9c05fe8ac16962c1bbe19c4728b62718f520f2440f436f690"
+    },
+    {
+      "path": "test/client.test.mjs",
+      "sha256": "11b6b197a7227104d4d8c16f97fb2af54514d5cf8f12d8db9d19645e62206283"
+    },
+    {
+      "path": "test/crypto.test.mjs",
+      "sha256": "964c2161f76dbfb45eb19a990f9d0fe4e08d49d88186da2fe598759445878214"
+    },
+    {
+      "path": "test/fixtures/NIST-NOTICE.txt",
+      "sha256": "97ee510a38650c6a74b6d06dfb2d71d560d2eb67240d95d43b29d6c6d1c4f33c"
+    },
+    {
+      "path": "test/fixtures/nist-acvp.json",
+      "sha256": "0fa32fac9935a3ea6ecff72e73e500266fbea3d4de761d950f7cfb408c44b02b"
+    },
+    {
+      "path": "test/forget.test.mjs",
+      "sha256": "e7eed27f63aa727bd4c26ffcc67e377e93d69dd3b22827862e0c160fec5f9a80"
+    },
+    {
+      "path": "test/nist.test.mjs",
+      "sha256": "cf4f27d54fe5eb1a359db2e8ba7c1b4eb3e32d8687557b43c00a5e8ac0b73b96"
+    },
+    {
+      "path": "test/process-worker.mjs",
+      "sha256": "1c5a7052ca60316f35b8696cb8b3667ff8cd92e537e0b5cd4268c1731c07b0b7"
+    },
+    {
+      "path": "test/process.test.mjs",
+      "sha256": "7c8e52813c9aa12d5446eb6a746c11e3db463221007a80395d9e16e515acb771"
+    },
+    {
+      "path": "test/session.test.mjs",
+      "sha256": "119d97f929faeacf91a5c73508207abf3d419d267ef59c12a47c17159ba83da8"
+    }
+  ]
+}

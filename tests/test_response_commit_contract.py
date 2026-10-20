@@ -51,7 +51,8 @@ def test_speculative_deltas_are_held_and_committed_bytes_are_replayed() -> None:
     assert all((c.get("message") or {}).get("content") for c in content_chunks)
 
 
-def test_exact_multiline_final_and_footer_are_split_in_the_commit() -> None:
+def test_exact_multiline_final_and_footer_are_split_in_the_commit(monkeypatch) -> None:
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     decorated = "red\nblue\n\n`local | test-model | 2 tok`"
     payloads = _transport_payloads(streamed=["red blue"], final=decorated)
     commit = payloads[-1]["vool_response_commit"]
@@ -93,7 +94,8 @@ def test_a_hash_valid_but_tool_leaking_attached_commit_fails_closed() -> None:
     assert any(item.get("vool_terminal", {}).get("reason_code") == "turn_failed" for item in payloads)
 
 
-def test_buffered_api_envelopes_expose_canonical_content_and_structured_metadata() -> None:
+def test_buffered_api_envelopes_expose_canonical_content_and_structured_metadata(monkeypatch) -> None:
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     decorated = "BANANA\n\n`tool | exact_literal_output_contract | no model | build test`"
     result = {
         "response": decorated,

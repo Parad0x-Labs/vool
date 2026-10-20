@@ -16,6 +16,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from core.registry.codec import HEX, RegistryError, canonical, digest, require, unbase64
 
+# How long the offline signer's list stays valid without it: a week away from the signing machine
+# keeps installs working; the online key re-stamps freshness within it, never beyond.
+AUTHORIZATION_SECONDS = 7 * 86400
+
 
 def serialized(function):
     @wraps(function)
@@ -61,16 +65,52 @@ def root_document(value: dict, now: int, *, allow_expired: bool = False) -> dict
     require(isinstance(value["roles"], dict) and set(value["roles"]) == {"root", "admission", "review", "catalog"},
             "missing trust role")
     used = set()
-    for role, rule in value["roles"].items():
+    for rule in value["roles"].values():
         require(isinstance(rule, dict) and set(rule) == {"keyids", "threshold"} and
                 isinstance(rule["keyids"], list) and len(set(rule["keyids"])) == len(rule["keyids"]) and
                 set(rule["keyids"]) <= set(value["keys"]) and type(rule["threshold"]) is int and
-                (1 if role == "catalog" else 2) <= rule["threshold"] <= len(rule["keyids"]), "unsafe signing threshold")
+                # One signer per role is the owner's choice (one machine holds the offline keys); never zero.
+                1 <= rule["threshold"] <= len(rule["keyids"]), "unsafe signing threshold")
         require(not used.intersection(rule["keyids"]), "online, review and offline signing roles must be separated")
         used.update(rule["keyids"])
     require(isinstance(value["policies"], list) and value["policies"] and
             all(HEX.fullmatch(str(item)) for item in value["policies"]), "root has no approved policies")
     return value
+
+
+def persisted_root(anchor: dict, state: Path, *, now: int) -> dict:
+    """Read an unexpired successor with a complete signature chain, without writes."""
+    from core.registry.codec import decode
+
+    root = root_document(anchor.get("signed"), now, allow_expired=True)
+    verify(anchor, root, "root")
+    db = sqlite3.connect(state.resolve().as_uri() + "?mode=ro", uri=True)
+    try:
+        row = db.execute("SELECT root FROM trust WHERE id=1").fetchone()
+        require(row, "registry trust state missing")
+        current = decode(row[0], 65536)
+        require(isinstance(current, dict), "invalid persisted root")
+        final = root_document(current.get("signed"), now)
+        require(root["version"] < final["version"] <= root["version"] + 4096, "invalid persisted root version")
+        history = {}
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='root_history'").fetchone():
+            history = dict(db.execute("SELECT version, root FROM root_history WHERE version>? AND version<=?",
+                                      (root["version"], final["version"])))
+        # A pre-history database can still prove one rotation from its dual-signed
+        # current envelope. Missing intermediate roots never establish a chain.
+        history[final["version"]] = row[0]
+        for version in range(root["version"] + 1, final["version"] + 1):
+            require(version in history, "registry root history is incomplete")
+            envelope = decode(history[version], 65536)
+            require(isinstance(envelope, dict), "invalid root history envelope")
+            successor = root_document(envelope.get("signed"), now, allow_expired=True)
+            require(successor["version"] == version, "registry root history version mismatch")
+            verify(envelope, root, "root")
+            verify(envelope, successor, "root")
+            root = successor
+        return current
+    finally:
+        db.close()
 
 
 class TrustedCatalog:
@@ -96,6 +136,12 @@ class TrustedCatalog:
             else:
                 self.db.execute("INSERT INTO trust VALUES (1, ?, 0, NULL)", (canonical(trusted_root),))
                 self.root = root
+        # Keep the keys that verified earlier install receipts. Expiry/revocation
+        # still governs current use; history only proves what was installed before.
+        with self.db:
+            self.db.execute("CREATE TABLE IF NOT EXISTS root_history (version INTEGER PRIMARY KEY, root BLOB NOT NULL)")
+            current = self.db.execute("SELECT root FROM trust WHERE id=1").fetchone()[0]
+            self.db.execute("INSERT OR IGNORE INTO root_history VALUES (?, ?)", (self.root["version"], current))
         self.current = None
         if root["version"] > self.root["version"]:
             self.rotate(trusted_root, now=now)
@@ -115,6 +161,7 @@ class TrustedCatalog:
             from core.registry.codec import decode
 
             require(decode(row[0])["signed"]["version"] == self.root["version"], "concurrent root rotation")
+            self.db.execute("INSERT INTO root_history VALUES (?, ?)", (new["version"], canonical(envelope)))
             self.db.execute("UPDATE trust SET root=?, sequence=0, snapshot=NULL WHERE id=1", (canonical(envelope),))
         self.root, self.current = new, None
 
@@ -137,7 +184,7 @@ class TrustedCatalog:
                 authorization["schema"] == "vool.registry.catalog_authorization.v1" and
                 authorization["root_version"] == self.root["version"] and type(authorization["epoch"]) is int and
                 authorization["epoch"] > 0 and type(authorization["issued_at"]) is int and type(authorization["expires"]) is int and
-                authorization["issued_at"] <= now < authorization["expires"] <= authorization["issued_at"] + 86400 and
+                authorization["issued_at"] <= now < authorization["expires"] <= authorization["issued_at"] + AUTHORIZATION_SECONDS and
                 value["expires"] <= authorization["expires"] and authorization["entries_sha256"] == digest(value["entries"]) and
                 authorization["revoked_sha256"] == digest(value["revoked"]), "offline catalog authorization mismatch or expiry")
         seen = set()
@@ -172,6 +219,25 @@ class TrustedCatalog:
             raise
         self.current = value
         return value
+
+    @serialized
+    def resolve_any(self, package_id: str, version: str, *, now: int) -> dict:
+        """Public distribution accepts any target in the current signed admission.
+
+        Native installation still calls resolve with the actual local release identity.
+        Stored artifacts and the service's legacy target setting confer no compatibility.
+        """
+        if self.current is None:
+            from core.registry.codec import decode
+
+            row = self.db.execute("SELECT snapshot FROM trust WHERE id=1").fetchone()
+            require(row and row[0], "no verified catalog")
+            self.accept(decode(row[0]), now=now)
+        for envelope in self.current["entries"]:
+            info = envelope["signed"]["metadata"]
+            if (info["id"], info["version"]) == (package_id, version):
+                return self.resolve(package_id, version, target=envelope["signed"]["targets"][0], now=now)
+        raise RegistryError("package version is not in the approved catalog")
 
     @serialized
     def resolve(self, package_id: str, version: str, *, target: dict, now: int) -> dict:

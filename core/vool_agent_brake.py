@@ -146,7 +146,7 @@ def maybe_handle_agent_brake(
                 success=False,
             )
         return _response(
-            "Shutting down all of VOOL now -- the API, the OpenClaw gateway, the agent, and the "
+            "Shutting down all of VOOL now -- the API, the agent, and the "
             "auto-restart task. The dashboard will go offline in a few seconds and stay down until "
             "you launch VOOL again from the desktop shortcut.",
             intent="agent_brake_stopall",

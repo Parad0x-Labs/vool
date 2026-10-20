@@ -2414,6 +2414,15 @@ class VoolAgent(
 
             runtime_source_context["action_policy"] = ActionPolicy.FORBIDDEN.value
         _forbid_side_answer_actions(runtime_source_context)
+        # "Use the model's own tools": stamped here, server-side, on the FINAL turn context (after
+        # the checkpoint merge) so the front door, the research lanes and the tool loop all read
+        # one decision. A copy sent by a caller is dropped first.
+        from core.model_own_tools import stamp_turn as _stamp_model_own_tools
+
+        _stamp_model_own_tools(
+            runtime_source_context,
+            resolve_manifest=self.memory_router._requested_model_manifest,
+        )
 
         def _guard_final_result(
             result: dict,
@@ -3521,6 +3530,11 @@ class VoolAgent(
         # to "Live web lookup is disabled on this runtime" for a lookup the same message
         # gets served when it arrives whole. A sub-request is one request by construction,
         # which is exactly what this lane wants.
+        from core.model_own_tools import turn_has_provider_search
+
+        if turn_has_provider_search(source_context):
+            # Live prices and weather are the pinned cloud model's to look up with its own search.
+            return None
         if dict((source_context or {}).get("raw_output_contract") or {}).get(
             "structured_labels"
         ):
@@ -5428,6 +5442,12 @@ class VoolAgent(
         a blanket `except Exception: return None` and silently retire the conductor.
         """
         if bool((source_context or {}).get("planned_subturn")):
+            return None
+        from core.model_own_tools import turn_has_provider_search
+
+        if turn_has_provider_search(source_context):
+            # The pinned cloud model was handed its provider's own web search: a several-part
+            # message is the model's to answer with it, not VOOL's conductor's.
             return None
         from core.conductor.product_decision import ConductorClaimGate
 

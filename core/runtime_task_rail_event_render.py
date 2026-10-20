@@ -41,7 +41,7 @@ function renderSessions() {
           <div class="session-id">${escapeHtml(session.session_id)}</div>
           <span class="badge ${statusClass(sessionSummary.status)}">${escapeHtml(badgeLabel)}</span>
         </div>
-        <div class="session-preview">${escapeHtml(session.request_preview || session.last_message || 'Recent OpenClaw task')}</div>
+        <div class="session-preview">${escapeHtml(session.request_preview || session.last_message || 'Recent task')}</div>
         <div class="session-meta">
           <span>${escapeHtml(session.task_class || 'unknown')}</span>
           <span>${escapeHtml(String(session.event_count || 0))} events</span>

@@ -333,6 +333,7 @@ def test_the_buffered_finalizer_footers_a_modelless_action_result(monkeypatch: p
     import core.memory_first_router as router
     from core.web.api.runtime import _finalize_turn_usage
 
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     monkeypatch.setattr(router, "get_turn_usage", lambda: None)
     result = _deterministic_turn(
         "exact_workspace_write",
@@ -353,6 +354,7 @@ def test_the_buffered_finalizer_is_unchanged_for_a_model_turn(monkeypatch: pytes
     import core.memory_first_router as router
     from core.web.api.runtime import _finalize_turn_usage
 
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     monkeypatch.setattr(router, "get_turn_usage", lambda: dict(LOCAL_USAGE))
     finalized = _finalize_turn_usage(_model_turn(response="Here is the answer."))
 
@@ -387,6 +389,7 @@ def test_backend_metadata_distinguishes_failed_model_then_tool_answer(
     )
     from core.web.api.runtime import _finalize_turn_usage
 
+    monkeypatch.setenv("VOOL_SHOW_USAGE_FOOTER", "1")  # the line is opt-in; check it is true when shown
     monkeypatch.setattr(router, "get_turn_usage", lambda: None)
     reset_for_tests()
     context = {"request_id": "failed-model-then-read"}

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="364" viewBox="0 0 760 364" role="img" aria-labelledby="title desc">
+<title id="title">Plain chat is level; documents and files hold the whole gap</title><desc id="desc">Quick dinner chat: Claude Code 31 of 32, VOOL 27-32; Long pasted document: Claude Code 30 of 32, VOOL 12-16; Files in a folder: Claude Code 24 of 24, VOOL 0-8</desc>
+<style>svg{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s-vool:#2a78d6;--s-hermes:#eb6834;--s-openclaw:#1baf7a;--s-full-transcript:#a3a29b;}@media (prefers-color-scheme: dark){svg{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s-vool:#3987e5;--s-hermes:#d95926;--s-openclaw:#199e70;--s-full-transcript:#6f6e69;}}text{font-family:system-ui, -apple-system, "Segoe UI", sans-serif;fill:var(--ink)}.t{font-size:17px;font-weight:600}.st{font-size:12.5px;fill:var(--ink2)}.lb{font-size:13px}.v{font-size:12.5px;font-variant-numeric:tabular-nums}.ax{font-size:11.5px;fill:var(--muted);font-variant-numeric:tabular-nums}.g{stroke:var(--grid);stroke-width:1}.b{stroke:var(--axis);stroke-width:1}</style>
+<style>svg{--acc:#2a78d6;--acc-soft:#b8d3f3;--box:#fcfcfb;--grey:#c3c2b7}@media (prefers-color-scheme: dark){svg{--acc:#3987e5;--acc-soft:#2b4a70;--box:#1a1a19;--grey:#55544f}}.n{font-size:13px;font-weight:600}.q{font-size:11.5px;fill:var(--ink2)}</style>
+<rect width="760" height="364" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="34">Plain chat is level; documents and files hold the whole gap</text>
+<text class="st" x="24" y="54">Share of points per task. Blue: Claude Code (run 4). Grey: the five VOOL setups (run 5).</text>
+<line class="g" x1="220.0" y1="92" x2="220.0" y2="340"/>
+<text class="ax" x="220.0" y="84" text-anchor="middle">0%</text>
+<line class="g" x1="335.0" y1="92" x2="335.0" y2="340"/>
+<text class="ax" x="335.0" y="84" text-anchor="middle">25%</text>
+<line class="g" x1="450.0" y1="92" x2="450.0" y2="340"/>
+<text class="ax" x="450.0" y="84" text-anchor="middle">50%</text>
+<line class="g" x1="565.0" y1="92" x2="565.0" y2="340"/>
+<text class="ax" x="565.0" y="84" text-anchor="middle">75%</text>
+<line class="g" x1="680.0" y1="92" x2="680.0" y2="340"/>
+<text class="ax" x="680.0" y="84" text-anchor="middle">100%</text>
+<text class="n" x="24" y="136">Quick dinner chat</text>
+<line class="g" x1="220" y1="132" x2="680" y2="132"/>
+<line x1="608.1" y1="132" x2="680.0" y2="132" stroke="var(--grey)" stroke-width="8" stroke-linecap="round"/>
+<circle cx="608.1" cy="132" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="636.9" cy="132" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="651.2" cy="132" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="680.0" cy="132" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="665.6" cy="132" r="8" fill="var(--acc)"/>
+<text class="n" x="665.6" y="116" text-anchor="middle">31/32</text>
+<text class="q" x="644.1" y="158" text-anchor="middle">VOOL 27-32 of 32</text>
+<text class="n" x="24" y="212">Long pasted document</text>
+<line class="g" x1="220" y1="208" x2="680" y2="208"/>
+<line x1="392.5" y1="208" x2="450.0" y2="208" stroke="var(--grey)" stroke-width="8" stroke-linecap="round"/>
+<circle cx="392.5" cy="208" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="421.2" cy="208" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="435.6" cy="208" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="450.0" cy="208" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="651.2" cy="208" r="8" fill="var(--acc)"/>
+<text class="n" x="651.2" y="192" text-anchor="middle">30/32</text>
+<text class="q" x="421.2" y="234" text-anchor="middle">VOOL 12-16 of 32</text>
+<text class="n" x="24" y="288">Files in a folder</text>
+<line class="g" x1="220" y1="284" x2="680" y2="284"/>
+<line x1="220.0" y1="284" x2="373.3" y2="284" stroke="var(--grey)" stroke-width="8" stroke-linecap="round"/>
+<circle cx="220.0" cy="284" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="277.5" cy="284" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="296.7" cy="284" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="315.8" cy="284" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="373.3" cy="284" r="6" fill="var(--grey)" stroke="var(--axis)"/>
+<circle cx="680.0" cy="284" r="8" fill="var(--acc)"/>
+<text class="n" x="680.0" y="268" text-anchor="middle">24/24</text>
+<text class="q" x="296.7" y="310" text-anchor="middle">VOOL 0-8 of 24</text>
+</svg>

@@ -5,6 +5,7 @@ import base64
 import hashlib
 import re
 import secrets
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -15,6 +16,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from core.registry.codec import RegistryError, decode, require
+from registry_service.http_transport import open_request
 from registry_service.store import Store
 
 PROVIDERS = {
@@ -50,6 +52,17 @@ def unurl64(value: str) -> bytes:
         raise RegistryError("invalid JWT encoding") from None
 
 
+def github_since(value, *, now: int) -> int | None:
+    """GitHub's account creation time, or None when it is missing or not a sane date."""
+    import calendar
+
+    try:
+        since = calendar.timegm(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+    except (TypeError, ValueError):
+        return None
+    return since if 0 < since <= now else None
+
+
 def oidc_subject(token: str, jwks: dict, provider: Provider, nonce: str, *, now: int) -> str:
     require(isinstance(token, str) and len(token) <= 16384 and token.count(".") == 2, "invalid identity token")
     header_part, payload_part, signature_part = token.split(".")
@@ -82,11 +95,6 @@ def oidc_subject(token: str, jwks: dict, provider: Provider, nonce: str, *, now:
     return subject
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise RegistryError("provider redirect refused")
-
-
 def provider_request(url: str, data: dict | None = None, *, token: str = "") -> dict:
     allowed = {item[key] for item in PROVIDERS.values() for key in ("exchange", "keys") if key in item}
     allowed.add("https://api.github.com/user")
@@ -100,7 +108,7 @@ def provider_request(url: str, data: dict | None = None, *, token: str = "") -> 
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     request = urllib.request.Request(url, data=body, headers=headers)
     try:
-        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=15) as response:
+        with open_request(request, service="provider", timeout=15) as response:
             result = decode(response.read(65537), 65536)
             require(isinstance(result, dict), "invalid provider response")
             return result
@@ -167,7 +175,10 @@ class Auth:
             user = self.request("https://api.github.com/user", token=tokens["access_token"])
             require(type(user.get("id")) is int and user["id"] > 0, "GitHub identity unavailable")
             subject = str(user["id"])
+            # Only when the GitHub account was made, for the 14-day publishing rule; nothing else is kept.
+            since = github_since(user.get("created_at"), now=now)
         else:
             subject = oidc_subject(tokens.get("id_token"), self.request(endpoints["keys"]), provider, row["nonce"], now=now)
-        account = self.store.identity(name, subject, now=now, link_account=row["link_account"])
+            since = None
+        account = self.store.identity(name, subject, now=now, link_account=row["link_account"], since=since)
         return self.store.session(account, now=now)

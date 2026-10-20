@@ -216,6 +216,7 @@ def _handle_prefs_list(inp, ctx):
             "user_address": user_address(),
             "humor_percent": p.humor_percent,
             "deep_reasoning": p.deep_reasoning,
+            "show_answer_details": p.show_answer_details,
             "communication_style": p.communication_style,
             "autonomy_mode": p.autonomy_mode,
             "ram_reserve_pct": p.ram_reserve_pct,
@@ -230,6 +231,7 @@ def _handle_prefs_list(inp, ctx):
             "accept_hive_tasks": p.accept_hive_tasks,
             "social_commons": p.social_commons,
             "wallet_enabled": p.wallet_enabled,
+            "model_own_tools": p.model_own_tools,
             "setup_skipped_steps": p.setup_skipped_steps,
             "setup_dismissed": p.setup_dismissed,
             "speech_notice_dismissed": p.speech_notice_dismissed,
@@ -476,6 +478,42 @@ def _handle_x_setup(inp, ctx):
     if status == 200:
         return HandlerOk(data=payload, summary=f"X setup: {inp.action}")
     return _legacy_fault("usage", f"X setup refused: {payload.get('state', 'invalid')}", status, payload)
+
+
+@dataclass(frozen=True)
+class XActivityInput:
+    action: str
+    action_id: str = ""
+    hash: str = ""
+    monthly_reads: Any = "keep"
+    monthly_actions: Any = "keep"
+
+
+def _handle_x_activity(inp, ctx):
+    from core.request_trust import is_loopback_host
+    from core.x_actions import handle
+
+    # Only the owner's own Settings page (/api/x/activity, which passes the real peer) may see the
+    # approval hashes or send: a dispatch path that carries no peer is refused, never assumed local.
+    peer = str((ctx.extra or {}).get("client_host") or "")
+    if not peer or not is_loopback_host(peer):
+        return _legacy_fault("usage", "X activity refused: owner_local_required", 403,
+                             {"ok": False, "state": "owner_local_required",
+                              "message": "X approvals are only available in Settings inside this VOOL app. Nothing was sent."})
+
+    body: dict[str, Any] = {"action": inp.action}
+    if inp.action_id:
+        body["action_id"] = inp.action_id
+    if inp.hash:
+        body["hash"] = inp.hash
+    if inp.monthly_reads != "keep":
+        body["monthly_reads"] = inp.monthly_reads
+    if inp.monthly_actions != "keep":
+        body["monthly_actions"] = inp.monthly_actions
+    status, payload = handle(body)
+    if status == 200:
+        return HandlerOk(data=payload, summary=f"X activity: {inp.action}")
+    return _legacy_fault("usage", f"X activity refused: {payload.get('state', 'invalid')}", status, payload)
 
 
 def _probe_x_setup_state(context: dict) -> tuple[bool, str]:
@@ -998,6 +1036,25 @@ def register(reg) -> None:
                 verifier="core.command_registry.groups.convergence:_gate_operator_approval",
             ),
             handler=Handler("core.command_registry.groups.convergence:_handle_x_setup"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="x.activity",
+            group="x",
+            description="X usage and limits, and the user's approve/decline of a proposed X action (post, reply, like, repost, follow)",
+            input_schema=XActivityInput,
+            # Approve sends the one action the user approved, as the user, to X.
+            effects="external_send",
+            capabilities=frozenset({"settings.x_activity"}),
+            permission=ApprovalGate(
+                kind="x.activity",
+                verifier="core.command_registry.groups.convergence:_gate_operator_approval",
+            ),
+            handler=Handler("core.command_registry.groups.convergence:_handle_x_activity"),
             availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
             exit_codes=(0, 2, 20),
         )

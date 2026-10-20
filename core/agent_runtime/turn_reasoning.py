@@ -747,8 +747,12 @@ def execute_grounded_turn(
     # ordinary remote-fetch preference.  Curiosity is itself a live action,
     # so it must not run merely because routing labelled a conversational turn
     # as research before the policy was applied.
-    _remote_fetch_disabled = action_forbidden or explicit_remote_fetch_disabled(
-        source_context
+    from core.model_own_tools import turn_stamped as _model_own_tools_turn
+
+    # "Use the model's own tools": VOOL's own web exploration stays off too.
+    _model_own_tools = _model_own_tools_turn(source_context)
+    _remote_fetch_disabled = (
+        action_forbidden or explicit_remote_fetch_disabled(source_context) or _model_own_tools
     )
     # Don't run curiosity (a live web search) before answering a high-confidence local/memory/
     # exact-recall/personal question — that turned a ~3s memory recall into a ~40s turn. Explicit
@@ -783,6 +787,8 @@ def execute_grounded_turn(
             reason=(
                 "action_policy_forbidden"
                 if action_forbidden
+                else "model_own_tools"
+                if _model_own_tools
                 else "remote_fetch_disabled"
             ),
         )
@@ -1072,6 +1078,16 @@ def execute_grounded_turn(
     #
     # What this does NOT do: stop the retrieval M2 hoists ABOVE this line. That one completes and
     # binds before the freeze, which is the whole ordering this pair of lanes exists to enforce.
+    # "Use the model's own tools": the provider searches INSIDE the answering call, so its receipt
+    # is opened through the canonical door here, before the freeze, like any other scheduler's.
+    # Only an opened receipt admits the search to the answering call; otherwise it goes without.
+    from core.model_own_tools import admit_provider_search, turn_has_provider_search, withdraw_provider_search
+
+    if turn_has_provider_search(source_context):
+        if agent._open_provider_search_receipt(source_context, effective_input):
+            admit_provider_search(source_context, model_source_context)
+        else:
+            withdraw_provider_search(source_context, model_source_context)
     from core.execution_requirements import begin_synthesis_freeze as _begin_synthesis_freeze
 
     _begin_synthesis_freeze(source_context, effective_input)
@@ -1090,29 +1106,41 @@ def execute_grounded_turn(
             source_context=source_context if isinstance(source_context, dict) else model_source_context,
             session_id=session_id,
         )
-    model_execution = stepped_execution if stepped_execution is not None else agent.memory_router.resolve(
-        task=task,
-        classification=routing_classification,
-        interpretation=model_interpretation,
-        context_result=context_result,
-        persona=persona,
-        force_model=is_chat_surface,
-        surface=surface,
-        source_context=model_source_context,
-    )
-    model_execution = _escalate_to_a_certified_author(
-        agent,
-        model_execution,
-        task=task,
-        classification=routing_classification,
-        interpretation=model_interpretation,
-        context_result=context_result,
-        persona=persona,
-        force_model=is_chat_surface,
-        surface=surface,
-        model_source_context=model_source_context,
-        effective_input=effective_input,
-    )
+    try:
+        model_execution = stepped_execution if stepped_execution is not None else agent.memory_router.resolve(
+            task=task,
+            classification=routing_classification,
+            interpretation=model_interpretation,
+            context_result=context_result,
+            persona=persona,
+            force_model=is_chat_surface,
+            surface=surface,
+            source_context=model_source_context,
+        )
+        model_execution = _escalate_to_a_certified_author(
+            agent,
+            model_execution,
+            task=task,
+            classification=routing_classification,
+            interpretation=model_interpretation,
+            context_result=context_result,
+            persona=persona,
+            force_model=is_chat_surface,
+            surface=surface,
+            model_source_context=model_source_context,
+            effective_input=effective_input,
+        )
+    except BaseException as exc:
+        # A provider search receipt opened above is closed as failed, never left "started".
+        from core.model_own_tools import close_provider_search_on_failure
+
+        close_provider_search_on_failure(source_context if isinstance(source_context, dict) else None, exc)
+        raise
+    # "Use the model's own tools": close the provider search's receipt with the sources the
+    # provider returned (nothing cited, nothing grounded).
+    from core.model_own_tools import record_provider_search
+
+    record_provider_search(source_context if isinstance(source_context, dict) else None, model_execution)
     # An ordinary investigation leaves a subject behind, so its follow-up has something to continue.
     # Recorded HERE rather than at the front door because the paths are only known once the tools
     # have run: the capsule carries what the runtime actually opened, not what the request asked

@@ -39,6 +39,7 @@ def chain_hosts(monkeypatch):
         verify = {
             "helius": f"{base}/helius/", "alchemy": f"{base}/alchemy/eth-mainnet/v2",
             "solscan": f"{base}/solscan/v2.0/token/meta", "etherscan": f"{base}/etherscan/v2/api",
+            "moralis": f"{base}/moralis/erc20/owners",
         }
         patched = {pid: dataclasses.replace(cfg, verify_url=verify[pid]) for pid, cfg in cp.CHAIN_PROVIDERS.items()}
         monkeypatch.setattr(cp, "CHAIN_PROVIDERS", patched)
@@ -270,7 +271,7 @@ def test_local_only_stops_the_lookup_before_it_leaves_the_machine(vault_home, mo
     ({"query": "balance", "address": "not-an-address"}, "bad_subject"),
     ({"query": "balance", "address": EVM_ADDRESS}, "chain_needed"),
     ({"query": "balance", "address": EVM_ADDRESS, "chain": "dogechain"}, "unknown_chain"),
-    ({"query": "holders", "token": EVM_ADDRESS, "chain": "base"}, "not_offered"),
+    ({"query": "holders", "token": EVM_ADDRESS, "chain": "robinhood"}, "not_offered"),
     ({"query": "sing", "address": SOL_ADDRESS}, "unknown_query"),
     ({"query": "transaction", "tx": "0x1234", "chain": "ethereum"}, "bad_subject"),
 ])
@@ -423,7 +424,7 @@ def test_guide_lists_the_chain_providers_with_their_setup_steps():
 
     chain = {g["id"]: g for g in provider_key_guide()}["chain"]
     rows = {r["provider"]: r for r in chain["providers"]}
-    assert list(rows) == ["helius", "alchemy", "solscan", "etherscan"]
+    assert list(rows) == ["helius", "alchemy", "solscan", "etherscan", "moralis"]
     assert any("Networks tab" in step for step in rows["alchemy"]["steps"])
     assert any("LaserStream" in note for note in rows["helius"]["notes"])
     assert rows["alchemy"]["chains"] == ["Solana", "Ethereum", "Base", "BNB Smart Chain", "Robinhood Chain"]
