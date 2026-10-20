@@ -104,6 +104,12 @@ class Run:
         if not ok and fatal:
             raise SmokeFailure(f"{name}: {detail}")
 
+    def not_run(self, name: str, detail: str) -> None:
+        """Record a manual check this run could not perform: neither a pass nor a failure."""
+        self.steps.append({"step": name, "ok": None, "detail": detail})
+        (self.scratch / "steps.json").write_text(json.dumps(self.steps, indent=2) + "\n")
+        print(f"NOT RUN {name}: {detail}", flush=True)
+
     def check(self, name: str, step) -> None:
         """Run one chat check and record it without stopping the run; an error in it is its FAIL."""
         try:
@@ -117,8 +123,9 @@ class Run:
         width = max(len(step["step"]) for step in self.steps)
         print("----- smoke steps -----", flush=True)
         for step in self.steps:
-            print(f"{'PASS' if step['ok'] else 'FAIL'}  {step['step'].ljust(width)}", flush=True)
-        return [step["step"] for step in self.steps if not step["ok"]]
+            mark = "NOT RUN" if step["ok"] is None else "PASS" if step["ok"] else "FAIL"
+            print(f"{mark.ljust(7)}  {step['step'].ljust(width)}", flush=True)
+        return [step["step"] for step in self.steps if step["ok"] is False]
 
     def chat(self, origin: str, name: str, message: str, model: str, timeout: float, session: str = SESSION) -> str:
         body = {
@@ -316,7 +323,7 @@ def free_port() -> int:
 
 
 def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_timeout: float,
-          pet_verdict: Path | None = None) -> None:
+          pet_verdict: Path | None = None, unattended: bool = False) -> None:
     scratch.mkdir(parents=True, exist_ok=False)
     run = Run(scratch)
     host = host_identity()
@@ -455,12 +462,16 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         run.check("forget removed the entry", forget)
         run.check("recall after forget does not return the fact", recall_after_forget)
         release_privacy_checks(run, origin, home, model, chat_timeout)
-        try:
-            verdict = json.loads(pet_verdict.read_text()) if pet_verdict is not None else {}
-        except (OSError, ValueError) as error:
-            verdict = {"error": str(error)}
-        run.record("pet: one pet, preview, drag to desktop (manual native check)",
-                   verdict.get("ok") is True, verdict or "manual verdict required", fatal=False)
+        pet_step = "pet: one pet, preview, drag to desktop (manual native check)"
+        if pet_verdict is None and unattended:
+            # Nobody is at this screen (a CI runner): the check stays open for the release rehearsal.
+            run.not_run(pet_step, "unattended run; the release rehearsal supplies --pet-verdict")
+        else:
+            try:
+                verdict = json.loads(pet_verdict.read_text()) if pet_verdict is not None else {}
+            except (OSError, ValueError) as error:
+                verdict = {"error": str(error)}
+            run.record(pet_step, verdict.get("ok") is True, verdict or "manual verdict required", fatal=False)
     finally:
         early_exit = process.poll()
         if early_exit is not None:
@@ -503,7 +514,9 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
     if failed:
         raise SmokeFailure(f"{len(failed)} of {len(run.steps)} steps failed: {', '.join(failed)}")
     digest = hashlib.sha256(dmg.read_bytes()).hexdigest()
-    print(f"PASS: {dmg.name} sha256 {digest} on {host['cpu']} macOS {host['macos']}, commit {expected}")
+    open_checks = [step["step"] for step in run.steps if step["ok"] is None]
+    suffix = f"; manual checks not run: {', '.join(open_checks)}" if open_checks else ""
+    print(f"PASS: {dmg.name} sha256 {digest} on {host['cpu']} macOS {host['macos']}, commit {expected}{suffix}")
 
 
 def main() -> int:
@@ -515,9 +528,11 @@ def main() -> int:
     parser.add_argument("--model", default="qwen3:8b")
     parser.add_argument("--chat-timeout", type=float, default=900)
     parser.add_argument("--pet-verdict", type=Path, help="JSON verdict from the manual native pet check")
+    parser.add_argument("--unattended", action="store_true",
+                        help="nobody is at the screen (CI): manual checks without a verdict are reported as not run")
     args = parser.parse_args()
     smoke(args.dmg.resolve(), args.scratch.resolve(), args.expected_commit, args.arch, args.model,
-          args.chat_timeout, args.pet_verdict)
+          args.chat_timeout, args.pet_verdict, args.unattended)
     return 0
 
 

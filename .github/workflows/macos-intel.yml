@@ -731,7 +731,7 @@ jobs:
           shasum -a 256 -c ./*.dmg.sha256
           /usr/bin/python3 "$GITHUB_WORKSPACE/ops/macos_bundle_smoke.py" --arch x86_64 \
             --dmg "$(ls "$RUNNER_TEMP"/assets/VOOL-*-macos-x86_64.dmg)" \
-            --scratch "$RUNNER_TEMP/smoke" --expected-commit "$EXPECTED_COMMIT"
+            --scratch "$RUNNER_TEMP/smoke" --expected-commit "$EXPECTED_COMMIT" --unattended
       - uses: actions/upload-artifact@v7
         if: always()
         with:
