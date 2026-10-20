@@ -35,6 +35,16 @@ rows:
     tests: [tests/test_message_queue.py]
     label: TESTED
     target_release: 0.7.0
+  - id: chat-goals
+    title: Work toward a goal across turns with /goal
+    area: chat-models
+    ui: []
+    wired: ["/api/goal/pause", "/api/goal/resume", "/api/goal/retry", "/api/goal/state", "/api/goal/stop"]
+    default: []
+    tests: [tests/test_goal_served_workflow.py, tests/test_goal_card_browser.py]
+    label: TESTED
+    target_release: unknown
+    note: The goal card is drawn above the composer without an element id.
   - id: attach-files
     title: Attach files and photos to a message
     area: chat-models
