@@ -914,6 +914,7 @@
     "run.review_action": "Revise a ação exata abaixo.",
     "run.status_completed": "Concluído",
     "run.status_stopped": "Parado",
+    "run.status_stopping": "Parando…",
     "run.status_waiting": "Aguardando sua aprovação",
     "run.stop": "Parar",
     "run.stop_title": "Para este turno — cancela a tarefa em execução na sua máquina e interrompe a resposta.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Esta habilidade não passou nas verificações de segurança do próprio VOOL, por isso o VOOL não a guardou nem a instalou. Você pode reportá-la ao Skill Codex.",
     "keys.test.invalid": "{label} rejeitou a chave{http}. Confira de novo ou substitua a chave."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

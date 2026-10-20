@@ -914,6 +914,7 @@
     "run.review_action": "Просмотрите точное действие ниже.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Остановлено",
+    "run.status_stopping": "Остановка…",
     "run.status_waiting": "Ожидает вашего подтверждения",
     "run.stop": "Остановить",
     "run.stop_title": "Остановить этот ход — отменяет выполняемую задачу на вашем компьютере и прекращает ответ.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Этот навык не прошёл собственные проверки безопасности VOOL, поэтому VOOL не сохранил и не установил его. Вы можете сообщить о нём в Skill Codex.",
     "keys.test.invalid": "{label} отклонил ключ{http}. Проверьте его заново или замените."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

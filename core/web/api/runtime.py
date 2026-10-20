@@ -2049,19 +2049,39 @@ def _run_agent_locked(
             raise RuntimeError(
                 "K-08 violation: url-grounding would mutate post-admission bytes"
             )
-        schedule_memory_extraction(
-            runtime,
-            user_text=user_text,
-            assistant_output=str(dict(result or {}).get("response") or ""),
-            session_id=session_id,
-            source_context=base_context,
+        # A turn the person stopped feeds neither memory nor later prompts: its response is the
+        # cancel notice (or an answer nobody saw), never an exchange to learn from. The turn's
+        # cancel marker says so here; a stop that lands later is the transcript's to decide, once:
+        # a served turn's answer is often sealed after this worker returns, so what it learns is
+        # held until the transcript records the answer, and dropped if the person stopped it.
+        from core.finalization import _turn_cancel_marker_fired
+        from core.persistent_memory import after_transcript_records
+        from core.semantic.semantic_admissions import current_request_id
+
+        _turn_stopped = _turn_cancel_marker_fired(base_context) or bool(
+            (base_context or {}).get("_cancelled_before_publication")
         )
-        _admit_turn_context_page(
-            user_text=user_text,
-            assistant_output=str(dict(result or {}).get("response") or ""),
-            session_id=session_id,
-            source_context=base_context,
-        )
+        if not _turn_stopped:
+            _assistant_output = str(dict(result or {}).get("response") or "")
+
+            def _learn_from_exchange() -> None:
+                schedule_memory_extraction(
+                    runtime,
+                    user_text=user_text,
+                    assistant_output=_assistant_output,
+                    session_id=session_id,
+                    source_context=base_context,
+                )
+                _admit_turn_context_page(
+                    user_text=user_text,
+                    assistant_output=_assistant_output,
+                    session_id=session_id,
+                    source_context=base_context,
+                )
+
+            after_transcript_records(
+                str(current_request_id() or (base_context or {}).get("request_id") or ""), _learn_from_exchange
+            )
         update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
         return finalize_turn_trace(_finalize_turn_usage(result, base_context))
 
@@ -2909,8 +2929,10 @@ def _stopped_turn_recorder(
         return None
 
     def _recorder() -> str:
+        # What the stop decided: "stopped" / "already_stopped", or "already_recorded" when the
+        # turn's answer was committed first (its seal won). Anything else is "unknown".
         try:
-            append_conversation_event(
+            outcome = append_conversation_event(
                 session_id=session_id,
                 user_input=user_text,
                 assistant_output="",
@@ -2920,7 +2942,7 @@ def _stopped_turn_recorder(
         except Exception:
             logging.getLogger(__name__).exception("stopped turn could not be recorded")
             return "unknown"
-        return "recorded"
+        return outcome if outcome in {"stopped", "already_stopped", "already_recorded"} else "unknown"
 
     return _recorder
 

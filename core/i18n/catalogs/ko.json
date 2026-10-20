@@ -914,6 +914,7 @@
     "run.review_action": "아래의 정확한 작업을 검토하세요.",
     "run.status_completed": "완료됨",
     "run.status_stopped": "중지됨",
+    "run.status_stopping": "중지하는 중…",
     "run.status_waiting": "승인을 기다리는 중",
     "run.stop": "중지",
     "run.stop_title": "이 턴 중지 — 이 컴퓨터에서 실행 중인 작업을 취소하고 답변을 멈춥니다.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
     "keys.test.invalid": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

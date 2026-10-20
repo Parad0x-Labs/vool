@@ -914,6 +914,7 @@
     "run.review_action": "以下の正確な操作を確認してください。",
     "run.status_completed": "完了",
     "run.status_stopped": "停止しました",
+    "run.status_stopping": "停止しています…",
     "run.status_waiting": "承認を待っています",
     "run.stop": "停止",
     "run.stop_title": "このターンを停止 — このマシンで実行中のタスクをキャンセルし、回答を止めます。",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "このスキルは VOOL 自身の安全チェックに通らなかったため、VOOL は保存もインストールもしていません。Skill Codex に報告できます。",
     "keys.test.invalid": "{label}はキーを拒否しました{http}。確認するか、置き換えてください。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

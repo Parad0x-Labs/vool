@@ -914,6 +914,7 @@
     "run.review_action": "请审查下方确切的操作。",
     "run.status_completed": "已完成",
     "run.status_stopped": "已停止",
+    "run.status_stopping": "正在停止…",
     "run.status_waiting": "等待你的批准",
     "run.stop": "停止",
     "run.stop_title": "停止本轮 — 取消您机器上正在运行的任务并停止回答。",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "此技能未通过 VOOL 自身的安全检查，因此 VOOL 没有保留或安装它。你可以向 Skill Codex 举报它。",
     "keys.test.invalid": "{label} 拒绝了该密钥{http}。请重新核对或更换。"
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
