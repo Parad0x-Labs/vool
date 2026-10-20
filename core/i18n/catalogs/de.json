@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Auswahl der Redaktion",
     "addons.registry_featured": "Empfohlen",
     "addons.registry_release_notes": "Versionshinweise",
-    "addons.registry_metrics": "{stars} Website-Sterne · {downloads} Downloadanfragen"
+    "addons.registry_metrics": "{stars} Website-Sterne · {downloads} Downloadanfragen",
+    "xs.rating": "Ihre Bewertung",
+    "xs.choose": "1–10 auswählen",
+    "xs.comment": "Kommentar (optional)",
+    "xs.save": "Bewertung speichern",
+    "xs.saved": "Gespeichert.",
+    "xs.failed": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+    "xs.voice": "Als Schreibstilbeispiel verwenden",
+    "xs.ratings": "Ihre Bewertungen",
+    "xs.resume": "Bewertungen wieder verwenden",
+    "xs.pause": "Bewertungen pausieren",
+    "xs.reset": "Alle Bewertungen vergessen",
+    "xs.forget": "Bewertung vergessen"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

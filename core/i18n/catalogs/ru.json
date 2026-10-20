@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Выбор редакции",
     "addons.registry_featured": "Рекомендуемое",
     "addons.registry_release_notes": "Примечания к версии",
-    "addons.registry_metrics": "{stars} звёзд на сайте · {downloads} запросов скачивания"
+    "addons.registry_metrics": "{stars} звёзд на сайте · {downloads} запросов скачивания",
+    "xs.rating": "Ваша оценка",
+    "xs.choose": "Выберите от 1 до 10",
+    "xs.comment": "Комментарий (необязательно)",
+    "xs.save": "Сохранить оценку",
+    "xs.saved": "Сохранено.",
+    "xs.failed": "Не удалось сохранить изменение. Повторите попытку.",
+    "xs.voice": "Использовать как образец стиля",
+    "xs.ratings": "Ваши оценки",
+    "xs.resume": "Возобновить использование оценок",
+    "xs.pause": "Приостановить использование оценок",
+    "xs.reset": "Забыть все оценки",
+    "xs.forget": "Забыть оценку"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "编辑精选",
     "addons.registry_featured": "推荐",
     "addons.registry_release_notes": "版本说明",
-    "addons.registry_metrics": "网站星标 {stars} · 下载请求 {downloads}"
+    "addons.registry_metrics": "网站星标 {stars} · 下载请求 {downloads}",
+    "xs.rating": "你的评分",
+    "xs.choose": "选择 1–10",
+    "xs.comment": "评论（可选）",
+    "xs.save": "保存评分",
+    "xs.saved": "已保存。",
+    "xs.failed": "无法保存此更改，请重试。",
+    "xs.voice": "用作写作风格范例",
+    "xs.ratings": "你的评分记录",
+    "xs.resume": "恢复使用评分",
+    "xs.pause": "暂停使用评分",
+    "xs.reset": "忘记所有评分",
+    "xs.forget": "忘记此评分"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

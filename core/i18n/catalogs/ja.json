@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "編集部のおすすめ",
     "addons.registry_featured": "注目",
     "addons.registry_release_notes": "リリースノート",
-    "addons.registry_metrics": "サイトのスター {stars} · ダウンロード要求 {downloads}"
+    "addons.registry_metrics": "サイトのスター {stars} · ダウンロード要求 {downloads}",
+    "xs.rating": "あなたの評価",
+    "xs.choose": "1〜10を選択",
+    "xs.comment": "コメント（任意）",
+    "xs.save": "評価を保存",
+    "xs.saved": "保存しました。",
+    "xs.failed": "変更を保存できませんでした。もう一度お試しください。",
+    "xs.voice": "文体のサンプルとして使用",
+    "xs.ratings": "あなたの評価一覧",
+    "xs.resume": "評価の利用を再開",
+    "xs.pause": "評価の利用を一時停止",
+    "xs.reset": "すべての評価を忘れる",
+    "xs.forget": "この評価を忘れる"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

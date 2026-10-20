@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Editörün seçimi",
     "addons.registry_featured": "Öne çıkan",
     "addons.registry_release_notes": "Sürüm notları",
-    "addons.registry_metrics": "{stars} site yıldızı · {downloads} indirme isteği"
+    "addons.registry_metrics": "{stars} site yıldızı · {downloads} indirme isteği",
+    "xs.rating": "Puanınız",
+    "xs.choose": "1–10 arasında seçin",
+    "xs.comment": "Yorum (isteğe bağlı)",
+    "xs.save": "Puanı kaydet",
+    "xs.saved": "Kaydedildi.",
+    "xs.failed": "Bu değişiklik kaydedilemedi. Tekrar deneyin.",
+    "xs.voice": "Yazım tarzı örneği olarak kullan",
+    "xs.ratings": "Puanlarınız",
+    "xs.resume": "Puanları kullanmaya devam et",
+    "xs.pause": "Puanları kullanmayı duraklat",
+    "xs.reset": "Tüm puanları unut",
+    "xs.forget": "Puanı unut"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

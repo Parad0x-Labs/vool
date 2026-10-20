@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Choix de la rédaction",
     "addons.registry_featured": "À la une",
     "addons.registry_release_notes": "Notes de version",
-    "addons.registry_metrics": "{stars} étoiles sur le site · {downloads} demandes de téléchargement"
+    "addons.registry_metrics": "{stars} étoiles sur le site · {downloads} demandes de téléchargement",
+    "xs.rating": "Votre note",
+    "xs.choose": "Choisir de 1 à 10",
+    "xs.comment": "Commentaire (facultatif)",
+    "xs.save": "Enregistrer la note",
+    "xs.saved": "Enregistré.",
+    "xs.failed": "Impossible d’enregistrer cette modification. Réessayez.",
+    "xs.voice": "Utiliser comme exemple de style",
+    "xs.ratings": "Vos notes",
+    "xs.resume": "Réactiver les notes",
+    "xs.pause": "Suspendre les notes",
+    "xs.reset": "Oublier toutes les notes",
+    "xs.forget": "Oublier cette note"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

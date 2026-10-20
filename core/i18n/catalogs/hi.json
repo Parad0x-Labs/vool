@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "संपादक की पसंद",
     "addons.registry_featured": "चुनिंदा",
     "addons.registry_release_notes": "संस्करण विवरण",
-    "addons.registry_metrics": "वेबसाइट पर {stars} सितारे · {downloads} डाउनलोड अनुरोध"
+    "addons.registry_metrics": "वेबसाइट पर {stars} सितारे · {downloads} डाउनलोड अनुरोध",
+    "xs.rating": "आपकी रेटिंग",
+    "xs.choose": "1 से 10 चुनें",
+    "xs.comment": "टिप्पणी (वैकल्पिक)",
+    "xs.save": "रेटिंग सहेजें",
+    "xs.saved": "सहेजा गया।",
+    "xs.failed": "यह बदलाव सहेजा नहीं जा सका। फिर से कोशिश करें।",
+    "xs.voice": "लेखन शैली के नमूने के रूप में इस्तेमाल करें",
+    "xs.ratings": "आपकी रेटिंग",
+    "xs.resume": "रेटिंग का इस्तेमाल फिर शुरू करें",
+    "xs.pause": "रेटिंग का इस्तेमाल रोकें",
+    "xs.reset": "सभी रेटिंग भूलें",
+    "xs.forget": "रेटिंग भूलें"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

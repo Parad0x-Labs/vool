@@ -3343,6 +3343,7 @@ function widgetXActivity(host) {
       yes.addEventListener('click', () => act({ action: 'approve', action_id: a.id, hash: a.hash || '' }));
       no.addEventListener('click', () => act({ action: 'decline', action_id: a.id }));
       row.appendChild(yes); row.appendChild(no); card.appendChild(row);
+      if (window.VoolXSocial) window.VoolXSocial.rating(card, a);
       host.appendChild(card);
     });
     host.appendChild(el('h4', 'row-label', T('xact.usage_title', 'X usage this month')));
@@ -3397,7 +3398,12 @@ function widgetXActivity(host) {
         const url = (a.result || {}).url;
         if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, a.summary || a.kind)); }
         host.appendChild(line);
+        if (a.state === 'sent' && window.VoolXSocial) window.VoolXSocial.rating(host, a);
       });
+    }
+    if (window.VoolXSocial) {
+      const scopes = new Set(['global', ...[...pending,...recent].map(a => a.feedback_scope || 'global')]);
+      for (const scope of scopes) window.VoolXSocial.manager(host, scope);
     }
     showNote();
   };
@@ -6054,6 +6060,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.wallet_fragment import render_wallet_fragment
+    from core.x_social_fragment import render_x_social_fragment
 
     # the wallet section and the settings extras (learned facts, privacy disclosure, Toolbelt) live
     # here: each fragment renders itself into the host its group provides
@@ -6061,7 +6068,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         "__VOOL_PALETTE_CSS__", DARK_PALETTE_CSS + "\n" + LIGHT_PALETTE_CSS + "\n" + ICON_CSS
     ).replace("/*__VOOL_APPEARANCE_JS__*/", APPEARANCE_JS, 1).replace(
         "</body>", render_addon_store_fragment() + "\n" + render_wallet_fragment() + "\n" + render_settings_extras_fragment() + "\n" + render_calendar_settings_fragment()
-        + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n</body>", 1
+        + "\n" + render_x_social_fragment() + "\n" + render_notification_settings_fragment() + "\n" + render_chat_import_settings_fragment() + "\n</body>", 1
     )
     tag, direction, bootstrap = _ui_locale_head(ui_locale)
     # The same VOOL mark the chat tab uses, inline, so the Settings tab is recognisable and the

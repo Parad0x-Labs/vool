@@ -2604,7 +2604,19 @@
     "addons.registry_editors_pick": "Editor's pick",
     "addons.registry_featured": "Featured",
     "addons.registry_release_notes": "Release notes",
-    "addons.registry_metrics": "{stars} website stars · {downloads} download requests"
+    "addons.registry_metrics": "{stars} website stars · {downloads} download requests",
+    "xs.rating": "Your rating",
+    "xs.choose": "Choose 1–10",
+    "xs.comment": "Comment (optional)",
+    "xs.save": "Save rating",
+    "xs.saved": "Saved.",
+    "xs.failed": "Could not save this change. Try again.",
+    "xs.voice": "Use as a voice sample",
+    "xs.ratings": "Your ratings",
+    "xs.resume": "Resume ratings",
+    "xs.pause": "Pause ratings",
+    "xs.reset": "Forget all ratings",
+    "xs.forget": "Forget rating"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Redakcijos pasirinkimas",
     "addons.registry_featured": "Rekomenduojama",
     "addons.registry_release_notes": "Versijos pastabos",
-    "addons.registry_metrics": "{stars} svetainės žvaigždučių · {downloads} atsisiuntimo užklausų"
+    "addons.registry_metrics": "{stars} svetainės žvaigždučių · {downloads} atsisiuntimo užklausų",
+    "xs.rating": "Jūsų įvertinimas",
+    "xs.choose": "Pasirinkite 1–10",
+    "xs.comment": "Komentaras (nebūtinas)",
+    "xs.save": "Išsaugoti įvertinimą",
+    "xs.saved": "Išsaugota.",
+    "xs.failed": "Nepavyko išsaugoti pakeitimo. Bandykite dar kartą.",
+    "xs.voice": "Naudoti kaip rašymo stiliaus pavyzdį",
+    "xs.ratings": "Jūsų įvertinimai",
+    "xs.resume": "Tęsti įvertinimų naudojimą",
+    "xs.pause": "Pristabdyti įvertinimų naudojimą",
+    "xs.reset": "Pamiršti visus įvertinimus",
+    "xs.forget": "Pamiršti įvertinimą"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

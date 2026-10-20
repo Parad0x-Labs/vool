@@ -11,10 +11,10 @@ from typing import Any
 
 X_READ_INTENTS = frozenset({
     "x.search", "x.token_callers", "x.user", "x.user_posts", "x.post", "x.follows", "x.lists", "x.usage",
-    "x.spaces", "x.dms", "x.account",
+    "x.spaces", "x.dms", "x.account", "x.feedback.list",
 })
 X_ACTION_INTENTS = frozenset({"x.action.propose", "x.action.status"})
-X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS
+X_INTENTS = X_READ_INTENTS | X_ACTION_INTENTS | {"x.feedback.save"}
 
 
 def _bool(value: Any) -> bool:
@@ -47,6 +47,19 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
     from core import x_api
 
     args = dict(arguments or {})
+    if intent in {"x.feedback.save", "x.feedback.list"}:
+        from core import x_feedback, x_voice_profile
+
+        if intent == "x.feedback.save":
+            data = x_feedback.save_from_turn(args, source_context)
+        else:
+            scope = x_voice_profile.turn_scope(source_context)
+            data = x_feedback.inspect(scope)
+            data = {"ok": data["ok"], "status": data.get("status", "executed"), "summary": x_feedback.summary(scope) if data["ok"] else ""}
+        outcome = x_api.XResult(bool(data.get("ok")), str(data.get("status") or "executed"),
+                               "Rating saved." if data.get("status") == "saved" else
+                               ("Your ratings." if data.get("ok") else "No rating was saved."), data)
+        return _result(intent, outcome, keys=("id", "rating", "summary"))
     if intent == "x.search":
         if str(args.get("mode") or "").strip().lower() == "counts":
             outcome = x_api.count_posts(str(args.get("query") or ""), token=str(args.get("token") or ""),

@@ -5302,6 +5302,15 @@ def _dispatch_post_inner(
         _xs_status, _xs_payload = _cr_forward("x.setup", dict(body), client_host=client_host)
         return apply_runtime_headers(json_response(_xs_status, _xs_payload), runtime)
 
+    if normalized_path == "/api/x/feedback":
+        refusal = _credential_page_refusal(headers, client_host)
+        if refusal:
+            return apply_runtime_headers(json_response(403, {"ok": False, "status": "owner_local_required"}), runtime)
+        from core.x_feedback import handle_owner
+
+        code, payload = handle_owner(body)
+        return apply_runtime_headers(json_response(code, payload), runtime)
+
     if normalized_path == "/api/x/activity":
         # X usage, limits and approvals from Settings. "approve" is the user's own approval of one
         # proposed X action (core/x_actions.py) and the ONLY path that sends it; the model can never

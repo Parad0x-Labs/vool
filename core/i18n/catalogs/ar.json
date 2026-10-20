@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "اختيار المحررين",
     "addons.registry_featured": "مميز",
     "addons.registry_release_notes": "ملاحظات الإصدار",
-    "addons.registry_metrics": "{stars} نجوم على الموقع · {downloads} طلبات تنزيل"
+    "addons.registry_metrics": "{stars} نجوم على الموقع · {downloads} طلبات تنزيل",
+    "xs.rating": "تقييمك",
+    "xs.choose": "اختر من 1 إلى 10",
+    "xs.comment": "تعليق (اختياري)",
+    "xs.save": "حفظ التقييم",
+    "xs.saved": "تم الحفظ.",
+    "xs.failed": "تعذر حفظ هذا التغيير. حاول مرة أخرى.",
+    "xs.voice": "استخدامه كنموذج لأسلوب الكتابة",
+    "xs.ratings": "تقييماتك",
+    "xs.resume": "استئناف استخدام التقييمات",
+    "xs.pause": "إيقاف استخدام التقييمات مؤقتًا",
+    "xs.reset": "نسيان جميع التقييمات",
+    "xs.forget": "نسيان التقييم"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "Lựa chọn của biên tập viên",
     "addons.registry_featured": "Nổi bật",
     "addons.registry_release_notes": "Ghi chú phiên bản",
-    "addons.registry_metrics": "{stars} sao trên trang web · {downloads} yêu cầu tải xuống"
+    "addons.registry_metrics": "{stars} sao trên trang web · {downloads} yêu cầu tải xuống",
+    "xs.rating": "Đánh giá của bạn",
+    "xs.choose": "Chọn từ 1 đến 10",
+    "xs.comment": "Nhận xét (không bắt buộc)",
+    "xs.save": "Lưu đánh giá",
+    "xs.saved": "Đã lưu.",
+    "xs.failed": "Không thể lưu thay đổi này. Vui lòng thử lại.",
+    "xs.voice": "Dùng làm mẫu văn phong",
+    "xs.ratings": "Các đánh giá của bạn",
+    "xs.resume": "Tiếp tục dùng đánh giá",
+    "xs.pause": "Tạm dừng dùng đánh giá",
+    "xs.reset": "Quên tất cả đánh giá",
+    "xs.forget": "Quên đánh giá"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

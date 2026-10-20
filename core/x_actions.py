@@ -119,6 +119,11 @@ def public(action: dict[str, Any], *, for_settings: bool = False) -> dict[str, A
     shown = {k: action.get(k) for k in keep if action.get(k) not in (None, "", {})}
     if for_settings and action.get("state") == "pending":
         shown["hash"] = action.get("hash")
+    if for_settings:
+        from core.x_platform_policy import weighted_length
+
+        shown.update(account=action.get("account"), feedback_scope=action.get("feedback_scope", "global"),
+                     weighted_length=weighted_length(str(action.get("text") or "")))
     return shown
 
 
@@ -160,6 +165,8 @@ def _who(target: dict[str, Any]) -> str:
 def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None = None):
     """Freeze one action for the user to approve. Reads the target from X; sends nothing."""
     from core import x_api
+
+    from core.x_voice_profile import turn_scope
 
     args = dict(arguments or {})
     kind = str(args.get("kind") or "").strip().lower()
@@ -250,6 +257,7 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
         "nonce": (nonce := secrets.token_hex(16)), "hash": _digest(payload, nonce), "target": target, "state": "pending", "created_at": now, "updated_at": now,
         "account": {"id": str(account["id"]), "username": str(account.get("username") or "")},
         "session": _session(source_context),
+        "feedback_scope": turn_scope(source_context),
     }
     action["summary"] = summary(action)
     with _lock:
@@ -292,7 +300,7 @@ def recent(limit: int = 10) -> list[dict[str, Any]]:
     state = _current()
     done = [a for a in state["actions"].values() if a.get("state") != "pending"]
     done.sort(key=lambda a: float(a.get("updated_at") or 0), reverse=True)
-    return [public(a) for a in done[:limit]]
+    return [public(a, for_settings=True) for a in done[:limit]]
 
 
 def _session(source_context: dict[str, Any] | None) -> str:

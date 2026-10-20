@@ -2604,9 +2604,21 @@
     "addons.registry_editors_pick": "편집자 추천",
     "addons.registry_featured": "주목할 항목",
     "addons.registry_release_notes": "릴리스 노트",
-    "addons.registry_metrics": "웹사이트 별 {stars}개 · 다운로드 요청 {downloads}회"
+    "addons.registry_metrics": "웹사이트 별 {stars}개 · 다운로드 요청 {downloads}회",
+    "xs.rating": "내 평가",
+    "xs.choose": "1~10 선택",
+    "xs.comment": "의견 (선택 사항)",
+    "xs.save": "평가 저장",
+    "xs.saved": "저장되었습니다.",
+    "xs.failed": "변경 사항을 저장하지 못했습니다. 다시 시도하세요.",
+    "xs.voice": "문체 예시로 사용",
+    "xs.ratings": "내 평가 목록",
+    "xs.resume": "평가 사용 재개",
+    "xs.pause": "평가 사용 일시 중지",
+    "xs.reset": "모든 평가 잊기",
+    "xs.forget": "이 평가 잊기"
   },
-  "source_catalog_sha256": "f6573c6cf58ce63efed44508b8c390af1e7a416468cf2f4807536afdd8201e52",
+  "source_catalog_sha256": "7bf4d054392436cafb4fcdc62d65d98cfb1adee0baba2dd70f5f23f38ecab2f0",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
