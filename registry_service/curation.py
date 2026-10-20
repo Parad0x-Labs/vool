@@ -24,7 +24,10 @@ def _package_id(value: object) -> str:
 
 def load_curation(path: Path = DEFAULT_PATH) -> dict:
     # Room for every list at its maximum length below.
-    value = decode(path.read_bytes(), 1024 * 1024)
+    return validate_curation(decode(path.read_bytes(), 1024 * 1024))
+
+
+def validate_curation(value: dict) -> dict:
     require(isinstance(value, dict) and set(value) - {"approved_pictures"} == {"schema", "official_namespaces", "featured",
             "editors_picks", "reviewers", "reviews"} and value["schema"] == "vool.registry.curation.v1", "unknown curation format")
     # A picture shows only once a person has looked at that exact file for that skill; removing it hides it again.

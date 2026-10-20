@@ -63,6 +63,12 @@ def home(tmp_path, monkeypatch):
 
     root = runtime(tmp_path, monkeypatch)
     (root / "addons" / "plugins").mkdir(parents=True)
+    from core.registry.codec import canonical
+    from tests.registry.helpers import trust_fixture
+
+    anchor = tmp_path / "trusted-root.json"
+    anchor.write_bytes(canonical(trust_fixture()[2]))
+    monkeypatch.setenv("VOOL_REGISTRY_ROOT_FILE", str(anchor))
     invalidate_storage_listing()
     assert skill_tools.plugins_root() == root / "addons"
     yield root

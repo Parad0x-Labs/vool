@@ -10,6 +10,7 @@ import json
 import re
 import unicodedata
 
+from core.registry.artifact import REVIEW_METADATA, metadata_text, review_files
 from core.registry.codec import RegistryError, canonical, digest
 
 SUITE = "skill-codex-checks"
@@ -164,7 +165,7 @@ def _texts(artifact: dict) -> tuple[dict[str, str], list[dict]]:
     """Every file other than the declared pictures must be UTF-8 text without control characters."""
     pictures = _picture_paths(artifact)
     texts, findings = {}, []
-    for name, raw in artifact["files"].items():
+    for name, raw in review_files(artifact).items():
         if name in pictures:
             continue
         try:
@@ -336,8 +337,9 @@ def _instructions(texts: dict[str, str], secret_lines: dict[str, set[int]]) -> l
         lines = text.splitlines()
         if name.endswith(".json"):
             try:
-                # Package paths such as "./skills/" are structure the loader checks, not words anyone reads.
-                lines = [line for value in _strings(json.loads(text)) if not value.startswith("./")
+                # Plain package paths such as "./skills/" are loader structure. A path prefix never excuses
+                # the words following it, and outer public metadata has no path exemption.
+                lines = [line for value in _strings(json.loads(text)) if name == REVIEW_METADATA or not re.fullmatch(r"\./[A-Za-z0-9._/-]+", value)
                          for line in value.splitlines()]
             except ValueError:
                 lines = text.splitlines()
@@ -453,7 +455,9 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
         findings["quality"].append(_finding("quality", "package", "This skill is too long to check. Keep all its "
                                             "text under 120,000 characters.", rule="too-long"))
         return {"artifact": artifact, "findings": findings, "results": {}}
-    secrets, secret_lines = _secrets(texts)
+    # Scan decoded author text, not JSON escape sequences: escaped quotes must not hide a secret.
+    metadata_words = "\n".join(_strings(json.loads(metadata_text(artifact, checksums=False))))
+    secrets, secret_lines = _secrets({**texts, REVIEW_METADATA: metadata_words})
     findings["secrets"] += secrets
     findings["instructions-primary"] += _instructions(texts, secret_lines)
     findings["license"] += _license(artifact)
@@ -461,7 +465,8 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
     if artifact["manifest"].get("requires"):
         findings["dependencies"].append(_finding("dependencies", ".codex-plugin/plugin.json",
                                                  "Skill Codex skills can't depend on other packages yet. Empty the requires list."))
-    boundaries = analyze(artifact["files"])
+    boundary_text = "\n".join(_strings(json.loads(metadata_text(artifact))))
+    boundaries = analyze({**artifact["files"], REVIEW_METADATA: boundary_text.encode("utf-8")})
     findings["native-boundaries"] += [dict(item, reason="This tries to override VOOL's own rules on spending, "
                                            "approvals or permissions. Take it out.") for item in boundaries["conflicts"]]
     if not findings["code"]:
@@ -476,6 +481,12 @@ def run(raw: bytes, scratch, *, targets: list[dict], official: bool = False) -> 
                 exc, RegistryError) else "VOOL could not load this skill"))
     else:
         findings["compatibility"].append(_finding("compatibility", "package", "Not checked until the files above are fixed."))
+    if secret_lines.get(REVIEW_METADATA):
+        for items in findings.values():
+            for item in items:
+                if item.get("path") == REVIEW_METADATA:
+                    item.pop("quote", None)  # do not expose fragments of a secret split across fields or lines
+                    item.pop("line", None)  # decoded metadata has no source-file line number
     publication = {"service": PUBLICATION_SERVICE, "artifact_sha256": artifact["sha256"]}
     results = {
         "source": {"publication": publication, "artifact_sha256": artifact["sha256"]},

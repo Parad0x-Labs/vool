@@ -151,7 +151,7 @@ def test_escape_codes_in_the_description_are_refused(tmp_path):
 def test_the_summary_and_manifest_are_read_too(tmp_path):
     raw = package(tmp_path, metadata=info(summary="Notes helper, details at https://bit.ly/3notes"))
     hits = [item for item in found(tmp_path, raw)[0] if item["check"] == "instructions-primary"]
-    assert {item["path"] for item in hits} == {"registry.json", ".codex-plugin/plugin.json"}
+    assert {item["path"] for item in hits} == {"registry.json", ".codex-plugin/plugin.json", "@metadata.json"}
     assert all("short links" in item["reason"] and "line" not in item for item in hits)
 
 

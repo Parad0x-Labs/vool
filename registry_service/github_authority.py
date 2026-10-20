@@ -53,15 +53,18 @@ from core.registry.codec import COMMIT, HEX, IDENTITY, VERSION, RegistryError, c
 from core.registry.publisher import add_signature
 from core.registry.trust import root_document
 from registry_service.authority import MARKS_SCHEMA, keyid, marks_document
+from registry_service.http_transport import RedirectRefused, open_request
 from registry_service.mac_authority import (
     ROOT_SECONDS,
     Authority,
     MissingArtifact,
+    RunStopped,
     _exclusive,
     _public,
     _raw_key,
     _write,
 )
+from registry_service.operations import ACTIONS as OPERATOR_ACTIONS
 
 FOLDER = "authority"
 STEPS = "team-steps.txt"
@@ -74,8 +77,9 @@ SERVER = "SKILL_CODEX_SERVER"
 PRIVATE = ("verdicts", "attempts", "reviews", "pending")
 _SEALED = b"SCP1"
 _AAD = b"skill-codex private state v1"
-BOT = ("github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com")
+BOT = ("sls_0x", "240776969+Parad0x-Labs@users.noreply.github.com")
 VOOL = "Parad0x-Labs/vool"
+GITHUB_API = "https://api.github.com"
 # The builds VOOL reports for itself (core.registry.client.runtime_target); installing needs a released Mac build.
 PLATFORMS = ("macos-arm64", "macos-x86_64")
 RELEASES_FOLLOWED = 3
@@ -86,6 +90,11 @@ _STEP_FORMS = {"tested": "tested publisher/name version", "highlighted": "highli
                "suspended": "suspended publisher", "removed": "removed publisher/name",
                "team": "team name github-account-number [github-account-number ...]",
                "build": "build version full-commit-id"}
+_STEP_FORMS.update({name: name + " target" for name in OPERATOR_ACTIONS})
+_STEP_FORMS.update({"picture": "picture publisher/name sha256", "official": "official publisher",
+                    "featured": "featured publisher/name", "editors-pick": "editors-pick publisher/name",
+                    "reviewer": "reviewer publisher team|community",
+                    "review": "review publisher/name version reviewer YYYY-MM-DD"})
 
 
 # ---- the sealed part of the state ----
@@ -134,8 +143,8 @@ def _public_json(value) -> bytes:
 
 # ---- the repository ----
 
-class Superseded(Exception):
-    """Another signer run changed the state first. This run stops before it sends anything.
+class Superseded(RunStopped):
+    """Another signer run changed the state first. This run stops before further writes or reviews.
 
     Not a RegistryError, so no handler for one upload's trouble catches it and lets the run go on.
     """
@@ -156,9 +165,11 @@ class Repository:
 
     def _git(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
         result = subprocess.run(["git", "-C", str(self.path), "-c", "user.name=" + BOT[0], "-c", "user.email=" + BOT[1],
-                                 "-c", "commit.gpgsign=false", *args], capture_output=True, text=True, timeout=120,
+                                 "-c", "commit.gpgsign=false", "-c", "http.followRedirects=false", *args], capture_output=True, text=True, timeout=120,
                                 env=self._env)
         if check and result.returncode:
+            if re.search(r"(?:HTTP |returned error: )30[12378]\b", result.stderr):
+                raise RegistryError("git redirect refused")
             raise RegistryError("git " + args[0] + " failed: " + " ".join(result.stderr.split())[:300])
         return result
 
@@ -168,9 +179,9 @@ class Repository:
         self._git("merge", "-q", "--ff-only", "FETCH_HEAD")
 
     def fresh(self) -> None:
-        """Stop when another run changed the state on GitHub since this run began: two signers ran at once."""
+        """Stop when a remote state or operator-step commit overtakes this run."""
         self._git("fetch", "-q", "origin", self.branch)
-        if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER).stdout.strip():
+        if self._git("diff", "--name-only", "HEAD...FETCH_HEAD", "--", FOLDER, STEPS).stdout.strip():
             raise Superseded("another signer run changed the state meanwhile; this run stopped before sending anything")
 
     def save(self, message: str) -> bool:
@@ -184,7 +195,7 @@ class Repository:
             if self._git("push", "-q", "origin", "HEAD:refs/heads/" + self.branch, check=False).returncode == 0:
                 return True
             self.fresh()
-            self._git("rebase", "-q", "FETCH_HEAD")  # only the team's own files moved, team-steps.txt say
+            self._git("rebase", "-q", "FETCH_HEAD")  # only unrelated repository files moved
         raise RegistryError("the signer's state could not be pushed to GitHub")
 
 
@@ -204,18 +215,44 @@ def parse_steps(text: str) -> dict:
         if not words:
             continue
         step, args = words[0].lower(), words[1:]
-        require(step in _STEP_FORMS, f"{STEPS} line {number}: \"{words[0][:40]}\" is not a step; use tested, "
-                                     "highlighted, suspended, removed or team")
+        require(step in _STEP_FORMS, f"{STEPS} line {number}: this is not a step; use a form listed in the file")
         form = f"{STEPS} line {number}: write it as \"{_STEP_FORMS[step]}\""
-        if step == "tested":
+        if step in OPERATOR_ACTIONS:
+            from registry_service.operations import validate
+
+            require(len(args) == 1, form)
+            operation = {"action": step, "target": args[0]}
+            try:
+                validate([*wanted.get("operations", []), operation])
+            except RegistryError:
+                raise RegistryError(form) from None
+            wanted.setdefault("operations", []).append(operation)
+        elif step in {"picture", "official", "featured", "editors-pick", "reviewer", "review"}:
+            curation = wanted.setdefault("curation", {"schema": "vool.registry.curation.v1", "official_namespaces": [],
+                "featured": [], "editors_picks": [], "reviewers": {}, "reviews": [], "approved_pictures": []})
+            if step == "picture":
+                require(len(args) == 2 and _skill(args[0]) and HEX.fullmatch(args[1]), form)
+                curation["approved_pictures"].append({"id": args[0], "sha256": args[1]})
+            elif step in {"official", "featured", "editors-pick"}:
+                require(len(args) == 1 and (IDENTITY.fullmatch(args[0]) if step == "official" else _skill(args[0])), form)
+                curation[{"official": "official_namespaces", "featured": "featured", "editors-pick": "editors_picks"}[step]].append(args[0])
+            elif step == "reviewer":
+                require(len(args) == 2 and IDENTITY.fullmatch(args[0]) and args[1] in {"team", "community"} and
+                        args[0] not in curation["reviewers"], form)
+                curation["reviewers"][args[0]] = args[1]
+            else:
+                require(len(args) == 4 and _skill(args[0]) and VERSION.fullmatch(args[1]) and
+                        IDENTITY.fullmatch(args[2]) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", args[3]), form)
+                curation["reviews"].append(dict(zip(("id", "version", "reviewer", "date"), args, strict=True)))
+        elif step == "tested":
             require(len(args) == 2 and _skill(args[0]) and bool(VERSION.fullmatch(args[1])), form)
             wanted["tested"].append((args[0], args[1]))
         elif step in {"highlighted", "removed"}:
             require(len(args) == 1 and _skill(args[0]), form)
             wanted[step].append(args[0])
         elif step == "suspended":
-            require(len(args) == 1 and bool(IDENTITY.fullmatch(args[0])), form)
-            wanted["suspended"].append(args[0])
+            require(len(args) == 1 and (bool(IDENTITY.fullmatch(args[0])) or _skill(args[0])), form)
+            wanted["removed" if _skill(args[0]) else "suspended"].append(args[0])
         elif step == "build":
             require(len(args) == 2 and bool(VERSION.fullmatch(args[0])) and bool(COMMIT.fullmatch(args[1])), form)
             if [args[0], args[1]] not in wanted["builds"]:
@@ -226,6 +263,13 @@ def parse_steps(text: str) -> dict:
             wanted["teams"][args[0]] = sorted(set(args[1:]))
     require(len(wanted["teams"]) <= 16, STEPS + ": at most 16 teams")
     require(len(wanted["builds"]) <= 8, STEPS + ": at most 8 builds")
+    require(all(len(wanted[field]) <= 4096 for field in ("tested", "highlighted", "suspended", "removed")),
+            STEPS + ": too many steps")
+    if "curation" in wanted:
+        from registry_service.curation import validate_curation
+
+        validate_curation(wanted["curation"])
+    require(len(canonical(wanted)) <= 40000, STEPS + ": too many steps for one signed update")
     return wanted
 
 
@@ -236,10 +280,12 @@ def _github(token: str):
         headers = {"Accept": "application/vnd.github+json", "User-Agent": "skill-codex-signer"}
         if token:
             headers["Authorization"] = "Bearer " + token
-        request = urllib.request.Request("https://api.github.com" + path, headers=headers)
+        request = urllib.request.Request(GITHUB_API + path, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with open_request(request, service="GitHub", timeout=30) as response:
                 return json.loads(response.read(4 * 1024 * 1024))
+        except RedirectRefused:
+            raise
         except (urllib.error.URLError, ValueError, OSError) as exc:
             raise RegistryError("GitHub could not list VOOL's releases: " + type(exc).__name__) from None
     return get
@@ -305,23 +351,52 @@ class RepoAuthority(Authority):
         return contextlib.nullcontext()
 
     def _load_state(self) -> dict:
-        public = json.loads((self.repo / FOLDER / "state.json").read_text())
+        require(self.repository._git("diff", "--quiet", "HEAD", "--", FOLDER + "/state.json",
+                                     check=False).returncode == 0, "the signer's public state was edited by hand")
+        public = decode((self.repo / FOLDER / "state.json").read_bytes())
         private = unseal(self._state_key, (self.repo / FOLDER / "private.bin").read_bytes())
         self._sealed = json.dumps(private, sort_keys=True)
+        binding = private.pop("public_sha256", None)
+        require(binding is None or binding == digest(public), "the signer's public state differs from its sealed state")
         spend = private.pop("spend", {})
         require(isinstance(public, dict) and set(private) <= set(PRIVATE) and not set(public) & set(PRIVATE),
                 "the signer's state files are mixed up")
+        self._validate_state(public)
+        require(isinstance(spend, dict) and all(isinstance(key, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}", key) and
+                type(value) in {float, int} and 0 <= value < float("inf") for key, value in spend.items()),
+                "invalid sealed spend state")
         _write(self.dir / "spend.json", json.dumps(spend, sort_keys=True).encode())
         return {**public, **private}
+
+    def _validate_state(self, value: dict) -> None:
+        from core.registry.trust import validate_entry, verify
+
+        required = {"epoch", "entries", "revoked", "targets", "authorized_until", "marks"}
+        optional = {"released", "builds", "removed", "unpublished", "marks_unsent", "releases_checked", "rechecked", "moderation"}
+        require(required <= set(value) <= required | optional and type(value["epoch"]) is int and value["epoch"] >= 0 and
+                type(value["authorized_until"]) is int and value["authorized_until"] >= 0 and
+                isinstance(value["entries"], list) and len(value["entries"]) <= 4096 and
+                isinstance(value["revoked"], list) and len(value["revoked"]) <= 4096 and
+                all(isinstance(item, str) and HEX.fullmatch(item) for item in value["revoked"]), "invalid public signer state")
+        require(validate_policy(checks.policy(value["targets"])) in self.root["policies"], "invalid signer target state")
+        for envelope in value["entries"]:
+            entry = verify(envelope, self.root, "admission")
+            validate_entry(entry, self.root, min(self.now(), entry["expires"] - 1))
+        marks = value["marks"]
+        require(isinstance(marks, dict) and type(marks.get("sequence")) is int and marks["sequence"] >= 0,
+                "invalid signer marks state")
+        marks_document({**marks, "schema": MARKS_SCHEMA, "sequence": max(1, marks["sequence"]), "issued_at": self.now()},
+                       now=self.now())
 
     def save(self) -> None:
         private = {key: self.state[key] for key in PRIVATE if key in self.state}
         try:
             private["spend"] = json.loads((self.dir / "spend.json").read_text())
         except (OSError, ValueError):
-            private["spend"] = {}
-        _put(self.repo / FOLDER / "state.json", _public_json({key: value for key, value in self.state.items()
-                                                              if key not in PRIVATE}))
+            raise RegistryError("the review spend state cannot be read") from None
+        public = {key: value for key, value in self.state.items() if key not in PRIVATE}
+        private["public_sha256"] = digest(public)
+        _put(self.repo / FOLDER / "state.json", _public_json(public))
         plain = json.dumps(private, sort_keys=True)
         if plain != self._sealed:  # sealing again only on a change keeps the history quiet
             _write(self.repo / FOLDER / "private.bin", seal(self._state_key, private))
@@ -330,6 +405,12 @@ class RepoAuthority(Authority):
     def checkpoint(self, message: str = "Skill Codex: state before sending") -> None:
         self.save()
         self.repository.save(message)
+
+    def before_review(self) -> None:
+        self.repository.fresh()
+
+    def review_checkpoint(self) -> None:
+        self.checkpoint("Skill Codex: review state before next upload")
 
     def call(self, method: str, path: str, value=None, *, raw: bool = False):
         # What is about to be signed and sent is on GitHub first, so a lost run never sends it differently and the
@@ -368,12 +449,15 @@ class RepoAuthority(Authority):
         # The number is used up before sending, as the list's epoch is: after a lost answer the next try
         # sends a higher one, which the service accepts, instead of the same one, which it refuses forever.
         marks = self.state["marks"]
-        marks["sequence"] += 1
-        self.state["marks_unsent"] = True
-        value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"], "issued_at": self.now(),
-                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")}},
+        value = marks_document({"schema": MARKS_SCHEMA, "sequence": marks["sequence"] + 1, "issued_at": self.now(),
+                                **{key: marks[key] for key in ("tested", "highlighted", "suspended", "teams")},
+                                **{key: marks[key] for key in ("operations", "curation") if key in marks}},
                                now=self.now())
-        self.call("POST", "/authority/marks", add_signature({"signed": value, "signatures": []}, self.admission_key))
+        envelope = add_signature({"signed": value, "signatures": []}, self.admission_key)
+        require(len(canonical(envelope)) <= 65536, "signed marks update exceeds byte limit; reduce the steps")
+        marks["sequence"] = value["sequence"]
+        self.state["marks_unsent"] = True
+        self.call("POST", "/authority/marks", envelope)
         self.state.pop("marks_unsent")
         self.save()
         return value
@@ -389,33 +473,23 @@ class RepoAuthority(Authority):
 
     # ---- what a run does besides the uploads ----
 
-    def team_steps(self) -> dict:
-        """Bring the marks and removals in line with team-steps.txt. A line that can't apply yet is reported."""
+    def _read_steps(self) -> dict:
         path = self.repo / STEPS
         try:
-            wanted = parse_steps(path.read_text(encoding="utf-8") if path.exists() else "")
-        except (RegistryError, UnicodeDecodeError) as exc:
-            # Nothing applies, and the last removals keep holding while the file is being fixed.
-            self._removed = set(self.state.get("removed", []))
-            return {"applied": False, "problems": [str(exc) if isinstance(exc, RegistryError) else STEPS + " is not plain text"]}
+            return parse_steps(path.read_text(encoding="utf-8") if path.exists() else "")
+        except UnicodeDecodeError:
+            raise RegistryError(STEPS + " is not plain text") from None
+
+    def team_steps(self, wanted: dict | None = None) -> dict:
+        """Apply a completely parsed set of operator steps, or stop before changing anything."""
+        wanted = self._read_steps() if wanted is None else wanted
         problems = []
-        self.state["builds"] = wanted["builds"]  # signed for from this run on, with the releases
-        self._removed = set(wanted["removed"])
-        self.state["removed"] = sorted(self._removed)
+        self._removed = set(wanted["removed"]) | {
+            item["signed"]["metadata"]["id"] for item in self.state["entries"]
+            if item["signed"]["metadata"]["id"].split("/")[0] in set(wanted["suspended"]) - set(wanted["teams"])}
         gone = [envelope for envelope in self.state["entries"] if envelope["signed"]["metadata"]["id"] in self._removed]
-        if gone:
-            self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in gone]
-            self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in gone})
-            self.state["unpublished"] = True
-            self.save()
-        for sha, item in sorted(self.state.get("pending", {}).items()):
-            if item["admission"]["signed"]["metadata"]["id"] in self._removed:
-                del self.state["pending"][sha]
-                with contextlib.suppress(RegistryError):  # gone from the service already: it is not listed either way
-                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": sha, "refused": [
-                        {"check": "source", "path": "package", "reason": REMOVED}]})
         listed: dict[str, dict[str, str]] = {}
-        for envelope in self.state["entries"]:
+        for envelope in (item for item in self.state["entries"] if item not in gone):
             entry = envelope["signed"]
             listed.setdefault(entry["metadata"]["id"], {})[entry["metadata"]["version"]] = entry["artifact_sha256"]
         tested, highlighted, suspended = [], [], []
@@ -437,17 +511,46 @@ class RepoAuthority(Authority):
         new = {"tested": sorted(set(tested)), "highlighted": sorted(set(highlighted)), "suspended": sorted(set(suspended)),
                "teams": wanted["teams"]}
         marks = self.state["marks"]
-        if self.state.get("marks_unsent") or any(marks[key] != value for key, value in new.items()):
+        if "operations" in wanted or "operations" in marks:
+            new["operations"] = wanted.get("operations", [])
+        if "curation" in wanted or "curation" in marks:
+            new["curation"] = wanted.get("curation", {"schema": "vool.registry.curation.v1", "official_namespaces": [],
+                "featured": [], "editors_picks": [], "reviewers": {}, "reviews": [], "approved_pictures": []})
+        if self.state.get("marks_unsent") or any(marks.get(key) != value for key, value in new.items()):
             marks.update(new)
             self._marks()
+        # A bad operator target rolls back the service transaction above. It must not first remove
+        # entries or revoke versions in the signer's durable state either.
+        self.state["builds"] = wanted["builds"]
+        self.state["removed"] = sorted(self._removed)
+        if gone:
+            self.state["entries"] = [envelope for envelope in self.state["entries"] if envelope not in gone]
+            self.state["revoked"] = sorted(set(self.state["revoked"]) | {item["signed"]["artifact_sha256"] for item in gone})
+            self.state["unpublished"] = True
+            self.save()
+        for sha, item in sorted(self.state.get("pending", {}).items()):
+            if item["admission"]["signed"]["metadata"]["id"] in self._removed:
+                del self.state["pending"][sha]
+                with contextlib.suppress(RegistryError):
+                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": sha, "refused": [
+                        {"check": "source", "path": "package", "reason": REMOVED}]})
         return {"applied": True, "problems": problems}
 
-    def follow_releases(self) -> bool:
-        """Once a day: sign for the newest published VOOL releases. True when the builds changed."""
-        if self._releases is not None and self.state.get("releases_checked") != self._today():
+    def _discover_releases(self) -> list | None:
+        if self._releases is None or self.state.get("releases_checked") == self._today():
+            return None
+        try:
             released = self._releases()
             require(validate_policy(checks.policy(released)) in self.root["policies"],
                     "the release list does not fit the trust root")
+        except Exception:
+            raise RegistryError("release discovery failed; the next run retries") from None
+        return released
+
+    def follow_releases(self, released: list | None = None) -> bool:
+        """Persist only a completely validated release discovery."""
+        released = self._discover_releases() if released is None else released
+        if released is not None:
             self.state["released"] = released
             self.state["releases_checked"] = self._today()
             self.save()
@@ -468,6 +571,7 @@ class RepoAuthority(Authority):
 
     def recheck(self) -> list[str]:
         """Once a day: today's checks on every listed skill. One that fails them leaves the list."""
+        self._recheck_waiting = None
         if self.state.get("rechecked") == self._today():
             return []
         kept, dropped = [], []
@@ -477,6 +581,11 @@ class RepoAuthority(Authority):
                 raw = self._artifact(entry["artifact_sha256"])
             except MissingArtifact:
                 dropped.append(envelope)  # nobody can download it any more
+                continue
+            except RegistryError as exc:
+                # Unreadable today: only this skill waits for the next daily recheck; the others are checked now.
+                self._recheck_waiting = self._recheck_waiting or str(exc)
+                kept.append(envelope)
                 continue
             official = entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"]
             try:
@@ -499,24 +608,60 @@ class RepoAuthority(Authority):
 
     @_exclusive
     def run_once(self) -> dict:
-        report = {"steps": self.team_steps(), "dropped": []}
+        # The team's instructions and the release list must be readable before any signed write.
+        wanted = self._read_steps()
+        released = self._discover_releases()
+        held = None
         try:
-            report["releases_changed"] = self.follow_releases()
+            queue = self.upload_queue()
+            prepared = self.read_uploads(queue)
         except RegistryError as exc:
-            report["releases_waiting"] = str(exc)  # GitHub is down: the next run asks again
-            report["releases_changed"] = self._sign_for()  # a build the team named still applies
+            # A broken upload batch waits whole; the team's steps and the list already signed still go on.
+            held = str(exc)
+            if held.startswith("the server refused:"):
+                held = "the service refused the upload batch"  # the public log never shows the service's own text
+            queue, prepared = {"submissions": []}, []
+        from registry_service.operations import summary
+
+        moderation = summary(self.call("GET", "/authority/moderation"))
+        report = {"steps": self.team_steps(wanted), "dropped": []}
+        self.state["moderation"] = moderation
+        report["releases_changed"] = self.follow_releases(released)
+        report["dropped"] = self.recheck()
+        if self._recheck_waiting:
+            report["recheck_waiting"] = self._recheck_waiting
         try:
-            report["dropped"] = self.recheck()
-        except RegistryError as exc:
-            report["recheck_waiting"] = str(exc)  # the service is down: the next run looks again
-        try:
-            report.update(super().run_once())
+            report.update(super().run_once(queue=queue, prepared=prepared,
+                                           held=held and held + "; the uploads wait for the next run"))
         except BaseException:
             with contextlib.suppress(Exception):
                 self.checkpoint("Skill Codex: state after a stopped run")  # keep what was spent and decided
             raise
+        if report.get("stopped") and "catalog" not in report:
+            self.checkpoint("Skill Codex: review state before retry")
+            return report
+        try:
+            self._mirror(report)
+        except RegistryError as exc:
+            if not report.get("stopped"):
+                raise
+            report["errors"].append("the public directory was not updated: " + str(exc))
         self.checkpoint(self._summary())
         return report
+
+    def _mirror(self, report: dict) -> None:
+        """The public directory and package copies follow the list the service now holds."""
+        from registry_service.publication import publish
+
+        try:
+            presentation = self.call("GET", "/presentation")
+        except RegistryError as exc:
+            if str(exc) != "the server refused: catalog freshness expired":
+                raise
+            presentation = {"marks": None, "metrics": []}
+            report["presentation_waiting"] = True
+        publish(self.repo / FOLDER, self.state["entries"], self.state["revoked"], self.state["marks"],
+                artifact=self._artifact, presentation=presentation)
 
 
 def service_down(authority: RepoAuthority, exc: Exception) -> bool:
@@ -531,7 +676,8 @@ def quiet(report: dict) -> dict:
             "waiting": len(report.get("waiting", [])), "errors": len(report.get("errors", [])),
             "dropped": len(report.get("dropped", [])), "list_published": "catalog" in report,
             "team_steps": report["steps"]["problems"] + ([] if report["steps"]["applied"] else ["nothing applied"]),
-            **{key: report[key] for key in ("releases_waiting", "recheck_waiting") if key in report}}
+            **{key: "The source could not be checked; the next run tries again."
+               for key in ("releases_waiting", "recheck_waiting") if key in report}}
 
 
 # ---- setup ----
@@ -574,10 +720,12 @@ def setup(repo: Path, *, github: str, catalog_key: str, targets: list[dict], rev
     (folder / "trusted-root.json").write_bytes(canonical(envelope))
     (folder / "config.json").write_bytes(_public_json({"review": review}))
     (folder / "vool-commit").write_text(vool_commit + "\n")
-    (folder / "state.json").write_bytes(_public_json({
+    state = {
         "epoch": 0, "entries": [], "revoked": [], "targets": targets, "released": targets, "authorized_until": 0,
-        "marks": {"sequence": 0, "tested": [], "highlighted": [], "suspended": [], "teams": {}}}))
-    (folder / "private.bin").write_bytes(seal(state_key, {"verdicts": {}, "attempts": {}, "reviews": {}, "spend": {}}))
+        "marks": {"sequence": 0, "tested": [], "highlighted": [], "suspended": [], "teams": {}}}
+    (folder / "state.json").write_bytes(_public_json(state))
+    (folder / "private.bin").write_bytes(seal(state_key, {"verdicts": {}, "attempts": {}, "reviews": {}, "spend": {},
+                                                         "public_sha256": digest(state)}))
     (repo / ".gitattributes").write_text(FOLDER + "/private.bin binary\n")
     (repo / STEPS).write_bytes((TEMPLATES / STEPS).read_bytes())
     (repo / WORKFLOW).parent.mkdir(parents=True, exist_ok=True)
@@ -633,7 +781,11 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
         authority = RepoAuthority(args.repo, repository=repository, transport=transport, clock=clock,
                                   releases=releases or (lambda: released_targets(token=token)))
         try:
-            print(json.dumps(quiet(authority.run_once()), sort_keys=True))
+            report = authority.run_once()
+            if report.get("stopped"):
+                print("Stopped: " + report["stopped"])
+                return 1
+            print(json.dumps(quiet(report), sort_keys=True))
         except Superseded:
             print("Another signer run saved first; this run stopped before sending anything.")
         except (RegistryError, OSError) as exc:
@@ -642,7 +794,12 @@ def main(argv=None, *, transport=None, clock=time.time, releases=None) -> int:
             print("The service didn't answer; the next run tries again.")
         return 0
     except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
-        print("Stopped: " + (str(exc) if isinstance(exc, RegistryError) else type(exc).__name__))
+        message = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
+        if message.startswith("the server refused:"):
+            message = "the service refused a signed request; check its configuration and operator steps"
+        if isinstance(exc, OSError) and exc.strerror:
+            message += ": " + exc.strerror  # the system's reason, such as a read-only drive; never a path or a value
+        print("Stopped: " + message)
         return 1
 
 

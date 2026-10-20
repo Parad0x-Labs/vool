@@ -12,7 +12,15 @@ from pathlib import Path
 
 from core.plugin_package import capture_package, execution_directory
 from core.registry.artifact import inspect, materialize
-from core.registry.codec import FAILED_SAFETY_CHECKS, RegistryError, canonical, decode, require
+from core.registry.codec import (
+    FAILED_SAFETY_CHECKS,
+    NEWER_VERSION_REQUIRED,
+    RegistryError,
+    canonical,
+    decode,
+    require,
+    version_key,
+)
 from core.registry.trust import verify
 
 _INSTALL_LOCK = threading.RLock()
@@ -174,6 +182,31 @@ def unsafe(artifact: dict, raw: bytes) -> bool:
     return bool(findings)
 
 
+def _installed_admission(catalog, receipt, record, package_id: str, now: int) -> dict:
+    """Verify an old receipt at installation time, using its retained trust root."""
+    from core.registry.trust import root_document, validate_entry
+
+    try:
+        require(isinstance(receipt, dict) and receipt.get("schema") == "vool.registry.install.v1" and
+                type(receipt.get("root_version")) is int and type(receipt.get("accepted_at")) is int and
+                receipt["accepted_at"] <= now, "invalid install receipt")
+        row = catalog.db.execute("SELECT root FROM root_history WHERE version=?", (receipt["root_version"],)).fetchone()
+        require(row, "installed registry receipt trust history is missing; existing installation was kept")
+        envelope = decode(row[0], 65536)
+        root = root_document(envelope["signed"], receipt["accepted_at"])
+        require(root["version"] == receipt["root_version"], "receipt root version mismatch")
+        verify(envelope, root, "root")
+        prior = verify(receipt["admission"], root, "admission")
+        validate_entry(prior, root, receipt["accepted_at"])
+        require(prior["metadata"]["id"] == package_id and prior["plugin_id"] == record.plugin_id and
+                prior["metadata"]["version"] == record.version and
+                prior["native_digest"] == record.verified_digest and
+                prior["dependencies"] == record.verified_dependencies, "installed receipt and record differ")
+        return prior
+    except (RegistryError, OSError, sqlite3.Error, KeyError, TypeError, ValueError):
+        raise RegistryError("installed registry receipt or record could not be verified; existing installation was kept") from None
+
+
 def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
             accepted: bool, enable: bool, now: int) -> dict:
     """Explicit owner consent. Public review cannot grant a runtime permission."""
@@ -218,11 +251,16 @@ def install(catalog, raw: bytes, *, package_id: str, version: str, target: dict,
                     "approved dependency closure is not installed and available")
         previous = plugin_lifecycle.record_for(plugin_id)
         receipt_path = _receipt_path(plugin_id)
-        old_receipt = decode(receipt_path.read_bytes()) if receipt_path.exists() else None
+        try:
+            old_receipt = decode(receipt_path.read_bytes(), 65536) if receipt_path.exists() else None
+        except (OSError, RegistryError):
+            raise RegistryError("installed registry receipt could not be read; existing installation was kept") from None
         if destination.exists():
             require(previous and previous.source == "registry:" + package_id and old_receipt,
                     "installation would overwrite an existing local package")
             require(capture_package(destination).digest == previous.verified_digest, "existing package was edited; preserve it before updating")
+            prior = _installed_admission(catalog, old_receipt, previous, package_id, now)
+            require(version_key(version) > version_key(prior["metadata"]["version"]), NEWER_VERSION_REQUIRED)
         else:
             require(previous is None or previous.stage == plugin_lifecycle.STAGE_UNINSTALLED,
                     "plugin identity already belongs to another installation")
