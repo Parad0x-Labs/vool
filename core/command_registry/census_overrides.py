@@ -102,6 +102,12 @@ _ADAPTERS: dict[str, str] = {
 }
 
 _EXTERNAL: dict[str, str] = {
+    # Household records are served by their owner door, outside command dispatch.
+    "http:GET:/my-things": "household records page transport",
+    "http:GET:/api/my-things": "household records owner-local listing",
+    "http:GET:/api/my-things/*": "household records owner-local views",
+    "http:POST:/api/my-things/*": "household records owner-local actions with confirmation",
+
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",
     "cli-script:vool-api": "API server entry point",

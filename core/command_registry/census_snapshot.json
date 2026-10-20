@@ -1303,6 +1303,20 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/my-things": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/my-things",
+      "note": "household records owner-local listing",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/my-things/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/my-things/*",
+      "note": "household records owner-local views",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/notifications": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/notifications",
@@ -1657,6 +1671,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /media-editor/proxy",
       "note": "UI page/feed transport",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/my-things": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /my-things",
+      "note": "household records page transport",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2392,6 +2413,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/money/reconcile",
       "note": "money contract lane operator action (reconcile)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/my-things/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/my-things/*",
+      "note": "household records owner-local actions with confirmation",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -3154,7 +3182,7 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 309,
+    "EXTERNAL_TRANSPORT_ONLY": 313,
     "GENERATED_ADAPTER": 132,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
