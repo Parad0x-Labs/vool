@@ -368,6 +368,14 @@ def _initialization_witnesses(directory: Path) -> bool:
     return (directory / 'dependencies.json').exists() or any(directory.glob('lease-*'))
 
 
+def memory_home_is_new(runtime_home=None) -> bool:
+    """No authority, no witness of one and no retained memory: nothing here was remembered, so nothing was
+    forgotten. A read only; an authority that existed and was lost is not new (see ``prepare``)."""
+    directory = _directory(runtime_home)
+    return (not (directory / 'ledger.json').exists() and not _initialization_witnesses(directory)
+            and not _existing_carriers(_home(runtime_home), including_legacy=True))
+
+
 @_authority_errors
 def initialize_memory_home(runtime_home=None, *, db_path=None) -> None:
     """Migrate a legacy home once, before opening or creating its memory.

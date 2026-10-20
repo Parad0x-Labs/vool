@@ -27,8 +27,7 @@ INVENTORY = "\n".join(f"Inventory note {index:03d}: crate {index} holds spare ha
 
 @pytest.fixture(autouse=True)
 def _a_chat_that_has_taken_turns(request):
-    """A chat's first turn opens its memory, which sets up the home's forget authority. Without one, nothing
-    the chat kept is carried: the authority cannot say what was forgotten."""
+    """A chat's first turn opens its memory, which sets up the home's forget authority."""
     if "isolated_pages" not in request.fixturenames:
         return
     from core.vool_memory import VoolMemory
@@ -150,6 +149,18 @@ def test_an_unfinished_forget_withholds_the_chats_documents_until_it_completes(i
 
     revocation.complete(operation, isolated_pages)
     assert not any("4417" in entry["text"] for entry in _carried(chat))
+
+
+def test_a_home_whose_forget_authority_was_lost_carries_no_document(isolated_pages):
+    from core.memory.revocation import _directory
+
+    chat = _chat("forget-paste-lost-authority")
+    _paste(chat, INVENTORY, turn="t1")
+    assert _carried(chat)
+    # The home holds memory, so a missing ledger is a lost one: what it forgot is unknown.
+    (_directory(isolated_pages) / "ledger.json").unlink()
+
+    assert _carried(chat) == []
 
 
 def test_the_words_pasted_again_after_a_forget_are_not_carried_into_later_turns(isolated_pages):

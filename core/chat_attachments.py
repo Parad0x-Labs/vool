@@ -1747,7 +1747,7 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
     that holds words this chat forgot (or is forgetting) while the forget could not erase it.
     Nothing of another chat can appear here: the session id is the door's, never the client's.
     """
-    from core.memory.revocation import authorize_payload
+    from core.memory.revocation import authorize_payload, memory_home_is_new
 
     session = _valid_session(session_id)
     exclude = str(exclude_turn_id or "").strip()
@@ -1765,6 +1765,8 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
             and r.get("turn_id") != exclude
         ]
     records.sort(key=lambda r: (str(r.get("bound_at") or r.get("created_at") or ""), int(r.get("bind_index") or 0), r["id"]), reverse=True)
+    # A home that never held memory never forgot anything; one whose authority is missing or unreadable carries nothing.
+    fenced = bool(records) and not memory_home_is_new()
     for record in records:
         if remaining <= 0:
             break
@@ -1777,7 +1779,7 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
         # The authority answers False on a revoked word and on any failure to read it.
         # The forget's ledger names the chat as the turn's door gave it; that can be the handle this store folded.
         words = raw.decode("utf-8", errors="replace")
-        if not all(authorize_payload(words, chat_id=chat) for chat in {session, str(session_id).strip()}):
+        if fenced and not all(authorize_payload(words, chat_id=chat) for chat in {session, str(session_id).strip()}):
             continue
         text, truncated, selection = _deliver_text(raw, budget=min(MAX_TEXT_CHARS_PER_FILE, remaining), exact=True, question=question)
         remaining = max(0, remaining - len(text))
