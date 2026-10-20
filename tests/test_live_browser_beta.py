@@ -887,20 +887,26 @@ def test_refusing_while_the_switch_goes_off_never_holds_the_session_lock_into_a_
 
 @pytest.mark.parametrize('approve', [True, False])
 def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(world, approve):
-    from core.agent_runtime.answer_coverage import COVERAGE_CONTEXT_KEY, units_matching_needle
+    from core.agent_runtime.answer_coverage import demand_units, units_matching_needle
+    from core.conductor import obligation_ledger as ol
     from core.runtime_flags import override
     from core.tool_intent_executor import execute_tool_intent
     from core.vool_browser.live_requests import turn_scope
     from tests._toolchain_fixtures import executor_kwargs
 
     rig, item, origin, requests = world
-    request = f'Use the built-in browser to open {origin}/ and tell me the train time.'
+    request = f'Use the built-in browser to open {origin}/ and find the next train to Northport.'
+    # The turn's set, minted the way the turn opens it; the tool runs on a COPY of the
+    # turn context, as the tool loop runs it, so nothing kept on that copy can count.
+    opened = ol.open_obligation_set(request_text=request, obligations=[
+        {'obligation_id': f'ob:t:demand:{u.unit_id}', 'text': u.text, 'kind': 'demand', 'unit_id': u.unit_id, 'slice_id': u.slice_id}
+        for u in demand_units(request)])
     kwargs = executor_kwargs('live-test', runtime_session_id='live-test', surface='api', platform='web_companion',
                              mode='manual', live_browser_wait_for_owner=True)
-    context = kwargs['source_context']
-    context[COVERAGE_CONTEXT_KEY] = {'slices': [], 'answers': []}
+    kwargs['source_context'] = dict(kwargs['source_context'])
 
     def run():
+        ol.bind_active_set(opened['set_id'], opened['version'])
         with override('plugin_runtime_tools', True), turn_scope(request, 'live-test'):
             return execute_tool_intent({'intent': 'vool-browser.session.open', 'arguments': {'start_url': origin+'/'}}, **kwargs)
 
@@ -909,18 +915,39 @@ def test_the_owner_decided_opening_is_counted_for_the_clause_that_asked_for_it(w
         _until(lambda: item.pending is not None)
         rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': approve})
         future.result(timeout=25)
-    record = context[COVERAGE_CONTEXT_KEY]
     opening = units_matching_needle(request, origin)
-    assert opening and not set(opening) & set(units_matching_needle(request, 'train time'))
-    dispatch = record['dispatches'][-1]
-    assert dispatch['unit_ids'] == list(opening) and dispatch['operation'] == 'vool-browser.session.open'
+    train = units_matching_needle(request, 'next train')
+    assert opening and train and not set(opening) & set(train)
+    states = {row['unit_id']: row['state'] for row in ol.sweep_demand_obligations(opened['set_id'], opened['version'])}
+    # No dispatch row is filed, so a clause the model answers from the page is never accused.
+    assert ol.slice_dispatches(opened['set_id'], opened['version']) == ()
+    assert all(states[unit] == 'indeterminate' for unit in train)
     if approve:
-        assert dispatch['state'] == 'SUCCEEDED' and requests == [('GET', '/')]
-        assert [a for a in record['answers'] if a.get('family') == 'vool_browser']
-        assert all(a.get('response') == '' for a in record['answers'] if a.get('family') == 'vool_browser')
+        assert requests == [('GET', '/')] and all(states[unit] == 'satisfied' for unit in opening)
     else:
-        assert dispatch['state'] == 'FAILED' and dispatch['failure_reason'] == 'refused' and requests == []
-        assert not [a for a in record['answers'] if a.get('family') == 'vool_browser']
+        assert requests == [] and all(states[unit] == 'indeterminate' for unit in opening)
+        assert ol.consumption_receipts(opened['set_id'], opened['version']) == ()
+
+
+def test_a_label_instead_of_an_element_handle_comes_back_as_a_correction(world):
+    from core.runtime_execution_tools import execute_runtime_tool
+    from core.runtime_flags import override
+    from core.vool_browser import live
+    from core.vool_browser.live_requests import turn_scope
+    from tests.test_live_browser import finish
+
+    rig, item, origin, requests = world
+    finish(world, 'navigate', {'url': origin+'/'})
+    context = {'session_id': 'live-test', 'surface': 'api', 'platform': 'web_companion'}
+    with override('plugin_runtime_tools', True), turn_scope('Now fill the destination with Riga and submit the form.', 'live-test'):
+        result = execute_runtime_tool('vool-browser.type', {'selector': 'Destination', 'text': 'Riga', 'submit': True}, source_context=context)
+        assert result.status == 'invalid_arguments' and 'vool-browser.inspect' in result.response_text
+        # The correction names no page text and proposes nothing; a real handle still works.
+        assert item.pending is None and requests == [('GET', '/')]
+        handle = next(n for n in live.tool_intent('vool-browser.inspect', {}, context)['nodes']['items'] if n.get('name') == 'destination')
+        proposed = live.tool_intent('vool-browser.type', {'selector': handle['selector'], 'text': 'Riga'}, context)
+    assert proposed['status'] == 'approval_required' or proposed.get('proposal')
+    rig.post('/api/browser/decide', {'chat': 'live-test', 'id': item.pending['id'], 'approve': False})
 
 
 def test_a_follow_up_about_the_open_page_reaches_the_browser_tools(world, monkeypatch):

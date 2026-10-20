@@ -3239,7 +3239,7 @@ def _dispatch_runtime_tool(
             view_url = "/browser?chat=" + quote(str((source_context or {}).get("session_id") or (source_context or {}).get("runtime_session_id") or ""))
             return RuntimeExecutionResult(
                 handled=True, ok=bool(result.get("ok")), status=str(result.get("status") or result.get("state") or "ready"),
-                response_text=f"[{label}]({view_url})",
+                response_text=str(result.get("error") or "") if result.get("status") == "invalid_arguments" else f"[{label}]({view_url})",
                 details={"intent": intent, "observation": {"intent_observation": True, **result}},
             )
         lane = _browser_handle(intent, arguments)
@@ -8070,50 +8070,44 @@ _agent_team_gate.mark_installed()
 def _account_browser_opening(
     source_context: dict[str, Any] | None, intent: str, arguments: dict[str, Any], result: dict[str, Any]
 ) -> None:
-    """Report an owner-decided browser opening to the turn's demand accounting.
+    """File the turn's consumption receipt for an owner-approved browser opening.
 
-    The clause that asked to open an address is served by the approved opening's receipt
-    (or provably not served when the owner refused it); without this the sweep can only
-    call it indeterminate. Bound to the unit whose own words name that address, read from
-    the person's turn, never from the model's arguments or the page. A pending approval is
-    not an outcome and records nothing.
+    The clause that asked to open an address is served by the approved opening's receipt;
+    without one the sweep can only call it indeterminate. Bound to the unit whose own words
+    name that address, read from the person's turn, never from the model's arguments or
+    the page. Written straight to the turn's active obligation set: the tool loop runs on a
+    copy of the turn context, so a record kept on that copy never reaches the sweep.
+
+    Only a success is filed. A refused or failed opening files no dispatch row either: once
+    a turn carries dispatch rows, every unit without one reads as provably not dispatched,
+    which would accuse clauses the model answered from the page. Absence stays
+    indeterminate. A pending approval is not an outcome and records nothing.
     """
-    if not isinstance(source_context, dict) or intent not in {"vool-browser.session.open", "vool-browser.navigate"}:
-        return
-    status = str(result.get("status") or "")
-    if status == "approval_required":
-        return
-    from core.agent_runtime.answer_coverage import (
-        COVERAGE_CONTEXT_KEY,
-        record_slice_answer,
-        units_matching_needle,
-    )
-    from core.vool_browser.live_requests import turn_request, written_addresses
-
-    request = turn_request()
-    target = str(arguments.get("start_url") if intent.endswith(".open") else arguments.get("url") or "")
-    needles = written_addresses(request, target)
-    units = units_matching_needle(request, *needles) if request and needles else ()
-    if not units:
+    del source_context
+    if intent not in {"vool-browser.session.open", "vool-browser.navigate"}:
         return
     receipt = result.get("receipt") if isinstance(result.get("receipt"), dict) else {}
-    succeeded = bool(result.get("ok")) and bool(receipt)
-    if succeeded:
-        record_slice_answer(
-            source_context,
-            text=request,
+    if not (result.get("ok") and receipt):
+        return
+    from core.agent_runtime.answer_coverage import units_matching_needle
+    from core.conductor import obligation_ledger
+    from core.vool_browser.live_requests import turn_request, written_addresses
+
+    active = obligation_ledger.active_set()
+    request = turn_request()
+    if active is None or not request:
+        return
+    target = str(arguments.get("start_url") if intent.endswith(".open") else arguments.get("url") or "")
+    needles = written_addresses(request, target)
+    # Units are named in the set's own frozen request text, the text the sweep decomposes.
+    minted = obligation_ledger.request_text(active[0], active[1]) or request
+    for unit_id in units_matching_needle(minted, *needles) if needles else ():
+        obligation_ledger.record_slice_consumption(
+            active[0],
+            active[1],
+            unit_id=unit_id,
             family="vool_browser",
-            response="",
-            reason="vool_browser_owner_approved_opening",
-            consumed_units=units,
+            # The lane-attested tier: the opening's own receipt attests it, not prose.
+            evidence="slice_answer_record",
+            excerpt="vool_browser_owner_approved_opening " + str(receipt.get("approved_proposal_id") or ""),
         )
-    record = source_context.get(COVERAGE_CONTEXT_KEY)
-    if isinstance(record, dict):
-        record["dispatches"] = [*list(record.get("dispatches") or []), {
-            "unit_ids": list(units),
-            "subtask_id": "browser:" + str(receipt.get("approved_proposal_id") or status or "refused"),
-            "operation": intent,
-            # A refused, stale or failed opening was dispatched and did not serve the clause.
-            "state": "SUCCEEDED" if succeeded else "FAILED",
-            "failure_reason": "" if succeeded else status,
-        }]

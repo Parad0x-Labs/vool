@@ -1244,7 +1244,18 @@ def _tool_proposal(item: LiveSession, op: str, arguments: dict, source_context: 
     # opened one (another channel, a background job) proposes nothing.
     if not within_turn():
         raise BrowserFault("request_scope_required")
-    proposed = item.propose(op, arguments)
+    try:
+        proposed = item.propose(op, arguments)
+    except BrowserFault as fault:
+        if str(fault) != "element_missing" or op not in {"click", "type", "upload"}:
+            raise
+        # A handle the observation does not list is the model's argument mistake, not a
+        # page fault: it gets the correction back instead of losing the turn. Nothing is
+        # resolved for it (a label never becomes a handle), and no page text rides along.
+        return {"ok": False, "status": "invalid_arguments",
+                "error": "selector must be an element handle exactly as the latest page observation "
+                         "lists it, not a label or CSS. Call vool-browser.inspect to read the current "
+                         "handles, then call " + "vool-browser." + op + " again with one of them."}
     if op == "navigate":
         from core.vool_browser.live_requests import note_navigation_proposal
 
