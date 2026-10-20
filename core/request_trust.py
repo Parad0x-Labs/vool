@@ -31,12 +31,18 @@ from typing import Any
 # session. Callers must never set it over the wire — the dispatcher strips and re-stamps it.
 OWNER_LOCAL_KEY = "_owner_local"
 
+# Server-stamped key: True on every turn that arrived through the HTTP service (core.web.api.runtime
+# stamps it on each served turn). On such a turn an absent or unknown owner-local state is a remote
+# turn: only an explicit ``_owner_local: True`` (a loopback peer) is the owner.
+HTTP_INGRESS_KEY = "_http_ingress"
+
 # source_context keys a caller must never supply; the server owns them. Stripped from every
 # inbound body before the trusted values are stamped. "authorized_paid_call" is a server-built paid
 # reservation (see ModelOrchestrator.authorize_paid) and participates in the spend decision, so a
 # caller-supplied one is stripped here rather than relying on downstream structural checks to reject it.
 RESERVED_TRUST_KEYS = (
     OWNER_LOCAL_KEY,
+    HTTP_INGRESS_KEY,
     # M2: the typed turn contract is SERVER-authored at the run_once intake. An inbound
     # body carrying this key is stripped here; only core.turn_contract writes it.
     "turn_request",
@@ -150,22 +156,41 @@ def is_loopback_host(host: str) -> bool:
 #: servers always pass the real socket peer.
 IN_PROCESS_OWNER_PEER = "127.0.0.1"
 
-# Command-registry projections that run inside the owner's own process with no network boundary
-# (the ``vool`` terminal commands). Every other projection (api, model, chat, core) must carry the
-# real transport peer in ``ExecutionContext.extra["client_host"]``; without it the peer is unknown
-# and owner-local checks fail closed.
-_IN_PROCESS_OWNER_PROJECTIONS = frozenset({"cli"})
+
+
+def in_process_owner_extra() -> dict[str, str]:
+    """``ExecutionContext.extra`` for a command the owner runs in their own process (the ``vool``
+    terminal commands, the blackbox CLI). The call site names the owner explicitly; nothing infers
+    it from a projection or from a missing peer."""
+
+    return {"client_host": IN_PROCESS_OWNER_PEER}
+
+
+def in_process_owner_source_context() -> dict[str, bool]:
+    """The owner-local stamp an in-process turn (the terminal chat, the standing coordinator) carries
+    explicitly. Its source context never comes from a request body, so no caller can forge it."""
+
+    return {OWNER_LOCAL_KEY: True}
+
+
+def owner_peer_for_turn(source_context: Any) -> str:
+    """The peer a command run on behalf of a turn names: the owner's only when the turn carries the
+    explicit owner-local stamp, otherwise ``""`` (unknown, which owner-local checks refuse)."""
+
+    sc = source_context if isinstance(source_context, dict) else {}
+    return IN_PROCESS_OWNER_PEER if sc.get(OWNER_LOCAL_KEY) is True else ""
 
 
 def execution_peer_host(ctx: Any) -> str:
-    """The transport peer of one command-registry execution, or ``""`` when it is unknown."""
+    """The transport peer of one command-registry execution, or ``""`` when it is unknown.
+
+    Every projection (api, cli, model, chat, core) names its peer in ``extra["client_host"]``: the
+    servers pass the real socket peer, in-process owner callers pass :func:`in_process_owner_extra`.
+    A missing peer is unknown, and owner-local checks refuse it.
+    """
 
     extra = getattr(ctx, "extra", None) or {}
-    if "client_host" in extra:
-        return str(extra.get("client_host") or "")
-    if str(getattr(ctx, "projection", "") or "") in _IN_PROCESS_OWNER_PROJECTIONS:
-        return IN_PROCESS_OWNER_PEER
-    return ""
+    return str(extra.get("client_host") or "")
 
 
 # Registry capabilities that change the owner's own settings, keys or providers. A command that
@@ -189,8 +214,10 @@ def capability_requires_owner_local(capability: str) -> bool:
 REMOTE_TURN_TOOL_INTENTS = frozenset({
     "respond.direct",
     "capability.expand_family",
+    # public pages only: core.remote_turn_fetch refuses this computer and its local network
     "web.fetch",
-    "browser.render",
+    # browser.render is NOT here: a browser follows redirects and loads sub-resources that cannot be
+    # pinned to checked public addresses, so from another device it could reach the owner's network.
     "web.chain_lookup",
     "token.research",
     "token.launches",
@@ -208,15 +235,24 @@ REMOTE_TURN_REFUSAL_TEXT = (
 )
 
 
-def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
-    """``""`` when this tool may run for this turn; otherwise why it may not.
+def turn_is_remote(source_context: Any) -> bool:
+    """Whether this turn is NOT the owner's own session, failing closed.
 
-    Only a server-stamped ``_owner_local: False`` refuses (an HTTP turn from another device, a
-    channel turn). A context without the stamp never crossed the HTTP boundary and is unaffected.
+    A stamped owner-local state is authoritative, and only an explicit ``True`` is the owner. A turn
+    that came through the HTTP service with no stamp (or any value other than ``True``) is remote.
+    A context with neither key was built in-process and never crossed the HTTP boundary.
     """
 
     sc = source_context if isinstance(source_context, dict) else {}
-    if OWNER_LOCAL_KEY not in sc or bool(sc.get(OWNER_LOCAL_KEY)):
+    if OWNER_LOCAL_KEY in sc:
+        return sc.get(OWNER_LOCAL_KEY) is not True
+    return bool(sc.get(HTTP_INGRESS_KEY))
+
+
+def remote_turn_tool_refusal(intent: str, source_context: Any) -> str:
+    """``""`` when this tool may run for this turn; otherwise why it may not (see turn_is_remote)."""
+
+    if not turn_is_remote(source_context):
         return ""
     if str(intent or "").strip() in REMOTE_TURN_TOOL_INTENTS:
         return ""
@@ -241,6 +277,8 @@ def request_is_owner_local(source_context: Any) -> bool:
     sc = source_context if isinstance(source_context, dict) else {}
     if OWNER_LOCAL_KEY in sc:
         return bool(sc.get(OWNER_LOCAL_KEY))
+    if sc.get(HTTP_INGRESS_KEY):
+        return False
     surface = str(sc.get("surface") or "").strip().lower()
     return surface in _OWNER_SURFACES
 
@@ -273,6 +311,7 @@ def turn_is_owner_authored(source_context: Any) -> bool:
 
 
 __all__ = [
+    "HTTP_INGRESS_KEY",
     "IN_PROCESS_OWNER_PEER",
     "OWNER_LOCAL_CAPABILITIES",
     "OWNER_LOCAL_KEY",
@@ -282,10 +321,14 @@ __all__ = [
     "TURN_AUTHOR_KEY",
     "capability_requires_owner_local",
     "execution_peer_host",
+    "in_process_owner_extra",
+    "in_process_owner_source_context",
     "is_loopback_host",
+    "owner_peer_for_turn",
     "remote_turn_tool_refusal",
     "request_is_owner_local",
     "strip_reserved_trust_keys",
     "turn_author_from_request",
     "turn_is_owner_authored",
+    "turn_is_remote",
 ]

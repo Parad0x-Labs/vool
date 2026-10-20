@@ -1440,6 +1440,15 @@ def _run_agent_locked(
     base_context = default_agent_source_context()
     if source_context:
         base_context.update(source_context)
+    # Every turn this function runs arrived through the HTTP service. It is the owner's only when
+    # the door that admitted it stamped ``_owner_local: True`` from a loopback peer; an absent or
+    # unknown stamp is a remote turn (core.request_trust.turn_is_remote), never the owner. The
+    # explicit False also wins over a stored True when this turn resumes a checkpoint.
+    from core.request_trust import HTTP_INGRESS_KEY, OWNER_LOCAL_KEY
+
+    base_context[HTTP_INGRESS_KEY] = True
+    if base_context.get(OWNER_LOCAL_KEY) is not True:
+        base_context[OWNER_LOCAL_KEY] = False
     default_workspace = workspace_root_provider()
     base_context.setdefault("workspace", default_workspace)
     base_context.setdefault("workspace_root", default_workspace)

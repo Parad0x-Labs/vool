@@ -1665,7 +1665,9 @@ def _execute_tool_intent_impl(
         from core.command_registry.model_tools import execute_model_command as _execute_model_command
 
         execution = _dispatch_with_claim(
-            lambda: _execute_model_command(intent, arguments, task_id=task_id, session_id=session_id)
+            lambda: _execute_model_command(
+                intent, arguments, task_id=task_id, session_id=session_id, source_context=source_context
+            )
         )
         _maybe_store_tool_receipt(
             execution,
