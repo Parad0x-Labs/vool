@@ -2425,7 +2425,11 @@ function widgetUpdates(stack) {
   /* The outbound switch is the master over update checks: while it is off no check goes online, a
      pressed Check included. Say so calmly, with the way to the switch, instead of a failure. */
   const onlineOff = !unavailable && !!src && src.online_access === false;
-  const message = onlineOff ? T('update.online_off', 'Online access is off, so VOOL does not check for updates.')
+  const offText = T('update.online_off', 'Online access is off, so VOOL does not check for updates.');
+  /* Only a phase with nothing of its own to say (idle, up to date, a check) is replaced by the off line; a ready,
+     ready-to-restart, rolled-back or failed update keeps its own message, with the off line under it. */
+  const quiet = phase === 'idle' || phase === 'up_to_date' || phase === 'checking';
+  const message = onlineOff && quiet ? offText
     : phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
     : unavailable ? T('settings.updates.unavailable', 'Automatic updates are not available for this copy of VOOL.')
     : error || src && src.message || T('settings.widget.loading', 'Loading…');
@@ -2434,7 +2438,11 @@ function widgetUpdates(stack) {
   let onlineLink = null;
   const showOnlineSwitch = () => {
     if (onlineLink) return;
-    onlineLink = el('button', 'btn', T('online_access.open_setting', 'Go to the online access setting'));
+    if (!quiet) {
+      const note = el('div', 'subtle', offText); note.dataset.testid = 'settings-update-online-note';
+      stack.appendChild(note);
+    }
+    onlineLink = el('button', 'btn', T('online_access.open_setting', 'Open \u201cGo online on its own\u201d'));
     onlineLink.type = 'button'; onlineLink.dataset.testid = 'settings-update-online-setting';
     onlineLink.addEventListener('click', () => { location.hash = '#permissions/automatic_checks'; });
     stack.appendChild(onlineLink);
@@ -2451,7 +2459,7 @@ function widgetUpdates(stack) {
         headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const result = await response.json().catch(() => ({}));
       if (result.reason === 'online_access_off' || result.error === 'online_access_off') {
-        status.textContent = T('update.online_off', 'Online access is off, so VOOL does not check for updates.');
+        status.textContent = quiet ? offText : message;
         showOnlineSwitch(); check.disabled = false; return;
       }
       if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));

@@ -2602,7 +2602,7 @@
     "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it.",
     "update.online_off": "Online access is off, so VOOL does not check for updates.",
     "vcs.online_off": "Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.",
-    "online_access.open_setting": "Go to the online access setting"
+    "online_access.open_setting": "Open “Go online on its own”"
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -120,7 +120,7 @@ function mountInto(host){
   function onlineOffText(){ return CT('vcs.online_off', 'Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.'); }
   function isOnlineOff(j){ return !!j && (j.reason === 'online_access_off' || j.status === 'online_access_off'); }
   function onlineSwitchLink(){
-    var go = button(CT('online_access.open_setting', 'Go to the online access setting'), function(){ location.hash = '#permissions/automatic_checks'; });
+    var go = button(CT('online_access.open_setting', 'Open \u201cGo online on its own\u201d'), function(){ location.hash = '#permissions/automatic_checks'; });
     go.setAttribute('data-testid', 'vcs-online-setting');
     return go;
   }

@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요.",
     "update.online_off": "온라인 접근이 꺼져 있어 VOOL이 업데이트를 확인하지 않습니다.",
     "vcs.online_off": "온라인 접근이 꺼져 있어 VOOL이 인터넷의 캘린더를 읽지 않습니다. 이 컴퓨터의 캘린더는 계속 작동합니다.",
-    "online_access.open_setting": "온라인 접근 설정으로 이동"
+    "online_access.open_setting": "‘스스로 온라인 연결’ 열기"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

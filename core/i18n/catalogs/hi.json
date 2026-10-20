@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label} ने कुंजी अस्वीकार कर दी{http}। दोबारा जाँचें या बदलें।",
     "update.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL अपडेट नहीं जाँचता।",
     "vcs.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL इंटरनेट से कैलेंडर नहीं पढ़ता। इस कंप्यूटर के कैलेंडर काम करते रहते हैं।",
-    "online_access.open_setting": "ऑनलाइन पहुँच की सेटिंग पर जाएँ"
+    "online_access.open_setting": "“अपने आप ऑनलाइन जाना” खोलें"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

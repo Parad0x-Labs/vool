@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label} a rejeté la clé{http}. Vérifiez-la à nouveau ou remplacez-la.",
     "update.online_off": "L’accès à internet est désactivé, donc VOOL ne recherche pas de mises à jour.",
     "vcs.online_off": "L’accès à internet est désactivé, donc VOOL ne lit pas d’agendas sur internet. Les agendas de cet ordinateur continuent de fonctionner.",
-    "online_access.open_setting": "Aller au réglage d’accès à internet"
+    "online_access.open_setting": "Ouvrir « Se connecter de lui-même »"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

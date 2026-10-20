@@ -1263,9 +1263,10 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="upd-notes" id="updateNotes"></div>
       <div class="upd-bar" id="updateBar" hidden><i id="updateBarFill"></i></div>
       <div class="upd-msg" id="updateMessage" data-testid="update-message" role="status"></div>
+      <div class="upd-msg" id="updateOnlineNote" data-testid="update-online-note" hidden></div>
       <button type="button" class="pop-item" id="updateActionBtn" data-testid="update-action" hidden></button>
       <button type="button" class="pop-item" id="updateCheckBtn" data-i18n="update.action_check">Check for updates</button>
-      <button type="button" class="pop-item" id="updateOnlineBtn" data-testid="update-online-setting" data-i18n="online_access.open_setting" hidden>Go to the online access setting</button>
+      <button type="button" class="pop-item" id="updateOnlineBtn" data-testid="update-online-setting" data-i18n="online_access.open_setting" hidden>Open “Go online on its own”</button>
       <button type="button" class="pop-item" id="updateRollbackBtn" data-testid="update-rollback" hidden></button>
     </div>
   </div>
@@ -13505,6 +13506,17 @@ const updateActionBtn = document.getElementById('updateActionBtn');
 const updateCheckBtn = document.getElementById('updateCheckBtn');
 const updateRollbackBtn = document.getElementById('updateRollbackBtn');
 const updateOnlineBtn = document.getElementById('updateOnlineBtn');
+const updateOnlineNote = document.getElementById('updateOnlineNote');
+// Phases with nothing of their own to say (idle, up to date, a check): there the off line IS the status. Every other phase
+// (ready, ready to restart, rolled back, failed, in progress) keeps its own message, with the off
+// line under it, and restart and rollback stay usable.
+const UPDATE_QUIET = new Set(['idle', 'up_to_date', 'checking']);
+function showUpdateOnlineOff(on, phase) {
+  const quiet = UPDATE_QUIET.has(phase || 'idle');
+  if (on && quiet) updateMessageEl.textContent = UPDATE_ONLINE_OFF;
+  if (updateOnlineNote) { updateOnlineNote.textContent = (on && !quiet) ? UPDATE_ONLINE_OFF : ''; updateOnlineNote.hidden = !(on && !quiet); }
+  if (updateOnlineBtn) updateOnlineBtn.hidden = !on;
+}
 const UPDATE_ONLINE_OFF = pageT('update.online_off', 'Online access is off, so VOOL does not check for updates.');
 // The updater's state machine names stay exactly as shipped (phase keys below); only
 // their display words resolve through the catalog's update.* keys.
@@ -13540,9 +13552,8 @@ function renderUpdateChip(payload) {
   updateNotesEl.textContent = (payload.notes || '').trim();
   // The outbound switch is the master over update checks: while it is off the popover says so and
   // offers the way to the switch, instead of a check that would only look like it failed.
-  const onlineOff = payload.online_access === false;
-  updateMessageEl.textContent = onlineOff ? UPDATE_ONLINE_OFF : (payload.message || '');
-  if (updateOnlineBtn) updateOnlineBtn.hidden = !onlineOff;
+  updateMessageEl.textContent = payload.message || '';
+  showUpdateOnlineOff(payload.online_access === false, phase);
   updateBar.hidden = !(phase === 'downloading' && payload.progress_percent != null);
   updateBarFill.style.width = `${payload.progress_percent || 0}%`;
   updateActionBtn.hidden = true; updateCheckBtn.hidden = false;
@@ -13607,8 +13618,10 @@ if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
     headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok);
     result = await r.json().catch(() => ({})); } catch (e) { ok = false; }
   if (result && (result.reason === 'online_access_off' || result.error === 'online_access_off')) {
-    updateMessageEl.textContent = UPDATE_ONLINE_OFF;
-    if (updateOnlineBtn) updateOnlineBtn.hidden = false;
+    // Put back what the status said before "Checking…", then the off line (the status line itself in a
+    // quiet phase, under the real message otherwise).
+    updateMessageEl.textContent = (_updateStatus && _updateStatus.message) || '';
+    showUpdateOnlineOff(true, (_updateStatus && _updateStatus.phase) || 'idle');
     return;
   }
   if (!ok) { updateMessageEl.textContent = "Couldn't check for updates right now. Try again later."; return; }

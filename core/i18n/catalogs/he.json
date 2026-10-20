@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
     "update.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא בודק עדכונים.",
     "vcs.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא קורא לוחות שנה מהאינטרנט. לוחות שנה במחשב הזה ממשיכים לעבוד.",
-    "online_access.open_setting": "מעבר להגדרת הגישה לאינטרנט"
+    "online_access.open_setting": "פתיחת „יציאה לאינטרנט באופן עצמאי”"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

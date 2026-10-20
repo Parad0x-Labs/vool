@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį.",
     "update.online_off": "Prieiga prie interneto išjungta, todėl VOOL netikrina atnaujinimų.",
     "vcs.online_off": "Prieiga prie interneto išjungta, todėl VOOL neskaito kalendorių iš interneto. Šio kompiuterio kalendoriai toliau veikia.",
-    "online_access.open_setting": "Eiti į prieigos prie interneto nustatymą"
+    "online_access.open_setting": "Atidaryti „Prisijungti prie interneto savarankiškai“"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

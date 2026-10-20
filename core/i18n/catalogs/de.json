@@ -2602,9 +2602,9 @@
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn.",
     "update.online_off": "Der Online-Zugang ist aus, daher sucht VOOL nicht nach Updates.",
     "vcs.online_off": "Der Online-Zugang ist aus, daher liest VOOL keine Kalender aus dem Internet. Kalender auf diesem Computer funktionieren weiter.",
-    "online_access.open_setting": "Zur Einstellung für den Online-Zugang"
+    "online_access.open_setting": "„Von selbst online gehen“ öffnen"
   },
-  "source_catalog_sha256": "4abf62eff5981740941b3cb46ae1232f3cd50451d5aa46b45b65fde67e25a39c",
+  "source_catalog_sha256": "3cc9b9b22fbdf20921d2a955cb43c32289a0cf5d122f09d48ddf8e2247a0896d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
