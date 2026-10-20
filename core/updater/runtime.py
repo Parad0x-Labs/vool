@@ -33,6 +33,7 @@ from core.updater.download import StagedDownloader
 from core.updater.feed import (
     ONLINE_ACCESS_OFF,
     ONLINE_ACCESS_OFF_DETAIL,
+    ONLINE_ACCESS_OFF_INSTALL_DETAIL,
     FeedConfig,
     automatic_checks_enabled,
     enable_automatic_checks,
@@ -245,6 +246,20 @@ class UpdateSubsystem:
         if automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
             self.service.start()
         return self
+
+    def ensure_background_checks(self) -> bool:
+        """Start the scheduled check if it is allowed now but not running: the outbound switch (or the
+        check choice) can be turned on after boot. Called on the owner-local status poll, the same cue the
+        model radar uses to start its observer. Idempotent; returns whether it started the thread."""
+        if not self._started or not self.configured or self.service is None:
+            return False
+        thread = self.service._thread
+        if thread is not None and thread.is_alive():
+            return False
+        if not automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+            return False
+        self.service.start()
+        return True
 
     def _recover_bounded(self) -> None:
         if self._worker_alive():
@@ -485,6 +500,10 @@ class UpdateSubsystem:
             return PressOutcome(False, detail=self.status_payload()["unavailable_plain"] or "updates are unavailable")
         if not self.feed.has_target:
             return PressOutcome(False, detail="no app path is configured for this install, so nothing can be updated")
+        if not online_access_allowed(self.feed):
+            # Installing downloads the update, so the outbound switch decides it like a check. Restart into
+            # an already downloaded update and rollback stay local and are not gated.
+            return PressOutcome(False, detail=ONLINE_ACCESS_OFF_INSTALL_DETAIL)
         prior_status = self.status.load()
         if self._recovering or (prior_status and prior_status.fault_code == "rollback_failed"):
             return PressOutcome(False, detail="the previous update needs recovery before another can be installed")

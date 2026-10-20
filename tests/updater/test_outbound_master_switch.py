@@ -173,3 +173,103 @@ def test_served_check_route_answers_the_calm_refusal_and_runs_with_the_switch_on
     status, payload = press()
     assert calls == [FEED_URL]
     assert status == 200 and payload["check_ok"] is True, payload
+
+
+@pytest.fixture
+def dialled(monkeypatch):
+    """Every URL the outbound door was about to dispatch (after every gate, just before urllib).
+
+    The request is recorded and then refused right there as a network failure, so nothing leaves this computer:
+    the door's own opener is not covered by the suite's urlopen fence."""
+    from urllib.error import URLError
+
+    from core import remote_fetch_policy
+
+    urls: list[str] = []
+
+    def record(url, *args, **kwargs):
+        urls.append(str(url))
+        raise URLError("refused at the outbound door by the test")
+
+    monkeypatch.setattr(remote_fetch_policy, "note_remote_fetch_attempt", record)
+    return urls
+
+
+def test_cli_apply_with_the_switch_off_fetches_no_manifest(tmp_path, monkeypatch, capsys, dialled):
+    from core import runtime_paths
+    from installer import update_cli
+
+    monkeypatch.setattr(runtime_paths, "_VOOL_HOME_OVERRIDE", tmp_path / "home")
+    release_feed = "https://github.com/Parad0x-Labs/vool/releases/latest/download/manifest.json"
+    args = update_cli.build_parser().parse_args([
+        "apply", "--manifest-url", release_feed, "--app-path", str(tmp_path / "VOOL.app"), "--i-pressed-update",
+        "--data-dir", str(tmp_path / "data"), "--platform", "macos-arm64"])
+    _set_switch(monkeypatch, False)
+    assert update_cli.cmd_apply(args) == 1
+    assert dialled == [], "the apply path fetched the manifest with the outbound switch off"
+    assert "Online access is off" in capsys.readouterr().out
+
+    _set_switch(monkeypatch, True)
+    update_cli.cmd_apply(args)  # the suite's network fence refuses it one layer below the door
+    assert dialled == [release_feed]
+
+
+def test_install_press_with_the_switch_off_downloads_nothing_and_restart_stays_local(updates, monkeypatch, dialled):
+    from core.updater.service import UserGesture
+
+    make, calls, _consent, _runtime = updates
+    _set_switch(monkeypatch, True)
+    subsystem = make()
+    subsystem.start()
+    assert subsystem.trigger_check()["check_ok"] and subsystem.service.current_offer() is not None
+    _set_switch(monkeypatch, False)
+    outcome = subsystem.press_install(UserGesture(pressed_at=time.time()))
+    assert outcome.accepted is False and "did not download the update" in outcome.detail, outcome
+    time.sleep(0.3)
+    assert dialled == [] and subsystem._install_thread is None
+    # Restart into an already downloaded update is local and keeps its own answer.
+    restart = subsystem.press_restart(UserGesture(pressed_at=time.time()))
+    assert "Online access is off" not in restart.detail
+
+
+def test_vool_update_cli_reports_a_refusal_not_a_failed_check(updates, monkeypatch, capsys):
+    from apps.vool_cli import cmd_update
+
+    make, calls, consent, runtime = updates
+    consent.unlink()
+    _set_switch(monkeypatch, False)
+    monkeypatch.setattr(runtime, "_SUBSYSTEM", make())
+    assert cmd_update(json_mode=True) == 1
+    out = capsys.readouterr().out
+    answer = json.loads(out[out.index("{"):])
+    assert answer["error"] == "online_access_off" and "Online access is off" in answer["detail"]
+    assert cmd_update() == 1
+    printed = capsys.readouterr().out
+    assert "Online access is off" in printed and "didn't complete" not in printed
+    assert calls == []
+
+
+def test_scheduled_check_starts_when_the_switch_is_turned_on_after_boot(updates, monkeypatch):
+    from core.web.api.runtime import RuntimeServices
+    from core.web.api.service import dispatch_get
+
+    make, calls, _consent, runtime = updates
+    _set_switch(monkeypatch, False)
+    subsystem = make()
+    subsystem.start()
+    monkeypatch.setattr(runtime, "_SUBSYSTEM", subsystem)
+
+    def poll():
+        return dispatch_get(path="/api/update/status", query={}, runtime=RuntimeServices(display_name="N"),
+                            model_name="vool", client_host="127.0.0.1")
+
+    poll()
+    time.sleep(0.3)
+    assert subsystem.service._thread is None and calls == []
+    _set_switch(monkeypatch, True)
+    poll()  # the chip's poll, no restart
+    deadline = time.monotonic() + 3
+    while not calls and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert calls == [FEED_URL]
+    assert subsystem.service._thread is not None and subsystem.service._thread.is_alive()

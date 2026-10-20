@@ -113,6 +113,11 @@ ONLINE_ACCESS_OFF_DETAIL = (
     "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
 )
 
+ONLINE_ACCESS_OFF_INSTALL_DETAIL = (
+    "Online access is off, so VOOL did not download the update. "
+    "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
+)
+
 
 def online_access_allowed(feed: FeedConfig | None = None) -> bool:
     """The master switch (network.outbound_enabled, vetoed by local-only mode) for every update check.
@@ -167,6 +172,7 @@ def enable_automatic_checks(*, feed: FeedConfig, data_dir: Path) -> None:
 __all__ = [
     "ONLINE_ACCESS_OFF",
     "ONLINE_ACCESS_OFF_DETAIL",
+    "ONLINE_ACCESS_OFF_INSTALL_DETAIL",
     "FeedConfig",
     "automatic_checks_enabled",
     "enable_automatic_checks",
