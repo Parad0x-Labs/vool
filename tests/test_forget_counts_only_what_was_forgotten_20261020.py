@@ -116,6 +116,57 @@ def test_two_targets_with_nothing_stored_say_nothing_was_removed_for_each(isolat
     assert LABEL.casefold() not in words.casefold() and CODE not in words, words
 
 
+def test_a_described_label_forgets_the_value_stored_in_a_sentence(isolated_pages):
+    """At 153148eb and v0.7.1, "Forget storage label MINT-84." after "my storage label is MINT-84." answered "Nothing
+    was removed" and the label stayed: the description was searched with the value as one string."""
+    chat = "forget-count-described-value"
+    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+    _remember(isolated_pages, chat, f"my harbor lantern is painted {BYSTANDER}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget storage label {LABEL}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    live = "\n".join(_live_entries())
+    assert LABEL not in live and BYSTANDER in live
+
+
+def test_a_described_value_another_memory_also_holds_is_never_forgotten_from_both(isolated_pages):
+    """Review of 9efc9e8: "Forget Bob's locker code 5906." took 5906 alone as the target and erased Alice's too."""
+    chat = "forget-count-described-shared"
+    _remember(isolated_pages, chat, f"Bob's locker code is {CODE}.")
+    _remember(isolated_pages, chat, f"Alice's locker code is {CODE}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget Bob's locker code {CODE}.")
+
+    assert handled and reply == "Forget command needs the exact value because more than one matching memory is active.", reply
+    assert sorted(_live_entries()) == [f"Alice's locker code is {CODE}.", f"Bob's locker code is {CODE}."]
+
+
+def test_a_described_value_the_chat_also_said_elsewhere_is_never_narrowed(isolated_pages):
+    """One memory holds 2024 with its description, but the chat also said "we moved here in 2024": forgetting 2024
+    alone would erase that turn as well."""
+    from tests.test_question_date_time_leg_20261002 import _ingest
+
+    chat = "forget-count-described-said"
+    _remember(isolated_pages, chat, "my favourite number is 2024.")
+    _ingest(isolated_pages, chat, [(1792400000.0, "We moved here in 2024.")])
+
+    handled, reply = command(isolated_pages, chat, "Forget my favourite number 2024.")
+
+    assert handled and reply.startswith("Forget command needs the exact value"), reply
+    assert _live_entries() == ["my favourite number is 2024."]
+
+
+def test_a_described_value_nothing_holds_is_echoed_as_typed(isolated_pages):
+    chat = "forget-count-described-none"
+    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+
+    handled, reply = command(isolated_pages, chat, "Forget storage label MINT-85.")
+
+    assert handled and reply == 'Nothing was removed. Forget found no memory in this chat that matched "storage label MINT-85".', reply
+    assert _live_entries() == [f"my storage label is {LABEL}."]
+
+
 def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):
     chat = "forget-count-quoted"
     _remember(isolated_pages, chat, "my favourite song line is 'stop and forget me'.")
