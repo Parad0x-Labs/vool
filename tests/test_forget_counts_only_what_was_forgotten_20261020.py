@@ -128,6 +128,58 @@ def test_two_targets_with_nothing_stored_say_nothing_was_removed_for_each(isolat
     assert LABEL.casefold() not in words.casefold() and CODE not in words, words
 
 
+def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):
+    chat = "forget-count-quoted"
+    _remember(isolated_pages, chat, "my favourite song line is 'stop and forget me'.")
+    _remember(isolated_pages, chat, "my harbor lantern is painted signal green.")
+
+    handled, reply = command(isolated_pages, chat, "Forget the phrase 'stop and forget me'.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert _live_entries() == ["my harbor lantern is painted signal green."]
+
+
+def test_a_short_number_keeps_its_description(isolated_pages):
+    """Only the described value of four or more characters stands alone: "Bob's code 42" is not every 42."""
+    chat = "forget-count-short-number"
+    _remember(isolated_pages, chat, "I am 42 years old.")
+
+    handled, reply = command(isolated_pages, chat, "Forget Bob's code 42. Forget storage label MINT-84.")
+
+    assert handled and "Removed" not in reply, reply
+    assert _live_entries() == ["I am 42 years old."]
+
+
+def test_one_target_failing_while_another_is_forgotten_is_never_reported_as_applied(isolated_pages):
+    from storage.db import get_connection
+
+    chat = "forget-count-one-fails"
+    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+    _remember(isolated_pages, chat, f"my locker code is {CODE}.")
+    _turn_history(chat, f"Which locker has code {CODE}?", "The blue one.")
+    conn = get_connection()
+    try:
+        conn.execute("CREATE TRIGGER refuse_event_erasure BEFORE DELETE ON runtime_session_events "
+                     "BEGIN SELECT RAISE(ABORT, 'event store unavailable'); END")
+        conn.commit()
+        handled, reply = command(isolated_pages, chat, f"Forget {LABEL}. Forget {CODE}.")
+    finally:
+        conn.execute("DROP TRIGGER IF EXISTS refuse_event_erasure")
+        conn.commit()
+        conn.close()
+
+    lines = reply.splitlines()
+    assert handled and len(lines) == 2, reply
+    assert lines[0] == "Forget applied. Removed 1 memory entry.", reply
+    assert lines[1].startswith("Forget could not be verified as fully applied") and "Please retry the forget" in lines[1], reply
+
+    # The retry finishes the run history the first attempt could not erase, and says it removed rows.
+    handled, retry = command(isolated_pages, chat, f"Forget {CODE}.")
+    assert handled and retry.startswith("Forget applied. Removed "), retry
+    assert CODE not in _session_words(chat)
+    assert _live_entries() == []
+
+
 def _carriers_outside_the_revocation_ledger(home: Path, needle: str) -> dict[str, list[str]]:
     """Every database (and its -wal/-shm) and text store under a home that still holds ``needle``. The chat's
     revocation ledger keeps the canonical token by design: it is the authority that refuses the words later."""

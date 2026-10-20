@@ -2570,7 +2570,7 @@ class VoolMemory:
             if status is None or status[0] != "complete":
                 raise RuntimeError("erasure completion could not be verified")
 
-    def erasure_pending(self, chat_id: str, token: str) -> bool:
+    def _erasure_pending(self, chat_id: str, token: str) -> bool:
         """True while an earlier forget of exactly these words in this chat has not completed."""
         with self._lock:
             return self._conn.execute(

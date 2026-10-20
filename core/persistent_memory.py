@@ -282,9 +282,9 @@ _FORGET_NEXT_TARGET_RE = re.compile(
 # are no memory the user stored (see _FORGET_CHAT_HISTORY_STORES).
 _FORGET_MEMORY_DERIVATIVE_STORES = (
     "structured_summaries", "session_summaries", "memory_receipts", "memory_fts", "source_fts",
-    "dialogue_topic_archives", "learning_shards", "user_heuristics", "operator_dense_profile",
+    "dialogue_topic_archives", "learning_shards", "user_heuristics", "operator_dense_profile", "context_pages",
 )
-_FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives", "context_pages", "chat_session_metadata")
+_FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives", "chat_session_metadata")
 _FORGET_TARGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:identifier|code|marker|private\s+marker|label|port|number|phrase|value|fact|token)\s+"
@@ -292,12 +292,14 @@ _FORGET_TARGET_RE = re.compile(
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
-# "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value
-# carrying a digit is taken, so a sentence ("forget that the code changed") is never narrowed to one word.
+# "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value of
+# four or more characters carrying a digit is taken: a sentence ("forget that the code changed", "forget the gate
+# code is QX-4471") is never narrowed, and a short number ("forget Bob's code 42") keeps its description, which
+# is what tells it apart from every other 42.
 _FORGET_DESCRIBED_VALUE_RE = re.compile(
     r"^(?:the\s+|my\s+)?(?:old\s+|previous\s+|exact\s+)?(?:[a-z][a-z'-]*\s+){0,2}"
-    r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+(?:is\s+)?"
-    r"(?P<value>[^\s\d]*\d\S*)"
+    r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+"
+    r"(?P<value>(?=\S{4})[^\s\d]*\d\S*)"
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
@@ -574,7 +576,11 @@ def _forget_command_arguments(text: str) -> list[str]:
         return []
     arguments: list[str] = []
     seen: set[str] = set()
-    for clause in _FORGET_NEXT_TARGET_RE.split(text):
+    clauses = _FORGET_NEXT_TARGET_RE.split(text)
+    if len(clauses) > 1 and any(not _quotes_balanced(clause) for clause in clauses):
+        # The "forget" sits inside a quoted phrase ("Forget the phrase 'stop and forget me'"): one target.
+        return [parsed.group(1)]
+    for clause in clauses:
         match = _FORGET_RE.match(clause.strip())
         if match is None:
             return [parsed.group(1)]
@@ -583,6 +589,14 @@ def _forget_command_arguments(text: str) -> list[str]:
             seen.add(key)
             arguments.append(match.group(1))
     return arguments
+
+
+def _quotes_balanced(text: str) -> bool:
+    """No quoted phrase opens in this text without closing in it (an apostrophe inside a word is no quote)."""
+    if text.count('"') % 2 or text.count("\u201c") != text.count("\u201d"):
+        return False
+    singles = re.findall(r"(?:(?<![\w])['\u2018]|['\u2019](?![\w]))", text)
+    return len(singles) % 2 == 0
 
 
 def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> tuple[str, str, dict[str, Any]]:
@@ -594,14 +608,13 @@ def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> t
             # A store is verified for the turn only when it was verified for every target.
             if stores.get(name, {}).get("status") != "incomplete":
                 stores[name] = result
-    for status in ("failed", "partial", "not_started", "needs_target", "applied", "already_erased", "no_match"):
-        if status in statuses:
-            combined = status
-            break
+    unfinished = [status for status in statuses if status in {"failed", "partial", "not_started", "needs_target"}]
+    if unfinished:
+        # Something was erased but not everything named: partial, never a bare refusal or failure.
+        combined = "partial" if {"applied", "partial"} & set(statuses) else unfinished[0]
     else:
-        combined = statuses[-1]
-    if combined == "failed" and "applied" in statuses:
-        combined = "partial"
+        combined = next((status for status in ("applied", "already_erased", "no_match") if status in statuses),
+                        statuses[-1])
     applied = [reply for reply, status, _ in results if status == "applied"]
     if len(applied) == len(results):
         removed = sum(int(re.search(r"Removed (\d+)", reply).group(1)) for reply in applied)
@@ -2173,7 +2186,7 @@ def maybe_handle_memory_command(
                     operation_stores.append((owner, operation_store, ""))
                     # Read before this forget opens its own operation: an operation still open is an earlier forget
                     # of these words that did not finish, and this one completes it.
-                    resuming = resuming or operation_store.erasure_pending(resolved_session, token)
+                    resuming = resuming or operation_store._erasure_pending(resolved_session, token)
                     operation_id = operation_store.begin_erasure(resolved_session, token)
                     operation_stores[-1] = (owner, operation_store, operation_id)
             except Exception as exc:
