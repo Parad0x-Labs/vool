@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi. Daha sonra veya başka bir ağdan yeniden deneyin. Hiçbir şey kaydedilmedi.",
     "keys.test.gateway_blocked": "{label} anahtara bakmadan önce bu denetimi engelledi{http}. Anahtar değerlendirilmedi.",
     "settings.row.automatic_checks.label": "Kendi başına çevrimiçi olma",
-    "settings.row.automatic_checks.help": "VOOL'un siz istemeden kendi başına çevrimiçi olmasını sağlar. Bu açıkken VOOL başlarken eksik bir yerel modeli indirebilir ve hangi bulut modellerinin kullanılabildiğini kontrol edebilir. Bu bilgisayar herkese açık VOOL ağı için ayarlanmışsa, VOOL çevrimiçi olduğunda bunu o ağa da bildirir. Sorduğunuz sorular bundan etkilenmez: Web aramalarının kendi anahtarı vardır. Varsayılan olarak kapalı.",
+    "settings.row.automatic_checks.help": "VOOL’un siz istemeden kendi başına çevrimiçi olmasına izin verir. Bu açıkken VOOL başlarken eksik bir yerel modeli indirebilir, hangi bulut modellerinin kullanılabildiğini kontrol edebilir, güncellemeleri kontrol edebilir ve seçtiğiniz çevrimiçi takvimleri eşitleyebilir. Bu bilgisayar herkese açık VOOL ağı için ayarlanmışsa VOOL ayrıca çevrimiçi olduğunu o ağa bildirir. Bu kapalıyken VOOL, Güncellemeleri kontrol et veya Şimdi eşitle düğmesine bassanız bile bunların hiçbirini yapmaz. Sorduğunuz sorular etkilenmez: web aramalarının kendi anahtarı vardır. Varsayılan olarak kapalıdır.",
     "settings.row.automatic_checks.local_only_note": "Yalnızca yerel mod bu bilgisayarın tamamı için açık, bu yüzden bu kapalı kalır. Ayarlar'da yalnızca yerel modu kapatacak bir anahtar yok.",
     "settings.row.automatic_checks.retry_note": "VOOL bunu şu anda değiştiremedi. Birazdan tekrar deneyin.",
     "settings.switch.read_failed": "VOOL bu ayarı okuyamadı. Yeniden denemek için Ayarlar'ı tekrar açın.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "Bu yanıt dahil edilmedi: gizlilik kurallarına göre saklandı ya da silindi.",
     "chat_export.unavailable_heading": "gizlilik kuralları nedeniyle kullanılamıyor",
     "chat_export.unreadable_count": "{n, plural, one {Bu sohbetin kayıtlı {n} bölümü okunamadı, bu yüzden bu dosyada yok.} other {Bu sohbetin kayıtlı {n} bölümü okunamadı, bu yüzden bu dosyada yok.}}",
-    "chat_export.withheld_count": "{n, plural, one {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.} other {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.}}"
+    "chat_export.withheld_count": "{n, plural, one {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.} other {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.}}",
+    "online_access.open_setting": "“Kendi başına çevrimiçi olma” ayarını aç",
+    "update.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL güncellemeleri kontrol etmiyor.",
+    "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다. 나중에 다시 시도하거나 다른 네트워크에서 시도하세요. 아무 것도 저장되지 않았습니다.",
     "keys.test.gateway_blocked": "{label}이(가) 키를 살펴보기 전에 이 검사를 차단했습니다{http}. 키는 판정되지 않았습니다.",
     "settings.row.automatic_checks.label": "스스로 온라인 연결",
-    "settings.row.automatic_checks.help": "요청하지 않아도 VOOL이 스스로 온라인에 연결할 수 있게 합니다. 켜 두면 VOOL은 시작할 때 빠진 로컬 모델을 내려받고, 사용할 수 있는 클라우드 모델을 확인할 수 있습니다. 이 컴퓨터가 공개 VOOL 네트워크용으로 설정되어 있으면, VOOL은 온라인 상태가 되었을 때 그 네트워크에도 알립니다. 사용자가 묻는 질문은 영향을 받지 않습니다. 웹 검색에는 별도의 스위치가 있습니다. 기본값은 꺼짐입니다.",
+    "settings.row.automatic_checks.help": "요청하지 않아도 VOOL이 스스로 온라인에 연결하도록 허용합니다. 켜져 있으면 VOOL은 시작할 때 빠진 로컬 모델을 내려받고, 사용할 수 있는 클라우드 모델을 확인하고, 업데이트를 확인하고, 선택한 온라인 캘린더를 동기화할 수 있습니다. 이 컴퓨터가 공개 VOOL 네트워크용으로 설정되어 있으면 VOOL은 온라인 상태일 때 그 네트워크에도 알립니다. 꺼져 있는 동안에는 업데이트 확인이나 지금 동기화를 눌러도 VOOL은 이 중 어느 것도 하지 않습니다. 사용자가 하는 질문에는 영향이 없습니다. 웹 검색에는 별도의 스위치가 있습니다. 기본값은 꺼짐입니다.",
     "settings.row.automatic_checks.local_only_note": "이 컴퓨터 전체에 로컬 전용 모드가 켜져 있어 이 설정은 꺼진 채로 유지됩니다. 설정에는 로컬 전용 모드를 끄는 스위치가 없습니다.",
     "settings.row.automatic_checks.retry_note": "VOOL이 지금 이 설정을 바꾸지 못했습니다. 잠시 후 다시 시도하십시오.",
     "settings.switch.read_failed": "VOOL이 이 설정을 읽지 못했습니다. 다시 시도하려면 설정을 다시 여세요.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "이 답변은 포함되지 않았습니다. 개인정보 보호 정책에 따라 보류되었거나 삭제되었습니다.",
     "chat_export.unavailable_heading": "개인정보 보호 정책에 따라 볼 수 없음",
     "chat_export.unreadable_count": "{n, plural, other {이 채팅의 저장된 부분 {n}개를 읽을 수 없어 이 파일에 들어 있지 않습니다.}}",
-    "chat_export.withheld_count": "{n, plural, other {개인정보 보호 정책에 따라 답변 {n}개는 포함되지 않았습니다.}}"
+    "chat_export.withheld_count": "{n, plural, other {개인정보 보호 정책에 따라 답변 {n}개는 포함되지 않았습니다.}}",
+    "online_access.open_setting": "‘스스로 온라인 연결’ 열기",
+    "update.online_off": "온라인 접근이 꺼져 있어 VOOL이 업데이트를 확인하지 않습니다.",
+    "vcs.online_off": "온라인 접근이 꺼져 있어 VOOL이 인터넷의 캘린더를 읽지 않습니다. 이 컴퓨터의 캘린더는 계속 작동합니다."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

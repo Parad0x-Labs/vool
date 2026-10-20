@@ -2142,6 +2142,14 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
+        # The chip's poll is also the cue to start the scheduled update check when it became allowed
+        # after boot (the outbound switch turned on); idempotent, and a refused gate starts nothing.
+        with contextlib.suppress(Exception):
+            from core.updater.runtime import get_update_subsystem
+
+            _subsystem = get_update_subsystem()
+            if _subsystem is not None:
+                _subsystem.ensure_background_checks()
         _us_status, payload = _cr_forward("update.status", {})
         return apply_runtime_headers(json_response(_us_status, payload), runtime)
 

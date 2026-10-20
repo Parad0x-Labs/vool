@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony. Spróbuj później albo z innej sieci. Nic nie zapisano.",
     "keys.test.gateway_blocked": "{label} zablokował to sprawdzenie, zanim przyjrzał się kluczowi{http}. Klucz nie został oceniony.",
     "settings.row.automatic_checks.label": "Samodzielne łączenie z internetem",
-    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem, bez twojej prośby. Gdy to jest włączone, VOOL może przy starcie pobrać brakujący model lokalny i sprawdzić, jakie modele w chmurze są dostępne. Jeśli ten komputer jest skonfigurowany do publicznej sieci VOOL, VOOL informuje też tę sieć, kiedy jest online. Twoje pytania nie są tym objęte: wyszukiwanie w sieci ma własny przełącznik. Domyślnie wyłączone.",
+    "settings.row.automatic_checks.help": "Pozwala VOOL samodzielnie łączyć się z internetem, bez Twojej prośby. Gdy ta opcja jest włączona, VOOL może przy starcie pobrać brakujący model lokalny, sprawdzić, które modele w chmurze są dostępne, sprawdzić aktualizacje i synchronizować wybrane przez Ciebie kalendarze online. Jeśli ten komputer jest skonfigurowany do publicznej sieci VOOL, VOOL informuje też tę sieć, kiedy jest online. Gdy ta opcja jest wyłączona, VOOL nie robi niczego z tych rzeczy, nawet gdy naciśniesz Sprawdź aktualizacje lub Synchronizuj teraz. Nie wpływa to na zadawane przez Ciebie pytania: wyszukiwanie w sieci ma własny przełącznik. Domyślnie wyłączone.",
     "settings.row.automatic_checks.local_only_note": "Tryb tylko lokalny jest włączony dla całego tego komputera, więc to pozostaje wyłączone. W Ustawieniach nie ma przełącznika, który wyłącza tryb tylko lokalny.",
     "settings.row.automatic_checks.retry_note": "VOOL nie mógł teraz tego zmienić. Spróbuj ponownie za chwilę.",
     "settings.switch.read_failed": "VOOL nie mógł odczytać tego ustawienia. Otwórz Ustawienia ponownie, aby spróbować jeszcze raz.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "Ta odpowiedź nie została dołączona: zatrzymano ją lub usunięto zgodnie z zasadami prywatności.",
     "chat_export.unavailable_heading": "niedostępne z powodu zasad prywatności",
     "chat_export.unreadable_count": "{n, plural, one {Nie udało się odczytać {n} zapisanej części tego czatu, więc nie ma jej w tym pliku.} few {Nie udało się odczytać {n} zapisanych części tego czatu, więc nie ma ich w tym pliku.} many {Nie udało się odczytać {n} zapisanych części tego czatu, więc nie ma ich w tym pliku.} other {Nie udało się odczytać {n} zapisanych części tego czatu, więc nie ma ich w tym pliku.}}",
-    "chat_export.withheld_count": "{n, plural, one {{n} odpowiedź nie została dołączona z powodu zasad prywatności.} few {{n} odpowiedzi nie zostały dołączone z powodu zasad prywatności.} many {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.} other {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.}}"
+    "chat_export.withheld_count": "{n, plural, one {{n} odpowiedź nie została dołączona z powodu zasad prywatności.} few {{n} odpowiedzi nie zostały dołączone z powodu zasad prywatności.} many {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.} other {{n} odpowiedzi nie zostało dołączonych z powodu zasad prywatności.}}",
+    "online_access.open_setting": "Otwórz „Samodzielne łączenie z internetem”",
+    "update.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie sprawdza aktualizacji.",
+    "vcs.online_off": "Dostęp do internetu jest wyłączony, więc VOOL nie odczytuje kalendarzy z internetu. Kalendarze na tym komputerze nadal działają."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

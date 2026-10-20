@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas. Pamėginkite vėliau arba iš kito tinklo. Nieko nebuvo įrašyta.",
     "keys.test.gateway_blocked": "{label} užblokavo šį patikrinimą dar nepažvelgęs į raktą{http}. Raktas nebuvo įvertintas.",
     "settings.row.automatic_checks.label": "Prisijungti prie interneto savarankiškai",
-    "settings.row.automatic_checks.help": "Leidžia VOOL pačiam prisijungti prie interneto, jums neprašant. Kai tai įjungta, VOOL paleidimo metu gali atsisiųsti trūkstamą vietinį modelį ir patikrinti, kokie debesijos modeliai pasiekiami. Jei šis kompiuteris nustatytas viešajam VOOL tinklui, VOOL taip pat praneša tam tinklui, kai yra prisijungęs. Jūsų užduodami klausimai nuo to nepasikeičia: interneto paieška turi savo jungiklį. Pagal numatytuosius nustatymus išjungta.",
+    "settings.row.automatic_checks.help": "Leidžia VOOL prisijungti prie interneto savarankiškai, jums nepaprašius. Kai tai įjungta, VOOL paleidimo metu gali atsisiųsti trūkstamą vietinį modelį, patikrinti, kurie debesijos modeliai pasiekiami, tikrinti atnaujinimus ir sinchronizuoti jūsų pasirinktus internetinius kalendorius. Jei šis kompiuteris nustatytas viešajam VOOL tinklui, VOOL taip pat praneša tam tinklui, kai yra prisijungęs. Kol tai išjungta, VOOL nieko iš to nedaro, net kai paspaudžiate „Tikrinti atnaujinimus“ ar „Sinchronizuoti dabar“. Jūsų klausimams tai neturi įtakos: interneto paieška turi savo jungiklį. Pagal numatytuosius nustatymus išjungta.",
     "settings.row.automatic_checks.local_only_note": "Režimas „Tik lokaliai“ įjungtas visam šiam kompiuteriui, todėl tai lieka išjungta. Nustatymuose nėra jungiklio režimui „Tik lokaliai“ išjungti.",
     "settings.row.automatic_checks.retry_note": "VOOL dabar nepavyko to pakeisti. Netrukus bandykite dar kartą.",
     "settings.switch.read_failed": "VOOL nepavyko perskaityti šio nustatymo. Atidarykite Nustatymus iš naujo ir bandykite dar kartą.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "Šis atsakymas neįtrauktas: jis buvo sulaikytas arba ištrintas pagal privatumo taisykles.",
     "chat_export.unavailable_heading": "nepasiekiama dėl privatumo taisyklių",
     "chat_export.unreadable_count": "{n, plural, one {Nepavyko perskaityti {n} išsaugotos šio pokalbio dalies, todėl jos šiame faile nėra.} few {Nepavyko perskaityti {n} išsaugotų šio pokalbio dalių, todėl jų šiame faile nėra.} other {Nepavyko perskaityti {n} išsaugotų šio pokalbio dalių, todėl jų šiame faile nėra.}}",
-    "chat_export.withheld_count": "{n, plural, one {{n} atsakymas neįtrauktas dėl privatumo taisyklių.} few {{n} atsakymai neįtraukti dėl privatumo taisyklių.} other {{n} atsakymų neįtraukta dėl privatumo taisyklių.}}"
+    "chat_export.withheld_count": "{n, plural, one {{n} atsakymas neįtrauktas dėl privatumo taisyklių.} few {{n} atsakymai neįtraukti dėl privatumo taisyklių.} other {{n} atsakymų neįtraukta dėl privatumo taisyklių.}}",
+    "online_access.open_setting": "Atidaryti „Prisijungti prie interneto savarankiškai“",
+    "update.online_off": "Prieiga prie interneto išjungta, todėl VOOL netikrina atnaujinimų.",
+    "vcs.online_off": "Prieiga prie interneto išjungta, todėl VOOL neskaito kalendorių iš interneto. Šio kompiuterio kalendoriai toliau veikia."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

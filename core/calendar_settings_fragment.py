@@ -127,11 +127,21 @@ function mountInto(host){
       say('');   /* loaded: the "Loading…" line must not stay above a list that is already drawn */
     }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
+  /* The outbound switch is the master over online calendars: while it is off nothing is fetched (not the
+     background sync, not Sync now, not Refresh calendar list), and the panel says so with the way to the switch. */
+  function onlineOffText(){ return CT('vcs.online_off', 'Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.'); }
+  function isOnlineOff(j){ return !!j && (j.reason === 'online_access_off' || j.status === 'online_access_off'); }
+  function onlineSwitchLink(){
+    var go = button(CT('online_access.open_setting', 'Open \u201cGo online on its own\u201d'), function(){ location.hash = '#permissions/automatic_checks'; });
+    go.setAttribute('data-testid', 'vcs-online-setting');
+    return go;
+  }
   function act(url, body, done){
     say(CT('vns.status.working', 'Working…'));
     return request('POST', url, body).then(function(j){
       return load().then(function(){
-        if (!j.ok) say(j.detail || j.recovery || j.reason || CT('vns.status.failed', 'That did not work.'), true);
+        if (isOnlineOff(j)) say(onlineOffText());
+        else if (!j.ok) say(j.detail || j.recovery || j.reason || CT('vns.status.failed', 'That did not work.'), true);
         else say(done || CT('vcs.status.done', 'Done.'));
         return j;
       });
@@ -139,6 +149,13 @@ function mountInto(host){
   }
   function paint(){
     list.textContent = '';
+    if (view.online_access === false) {
+      var off = h('div', 'vcs-row');
+      off.setAttribute('data-testid', 'vcs-online-off');
+      off.appendChild(h('span', 'vcs-note', onlineOffText()));
+      off.appendChild(onlineSwitchLink());
+      list.appendChild(off);
+    }
     var accounts = view.accounts || [];
     if (!accounts.length) list.appendChild(h('div', 'vcs-empty', CT('vcs.empty.accounts', 'No calendar accounts yet. Add one below.')));
     accounts.forEach(function(account){ list.appendChild(accountCard(account)); });
@@ -209,7 +226,8 @@ function mountInto(host){
         var report = (j.reports || [])[0] || {};
         var read = (report.calendars || []).filter(function(c){ return c.ok; }).length;
         return load().then(function(){
-          if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
+          if (isOnlineOff(j) || isOnlineOff(report)) say(onlineOffText());
+          else if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
           else if (!j.ok) say(report.detail || CT('vns.status.failed', 'That did not work.'), true);
           else if (!read) say(CE('vcs.sync.nothing', 'Nothing synced: no calendars are chosen for this account yet. Tick the calendars VOOL should read.'), true);
           else say(read === 1 ? CTF('vcs.sync.done_one', 'Synced 1 calendar, {events} events read.', {events: report.events_seen || 0})

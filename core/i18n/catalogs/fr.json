@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée. Réessayez plus tard ou depuis un autre réseau. Rien n’a été enregistré.",
     "keys.test.gateway_blocked": "{label} a bloqué cette vérification avant d’examiner la clé{http}. La clé n’a pas été jugée.",
     "settings.row.automatic_checks.label": "Se connecter de lui-même",
-    "settings.row.automatic_checks.help": "Permet à VOOL de se connecter à internet de lui-même, sans que vous le demandiez. Quand c'est activé, VOOL peut télécharger au démarrage un modèle local manquant et vérifier quels modèles cloud sont disponibles. Si cet ordinateur est configuré pour le réseau public VOOL, VOOL signale aussi à ce réseau quand il est en ligne. Les questions que vous posez ne sont pas concernées : les recherches web ont leur propre interrupteur. Désactivé par défaut.",
+    "settings.row.automatic_checks.help": "Permet à VOOL de se connecter de lui-même, sans que vous le demandiez. Quand cette option est activée, VOOL peut télécharger au démarrage un modèle local manquant, vérifier quels modèles cloud sont disponibles, rechercher des mises à jour et synchroniser les agendas en ligne que vous avez choisis. Si cet ordinateur est configuré pour le réseau public VOOL, VOOL signale aussi à ce réseau quand il est en ligne. Tant qu’elle est désactivée, VOOL ne fait rien de tout cela, même si vous appuyez sur Rechercher des mises à jour ou Synchroniser maintenant. Vos questions ne sont pas concernées : les recherches web ont leur propre interrupteur. Désactivé par défaut.",
     "settings.row.automatic_checks.local_only_note": "Le mode local uniquement est activé pour tout cet ordinateur, donc ceci reste désactivé. Les Réglages n'ont pas d'interrupteur pour désactiver le mode local uniquement.",
     "settings.row.automatic_checks.retry_note": "VOOL n'a pas pu modifier ce réglage pour le moment. Réessayez dans un instant.",
     "settings.switch.read_failed": "VOOL n'a pas pu lire ce réglage. Rouvrez les Réglages pour réessayer.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "Cette réponse n’est pas incluse : elle a été retenue ou effacée selon la politique de confidentialité.",
     "chat_export.unavailable_heading": "indisponible en raison de la politique de confidentialité",
     "chat_export.unreadable_count": "{n, plural, one {{n} partie enregistrée de cette discussion n’a pas pu être lue ; elle ne figure donc pas dans ce fichier.} many {{n} parties enregistrées de cette discussion n’ont pas pu être lues ; elles ne figurent donc pas dans ce fichier.} other {{n} parties enregistrées de cette discussion n’ont pas pu être lues ; elles ne figurent donc pas dans ce fichier.}}",
-    "chat_export.withheld_count": "{n, plural, one {{n} réponse n’est pas incluse en raison de la politique de confidentialité.} many {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.} other {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.}}"
+    "chat_export.withheld_count": "{n, plural, one {{n} réponse n’est pas incluse en raison de la politique de confidentialité.} many {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.} other {{n} réponses ne sont pas incluses en raison de la politique de confidentialité.}}",
+    "online_access.open_setting": "Ouvrir « Se connecter de lui-même »",
+    "update.online_off": "L’accès à internet est désactivé, donc VOOL ne recherche pas de mises à jour.",
+    "vcs.online_off": "L’accès à internet est désactivé, donc VOOL ne lit pas d’agendas sur internet. Les agendas de cet ordinateur continuent de fonctionner."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

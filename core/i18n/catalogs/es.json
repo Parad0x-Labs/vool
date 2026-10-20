@@ -2389,7 +2389,7 @@
     "keys.outcome.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada. Prueba más tarde o desde otra red. No se guardó nada.",
     "keys.test.gateway_blocked": "{label} bloqueó esta comprobación antes de mirar la clave{http}. La clave no fue evaluada.",
     "settings.row.automatic_checks.label": "Conectarse por su cuenta",
-    "settings.row.automatic_checks.help": "Permite que VOOL se conecte a internet por su cuenta, sin que se lo pidas. Cuando está activado, VOOL puede descargar al iniciarse un modelo local que falte y comprobar qué modelos en la nube hay disponibles. Si este equipo está configurado para la red pública de VOOL, VOOL también avisa a esa red cuando está en línea. Las preguntas que haces no se ven afectadas: las búsquedas web tienen su propio interruptor. Desactivado de forma predeterminada.",
+    "settings.row.automatic_checks.help": "Permite que VOOL se conecte por su cuenta, sin que se lo pidas. Cuando está activado, VOOL puede descargar al iniciarse un modelo local que falte, comprobar qué modelos en la nube están disponibles, buscar actualizaciones y sincronizar los calendarios en línea que elegiste. Si este equipo está configurado para la red pública de VOOL, VOOL también avisa a esa red cuando está en línea. Mientras está desactivado, VOOL no hace nada de esto, ni siquiera cuando pulsas Buscar actualizaciones o Sincronizar ahora. Las preguntas que haces no se ven afectadas: las búsquedas web tienen su propio interruptor. Desactivado de forma predeterminada.",
     "settings.row.automatic_checks.local_only_note": "El modo de solo local está activado para todo este equipo, así que esto sigue desactivado. Ajustes no tiene ningún interruptor para desactivar el modo de solo local.",
     "settings.row.automatic_checks.retry_note": "VOOL no pudo cambiar esto ahora. Inténtalo de nuevo en un momento.",
     "settings.switch.read_failed": "VOOL no pudo leer este ajuste. Vuelve a abrir Ajustes para intentarlo de nuevo.",
@@ -2793,9 +2793,12 @@
     "chat_export.unavailable_body": "Esta respuesta no se incluye: se retuvo o se borró según la política de privacidad.",
     "chat_export.unavailable_heading": "no disponible por la política de privacidad",
     "chat_export.unreadable_count": "{n, plural, one {No se pudo leer {n} parte guardada de este chat, así que no está en este archivo.} many {No se pudieron leer {n} partes guardadas de este chat, así que no están en este archivo.} other {No se pudieron leer {n} partes guardadas de este chat, así que no están en este archivo.}}",
-    "chat_export.withheld_count": "{n, plural, one {{n} respuesta no se incluye por la política de privacidad.} many {{n} respuestas no se incluyen por la política de privacidad.} other {{n} respuestas no se incluyen por la política de privacidad.}}"
+    "chat_export.withheld_count": "{n, plural, one {{n} respuesta no se incluye por la política de privacidad.} many {{n} respuestas no se incluyen por la política de privacidad.} other {{n} respuestas no se incluyen por la política de privacidad.}}",
+    "online_access.open_setting": "Abrir «Conectarse por su cuenta»",
+    "update.online_off": "El acceso a internet está desactivado, así que VOOL no busca actualizaciones.",
+    "vcs.online_off": "El acceso a internet está desactivado, así que VOOL no lee calendarios de internet. Los calendarios de este equipo siguen funcionando."
   },
-  "source_catalog_sha256": "f1d4835c2d05a5e06ea20b075c03542003e9945e0f5337657fe194b79137fc09",
+  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
