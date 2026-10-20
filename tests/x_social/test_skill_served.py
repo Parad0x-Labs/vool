@@ -112,6 +112,7 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         'VOOL_PLUGINS_DIR': str(vault_home / 'plugin-tree'),
         'VOOL_PLUGIN_LIFECYCLE_PATH': str(vault_home / 'config' / 'plugin_lifecycle.json'),
         'VOOL_PLUGIN_SCRATCH_ROOT': str(vault_home / 'plugin-scratch'),
+        'VOOL_BLACKBOX_DIR': str(vault_home / 'data' / 'blackbox'),
         'VOOL_LOCAL_MODELS_ENABLED': '1', 'VOOL_REGISTER_INSTALLED_OLLAMA_MODELS': '0',
         'VOOL_SKIP_PROVIDER_PREWARM': '1',
     })
@@ -126,7 +127,7 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         cert = daemon.certify_provider_model()
         assert (cert.get('result') or cert).get('state') == 'verified', cert
         state.requests.clear()
-        payload = {'model': 'custom-byok:probe-model', 'messages': [{'role': 'user', 'content': 'Check my X API usage and research checkpoint discussions for orchard social-manager; read the post and propose one quote.'}], 'surface': 'desktop', 'stream': False, 'mode': 'auto', 'session_id': 'skill-social-flow', 'turn_id': 'skill-social-origin'}
+        payload = {'model': 'custom-byok:probe-model', 'messages': [{'role': 'user', 'content': ('Run the orchard social-manager workflow for today.' if os.environ.get('SOCIAL_M6_QUIET') else 'Check my X API usage and research checkpoint discussions for orchard social-manager; read the post and propose one quote.')}], 'surface': 'desktop', 'stream': False, 'mode': 'auto', 'session_id': 'skill-social-flow', 'turn_id': 'skill-social-origin'}
         reply = daemon.post('/v1/chat/completions', payload, timeout=90)
         debug = Path(os.environ['SOCIAL_SHOTS']); debug.mkdir(parents=True, exist_ok=True)
         (debug / 'provider-wire.json').write_text(json.dumps({'reply': reply, 'requests': state.requests, 'events': daemon.session_events(reply.get('vool_session_id', 'skill-social-flow'))}, indent=2))
@@ -172,7 +173,15 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
             [stored_rating] = x_feedback.inspect('global', home=vault_home)['entries']
             assert stored_rating['rating'] == 9 and stored_rating['comment'] == ''
             assert stored_rating['kind'] == 'post'
-            (shots / 'native-rating-receipt.json').write_text(json.dumps({'reply': rated, 'rating': stored_rating}, indent=2))
+            from core.blackbox.store import BlackboxStore
+
+            recorded = [entry for entry in BlackboxStore(vault_home / 'data' / 'blackbox').entries()
+                        if entry.get('intent') == 'x.feedback.save' and entry.get('kind') == 'coverage_post_terminal']
+            assert len(recorded) == 1, recorded
+            assert recorded[0]['rollback_capable'] is False
+            assert len(recorded[0]['postimages']) == 1
+            assert recorded[0]['postimages'][0]['path'].endswith('/config/x_feedback.json')
+            (shots / 'native-rating-receipt.json').write_text(json.dumps({'reply': rated, 'rating': stored_rating, 'recorded': recorded}, indent=2))
         failure_receipts = {}
         for outcome in ('decline', 'expiry', 'unknown'):
             script[:] = [('x.action.propose', {

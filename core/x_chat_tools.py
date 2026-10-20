@@ -51,7 +51,27 @@ def run_x_tool(intent: str, arguments: dict[str, Any] | None, source_context: di
         from core import x_feedback, x_voice_profile
 
         if intent == "x.feedback.save":
-            data = x_feedback.save_from_turn(args, source_context)
+            from dataclasses import replace
+
+            from core.blackbox.coverage.recorder import workspace_root_from_context
+            from core.runtime_execution_tools import with_mutation_coverage
+            from core.runtime_paths import active_vool_home
+
+            def save_rating():
+                data = x_feedback.save_from_turn(args, source_context)
+                outcome = x_api.XResult(bool(data.get("ok")), str(data.get("status") or "executed"),
+                                       "Rating saved." if data.get("ok") else "No rating was saved.", data)
+                result = _result(intent, outcome, keys=("id", "rating"))
+                if result.ok:
+                    result.details['written_paths'] = [str(active_vool_home() / x_feedback.STORE_FILENAME)]
+                return result
+
+            result = with_mutation_coverage(
+                intent, args, source_context=source_context,
+                workspace_root=workspace_root_from_context(source_context) or active_vool_home(),
+                handler=save_rating,
+            )
+            return replace(result, details={key: value for key, value in result.details.items() if key != 'written_paths'})
         else:
             scope = x_voice_profile.turn_scope(source_context)
             data = x_feedback.inspect(scope)

@@ -21,6 +21,24 @@ MAX_COMMENT_CHARS = 500
 STORE_FILENAME = 'config/x_feedback.json'
 
 
+def mutation_declaration() -> dict:
+    """Register this builtin's actual recorder contract in the shared authority.
+
+    Saved guidance has no byte-exact undo promise: record its encrypted postimage,
+    rather than claiming a reversible operation or scanning an unrelated workspace.
+    """
+    from core.blackbox.coverage.capability import MutationCapability
+    from core.blackbox.coverage.registry import register_capability
+
+    capability = MutationCapability(
+        tool='x.feedback.save', scope='machine', effect_class='irreversible',
+        snapshot_strategy='postimage_only', receipt_lifecycle='terminal_only',
+        rollback_support='none', recorder='blackbox.coverage_post',
+    )
+    register_capability(capability)
+    return capability.to_dict()
+
+
 @contextmanager
 def _store(home: Path | None = None, *, write: bool = True):
     from core.cross_process_lock import PublicationLock
