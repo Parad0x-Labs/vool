@@ -535,6 +535,14 @@ def verify_forget_stores(
                    for row in _load_erasure_rows(kind / (_sha256(chat_id)[:24] + ".jsonl")))
 
     verify("packet_receipt_ledgers", ledgers)
+
+    def chat_documents() -> bool:
+        from core.chat_attachments import documents_still_carrying
+
+        return documents_still_carrying(session_id=chat_id, carries=lambda words: carries(words, token))
+
+    if chat_id:
+        verify("chat_documents", chat_documents)
     from core.runtime_paths import data_path
 
     roots = [("bootstrap_snapshots", data_path("bootstrap")), ("relay_mirror_snapshots", Path("relay_mirror"))]

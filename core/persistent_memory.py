@@ -285,7 +285,7 @@ _FORGET_NEXT_TARGET_RE = re.compile(
 _FORGET_MEMORY_DERIVATIVE_STORES = (
     "structured_summaries", "session_summaries", "memory_receipts", "memory_fts", "source_fts",
     "dialogue_topic_archives", "learning_shards", "user_heuristics", "operator_dense_profile", "context_pages",
-    "chat_session_metadata",
+    "chat_session_metadata", "chat_documents",
 )
 _FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives")
 _FORGET_TARGET_RE = re.compile(
@@ -2244,6 +2244,20 @@ def maybe_handle_memory_command(
             from core.turn_context import forget_chat_context_pages
 
             forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
+            if resolved_session:
+                # A long paste is kept as a document of the chat and carried into every later turn.
+                try:
+                    from core.chat_attachments import forget_documents_carrying
+                    from core.memory.carriers import carries as carries_forget_token
+
+                    erased_documents = forget_documents_carrying(
+                        session_id=resolved_session, carries=lambda words: carries_forget_token(words, token))
+                    _record_erasure_store(erasures, "chat_documents", "verified", erased_documents)
+                except Exception as exc:
+                    LOGGER.warning("chat document erasure failed: %s", type(exc).__name__)
+                    _record_erasure_store(erasures, "chat_documents", "incomplete")
+            else:
+                _record_erasure_store(erasures, "chat_documents", "not_applicable")
             from core.memory.run_history import STORE_PREFIX as RUN_HISTORY_PREFIX
             from core.memory.run_history import UNCLASSIFIED_PREFIX, checkpoint_write_ahead_logs, forget_run_history
 
@@ -2274,7 +2288,7 @@ def maybe_handle_memory_command(
                 "dialogue_derivatives", "session_summaries", "context_capsule_versions",
                 "memory_fts", "source_fts", "source_embeddings",
                 "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-                "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history",
+                "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history", "chat_documents",
             )
             for store in required_stores:
                 if store not in erasures.get("stores", {}):

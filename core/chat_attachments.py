@@ -1743,9 +1743,12 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
     """The chat's documents from EARLIER turns, as bounded carried context for a later turn.
 
     Most recent first; each cut on a line boundary within what is left of `budget`, the cut
-    stated on the entry. A document whose bytes were erased is never carried. Nothing of another
-    chat can appear here: the session id is the door's, never the client's.
+    stated on the entry. A document whose bytes were erased is never carried, and neither is one
+    that holds words this chat forgot (or is forgetting) while the forget could not erase it.
+    Nothing of another chat can appear here: the session id is the door's, never the client's.
     """
+    from core.memory.revocation import authorize_payload
+
     session = _valid_session(session_id)
     exclude = str(exclude_turn_id or "").strip()
     entries: list[dict[str, Any]] = []
@@ -1761,22 +1764,30 @@ def carried_documents_for_turn(*, session_id: str, exclude_turn_id: str = "", bu
             and r.get("turn_id")
             and r.get("turn_id") != exclude
         ]
-        records.sort(key=lambda r: (str(r.get("bound_at") or r.get("created_at") or ""), int(r.get("bind_index") or 0), r["id"]), reverse=True)
-        for record in records:
-            if remaining <= 0:
-                break
+    records.sort(key=lambda r: (str(r.get("bound_at") or r.get("created_at") or ""), int(r.get("bind_index") or 0), r["id"]), reverse=True)
+    for record in records:
+        if remaining <= 0:
+            break
+        with _LOCK:
             path = _bytes_path(record["id"])
             if not path.exists() or path.is_symlink():
                 continue
-            text, truncated, selection = _deliver_text(_open_regular(path), budget=min(MAX_TEXT_CHARS_PER_FILE, remaining), exact=True, question=question)
-            remaining = max(0, remaining - len(text))
-            entry = _item_base(record)
-            entry.pop("reference", None)
-            entry.pop("origin", None)
-            entry.update({"text": text, "truncated": truncated, "carried": True, "origin_turn_id": str(record.get("turn_id") or ""), "lines": int(record.get("lines") or 0)})
-            if selection:
-                entry["selection"] = selection
-            entries.append(entry)
+            raw = _open_regular(path)
+        # Asked outside the store's lock: a forget holds the revocation authority while it erases documents.
+        # The authority answers False on a revoked word and on any failure to read it.
+        # The forget's ledger names the chat as the turn's door gave it; that can be the handle this store folded.
+        words = raw.decode("utf-8", errors="replace")
+        if not all(authorize_payload(words, chat_id=chat) for chat in {session, str(session_id).strip()}):
+            continue
+        text, truncated, selection = _deliver_text(raw, budget=min(MAX_TEXT_CHARS_PER_FILE, remaining), exact=True, question=question)
+        remaining = max(0, remaining - len(text))
+        entry = _item_base(record)
+        entry.pop("reference", None)
+        entry.pop("origin", None)
+        entry.update({"text": text, "truncated": truncated, "carried": True, "origin_turn_id": str(record.get("turn_id") or ""), "lines": int(record.get("lines") or 0)})
+        if selection:
+            entry["selection"] = selection
+        entries.append(entry)
     return entries
 
 
@@ -2231,6 +2242,59 @@ def erase_session_documents(session_id: str) -> int:
             _unlink_no_follow(_manifest_path(record["id"]))
             removed += 1
     return removed
+
+
+def _forgotten_name(record: dict[str, Any]) -> str:
+    extension = os.path.splitext(str(record.get("name") or ""))[1].lower()
+    return f"{DOCUMENT_NAME_PREFIX}-forgotten{extension if extension in TEXT_EXTENSIONS else '.txt'}"
+
+
+def _documents_carrying(session: str, carries: Any) -> list[tuple[dict[str, Any], bool, bool]]:
+    """Each of the chat's documents whose bytes or name carry the words, with which of the two do.
+
+    Bytes that are present but cannot be read raise: an unread document is not a cleared one.
+    """
+    found = []
+    for record in _all_manifests():
+        if record.get("session_id") != session or not record.get("document"):
+            continue
+        path = _bytes_path(record["id"])
+        held = path.exists() or path.is_symlink()
+        in_bytes = held and bool(carries(_open_regular(path).decode("utf-8", errors="replace")))
+        in_name = bool(carries(str(record.get("name") or "")))
+        if in_bytes or in_name:
+            found.append((record, in_bytes, in_name))
+    return found
+
+
+def forget_documents_carrying(*, session_id: str, carries: Any) -> int:
+    """Forget's step for the chat's documents: every document whose text or name carries the forgotten
+    words loses its bytes (as `erase_document`), and a name that carries them is replaced. Returns how
+    many documents lost their bytes. Nothing of another chat is read or touched."""
+    session = _valid_session(session_id)
+    erased = 0
+    with _LOCK:
+        for record, in_bytes, in_name in _documents_carrying(session, carries):
+            if in_bytes:
+                _forget_bytes(record["id"])
+                erased += 1
+                if record.get("state") == "staged":
+                    _unlink_no_follow(_manifest_path(record["id"]))
+                    continue
+                record["state"] = "erased"
+                record["erased_at"] = _iso(_utcnow())
+                record["bytes_retained"] = False
+            if in_name:
+                record["name"] = _forgotten_name(record)
+            _write_manifest(record)
+    return erased
+
+
+def documents_still_carrying(*, session_id: str, carries: Any) -> bool:
+    """Forget's verification read of the chat's documents, after the erasure."""
+    session = _valid_session(session_id)
+    with _LOCK:
+        return bool(_documents_carrying(session, carries))
 
 
 # --- the seams other authorities bind to (portability, Blackbox) -----------------------------------
