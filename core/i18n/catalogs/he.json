@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {תשובה אחת לא נכללה בגלל מדיניות הפרטיות.} two {שתי תשובות לא נכללו בגלל מדיניות הפרטיות.} other {{n} תשובות לא נכללו בגלל מדיניות הפרטיות.}}",
     "online_access.open_setting": "פתיחת „יציאה לאינטרנט באופן עצמאי”",
     "update.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא בודק עדכונים.",
-    "vcs.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא קורא לוחות שנה מהאינטרנט. לוחות שנה במחשב הזה ממשיכים לעבוד."
+    "vcs.online_off": "הגישה לאינטרנט כבויה, ולכן VOOL לא קורא לוחות שנה מהאינטרנט. לוחות שנה במחשב הזה ממשיכים לעבוד.",
+    "chat.no_model.line_text": "VOOL צריך מודל בינה מלאכותית כדי לענות. ההגדרה לוקחת בערך שתי דקות.",
+    "chat.no_model.reply_body": "ההגדרה לוקחת בערך שתי דקות: פתחו את ההגדרה ובחרו איפה VOOL יחשוב. אם כבר יש לכם במחשב הזה אפליקציית מודלים, כמו Ollama, פתחו אותה ושאלו שוב.",
+    "chat.no_model.reply_detail": "פרטים: אין מודל מקומי שפועל במחשב הזה, ואין מודל ענן זמין שיענה במקומו.",
+    "chat.no_model.reply_lead": "אני עדיין לא יכול לענות, כי אין מודל בינה מלאכותית מוגדר במחשב הזה.",
+    "chat.no_model.setup_button": "הגדרת מודל",
+    "chat.no_model.setup_button_title": "פותח את ההגדרה בשלב שבו בוחרים מודל"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

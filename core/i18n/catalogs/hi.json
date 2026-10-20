@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {निजता नियमों के कारण {n} जवाब शामिल नहीं है।} other {निजता नियमों के कारण {n} जवाब शामिल नहीं हैं।}}",
     "online_access.open_setting": "“अपने आप ऑनलाइन जाना” खोलें",
     "update.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL अपडेट नहीं जाँचता।",
-    "vcs.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL इंटरनेट से कैलेंडर नहीं पढ़ता। इस कंप्यूटर के कैलेंडर काम करते रहते हैं।"
+    "vcs.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL इंटरनेट से कैलेंडर नहीं पढ़ता। इस कंप्यूटर के कैलेंडर काम करते रहते हैं।",
+    "chat.no_model.line_text": "जवाब देने से पहले VOOL को एक AI मॉडल चाहिए। इसे सेट करने में लगभग दो मिनट लगते हैं।",
+    "chat.no_model.reply_body": "सेटअप में लगभग दो मिनट लगते हैं: सेटअप खोलें और चुनें कि VOOL कहाँ सोचे। अगर इस कंप्यूटर पर पहले से कोई मॉडल ऐप है, जैसे Ollama, तो उसे खोलें और फिर से पूछें।",
+    "chat.no_model.reply_detail": "विवरण: इस कंप्यूटर पर कोई लोकल मॉडल नहीं चल रहा है, और उसकी जगह जवाब देने के लिए कोई क्लाउड मॉडल उपलब्ध नहीं है।",
+    "chat.no_model.reply_lead": "मैं अभी जवाब नहीं दे सकता, क्योंकि इस कंप्यूटर पर कोई AI मॉडल सेट नहीं है।",
+    "chat.no_model.setup_button": "मॉडल सेट करें",
+    "chat.no_model.setup_button_title": "सेटअप को उस चरण पर खोलता है जहाँ आप मॉडल चुनते हैं"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

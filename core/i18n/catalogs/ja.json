@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, other {プライバシーのルールにより、{n} 件の回答は含まれていません。}}",
     "online_access.open_setting": "「自動でオンラインに接続」を開く",
     "update.online_off": "オンラインアクセスがオフのため、VOOL は更新を確認しません。",
-    "vcs.online_off": "オンラインアクセスがオフのため、VOOL はインターネット上のカレンダーを読みません。このコンピューター上のカレンダーは引き続き使えます。"
+    "vcs.online_off": "オンラインアクセスがオフのため、VOOL はインターネット上のカレンダーを読みません。このコンピューター上のカレンダーは引き続き使えます。",
+    "chat.no_model.line_text": "VOOLが答えるにはAIモデルが必要です。設定は2分ほどで終わります。",
+    "chat.no_model.reply_body": "設定は2分ほどで終わります。セットアップを開いて、VOOLがどこで考えるかを選んでください。Ollamaなどのモデルアプリがすでにこのコンピューターにある場合は、それを開いてからもう一度お尋ねください。",
+    "chat.no_model.reply_detail": "詳細：このコンピューターではローカルモデルが動いておらず、代わりに答えられるクラウドモデルもありません。",
+    "chat.no_model.reply_lead": "このコンピューターにはまだAIモデルが設定されていないため、まだお答えできません。",
+    "chat.no_model.setup_button": "モデルを設定",
+    "chat.no_model.setup_button_title": "モデルを選ぶステップでセットアップを開きます"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

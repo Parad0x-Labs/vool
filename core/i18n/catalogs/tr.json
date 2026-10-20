@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.} other {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.}}",
     "online_access.open_setting": "“Kendi başına çevrimiçi olma” ayarını aç",
     "update.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL güncellemeleri kontrol etmiyor.",
-    "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor."
+    "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor.",
+    "chat.no_model.line_text": "VOOL'un yanıt verebilmesi için bir yapay zekâ modeli gerekiyor. Kurulum yaklaşık iki dakika sürer.",
+    "chat.no_model.reply_body": "Kurulum yaklaşık iki dakika sürer: kurulumu açın ve VOOL'un nerede düşüneceğini seçin. Bu bilgisayarda Ollama gibi bir model uygulaması zaten varsa onu açın ve yeniden sorun.",
+    "chat.no_model.reply_detail": "Ayrıntılar: Bu bilgisayarda çalışan bir yerel model yok ve onun yerine yanıt verebilecek bir bulut modeli de yok.",
+    "chat.no_model.reply_lead": "Henüz yanıt veremiyorum, çünkü bu bilgisayarda kurulu bir yapay zekâ modeli yok.",
+    "chat.no_model.setup_button": "Model kur",
+    "chat.no_model.setup_button_title": "Kurulumu model seçtiğiniz adımda açar"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

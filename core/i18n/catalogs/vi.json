@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {{n} câu trả lời không được đưa vào do chính sách quyền riêng tư.} other {{n} câu trả lời không được đưa vào do chính sách quyền riêng tư.}}",
     "online_access.open_setting": "Mở “Tự lên mạng”",
     "update.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không kiểm tra bản cập nhật.",
-    "vcs.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không đọc lịch từ internet. Lịch trên máy tính này vẫn hoạt động."
+    "vcs.online_off": "Truy cập trực tuyến đang tắt, nên VOOL không đọc lịch từ internet. Lịch trên máy tính này vẫn hoạt động.",
+    "chat.no_model.line_text": "VOOL cần một mô hình AI trước khi có thể trả lời. Việc thiết lập mất khoảng hai phút.",
+    "chat.no_model.reply_body": "Việc thiết lập mất khoảng hai phút: mở phần thiết lập và chọn nơi VOOL sẽ suy nghĩ. Nếu máy tính này đã có ứng dụng mô hình, như Ollama, hãy mở nó và hỏi lại.",
+    "chat.no_model.reply_detail": "Chi tiết: không có mô hình cục bộ nào đang chạy trên máy tính này và không có mô hình đám mây nào sẵn sàng trả lời thay.",
+    "chat.no_model.reply_lead": "Tôi chưa thể trả lời vì chưa có mô hình AI nào được thiết lập trên máy tính này.",
+    "chat.no_model.setup_button": "Thiết lập mô hình",
+    "chat.no_model.setup_button_title": "Mở phần thiết lập ở bước chọn mô hình"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

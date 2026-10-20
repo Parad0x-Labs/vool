@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, other {因隐私政策，有 {n} 条回答未包含在内。}}",
     "online_access.open_setting": "打开“自行联网”",
     "update.online_off": "联网已关闭，因此 VOOL 不会检查更新。",
-    "vcs.online_off": "联网已关闭，因此 VOOL 不会读取互联网上的日历。这台电脑上的日历仍可正常使用。"
+    "vcs.online_off": "联网已关闭，因此 VOOL 不会读取互联网上的日历。这台电脑上的日历仍可正常使用。",
+    "chat.no_model.line_text": "VOOL 需要一个 AI 模型才能回答。设置大约需要两分钟。",
+    "chat.no_model.reply_body": "设置大约需要两分钟：打开设置，选择 VOOL 在哪里思考。如果这台电脑上已经有模型应用（例如 Ollama），请打开它后再问一次。",
+    "chat.no_model.reply_detail": "详细信息：这台电脑上没有正在运行的本地模型，也没有可以代为回答的云端模型。",
+    "chat.no_model.reply_lead": "我暂时还无法回答，因为这台电脑上还没有设置 AI 模型。",
+    "chat.no_model.setup_button": "设置模型",
+    "chat.no_model.setup_button_title": "在选择模型的步骤打开设置"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

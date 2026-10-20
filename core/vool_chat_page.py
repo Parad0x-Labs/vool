@@ -1196,6 +1196,15 @@ body:not(.panel-open) #xpanel { display:none; }
   .setup-line-open { background:var(--accent,#4c7df0); border:1px solid var(--accent,#4c7df0); color:var(--accent-ink); border-radius:6px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:600; }
   .setup-line-x { background:none; border:none; color:var(--muted,#9a9aa2); cursor:pointer; font-size:16px; line-height:1; padding:2px 6px; }
   .setup-line-x:hover { color:var(--text,#eee); }
+  /* No-model notice: the same calm line, but its two short sentences wrap instead of ellipsizing,
+     and the reply that says the same thing carries the same button. */
+  .setup-line .no-model-part { display:none; }
+  .setup-line.no-model-line .no-model-part { display:inline-block; }
+  .setup-line.no-model-line .setup-line-plain { display:none; }
+  .setup-line.no-model-line .setup-line-text { white-space:normal; color:var(--text,#eee); }
+  .no-model-actions { margin:10px 0 0; }
+  .chat-provenance.no-model-detail { margin-top:8px; }
+  .no-model-actions .setup-line-open { font-size:13px; padding:6px 13px; }
 </style>
 </head>
 <body>
@@ -1287,9 +1296,11 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
-    <span class="setup-line-text" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
-    <button type="button" class="setup-line-open" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
-    <button type="button" class="setup-line-x" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
+    <span class="setup-line-text setup-line-plain" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
+    <button type="button" class="setup-line-open setup-line-plain" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
+    <button type="button" class="setup-line-x setup-line-plain" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
+    <span class="setup-line-text no-model-part" id="noModelLineText" data-i18n="chat.no_model.line_text">VOOL needs an AI model before it can answer. Setting one up takes about two minutes.</span>
+    <button type="button" class="setup-line-open no-model-part" id="noModelLineOpen" title="Opens Setup at the step where you choose a model" data-i18n="chat.no_model.setup_button" data-i18n-title="chat.no_model.setup_button_title">Set up a model</button>
   </div>
   <div id="queueWaiting" role="status"></div>
   <div id="queue" aria-label="Queued messages" data-i18n-aria-label="chat.queue_aria"></div>
@@ -5002,6 +5013,7 @@ function renderRichText(el, text, state) {
 function renderAssistantContent(el, text, displayMetadata) {
   const normalized = splitAssistantDisplayContent(text, displayMetadata);
   renderRichText(el, normalized.content);
+  if (typeof mountNoModelActions === 'function') mountNoModelActions(el, normalized.content);
   // A verifier verdict suppressed from the answer bytes by an output contract still reaches the
   // reader HERE, beside the answer rather than inside it. Measured: a flagged one-word answer
   // rendered as a bare word -- the only trace of the failed review was an Activity row nobody
@@ -10352,6 +10364,8 @@ function reflectModel() {
     renderConnections(lastConnectionRows || []);
     refreshCloudStatus(false);
   }
+  // The no-model notice depends on this chat's model choice (a chosen cloud model can answer).
+  if (typeof noModelLinePaint === 'function') { try { noModelLinePaint(); } catch (e) {} }
   if (modelValue === 'vool' && view.stickyModel) {
     if (lbl) lbl.textContent = pageT('header.model_auto_option', 'VOOL Auto') + ' 📌';
   } else if (lbl) lbl.textContent = compactLabel(label);
@@ -14250,9 +14264,11 @@ async function setupLineLoad() {
   if (!line) return;
   try {
     const r = await fetch('/api/setup/state');
-    if (!r.ok) { line.hidden = true; return; }
+    if (!r.ok) { line.hidden = true; noModelState = null; noModelLinePaint(); return; }
     const d = await r.json();
+    noModelState = (d && d.cloud_default && typeof d.cloud_default === 'object') ? d.cloud_default : null;
     const show = !!(d && d.show_chat_line);
+    setupLineWanted = show;   // the no-model notice (noModelLinePaint, below) may take this line over
     const text = document.getElementById('setupLineText');
     if (text && d && typeof d.done_count === 'number' && d.done_count > 0) {
       let prog = 'Finish setting up VOOL \u2014 ' + d.done_count + ' of ' + d.total + ' done.';
@@ -14265,9 +14281,82 @@ async function setupLineLoad() {
       text.textContent = prog;
     }
     line.hidden = !show;
-  } catch (e) { line.hidden = true; }
-  finally { line.dataset.loaded = '1'; }   // the markup starts hidden; this says the decision was made
+  } catch (e) { line.hidden = true; noModelState = null; }
+  finally { line.dataset.loaded = '1'; noModelLinePaint(); }   // the markup starts hidden; this says the decision was made
 }
+
+// --- No-model notice -------------------------------------------------------------------------
+// Before the first send, the composer says when nothing can answer: no local model runs here and
+// this chat would not reach a cloud model (Auto with no cloud model saved in setup, or Local Only).
+// The facts are /api/setup/state's `cloud_default` -- the same presence authority the turn itself
+// is refused by -- re-read on boot, focus, visibility and setup close, and every 20 s while the
+// notice shows, so it goes away by itself once a model can answer. An unreadable state shows
+// nothing here (the reply still explains and carries the same button). It is the setup line in
+// its no-model form -- one line at a time, in the place the pet already keeps clear -- and it is
+// not dismissible: until a model exists every message gets the same refusal, so hiding the reason
+// helps nobody (the setup line's own "don't remind me" stays as it was for the other steps).
+var noModelState = null;
+var setupLineWanted = false;
+var noModelPoll = null;
+function noModelNeeded() {
+  const cd = noModelState;
+  if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
+  const m = String((typeof modelValue === 'string' && modelValue) || 'vool');
+  if (m === LOCAL_ONLY_MODEL) return true;                                   // only a local model may answer
+  if (m !== 'vool' && !MODEL_LABELS[m] && !isLocalModel(m)) return false;     // this chat names a cloud model
+  if (m === 'vool' && view && view.stickyModel) return false;                 // Auto sticks to this chat's cloud model
+  const saved = cd.decision === 'use_cloud' && !!cd.model && Array.isArray(cd.candidates)
+    && cd.candidates.some((row) => row && row.id === cd.model);
+  return !saved;
+}
+function noModelLinePaint() {
+  const line = document.getElementById('setupLine');
+  if (!line) return;
+  const show = noModelNeeded();
+  line.classList.toggle('no-model-line', show);
+  if (show) line.hidden = false;
+  else if (line.dataset.loaded === '1') line.hidden = !setupLineWanted;
+  if (show && !noModelPoll) noModelPoll = setInterval(() => { if (!document.hidden) setupLineLoad(); }, 20000);
+  if (!show && noModelPoll) { clearInterval(noModelPoll); noModelPoll = null; }
+}
+// The reply that says no model is set up carries the same button. Recognised by its own lead in
+// every shipped language (core.final_answer_authorship.no_model_notice_leads), never by wording a
+// model chose. Its last paragraph is the cause, folded behind the same "details" toggle the
+// provenance line uses. Both live outside the message's source, so Copy and Pin stay the reply.
+var NO_MODEL_LEADS = /*__VOOL_NO_MODEL_LEADS__*/[];
+function mountNoModelActions(el, content) {
+  const body = String(content || '').replace(/^\s+/, '');
+  if (!el || !Array.isArray(NO_MODEL_LEADS) || !NO_MODEL_LEADS.some((lead) => lead && body.startsWith(lead))) return;
+  let detailBox = null;
+  const parts = body.split(/\n\s*\n/);
+  if (parts.length >= 3) {
+    const detail = parts[parts.length - 1].trim();
+    const para = Array.from(el.querySelectorAll('p')).reverse().find((p) => p.textContent.trim() === detail);
+    if (para) {
+      detailBox = document.createElement('p'); detailBox.className = 'chat-provenance no-model-detail';
+      const more = document.createElement('button'); more.type = 'button'; more.className = 'prov-more';
+      more.setAttribute('aria-expanded', 'false'); more.textContent = pageT('chat.provenance.details', 'details');
+      const raw = document.createElement('span'); raw.className = 'prov-raw'; raw.hidden = true; raw.textContent = detail;
+      detailBox.appendChild(more); detailBox.appendChild(raw);
+      para.replaceWith(detailBox);
+    }
+  }
+  const row = document.createElement('p'); row.className = 'no-model-actions';
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'setup-line-open no-model-setup';
+  btn.textContent = pageT('chat.no_model.setup_button', 'Set up a model');
+  btn.title = pageT('chat.no_model.setup_button_title', 'Opens Setup at the step where you choose a model');
+  btn.addEventListener('click', () => openSetup('thinking'));
+  row.appendChild(btn);
+  if (detailBox) el.insertBefore(row, detailBox); else el.appendChild(row);
+  // The server just found nothing that can answer: if the notice is not up (a model stopped since
+  // the last read), read the state once more so the composer says it too.
+  if (!noModelNeeded() && !noModelRecheck) noModelRecheck = setTimeout(() => { noModelRecheck = null; setupLineLoad(); }, 300);
+}
+var noModelRecheck = null;
+(function noModelLineBoot() {
+  const open = document.getElementById('noModelLineOpen');
+  if (open) open.addEventListener('click', () => openSetup('thinking'));
+})();
 (function setupLineBoot() {
   const line = document.getElementById('setupLine');
   if (!line) return;
@@ -14351,6 +14440,21 @@ def _page_fragments() -> tuple[str, ...]:
 
 
 
+def _no_model_leads_js() -> str:
+    """The no-model reply's lead in every shipped language, as a JS array literal for the page."""
+    import json
+
+    from core.final_answer_authorship import LEGACY_NO_MODEL_NOTICE_LEAD, NO_MODEL_NOTICE_LEAD, no_model_notice_leads
+
+    try:
+        leads = list(no_model_notice_leads())
+    except Exception:
+        leads = [NO_MODEL_NOTICE_LEAD]
+    leads.append(LEGACY_NO_MODEL_NOTICE_LEAD)
+    # `<` is escaped so translated text can never close the script element.
+    return json.dumps(leads, ensure_ascii=False).replace("<", "\\u003c")
+
+
 def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
     # The page embeds the approved artwork so branding works offline in the native shell.
     from base64 import b64encode
@@ -14371,6 +14475,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
     page = (
         _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
+        .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )
     # The UI locale rides the same deterministic i18n authority the Settings selector drives

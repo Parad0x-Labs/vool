@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {{n} Antwort ist wegen der Datenschutzregeln nicht enthalten.} other {{n} Antworten sind wegen der Datenschutzregeln nicht enthalten.}}",
     "online_access.open_setting": "„Von selbst online gehen“ öffnen",
     "update.online_off": "Der Online-Zugang ist aus, daher sucht VOOL nicht nach Updates.",
-    "vcs.online_off": "Der Online-Zugang ist aus, daher liest VOOL keine Kalender aus dem Internet. Kalender auf diesem Computer funktionieren weiter."
+    "vcs.online_off": "Der Online-Zugang ist aus, daher liest VOOL keine Kalender aus dem Internet. Kalender auf diesem Computer funktionieren weiter.",
+    "chat.no_model.line_text": "VOOL braucht ein KI-Modell, bevor es antworten kann. Die Einrichtung dauert etwa zwei Minuten.",
+    "chat.no_model.reply_body": "Die Einrichtung dauert etwa zwei Minuten: Öffne die Einrichtung und wähle, wo VOOL denken soll. Wenn du schon eine Modell-App wie Ollama auf diesem Computer hast, öffne sie und frag noch einmal.",
+    "chat.no_model.reply_detail": "Details: Auf diesem Computer läuft kein lokales Modell, und kein Cloud-Modell steht bereit, um stattdessen zu antworten.",
+    "chat.no_model.reply_lead": "Ich kann noch nicht antworten, weil auf diesem Computer noch kein KI-Modell eingerichtet ist.",
+    "chat.no_model.setup_button": "Modell einrichten",
+    "chat.no_model.setup_button_title": "Öffnet die Einrichtung beim Schritt, in dem du ein Modell wählst"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

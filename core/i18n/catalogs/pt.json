@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {{n} resposta não está incluída devido à política de privacidade.} many {{n} respostas não estão incluídas devido à política de privacidade.} other {{n} respostas não estão incluídas devido à política de privacidade.}}",
     "online_access.open_setting": "Abrir «Ligar-se à internet por conta própria»",
     "update.online_off": "O acesso à internet está desativado, por isso o VOOL não verifica atualizações.",
-    "vcs.online_off": "O acesso à internet está desativado, por isso o VOOL não lê calendários da internet. Os calendários deste computador continuam a funcionar."
+    "vcs.online_off": "O acesso à internet está desativado, por isso o VOOL não lê calendários da internet. Os calendários deste computador continuam a funcionar.",
+    "chat.no_model.line_text": "O VOOL precisa de um modelo de IA antes de poder responder. A configuração leva cerca de dois minutos.",
+    "chat.no_model.reply_body": "A configuração leva cerca de dois minutos: abra a configuração e escolha onde o VOOL deve pensar. Se já tem uma app de modelos neste computador, como o Ollama, abra-a e pergunte de novo.",
+    "chat.no_model.reply_detail": "Detalhes: nenhum modelo local está a funcionar neste computador e não há nenhum modelo na nuvem disponível para responder em vez dele.",
+    "chat.no_model.reply_lead": "Ainda não consigo responder porque não há nenhum modelo de IA configurado neste computador.",
+    "chat.no_model.setup_button": "Configurar um modelo",
+    "chat.no_model.setup_button_title": "Abre a configuração no passo em que escolhe um modelo"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

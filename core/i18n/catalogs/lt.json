@@ -2796,9 +2796,15 @@
     "chat_export.withheld_count": "{n, plural, one {{n} atsakymas neįtrauktas dėl privatumo taisyklių.} few {{n} atsakymai neįtraukti dėl privatumo taisyklių.} other {{n} atsakymų neįtraukta dėl privatumo taisyklių.}}",
     "online_access.open_setting": "Atidaryti „Prisijungti prie interneto savarankiškai“",
     "update.online_off": "Prieiga prie interneto išjungta, todėl VOOL netikrina atnaujinimų.",
-    "vcs.online_off": "Prieiga prie interneto išjungta, todėl VOOL neskaito kalendorių iš interneto. Šio kompiuterio kalendoriai toliau veikia."
+    "vcs.online_off": "Prieiga prie interneto išjungta, todėl VOOL neskaito kalendorių iš interneto. Šio kompiuterio kalendoriai toliau veikia.",
+    "chat.no_model.line_text": "Kad galėtų atsakyti, VOOL reikia DI modelio. Nustatymas užtrunka apie dvi minutes.",
+    "chat.no_model.reply_body": "Nustatymas užtrunka apie dvi minutes: atidarykite sąranką ir pasirinkite, kur VOOL turėtų mąstyti. Jei šiame kompiuteryje jau turite modelių programą, pavyzdžiui, Ollama, atidarykite ją ir paklauskite dar kartą.",
+    "chat.no_model.reply_detail": "Išsamiau: šiame kompiuteryje neveikia joks vietinis modelis, o debesies modelio, kuris galėtų atsakyti vietoj jo, nėra.",
+    "chat.no_model.reply_lead": "Kol kas negaliu atsakyti, nes šiame kompiuteryje nenustatytas joks DI modelis.",
+    "chat.no_model.setup_button": "Nustatyti modelį",
+    "chat.no_model.setup_button_title": "Atidaro sąranką ties žingsniu, kuriame pasirenkate modelį"
   },
-  "source_catalog_sha256": "3993733b2b41f3cfc621397a5f63a92eb06beacc262188ca74f76e75b2d2e4ea",
+  "source_catalog_sha256": "5723366b0e1fc1bda8ca550afaf77c92cd902d4c5d728fccc2067462bc9673e4",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
