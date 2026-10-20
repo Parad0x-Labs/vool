@@ -296,6 +296,175 @@ def test_the_door_recorder_reports_what_the_stop_decided() -> None:
 
 
 # ---------------------------------------------------------------------------------------------
+# A seal always ends (review of 5bf6b91). The claim was taken well before the try/finally that
+# ends it, so an exception while the commit was built left it open: a stop waiting on it waited
+# forever, the door never cancelled the model call, and what the turn held to learn sat for good.
+# ---------------------------------------------------------------------------------------------
+
+
+class _Learned:
+    """What a turn hands ``_after_transcript_records``: records each run and the answer it got."""
+
+    def __init__(self) -> None:
+        self.runs: list[str | None] = []
+
+    def __call__(self, recorded_answer: str | None = None) -> None:
+        self.runs.append(recorded_answer)
+
+
+def _nothing_left_for(request_id: str) -> None:
+    with pm._TRANSCRIPT_STAGE_LOCK:
+        assert request_id not in pm._SEALS_IN_FLIGHT
+        assert request_id not in pm._STOPS_PENDING_SEAL
+        assert request_id not in pm._SEAL_CLAIMED_AT
+        assert request_id not in pm._WORK_AFTER_RECORD
+        assert request_id not in pm._STAGED_TRANSCRIPT_EVENTS
+
+
+def test_an_exception_after_the_claim_ends_the_seal_and_the_waiting_stop_is_recorded_once(monkeypatch) -> None:
+    request_id, session = "req:test:seal-throws", "s-seal-throws"
+    cancel = threading.Event()
+    learned = _Learned()
+    doors: list[_Door] = []
+
+    def classify_then_throw(turn_id, **_kwargs):
+        # Between the claim and the bind: the person presses Stop, the stop waits on the seal, and
+        # building the commit throws.
+        seal = _watch_the_seal(request_id)
+        doors.append(_Door(request_id, session, cancel).press())
+        _until(lambda: seal.waiting == 1, "the stop waits for the seal")
+        raise RuntimeError("commit build failed")
+
+    monkeypatch.setattr(fin, "retry_classification_for_turn", classify_then_throw)
+    open_transcript_commit_boundary(request_id)
+    assert pm._after_transcript_records(request_id, learned) == "held"
+    with pytest.raises(RuntimeError, match="commit build failed"):
+        _turn(request_id, session, cancel)
+    doors[0].thread.join(10)
+    # Stop returned, and with "stopped": the door goes on to cancel the model call.
+    assert not doors[0].thread.is_alive(), "the stop is still waiting on a seal that never ends"
+    assert doors[0].outcome == "stopped" and cancel.is_set()
+    assert _shape(session) == [(QUESTION, "", "stopped")]
+    assert flush_staged_conversation_events(request_id, request_end=True) == 0
+    assert _shape(session) == [(QUESTION, "", "stopped")]
+    assert learned.runs == []
+    _nothing_left_for(request_id)
+    assert "UNSEEN ANSWER" not in conversation_log_path().read_text(encoding="utf-8")
+
+
+def _abandoned_seal_with_a_waiting_stop(request_id: str, session: str, learned: _Learned) -> _Door:
+    """A turn staged its row and its seal took the claim but never reached the end of it; the
+    person's stop is waiting on it."""
+    open_transcript_commit_boundary(request_id)
+    with bound_request_context(request_id):
+        append_conversation_event(source_context=SERVED, session_id=session, user_input=QUESTION, assistant_output=ANSWER)
+    assert pm._after_transcript_records(request_id, learned) == "held"
+    assert pm._claim_transcript_seal(request_id) is True
+    seal = _watch_the_seal(request_id)
+    door = _Door(request_id, session, threading.Event()).press()
+    _until(lambda: seal.waiting == 1, "the stop waits for the seal")
+    return door
+
+
+def test_the_request_end_flush_ends_a_seal_left_claimed(caplog) -> None:
+    request_id, session = "req:test:seal-abandoned-end", "s-seal-abandoned-end"
+    learned = _Learned()
+    door = _abandoned_seal_with_a_waiting_stop(request_id, session, learned)
+    assert flush_staged_conversation_events(request_id, request_end=True) == 0
+    door.thread.join(10)
+    assert door.outcome == "stopped" and door.cancel.is_set()
+    assert _shape(session) == [(QUESTION, "", "stopped")]
+    assert learned.runs == []
+    assert pm._transcript_request_stopped(request_id) is True
+    _nothing_left_for(request_id)
+    assert any("still claimed at request end" in r.getMessage() for r in caplog.records)
+
+
+def test_the_stale_sweep_ends_a_seal_left_claimed(monkeypatch) -> None:
+    request_id, session = "req:test:seal-abandoned-stale", "s-seal-abandoned-stale"
+    learned = _Learned()
+    door = _abandoned_seal_with_a_waiting_stop(request_id, session, learned)
+    with pm._TRANSCRIPT_STAGE_LOCK:
+        pm._SEAL_CLAIMED_AT[request_id] -= pm._STAGED_TRANSCRIPT_MAX_AGE_S + 1
+    # Any later turn's staging sweeps what is stale.
+    other = "req:test:seal-abandoned-other"
+    open_transcript_commit_boundary(other)
+    with bound_request_context(other):
+        append_conversation_event(source_context=SERVED, session_id="s-other", user_input="hello", assistant_output="hi")
+    door.thread.join(10)
+    assert door.outcome == "stopped"
+    assert _shape(session) == [(QUESTION, "", "stopped")]
+    assert learned.runs == []
+    _nothing_left_for(request_id)
+    assert flush_staged_conversation_events(other, request_end=True) == 1
+
+
+# ---------------------------------------------------------------------------------------------
+# What a turn learns follows the transcript, the same way whether the worker registers it before
+# the turn ends (a streamed turn: the stream ends it after the worker returned) or after (a
+# buffered turn ends inside the worker, before it gets there). A turn with no answer (the
+# provider failed) is learned from with an empty answer: the person's message counts as on base,
+# the worker's draft nobody was shown does not. A turn the person stopped teaches nothing.
+# ---------------------------------------------------------------------------------------------
+
+NAME = "my name is Zephyrine Calloway"
+
+
+def _no_answer_turn(request_id: str, session: str, learned: _Learned, *, register_first: bool) -> None:
+    open_transcript_commit_boundary(request_id)
+    with bound_request_context(request_id):
+        append_conversation_event(source_context=SERVED, session_id=session, user_input=NAME, assistant_output="(DRAFT NOBODY SAW)")
+        if register_first:
+            assert pm._after_transcript_records(request_id, learned) == "held"
+            assert learned.runs == []
+        fin.no_answer_terminal(turn_id="t-" + request_id, reason_code="provider_no_content", persist=False)
+        if not register_first:
+            assert pm._after_transcript_records(request_id, learned) == "ran"
+    flush_staged_conversation_events(request_id, request_end=True)
+
+
+@pytest.mark.parametrize("register_first", [True, False], ids=["streamed", "buffered"])
+def test_a_turn_the_provider_failed_learns_from_the_persons_message_alone(register_first) -> None:
+    request_id = f"req:test:no-answer-{register_first}"
+    session = f"s-no-answer-{register_first}"
+    learned = _Learned()
+    _no_answer_turn(request_id, session, learned, register_first=register_first)
+    assert learned.runs == [""]  # once, with the recorded (empty) answer, never the draft
+    assert _shape(session) == [(NAME, "", "no_answer_terminal")]
+    _nothing_left_for(request_id)
+
+
+def test_the_learning_of_a_turn_with_no_answer_reads_the_persons_message() -> None:
+    """The runtime's own learning closure, handed the recorded empty answer: memory extraction is
+    given the person's message and no assistant text."""
+    from core.web.api import runtime as runtime_mod
+
+    messages = runtime_mod._messages_for_memory_extraction(user_text=NAME, assistant_output="", source_context={})
+    assert messages == [{"role": "user", "content": NAME}]
+
+
+@pytest.mark.parametrize("register_first", [True, False], ids=["streamed", "buffered"])
+def test_a_turn_the_person_stopped_teaches_nothing(register_first) -> None:
+    request_id = f"req:test:stopped-learns-{register_first}"
+    session = f"s-stopped-learns-{register_first}"
+    learned = _Learned()
+    open_transcript_commit_boundary(request_id)
+    with bound_request_context(request_id):
+        append_conversation_event(source_context=SERVED, session_id=session, user_input=NAME, assistant_output=ANSWER)
+        if register_first:
+            assert pm._after_transcript_records(request_id, learned) == "held"
+    door = _Door(request_id, session, threading.Event()).press()
+    door.thread.join(10)
+    assert door.outcome == "stopped"
+    if not register_first:
+        assert pm._after_transcript_records(request_id, learned) == "dropped"
+    flush_staged_conversation_events(request_id, request_end=True)
+    assert learned.runs == []
+    assert _shape(session) == [(QUESTION, "", "stopped")]
+    _nothing_left_for(request_id)
+
+
+# ---------------------------------------------------------------------------------------------
 # The served workflow: real daemon, real /api/chat stream, real /api/chat/cancel, real memory
 # extraction (it posts to the scripted model) and the real turn-context page store.
 # ---------------------------------------------------------------------------------------------
@@ -307,7 +476,8 @@ MARKER = "(stopped showing this answer)"
 
 
 class _Model:
-    """STORY is held until released, then answered; QUESTION is answered at once (UNSEEN)."""
+    """STORY is held until released, then answered; QUESTION is answered at once (UNSEEN); NAME
+    gets no content."""
 
     def __init__(self) -> None:
         self.release = threading.Event()
@@ -328,6 +498,8 @@ class _Model:
             return HELD_DRAFT
         if QUESTION in last_user:
             return ANSWER
+        if NAME in last_user:
+            return " "  # the provider answers with no content
         return None
 
 
@@ -503,4 +675,25 @@ def test_served_a_stop_after_the_turn_finished_running_finds_its_answer_as_the_r
     assert ANSWER in commits, (commits, [o["vool_event"].get("type") for o in seen if o.get("vool_event")], _history(daemon, session), daemon.log_tail(30))
     assert _history(daemon, session) == [("user", QUESTION), ("assistant", ANSWER)]
     _until(lambda: any("UNSEEN ANSWER" in t for t in _extraction_calls(provider)), "the answer's own extraction", timeout=60)
+    assert len(_turn_context_admissions(daemon, session)) == 1
+
+
+def test_served_a_turn_whose_provider_failed_still_learns_the_persons_message(served) -> None:
+    """The provider returns no content and the model call fails. The person's message is still
+    learned, as before the stop work. (On served /chat this turn commits the typed failure line the
+    page shows, so it reaches memory through the seal; the no-answer terminal path is pinned
+    in-process above.)"""
+    import tests._reader_served_rig as rig
+
+    daemon, provider, _model, _gate = served
+    session = rig.canonical_session("no-answer-" + uuid.uuid4().hex[:8])
+    seen: list[dict] = []
+    reader = _stream(daemon, session, uuid.uuid4().hex, NAME, seen)
+    reader.join(timeout=180)
+    assert not reader.is_alive()
+    events = [o["vool_event"].get("type") for o in seen if o.get("vool_event")]
+    assert "model.call_failed" in events and "task.failed" in events, events
+    history = _history(daemon, session)
+    assert history[0] == ("user", NAME) and len(history) == 2, history
+    _until(lambda: any(NAME in t for t in _extraction_calls(provider)), "the turn's own extraction", timeout=60)
     assert len(_turn_context_admissions(daemon, session)) == 1
