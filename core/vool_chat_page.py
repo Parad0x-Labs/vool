@@ -5700,9 +5700,13 @@ function buildCard(run, host) {
         run.text = pageT('run.stopped_showing', '(stopped showing this answer)');
         const entry = run.historyIndex >= 0 ? ownerOf(run).history[run.historyIndex] : null;
         if (entry && entry.role === 'assistant') entry.content = run.text;
+        // The card says what the bubble says: a turn that ended as "completed" while its stop was
+        // being decided is shown as stopped.
+        if (run.status === 'completed') { run.status = 'cancelled'; run.endSummary = ''; }
         withRunDom(run, () => {
           if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
           if (run.textEl) run.textEl.textContent = run.text;
+          if (run.card) { run.card.classList.remove('done'); paintFinishedCard(run); }
         });
       };
       check();

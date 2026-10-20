@@ -2053,7 +2053,9 @@ def _run_agent_locked(
         # cancel notice (or an answer nobody saw), never an exchange to learn from. The turn's
         # cancel marker says so here; a stop that lands later is the transcript's to decide, once:
         # a served turn's answer is often sealed after this worker returns, so what it learns is
-        # held until the transcript records the answer, and dropped if the person stopped it.
+        # held until the transcript records the turn, and dropped if the person stopped it. A turn
+        # that ended with no answer is learned from with the recorded (empty) answer: the person's
+        # message counts, the draft nobody was shown does not.
         from core.finalization import _turn_cancel_marker_fired
         from core.persistent_memory import _after_transcript_records
         from core.semantic.semantic_admissions import current_request_id
@@ -2064,17 +2066,18 @@ def _run_agent_locked(
         if not _turn_stopped:
             _assistant_output = str(dict(result or {}).get("response") or "")
 
-            def _learn_from_exchange() -> None:
+            def _learn_from_exchange(recorded_answer: str | None = None) -> None:
+                answer = _assistant_output if recorded_answer is None else recorded_answer
                 schedule_memory_extraction(
                     runtime,
                     user_text=user_text,
-                    assistant_output=_assistant_output,
+                    assistant_output=answer,
                     session_id=session_id,
                     source_context=base_context,
                 )
                 _admit_turn_context_page(
                     user_text=user_text,
-                    assistant_output=_assistant_output,
+                    assistant_output=answer,
                     session_id=session_id,
                     source_context=base_context,
                 )
