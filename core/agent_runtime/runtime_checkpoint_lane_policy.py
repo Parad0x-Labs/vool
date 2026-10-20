@@ -293,6 +293,13 @@ def should_keep_ai_first_chat_lane(
         # "chat_conversation" turn in -- staying in that lane here is the exact dead end that
         # rendered an unexecuted tool-call as the final answer on 2026-08-03.
         return False
+    # A supervised-browser turn (a request, or a follow-up about this chat's open page) needs
+    # the browser tools this lane does not have; the same reader the tool offer uses decides.
+    from core.vool_browser.live_requests import confined as browser_confined
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if browser_confined() and browser_requested(str(user_input or "")):
+        return False
     # A bound-material turn that also asks a host-owned display fact ("Describe the attached
     # video; what is my screen resolution?") must leave this tools-less lane: the lane cannot
     # produce the machine observation, and staying here is the dead end where the local-fact

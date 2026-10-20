@@ -2745,7 +2745,22 @@ def _tool_intent_catalog_text(
             "If no real runtime tool is available, use respond.direct with the actual answer in its message field. "
             "Never invent tool names."
         )
-    lines = ["Select operations from this runtime tool catalog using the supplied tool-call protocol:"]
+    from core.cloud_tool_call_contract import build_cloud_tool_definitions
+
+    # Native APIs encode operation names. Rendering only the canonical names
+    # instructs a model to emit names that the supplied functions do not have.
+    # Derive both names and parameters from the same definitions as the wire.
+    native = build_cloud_tool_definitions(specs)
+    mapping = "; ".join(
+        f"{definition.name}({', '.join(definition.parameters.get('properties', {}))})"
+        for definition in native
+    )
+    lines = [
+        "When native functions are supplied, use these exact function names and declared parameters. "
+        "Canonical operation names in guidance are not native function names: " + mapping,
+        "Without native functions, return JSON with the canonical intent and arguments.",
+        "Select operations from this runtime tool catalog using the supplied tool-call protocol:",
+    ]
     for spec in specs:
         intent = str(spec.get("intent") or "").strip()
         description = str(spec.get("description") or "").strip()

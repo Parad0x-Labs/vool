@@ -1259,6 +1259,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
+  <button id="browserBtn" type="button" data-i18n="live.browser">Browser</button>
   <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
@@ -5661,6 +5662,9 @@ function appendRendered(el, text, state) {
 function paintStreamingText(run) {
   const el = run.textEl;
   if (!el) return;
+  // The bubble leaves its typing state in the same step that puts text in it: a reply that is not
+  // .pending always shows words, never the '…' placeholder of an answer that has not painted yet.
+  if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
   el.dataset.streaming = '1';
   const shown = streamingPreviewText(run.text);
   let kept = run.streamKept;
@@ -9260,7 +9264,9 @@ async function runTurn(text, queueItemId, opts) {
           run.tokens = Math.round(assistant.length / 4);
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
-            run.assistantMsgEl.classList.remove('pending');
+            // The typing state ends when the text is painted (paintStreamingText), not here: an early
+            // task.completed event can end the run first, and then no stream paint follows until the
+            // server commit renders the answer.
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
             followLog();
           });
@@ -9323,7 +9329,11 @@ async function runTurn(text, queueItemId, opts) {
     // The answer is appended to the chat that ASKED for it, resolved off the run -- never off the
     // chat currently on screen. This is the line that would silently move A's answer into B.
     recordAssistantMessage(run, assistant, run.displayMetadata);
-    withRunDom(run, () => { if (run.textEl) renderAssistantContent(run.textEl, assistant, run.displayMetadata); });
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      renderAssistantContent(run.textEl, assistant, run.displayMetadata);
+    });
   }
   if (!run.ended) finishRun(run, run.permissionDenied ? 'failed' : (run.permission ? 'awaiting_approval' : (run.terminal ? 'failed' : 'completed')), run.permissionDenied ? pageT('run.permission_denied', 'Permission denied') : (run.permission ? pageT('run.review_action', 'Review the exact action below.') : (run.terminal ? (run.action || pageT('run.failed_safely_label', 'Failed safely')) : pageT('run.complete', 'Complete'))));
   // The turn ran to the end without asking again, so the server either matched the token or never
@@ -12278,6 +12288,9 @@ function openSettings(section) {
   openSettingsInFrame(section);
 }
 function openSettingsInFrame(section) { openSurfaceInFrame('/settings' + (section ? ('#' + section) : ''), 'VOOL Settings'); }
+document.getElementById('browserBtn').addEventListener('click', () => {
+  openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
+});
 // The SAME frame overlay carries any second surface of this runtime (Settings, guided setup): one
 // overlay, one close path (Back / Escape / click outside), the chat and its draft untouched.
 function openSurfaceInFrame(url, label) {

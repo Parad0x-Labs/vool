@@ -359,6 +359,11 @@ def _settings_groups() -> list[dict]:
                     keywords="web search lookups online internet browse network access fallback allow",
                 ),
                 _row(
+                    id="live_browser", label="Browser", kind="custom", widget="live_browser",
+                    help="Review every action before it runs. Page scripts are off. Use the wallet for payments.",
+                    read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
+                ),
+                _row(
                     id="automatic_checks",
                     label="Go online on its own",
                     kind="custom",
@@ -1877,6 +1882,7 @@ function renderWidget(row, host) {
   if (w === 'email_accounts') return widgetEmailAccounts(stack);
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
+  if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'wallet') return widgetWallet(stack);
@@ -5082,6 +5088,39 @@ function boundarySwitchWidget(stack, cfg) {
   });
 }
 const LOCAL_ONLY_NOTE_EN = 'Local-only mode is on for this whole computer, so this stays off. Settings has no switch to turn local-only mode off.';
+function widgetLiveBrowser(stack) {
+  const data = state.sources['/api/browser/settings'];
+  if (!data || typeof data.enabled !== 'boolean') { stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return; }
+  const button = el('button', 'sw'); button.type = 'button'; button.setAttribute('role', 'switch');
+  button.setAttribute('aria-label', T('settings.row.live_browser.label', 'Browser'));
+  const note = el('div', 'subtle'); const status = el('div', 'state idle'); status.setAttribute('role', 'status');
+  let current = data, busy = false;
+  const paint = back => {
+    current = back;
+    button.setAttribute('aria-checked', back.enabled === true ? 'true' : 'false');
+    button.disabled = busy || (!back.enabled && (back.local_only || !back.web_enabled));
+    note.textContent = back.local_only || !back.web_enabled ? T('vcs.state.egress_refused', 'Network access is off') : '';
+  };
+  const reread = async () => {
+    const r = await fetch('/api/browser/settings', {cache:'no-store'}); const back = await r.json();
+    if (!r.ok || !back.ok || typeof back.enabled !== 'boolean') throw new Error('unavailable');
+    paint(back); return back;
+  };
+  paint(data);
+  button.onclick = async () => {
+    busy = true; button.disabled = true;
+    const want = !current.enabled; status.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch('/api/browser/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:want})});
+      const back = await reread();
+      status.textContent = r.ok && back.enabled === want ? T('settings.switch.saved', 'Saved') : T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } catch(e) { status.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    busy = false; paint(current);
+  };
+  stack.appendChild(button); stack.appendChild(note); stack.appendChild(status);
+  const link = el('a', '', T('live.browser', 'Browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener'; stack.appendChild(link);
+  const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
+}
 function widgetWebLookups(stack) {
   return boundarySwitchWidget(stack, {
     key: 'web_lookups', field: 'allow_web_fallback',

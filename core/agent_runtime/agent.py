@@ -2627,6 +2627,17 @@ class VoolAgent(
         # every unit through its owning lane. Single-unit and all-currency turns are
         # untouched (the probe covers every unit or the turn mints one).
         from core.currency_value_contract import maybe_answer_currency_value
+        from core.vool_browser.live_requests import requested as browser_requested
+
+        # Opening and then reading a page is one supervised workflow. Topic-only
+        # decomposition loses that dependency and may route the question to search.
+        browser_turn = browser_requested(raw_turn_text)
+        if browser_turn:
+            from core.vool_browser.live_chat import refuse_if_off
+
+            browser_refusal = refuse_if_off(self, effective_input, session_id=session_id, source_context=runtime_source_context)
+            if browser_refusal is not None:
+                return _guard_final_result(browser_refusal)
 
         _currency_may_claim_whole = True
         try:
@@ -2645,7 +2656,7 @@ class VoolAgent(
                 effective_input,
                 source_context=runtime_source_context,
             )
-            if _currency_may_claim_whole
+            if _currency_may_claim_whole and not browser_turn
             else None
         )
         if currency_value_reply is not None:
@@ -2668,7 +2679,7 @@ class VoolAgent(
         # whose coverage owns the entire turn; mixed requests continue to the conductor below.
         from core.agent_runtime.turn_frontdoor import closed_semantic_contract_covers_turn
 
-        if closed_semantic_contract_covers_turn(
+        if not browser_turn and closed_semantic_contract_covers_turn(
             semantic_text,
             session_id=session_id,
             source_context=source_context,
@@ -2714,7 +2725,7 @@ class VoolAgent(
         from core.agent_runtime.turn_planner_hook import ensure_shared_planner_artifact
 
         ensure_shared_planner_artifact(runtime_source_context)
-        conductor_result = self._maybe_answer_conductor_turn(
+        conductor_result = None if browser_turn else self._maybe_answer_conductor_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2735,7 +2746,7 @@ class VoolAgent(
         # explanation vanished) and the currency family did the same to a conversion-plus-
         # explanation turn. Pure turns never reach the executor: one lane covering every
         # unit, or no lane covering any, returns None here and keeps its existing path.
-        demand_owned_result = self._maybe_answer_demand_owned_turn(
+        demand_owned_result = None if browser_turn else self._maybe_answer_demand_owned_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2752,7 +2763,7 @@ class VoolAgent(
         # multi-city weather clause ended up losing its own boundary. Returns None for anything
         # that is not LIVE_DATA-classified, or when the typed plan itself finds nothing to answer
         # -- the ordinary planner and every existing lane are untouched below.
-        live_data_result = self._maybe_answer_live_data_turn(
+        live_data_result = None if browser_turn else self._maybe_answer_live_data_turn(
             effective_input=effective_input,
             raw_input=raw_turn_text,
             session_id=session_id,
@@ -2763,7 +2774,7 @@ class VoolAgent(
             return _guard_final_result(live_data_result)
         semantic_reach.declined(semantic_reach.GATE_LIVE_DATA)
 
-        planned_result = self._maybe_answer_planned_turn(
+        planned_result = None if browser_turn else self._maybe_answer_planned_turn(
             effective_input=effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
@@ -2784,7 +2795,7 @@ class VoolAgent(
         # is served instead. No surface list: the eligibility gate is structural (ONE KNOW
         # demand, no attachments), which already excludes read/act verbs and multi-part
         # turns, and surfaces are caller-supplied strings a gate must not enumerate.
-        ambiguity_result = self._maybe_clarify_ambiguous_entity(
+        ambiguity_result = None if browser_turn else self._maybe_clarify_ambiguous_entity(
             effective_input=effective_input,
             session_id=session_id,
             source_context=runtime_source_context,
@@ -2792,7 +2803,7 @@ class VoolAgent(
         if ambiguity_result is not None:
             return _guard_final_result(ambiguity_result)
 
-        frontdoor_bundle = self._handle_turn_frontdoor(
+        frontdoor_bundle = {} if browser_turn else self._handle_turn_frontdoor(
             raw_user_input=semantic_text,
             effective_input=effective_input,
             normalized_input=normalized_input,

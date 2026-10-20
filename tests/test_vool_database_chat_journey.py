@@ -80,7 +80,9 @@ def _wire_name(intent: str) -> str:
 
     import re
 
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", intent.replace(".", "__")).strip("_") or "tool"
+    from core.cloud_tool_call_contract import _NATIVE_NAME_RE
+
+    return _NATIVE_NAME_RE.sub("_", intent.replace(".", "__")).strip("_") or "tool"
 
 
 class SequencedToolProvider:
@@ -428,7 +430,7 @@ def test_served_chat_seats_named_plugin_intents_and_gates_the_mutation(journey) 
         )
         assert provider.offered, "the tool loop never offered a catalog"
         round1 = provider.offered[0]
-        assert any("vool-database" in name for name in round1), round1
+        assert any(_wire_name("vool-database") in name for name in round1), round1
         assert provider.served == [_wire_name("vool-database.db.create")], provider.served
         # Manual mode (the daemon's default): the mutating call PENDS; nothing exists yet.
         assert not db_path.exists(), "the create ran without approval"

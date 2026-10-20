@@ -10,6 +10,7 @@ from core.command_registry.registry import CommandRegistry
 
 _GROUP_MODULES = (
     "core.command_registry.groups.meta",
+    "core.command_registry.groups.browser_group",
     "core.command_registry.groups.receipts",
     "core.command_registry.groups.blackbox_group",
     "core.command_registry.groups.logs_group",

@@ -10,7 +10,10 @@ from typing import Any
 from core.cloud_provider_contract import CloudToolCall, CloudToolDefinition
 
 _NATIVE_NAME_LIMIT = 64
-_NATIVE_NAME_RE = re.compile(r"[^A-Za-z0-9_-]+")
+# Use the common identifier alphabet across native tool parsers. Some local
+# parsers discard a generated call whose otherwise valid name contains '-'.
+# CloudToolDefinition.intent remains the unchanged execution identity.
+_NATIVE_NAME_RE = re.compile(r"[^A-Za-z0-9_]+")
 
 
 class ToolCallParseError(ValueError):

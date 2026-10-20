@@ -893,6 +893,22 @@ def dispatch_get(
         """
         return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
+    if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
+        from core.vool_browser.live import BrowserFault
+        from core.web.api import browser_api
+
+        if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        try:
+            return browser_api.get(
+                normalized_path,
+                query,
+                locale=resolve_page_locale(query, headers),
+                appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
+            )
+        except BrowserFault as exc:
+            return json_response(409, {"ok": False, "error": str(exc)})
+
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
 
@@ -3149,6 +3165,13 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith("/api/browser/"):
+        from core.web.api import browser_api
+
+        if _credential_page_refusal(headers, client_host):
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return browser_api.post(normalized_path, body, headers=headers, client_host=client_host)
 
     if not isinstance(body, dict):
         # Every POST handler below reads body.get(...); a non-object JSON body (e.g. [], "x", 5)
@@ -7191,6 +7214,12 @@ def _dispatch_post_inner(
                 )
 
             if operation in {"archive", "restore", "delete"}:
+                if operation != "restore":
+                    from core.web.api.browser_api import before_chat_end
+
+                    refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+                    if refusal is not None:
+                        return apply_runtime_headers(refusal, runtime)
                 state = {
                     "archive": "archived",
                     "restore": "active",
@@ -7345,6 +7374,11 @@ def _dispatch_post_inner(
         # memory, summaries, metadata, and pins. Missing sessions retain the historical idempotent
         # response rather than creating a namespace solely to delete it.
         if body.get("delete") is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
             namespace = load_chat_namespace(session_id)
             if namespace is None and has_existing_session:
                 namespace = ensure_chat_namespace(
@@ -7466,6 +7500,12 @@ def _dispatch_post_inner(
                 json_response(409, {"error": "deleted chat namespaces cannot be changed"}),
                 runtime,
             )
+        if archived_arg is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
         try:
             # Restore before assigning a project; archive after assignment. This keeps project
             # mutation restricted to active namespaces while supporting one atomic metadata POST.
@@ -8180,6 +8220,11 @@ def _dispatch_post_inner(
                     )
                 )
             ]
+        # Server-owned: the supervised browser waits for the owner while this
+        # very turn is alive, so approval resumes its existing model/tool loop.
+        from core.vool_browser.live import available as _live_browser_available
+
+        source_context["live_browser_wait_for_owner"] = bool(owner_local and _live_browser_available())
         approval_token = str(body.get("approval_token") or "").strip()
         if approval_token and len(approval_token) <= 128:
             source_context["mode_approval_token"] = approval_token

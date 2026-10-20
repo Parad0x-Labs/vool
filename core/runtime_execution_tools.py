@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from core import policy_engine
 from core.effect_reconciliation import (
@@ -3223,8 +3223,25 @@ def _dispatch_runtime_tool(
     # journeys. Dispatched through its own api so receipts, budgets and the
     # per-origin permission store stay in ONE module.
     if intent.startswith("vool-browser."):
+        from core.vool_browser import live as live_browser
         from core.vool_browser.api import handle_intent as _browser_handle
+        from core.vool_browser.live_requests import confined as browser_confined
 
+        if live_browser.configured() or browser_confined():
+            try:
+                result = live_browser.tool_intent(intent, arguments, dict(source_context or {}))
+            except live_browser.BrowserFault as exc:
+                result = {"ok": False, "status": str(exc)}
+            _account_browser_opening(source_context, intent, arguments, result)
+            from core.i18n import catalog_for
+
+            label = catalog_for(str((source_context or {}).get("ui_locale") or "en")).text("live.browser")
+            view_url = "/browser?chat=" + quote(str((source_context or {}).get("session_id") or (source_context or {}).get("runtime_session_id") or ""))
+            return RuntimeExecutionResult(
+                handled=True, ok=bool(result.get("ok")), status=str(result.get("status") or result.get("state") or "ready"),
+                response_text=str(result.get("error") or "") if result.get("status") == "invalid_arguments" else f"[{label}]({view_url})",
+                details={"intent": intent, "observation": {"intent_observation": True, **result}},
+            )
         lane = _browser_handle(intent, arguments)
         return RuntimeExecutionResult(
             handled=True,
@@ -3713,6 +3730,14 @@ def execute_runtime_tool(
     workspace root the dispatch resolves against is replaced by that workspace, so even an
     approved builder seat cannot reach the operator's checkout through a relative path.
     """
+    from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
+
+    if not browser_tool_allowed(intent, arguments):
+        from core.i18n import catalog_for
+
+        return RuntimeExecutionResult(handled=True, ok=False, status="browser_scope_required",
+                                      response_text=catalog_for("en").text("live.refused"),
+                                      details={"intent": intent, "executed": False, "allowed_toolset": "vool-browser"})
     from core.agent_team import gate as agent_team_gate
 
     # Agent-team write gate: a call made for an agent's chat session may only read, or write
@@ -8045,3 +8070,55 @@ def _skill_inspect(arguments: dict[str, Any]) -> RuntimeExecutionResult:
 from core.agent_team import gate as _agent_team_gate
 
 _agent_team_gate.mark_installed()
+
+
+def _account_browser_opening(
+    source_context: dict[str, Any] | None, intent: str, arguments: dict[str, Any], result: dict[str, Any]
+) -> None:
+    """File the turn's consumption receipt for an owner-approved browser opening.
+
+    The clause that asked to open an address is served by the approved opening's receipt;
+    without one the sweep can only call it indeterminate. Bound to the unit whose own words
+    name that address, read from the person's turn, never from the model's arguments or
+    the page. Written straight to the turn's active obligation set: the tool loop runs on a
+    copy of the turn context, so a record kept on that copy never reaches the sweep.
+
+    Only a success is filed. A refused or failed opening files no dispatch row either: once
+    a turn carries dispatch rows, every unit without one reads as provably not dispatched,
+    which would accuse clauses the model answered from the page. Absence stays
+    indeterminate. A pending approval is not an outcome and records nothing.
+    """
+    del source_context
+    if intent not in {"vool-browser.session.open", "vool-browser.navigate"}:
+        return
+    receipt = result.get("receipt") if isinstance(result.get("receipt"), dict) else {}
+    if not (result.get("ok") and receipt):
+        return
+    from core.agent_runtime.answer_coverage import demand_units, units_matching_needle
+    from core.conductor import obligation_ledger
+    from core.vool_browser.live_requests import turn_request, written_addresses
+
+    active = obligation_ledger.active_set()
+    request = turn_request()
+    if active is None or not request:
+        return
+    target = str(arguments.get("start_url") if intent.endswith(".open") else arguments.get("url") or "")
+    needles = written_addresses(request, target)
+    # Units are named in the set's own frozen request text, the text the sweep decomposes.
+    minted = obligation_ledger.request_text(active[0], active[1]) or request
+    # A spelling of the opened address also matches as the start of a longer one
+    # ("https://shop.example" inside "https://shop.example/orders"), so a unit counts only when
+    # an address it names is the one opened.
+    texts = {unit.unit_id: unit.text for unit in demand_units(minted)}
+    for unit_id in units_matching_needle(minted, *needles) if needles else ():
+        if not written_addresses(texts.get(unit_id, ""), target):
+            continue
+        obligation_ledger.record_slice_consumption(
+            active[0],
+            active[1],
+            unit_id=unit_id,
+            family="vool_browser",
+            # The lane-attested tier: the opening's own receipt attests it, not prose.
+            evidence="slice_answer_record",
+            excerpt="vool_browser_owner_approved_opening " + str(receipt.get("approved_proposal_id") or ""),
+        )

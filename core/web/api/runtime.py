@@ -1949,11 +1949,19 @@ def _run_agent_locked(
             )
         from core.usepod.price_wait import running_task
         with running_task(session_id, user_text, queue_item_id=base_context.get("price_wait_queue_id", ""), source_context=base_context):
-            result = runtime.agent.run_once(
-                user_text,
-                session_id_override=session_id,
-                source_context=base_context,
-            )
+            from core import runtime_active_clock
+
+            with contextlib.ExitStack() as clock_scope:
+                from core.vool_browser.live_requests import turn_scope as browser_turn_scope
+
+                clock_scope.enter_context(browser_turn_scope(user_text, session_id))
+                if base_context.get("live_browser_wait_for_owner") and not runtime_active_clock.enabled():
+                    clock_scope.enter_context(runtime_active_clock.task_clock())
+                result = runtime.agent.run_once(
+                    user_text,
+                    session_id_override=session_id,
+                    source_context=base_context,
+                )
         # The service re-verifies the sealed reply using its original request context.
         # Publish the same owner object the executor registered, never a result field.
         _publish_canonical_turn_request(base_context, source_context)
