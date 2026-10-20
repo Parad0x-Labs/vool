@@ -47,7 +47,9 @@ PLUGIN = "vool-browser"
 
 
 def _wire_name(intent: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", intent.replace(".", "__")).strip("_") or "tool"
+    from core.cloud_tool_call_contract import _NATIVE_NAME_RE
+
+    return _NATIVE_NAME_RE.sub("_", intent.replace(".", "__")).strip("_") or "tool"
 
 
 class SequencedToolProvider:
