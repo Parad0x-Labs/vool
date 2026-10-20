@@ -2378,7 +2378,9 @@ var walletHome = (function(){
     head.appendChild(el('span', 'vw-wh-when', timeClock(t.created_at || t.updated_at)));
     rowEl.appendChild(head);
     if (isPending) {
-      var review = el('button', 'vw-btn vw-wh-review', t.pilot_transfer === false ? 'Approve in chat' : 'Review'); review.type = 'button';
+      // a payment its account cannot send (a connected or watch-only account on a Mainnet row) is reviewed, never approved
+      var viewOnlyRow = ((lastStatus && lastStatus.pending) || []).some(function(x){ return x && x.proposal_id === t.proposal_id && x.send_unavailable; });
+      var review = el('button', 'vw-btn vw-wh-review', t.pilot_transfer === false ? (viewOnlyRow ? 'Review in chat' : 'Approve in chat') : 'Review'); review.type = 'button';
       review.addEventListener('click', function(){ openReviewFor(t.proposal_id); });
       rowEl.appendChild(review);
     } else {

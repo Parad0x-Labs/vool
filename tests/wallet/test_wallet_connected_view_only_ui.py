@@ -2,7 +2,7 @@
 
 SYNTHETIC API FACTS in a real browser (the harness of test_wallet_home_fragment.py: the actual wallet fragment in the
 actual chat page, every wallet answer intercepted; no daemon, no chain, no funds). Proven: Wallet home's Send is disabled
-for a connected account on a Mainnet row and says why, while the same account kind on a test-network row keeps Send; a
+for a connected account on a Mainnet row and says why, and Activity offers to review, not approve, its waiting payment, while the same account kind on a test-network row keeps Send; a
 payment card for a connected account on a Mainnet row asks for no credential, offers no signer, says why and keeps Reject,
 and says real money, not test funds; the same card on a test-network row keeps its signer.
 """
@@ -57,7 +57,7 @@ def _pending(*, mainnet: bool):
 
 @pytest.mark.parametrize("mainnet", [True, False], ids=["mainnet", "testnet"])
 def test_wallet_home_offers_a_connected_account_send_only_off_mainnet(browser, mainnet):
-    facts = _facts(mainnet=mainnet)
+    facts = _facts(mainnet=mainnet, pending=[_pending(mainnet=mainnet)])
     page, errors = _page(browser, facts)
     try:
         _open_panel(page)
@@ -65,11 +65,15 @@ def test_wallet_home_offers_a_connected_account_send_only_off_mainnet(browser, m
         page.wait_for_function("document.getElementById('vwHomeBalance') && document.getElementById('vwHomeBalance').textContent.indexOf('wallet') >= 0")
         send = page.locator("#vwHomeSend")
         balance = page.locator("#vwHomeBalance").inner_text()
+        page.wait_for_selector("#vwHomeBody .vw-wh-review")
+        review = page.locator("#vwHomeBody .vw-wh-review").inner_text()
         if mainnet:
+            assert review == "Review in chat", "Activity never offers to approve a payment this account cannot send"
             assert send.is_disabled()
             assert "connected wallet receives and shows its balance" in (send.get_attribute("title") or "")
             assert "receive and view only" in balance and "signing stays in your wallet" not in balance
         else:
+            assert review == "Approve in chat"
             assert send.is_enabled()
             assert "signing stays in your wallet" in balance
         assert not [r for r in facts.requests if r.startswith("POST /api/wallet")], "nothing was proposed or signed"
