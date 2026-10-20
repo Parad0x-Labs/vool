@@ -183,3 +183,23 @@ def test_browser_real_unavailable_format_uses_the_same_manual_entry_flow(daemon,
     record_browser_children(ended=True)
     current = next(r for r in call(base)[1]["things"] if r["id"] == item["id"])
     assert call(base, "delete", {"id": item["id"], "revision": current["revision"], "confirm": True})[0] == 200
+
+
+def test_browser_unavailable_receipt_names_a_file_and_does_not_save(daemon, tmp_path):
+    base, _ = daemon
+    before = call(base)[1]["things"]
+    receipt = tmp_path / "unknown-receipt.bin"
+    receipt.write_bytes(b"\xff\x00unsupported")
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True, executable_path=os.environ.get("VOOL_BROWSER_BINARY") or None)
+        try:
+            page = browser.new_page()
+            page.goto(base + "/my-things?ui_locale=en")
+            page.get_by_label("Review a receipt · Receipt", exact=True).set_input_files(str(receipt))
+            page.get_by_role("button", name="Review a receipt", exact=True).click()
+            expect(page.get_by_role("status")).to_have_text("Reading words in this file is not available on this computer. Enter the details yourself.")
+            assert call(base)[1]["things"] == before
+            shot(page, "09-unavailable-file")
+        finally:
+            browser.close()
+    record_browser_children(ended=True)

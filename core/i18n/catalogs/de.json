@@ -2672,9 +2672,10 @@
     "things.specs_needed": "Gib die gespeicherten technischen Daten und den Text auf der Verpackung als Angabe: Wert ein, jeweils eine Zeile.",
     "things.fits_not_verified": "Die Gesamtkompatibilität wurde nicht geprüft; gleiche Wörter allein beweisen nicht, dass es passt.",
     "things.order_items_needed": "Keine bestellten Artikel gespeichert. Gib die Artikel in den Bestelldaten einzeln pro Zeile ein.",
-    "things.photo_unavailable": "Auf diesem Computer können Wörter in Fotos nicht gelesen werden. Gib die Angaben selbst ein."
+    "things.photo_unavailable": "Auf diesem Computer können Wörter in Fotos nicht gelesen werden. Gib die Angaben selbst ein.",
+    "things.file_unavailable": "Wörter in dieser Datei können auf diesem Computer nicht gelesen werden. Gib die Angaben selbst ein."
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

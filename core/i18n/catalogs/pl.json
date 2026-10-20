@@ -2672,9 +2672,10 @@
     "things.specs_needed": "Wpisz zapisane dane techniczne i tekst z pudełka w wierszach: cecha: wartość.",
     "things.fits_not_verified": "Ogólna zgodność nie została sprawdzona; same zgodne słowa nie dowodzą, że produkt pasuje.",
     "things.order_items_needed": "Nie zapisano pozycji zamówienia. Wpisz po jednej pozycji w każdym wierszu danych zamówienia.",
-    "things.photo_unavailable": "Ten komputer nie może odczytać słów ze zdjęć. Wpisz szczegóły ręcznie."
+    "things.photo_unavailable": "Ten komputer nie może odczytać słów ze zdjęć. Wpisz szczegóły ręcznie.",
+    "things.file_unavailable": "Na tym komputerze nie można odczytać słów z tego pliku. Wpisz dane samodzielnie."
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2672,9 +2672,10 @@
     "things.specs_needed": "请将已保存的规格和盒子上的文字按“项目: 值”的格式逐行输入。",
     "things.fits_not_verified": "尚未核实整体兼容性；仅文字相同不能证明适用。",
     "things.order_items_needed": "尚未保存订单物品。请在订单详情中每行输入一件物品。",
-    "things.photo_unavailable": "此电脑无法读取照片中的文字。请手动输入详细信息。"
+    "things.photo_unavailable": "此电脑无法读取照片中的文字。请手动输入详细信息。",
+    "things.file_unavailable": "此计算机无法读取此文件中的文字。请自行输入详细信息。"
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

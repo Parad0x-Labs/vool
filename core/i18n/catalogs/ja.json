@@ -2672,9 +2672,10 @@
     "things.specs_needed": "保存した仕様と箱の文字を「項目: 値」の形で、1行に1項目ずつ入力してください。",
     "things.fits_not_verified": "全体の互換性は未確認です。文字が一致するだけでは、適合するとは証明できません。",
     "things.order_items_needed": "注文品が保存されていません。注文の詳細に1行に1品ずつ入力してください。",
-    "things.photo_unavailable": "このコンピューターでは写真内の文字を読み取れません。詳細を手入力してください。"
+    "things.photo_unavailable": "このコンピューターでは写真内の文字を読み取れません。詳細を手入力してください。",
+    "things.file_unavailable": "このコンピューターではこのファイルの文字を読み取れません。詳細を手入力してください。"
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

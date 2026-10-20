@@ -2672,9 +2672,10 @@
     "things.specs_needed": "Kayıtlı teknik özellikleri ve kutudaki yazıları her satıra özellik: değer biçiminde girin.",
     "things.fits_not_verified": "Genel uyumluluk doğrulanmadı; yalnızca aynı kelimeler ürünün uyacağını kanıtlamaz.",
     "things.order_items_needed": "Kayıtlı sipariş ürünü yok. Sipariş bilgilerine her satıra bir ürün girin.",
-    "things.photo_unavailable": "Bu bilgisayarda fotoğraflardaki yazılar okunamıyor. Ayrıntıları kendiniz girin."
+    "things.photo_unavailable": "Bu bilgisayarda fotoğraflardaki yazılar okunamıyor. Ayrıntıları kendiniz girin.",
+    "things.file_unavailable": "Bu bilgisayarda bu dosyadaki sözcükler okunamıyor. Bilgileri kendiniz girin."
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

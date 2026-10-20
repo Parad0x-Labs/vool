@@ -108,7 +108,9 @@ def read_local(data: bytes, name: str) -> dict:
             return _read_document(data, name, extension)
         result = _read_image(data, name)
     except ReaderUnavailable:
-        return {"state": "unavailable", "text": "", "message": "Reading the words in this photo is not available on this computer. Enter its model or serial number instead."}
+        message = ("Reading the words in this photo is not available on this computer. Enter its model or serial number instead." if is_image
+                   else "Reading the words in this file is not available on this computer. Enter the details yourself.")
+        return {"state": "unavailable", "text": "", "message": message}
     except (ReaderFailed, ReaderRefused):
         return {"state": "unreadable", "text": "", "message": "The words in this file could not be read safely. Try a clearer photo, or enter them yourself."}
     return _summarize(result)

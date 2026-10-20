@@ -2672,9 +2672,10 @@
     "things.specs_needed": "أدخل المواصفات المحفوظة والنص على العلبة بأسطر على شكل تفصيل: قيمة.",
     "things.fits_not_verified": "لم يتم التحقق من التوافق العام؛ تطابق الكلمات وحده لا يثبت أن المنتج مناسب.",
     "things.order_items_needed": "لم يتم حفظ عناصر للطلب. أدخل عنصراً واحداً في كل سطر من تفاصيل الطلب.",
-    "things.photo_unavailable": "قراءة الكلمات في الصور غير متاحة على هذا الكمبيوتر. أدخل التفاصيل بنفسك."
+    "things.photo_unavailable": "قراءة الكلمات في الصور غير متاحة على هذا الكمبيوتر. أدخل التفاصيل بنفسك.",
+    "things.file_unavailable": "لا تتوفر قراءة الكلمات في هذا الملف على هذا الكمبيوتر. أدخل التفاصيل بنفسك."
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

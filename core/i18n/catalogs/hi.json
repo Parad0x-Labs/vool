@@ -2672,9 +2672,10 @@
     "things.specs_needed": "सहेजे तकनीकी विवरण और डिब्बे का पाठ हर पंक्ति में विवरण: मान के रूप में भरें।",
     "things.fits_not_verified": "कुल अनुकूलता सत्यापित नहीं है; केवल शब्द मिलने से यह साबित नहीं होता कि यह फिट होगा।",
     "things.order_items_needed": "ऑर्डर की चीज़ें सहेजी नहीं गई हैं। ऑर्डर विवरण में हर पंक्ति में एक चीज़ भरें।",
-    "things.photo_unavailable": "इस कंप्यूटर पर फ़ोटो में लिखे शब्द पढ़ना उपलब्ध नहीं है। विवरण स्वयं दर्ज करें।"
+    "things.photo_unavailable": "इस कंप्यूटर पर फ़ोटो में लिखे शब्द पढ़ना उपलब्ध नहीं है। विवरण स्वयं दर्ज करें।",
+    "things.file_unavailable": "इस कंप्यूटर पर इस फ़ाइल के शब्द पढ़ना उपलब्ध नहीं है। विवरण स्वयं दर्ज करें।"
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

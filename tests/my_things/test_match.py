@@ -112,3 +112,10 @@ def test_served_ocr_scratch_is_private_and_removed_on_read_and_empty_photo(daemo
     assert result["reading"]["state"] == ("unreadable" if ocr_available() else "unavailable")
     assert not list(root.rglob("*"))
     assert all(b"MODEL WH-1000" not in path.read_bytes() for path in home.rglob("*") if path.is_file())
+
+
+def test_served_nonphoto_unavailable_message_names_a_file(daemon):
+    base, _ = daemon
+    result = call(base, "read", {"file": file("unknown.bin", b"\xff\x00unsupported", "receipt")})[1]["reading"]
+    assert result["state"] == "unavailable"
+    assert "this file" in result["message"] and "photo" not in result["message"]

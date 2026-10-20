@@ -2672,9 +2672,10 @@
     "things.specs_needed": "יש להזין את המפרט השמור ואת הכיתוב על הקופסה בשורות בתבנית פרט: ערך.",
     "things.fits_not_verified": "התאימות הכוללת לא אומתה; מילים תואמות לבדן אינן מוכיחות שהמוצר מתאים.",
     "things.order_items_needed": "לא נשמרו פריטי הזמנה. יש להזין פריט אחד בכל שורה בפרטי ההזמנה.",
-    "things.photo_unavailable": "קריאת מילים בתמונות אינה זמינה במחשב הזה. יש להזין את הפרטים ידנית."
+    "things.photo_unavailable": "קריאת מילים בתמונות אינה זמינה במחשב הזה. יש להזין את הפרטים ידנית.",
+    "things.file_unavailable": "לא ניתן לקרוא מילים בקובץ הזה במחשב הזה. יש להזין את הפרטים ידנית."
   },
-  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
+  "source_catalog_sha256": "0dbbb5fe5238078b5889b410008de4e5f2f6d64608b3c1ad6b366486d3f889b8",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
