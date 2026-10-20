@@ -70,6 +70,7 @@ def test_a_streamed_queued_turn_whose_tab_closed_mid_answer_still_finishes_its_r
             {
                 "messages": [{"role": "user", "content": M1}],
                 "stream": True,
+                "stream_task_events": True,  # the page's own request shape
                 "session_id": session_id,
                 "model": daemon.model,
                 "mode": "auto",
