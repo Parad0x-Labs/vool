@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 import threading
 
+from core.memory.admission import _APOSTROPHES
+
 #: Exact-value scrub registry (credential intelligence, 2026-09-02). The pattern rules below
 #: only catch keys with a KNOWN vendor shape; a custom-gateway key like ``zk9-…`` matches
 #: nothing and would survive every rule. The intake boundary therefore registers the exact
@@ -563,11 +565,9 @@ _CLAUSE_BOUNDARY_RE = re.compile(r"[.;:!?\u2014\n]")
 
 #: Typography equivalence for the ANALYSIS copy only (same convention as
 #: core/memory/admission.py's possessive normalization): apostrophe-family
-#: characters fold to ASCII ' so "isn\u2019t" analyses as "isn't". Stored user
+#: characters (the one shared set) fold to ASCII ' so "isn\u2019t" and "isn\u00b4t" analyse as "isn't". Stored user
 #: text is never rewritten — only the slices the publicity checks inspect.
-_ANALYSIS_APOSTROPHES = str.maketrans({
-    "\u2018": "'", "\u2019": "'", "\u02bc": "'", "\uff07": "'",
-})
+_ANALYSIS_APOSTROPHES = str.maketrans(dict.fromkeys(_APOSTROPHES, "'"))
 
 
 def _publicity_analysis_text(text: str) -> str:

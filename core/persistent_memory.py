@@ -20,6 +20,7 @@ _MEMORY_WRITE_LOCK = threading.RLock()
 
 from core.memory import entries as memory_entries
 from core.memory import learning as memory_learning
+from core.memory.admission import _APOSTROPHES
 from core.memory.command_result import _ForgetOutcomeRegistry
 from core.memory.files import (
     MAX_CONVERSATION_LOG_BYTES as _MAX_CONVERSATION_LOG_BYTES,
@@ -306,8 +307,10 @@ _FORGET_DESCRIBED_VALUE_RE = re.compile(
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
+#: An apostrophe as any keyboard types it: "I’ve" and "it’s" from a phone are "I've" and "it's" (review of 1033851).
+_FORGET_APOSTROPHE = "['" + "".join(_APOSTROPHES) + "]"
 _FORGET_TOLD_YOU_ABOUT_RE = re.compile(
-    r"^(?:what|everything|anything|all)\s+(?:that\s+)?i(?:'ve|\s+have)?\s+"
+    r"^(?:what|everything|anything|all)\s+(?:that\s+)?i(?:" + _FORGET_APOSTROPHE + r"ve|\s+have)?\s+"
     r"(?:told\s+you|said(?:\s+to\s+you)?|shared(?:\s+with\s+you)?|gave\s+you)\s+about\s+(?=\S)",
     re.IGNORECASE,
 )
@@ -522,7 +525,7 @@ def _split_explicit_memory_facts(raw_fact: str) -> list[str]:
 #: or after a head of two or more content words; and a head that keeps no content word is no target at all
 #: (measured: "Forget my Thanks Giving plans" stripped to "my" and the keyword path removed every entry with "my").
 _FORGET_COURTESY_TAIL_RE = re.compile(r"^(?P<head>.+?)[\s,;:!?.]*\b(?:thanks|thank\s+you|please|pls|lol)[\s.!?]*$", re.IGNORECASE)
-_FORGET_CLAUSE_WORDS = (r"(?:it(?:'s|\s+is|\s+was)|that(?:'s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since"
+_FORGET_CLAUSE_WORDS = (r"(?:it(?:" + _FORGET_APOSTROPHE + r"s|\s+is|\s+was)|that(?:" + _FORGET_APOSTROPHE + r"s|\s+is|\s+was)|this\s+(?:is|was)|which\s+(?:is|was)|its|because|since"
                         r"|as\s+it)")
 _FORGET_CLAUSE_AFTER_PUNCT_RE = re.compile(r"^(?P<head>.+?)(?:\s*[,;:?!]+\s*|\s+[-\u2013\u2014]\s*)" + _FORGET_CLAUSE_WORDS + r"\b.*$",
                                            re.IGNORECASE)
