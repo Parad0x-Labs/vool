@@ -3,7 +3,8 @@
 Measured on CI after the 0.7.2 merge (main 89cc1851, shard 6): "Forget 20." on the 20th answered "Forget could not
 be verified as fully applied: unclassified provider invocation manifests" because one call's base64 signature held
 "20" as its own number. Every model call writes such a record, so a short number or word was refused in a normal
-chat, and no retry could clear it. Words in that record are still read.
+chat, and no retry could clear it. Words in that record are still read, and so is a signature anywhere else: one
+the person pasted (a transaction signature in a tool's arguments) is their words.
 """
 from __future__ import annotations
 
@@ -90,3 +91,25 @@ def test_words_in_a_call_record_still_refuse_the_forget(isolated_pages):
     handled, reply = command(isolated_pages, chat, "forget 14")
 
     assert handled and "could not be verified" in reply and "provider invocation manifests" in reply, reply
+
+
+def test_a_signature_outside_the_call_records_still_refuses_the_forget(isolated_pages):
+    """Only the gateway's own call records are exempt: the same signature in another chat table is read as words."""
+    from storage.db import get_connection
+
+    chat = "forget-pasted-signature"
+    _remember(isolated_pages, chat, "my locker is 14.")
+    signature = _record_call_whose_signature_carries(chat, "14")
+    conn = get_connection()
+    try:
+        conn.execute("CREATE TABLE turn_scratch_notes (note_id TEXT PRIMARY KEY, session_id TEXT, args_json TEXT)")
+        conn.execute("INSERT INTO turn_scratch_notes VALUES (?, ?, ?)",
+                     ("pasted", chat, json.dumps({"signature": signature})))
+        conn.commit()
+    finally:
+        conn.close()
+
+    handled, reply = command(isolated_pages, chat, "forget 14")
+
+    assert handled and "could not be verified" in reply and "unclassified turn scratch notes" in reply, reply
+    assert "provider invocation manifests" not in reply, reply
