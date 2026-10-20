@@ -186,3 +186,28 @@ def test_a_testnet_row_from_a_connected_account_keeps_its_signer(monkeypatch):
     proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=b58encode(bytes([64]) * 32), amount_minor=1000, asset="SOL", origin="user", network=chains.SOLANA_DEVNET)
     row = status._pending_row(proposal)
     assert (row["mainnet"], row["send_unavailable"]) == (False, None)
+
+
+@pytest.mark.parametrize("door", ["pin", "external"])
+@pytest.mark.parametrize("register", [custody.register_external_signer_wallet, custody.create_watch_only_wallet], ids=["connected", "watch_only"])
+def test_every_legacy_door_refuses_a_view_only_account_on_mainnet_before_any_hold(mainnet, register, door):
+    """The same refusal from the legacy PIN door (approve and execute) and the external signing door, for a connected and a
+    watch-only account: nothing is held, no signing request opens, no credential is consumed."""
+    from solders.keypair import Keypair
+
+    from core.wallet import external_signing, lifecycle
+
+    _evm, sol = mainnet
+    sender, destination = str(Keypair().pubkey()), str(Keypair().pubkey())
+    _usdc_accounts(sol, [(sender, 10**9), (destination, 0)])
+    account = register(sender, network=chains.SOLANA_MAINNET)
+    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=destination, amount_minor=1000, asset="USDC", origin=proposals.ORIGIN_USEPOD, network=chains.SOLANA_MAINNET)
+    lifecycle.default_lifecycle().prepare(proposal.proposal_id)
+    body = {"proposal_id": proposal.proposal_id, **({"method": "external"} if door == "external" else {"pin": "482913"})}
+    status_code, refused = _post("/api/wallet/approve", body)
+    assert status_code >= 400 and refused["error"] == "wallet_send_needs_vool_wallet", refused
+    assert refused["fault"]["context"]["reason"] == "connected_account_view_only_on_mainnet", refused
+    assert external_signing.open_request_for_proposal(proposal.proposal_id) is None
+    assert limits.reservation_state(proposal.proposal_id) == ""
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    assert "sendTransaction" not in [call.get("method") for call in sol.calls]

@@ -465,11 +465,12 @@ class PaymentLifecycle:
             raise self._fault("wallet_network_disabled", proposal, reason=reason)
         if spec.is_mainnet:
             profile = custody.get_wallet(proposal.wallet_id)
-            if profile is not None and profile.mode in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
+            if profile is None or profile.mode in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
                 # on a Mainnet row a connected or watch-only account receives and shows its balance only: no lane (a UsePod,
                 # fee or service payment included) claims, hands out bytes to sign or submits for it. Sending there stays in
                 # a VOOL Wallet, with its limits, approval and receipts. Typed, before any hold, signing request or socket.
-                raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason=REASON_CONNECTED_VIEW_ONLY, mode=profile.mode)
+                # an account that cannot be read is refused the same way (unknown fails closed)
+                raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason=REASON_CONNECTED_VIEW_ONLY, mode=profile.mode if profile else "unknown")
         if not capabilities.transfer_lane_ready(spec):
             raise self._fault("wallet_network_disabled", proposal, reason=capabilities.REASON_PILOT_LANE_INCOMPLETE)
         return spec

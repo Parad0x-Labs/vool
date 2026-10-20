@@ -75,18 +75,18 @@ def _mainnet_view(p: Any) -> dict[str, Any]:
     from core.wallet import chains, custody
 
     try:
-        mainnet = bool(chains.resolve_network(p.network).is_mainnet)
+        mainnet: bool | None = bool(chains.resolve_network(p.network).is_mainnet)
+        profile = custody.get_wallet(str(p.wallet_id)) if mainnet else None
     except Exception:
-        return {"mainnet": None, "send_unavailable": None}
-    profile = custody.get_wallet(str(p.wallet_id)) if mainnet else None
-    if profile is None or profile.mode not in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
+        mainnet, profile = None, None  # a row or account that cannot be read offers no signer (unknown fails closed)
+    if mainnet is False or (profile is not None and profile.mode not in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY)):
         return {"mainnet": mainnet, "send_unavailable": None}
     from core.faults.catalog import get_spec
     from core.i18n.catalog import fault_message_key
     from core.i18n.turn_locale import turn_text
 
     code = "wallet_send_needs_vool_wallet"
-    return {"mainnet": True, "send_unavailable": {"code": code, "message": turn_text(fault_message_key(code), get_spec(code).user_message)}}
+    return {"mainnet": mainnet, "send_unavailable": {"code": code, "message": turn_text(fault_message_key(code), get_spec(code).user_message)}}
 
 
 def _pending_row(p: Any) -> dict[str, Any]:

@@ -4,7 +4,8 @@ SYNTHETIC API FACTS in a real browser (the harness of test_wallet_home_fragment.
 actual chat page, every wallet answer intercepted; no daemon, no chain, no funds). Proven: Wallet home's Send is disabled
 for a connected account on a Mainnet row and says why, and Activity offers to review, not approve, its waiting payment, while the same account kind on a test-network row keeps Send; a
 payment card for a connected account on a Mainnet row asks for no credential, offers no signer, says why and keeps Reject,
-and says real money, not test funds; the same card on a test-network row keeps its signer.
+and says real money, not test funds; the same card on a test-network row keeps its signer; the review sheet of a
+Crypto Pilot transfer the account cannot approve asks for no credential and offers no Approve.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from tests.wallet.test_wallet_home_fragment import (
     _balance,
     _open_panel,
     _page,
+    _quote_fields,
     _row,
     _status,
     browser,
@@ -101,6 +103,28 @@ def test_a_payment_card_for_a_connected_account_on_mainnet_offers_no_signer(brow
             assert card.locator(".vw-sign-external").count() == 1
             assert "testnet funds, not real money" in text
         assert not [r for r in facts.requests if r.startswith("POST /api/wallet")], "nothing was approved or signed"
+        assert not errors, errors
+    finally:
+        page.close()
+
+
+def test_the_review_sheet_asks_a_connected_account_on_mainnet_for_no_credential(browser):
+    pending = {**_pending(mainnet=True), "proposal_id": "pay-panel", "asset": "SOL", "origin": "user", "pilot_transfer": True}
+    facts = _facts(mainnet=True, pending=[pending])
+    facts.quote_fields = _quote_fields(network=SOL, chain_key="solana", chain_label="Solana", display_name="Solana", environment="mainnet",
+                                       badge="MAINNET", from_address=CONNECTED_KEY, to_address=DESTINATION, asset="SOL", display_symbol="SOL",
+                                       gas_asset="SOL", decimals=9, approval_unavailable=dict(VIEW_ONLY))
+    page, errors = _page(browser, facts)
+    try:
+        _open_panel(page)
+        page.wait_for_selector("#vwHomeBody .vw-wh-review")
+        page.locator("#vwHomeBody .vw-wh-review").click()
+        page.wait_for_selector("#vwSheet")
+        state = page.locator("#vwSheetState")
+        page.wait_for_function("document.getElementById('vwSheetState') && document.getElementById('vwSheetState').getAttribute('data-approval-unavailable') === 'wallet_send_needs_vool_wallet'")
+        assert "only a VOOL Wallet created on this device sends here" in state.inner_text()
+        assert page.locator("#vwSheetCredential").is_hidden() and page.locator("#vwSheetApprove").is_hidden()
+        assert not [r for r in facts.requests if r.startswith("POST /api/wallet/approve")], "nothing was approved"
         assert not errors, errors
     finally:
         page.close()

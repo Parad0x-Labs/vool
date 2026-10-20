@@ -1203,7 +1203,7 @@ function cardFor(p){
   card.appendChild(purposeBlock(p.purpose, WT('wallet.review_title', 'Payment approval needed')));
   var chainRow = el('div', 'vw-row');
   chainRow.appendChild(document.createTextNode('network: ' + chainLabel(p.network) + ' · '));
-  if (p.mainnet) chainRow.appendChild(el('span', 'vw-badge', 'real money'));
+  if (p.mainnet !== false && p.mainnet !== undefined) chainRow.appendChild(el('span', 'vw-badge', p.mainnet ? 'real money' : 'network not read'));
   else chainRow.appendChild(el('span', 'vw-badge testnet', WT('wallet.testnet_badge', 'testnet funds, not real money')));
   card.appendChild(chainRow);
   card.appendChild(el('div', 'vw-row', p.amount_minor + ' ' + p.asset + ' ' + WT('wallet.minor_units', '(minor units)')));
