@@ -185,3 +185,13 @@ def test_malformed_field_types_are_refused_without_creating_or_mutating_records(
     saved = call(base)[1]["things"]
     assert len(saved) == 1 and saved[0]["name"] == item["name"] and saved[0]["revision"] == 1
     assert call(base, "delete", {"id": item["id"], "revision": 1, "confirm": True})[0] == 200
+
+
+def test_served_upload_kind_must_be_a_named_choice(daemon):
+    base, _ = daemon
+    before = call(base)[1]["things"]
+    for kind in [[], {}, None, 3, False]:
+        for action, body in [("propose", {"file": file("receipt.txt", "Name: Safe", kind)}),
+                             ("save", {"fields": {"name": "Must not save"}, "confirm": True, "file": file("receipt.txt", "Words", kind)})]:
+            assert call(base, action, body)[0] == 400
+            assert call(base)[1]["things"] == before

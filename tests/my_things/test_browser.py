@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -78,8 +79,8 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
                 shot(page, "03-photo-evidence")
                 page.get_by_role("button", name="Attach a file", exact=True).click()
             else:
-                expect(page.get_by_role("heading", name="These words could not be read reliably. Try a clearer photo or enter the details yourself.", exact=True)).to_be_visible()
-                assert call(base, "match", {"file": {"name": "label.png", "kind": "photo", "data": __import__("base64").b64encode(photo.read_bytes()).decode()}})[1]["state"] == "unavailable"
+                expect(page.get_by_role("heading", name="Reading words in photos is not available on this computer. Enter the details yourself.", exact=True)).to_be_visible()
+                assert call(base, "match", {"file": {"name": "label.png", "kind": "photo", "data": base64.b64encode(photo.read_bytes()).decode()}})[1]["state"] == "unavailable"
                 shot(page, "03-photo-unavailable")
                 page.locator("nav.mt-list").get_by_role("button", name="Synthetic headphones", exact=True).click()
                 page.get_by_role("button", name="Edit", exact=True).click()
@@ -110,7 +111,7 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             if ocr_available():
                 expect(page.get_by_label("Words on the box or delivery note", exact=True)).to_have_value("Voltage: 12 V", timeout=30000)
             else:
-                expect(page.get_by_role("status")).to_contain_text("These words could not be read reliably")
+                expect(page.get_by_role("status")).to_contain_text("Reading words in photos is not available on this computer")
                 page.get_by_label("Words on the box or delivery note", exact=True).fill("Voltage: 12 V")
             page.get_by_role("button", name="Compare details", exact=True).click()
             expect(page.locator("#mt-result")).to_contain_text("5 V / 12 V")
@@ -122,7 +123,8 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             expect(page.get_by_role("status")).to_contain_text("Online access is off")
             page.get_by_label("Match a photo · Photo", exact=True).set_input_files(str(bad))
             page.get_by_role("button", name="Match a photo", exact=True).click()
-            expect(page.get_by_role("heading", name="These words could not be read reliably. Try a clearer photo or enter the details yourself.", exact=True)).to_be_visible()
+            refused = "These words could not be read reliably. Try a clearer photo or enter the details yourself." if ocr_available() else "Reading words in photos is not available on this computer. Enter the details yourself."
+            expect(page.get_by_role("heading", name=refused, exact=True)).to_be_visible()
             shot(page, "05-red-unreadable")
             page.set_viewport_size({"width": 390, "height": 844})
             page.goto(base + "/my-things?ui_locale=lt")

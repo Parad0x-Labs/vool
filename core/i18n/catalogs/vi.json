@@ -2671,9 +2671,10 @@
     "things.choose_saved": "Chọn một đồ đã lưu trong danh sách.",
     "things.specs_needed": "Nhập thông số đã lưu và chữ trên hộp theo từng dòng dạng chi tiết: giá trị.",
     "things.fits_not_verified": "Chưa xác minh khả năng tương thích tổng thể; chỉ trùng chữ không chứng minh là lắp vừa.",
-    "things.order_items_needed": "Chưa lưu món nào trong đơn. Nhập mỗi món một dòng trong chi tiết đơn hàng."
+    "things.order_items_needed": "Chưa lưu món nào trong đơn. Nhập mỗi món một dòng trong chi tiết đơn hàng.",
+    "things.photo_unavailable": "Máy tính này chưa hỗ trợ đọc chữ trong ảnh. Hãy tự nhập thông tin."
   },
-  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
+  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2671,9 +2671,10 @@
     "things.choose_saved": "Выберите сохранённую вещь из списка.",
     "things.specs_needed": "Введите сохранённые характеристики и текст на коробке строками вида «параметр: значение».",
     "things.fits_not_verified": "Общая совместимость не проверена; совпадение слов само по себе не доказывает, что вещь подходит.",
-    "things.order_items_needed": "Товары заказа не сохранены. Введите по одному товару в строке в данных заказа."
+    "things.order_items_needed": "Товары заказа не сохранены. Введите по одному товару в строке в данных заказа.",
+    "things.photo_unavailable": "На этом компьютере нельзя прочитать текст на фотографиях. Введите данные вручную."
   },
-  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
+  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2671,9 +2671,10 @@
     "things.choose_saved": "Choisissez une affaire enregistrée dans la liste.",
     "things.specs_needed": "Saisissez les caractéristiques enregistrées et le texte sur la boîte sous la forme détail : valeur, une ligne par détail.",
     "things.fits_not_verified": "La compatibilité globale n’a pas été vérifiée ; des mots identiques ne prouvent pas que cela convient.",
-    "things.order_items_needed": "Aucun article commandé n’est enregistré. Saisissez un article par ligne dans les détails de la commande."
+    "things.order_items_needed": "Aucun article commandé n’est enregistré. Saisissez un article par ligne dans les détails de la commande.",
+    "things.photo_unavailable": "Cet ordinateur ne peut pas lire les mots dans les photos. Saisissez les informations vous-même."
   },
-  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
+  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

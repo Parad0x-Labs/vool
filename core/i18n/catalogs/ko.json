@@ -2671,9 +2671,10 @@
     "things.choose_saved": "목록에서 저장된 물건을 선택하세요.",
     "things.specs_needed": "저장된 사양과 상자의 글자를 한 줄에 하나씩 항목: 값 형식으로 입력하세요.",
     "things.fits_not_verified": "전체 호환성은 확인되지 않았습니다. 글자가 같다는 것만으로 적합하다고 볼 수 없습니다.",
-    "things.order_items_needed": "저장된 주문 품목이 없습니다. 주문 정보에 한 줄에 하나씩 입력하세요."
+    "things.order_items_needed": "저장된 주문 품목이 없습니다. 주문 정보에 한 줄에 하나씩 입력하세요.",
+    "things.photo_unavailable": "이 컴퓨터에서는 사진 속 글자를 읽을 수 없습니다. 세부 정보를 직접 입력하세요."
   },
-  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
+  "source_catalog_sha256": "863a2452c249d4ceaa744af44a491ce4ec6f823600fcfb20a3f657710147afaf",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

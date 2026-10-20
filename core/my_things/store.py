@@ -79,7 +79,7 @@ def clean_fields(fields: dict) -> dict:
 
 
 def file_payload(name: str, data: bytes, kind: str, *, strip_metadata: bool = True) -> dict:
-    if kind not in {"receipt", "manual", "photo", "note"}:
+    if not isinstance(kind, str) or kind not in {"receipt", "manual", "photo", "note"}:
         raise ThingsError("bad_kind", "Choose a receipt, manual, photo or note.")
     if not isinstance(name, str) or not name.strip() or len(name) > 180 or any(ord(c) < 32 or ord(c) == 127 or c in "/\\" for c in name):
         raise ThingsError("bad_filename", "Choose a file with a simple name.")
@@ -288,54 +288,46 @@ class ThingsStore:
         self._collect()
         return {"deleted": True}
 
-    def forget(self, token: str) -> dict:
-        """Owner registration seam. Encrypted records are scanned, including file bytes and names.
+    def forget(self, token: str, *, confirm: bool = False, expected: list[dict] | None = None) -> dict:
+        """Preview or confirm deletion of person-made records, using only saved text.
 
-        Erase an entire thing if metadata or an attached text carries the target. An unreadable
-        binary file on another record blocks verification; it never authorizes deleting that
-        unrelated record. The caller must keep forget incomplete until all carriers are known.
+        This is the record owner's explicit action, not chat-memory Forget. The exact
+        revisioned preview must be confirmed; a broad word never deletes by itself.
+        Unreadable files remain attached unless their saved name/details match. They
+        do not turn an unrelated memory erasure into an endless incomplete operation.
         """
         if not isinstance(token, str) or len(token.strip()) < 2:
             raise ThingsError("bad_target", "Give the exact words to forget.")
-        if not (self.root / "records.sqlite3").exists():
-            return {"status": "verified", "removed": 0}
-        def normalized(value):
-            return unicodedata.normalize("NFKC", value).casefold()
+        needle = unicodedata.normalize("NFKC", token.strip()).casefold()
 
         def carries(value):
-            if isinstance(value, str):
-                return needle in normalized(value)
-            if isinstance(value, dict):
-                return any(carries(v) for v in value.values())
-            if isinstance(value, list):
-                return any(carries(v) for v in value)
-            return False
+            return isinstance(value, str) and needle in unicodedata.normalize("NFKC", value).casefold()
 
-        needle = normalized(token)
-        removed = 0
-        unreadable = 0
-        with self._tx() as conn:
-            for (thing_id,) in conn.execute("SELECT id FROM records").fetchall():
-                record = self._load(conn, thing_id)
-                erase = carries({k: v for k, v in record.items() if k != "files"})
-                unknown_files = 0
-                if not erase:
-                    from core.my_things.reading import read_local
-
-                    for file in record["files"]:
-                        raw = base64.b64decode(file["data"], validate=True)
-                        reading = read_local(raw, file["name"])
-                        if reading["state"] != "read":
-                            unknown_files += 1
-                        else:
-                            erase = erase or carries(reading["text"]) or carries(file["name"])
-                if not erase:
-                    unreadable += unknown_files
-                if erase:
-                    conn.execute("DELETE FROM records WHERE id=?", (thing_id,))
-                    removed += 1
-        self._collect()
-        return {"status": "incomplete" if unreadable else "verified", "removed": removed, **({"unreadable_files": unreadable} if unreadable else {})}
+        matches = []
+        if (self.root / "records.sqlite3").exists():
+            with self._tx() as conn:
+                for (thing_id,) in conn.execute("SELECT id FROM records ORDER BY id").fetchall():
+                    record = self._load(conn, thing_id)
+                    matched = any(carries(record.get(key, "")) for key in FIELDS)
+                    # Names are carriers even when their bytes could not be read. The
+                    # encrypted extraction was made at attachment time; never OCR here.
+                    matched = matched or any(carries(f.get("name", "")) or carries(f.get("extracted_text", "")) for f in record["files"])
+                    if matched:
+                        matches.append({"id": thing_id, "revision": record["revision"], "name": record["name"]})
+                if matches and confirm is True:
+                    if json.dumps(expected, sort_keys=True) != json.dumps(matches, sort_keys=True):
+                        raise ThingsError("stale", "The matching things changed. Review them again before deleting.", 409)
+                    for item in matches:
+                        conn.execute("DELETE FROM records WHERE id=?", (item["id"],))
+        confirmed = confirm is True
+        if (confirmed or not matches) and (self.root / "records.sqlite3").exists():
+            self._collect()
+        removed = len(matches) if confirmed else 0
+        return {"status": "verified" if confirmed or not matches else "confirmation_required",
+                "removed": removed, "matches": matches, "requires_confirmation": bool(matches and not confirmed),
+                "removed_things": matches if confirmed else [], "scope": "saved_details_names_and_extracted_text",
+                "message": (f"Removed {removed} saved thing{'s' if removed != 1 else ''}: " + ", ".join(m["name"] for m in matches) + ".")
+                if removed else "Review the matching things and their files before deleting." if matches else "No saved things matched these words."}
 
     def export(self) -> bytes:
         with self._tx() as conn:

@@ -2671,7 +2671,8 @@
     "things.choose_saved": "Choose a saved thing from the list.",
     "things.specs_needed": "Enter the saved specifications and the words on the box as detail: value lines.",
     "things.fits_not_verified": "Overall compatibility has not been verified; matching words alone do not prove that it fits.",
-    "things.order_items_needed": "No order items were saved. Enter one item per line in the saved order details."
+    "things.order_items_needed": "No order items were saved. Enter one item per line in the saved order details.",
+    "things.photo_unavailable": "Reading words in photos is not available on this computer. Enter the details yourself."
   },
   "html_keys": [
     "bypass.modal_limits",

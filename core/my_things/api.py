@@ -58,6 +58,9 @@ def action(path, body):
         if body.get("confirm") is not True:
             raise ThingsError("confirmation_required", "Confirm that you want to delete this thing and its files.", 409)
         result = store.delete(body.get("id"), body.get("revision"))
+    elif name == "forget":
+        _only(body, {"target", "confirm", "expected"})
+        result = store.forget(body.get("target"), confirm=body.get("confirm") is True, expected=body.get("expected"))
     elif name == "file":
         _only(body, {"id", "file_id"})
         from urllib.parse import quote

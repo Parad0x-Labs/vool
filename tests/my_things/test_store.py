@@ -53,10 +53,15 @@ def test_forget_erases_matching_text_and_preserves_unrelated_unreadable_files(st
     store.save({"name": "One"}, files=[file_payload("a.txt", b"erase-CEDAR-8172", "receipt")])
     unknown = store.save({"name": "Two"}, files=[file_payload("unknown.bin", b"\xff\x00opaque", "manual")])
     keep = store.save({"name": "Keep this"})
-    assert store.forget("CEDAR-8172") == {"status": "incomplete", "removed": 1, "unreadable_files": 1}
+    preview = store.forget("CEDAR-8172")
+    assert preview["requires_confirmation"] and preview["removed"] == 0
+    result = store.forget("CEDAR-8172", confirm=True, expected=preview["matches"])
+    assert result["status"] == "verified" and result["removed"] == 1
     assert {r["id"] for r in store.list()} == {keep["id"], unknown["id"]}
     assert store.forget("CEDAR-8172")["removed"] == 0
-    assert store.forget("Two") == {"status": "verified", "removed": 1}
+    preview = store.forget("Two")
+    result = store.forget("Two", confirm=True, expected=preview["matches"])
+    assert result["status"] == "verified" and result["removed"] == 1
     assert [r["id"] for r in store.list()] == [keep["id"]]
 
 
@@ -126,7 +131,9 @@ def test_symlinked_object_storage_refuses_before_writing_outside_store(store, tm
 
 def test_forget_normalizes_unicode_and_matches_values_with_quotes(store):
     store.save({"name": 'Ｈｅａｄｐｈｏｎｅｓ "Cedar"'})
-    assert store.forget('headphones "cedar"') == {"status": "verified", "removed": 1}
+    preview = store.forget('headphones "cedar"')
+    result = store.forget('headphones "cedar"', confirm=True, expected=preview["matches"])
+    assert result["status"] == "verified" and result["removed"] == 1
     assert store.list() == []
 
 
@@ -167,6 +174,7 @@ def test_forget_collects_interrupted_encrypted_revisions_and_temporary_copies(st
         interrupted = orphan.with_name(".interrupted.tmp")
         interrupted.write_bytes(orphan.read_bytes())
     assert orphan.exists() and interrupted.exists()
-    assert store.forget("ORCHARD-47291") == {"status": "verified", "removed": 0}
+    result = store.forget("ORCHARD-47291")
+    assert result["status"] == "verified" and result["removed"] == 0
     assert not orphan.exists() and not interrupted.exists()
     assert store.get(item["id"])["name"] == "Current record"
