@@ -3144,6 +3144,12 @@ def _credential_page_refusal(headers: dict[str, Any] | None, client_host: str) -
 _CHAT_SLOT_HELD: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
     "vool_chat_slot_held", default=None
 )
+# The queued message a /api/chat request's dispatch consumed the claim of, as the mutable record
+# core.runtime_continuity.finish_consumed_queue_item finishes once BOTH the turn and the request
+# have ended. Set by the chat door; read by dispatch_post at the request's end.
+_CONSUMED_QUEUE_ITEM: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "vool_consumed_queue_item", default=None
+)
 
 
 def dispatch_post(
@@ -3387,6 +3393,7 @@ def dispatch_post(
     _req_token = None
     _transcript_request_id = ""
     _transcript_flush_deferred = False
+    _consumed_queue_record: dict[str, Any] | None = None
     # The app language the page chose (its vool_ui_locale cookie) for this one request: chat
     # commands VOOL answers itself (core.i18n.turn_locale) speak it. Bound before the turn's
     # ingress context is captured, so the streaming worker sees it too.
@@ -3500,6 +3507,7 @@ def dispatch_post(
             _transcript_request_id = ""
 
         _chat_slot_scope = _CHAT_SLOT_HELD.set(None)
+        _consumed_queue_scope = _CONSUMED_QUEUE_ITEM.set(None)
         try:
             _response = _dispatch_post_inner(
                 path=path,
@@ -3520,6 +3528,8 @@ def dispatch_post(
                 request_id=_r2_request_id,
             )
         finally:
+            _consumed_queue_record = _CONSUMED_QUEUE_ITEM.get()
+            _CONSUMED_QUEUE_ITEM.reset(_consumed_queue_scope)
             _held_slot = _CHAT_SLOT_HELD.get()
             _CHAT_SLOT_HELD.reset(_chat_slot_scope)
             if _held_slot is not None:
@@ -3543,6 +3553,11 @@ def dispatch_post(
                 _transcript_request_id, _response.stream
             )
             _transcript_flush_deferred = True
+        if _consumed_queue_record is not None and _response.stream is not None:
+            # A streamed turn's request ends with its stream: report it there, outside the
+            # transcript flush, so the queue row finishes only after the answer is recorded.
+            _response.stream = _finish_consumed_queue_item_after(_consumed_queue_record, _response.stream)
+            _consumed_queue_record = None
         return _response
     finally:
         reset_turn_locale(_turn_locale_token)
@@ -3550,6 +3565,9 @@ def dispatch_post(
             if _transcript_request_id and not _transcript_flush_deferred:
                 _flush_staged_transcript_rows(_transcript_request_id)
             _CURRENT_REQUEST_ID.reset(_req_token)
+        if _consumed_queue_record is not None:
+            # The buffered (or refused) request ended here, after its transcript flush.
+            _finish_consumed_queue_item(_consumed_queue_record, party="request")
         if _council_admission is not None:
             _council_admission.release()
 
@@ -4023,6 +4041,34 @@ def _flush_staged_transcript_after(request_id: str, stream: Iterable[bytes]) -> 
         yield from stream
     finally:
         _flush_staged_transcript_rows(request_id)
+
+
+def _finish_consumed_queue_item(record: Any, *, party: str, status: str = "", cancel_event: Any = None) -> None:
+    """Report one party's end (``turn`` or ``request``) for the queued message whose claim this
+    request's dispatch consumed. The row is finished only once both have ended -- the request's
+    end comes after the transcript's request-end flush and the private-chat scrub -- so a drained
+    queue always means a recorded answer, and the row never stays in flight when the page that
+    sent it is gone (the streaming worker reports its end from core/web/api/runtime.py)."""
+    if not isinstance(record, dict):
+        return
+    if status and cancel_event is not None and cancel_event.is_set():
+        status = "cancelled"
+    try:
+        from core.runtime_continuity import finish_consumed_queue_item
+
+        finish_consumed_queue_item(record, party=party, status=status)
+    except Exception:
+        logging.getLogger("vool.api").exception("could not finish queued message %s", record.get("queue_item_id"))
+
+
+def _finish_consumed_queue_item_after(record: dict[str, Any], stream: Iterable[bytes]) -> Iterator[bytes]:
+    """Yield ``stream`` through, then report the request's end for its consumed queue item.
+    Wrapped OUTSIDE the transcript flush, so its ``finally`` runs after that flush (on
+    exhaustion, on a client disconnect, and on collection of an unfinished generator)."""
+    try:
+        yield from stream
+    finally:
+        _finish_consumed_queue_item(record, party="request")
 
 
 def _release_admission_after(admission: Any, stream: Iterable[bytes]) -> Iterator[bytes]:
@@ -8135,6 +8181,17 @@ def _dispatch_post_inner(
         # the caller's turn id: a request that holds no reservation (or names another turn's id)
         # must not free one. Stamped unconditionally, so a caller-sent copy never survives.
         source_context["chat_admission_token"] = _admit_turn_id if _admission.get("admitted") else ""
+        # A queued dispatch that consumed its item's claim: the server finishes that queue row once
+        # both the turn (the streaming worker in core/web/api/runtime.py, the buffered lane below)
+        # and the request (dispatch_post, after the transcript flush) have ended, so it never
+        # depends on the page that sent it still being open. Stamped unconditionally, like the token.
+        _consumed_qid = (
+            str(body.get("queue_item_id") or "").strip()[:200]
+            if _admission.get("admitted") and str(_admission.get("reason") or "").startswith("claim_consumed")
+            else ""
+        )
+        source_context["consumed_queue_item"] = {"queue_item_id": _consumed_qid, "status": "failed"} if _consumed_qid else None
+        _CONSUMED_QUEUE_ITEM.set(source_context["consumed_queue_item"])
         if not _admission.get("admitted"):
             return apply_runtime_headers(
                 json_response(
@@ -8459,6 +8516,7 @@ def _dispatch_post_inner(
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
         if _buf_task_turn:
             _buf_followups.begin_task(session_id, _buf_cancel_turn, user_text)
+        _buf_queue_status = "failed"
         try:
             with _update_turn_guard(source_context, session_id):
                 result = run_agent_provider(
@@ -8468,6 +8526,7 @@ def _dispatch_post_inner(
                     source_context=source_context,
                     workspace_root_provider=workspace_root_provider,
                 )
+            _buf_queue_status = "completed"
         except Exception as exc:
             # A served turn that dies as a bare 500 leaves no trace anywhere -- measured
             # 2026-09-03: a concurrent-edit journey lost one turn to a FileNotFoundError and
@@ -8482,6 +8541,12 @@ def _dispatch_post_inner(
                 _release_turn_admission()  # the buffered lane's admission ends with its registration
             if _buf_task_turn:
                 _buf_followups.end_task(session_id, _buf_cancel_turn)
+            _finish_consumed_queue_item(
+                source_context.get("consumed_queue_item"),
+                party="turn",
+                status=_buf_queue_status,
+                cancel_event=source_context.get("cancel_event"),
+            )
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)

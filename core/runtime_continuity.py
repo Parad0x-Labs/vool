@@ -3360,7 +3360,10 @@ def claim_next_message(session_id: str, *, lease_owner: str = "", turn_id: str =
             conn.close()
 
 
-def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dict[str, Any] | None:
+def complete_queue_item(queue_item_id: str, *, status: str = "completed", only_in_flight: bool = False) -> dict[str, Any] | None:
+    """Mark a queued message finished. ``only_in_flight`` is the server's own end-of-turn call
+    for a dispatch that consumed the item's claim: it finishes the row only while it is still
+    in flight, so it never overwrites a terminal status the page already wrote."""
     clean = str(queue_item_id or "").strip()
     valid = status if status in {"completed", "failed", "cancelled"} else "completed"
     with _LOCK:
@@ -3368,7 +3371,11 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dic
         try:
             row = conn.execute("SELECT session_id FROM message_queue WHERE queue_item_id = ? LIMIT 1", (clean,)).fetchone()
             now = _utcnow()
-            conn.execute("UPDATE message_queue SET status = ?, updated_at = ?, completed_at = ? WHERE queue_item_id = ?", (valid, now, now, clean))
+            conn.execute(
+                "UPDATE message_queue SET status = ?, updated_at = ?, completed_at = ? WHERE queue_item_id = ?"
+                + (" AND status = 'in_flight'" if only_in_flight else ""),
+                (valid, now, now, clean),
+            )
             _blank_private_queue_text(conn, clean)
             conn.commit()
         finally:
@@ -3381,6 +3388,38 @@ def complete_queue_item(queue_item_id: str, *, status: str = "completed") -> dic
             if record is not None and record.get("kind") == "claim" and str(record["token"]) == clean:
                 _ADMITTED_TURNS.pop(str(row["session_id"]), None)
     return get_queue_item(clean)
+
+
+_CONSUMED_QUEUE_FINISH_LOCK = threading.Lock()
+
+
+def finish_consumed_queue_item(record: Any, *, party: str, status: str = "") -> dict[str, Any] | None:
+    """The server's own end for a queued message whose claim a dispatch consumed.
+
+    Two parties must both be done before the row may leave ``in_flight``: the TURN (its worker's
+    end, which knows the outcome) and the REQUEST (its end, after the transcript's request-end
+    flush and the private-chat scrub). Finishing at the turn's end alone was too early: the
+    streamed answer is sealed into the transcript by the response generator only after the
+    worker hands it the result, so a drained queue did not yet mean a recorded answer, and a
+    private chat's request-end scrub then erased a row it would otherwise have blanked.
+    ``record`` is the mutable dict the chat door stamped; the page's own ``complete`` op stays
+    valid and whichever lands first wins (``only_in_flight``)."""
+    if not isinstance(record, dict):
+        return None
+    qid = str(record.get("queue_item_id") or "").strip()
+    if not qid or party not in {"turn", "request"}:
+        return None
+    with _CONSUMED_QUEUE_FINISH_LOCK:
+        if status:
+            record["status"] = status
+        arrived = set(record.get("arrived") or ())
+        arrived.add(party)
+        record["arrived"] = sorted(arrived)
+        if arrived != {"turn", "request"} or record.get("finished"):
+            return None
+        record["finished"] = True
+        final = str(record.get("status") or "failed")
+    return complete_queue_item(qid, status=final, only_in_flight=True)
 
 
 def _blank_private_queue_text(conn: Any, queue_item_id: str) -> None:

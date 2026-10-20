@@ -3489,12 +3489,17 @@ def _stream_agent_with_events_inner(
     # suspended at disconnect. See core/live_turns.py.
     from core import followup_continuity
     from core.live_turns import register_turn, unregister_turn
-    from core.runtime_continuity import release_chat_turn_admission
+    from core.runtime_continuity import finish_consumed_queue_item, release_chat_turn_admission
 
     cancel_turn_id = str(stream_context.get("cancel_turn_id") or "").strip()
     # The chat's one-slot admission this turn holds, stamped by the chat door (empty when the
     # request took none: a brake, a side answer, a caller that waited at the session gate).
     admission_token = str(stream_context.get("chat_admission_token") or "").strip()
+    # The queued message this turn consumed the claim of (None for a direct send). The worker's
+    # end reports the turn's outcome; the row is finished once the request has also ended (after
+    # the transcript seal and flush), so it never stays in flight when the page that sent it
+    # closed or reloaded mid-turn (only the page used to complete it).
+    consumed_queue_item = stream_context.get("consumed_queue_item")
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
     is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
     if cancel_turn_id:
@@ -3507,6 +3512,17 @@ def _stream_agent_with_events_inner(
         if is_task_turn:
             followup_continuity.end_task(session_id, cancel_turn_id)
 
+    def _finish_consumed_queue_item(status: str) -> None:
+        if not isinstance(consumed_queue_item, dict):
+            return
+        cancel_event = stream_context.get("cancel_event")
+        if cancel_event is not None and cancel_event.is_set():
+            status = "cancelled"
+        try:
+            finish_consumed_queue_item(consumed_queue_item, party="turn", status=status)
+        except Exception:
+            logging.getLogger("vool.api").exception("could not finish queued message %s", consumed_queue_item.get("queue_item_id"))
+
     def sink(event: dict[str, Any]) -> None:
         if is_task_turn and str((event or {}).get("event_type") or "") != "model_output_chunk":
             followup_continuity.note_progress(
@@ -3516,15 +3532,18 @@ def _stream_agent_with_events_inner(
 
     def worker() -> None:
         def _body() -> None:
+            queue_status = "failed"
             try:
                 agent_runner = run_agent_provider or run_agent
                 result = agent_runner(runtime, user_text, session_id=session_id, source_context=stream_context)
+                queue_status = "completed"
                 event_queue.put(("result", result))
             except Exception as exc:
                 # Make it chat-safe HERE, where the exception object still exists, so the class name
                 # (the genuinely useful, safe part) survives while paths and credentials do not.
                 event_queue.put(("error", safe_error_text(exc)))
             finally:
+                _finish_consumed_queue_item(queue_status)
                 # The turn is genuinely over -- completed, failed or cancelled. This is the ONLY place
                 # the live-turn entry is released, so it can neither leak nor disappear early. Its
                 # ADMISSION ends with it (token-checked): the chat's one-slot reservation was taken

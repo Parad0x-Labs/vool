@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from urllib.parse import parse_qs
 
+import anyio
 import anyio.to_thread
 from anyio import CapacityLimiter
 from starlette.applications import Starlette
@@ -76,9 +77,38 @@ async def _run_dispatch(dispatcher: Callable[..., ApiResponse], *, liveness: boo
     )
 
 
+class _ClosingStreamingResponse(StreamingResponse):
+    """A streamed reply whose blocking generator is CLOSED when the response ends, however it ends.
+
+    Starlette pulls a sync stream through a thread and, when the client disconnects (a closed
+    tab, a reload), simply stops pulling: the generator stays parked at its last ``yield`` until
+    garbage collection happens to finalize it, which can be never in practice. Every request-end
+    ``finally`` in the stream chain -- the transcript flush, the council admission release, the
+    queued message's request-end report, the stream's own sink cleanup -- is documented to run "on
+    a client disconnect (GeneratorExit)", and only does once something closes the generator.
+    Closing it here, after Starlette has finished with it (no pull is in flight then), makes that
+    true. ``close`` on an exhausted generator is a no-op."""
+
+    def __init__(self, content, *args, **kwargs) -> None:
+        self._closable_stream = content
+        super().__init__(content, *args, **kwargs)
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            close = getattr(self._closable_stream, "close", None)
+            if callable(close):
+                with anyio.CancelScope(shield=True):
+                    try:
+                        await anyio.to_thread.run_sync(close)
+                    except Exception:
+                        logging.getLogger(__name__).exception("closing a finished response stream failed")
+
+
 def _starlette_response(response: ApiResponse) -> Response:
     if response.stream is not None:
-        return StreamingResponse(response.stream, status_code=response.status, media_type=response.content_type, headers=response.headers)
+        return _ClosingStreamingResponse(response.stream, status_code=response.status, media_type=response.content_type, headers=response.headers)
     payload = response.body or b""
     return Response(payload, status_code=response.status, media_type=response.content_type, headers=response.headers)
 
