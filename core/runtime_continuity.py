@@ -266,6 +266,33 @@ def append_runtime_event(
     details: dict[str, Any] | None = None,
     created_at: str | None = None,
 ) -> dict[str, Any]:
+    """Append one event under ONE governance read scope.
+
+    Every string the event carries is gated (the message, each string in its details, then all of
+    them again at the durable boundary), and each verdict opened its own SQLite connection: one
+    ordinary no-model turn made about a thousand of them. The scope shares one connection across
+    those checks; each verdict is still read fresh and never cached.
+    """
+    from core.finalization import availability_read_scope
+
+    with availability_read_scope():
+        return _append_runtime_event(
+            session_id=session_id,
+            event_type=event_type,
+            message=message,
+            details=details,
+            created_at=created_at,
+        )
+
+
+def _append_runtime_event(
+    *,
+    session_id: str,
+    event_type: str,
+    message: str,
+    details: dict[str, Any] | None,
+    created_at: str | None,
+) -> dict[str, Any]:
     clean_session_id = str(session_id or "").strip()
     if not clean_session_id:
         raise ValueError("session_id is required")
@@ -897,6 +924,44 @@ def update_runtime_checkpoint(
     failure_text: str | None = None,
     outcome: dict[str, Any] | None = None,
     resume_count: int | None = None,
+) -> dict[str, Any] | None:
+    """Update one checkpoint under ONE governance read scope (see `append_runtime_event`): the
+    final response and every source-context string are gated twice."""
+    from core.finalization import availability_read_scope
+
+    with availability_read_scope():
+        return _update_runtime_checkpoint(
+            checkpoint_id,
+            task_id=task_id,
+            task_class=task_class,
+            source_context=source_context,
+            status=status,
+            step_count=step_count,
+            last_tool_name=last_tool_name,
+            pending_intent=pending_intent,
+            state=state,
+            final_response=final_response,
+            failure_text=failure_text,
+            outcome=outcome,
+            resume_count=resume_count,
+        )
+
+
+def _update_runtime_checkpoint(
+    checkpoint_id: str,
+    *,
+    task_id: str | None,
+    task_class: str | None,
+    source_context: dict[str, Any] | None,
+    status: str | None,
+    step_count: int | None,
+    last_tool_name: str | None,
+    pending_intent: dict[str, Any] | None,
+    state: dict[str, Any] | None,
+    final_response: str | None,
+    failure_text: str | None,
+    outcome: dict[str, Any] | None,
+    resume_count: int | None,
 ) -> dict[str, Any] | None:
     current = get_runtime_checkpoint(checkpoint_id)
     if not current:
