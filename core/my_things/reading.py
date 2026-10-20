@@ -2,26 +2,70 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
-from pathlib import PurePath
+from contextlib import contextmanager
+from pathlib import Path, PurePath
 
-from core.artifact_readers import image, read
+from core.artifact_readers import image
 from core.artifact_readers._types import ReaderFailed, ReaderRefused, ReaderResult, ReaderUnavailable, ReaderUnit
 from core.my_things.store import ThingsError
 
 MAX_TEXT = 32000
 
 
+@contextmanager
+def _reading_scratch(prefix):
+    from core.my_things.store import _private
+    from core.runtime_paths import active_data_dir
+
+    parent = active_data_dir() / "my_things"
+    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    _private(parent, 0o700)
+    root = parent / "read_scratch"
+    root.mkdir(exist_ok=True, mode=0o700)
+    _private(root, 0o700)
+    scratch = Path(tempfile.mkdtemp(prefix=prefix, dir=root))
+    try:
+        yield scratch
+    finally:
+        shutil.rmtree(scratch)
+
+
+def _read_document(data, name, extension):
+    from core.runtime_paths import active_vool_home
+
+    # The shared readers choose TMPDIR internally. Give only this operation its
+    # own process environment and umask; never mutate server-wide temp settings.
+    with _reading_scratch("document-") as scratch:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "core.my_things.read_worker", name, extension],
+                input=data, capture_output=True,
+                env=dict(os.environ, TMPDIR=str(scratch), VOOL_HOME=str(active_vool_home()), PYTHONDONTWRITEBYTECODE="1"),
+                umask=0o077 if os.name == "posix" else -1, timeout=360, check=False,
+            )
+            if result.returncode:
+                raise ReaderFailed("Local file reading failed.", code="reader_worker_failed")
+            reading = json.loads(result.stdout)
+            if reading.get("error") == "unavailable":
+                raise ReaderUnavailable("Local file reading is unavailable.")
+            if reading.get("error"):
+                raise ReaderFailed("Local file reading failed.")
+            return reading
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise ReaderFailed("Local file reading failed.", code="reader_worker_failed") from exc
+
+
 def _read_image(data: bytes, name: str):
     """Use the existing confined OCR API with private, caller-owned scratch."""
     from core.artifact_readers._sandbox import extraction_budget
     from core.artifact_readers.vision_tool import OCR_MAX_EDGE, TOOL_VERSION, ocr_available, ocr_text_with_confidence
-    from core.my_things.store import _private
-    from core.runtime_paths import active_data_dir
-
     width, height = image.dimensions(data)  # includes the existing decompression-bomb refusal
     if not ocr_available():
         raise ReaderUnavailable("Local photo reading is unavailable.", code="ocr_unavailable")
@@ -31,16 +75,7 @@ def _read_image(data: bytes, name: str):
         raise ReaderUnavailable("Local photo decoding is unavailable.", code="image_decoder_unavailable") from None
     if not width or not height:
         raise ReaderRefused("This photo cannot be decoded.", code="invalid_image")
-    parent = active_data_dir() / "my_things"
-    parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    _private(parent, 0o700)
-    root = parent / "read_scratch"
-    root.mkdir(exist_ok=True, mode=0o700)
-    _private(root, 0o700)
-    from pathlib import Path
-
-    scratch = Path(tempfile.mkdtemp(prefix="photo-", dir=root))
-    try:
+    with _reading_scratch("photo-") as scratch:
         with extraction_budget(scratch=scratch):
             with Image.open(io.BytesIO(data)) as original:
                 frame = original.convert("RGB")
@@ -55,8 +90,6 @@ def _read_image(data: bytes, name: str):
             return ReaderResult(fmt="image", extractor=f"{facts['engine']} {TOOL_VERSION}",
                                 units=(ReaderUnit(locator=f"text in {name}", kind="section", text=text),),
                                 meta={"ocr": facts})
-    finally:
-        shutil.rmtree(scratch)
 
 
 def read_local(data: bytes, name: str) -> dict:
@@ -71,11 +104,17 @@ def read_local(data: bytes, name: str) -> dict:
         return {"state": "read", "text": text, "source": "attached text", "warnings": []}
     try:
         is_image = extension in {".png", ".jpg", ".jpeg", ".gif", ".webp"} or data.startswith((b"\x89PNG\r\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a")) or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")
-        result = _read_image(data, name) if is_image else read(data, name=name, extension=extension)
+        if not is_image:
+            return _read_document(data, name, extension)
+        result = _read_image(data, name)
     except ReaderUnavailable:
         return {"state": "unavailable", "text": "", "message": "Reading the words in this photo is not available on this computer. Enter its model or serial number instead."}
     except (ReaderFailed, ReaderRefused):
         return {"state": "unreadable", "text": "", "message": "The words in this file could not be read safely. Try a clearer photo, or enter them yourself."}
+    return _summarize(result)
+
+
+def _summarize(result):
     text = "\n".join(unit.text for unit in result.units)
     ocr = result.meta.get("ocr", {})
     if not text.strip():
