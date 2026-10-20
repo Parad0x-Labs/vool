@@ -271,10 +271,33 @@ _REMINISCENCE_OPENER_RE = re.compile(
 # "forget it" / "forget about it" is the idiom for "never mind", not an erase command: "forget
 # about it, tell me a joke instead" used to run a memory erase and answer "Forget applied".
 _FORGET_RE = re.compile(r"^(?:forget|erase)\s+(?!(?:about\s+)?it\b)(.+)$", re.IGNORECASE)
+# "Forget A. Forget B." and "Forget A and forget B" name two targets. Only an explicit forget verb after a
+# sentence end or an "and"/"then" starts the next one; "Forget salt and pepper" stays one target.
+_FORGET_NEXT_TARGET_RE = re.compile(
+    r"(?:[.!?;]+\s+|,?\s+(?:and|then)\s+)(?:(?:and|also|then|please)\s+)*(?=(?:forget|erase)\s+\S)",
+    re.IGNORECASE,
+)
+# What a forget may report as removed memory entries when no entry or semantic record matched: copies VOOL's
+# memory derived from what it held. The chat's own history is scrubbed of the words as well, but those rows
+# are no memory the user stored (see _FORGET_CHAT_HISTORY_STORES).
+_FORGET_MEMORY_DERIVATIVE_STORES = (
+    "structured_summaries", "session_summaries", "memory_receipts", "memory_fts", "source_fts",
+    "dialogue_topic_archives", "learning_shards", "user_heuristics", "operator_dense_profile",
+)
+_FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives", "context_pages", "chat_session_metadata")
 _FORGET_TARGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:identifier|code|marker|private\s+marker|label|port|number|phrase|value|fact|token)\s+"
     r"(?P<value>.+?)"
+    r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
+    re.IGNORECASE,
+)
+# "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value
+# carrying a digit is taken, so a sentence ("forget that the code changed") is never narrowed to one word.
+_FORGET_DESCRIBED_VALUE_RE = re.compile(
+    r"^(?:the\s+|my\s+)?(?:old\s+|previous\s+|exact\s+)?(?:[a-z][a-z'-]*\s+){0,2}"
+    r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+(?:is\s+)?"
+    r"(?P<value>[^\s\d]*\d\S*)"
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
@@ -544,13 +567,57 @@ def _forget_target_without_preservation_clause(raw_target: str) -> str:
     return _without_forget_reason_tail(target).strip(" .,!?;:")
 
 
+def _forget_command_arguments(text: str) -> list[str]:
+    """The targets one forget command names, in order; [] when the text is no forget command."""
+    parsed = _FORGET_RE.match(text)
+    if parsed is None:
+        return []
+    arguments: list[str] = []
+    seen: set[str] = set()
+    for clause in _FORGET_NEXT_TARGET_RE.split(text):
+        match = _FORGET_RE.match(clause.strip())
+        if match is None:
+            return [parsed.group(1)]
+        key = " ".join(_normalize_forget_target(match.group(1)).casefold().split())
+        if key not in seen:
+            seen.add(key)
+            arguments.append(match.group(1))
+    return arguments
+
+
+def _combined_forget_result(results: list[tuple[str, str, dict[str, Any]]]) -> tuple[str, str, dict[str, Any]]:
+    """One reply for a forget that named several targets; each target's own outcome is kept."""
+    statuses = [status for _, status, _ in results]
+    stores: dict[str, Any] = {}
+    for _, _, erasures in results:
+        for name, result in erasures.get("stores", {}).items():
+            # A store is verified for the turn only when it was verified for every target.
+            if stores.get(name, {}).get("status") != "incomplete":
+                stores[name] = result
+    for status in ("failed", "partial", "not_started", "needs_target", "applied", "already_erased", "no_match"):
+        if status in statuses:
+            combined = status
+            break
+    else:
+        combined = statuses[-1]
+    if combined == "failed" and "applied" in statuses:
+        combined = "partial"
+    applied = [reply for reply, status, _ in results if status == "applied"]
+    if len(applied) == len(results):
+        removed = sum(int(re.search(r"Removed (\d+)", reply).group(1)) for reply in applied)
+        reply = f"Forget applied. Removed {removed} memory entr{'y' if removed == 1 else 'ies'}."
+    else:
+        reply = "\n".join(reply for reply, _, _ in results)
+    return reply, combined, {"stores": stores}
+
+
 def _normalize_forget_target(raw_target: str) -> str:
     """Extract the value from natural forget wording without broad deletion."""
     target = _forget_target_without_preservation_clause(raw_target)
     # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
     # lead-in is how people say it, not part of anything they stored.
     target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
-    match = _FORGET_TARGET_RE.fullmatch(target)
+    match = _FORGET_TARGET_RE.fullmatch(target) or _FORGET_DESCRIBED_VALUE_RE.fullmatch(target)
     if match:
         target = match.group("value")
     target = re.sub(
@@ -1837,8 +1904,9 @@ def maybe_handle_memory_command(
 
         if turn_is_private(source_context, session_id):
             return True, localized_reply(REPLY_REMEMBER_REFUSED, source_context)
-    independent_operations = []
+    independent_groups: list[list[Any]] = []
     parsed_forget = _FORGET_RE.match(text)
+    forget_arguments = _forget_command_arguments(text)
     if parsed_forget:
         from pathlib import Path
 
@@ -1848,14 +1916,16 @@ def maybe_handle_memory_command(
         barrier_chat = str(getattr(access_policy, "chat_id", None) or session_id or (source_context or {}).get("chat_id") or "")
         homes = {active_vool_home(), Path(runtime_home).resolve() if runtime_home else active_vool_home()}
         try:
-            # Durable before even policy resolution can open an owner database.
-            independent_operations = revocation.begin_group(
-                barrier_chat, _normalize_forget_target(parsed_forget.group(1)), homes,
-            )
+            # Durable before even policy resolution can open an owner database. A later target's barrier starts
+            # when that target's erasure does: a pending barrier fences every write carrying its words, so it
+            # would refuse the rewrite of the stores the earlier target is erased from.
+            independent_groups.append(revocation.begin_group(
+                barrier_chat, _normalize_forget_target(forget_arguments[0]), homes,
+            ))
         except Exception as exc:
             return _forget_start_failure(
                 user_text, session_id=barrier_chat, source_context=source_context,
-                started=(bool(independent_operations) or getattr(exc, "started", True)
+                started=(any(independent_groups) or getattr(exc, "started", True)
                          or _forget_outcomes.admission(request=user_text, session=barrier_chat, source_context=source_context) is not None),
             )
     try:
@@ -2044,265 +2114,297 @@ def maybe_handle_memory_command(
             return True, "Locked in. I’ll remember that."
         return True, "I already had that in memory."
 
-    forget = _FORGET_RE.match(text)
-    if forget:
-        erasures: dict[str, Any] = {}
+    if parsed_forget:
+        def forget_target(argument: str, independent_operations: list[Any]) -> tuple[str, str, dict[str, Any]]:
+            """Forget one named target; the reply, its status and the erasure stores."""
+            erasures: dict[str, Any] = {}
 
-        def outcome(reply: str, status: str) -> tuple[bool, str]:
-            return True, _forget_outcomes.record(
-                reply, request=user_text, session=resolved_session,
-                source_context=source_context, argument=forget.group(1), status=status,
-                stores=erasures.get("stores", {}),
+            def outcome(reply: str, status: str) -> tuple[str, str, dict[str, Any]]:
+                return reply, status, erasures
+
+            referential, token = _referential_forget_token(
+                argument,
+                access_policy=resolved_policy,
             )
+            if referential and not token:
+                return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
+            if not referential:
+                token = _normalize_forget_target(argument)
+            if referential and token:
+                for home, _op in list(independent_operations):
+                    independent_operations.append((home, revocation.begin(resolved_session, token, home)))
+            if len(token) < 2:
+                return outcome("Forget command skipped: provide a clearer keyword.", "needs_target")
+            # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
+            # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
+            # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
+            from core.memory.entries import _record_erasure_store, _text_is_erased
+            from core.memory.files import memory_path
 
-        referential, token = _referential_forget_token(
-            forget.group(1),
-            access_policy=resolved_policy,
-        )
-        if referential and not token:
-            return outcome("Forget command needs the exact value because more than one matching memory is active.", "needs_target")
-        if not referential:
-            token = _normalize_forget_target(forget.group(1))
-        if referential and token:
-            for home, _op in list(independent_operations):
-                independent_operations.append((home, revocation.begin(resolved_session, token, home)))
-        if len(token) < 2:
-            return outcome("Forget command skipped: provide a clearer keyword.", "needs_target")
-        # Already forgotten (review 2026-10-07, crash-heal path): the canonical row is a tombstone, so the forget
-        # removes 0, but the mirror may still carry the plaintext and is healed by this very forget. That outcome
-        # is confirmed as "already forgotten", never reported as a no-match and never as "Forget applied".
-        from core.memory.entries import _record_erasure_store, _text_is_erased
-        from core.memory.files import memory_path
-
-        def _mirror_text() -> str:
-            try:
-                return memory_path().read_text(encoding="utf-8")
-            except FileNotFoundError:
-                return ""
-
-        operation_stores: list[tuple[str, Any, str]] = []
-        owner_stores: dict[str, Any] = {}
-        try:
-            from core.context_retrieval import _open_memory, _open_memory_for_runtime
-
-            runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
-            by_database: dict[str, Any] = {}
-            for owner, opener in (
-                ("semantic", lambda: _open_memory_for_runtime(runtime_home)),
-                ("structured", _open_memory),
-            ):
-                operation_store = opener()
-                if operation_store is None:
-                    raise RuntimeError("erasure operation store is unavailable")
-                database = str(operation_store.db_path.resolve())
-                if database in by_database:
-                    if operation_store is not by_database[database]:
-                        operation_store.close()
-                    owner_stores[owner] = by_database[database]
-                    continue
-                by_database[database] = operation_store
-                owner_stores[owner] = operation_store
-                operation_stores.append((owner, operation_store, ""))
-                operation_id = operation_store.begin_erasure(resolved_session, token)
-                operation_stores[-1] = (owner, operation_store, operation_id)
-        except Exception as exc:
-            LOGGER.warning("erasure operation could not start: %s", type(exc).__name__)
-            _record_erasure_store(erasures, "erasure_operations", "incomplete")
-            for owner, operation_store, _operation_id in operation_stores:
-                _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+            def _mirror_text() -> str:
                 try:
-                    operation_store.close()
-                except Exception as close_exc:
-                    LOGGER.warning("erasure connection close failed: %s", type(close_exc).__name__)
-            return outcome("Forget could not be verified as fully applied: erasure operations could not be recorded. Please retry the forget.", "failed")
+                    return memory_path().read_text(encoding="utf-8")
+                except FileNotFoundError:
+                    return ""
 
-        removed = 0
-        mirror_before = ""
-        mirror_after = ""
-        already_erased = False
-        try:
-            mirror_before = _mirror_text().lower()
-            already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
-            removed = forget_memory(
-                token,
-                access_policy=resolved_policy,
-                erasures=erasures,
-            )
-        except Exception as exc:
-            if not any(key.endswith("_failures") for key in erasures):
-                _record_erasure_store(erasures, "structured_entries", "incomplete")
-            LOGGER.warning("structured memory erasure failed: %s", type(exc).__name__)
-        try:
-            mirror_after = _mirror_text().lower()
-        except Exception as exc:
-            _record_erasure_store(erasures, "memory_mirror", "incomplete")
-            LOGGER.warning("memory mirror verification failed: %s", type(exc).__name__)
-        semantic_removed = 0
-        try:
-            from core.context_retrieval import forget_session_memory
-
-            semantic_removed = forget_session_memory(
-                resolved_session,
-                token,
-                access_policy=resolved_policy,
-                source_context=source_context,
-                store_status=erasures,
-            )
-        except Exception as exc:
-            LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
-            _record_erasure_store(erasures, "semantic_nodes", "incomplete")
-        memory_entries.forget_profile_derivatives(token, access_policy=resolved_policy, erasures=erasures)
-        _forget_persisted_copies(token, chat_id=resolved_session, erasures=erasures)
-        try:
-            from storage.swarm_memory import _forget_sniffed_copies
-
-            _forget_sniffed_copies(token, resolved_session, erasures)
-        except Exception as exc:
-            LOGGER.warning("swarm dataset erasure failed: %s", type(exc).__name__)
-            from core.memory.entries import _record_erasure_store
-
-            _record_erasure_store(erasures, "swarm_sniffed_context", "incomplete")
-        from core.turn_context import forget_chat_context_pages
-
-        forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
-        from core.memory.run_history import STORE_PREFIX as RUN_HISTORY_PREFIX
-        from core.memory.run_history import UNCLASSIFIED_PREFIX, checkpoint_write_ahead_logs, forget_run_history
-
-        # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
-        # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
-        forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
-        for owner, operation_store in owner_stores.items():
-            block_status: dict[str, Any] = {}
+            operation_stores: list[tuple[str, Any, str]] = []
+            owner_stores: dict[str, Any] = {}
+            resuming = False
             try:
-                block_removed = operation_store._erase_forget_blocks(token)
-                operation_store.verify_forget_blocks(token, erasures=block_status)
-                _record_erasure_store(block_status, "memory_blocks", "verified", block_removed)
+                from core.context_retrieval import _open_memory, _open_memory_for_runtime
+
+                runtime_home = str((source_context or {}).get("runtime_home") or "").strip() or None
+                by_database: dict[str, Any] = {}
+                for owner, opener in (
+                    ("semantic", lambda: _open_memory_for_runtime(runtime_home)),
+                    ("structured", _open_memory),
+                ):
+                    operation_store = opener()
+                    if operation_store is None:
+                        raise RuntimeError("erasure operation store is unavailable")
+                    database = str(operation_store.db_path.resolve())
+                    if database in by_database:
+                        if operation_store is not by_database[database]:
+                            operation_store.close()
+                        owner_stores[owner] = by_database[database]
+                        continue
+                    by_database[database] = operation_store
+                    owner_stores[owner] = operation_store
+                    operation_stores.append((owner, operation_store, ""))
+                    # Read before this forget opens its own operation: an operation still open is an earlier forget
+                    # of these words that did not finish, and this one completes it.
+                    resuming = resuming or operation_store.erasure_pending(resolved_session, token)
+                    operation_id = operation_store.begin_erasure(resolved_session, token)
+                    operation_stores[-1] = (owner, operation_store, operation_id)
             except Exception as exc:
-                LOGGER.warning("prompt block verification failed: %s", type(exc).__name__)
-            result = block_status.get("stores", {}).get("memory_blocks", {"status": "incomplete"})
-            _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"], int(result.get("removed") or 0))
-        required_stores = (
-            "structured_entries", "structured_summaries", "memory_mirror", "semantic_nodes",
-            "source_occurrences", "memory_receipts", "conversation_log", "revocation_ledger",
-            "dialogue_derivatives", "session_summaries", "context_capsule_versions",
-            "memory_fts", "source_fts", "source_embeddings",
-            "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
-            "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history",
-        )
-        for store in required_stores:
-            if store not in erasures.get("stores", {}):
-                _record_erasure_store(erasures, store, "incomplete")
-        for owner, operation_store in owner_stores.items():
+                LOGGER.warning("erasure operation could not start: %s", type(exc).__name__)
+                _record_erasure_store(erasures, "erasure_operations", "incomplete")
+                for owner, operation_store, _operation_id in operation_stores:
+                    _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+                    try:
+                        operation_store.close()
+                    except Exception as close_exc:
+                        LOGGER.warning("erasure connection close failed: %s", type(close_exc).__name__)
+                return outcome("Forget could not be verified as fully applied: erasure operations could not be recorded. Please retry the forget.", "failed")
+
+            removed = 0
+            mirror_before = ""
+            mirror_after = ""
+            already_erased = False
             try:
-                if erasures.get("stores", {}).get("revocation_ledger", {}).get("status") != "verified":
+                mirror_before = _mirror_text().lower()
+                already_erased = _text_is_erased(token) or _text_is_erased(token.rstrip(".!?") + ".")
+                removed = forget_memory(
+                    token,
+                    access_policy=resolved_policy,
+                    erasures=erasures,
+                )
+            except Exception as exc:
+                if not any(key.endswith("_failures") for key in erasures):
+                    _record_erasure_store(erasures, "structured_entries", "incomplete")
+                LOGGER.warning("structured memory erasure failed: %s", type(exc).__name__)
+            try:
+                mirror_after = _mirror_text().lower()
+            except Exception as exc:
+                _record_erasure_store(erasures, "memory_mirror", "incomplete")
+                LOGGER.warning("memory mirror verification failed: %s", type(exc).__name__)
+            semantic_removed = 0
+            try:
+                from core.context_retrieval import forget_session_memory
+
+                semantic_removed = forget_session_memory(
+                    resolved_session,
+                    token,
+                    access_policy=resolved_policy,
+                    source_context=source_context,
+                    store_status=erasures,
+                )
+            except Exception as exc:
+                LOGGER.warning("semantic memory forget unavailable: %s", type(exc).__name__)
+                _record_erasure_store(erasures, "semantic_nodes", "incomplete")
+            memory_entries.forget_profile_derivatives(token, access_policy=resolved_policy, erasures=erasures)
+            _forget_persisted_copies(token, chat_id=resolved_session, erasures=erasures)
+            try:
+                from storage.swarm_memory import _forget_sniffed_copies
+
+                _forget_sniffed_copies(token, resolved_session, erasures)
+            except Exception as exc:
+                LOGGER.warning("swarm dataset erasure failed: %s", type(exc).__name__)
+                from core.memory.entries import _record_erasure_store
+
+                _record_erasure_store(erasures, "swarm_sniffed_context", "incomplete")
+            from core.turn_context import forget_chat_context_pages
+
+            forget_chat_context_pages(chat_id=resolved_session, token=token, erasures=erasures)
+            from core.memory.run_history import STORE_PREFIX as RUN_HISTORY_PREFIX
+            from core.memory.run_history import UNCLASSIFIED_PREFIX, checkpoint_write_ahead_logs, forget_run_history
+
+            # The runtime's record of each turn (events, checkpoints, attempts, obligation sets, finalized
+            # answers, notifications) held the forgotten words after "Forget applied" (measured 2026-10-14).
+            forget_run_history(token, chat_id=resolved_session, erasures=erasures, command=text)
+            for owner, operation_store in owner_stores.items():
+                block_status: dict[str, Any] = {}
+                try:
+                    block_removed = operation_store._erase_forget_blocks(token)
+                    operation_store.verify_forget_blocks(token, erasures=block_status)
+                    _record_erasure_store(block_status, "memory_blocks", "verified", block_removed)
+                except Exception as exc:
+                    LOGGER.warning("prompt block verification failed: %s", type(exc).__name__)
+                result = block_status.get("stores", {}).get("memory_blocks", {"status": "incomplete"})
+                _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"], int(result.get("removed") or 0))
+            required_stores = (
+                "structured_entries", "structured_summaries", "memory_mirror", "semantic_nodes",
+                "source_occurrences", "memory_receipts", "conversation_log", "revocation_ledger",
+                "dialogue_derivatives", "session_summaries", "context_capsule_versions",
+                "memory_fts", "source_fts", "source_embeddings",
+                "user_heuristics", "operator_dense_profile", "persisted_packet_cache_copies", "packet_receipt_ledgers",
+                "context_pages", "chat_session_metadata", "swarm_sniffed_context", "run_history",
+            )
+            for store in required_stores:
+                if store not in erasures.get("stores", {}):
+                    _record_erasure_store(erasures, store, "incomplete")
+            for owner, operation_store in owner_stores.items():
+                try:
+                    if erasures.get("stores", {}).get("revocation_ledger", {}).get("status") != "verified":
+                        _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
+                        continue
+                    operation_store.record_revocation(token, chat_id=resolved_session)
+                    from core.context_retrieval import _normalize_forget_token as normalize_revocation
+
+                    if normalize_revocation(token) not in operation_store.revoked_tokens(resolved_session, strict=True):
+                        raise RuntimeError("owner revocation write could not be verified")
+                    _record_erasure_store(erasures, f"{owner}_revocation_ledger", "verified")
+                except Exception as exc:
                     _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
-                    continue
-                operation_store.record_revocation(token, chat_id=resolved_session)
-                from core.context_retrieval import _normalize_forget_token as normalize_revocation
-
-                if normalize_revocation(token) not in operation_store.revoked_tokens(resolved_session, strict=True):
-                    raise RuntimeError("owner revocation write could not be verified")
-                _record_erasure_store(erasures, f"{owner}_revocation_ledger", "verified")
+                    LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
+            from core.memory.carriers import verify_forget_stores
+            verify_forget_stores(resolved_session, token, owner_memories=owner_stores, erasures=erasures)
+            # Last: the erased rows' old page images must not outlive the erasure in the -wal files.
+            checkpoint_write_ahead_logs(erasures, memories=by_database.values())
+            completed_stores = []
+            try:
+                if not any(key.endswith("_failures") and value for key, value in erasures.items()):
+                    for _owner, operation_store, operation_id in operation_stores:
+                        operation_store.complete_erasure(operation_id)
+                        completed_stores.append(operation_store)
+                    for home, operation_id in independent_operations:
+                        revocation.complete(operation_id, home)
+                    _record_erasure_store(erasures, "independent_revocation", "verified")
+                    for owner in owner_stores:
+                        _record_erasure_store(erasures, f"{owner}_erasure_operations", "verified")
+                    _record_erasure_store(erasures, "erasure_operations", "verified")
+                else:
+                    for owner in owner_stores:
+                        _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+                    _record_erasure_store(erasures, "erasure_operations", "incomplete")
             except Exception as exc:
-                _record_erasure_store(erasures, f"{owner}_revocation_ledger", "incomplete")
-                LOGGER.warning("erasure owner revocation failed: %s", type(exc).__name__)
-        from core.memory.carriers import verify_forget_stores
-        verify_forget_stores(resolved_session, token, owner_memories=owner_stores, erasures=erasures)
-        # Last: the erased rows' old page images must not outlive the erasure in the -wal files.
-        checkpoint_write_ahead_logs(erasures, memories=by_database.values())
-        completed_stores = []
-        try:
-            if not any(key.endswith("_failures") and value for key, value in erasures.items()):
-                for _owner, operation_store, operation_id in operation_stores:
-                    operation_store.complete_erasure(operation_id)
-                    completed_stores.append(operation_store)
-                for home, operation_id in independent_operations:
-                    revocation.complete(operation_id, home)
-                _record_erasure_store(erasures, "independent_revocation", "verified")
-                for owner in owner_stores:
-                    _record_erasure_store(erasures, f"{owner}_erasure_operations", "verified")
-                _record_erasure_store(erasures, "erasure_operations", "verified")
-            else:
+                LOGGER.warning("erasure completion could not be verified: %s", type(exc).__name__)
+                for operation_store in completed_stores:
+                    try:
+                        operation_store.begin_erasure(resolved_session, token)
+                    except Exception as restore_exc:
+                        LOGGER.warning("erasure owner barrier restore failed: %s", type(restore_exc).__name__)
                 for owner in owner_stores:
                     _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
                 _record_erasure_store(erasures, "erasure_operations", "incomplete")
-        except Exception as exc:
-            LOGGER.warning("erasure completion could not be verified: %s", type(exc).__name__)
-            for operation_store in completed_stores:
-                try:
-                    operation_store.begin_erasure(resolved_session, token)
-                except Exception as restore_exc:
-                    LOGGER.warning("erasure owner barrier restore failed: %s", type(restore_exc).__name__)
-            for owner in owner_stores:
-                _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
-            _record_erasure_store(erasures, "erasure_operations", "incomplete")
-        finally:
-            for owner, operation_store, _operation_id in operation_stores:
-                try:
-                    operation_store.close()
-                except Exception as exc:
-                    LOGGER.warning("verified erasure connection close failed: %s", type(exc).__name__)
-                    _record_erasure_store(erasures, f"{owner}_connection_close", "incomplete")
+            finally:
+                for owner, operation_store, _operation_id in operation_stores:
                     try:
-                        from core.vool_memory import VoolMemory
-
-                        barrier = VoolMemory(db_path=operation_store.db_path)
+                        operation_store.close()
+                    except Exception as exc:
+                        LOGGER.warning("verified erasure connection close failed: %s", type(exc).__name__)
+                        _record_erasure_store(erasures, f"{owner}_connection_close", "incomplete")
                         try:
-                            barrier.begin_erasure(resolved_session, token)
-                        finally:
-                            barrier.close()
-                    except Exception as barrier_exc:
-                        LOGGER.warning("close failure barrier restore failed: %s", type(barrier_exc).__name__)
-                        _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
-        total_removed = max(int(removed), int(semantic_removed),
-                            *(int(erasures.get(key) or 0) for key in ("structured_entries", "semantic_nodes", "source_occurrences")))
-        if total_removed <= 0:
-            total_removed = sum(int(erasures.get(key) or 0) for key in (
-                "structured_summaries", "session_summaries", "memory_receipts", "conversation_log", "dialogue_derivatives",
-                "memory_fts", "source_fts",
-                "user_heuristics", "operator_dense_profile", "context_pages", "chat_session_metadata",
-            ))
-            # Run-history rows count too: a retry that only finishes the run history (or erases words a
-            # late turn wrote back) removed rows and must not answer "Nothing was removed" (review of 9b78dac).
-            total_removed += sum(int(result.get("removed") or 0)
-                                 for name, result in erasures.get("stores", {}).items()
-                                 if name.startswith(("persisted_", RUN_HISTORY_PREFIX)) or name.endswith("_memory_blocks"))
-        incomplete = [store for store, result in erasures.get("stores", {}).items() if result["status"] == "incomplete"]
-        failed_stores = [store.replace("_", " ") for store in incomplete]
-        if failed_stores:
-            # A failed or unopened memory store is not an empty one: the value may still be held and recalled, so the
-            # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
-            # A chat table no erasure step knows cannot be cleared by a retry; the reply says so instead of asking
-            # for one (review of 9b78dac: every retry answered the same).
-            unknown = [store.removeprefix(UNCLASSIFIED_PREFIX).replace("_", " ") for store in incomplete
-                       if store.startswith(UNCLASSIFIED_PREFIX)]
-            # The erasure operation stays open whenever any store failed; it is a consequence, not a cause.
-            causes = [store for store in incomplete if not store.endswith("erasure_operations")]
-            if unknown and len(unknown) == len(causes):
-                closing = (". A retry will not clear " + ", ".join(unknown)
-                           + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
-            elif unknown:
-                closing = (". Please retry the forget; a retry will not clear " + ", ".join(unknown)
-                           + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
-            else:
-                closing = ". Please retry the forget."
-            return outcome("Forget could not be verified as fully applied: "
-                          + ", ".join(failed_stores) + " could not be erased and verified on this turn"
-                          + (f", after {total_removed} entr{'y was' if total_removed == 1 else 'ies were'} removed" if total_removed > 0 else "")
-                          + closing, "partial" if total_removed > 0 else "failed")
-        if total_removed <= 0:
-            healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
-            if already_erased or healed:
-                return outcome("That was already forgotten; a stale copy of it has now been cleared as well."
-                               if healed else "That was already forgotten.", "already_erased")
-            # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
-            # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
-            # command is answered with the truth; the turn is still recorded by the fast path, so the
-            # capsule's temporal law withdraws the record it names on the next recall.
-            # worded without a storage verb beside "memory": the final claim check reads "no stored memory" as a
-            # claim that something was stored, and replaced the forget reply (main's test_a_product_word_in_a_sentence_is_not_a_command.py)
-            return outcome(f'Nothing was removed. Forget found no memory in this chat that matched "{token}".', "no_match")
-        return outcome(f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}.", "applied")
+                            from core.vool_memory import VoolMemory
+
+                            barrier = VoolMemory(db_path=operation_store.db_path)
+                            try:
+                                barrier.begin_erasure(resolved_session, token)
+                            finally:
+                                barrier.close()
+                        except Exception as barrier_exc:
+                            LOGGER.warning("close failure barrier restore failed: %s", type(barrier_exc).__name__)
+                            _record_erasure_store(erasures, f"{owner}_erasure_operations", "incomplete")
+            total_removed = max(int(removed), int(semantic_removed),
+                                *(int(erasures.get(key) or 0) for key in ("structured_entries", "semantic_nodes", "source_occurrences")))
+            if total_removed <= 0:
+                total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_MEMORY_DERIVATIVE_STORES)
+                total_removed += sum(int(result.get("removed") or 0)
+                                     for name, result in erasures.get("stores", {}).items() if name.endswith("_memory_blocks"))
+            if total_removed <= 0 and resuming:
+                # Run-history rows count only when this forget finishes an earlier, unfinished forget of the
+                # same words: that retry removed rows and must not answer "Nothing was removed" (review of
+                # 9b78dac). Otherwise the chat's own history -- an earlier turn that quoted the words, the
+                # previous forget command itself -- is scrubbed but is no memory: counting it answered
+                # "Removed 2 memory entries" when nothing was stored (served 2026-10-19 at 153148eb).
+                total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_CHAT_HISTORY_STORES)
+                total_removed += sum(int(result.get("removed") or 0)
+                                     for name, result in erasures.get("stores", {}).items()
+                                     if name.startswith(("persisted_", RUN_HISTORY_PREFIX)))
+            incomplete = [store for store, result in erasures.get("stores", {}).items() if result["status"] == "incomplete"]
+            failed_stores = [store.replace("_", " ") for store in incomplete]
+            if failed_stores:
+                # A failed or unopened memory store is not an empty one: the value may still be held and recalled, so the
+                # reply never says nothing matched (review 2026-10-08: a denied read answered "found no memory").
+                # A chat table no erasure step knows cannot be cleared by a retry; the reply says so instead of asking
+                # for one (review of 9b78dac: every retry answered the same).
+                unknown = [store.removeprefix(UNCLASSIFIED_PREFIX).replace("_", " ") for store in incomplete
+                           if store.startswith(UNCLASSIFIED_PREFIX)]
+                # The erasure operation stays open whenever any store failed; it is a consequence, not a cause.
+                causes = [store for store in incomplete if not store.endswith("erasure_operations")]
+                if unknown and len(unknown) == len(causes):
+                    closing = (". A retry will not clear " + ", ".join(unknown)
+                               + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
+                elif unknown:
+                    closing = (". Please retry the forget; a retry will not clear " + ", ".join(unknown)
+                               + ": forget has no erasure step for " + ("that table" if len(unknown) == 1 else "those tables") + ".")
+                else:
+                    closing = ". Please retry the forget."
+                return outcome("Forget could not be verified as fully applied: "
+                              + ", ".join(failed_stores) + " could not be erased and verified on this turn"
+                              + (f", after {total_removed} entr{'y was' if total_removed == 1 else 'ies were'} removed" if total_removed > 0 else "")
+                              + closing, "partial" if total_removed > 0 else "failed")
+            if total_removed <= 0:
+                healed = bool(token.lower() in mirror_before and token.lower() not in mirror_after)
+                if already_erased or healed:
+                    return outcome("That was already forgotten; a stale copy of it has now been cleared as well."
+                                   if healed else "That was already forgotten.", "already_erased")
+                # Never "Forget applied" over nothing removed (served check 2026-10-07: "Forget the storage
+                # unit code I gave you, it is wrong." answered "Removed 0" and 5906 was still served). The
+                # command is answered with the truth; the turn is still recorded by the fast path, so the
+                # capsule's temporal law withdraws the record it names on the next recall.
+                # worded without a storage verb beside "memory": the final claim check reads "no stored memory" as a
+                # claim that something was stored, and replaced the forget reply (main's test_a_product_word_in_a_sentence_is_not_a_command.py)
+                return outcome(f'Nothing was removed. Forget found no memory in this chat that matched "{token}".', "no_match")
+
+            return outcome(f"Forget applied. Removed {total_removed} memory entr{'y' if total_removed == 1 else 'ies'}.", "applied")
+
+        results = [forget_target(forget_arguments[0], independent_groups[0])]
+        for argument in forget_arguments[1:]:
+            try:
+                operations = revocation.begin_group(barrier_chat, _normalize_forget_target(argument), homes)
+            except Exception as exc:
+                LOGGER.warning("forget barrier could not start: %s", type(exc).__name__)
+                results.append(("Forget could not be verified as fully applied: independent revocation authority is "
+                                "unavailable. Please retry the forget.", "failed",
+                                {"stores": {"independent_revocation": {"status": "incomplete", "removed": 0}}}))
+                continue
+            results.append(forget_target(argument, operations))
+        if len(results) == 1:
+            reply, status, erasures = results[0]
+        else:
+            for argument, (reply, status, erasures) in zip(forget_arguments, results, strict=True):
+                # Each named target is its own result: the turn's admission waits for every one of them.
+                _forget_outcomes.record(
+                    reply, request=user_text, session=resolved_session, source_context=source_context,
+                    argument=argument, status=status, stores=erasures.get("stores", {}),
+                )
+            reply, status, erasures = _combined_forget_result(results)
+        return True, _forget_outcomes.record(
+            reply, request=user_text, session=resolved_session,
+            source_context=source_context, argument=parsed_forget.group(1), status=status,
+            stores=erasures.get("stores", {}),
+        )
 
     return False, ""
 
