@@ -38,6 +38,7 @@ legacy ``daily_cap`` values do not restrict either manual or automatic calls.
 from __future__ import annotations
 
 import logging
+import math
 import uuid
 from dataclasses import replace
 from pathlib import Path
@@ -479,8 +480,15 @@ def settle_owner_pick_paid_call(
     actual_usd: float | None,
     source_context: dict[str, Any] | None = None,
     call_role: str = "",
+    invocation_id: str = "",
 ) -> None:
-    """Record a priced response; retain the hold for missing usage or earlier uncertain billing.
+    """Record one priced response exactly once; retain the hold for missing usage or uncertain billing.
+
+    ``invocation_id`` names the physical provider response (the router passes the id it mints once
+    per response). The ledger records it with the money in one transaction, so the same response
+    settled again books nothing, while a second physical call under a reservation that already
+    closed (a paid retry) is still charged. A settlement that names no invocation on a closed
+    reservation is recorded and flagged, because it cannot be told apart from a replay.
 
     A retry's usage cannot tell us what an earlier failed attempt cost. Keep that uncertainty
     durable instead of manufacturing a second charge from the successful attempt's price.
@@ -488,15 +496,42 @@ def settle_owner_pick_paid_call(
     model_call_id = str(getattr(authorization, "model_call_id", "") or "")
     if not model_call_id:
         return
+    invocation = str(invocation_id or "")
+    settled = None
     try:
         from core.model_spend_ledger import get_spend_reservation, settle_spend
 
         before = get_spend_reservation(model_call_id)
         _take_correction_hold(model_call_id)
         ambiguous = before is not None and before.status == "billing_ambiguous"
-        total = None if actual_usd is None else float(actual_usd) + (before.actual_usd if ambiguous else 0.0)
-        settled = settle_spend(model_call_id, actual_usd=total, billing_ambiguous=ambiguous)
+        options: dict[str, Any] = {"billing_ambiguous": ambiguous}
+        if ambiguous or invocation:
+            # The ledger re-reads the row inside its transaction: an earlier attempt that turned
+            # the row ambiguous after the read above keeps its hold and its known charges.
+            options["add_to_ambiguous"] = True
+        if invocation:
+            options["invocation_id"] = invocation
+        settled = settle_spend(model_call_id, actual_usd=actual_usd, **options)
+    except (ValueError, KeyError) as exc:
+        # The reservation is closed (or was never written): book the response as a later charge.
+        logger.info("paid call %s is not open for settlement (%r)", model_call_id, exc)
+    except Exception as exc:  # pragma: no cover - metering must never break a turn
+        # Nothing was committed: the reservation still holds its ceiling, which is the safe side.
+        logger.warning("paid call %s not settled (%s)", model_call_id, exc)
+        return
+    if settled is None:
+        # A historical closed (or missing) row: the response is real money and still has to enter
+        # the ledger, keyed on its invocation so a replay books nothing.
+        _post_supplemental_charge(authorization, usd=actual_usd, model_call_id=model_call_id, invocation_id=invocation)
         forget_paid_attempts(model_call_id)
+        return
+    forget_paid_attempts(model_call_id)
+    if getattr(settled, "replayed", False):
+        logger.info("paid call %s invocation %s already settled; nothing charged again", model_call_id, invocation)
+        return
+    # The money is committed above. A failure from here on is about evidence, never about the
+    # charge, so it is logged and must not send the same response down the charge path again.
+    try:
         _emit_answer_spend_receipt(
             "paid_call.billing_ambiguous" if settled.status == "billing_ambiguous" else "paid_call.settled",
             authorization,
@@ -511,53 +546,64 @@ def settle_owner_pick_paid_call(
             billing_ambiguous=settled.status == "billing_ambiguous",
             call_role=call_role,
         )
-    except Exception as exc:
-        # A priced charge against a historical closed row still has to enter the ledger.
-        if actual_usd is not None and _post_supplemental_charge(authorization, usd=actual_usd, model_call_id=model_call_id):
-            forget_paid_attempts(model_call_id)
-            return
-        logger.warning("paid call %s not settled (%s)", model_call_id, exc)
+    except Exception as exc:  # pragma: no cover - evidence must never break a turn
+        logger.warning("paid call %s settled but its receipt was not written (%s)", model_call_id, exc)
 
 
-def _post_supplemental_charge(authorization: Any, *, usd: float, model_call_id: str) -> bool:
+def _post_supplemental_charge(
+    authorization: Any, *, usd: float | None, model_call_id: str, invocation_id: str = ""
+) -> bool:
     """Record an already-incurred charge against a reservation that is no longer open.
 
     The caps exist to refuse spend that has not happened yet. This money is a fait accompli, so
-    the row is admitted regardless of the caps and the ceilings are widened to exactly the amount
-    being recorded -- refusing to write it would leave the real charge invisible, which is the
-    defect this whole path exists to close. Recording it is what makes the NEXT reservation see a
-    larger day/month total and refuse.
+    the row is admitted regardless of the caps -- refusing to write it would leave the real charge
+    invisible, which is the defect this whole path exists to close. Recording it is what makes the
+    NEXT reservation see a larger day/month total and refuse. An unknown amount holds one call's
+    ceiling instead of reading as free.
     """
-    amount = round(max(0.0, float(usd or 0.0)), 8)
-    if amount <= 0:
-        return True  # nothing was spent; there is nothing to record
     try:
-        from core.model_spend_ledger import SUPPLEMENTAL_SUBTASK_ID, SpendLimits, reserve_spend, settle_spend
+        from core.model_spend_ledger import record_supplemental_charge
 
         escalation = getattr(authorization, "escalation", None)
         capsule = getattr(escalation, "capsule", None)
         task_id = str(getattr(capsule, "task_id", "") or "") or "unknown_task"
-        supplemental_id = f"{model_call_id}#retry-{uuid.uuid4().hex[:8]}"
-        reserve_spend(
-            model_call_id=supplemental_id,
+        hold = 0.0
+        if usd is None:
+            # The call's own approved ceiling, as reserved (the ledger row zeroes it on settlement),
+            # and never less than the per-call floor.
+            reservation = getattr(authorization, "reservation", None)
+            ceiling = getattr(reservation, "reserved_usd", 0.0)
+            numeric = isinstance(ceiling, (int, float)) and not isinstance(ceiling, bool) and not math.isnan(ceiling)
+            hold = max(float(ceiling) if numeric else 0.0, float(spend_limits().per_call_usd))
+        row = record_supplemental_charge(
+            model_call_id,
+            invocation_id=invocation_id,
             task_id=task_id,
-            # Marked so the daily CALL cap does not count this row: it records money already
-            # spent by a retry, not a new call being admitted. Leaving daily_call_cap unset
-            # below also keeps this write itself ungated, which is required — the charge is a
-            # fait accompli and refusing to record it would hide real spend from the caps.
-            subtask_id=SUPPLEMENTAL_SUBTASK_ID,
             model_id=str(getattr(escalation, "model_id", "") or ""),
-            maximum_usd=amount,
-            limits=SpendLimits(
-                per_call_usd=amount, per_task_usd=amount * 1e6, daily_usd=amount * 1e6, monthly_usd=amount * 1e6
-            ),
+            actual_usd=usd,
+            hold_usd=hold,
         )
-        settle_spend(supplemental_id, actual_usd=amount)
-        logger.info("paid retry charge of $%.6f recorded for %s", amount, model_call_id)
+        if row is None:
+            return True  # nothing was spent; there is nothing to record
+        if row.replayed:
+            logger.info("paid retry %s for %s already recorded; nothing charged again", invocation_id, model_call_id)
+        elif not invocation_id:
+            logger.warning(
+                "paid charge for %s recorded with no invocation id; flagged as a possible replay", model_call_id
+            )
+        else:
+            logger.info("paid retry charge recorded for %s (%s)", model_call_id, row.status)
         return True
     except Exception as exc:  # pragma: no cover - metering must never break a turn
         logger.warning("paid retry charge for %s not recorded (%s)", model_call_id, exc)
         return False
+
+
+def unverified_paid_charges() -> list[dict[str, Any]]:
+    """Charges recorded with no invocation on a closed reservation: real money that may be a replay."""
+    from core.model_spend_ledger import unverified_supplemental_charges
+
+    return unverified_supplemental_charges()
 
 
 def _authorize_money_law_pick(manifest: Any, *, task: Any, denial: dict[str, str] | None) -> Any:
@@ -945,4 +991,5 @@ __all__ = [
     "reserve_owner_pick_paid_call",
     "settle_owner_pick_paid_call",
     "spend_limits",
+    "unverified_paid_charges",
 ]
