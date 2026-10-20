@@ -2600,8 +2600,8 @@
     "addons.publish_reason_codex_check": "The Skill Codex's checks would refuse this skill as it is.",
     "addons.registry_unsafe": "This skill didn't pass VOOL's own safety checks, so VOOL didn't keep or install it. You can report it to the Skill Codex.",
     "keys.test.invalid": "{label} rejected the key{http}. Check it again, or replace it.",
-    "liveinfo.web_off.not_checked": "Web lookups are off, so I did not search the web and have no current answer. You can turn them on in Settings → Privacy & Permissions → Web lookups.",
-    "liveinfo.web_off.not_checked_started_off": "Web lookups are off, so I did not search the web and have no current answer."
+    "liveinfo.web_off.not_checked": "Web lookups are off, so I did not search the web and can't verify a current answer. You can turn them on in Settings → Privacy & Permissions → Web lookups.",
+    "liveinfo.web_off.not_checked_started_off": "Web lookups are off, so I did not search the web and can't verify a current answer."
   },
   "html_keys": [
     "bypass.modal_limits",

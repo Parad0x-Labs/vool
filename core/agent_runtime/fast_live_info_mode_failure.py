@@ -18,11 +18,11 @@ def live_info_failure_text(*, query: str, mode: str) -> str:
             # Settings switch cannot override, so the notice does not point there.
             return turn_text(
                 "liveinfo.web_off.not_checked_started_off",
-                "Web lookups are off, so I did not search the web and have no current answer.",
+                "Web lookups are off, so I did not search the web and can't verify a current answer.",
             )
         return turn_text(
             "liveinfo.web_off.not_checked",
-            "Web lookups are off, so I did not search the web and have no current answer. "
+            "Web lookups are off, so I did not search the web and can't verify a current answer. "
             "You can turn them on in Settings → Privacy & Permissions → Web lookups.",
         )
     if mode == "weather":

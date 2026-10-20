@@ -2600,10 +2600,10 @@
     "addons.publish_reason_codex_check": "스킬 코덱스 검사에서 이 스킬은 지금 상태로는 받아들여지지 않습니다.",
     "addons.registry_unsafe": "이 스킬은 VOOL 자체 안전 검사를 통과하지 못해 VOOL이 보관하거나 설치하지 않았습니다. Skill Codex에 신고할 수 있습니다.",
     "keys.test.invalid": "{label}이(가) 키를 거부했습니다{http}. 다시 확인하거나 교체하세요.",
-    "liveinfo.web_off.not_checked": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변이 없습니다. 설정 → 개인정보와 권한 → 웹 검색에서 켤 수 있습니다.",
-    "liveinfo.web_off.not_checked_started_off": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변이 없습니다."
+    "liveinfo.web_off.not_checked": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다. 설정 → 개인정보와 권한 → 웹 검색에서 켤 수 있습니다.",
+    "liveinfo.web_off.not_checked_started_off": "웹 검색이 꺼져 있어서 웹을 검색하지 않았고, 최신 답변을 확인할 수 없습니다."
   },
-  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
+  "source_catalog_sha256": "ede8c99cbc7c8b152cf1f8d5e06d84b15e657c1a74fa3d3b03a638ce8766a717",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

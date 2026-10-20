@@ -2600,10 +2600,10 @@
     "addons.publish_reason_codex_check": "הבדיקות של קודקס המיומנויות ידחו את המיומנות במצבה הנוכחי.",
     "addons.registry_unsafe": "המיומנות הזו לא עברה את בדיקות הבטיחות של VOOL עצמו, ולכן VOOL לא שמר ולא התקין אותה. אפשר לדווח עליה ל-Skill Codex.",
     "keys.test.invalid": "{label} דחה את המפתח{http}. בדקו אותו שוב או החליפו אותו.",
-    "liveinfo.web_off.not_checked": "חיפושים באינטרנט כבויים, ולכן לא חיפשתי באינטרנט ואין לי תשובה עדכנית. אפשר להפעיל אותם בהגדרות ← פרטיות והרשאות ← חיפושים באינטרנט.",
-    "liveinfo.web_off.not_checked_started_off": "חיפושים באינטרנט כבויים, ולכן לא חיפשתי באינטרנט ואין לי תשובה עדכנית."
+    "liveinfo.web_off.not_checked": "חיפושים באינטרנט כבויים, ולכן לא חיפשתי באינטרנט ואיני יכול לאמת תשובה עדכנית. אפשר להפעיל אותם בהגדרות ← פרטיות והרשאות ← חיפושים באינטרנט.",
+    "liveinfo.web_off.not_checked_started_off": "חיפושים באינטרנט כבויים, ולכן לא חיפשתי באינטרנט ואיני יכול לאמת תשובה עדכנית."
   },
-  "source_catalog_sha256": "3c6505727d5b2431aeae376450c2a8611feec4df119cad8dcc4589607e3956db",
+  "source_catalog_sha256": "ede8c99cbc7c8b152cf1f8d5e06d84b15e657c1a74fa3d3b03a638ce8766a717",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
