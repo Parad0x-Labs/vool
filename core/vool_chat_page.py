@@ -6767,11 +6767,17 @@ const ACTIVITY_MUTATION_SUCCESS_TYPES = { workspace_mutation_completed: 1, works
 const ACTIVITY_MUTATION_UNSUCCESSFUL_TYPES = { workspace_mutation_failed: 1, workspace_mutation_rollback_conflict: 1 };
 const ACTIVITY_CHANGES_CATEGORY = ['changes', 'Files changed'];
 const ACTIVITY_CATEGORY_FALLBACK = ['tools', 'Tool calls'];
-const ACTIVITY_RUNTIME_CATEGORY = ['runtime', 'Runtime'];
+const ACTIVITY_RUNTIME_CATEGORY = ['runtime', 'What VOOL did'];
+// Bookkeeping rows and any event type the plain-words table does not know (activityPlainRow).
+// Collapsed by default; Expand all opens it like every other node.
+const ACTIVITY_BACKGROUND_CATEGORY = ['background', 'Behind the scenes'];
+// A category whose displayed name has its own catalog key. The 'runtime' KEY is kept (open state,
+// tests and copied evidence key on it); only the words a person reads changed.
+const ACTIVITY_CATEGORY_LABEL_KEYS = { runtime: 'activity.category.steps', background: 'activity.category.background' };
 // The two ledger event types that OPEN a tool call, paired against whichever of the three closes it.
 const ACTIVITY_TOOL_START_TYPES = { tool_selected: 1 };
 const ACTIVITY_TOOL_END_TYPES = { tool_executed: 1, tool_failed: 1, audit_step: 1, audit_budget_refused: 1 };
-const ACTIVITY_CATEGORY_ORDER = ['changes', 'commands', 'tests', 'reads', 'edits', 'searches', 'tools', 'runtime'];
+const ACTIVITY_CATEGORY_ORDER = ['changes', 'commands', 'tests', 'reads', 'edits', 'searches', 'tools', 'runtime', 'background'];
 // Localized rollups: one catalog key per category with the ICU-lite plural the engine and
 // the mirrored browser formatter both resolve. English fallbacks reproduce the historical
 // concatenation byte-for-byte (n === 1 → singular), so an unwired locale renders as before.
@@ -7116,6 +7122,210 @@ function usePodReceiptDetailLines(e) {
   return out;
 }
 
+// ---- Plain words for the Activity tree ----
+// ledgerRow() is the MACHINE row: the exact title and sub-line the ledger authority shipped
+// ("Conservation: slots conserved, publication NOT conserved (...)", "Runtime attempt attempt-… ->
+// FAILED_TOOL."). It stays exactly that for the Event log, the copied failure report and the
+// tests that pin it. What a person sees by default in the Activity tree is this projection
+// instead: one plain sentence per event, chosen by the event's TYPE (a stable key, never prose
+// parsing), with ids, enum names and engine counters kept out of it. Nothing is dropped: the
+// machine line becomes the row's expandable sub-line, its raw fields stay in the row's details,
+// and Copy all serializes both.
+//
+// Fail closed: an event type this table does not know is shown as a calm generic line in
+// "Behind the scenes", never as its raw message.
+//
+// [tier, catalog key, English]. Tier 'main' rows file under "What VOOL did"; 'background' rows are
+// bookkeeping a normal person does not need to read and file under the collapsed "Behind the
+// scenes". Ids are stable catalog keys under activity.plain.*.
+const ACTIVITY_PLAIN_TITLES = {
+  task_received:                 ['main', 'task_received', 'Got your message'],
+  task_classified:               ['main', 'task_classified', 'Worked out what you’re asking for'],
+  task_completed:                ['main', 'task_completed', 'Answer ready'],
+  task_failed:                   ['main', 'task_failed', 'Couldn’t finish this one'],
+  task_cancelled:                ['main', 'task_cancelled', 'Stopped'],
+  task_interrupted:              ['main', 'task_interrupted', 'Stopped before it finished'],
+  task_pending_approval:         ['main', 'task_pending_approval', 'Waiting for your OK'],
+  task_resumed:                  ['main', 'task_resumed', 'Picked up where it left off'],
+  permission_approved:           ['main', 'permission_approved', 'You said OK'],
+  scope_resolved:                ['main', 'scope_resolved', 'Working in your folder'],
+  model_routing_failed:          ['main', 'model_routing_failed', 'No model could answer'],
+  model_lane_contract_failed:    ['main', 'model_answer_set_aside', 'Set aside an answer that didn’t fit'],
+  'model.response_constraint_retry': ['main', 'model_retry', 'Asked the model to try again'],
+  'model.call_retrying':         ['main', 'model_retry', 'Asked the model to try again'],
+  model_lane_verifier_started:   ['main', 'review_running', 'Double-checking the answer'],
+  model_lane_verifier_completed: ['main', 'review_passed', 'Answer double-checked'],
+  model_lane_verifier_degraded:  ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_blocked:   ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_failed:    ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_flagged:   ['main', 'review_flagged', 'The double-check found a problem'],
+  cloud_route_declined:          ['main', 'cloud_declined', 'Didn’t use an online model'],
+  grounding_required:            ['main', 'grounding_required', 'This needs up-to-date information'],
+  grounding_publication:         ['main', 'grounding_publication', 'Checked the answer against what was found'],
+  web_retrieval_started:         ['main', 'web_started', 'Searching the web'],
+  web_retrieval_completed:       ['main', 'web_done', 'Searched the web'],
+  web_retrieval_failed:          ['main', 'web_failed', 'The web search didn’t work'],
+  fx_retrieval_started:          ['main', 'fx_started', 'Getting the exchange rate'],
+  fx_retrieval_completed:        ['main', 'fx_done', 'Got the exchange rate'],
+  fx_retrieval_failed:           ['main', 'fx_failed', 'Couldn’t get the exchange rate'],
+  live_data_plan_unavailable:    ['main', 'lookup_unavailable', 'Couldn’t look this up right now'],
+  tool_fallback_to_research:     ['main', 'tool_fallback', 'Switched to searching instead'],
+  tool_loop_resumed:             ['main', 'tool_resumed', 'Carried on'],
+  tool_loop_completed:           ['main', 'tool_loop_done', 'Finished the steps'],
+  tool_repeat_blocked:           ['main', 'tool_repeat_blocked', 'Skipped repeating the same step'],
+  tool_synthesizing:             ['main', 'synthesizing', 'Putting the answer together'],
+  workflow_planner_step:         ['main', 'plan_step', 'Planned the next step'],
+  workflow_planner_stop:         ['main', 'plan_done', 'Plan finished'],
+  stale_result_rejected:         ['main', 'stale_result', 'Set aside an out-of-date result'],
+  model_routing_started:         ['background', 'choosing_model', 'Choosing a model'],
+  model_verification_receipt:    ['background', 'record', 'Kept a record of this step'],
+  model_lane_proof:              ['background', 'record', 'Kept a record of this step'],
+  'turn.trace_completed':        ['background', 'record', 'Kept a record of this step'],
+  runtime_attempt_created:       ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_updated:       ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_completed:     ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_abandoned:     ['background', 'attempt', 'Kept track of this attempt'],
+  live_data_plan_created:        ['background', 'lookup_plan', 'Planned what to look up'],
+  live_data_plan_completed:      ['background', 'lookup_plan_done', 'Finished looking things up'],
+  live_data_operation_outcome:   ['background', 'lookup_noted', 'Noted how the lookup went'],
+  agent_node_started:            ['background', 'step_started', 'Started a step'],
+  agent_node_completed:          ['background', 'step_finished', 'Finished a step'],
+  semantic_resolution_receipt:   ['background', 'resolution', 'Matched your question to the right kind of answer'],
+  semantic_conservation_verdict: ['background', 'conservation', 'Checked nothing was lost from the answer'],
+  mode_changed:                  ['background', 'mode_changed', 'Changed how VOOL works in this chat'],
+  session_started:               ['background', 'session_started', 'Opened this chat'],
+  // Failures the runtime names by type. A fourth element 'fail' draws the row as a failure; these
+  // are never filed behind the scenes.
+  audit_budget_refused:          ['main', 'audit_refused', 'Stopped checking to stay within the limit', 'fail'],
+  audit_step:                    ['main', 'audit_step', 'Checked a step'],
+  conductor_integrity_failure:   ['main', 'plan_broken', 'The plan didn’t hold together, so it stopped', 'fail'],
+  task_envelope_dependency_failed: ['main', 'dependency_failed', 'A step it depended on didn’t work', 'fail'],
+  task_envelope_restore_failed:  ['main', 'restore_failed', 'Couldn’t restore earlier work', 'fail'],
+  task_envelope_capacity_blocked: ['main', 'capacity_blocked', 'Held back: too much was already running', 'fail'],
+  attempt_claim_refused:         ['main', 'attempt_refused', 'Couldn’t start this attempt', 'fail'],
+  code_task_refusal_returned:    ['main', 'step_refused', 'That step was refused', 'fail'],
+  tool_argument_rejected:        ['main', 'step_args_rejected', 'A step was set up wrong, so it asked again', 'fail'],
+};
+// The model rows name the model when the ledger recorded one (the person chose or sees that name in
+// the header); the provider id, lane and attempt plumbing stay in the details.
+const ACTIVITY_PLAIN_MODEL = {
+  model_lane_selected:    ['model_selected', 'Chose a model to answer', 'Chose {model} to answer'],
+  model_lane_started:     ['model_running', 'Asking the model', 'Asking {model}'],
+  'model.call_started':   ['model_running', 'Asking the model', 'Asking {model}'],
+  model_lane_completed:   ['model_answered', 'The model answered', '{model} answered'],
+  'model.call_completed': ['model_answered', 'The model answered', '{model} answered'],
+  model_lane_failed:      ['model_failed', 'The model couldn’t answer', '{model} couldn’t answer'],
+  'model.call_failed':    ['model_failed', 'The model couldn’t answer', '{model} couldn’t answer'],
+};
+// What a live-data lookup was for, by its operation id, as a noun phrase that slots into
+// "Looking up {what}" / "Looked up {what}" / "Looked up {what}: it didn’t work".
+const ACTIVITY_PLAIN_LOOKUP_WHAT = {
+  weather_lookup:    ['weather', 'the weather', 'weather_in', 'the weather in {place}'],
+  water_temperature: ['water', 'the water temperature', 'water_in', 'the water temperature in {place}'],
+  market_quote:      ['price', 'the price', 'price_of', 'the price of {place}'],
+  fx_quote:          ['fx', 'the exchange rate', 'fx', 'the exchange rate'],
+};
+const ACTIVITY_PLAIN_GENERIC = ['generic', 'Worked on your request'];
+// Fail closed on failures too: an event this table does not know, whose TYPE or own status says it
+// failed, must not read "Worked on your request" behind a collapsed group. It gets a visible
+// failure line with a calm sub-line; the raw text stays in the row's details.
+const ACTIVITY_FAIL_TYPE = /fail|refus|block|denied|deny|reject|error|abort|violation/i;
+const ACTIVITY_FAIL_STATUS = /^(fail|error|refus|denied|deny|reject|block|abort|timeout|timed_out)/i;
+function activityEventLooksFailed(e, t) {
+  if (ACTIVITY_FAIL_TYPE.test(t)) return true;
+  if (!e) return false;
+  if (e.ok === false) return true;
+  for (const field of ['status', 'state', 'lifecycle', 'lifecycle_state', 'result_state', 'outcome']) {
+    if (ACTIVITY_FAIL_STATUS.test(String(e[field] == null ? '' : e[field]).trim())) return true;
+  }
+  return /^(error:|rejected:)/i.test(String(e.result || ''));
+}
+function activityPlainT(id, english, params) {
+  return params ? pageTF('activity.plain.' + id, english, params) : pageT('activity.plain.' + id, english);
+}
+// operation id -> the place/thing the person asked about, read from the turn's own live-data plan
+// (subtask.entity). Two different entities for one operation are ambiguous, so neither is named.
+function activityLookupPlaces(events) {
+  const places = {};
+  for (const e of events || []) {
+    if (String(e.event_type || '') !== 'live_data_plan_created' || !Array.isArray(e.subtasks)) continue;
+    for (const s of e.subtasks) {
+      const op = String((s && s.operation) || '').trim();
+      if (!op) continue;
+      const place = String((s && s.entity) || '').trim();
+      if (places[op] === undefined) places[op] = place;
+      else if (places[op] !== place) places[op] = '';
+    }
+  }
+  return places;
+}
+function activityLookupWhat(op, places) {
+  const spec = ACTIVITY_PLAIN_LOOKUP_WHAT[op];
+  const place = places && places[op] ? String(places[op]) : '';
+  if (!spec) return activityPlainT('what.current', 'current information');
+  if (place && spec[3].indexOf('{place}') !== -1) return activityPlainT('what.' + spec[2], spec[3], { place: place });
+  return activityPlainT('what.' + spec[0], spec[1]);
+}
+// A retrieval receipt row whose own receipts all failed is not "Searched the web".
+function activityRetrievalAllFailed(e) {
+  const receipts = Array.isArray(e && e.receipts) ? e.receipts : [];
+  if (!receipts.length) return false;
+  return receipts.every((r) => { const s = String((r && (r.status || r.lifecycle)) || '').toLowerCase(); return s && s !== 'succeeded' && s !== 'completed' && s !== 'ok'; });
+}
+// One event -> {cls, icon, title, sub, tier}. `machine` is ledgerRow(e) (or the tree's fallback for
+// a tool row); `places` is activityLookupPlaces() over the same turn.
+function activityPlainRow(e, machine, places) {
+  const t = String((e && e.event_type) || '');
+  const row = machine || { cls: 'run', icon: '•', title: '', sub: '' };
+  let tier = 'main', title = '', icon = row.icon, cls = row.cls;
+  if (t.indexOf('tool_') === 0 && (t === 'tool_selected' || t === 'tool_executed' || t === 'tool_failed')) {
+    const tool = String(e.tool_name || e.tool || '').trim();
+    if (tool.indexOf('live_data.') === 0) {
+      const what = activityLookupWhat(tool.slice('live_data.'.length), places);
+      if (t === 'tool_selected') title = activityPlainT('lookup_active', 'Looking up {what}', { what: what });
+      else if (t === 'tool_failed') title = activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
+      else title = activityPlainT('lookup_done', 'Looked up {what}', { what: what });
+    } else {
+      // humanToolTitle(): already plain ("Running tests", "Search failed"), and the tool id it
+      // deliberately leaves out of the title stays in the sub-line.
+      title = row.title;
+    }
+  } else if (ACTIVITY_PLAIN_MODEL[t]) {
+    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[t];
+    const model = String(ledgerModelName(e) || '').trim();
+    title = model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
+  } else if (ACTIVITY_PLAIN_TITLES[t]) {
+    const [rowTier, id, english, kind] = ACTIVITY_PLAIN_TITLES[t];
+    tier = rowTier;
+    if (kind === 'fail') { cls = 'fail'; icon = '✕'; }
+    // A live-data plan's retrieval receipt repeats what the lookup's own row already says.
+    if (t.indexOf('web_retrieval') === 0 && e.plan_id) tier = 'background';
+    if (t === 'web_retrieval_completed' && activityRetrievalAllFailed(e)) {
+      title = activityPlainT('web_nothing', 'Looked it up, but nothing came back');
+      icon = '✕'; cls = 'fail';
+    } else {
+      title = activityPlainT(id, english);
+    }
+  } else if (LEDGER_MAP[t] && LEDGER_MAP[t][2]) {
+    // Already a plain label (attachments, file-change receipts): the label alone, never ": " + message.
+    title = pageT('activity.ledger.' + t, LEDGER_MAP[t][2]);
+  } else if (activityEventLooksFailed(e, t)) {
+    return { cls: 'fail', icon: '✕', title: activityPlainT('step_failed', 'This step didn’t work'),
+      sub: activityPlainT('step_failed_sub', 'What happened is in the details below.'), tier: 'main', machine: row };
+  } else {
+    tier = 'background';
+    title = activityPlainT(ACTIVITY_PLAIN_GENERIC[0], ACTIVITY_PLAIN_GENERIC[1]);
+  }
+  // The exact machine words, one click away: the old title (when it says something the plain one
+  // does not) followed by the old sub-line.
+  const machineBits = [];
+  // A machine title that IS the event's message is already the details' "result" line; repeating
+  // it as the sub-line would print the same engine sentence twice.
+  if (row.title && !ledgerSameText(row.title, title) && !ledgerSameText(row.title, e && e.message)) machineBits.push(row.title);
+  if (row.sub) machineBits.push(row.sub);
+  return { cls: cls, icon: icon, title: title, sub: machineBits.join(' · '), tier: tier, machine: row };
+}
+
 // Builds {categories:[{key,label,items:[...]}], totalActions} from a flat, already-turn-scoped
 // ledger slice. Tool calls are paired start->end the same way the live status card already pairs
 // them (applyTaskEvent's tool.completed handler): most-recently-opened call of that name resolves
@@ -7125,6 +7335,14 @@ function buildActivityTree(events) {
   const pending = {};   // tool label -> stack of still-open items for that tool
   const changedByPath = {};   // canonical path -> the single row that path owns
   const ensureCat = (key, label) => cats[key] || (cats[key] = { key, label, items: [] });
+  // What each live-data lookup was about ("Rome"), from this turn's own plan, for the plain titles.
+  const places = activityLookupPlaces(events);
+  const plain = (e, machine) => activityPlainRow(e, machine, places);
+  // A non-tool row files by its plain tier: what VOOL did, or behind the scenes.
+  const fileRow = (e, display) => {
+    const [key, label] = display.tier === 'background' ? ACTIVITY_BACKGROUND_CATEGORY : ACTIVITY_RUNTIME_CATEGORY;
+    ensureCat(key, label).items.push({ id: 'ai-' + e.seq, tool: '', display: display, endEvent: e });
+  };
 
   for (const e of (events || [])) {
     const t = String(e.event_type || '');
@@ -7137,10 +7355,7 @@ function buildActivityTree(events) {
       if (!activityMutationSucceeded(e)) {
         // A failed, denied or pathless receipt is still shown -- filed under Runtime, where it
         // reads as what it is. It must never reach "Files changed".
-        if (row) {
-          const [rk, rl] = ACTIVITY_RUNTIME_CATEGORY;
-          ensureCat(rk, rl).items.push({ id: 'ai-' + e.seq, tool: '', display: row, endEvent: e });
-        }
+        if (row) fileRow(e, plain(e, row));
         continue;
       }
       const [ck, cl] = ACTIVITY_CHANGES_CATEGORY;
@@ -7162,7 +7377,7 @@ function buildActivityTree(events) {
 
     if (ACTIVITY_TOOL_START_TYPES[t] || ACTIVITY_TOOL_END_TYPES[t]) {
       const toolName = activityToolLabel(e);
-      const row = ledgerRow(e) || { cls: 'run', icon: '▸', title: toolName, sub: '' };
+      const row = plain(e, ledgerRow(e) || { cls: 'run', icon: '▸', title: toolName, sub: '' });
       if (ACTIVITY_TOOL_START_TYPES[t]) {
         const item = { id: 'ai-' + e.seq, tool: toolName, status: 'running', display: row, startEvent: e, endEvent: null };
         (pending[toolName] || (pending[toolName] = [])).push(item);
@@ -7189,8 +7404,7 @@ function buildActivityTree(events) {
     // this panel has always shown for it, just filed under Runtime instead of sitting flat.
     const row = ledgerRow(e);
     if (!row) continue;
-    const [key, label] = ACTIVITY_RUNTIME_CATEGORY;
-    ensureCat(key, label).items.push({ id: 'ai-' + e.seq, tool: '', display: row, endEvent: e });
+    fileRow(e, plain(e, row));
   }
 
   const categories = ACTIVITY_CATEGORY_ORDER.filter((k) => cats[k] && cats[k].items.length).map((k) => cats[k]);
@@ -7198,13 +7412,16 @@ function buildActivityTree(events) {
   const latestSeq = (item) => Number((item.endEvent || item.startEvent || {}).seq || 0);
   for (const cat of categories) cat.items.sort((a, b) => latestSeq(b) - latestSeq(a));
   categories.sort((a, b) => latestSeq(b.items[0]) - latestSeq(a.items[0]));
-  const totalActions = categories.filter((c) => c.key !== 'runtime').reduce((n, c) => n + c.items.length, 0);
+  // "Behind the scenes" is never the first thing a person reads, however late its newest row was.
+  const backgroundAt = categories.findIndex((c) => c.key === 'background');
+  if (backgroundAt !== -1) categories.push(categories.splice(backgroundAt, 1)[0]);
+  const totalActions = categories.filter((c) => c.key !== 'runtime' && c.key !== 'background').reduce((n, c) => n + c.items.length, 0);
   return { categories, totalActions };
 }
 function activityRollupText(tree) {
   const parts = [];
   for (const cat of tree.categories) {
-    if (cat.key === 'runtime') continue;
+    if (cat.key === 'runtime' || cat.key === 'background') continue;
     const phrase = ACTIVITY_ROLLUP_PHRASE[cat.key];
     if (phrase) parts.push(phrase(cat.items.length));
   }
@@ -7267,7 +7484,10 @@ function priceReviewTargetForEvent(e) {
   return { provider: 'usepod', id: model, label: model };
 }
 function activityItemHtml(item, openState) {
-  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : 'run';
+  // A tool call's state comes from its pairing; a step row (no pairing) is drawn the way its own
+  // display says, so a failure there shows in the failure colour rather than as ordinary progress.
+  const stepCls = item.display && (item.display.cls === 'ok' || item.display.cls === 'fail') ? item.display.cls : 'run';
+  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : (item.status ? 'run' : stepCls);
   const icon = item.display ? item.display.icon : '•';
   const title = item.display ? item.display.title : (item.tool || 'Action');
   const sub = item.display ? item.display.sub : '';
@@ -7298,10 +7518,12 @@ function activityItemHtml(item, openState) {
     + '</details>';
 }
 function activityCategoryHtml(cat, openState) {
-  const openAttr = openState[cat.key] !== false ? ' open' : '';   // categories default OPEN
+  // Categories default OPEN, except "Behind the scenes", which a person opens when they want it.
+  const defaultOpen = cat.key !== 'background';
+  const openAttr = (openState[cat.key] === undefined ? defaultOpen : openState[cat.key] !== false) ? ' open' : '';
   const items = cat.items.map((it) => activityItemHtml(it, openState)).join('');
   return '<details class="xp-cat" data-node-id="' + esc(cat.key) + '"' + openAttr + '>'
-    + '<summary>' + esc(pageT('activity.category.' + cat.key, cat.label)) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
+    + '<summary>' + esc(pageT(ACTIVITY_CATEGORY_LABEL_KEYS[cat.key] || ('activity.category.' + cat.key), cat.label)) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
     + '<div class="xp-cat-body">' + items + '</div>'
     + '</details>';
 }
@@ -7406,8 +7628,8 @@ function renderChatActivity(owner, opts) {
     const tree = buildActivityTree(group.events);
     trees.push(tree);
     const label = group.turnId
-      ? ('Turn ' + group.number + (isLatest && options.live ? ' · running' : '') + ' — ' + activityWorkLogSummary(tree))
-      : ('Between turns — ' + group.events.length + ' event' + (group.events.length === 1 ? '' : 's'));
+      ? (activityLocalT('activity.turn_label', 'Turn {n}', { n: group.number }) + (isLatest && options.live ? (' · ' + pageT('activity.turn_running', 'running')) : '') + ' — ' + activityWorkLogSummary(tree))
+      : activityLocalT('activity.between_turns', 'Between turns — {events}', { events: activityEventCount(group.events.length) });
     labels.push(label);
     html += '<details class="xp-turn" data-node-id="' + esc(nodeId) + '"' + (open ? ' open' : '') + '>'
       + '<summary>' + esc(label) + '</summary>'
@@ -7420,11 +7642,23 @@ function renderChatActivity(owner, opts) {
   lastActivityTree = trees.length ? trees[0] : null;
   return html;
 }
+// The panel's own framing words, localized. A catalog entry is used only when the bundle's
+// formatter is there to resolve its plurals; otherwise the English below is composed exactly as it
+// always was (so a page without a bundle, and every English reader, sees identical text).
+function activityLocalT(key, english, params) {
+  const plain = () => String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : ''));
+  const t = pageT(key, '');
+  if (!t || typeof VOOLFMT !== 'function') return plain();
+  try { return VOOLFMT(t, params || {}); } catch (e) { return plain(); }
+}
+function activityEventCount(n) {
+  return activityLocalT('activity.scope_events', n + (n === 1 ? ' event' : ' events'), { n: n });
+}
 function activityScopeSummary(eventCount, turnCount, truncated) {
-  const turnsText = turnCount + (turnCount === 1 ? ' turn' : ' turns');
-  const base = 'This chat — ' + turnsText + ', ' + eventCount + (eventCount === 1 ? ' event' : ' events');
+  const turnsText = activityLocalT('activity.scope_turns', turnCount + (turnCount === 1 ? ' turn' : ' turns'), { n: turnCount });
+  const base = activityLocalT('activity.scope_summary', 'This chat — {turns}, {events}', { turns: turnsText, events: activityEventCount(eventCount) });
   // A bounded view says it is bounded. The loader stops at 8 pages of 200.
-  return truncated ? (base + ' (the 1600 most recent; older events not loaded)') : base;
+  return truncated ? (base + ' (' + activityLocalT('activity.scope_truncated', 'the {n} most recent; older events not loaded', { n: 1600 }) + ')') : base;
 }
 
 function renderActivityTree(events, openState, opts) {
@@ -8008,7 +8242,7 @@ function renderPanelBody() {
       html = renderChatActivity(view, { live: !run.ended });
       const ledgerHasReview = led.some((e) => String(e.event_type || '').indexOf('verifier') !== -1);
       if (!ledgerHasReview) html += reviewPanelRow(run);
-      if (run.ended && ledgerRanNoTool(led, runExecutionTruth(run))) html += panelRow('run', '•', 'No tool ran — answered directly', 'a plain answer needs no tools');
+      if (run.ended && ledgerRanNoTool(led, runExecutionTruth(run))) html += panelRow('run', '•', pageT('activity.no_tool_ran', 'No tool ran — answered directly'), pageT('activity.no_tool_ran_sub', 'a plain answer needs no tools'));
     } else if (run.steps.length) {
       run.steps.forEach((s) => { html += panelRow(rowCls(s.status), rowIcon(s.status), s.summary || s.tool || 'Action', stepMeta(s)); });
       html += reviewPanelRow(run);
