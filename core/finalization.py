@@ -1070,7 +1070,26 @@ def finalize_answer(
             verdict["covered"] = False
     # LAW 2: consume the A2 id verbatim — never derive it from bytes, ids below.
     semantic_result_id = current_semantic_result_id()
-    if _turn_cancel_marker_fired(_cancel_context):
+    try:
+        from core.semantic.semantic_admissions import current_request_id
+
+        bound_request_id = current_request_id()
+    except Exception:
+        bound_request_id = ""
+    # THE SEAL IS THE ONE POINT A STOP IS DECIDED AT. The cancel door records the person's stop
+    # before it sets the cancel marker, so the marker alone can be read between the two and let an
+    # answer nobody saw be bound. The claim is taken under the transcript's own lock: a stop
+    # recorded first wins (the cancel notice below is committed, never the answer); a stop arriving
+    # after it waits for this seal, which either commits the answer the page then shows or, when
+    # the bind fails, records the stop (see `_end_transcript_seal` below).
+    _seal_claimed = False
+    _stopped_first = _turn_cancel_marker_fired(_cancel_context)
+    if not _stopped_first and bound_request_id and status == ANSWER_PRESENT:
+        from core.persistent_memory import _claim_transcript_seal
+
+        _seal_claimed = _claim_transcript_seal(bound_request_id)
+        _stopped_first = not _seal_claimed
+    if _stopped_first:
         # The operator cancelled this turn and the cancel was acknowledged. Whatever the lanes
         # composed afterwards is not published: the committed bytes are the typed cancel notice --
         # decided AFTER every gate and the closure sweep so nothing rewrites it -- and the typed
@@ -1096,13 +1115,7 @@ def finalize_answer(
     # K-09: finalization identity derives from OPAQUE inputs
     # (semantic_result_id, request_id, nonce) — NEVER from the raw content
     # hash. A one-word answer must not become a permanent confirmation oracle,
-    # and rekeying must stay possible after scale.
-    try:
-        from core.semantic.semantic_admissions import current_request_id
-
-        bound_request_id = current_request_id()
-    except Exception:
-        bound_request_id = ""
+    # and rekeying must stay possible after scale. (bound_request_id: read above.)
     import secrets as _secrets
 
     finalization_nonce = _secrets.token_hex(8)
@@ -1193,7 +1206,17 @@ def finalize_answer(
         # Added ONLY for turns that carried a diagnosis contract, so ordinary
         # commits stay byte-identical (frozen tests pin their shape).
         commit["root_cause"] = dict(root_cause_publication)
-    outcome = _bind_durably(commit, private=_private_turn)
+    _bound = False
+    try:
+        outcome = _bind_durably(commit, private=_private_turn)
+        _bound = True
+    finally:
+        if _seal_claimed:
+            from core.persistent_memory import _end_transcript_seal
+
+            # A failed bind releases the claim and records a stop that arrived meanwhile; a bound
+            # answer is the turn's record, and the transcript row below is written with it.
+            _end_transcript_seal(bound_request_id, committed=_bound)
     commit["binding_outcome"] = outcome
     # TRANSCRIPT AT THE COMMIT BOUNDARY. The lane that produced this answer staged its
     # conversation row instead of writing a pre-gate draft (see core.persistent_memory); the

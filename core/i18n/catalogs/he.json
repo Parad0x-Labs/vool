@@ -914,6 +914,7 @@
     "run.review_action": "סקור את הפעולה המדויקת למטה.",
     "run.status_completed": "הושלם",
     "run.status_stopped": "נעצר",
+    "run.status_stopping": "עוצר…",
     "run.status_waiting": "ממתין לאישורך",
     "run.stop": "עצירה",
     "run.stop_title": "עצירת התור הזה — מבטל את המשימה הרצה במחשב שלך ועוצר את התשובה.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "בדקו כל פעולה לפני ביצועה. סקריפטים בדפים כבויים. לתשלום השתמשו בארנק.",
     "settings.row.live_browser.label": "דפדפן"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

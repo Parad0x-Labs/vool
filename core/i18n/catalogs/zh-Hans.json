@@ -914,6 +914,7 @@
     "run.review_action": "请审查下方确切的操作。",
     "run.status_completed": "已完成",
     "run.status_stopped": "已停止",
+    "run.status_stopping": "正在停止…",
     "run.status_waiting": "等待你的批准",
     "run.stop": "停止",
     "run.stop_title": "停止本轮 — 取消您机器上正在运行的任务并停止回答。",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "执行前请逐项确认。网页脚本已关闭。付款请使用钱包。",
     "settings.row.live_browser.label": "浏览器"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
