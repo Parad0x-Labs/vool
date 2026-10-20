@@ -43,6 +43,9 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'code.task.report': ('read_only', 'none'),
     'code.task.rollback': ('workspace_write', 'runtime_policy'),
     'code.task.step': ('workspace_write', 'runtime_policy'),
+    'things.search': ('read_only', 'none'),
+    'things.match': ('read_only', 'none'),
+    'things.prepare': ('read_only', 'none'),
     'contacts.delete': ('creative_state', 'runtime_policy'),
     'contacts.resolve': ('read_only', 'none'),
     'contacts.save': ('creative_state', 'runtime_policy'),
@@ -389,7 +392,8 @@ def test_contract_map_and_list_agree():
     # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 204
+    # 204 -> 207: the household record tools (things.search, things.match, things.prepare), pinned above.
+    assert len(contract_map) == len(GOLDEN_TIERS) == 207
 
 
 def test_only_expected_tools_hold_explicit_opt_in():
