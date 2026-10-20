@@ -38,7 +38,7 @@ def test_fits_never_guesses_specs_or_claims_compatibility():
     result = prepare(record(), kind="fits", observed="Voltage: 12 V\nConnector: USB-C\nDiameter: 3 mm")
     assert result["matches"] == ["connector: USB-C"]
     assert result["conflicts"] == ["voltage: 5 V / 12 V"]
-    assert "diameter" in result["unknown"] and "not been verified" in result["unknown"][-1]
+    assert "diameter" in result["unknown"] and "fits_not_verified" in result["unknown_codes"]
     assert prepare(record(), kind="fits", observed="RX-9112")["matches"] == []
 
 

@@ -2668,7 +2668,10 @@
     "things.online_off": "Online access is off. You can attach a manual you already have.",
     "things.read_photo": "Read words from a photo",
     "things.choose_file": "Choose file",
-    "things.choose_saved": "Choose a saved thing from the list."
+    "things.choose_saved": "Choose a saved thing from the list.",
+    "things.specs_needed": "Enter the saved specifications and the words on the box as detail: value lines.",
+    "things.fits_not_verified": "Overall compatibility has not been verified; matching words alone do not prove that it fits.",
+    "things.order_items_needed": "No order items were saved. Enter one item per line in the saved order details."
   },
   "html_keys": [
     "bypass.modal_limits",

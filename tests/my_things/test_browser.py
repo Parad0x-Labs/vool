@@ -96,6 +96,7 @@ def test_browser_receipt_photo_return_packet_red_and_polish(daemon, tmp_path):
             expect(page.get_by_label("Words on the box or delivery note", exact=True)).to_have_value("Voltage: 12 V", timeout=30000)
             page.get_by_role("button", name="Compare details", exact=True).click()
             expect(page.locator("#mt-result")).to_contain_text("5 V / 12 V")
+            expect(page.locator("#mt-result")).to_contain_text("Overall compatibility has not been verified")
             page.get_by_role("button", name="Check delivery", exact=True).click()
             expect(page.locator("#mt-result")).to_contain_text("Cable")
             page.get_by_label("Manual web address", exact=True).fill("https://example.invalid/manual")

@@ -42,6 +42,14 @@ def _private(path: Path, mode: int) -> None:
     os.chmod(path, mode)
 
 
+def _sync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def _id(value: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
         raise ThingsError("bad_id", "Choose a saved thing.")
@@ -208,17 +216,26 @@ class ThingsStore:
                 _private(folder, 0o700)
                 if folder.name not in live:
                     shutil.rmtree(folder)
+                    _sync_directory(objects)
                 else:
                     cas = self._cas(folder.name)
                     current = cas.path_for_id(live[folder.name])
                     # Interrupted atomic CAS writes may leave a sealed temporary file.
                     # It is an obsolete copy too, even though iter_ids excludes it.
+                    changed = set()
                     for path in folder.rglob("*"):
                         if path.is_file() and path != current:
                             path.unlink()
+                            changed.add(path.parent)
+                    for directory in changed:
+                        _sync_directory(directory)
 
     def save(self, fields: dict, *, thing_id: str = "", revision: int = 0, files: list[dict] | None = None) -> dict:
         clean = clean_fields(fields)
+        if not isinstance(thing_id, str):
+            raise ThingsError("bad_id", "Choose a saved thing or add a new one.")
+        if type(revision) is not int or revision < 0 or (not thing_id and revision != 0):
+            raise ThingsError("bad_revision", "Open the thing again before saving.")
         with self._tx() as conn:
             self._require_enabled(conn)
             if thing_id:
@@ -239,6 +256,8 @@ class ThingsStore:
         return self.get(thing_id)
 
     def attach(self, thing_id, revision, file):
+        if type(revision) is not int or revision < 1:
+            raise ThingsError("bad_revision", "Open the thing again before attaching a file.")
         with self._tx() as conn:
             self._require_enabled(conn)
             record = self._load(conn, thing_id)
@@ -252,6 +271,8 @@ class ThingsStore:
         return self.get(thing_id)
 
     def delete(self, thing_id, revision):
+        if type(revision) is not int or revision < 1:
+            raise ThingsError("bad_revision", "Open the thing again before deleting.")
         with self._tx() as conn:
             record = self._load(conn, thing_id)
             if record["revision"] != revision:

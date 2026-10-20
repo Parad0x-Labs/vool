@@ -2668,9 +2668,12 @@
     "things.online_off": "Dostęp do internetu jest wyłączony. Możesz dołączyć posiadaną instrukcję.",
     "things.read_photo": "Odczytaj tekst ze zdjęcia",
     "things.choose_file": "Wybierz plik",
-    "things.choose_saved": "Wybierz zapisaną rzecz z listy."
+    "things.choose_saved": "Wybierz zapisaną rzecz z listy.",
+    "things.specs_needed": "Wpisz zapisane dane techniczne i tekst z pudełka w wierszach: cecha: wartość.",
+    "things.fits_not_verified": "Ogólna zgodność nie została sprawdzona; same zgodne słowa nie dowodzą, że produkt pasuje.",
+    "things.order_items_needed": "Nie zapisano pozycji zamówienia. Wpisz po jednej pozycji w każdym wierszu danych zamówienia."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

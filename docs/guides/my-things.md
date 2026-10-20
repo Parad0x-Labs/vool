@@ -8,7 +8,7 @@ Add a thing yourself, or choose a receipt to review. Check the locally read word
 
 Choose a clear photo of a label to look for a saved model or serial number. A result shows the exact words that matched. If several things match, choose one. Nothing is selected just because it looks similar. You can keep the photo with the chosen thing by pressing **Attach a file**. If local reading is unavailable or unreliable, enter the details yourself. No vision model is selected or contacted.
 
-Return and repair requests are drafts. Describe what happened, review the text, then download a ZIP containing the draft, saved facts, receipts and photos. Nothing is sent. Missing facts remain unknown. A warranty check only compares the saved warranty end date with today's date; it does not establish coverage or eligibility.
+Return and repair requests are drafts. Their request text currently uses English. Describe what happened, review the text, then download a ZIP containing the draft, saved facts, receipts and photos. Nothing is sent. Missing facts remain unknown. A warranty check only compares the saved warranty end date with today's date; it does not establish coverage or eligibility.
 
 For a delivery check, save the order items one per line, read or enter the delivery note's text and tick what actually arrived. A name on a delivery note does not prove it was delivered. For a specification comparison, use explicit `detail: value` lines in the saved specifications and the words read from the box. Matching text does not establish overall compatibility.
 

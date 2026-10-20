@@ -2668,9 +2668,12 @@
     "things.online_off": "Prieiga prie interneto išjungta. Galite prisegti jau turimą instrukciją.",
     "things.read_photo": "Nuskaityti tekstą iš nuotraukos",
     "things.choose_file": "Pasirinkti failą",
-    "things.choose_saved": "Pasirinkite išsaugotą daiktą iš sąrašo."
+    "things.choose_saved": "Pasirinkite išsaugotą daiktą iš sąrašo.",
+    "things.specs_needed": "Išsaugotus techninius duomenis ir tekstą ant dėžutės įveskite eilutėmis „duomuo: reikšmė“.",
+    "things.fits_not_verified": "Bendras suderinamumas nepatikrintas; vien sutampantys žodžiai neįrodo, kad daiktas tinka.",
+    "things.order_items_needed": "Užsakymo prekių nėra. Užsakymo duomenyse įveskite po vieną prekę eilutėje."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

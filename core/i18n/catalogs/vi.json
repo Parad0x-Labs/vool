@@ -2668,9 +2668,12 @@
     "things.online_off": "Truy cập mạng đang tắt. Bạn có thể đính kèm hướng dẫn đã có.",
     "things.read_photo": "Đọc chữ trong ảnh",
     "things.choose_file": "Chọn tệp",
-    "things.choose_saved": "Chọn một đồ đã lưu trong danh sách."
+    "things.choose_saved": "Chọn một đồ đã lưu trong danh sách.",
+    "things.specs_needed": "Nhập thông số đã lưu và chữ trên hộp theo từng dòng dạng chi tiết: giá trị.",
+    "things.fits_not_verified": "Chưa xác minh khả năng tương thích tổng thể; chỉ trùng chữ không chứng minh là lắp vừa.",
+    "things.order_items_needed": "Chưa lưu món nào trong đơn. Nhập mỗi món một dòng trong chi tiết đơn hàng."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

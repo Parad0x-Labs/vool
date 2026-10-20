@@ -2668,9 +2668,12 @@
     "things.online_off": "El acceso en línea está desactivado. Puedes adjuntar un manual que ya tengas.",
     "things.read_photo": "Leer texto de una foto",
     "things.choose_file": "Elegir archivo",
-    "things.choose_saved": "Elige una cosa guardada de la lista."
+    "things.choose_saved": "Elige una cosa guardada de la lista.",
+    "things.specs_needed": "Introduce las especificaciones guardadas y el texto de la caja como detalle: valor, uno por línea.",
+    "things.fits_not_verified": "La compatibilidad general no se ha verificado; que coincidan las palabras no demuestra que encaje.",
+    "things.order_items_needed": "No hay artículos del pedido guardados. Introduce uno por línea en los datos del pedido."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

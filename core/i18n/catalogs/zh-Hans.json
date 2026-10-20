@@ -2668,9 +2668,12 @@
     "things.online_off": "网络访问已关闭。你可以附加已有的说明书。",
     "things.read_photo": "读取照片上的文字",
     "things.choose_file": "选择文件",
-    "things.choose_saved": "请从列表中选择已保存的物品。"
+    "things.choose_saved": "请从列表中选择已保存的物品。",
+    "things.specs_needed": "请将已保存的规格和盒子上的文字按“项目: 值”的格式逐行输入。",
+    "things.fits_not_verified": "尚未核实整体兼容性；仅文字相同不能证明适用。",
+    "things.order_items_needed": "尚未保存订单物品。请在订单详情中每行输入一件物品。"
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

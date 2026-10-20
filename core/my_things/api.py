@@ -14,6 +14,8 @@ def _only(body, keys):
 
 
 def upload(body, *, sanitize=False):
+    if not isinstance(body, dict) or set(body) - {"name", "kind", "data"}:
+        raise ThingsError("bad_file", "Choose the file again.")
     name, kind, encoded = body.get("name"), body.get("kind"), body.get("data")
     if not isinstance(encoded, str) or len(encoded) > ((MAX_FILE_BYTES + 2) // 3) * 4:
         raise ThingsError("file_size", "Choose a file smaller than 8 MB.")

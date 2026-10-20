@@ -2668,9 +2668,12 @@
     "things.online_off": "オンライン接続はオフです。手元の説明書を添付できます。",
     "things.read_photo": "写真の文字を読む",
     "things.choose_file": "ファイルを選ぶ",
-    "things.choose_saved": "一覧から保存した持ちものを選んでください。"
+    "things.choose_saved": "一覧から保存した持ちものを選んでください。",
+    "things.specs_needed": "保存した仕様と箱の文字を「項目: 値」の形で、1行に1項目ずつ入力してください。",
+    "things.fits_not_verified": "全体の互換性は未確認です。文字が一致するだけでは、適合するとは証明できません。",
+    "things.order_items_needed": "注文品が保存されていません。注文の詳細に1行に1品ずつ入力してください。"
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

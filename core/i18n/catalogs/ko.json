@@ -2668,9 +2668,12 @@
     "things.online_off": "인터넷 접속이 꺼져 있습니다. 가지고 있는 설명서를 첨부할 수 있습니다.",
     "things.read_photo": "사진의 글자 읽기",
     "things.choose_file": "파일 선택",
-    "things.choose_saved": "목록에서 저장된 물건을 선택하세요."
+    "things.choose_saved": "목록에서 저장된 물건을 선택하세요.",
+    "things.specs_needed": "저장된 사양과 상자의 글자를 한 줄에 하나씩 항목: 값 형식으로 입력하세요.",
+    "things.fits_not_verified": "전체 호환성은 확인되지 않았습니다. 글자가 같다는 것만으로 적합하다고 볼 수 없습니다.",
+    "things.order_items_needed": "저장된 주문 품목이 없습니다. 주문 정보에 한 줄에 하나씩 입력하세요."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -2668,9 +2668,12 @@
     "things.online_off": "الوصول إلى الإنترنت متوقف. يمكنك إرفاق دليل لديك.",
     "things.read_photo": "قراءة النص من صورة",
     "things.choose_file": "اختيار ملف",
-    "things.choose_saved": "اختر شيئاً محفوظاً من القائمة."
+    "things.choose_saved": "اختر شيئاً محفوظاً من القائمة.",
+    "things.specs_needed": "أدخل المواصفات المحفوظة والنص على العلبة بأسطر على شكل تفصيل: قيمة.",
+    "things.fits_not_verified": "لم يتم التحقق من التوافق العام؛ تطابق الكلمات وحده لا يثبت أن المنتج مناسب.",
+    "things.order_items_needed": "لم يتم حفظ عناصر للطلب. أدخل عنصراً واحداً في كل سطر من تفاصيل الطلب."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

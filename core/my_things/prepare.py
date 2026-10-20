@@ -40,7 +40,7 @@ def _specs(text):
 
 
 def prepare(record, *, kind, issue="", observed="", arrived=None):
-    if kind not in {"return", "repair", "warranty", "delivery", "fits"}:
+    if not isinstance(kind, str) or kind not in {"return", "repair", "warranty", "delivery", "fits"}:
         raise ThingsError("bad_action", "Choose a return, repair, warranty or comparison.")
     issue, observed = _text(issue), _text(observed)
     result = {"draft_only": True, "sent": False}
@@ -53,11 +53,11 @@ def prepare(record, *, kind, issue="", observed="", arrived=None):
         for key, label in (("maker", "Maker"), ("model", "Model"), ("serial", "Serial"), ("bought_on", "Purchase date"), ("bought_from", "Seller"), ("price", "Price"), ("warranty_end", "Saved warranty end")):
             if record.get(key):
                 facts.append(label + ": " + record[key])
-        missing = [label for key, label in (("bought_on", "Purchase date"), ("bought_from", "Seller"), ("warranty_end", "Warranty end")) if not record.get(key)]
+        missing = [key for key, label in (("bought_on", "Purchase date"), ("bought_from", "Seller"), ("warranty_end", "Warranty end")) if not record.get(key)]
         draft = ("Draft request for " + kind + "\n\n" + "\n".join(facts) + "\n\nWhat happened:\n" + issue
                  + "\n\nPlease let me know the next steps and any documents you need.\n\n"
                  + "This draft does not establish eligibility for a return or warranty service.")
-        return {**result, "draft": draft, "unknown": missing, "attachments": [{"name": f["name"], "kind": f["kind"]} for f in record.get("files", []) if f["kind"] in {"receipt", "photo"}]}
+        return {**result, "draft": draft, "unknown": [], "unknown_fields": missing, "draft_language": "en", "attachments": [{"name": f["name"], "kind": f["kind"]} for f in record.get("files", []) if f["kind"] in {"receipt", "photo"}]}
     if kind == "fits":
         saved, photographed = _specs(record.get("specs", "")), _specs(observed)
         matches, conflicts, unknown = [], [], []
@@ -68,13 +68,13 @@ def prepare(record, *, kind, issue="", observed="", arrived=None):
                 matches.append(key + ": " + saved[key])
             else:
                 conflicts.append(key + ": " + saved[key] + " / " + photographed[key])
+        codes = ["fits_not_verified"]
         if not saved or not photographed:
-            unknown.append("Enter the saved specifications and the words on the box as detail: value lines.")
-        unknown.append("Overall compatibility has not been verified; matching words alone do not prove that it fits.")
-        return {**result, "matches": matches, "conflicts": conflicts, "unknown": unknown}
+            codes.insert(0, "specs_needed")
+        return {**result, "matches": matches, "conflicts": conflicts, "unknown": unknown, "unknown_codes": codes}
     expected = list(dict.fromkeys(line.strip() for line in record.get("order_items", "").splitlines() if line.strip()))
     if not expected:
-        return {**result, "expected": [], "matches": [], "conflicts": [], "unknown": ["No order items were saved. Enter one item per line in the saved order details."]}
+        return {**result, "expected": [], "matches": [], "conflicts": [], "unknown": [], "unknown_codes": ["order_items_needed"]}
     if not isinstance(arrived, list) or any(not isinstance(v, str) or v not in expected for v in arrived):
         raise ThingsError("bad_arrived", "Choose arrived items from this order.")
     # Text on a packing slip is evidence of a listing, never of physical arrival.
@@ -85,7 +85,7 @@ def prepare(record, *, kind, issue="", observed="", arrived=None):
 
 
 def packet(record, *, kind, issue):
-    if kind not in {"return", "repair"}:
+    if not isinstance(kind, str) or kind not in {"return", "repair"}:
         raise ThingsError("bad_action", "Choose a return or repair packet.")
     result = prepare(record, kind=kind, issue=issue)
     out = io.BytesIO()

@@ -2668,9 +2668,12 @@
     "things.online_off": "İnternet erişimi kapalı. Elinizdeki bir kılavuzu ekleyebilirsiniz.",
     "things.read_photo": "Fotoğraftaki yazıyı oku",
     "things.choose_file": "Dosya seç",
-    "things.choose_saved": "Listeden kayıtlı bir eşya seçin."
+    "things.choose_saved": "Listeden kayıtlı bir eşya seçin.",
+    "things.specs_needed": "Kayıtlı teknik özellikleri ve kutudaki yazıları her satıra özellik: değer biçiminde girin.",
+    "things.fits_not_verified": "Genel uyumluluk doğrulanmadı; yalnızca aynı kelimeler ürünün uyacağını kanıtlamaz.",
+    "things.order_items_needed": "Kayıtlı sipariş ürünü yok. Sipariş bilgilerine her satıra bir ürün girin."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

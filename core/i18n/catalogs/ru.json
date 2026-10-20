@@ -2668,9 +2668,12 @@
     "things.online_off": "Доступ к интернету выключен. Можно прикрепить имеющуюся инструкцию.",
     "things.read_photo": "Прочитать текст на фото",
     "things.choose_file": "Выбрать файл",
-    "things.choose_saved": "Выберите сохранённую вещь из списка."
+    "things.choose_saved": "Выберите сохранённую вещь из списка.",
+    "things.specs_needed": "Введите сохранённые характеристики и текст на коробке строками вида «параметр: значение».",
+    "things.fits_not_verified": "Общая совместимость не проверена; совпадение слов само по себе не доказывает, что вещь подходит.",
+    "things.order_items_needed": "Товары заказа не сохранены. Введите по одному товару в строке в данных заказа."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

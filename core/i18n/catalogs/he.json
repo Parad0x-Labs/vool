@@ -2668,9 +2668,12 @@
     "things.online_off": "הגישה לאינטרנט כבויה. אפשר לצרף מדריך שכבר נמצא ברשותך.",
     "things.read_photo": "קריאת מילים מתמונה",
     "things.choose_file": "בחירת קובץ",
-    "things.choose_saved": "יש לבחור דבר שמור מהרשימה."
+    "things.choose_saved": "יש לבחור דבר שמור מהרשימה.",
+    "things.specs_needed": "יש להזין את המפרט השמור ואת הכיתוב על הקופסה בשורות בתבנית פרט: ערך.",
+    "things.fits_not_verified": "התאימות הכוללת לא אומתה; מילים תואמות לבדן אינן מוכיחות שהמוצר מתאים.",
+    "things.order_items_needed": "לא נשמרו פריטי הזמנה. יש להזין פריט אחד בכל שורה בפרטי ההזמנה."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

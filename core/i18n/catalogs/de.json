@@ -2668,9 +2668,12 @@
     "things.online_off": "Onlinezugriff ist aus. Du kannst eine vorhandene Anleitung anhängen.",
     "things.read_photo": "Text aus einem Foto lesen",
     "things.choose_file": "Datei auswählen",
-    "things.choose_saved": "Wähle eine gespeicherte Sache aus der Liste."
+    "things.choose_saved": "Wähle eine gespeicherte Sache aus der Liste.",
+    "things.specs_needed": "Gib die gespeicherten technischen Daten und den Text auf der Verpackung als Angabe: Wert ein, jeweils eine Zeile.",
+    "things.fits_not_verified": "Die Gesamtkompatibilität wurde nicht geprüft; gleiche Wörter allein beweisen nicht, dass es passt.",
+    "things.order_items_needed": "Keine bestellten Artikel gespeichert. Gib die Artikel in den Bestelldaten einzeln pro Zeile ein."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

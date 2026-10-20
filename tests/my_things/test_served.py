@@ -163,3 +163,25 @@ def test_corrupted_ciphertext_fails_closed_on_served_reads_and_matches(daemon):
         path.write_bytes(original)
     assert call(base)[1]["things"][0]["id"] == item["id"]
     assert call(base, "delete", {"id": item["id"], "revision": 1, "confirm": True})[0] == 200
+
+
+def test_malformed_field_types_are_refused_without_creating_or_mutating_records(daemon):
+    base, _ = daemon
+    item = call(base, "save", {"fields": {"name": "Synthetic shape control"}, "confirm": True})[1]["thing"]
+    bad = [
+        ("propose", {"file": None}),
+        ("match", {"file": []}),
+        ("read", {"file": "photo"}),
+        ("prepare", {"id": item["id"], "kind": []}),
+        ("packet", {"id": item["id"], "kind": {}}),
+        ("save", {"id": None, "fields": {"name": "Must not be created"}, "confirm": True}),
+        ("save", {"id": False, "fields": {"name": "Must not be created"}, "confirm": True}),
+        ("save", {"id": item["id"], "revision": True, "fields": {"name": "Must not change"}, "confirm": True}),
+        ("delete", {"id": item["id"], "revision": True, "confirm": True}),
+    ]
+    for action, body in bad:
+        status, response, _ = call(base, action, body)
+        assert status == 400 and response["ok"] is False, (action, response)
+    saved = call(base)[1]["things"]
+    assert len(saved) == 1 and saved[0]["name"] == item["name"] and saved[0]["revision"] == 1
+    assert call(base, "delete", {"id": item["id"], "revision": 1, "confirm": True})[0] == 200

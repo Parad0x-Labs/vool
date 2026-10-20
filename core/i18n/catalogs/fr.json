@@ -2668,9 +2668,12 @@
     "things.online_off": "L’accès en ligne est désactivé. Vous pouvez joindre une notice que vous possédez.",
     "things.read_photo": "Lire le texte d’une photo",
     "things.choose_file": "Choisir un fichier",
-    "things.choose_saved": "Choisissez une affaire enregistrée dans la liste."
+    "things.choose_saved": "Choisissez une affaire enregistrée dans la liste.",
+    "things.specs_needed": "Saisissez les caractéristiques enregistrées et le texte sur la boîte sous la forme détail : valeur, une ligne par détail.",
+    "things.fits_not_verified": "La compatibilité globale n’a pas été vérifiée ; des mots identiques ne prouvent pas que cela convient.",
+    "things.order_items_needed": "Aucun article commandé n’est enregistré. Saisissez un article par ligne dans les détails de la commande."
   },
-  "source_catalog_sha256": "57eaacf25e9a69e87c6f900e9797750e24b109b98f659a6c306080e236711930",
+  "source_catalog_sha256": "8bfbfab418374997613f3e429686c84589ab73cbfa2544dd431f3df322731bda",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

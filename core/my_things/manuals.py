@@ -22,7 +22,10 @@ def preview(thing_id, url, *, confirmed=False):
         raise ThingsError("confirmation_required", "Review the manual address, then confirm before opening it online.", 409)
     if not isinstance(url, str) or len(url) > 2000:
         raise ThingsError("bad_url", "Enter the manual's web address.")
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        raise ThingsError("bad_url", "Enter the manual's full web address.") from None
     if parts.scheme not in {"http", "https"} or not parts.hostname or parts.username or parts.password:
         raise ThingsError("bad_url", "Enter a public web address without sign-in details.")
     ThingsStore().get(thing_id)
