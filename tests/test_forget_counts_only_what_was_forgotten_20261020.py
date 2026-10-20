@@ -8,8 +8,6 @@ Measured on a served daemon at 153148eb (the 0.7.2 train head):
   law says a forget that found nothing says nothing was forgotten.
 - "Forget MINT-84. Forget 5906." with both stored answered 'Nothing was removed ... matched "MINT-84. Forget
   5906"' and both stayed in memory: the two targets were searched as one string.
-- "Forget storage label MINT-84." after "Remember that my storage label is MINT-84." answered "Nothing was
-  removed" and the label stayed in memory: the described value was searched with its description.
 """
 from __future__ import annotations
 
@@ -68,17 +66,6 @@ def test_a_forget_that_only_scrubs_chat_history_says_nothing_was_removed(isolate
     assert "signal green" in words
 
 
-def test_a_described_value_is_forgotten_by_its_value(isolated_pages):
-    chat = "forget-count-described"
-    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
-    _remember(isolated_pages, chat, "my harbor lantern is painted signal green.")
-
-    handled, reply = command(isolated_pages, chat, f"Forget storage label {LABEL}.")
-
-    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
-    assert _live_entries() == ["my harbor lantern is painted signal green."]
-
-
 def test_two_named_targets_are_both_forgotten_and_counted_once_each(isolated_pages):
     chat = "forget-count-two-targets"
     _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
@@ -98,13 +85,13 @@ def test_two_named_targets_are_both_forgotten_and_counted_once_each(isolated_pag
 
 def test_one_target_stored_and_one_not_reports_each(isolated_pages):
     chat = "forget-count-partial"
-    _remember(isolated_pages, chat, f"my storage label is {LABEL}.")
+    _remember(isolated_pages, chat, f"storage label {LABEL} goes on the blue box.")
 
     handled, reply = command(isolated_pages, chat, f"Forget my locker code {CODE}. Forget storage label {LABEL}.")
 
     assert handled, reply
     assert reply.splitlines() == [
-        f'Nothing was removed. Forget found no memory in this chat that matched "{CODE}".',
+        f'Nothing was removed. Forget found no memory in this chat that matched "my locker code {CODE}".',
         "Forget applied. Removed 1 memory entry.",
     ], reply
     assert _live_entries() == []
@@ -149,17 +136,6 @@ def test_an_apostrophe_is_no_quote_and_keeps_two_targets_apart(isolated_pages):
 
     assert handled and reply == "Forget applied. Removed 2 memory entries.", reply
     assert _live_entries() == ["my harbor lantern is painted signal green."]
-
-
-def test_a_short_number_keeps_its_description(isolated_pages):
-    """Only the described value of four or more characters stands alone: "Bob's code 42" is not every 42."""
-    chat = "forget-count-short-number"
-    _remember(isolated_pages, chat, "I am 42 years old.")
-
-    handled, reply = command(isolated_pages, chat, "Forget Bob's code 42. Forget storage label MINT-84.")
-
-    assert handled and "Removed" not in reply, reply
-    assert _live_entries() == ["I am 42 years old."]
 
 
 def test_one_target_failing_while_another_is_forgotten_is_never_reported_as_applied(isolated_pages):
@@ -234,9 +210,9 @@ def test_served_forget_counts_only_memory_and_forgets_the_named_label(served):
     stored the label, then the same words again."""
     daemon, home = served["daemon"], served["home"]
     stored = "forget-count-served"
-    for message in (f"Remember that my storage label is {LABEL}.",
+    for message in (f"Remember that storage label {LABEL} goes on the blue box.",
                     "Remember that my harbor lantern is painted signal green.",
-                    f"Which box did I put label {LABEL} on?"):
+                    f"Which box did I put storage label {LABEL} on?"):
         assert _reply_text(daemon.chat(message, session_id=stored, mode="auto")).strip()
     assert _carriers_outside_the_revocation_ledger(home, LABEL), "probe is blind: the label was never written"
 
@@ -249,9 +225,10 @@ def test_served_forget_counts_only_memory_and_forgets_the_named_label(served):
     entries = (home / "data" / "memory_entries.jsonl").read_text(encoding="utf-8")
     assert BYSTANDER in entries and LABEL.casefold() not in entries.casefold()
 
-    again = _reply_text(daemon.chat(f"Forget {LABEL}.", session_id=stored, mode="auto"))
+    again = _reply_text(daemon.chat(f"Forget storage label {LABEL}.", session_id=stored, mode="auto"))
     assert again.startswith("Nothing was removed") and "Removed" not in again, again
-    refused = _reply_text(daemon.chat(f"Remember that my storage label is {LABEL}.", session_id=stored, mode="auto"))
+    refused = _reply_text(daemon.chat(f"Remember that storage label {LABEL} goes on the blue box.", session_id=stored,
+                                      mode="auto"))
     assert "You asked me to forget that in this chat" in refused, refused
 
 

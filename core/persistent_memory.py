@@ -277,29 +277,21 @@ _FORGET_NEXT_TARGET_RE = re.compile(
     r"(?:[.!?;]+\s+|,?\s+(?:and|then)\s+)(?:(?:and|also|then|please)\s+)*(?=(?:forget|erase)\s+\S)",
     re.IGNORECASE,
 )
-# What a forget may report as removed memory entries when no entry or semantic record matched: copies VOOL's
-# memory derived from what it held. The chat's own history is scrubbed of the words as well, but those rows
-# are no memory the user stored (see _FORGET_CHAT_HISTORY_STORES).
+# What a forget may report as removed memory entries when no entry or semantic record matched: copies VOOL
+# derived from what it held, and carriers the assistant reads back (context pages, chat titles, local tasks).
+# The chat's own transcript and run history are scrubbed of the words as well, but those rows only record that
+# the words were said -- an earlier turn, or the previous forget command itself -- and are no memory the user
+# stored (see _FORGET_CHAT_HISTORY_STORES).
 _FORGET_MEMORY_DERIVATIVE_STORES = (
     "structured_summaries", "session_summaries", "memory_receipts", "memory_fts", "source_fts",
     "dialogue_topic_archives", "learning_shards", "user_heuristics", "operator_dense_profile", "context_pages",
+    "chat_session_metadata",
 )
-_FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives", "chat_session_metadata")
+_FORGET_CHAT_HISTORY_STORES = ("conversation_log", "dialogue_derivatives")
 _FORGET_TARGET_RE = re.compile(
     r"^(?:the\s+)?(?:old\s+|previous\s+|exact\s+)?"
     r"(?:identifier|code|marker|private\s+marker|label|port|number|phrase|value|fact|token)\s+"
     r"(?P<value>.+?)"
-    r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
-    re.IGNORECASE,
-)
-# "Forget storage label MINT-84" / "forget my locker code 5906": a described identifier. Only a single value of
-# four or more characters carrying a digit is taken: a sentence ("forget that the code changed", "forget the gate
-# code is QX-4471") is never narrowed, and a short number ("forget Bob's code 42") keeps its description, which
-# is what tells it apart from every other 42.
-_FORGET_DESCRIBED_VALUE_RE = re.compile(
-    r"^(?:the\s+|my\s+)?(?:old\s+|previous\s+|exact\s+)?(?:[a-z][a-z'-]*\s+){0,2}"
-    r"(?:identifier|code|marker|label|port|number|phrase|value|token)\s+"
-    r"(?P<value>(?=\S{4})[^\s\d]*\d\S*)"
     r"(?:\s+from\s+(?:this|the\s+current)\s+chat)?$",
     re.IGNORECASE,
 )
@@ -633,7 +625,7 @@ def _normalize_forget_target(raw_target: str) -> str:
     # "Forget what I told you about Ilona's favourite tree" names "Ilona's favourite tree"; the
     # lead-in is how people say it, not part of anything they stored.
     target = _FORGET_TOLD_YOU_ABOUT_RE.sub("", target, count=1)
-    match = _FORGET_TARGET_RE.fullmatch(target) or _FORGET_DESCRIBED_VALUE_RE.fullmatch(target)
+    match = _FORGET_TARGET_RE.fullmatch(target)
     if match:
         target = match.group("value")
     target = re.sub(
@@ -2346,9 +2338,10 @@ def maybe_handle_memory_command(
             if total_removed <= 0:
                 total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_MEMORY_DERIVATIVE_STORES)
                 total_removed += sum(int(result.get("removed") or 0)
-                                     for name, result in erasures.get("stores", {}).items() if name.endswith("_memory_blocks"))
+                                     for name, result in erasures.get("stores", {}).items()
+                                     if name.startswith("persisted_") or name.endswith("_memory_blocks"))
             if total_removed <= 0 and resuming:
-                # Run-history rows count only when this forget finishes an earlier, unfinished forget of the
+                # Transcript and run-history rows count only when this forget finishes an earlier, unfinished forget of the
                 # same words: that retry removed rows and must not answer "Nothing was removed" (review of
                 # 9b78dac). Otherwise the chat's own history -- an earlier turn that quoted the words, the
                 # previous forget command itself -- is scrubbed but is no memory: counting it answered
@@ -2356,7 +2349,7 @@ def maybe_handle_memory_command(
                 total_removed = sum(int(erasures.get(key) or 0) for key in _FORGET_CHAT_HISTORY_STORES)
                 total_removed += sum(int(result.get("removed") or 0)
                                      for name, result in erasures.get("stores", {}).items()
-                                     if name.startswith(("persisted_", RUN_HISTORY_PREFIX)))
+                                     if name.startswith(RUN_HISTORY_PREFIX))
             incomplete = [store for store, result in erasures.get("stores", {}).items() if result["status"] == "incomplete"]
             failed_stores = [store.replace("_", " ") for store in incomplete]
             if failed_stores:
