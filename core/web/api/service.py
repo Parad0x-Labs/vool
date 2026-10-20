@@ -6612,7 +6612,10 @@ def _dispatch_post_inner(
         # nothing here.
         from core.web.api.runtime import record_stopped_turn
 
-        record_stopped_turn(cancel_session, cancel_turn)
+        if record_stopped_turn(cancel_session, cancel_turn) == "already_recorded":
+            # The turn's answer was committed before the stop counted (its seal won): it is the
+            # turn's record and the page keeps it, so nothing is cancelled.
+            return apply_runtime_headers(json_response(200, {"ok": True, "state": "committed"}), runtime)
         state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 

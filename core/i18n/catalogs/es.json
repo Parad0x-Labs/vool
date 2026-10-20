@@ -914,6 +914,7 @@
     "run.review_action": "Revisa abajo la acción exacta.",
     "run.status_completed": "Completado",
     "run.status_stopped": "Detenido",
+    "run.status_stopping": "Deteniendo…",
     "run.status_waiting": "Esperando tu permiso",
     "run.stop": "Detener",
     "run.stop_title": "Detiene este turno — cancela la tarea en ejecución en tu máquina y corta la respuesta.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Esta habilidad no superó las comprobaciones de seguridad propias de VOOL, así que VOOL no la guardó ni la instaló. Puedes reportarla en el Skill Codex.",
     "keys.test.invalid": "{label} rechazó la clave{http}. Compruébala de nuevo o sustitúyela."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

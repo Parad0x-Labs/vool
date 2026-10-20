@@ -914,6 +914,7 @@
     "run.review_action": "راجع الإجراء المحدد أدناه.",
     "run.status_completed": "اكتمل",
     "run.status_stopped": "متوقف",
+    "run.status_stopping": "جارٍ الإيقاف…",
     "run.status_waiting": "بانتظار موافقتك",
     "run.stop": "إيقاف",
     "run.stop_title": "إيقاف هذا الدور — يلغي المهمة الجارية على جهازك ويوقف الإجابة.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "لم تجتز هذه المهارة فحوص الأمان الخاصة بـ VOOL، لذلك لم يحتفظ بها VOOL ولم يثبّتها. يمكنك الإبلاغ عنها إلى Skill Codex.",
     "keys.test.invalid": "رفض {label} المفتاح{http}. راجعه أو استبدله."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

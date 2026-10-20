@@ -914,6 +914,7 @@
     "run.review_action": "Перегляньте точну дію нижче.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Зупинено",
+    "run.status_stopping": "Зупинка…",
     "run.status_waiting": "Очікує вашого підтвердження",
     "run.stop": "Зупинити",
     "run.stop_title": "Зупинити цей хід — скасовує виконуване завдання на вашому комп’ютері та припиняє відповідь.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Ця навичка не пройшла власні перевірки безпеки VOOL, тому VOOL не зберіг і не встановив її. Ви можете повідомити про неї в Skill Codex.",
     "keys.test.invalid": "{label} відхилив ключ{http}. Перевірте його ще раз або замініть."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

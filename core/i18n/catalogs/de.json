@@ -914,6 +914,7 @@
     "run.review_action": "Prüfe unten die exakte Aktion.",
     "run.status_completed": "Abgeschlossen",
     "run.status_stopped": "Gestoppt",
+    "run.status_stopping": "Wird gestoppt…",
     "run.status_waiting": "Wartet auf deine Freigabe",
     "run.stop": "Stopp",
     "run.stop_title": "Diesen Zug stoppen — bricht die laufende Aufgabe auf deinem Rechner ab und stoppt die Antwort.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Diese Fertigkeit hat die eigenen Sicherheitsprüfungen von VOOL nicht bestanden, daher hat VOOL sie weder behalten noch installiert. Sie können sie beim Skill Codex melden.",
     "keys.test.invalid": "{label} hat den Schlüssel abgelehnt{http}. Prüfe ihn erneut oder ersetze ihn."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -914,6 +914,7 @@
     "run.review_action": "Aşağıdaki kesin eylemi incele.",
     "run.status_completed": "Tamamlandı",
     "run.status_stopped": "Durduruldu",
+    "run.status_stopping": "Durduruluyor…",
     "run.status_waiting": "Onayınız bekleniyor",
     "run.stop": "Durdur",
     "run.stop_title": "Bu turu durdur — makinede çalışan görevi iptal eder ve yanıtı keser.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Bu beceri VOOL'un kendi güvenlik denetimlerini geçemedi, bu yüzden VOOL onu saklamadı ve yüklemedi. Skill Codex'e bildirebilirsiniz.",
     "keys.test.invalid": "{label} anahtarı reddetti{http}. Yeniden kontrol edin ya da değiştirin."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

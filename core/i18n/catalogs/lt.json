@@ -914,6 +914,7 @@
     "run.review_action": "Peržiūrėkite tikslų veiksmą žemiau.",
     "run.status_completed": "Atlikta",
     "run.status_stopped": "Sustabdyta",
+    "run.status_stopping": "Stabdoma…",
     "run.status_waiting": "Laukiama jūsų leidimo",
     "run.stop": "Stabdyti",
     "run.stop_title": "Sustabdyti šį ėjimą — atšaukia vykdomą užduotį jūsų kompiuteryje ir nutraukia atsakymą.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Šis įgūdis neišlaikė pačios VOOL saugumo patikrų, todėl VOOL jo nei išsaugojo, nei įdiegė. Galite apie jį pranešti Skill Codex.",
     "keys.test.invalid": "{label} atmetė raktą{http}. Patikrinkite dar kartą arba pakeiskite jį."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

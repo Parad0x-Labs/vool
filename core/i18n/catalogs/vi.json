@@ -914,6 +914,7 @@
     "run.review_action": "Hãy xem chính xác hành động bên dưới.",
     "run.status_completed": "Hoàn tất",
     "run.status_stopped": "Đã dừng",
+    "run.status_stopping": "Đang dừng…",
     "run.status_waiting": "Đang chờ bạn phê duyệt",
     "run.stop": "Dừng",
     "run.stop_title": "Dừng lượt này — hủy tác vụ đang chạy trên máy của bạn và dừng câu trả lời.",
@@ -2601,7 +2602,7 @@
     "addons.registry_unsafe": "Kỹ năng này không vượt qua các bước kiểm tra an toàn của chính VOOL, nên VOOL không giữ lại và không cài đặt nó. Bạn có thể báo cáo nó với Skill Codex.",
     "keys.test.invalid": "{label} từ chối khóa{http}. Hãy kiểm tra lại hoặc thay khóa khác."
   },
-  "source_catalog_sha256": "c4ba2e2d67c0c65829d861ccf7dedf96e8e9c3fef2886b7e8f14a36e43e903c5",
+  "source_catalog_sha256": "53916a6a587e7e09a35f528c79ddaeeaef6f80298a8747e1abf1214cdd6b7097",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

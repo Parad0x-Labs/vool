@@ -344,7 +344,10 @@ def test_served_stop_then_send_at_once_the_next_message_starts_promptly_and_reco
             answer = daemon.chat(AGAIN, session_id=session, timeout=120)
             watcher.join(timeout=5)
             assert reached, "the next message never reached the model"
-            assert reached[0] - stopped_at < 5.0, f"the next message waited {reached[0] - stopped_at:.1f}s for the stopped turn"
+            # Measured 3-7 s here (the next turn's own planning calls come first); a stopped call
+            # left running holds the chat until the scripted model answers (up to 60 s). 20 s
+            # separates the two without timing the host.
+            assert reached[0] - stopped_at < 20.0, f"the next message waited {reached[0] - stopped_at:.1f}s for the stopped turn"
             assert not held.held_returned, "the next message waited for the stopped call's answer"
             assert "Hello there." in json.dumps(answer)
 
