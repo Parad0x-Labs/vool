@@ -85,6 +85,25 @@ def test_real_daemon_chat_card_approves_once_and_ratings_feed_the_next_draft(vau
         card=page.locator('.vx-approval').filter(has_text=TEXT)
         card.wait_for(timeout=30000)
         shots=Path(os.environ['SOCIAL_SHOTS']);shots.mkdir(parents=True,exist_ok=True);card.screenshot(path=str(shots/'chat-approval.png'))
+        assert page.request.post(base+'/api/x/activity',headers={'Origin':base},data={'action':'set_limits','monthly_actions':0}).ok
+        for locale, expected in [('en','Your X send limit has been reached. Check your limits in Settings.'),('de','Dein X-Sendelimit ist erreicht. Prüfe deine Limits in den Einstellungen.')]:
+            if locale!='en':
+                page.goto(base+'/chat?ui_locale='+locale+'#'+SESSION)
+                card=page.locator('.vx-approval').filter(has_text=TEXT)
+                card.wait_for()
+            with page.expect_response(lambda r:r.url.endswith('/api/x/activity') and r.request.method=='POST') as response:
+                card.locator('.vx-approve').click()
+            rejected=response.value.json()
+            assert response.value.status==400 and rejected['state']=='usage_limit_reached',rejected
+            page.wait_for_function("document.querySelector('.vx-approval .vx-approve') && !document.querySelector('.vx-approval .vx-approve').disabled")
+            assert not [r for r in requests if r[0]=='POST']
+            actual=card.locator('[role=status]').first.inner_text()
+            (shots/('limit-'+locale+'.json')).write_text(json.dumps({'reply':rejected,'displayed':actual,'writes':0}))
+            card.screenshot(path=str(shots/('chat-limit-'+locale+'.png')))
+            assert actual==expected
+        assert page.request.post(base+'/api/x/activity',headers={'Origin':base},data={'action':'set_limits','monthly_actions':None}).ok
+        page.goto(base+'/chat?ui_locale=en#'+SESSION)
+        card=page.locator('.vx-approval').filter(has_text=TEXT)
         card.get_by_role('button',name='Approve and send',exact=True).click()
         page.wait_for_function("document.querySelector('.vx-approval [role=status]').textContent === 'Sent'")
         assert len([r for r in requests if r[0]=='POST'])==1

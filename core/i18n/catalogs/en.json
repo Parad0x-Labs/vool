@@ -2617,7 +2617,8 @@
     "xs.pause": "Pause ratings",
     "xs.reset": "Forget all ratings",
     "xs.forget": "Forget rating",
-    "xs.forget_scope": "Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback."
+    "xs.forget_scope": "Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.",
+    "xs.limit_reached": "Your X send limit has been reached. Check your limits in Settings."
   },
   "html_keys": [
     "bypass.modal_limits",

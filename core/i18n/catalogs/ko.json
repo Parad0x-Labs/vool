@@ -2617,9 +2617,10 @@
     "xs.pause": "평가 사용 일시 중지",
     "xs.reset": "모든 평가 잊기",
     "xs.forget": "이 평가 잊기",
-    "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 이전 채팅에는 피드백이 남아 있을 수 있습니다."
+    "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 이전 채팅에는 피드백이 남아 있을 수 있습니다.",
+    "xs.limit_reached": "X 전송 한도에 도달했습니다. 설정에서 한도를 확인하세요."
   },
-  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
+  "source_catalog_sha256": "c22e7abb8b5cee4750d5ff927617c9bff446009ad98658127621d7ee41860b27",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

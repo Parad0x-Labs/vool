@@ -2617,9 +2617,10 @@
     "xs.pause": "Suspendre les notes",
     "xs.reset": "Oublier toutes les notes",
     "xs.forget": "Oublier cette note",
-    "xs.forget_scope": "Oublier les notes supprime les indications enregistrées et les exemples de style associés. Les anciennes conversations peuvent encore contenir ces avis."
+    "xs.forget_scope": "Oublier les notes supprime les indications enregistrées et les exemples de style associés. Les anciennes conversations peuvent encore contenir ces avis.",
+    "xs.limit_reached": "Votre limite d’envoi sur X est atteinte. Vérifiez vos limites dans les réglages."
   },
-  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
+  "source_catalog_sha256": "c22e7abb8b5cee4750d5ff927617c9bff446009ad98658127621d7ee41860b27",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

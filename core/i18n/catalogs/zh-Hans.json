@@ -2617,9 +2617,10 @@
     "xs.pause": "暂停使用评分",
     "xs.reset": "忘记所有评分",
     "xs.forget": "忘记此评分",
-    "xs.forget_scope": "忘记评分会移除已保存的指导和文风样本。过去的聊天中可能仍保留这些反馈。"
+    "xs.forget_scope": "忘记评分会移除已保存的指导和文风样本。过去的聊天中可能仍保留这些反馈。",
+    "xs.limit_reached": "已达到 X 发送上限。请在设置中检查限额。"
   },
-  "source_catalog_sha256": "2cd54f0d6d392a2bfddeb60c048574d28e280405295d39ad193fd97944ae9231",
+  "source_catalog_sha256": "c22e7abb8b5cee4750d5ff927617c9bff446009ad98658127621d7ee41860b27",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

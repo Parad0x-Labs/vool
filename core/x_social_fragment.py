@@ -72,6 +72,8 @@ async function refresh(entry){
     row.querySelectorAll('button').forEach(b=>b.disabled=true);
     try{const r=await call('/api/x/activity',{action:action,action_id:a.id,...(action==='approve'?{hash:a.hash}:{})});note.textContent=r.data.message||'';
      entry.versions.delete(a.id);await refresh(entry);
+     if(!r.ok){const current=entry.host.querySelector('[data-x-action="'+a.id+'"]');const status=current&&current.querySelector('[role=status]');
+      if(status&&current.querySelector('.vx-approve'))status.textContent=r.data.state==='usage_limit_reached'?t('xs.limit_reached','Your X send limit has been reached. Check your limits in Settings.'):(r.data.message||t('xact.failed','That did not work. Nothing was sent.'));}
     }catch(e){note.textContent=t('xact.lost_answer','VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.');}
    }
    const yes=button(t('xact.approve','Approve and send'),()=>act('approve'));yes.classList.add('vx-approve');row.appendChild(yes);
