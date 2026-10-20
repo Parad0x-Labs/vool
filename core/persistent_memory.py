@@ -1026,13 +1026,14 @@ _OUTCOME_STOPPED = "stopped"
 _SEALS_IN_FLIGHT: dict[str, threading.Event] = {}
 _STOPS_PENDING_SEAL: dict[str, dict[str, Any]] = {}
 # What a served turn learns from its exchange (memory extraction, the turn-context page), held
-# until the transcript says how the turn ended (``after_transcript_records``): run once the answer
+# until the transcript says how the turn ended (``_after_transcript_records``): run once the answer
 # is recorded or the request ends without a stop, dropped when the person stopped the turn. An
-# entry lives no longer than its request's boundary.
+# entry lives no longer than its request's boundary. Private like the seal pair: it schedules work
+# and reads or serves no memory, so it is not part of the module's reader-classified serving API.
 _WORK_AFTER_RECORD: dict[str, list[Any]] = {}
 
 
-def after_transcript_records(request_id: str, work: Any) -> str:
+def _after_transcript_records(request_id: str, work: Any) -> str:
     """Run ``work`` once ``request_id``'s turn is recorded as answered; never for a stopped turn.
 
     The turn's worker reaches what it learns from the exchange before the seal may have run (the

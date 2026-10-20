@@ -2063,7 +2063,7 @@ def _run_agent_locked(
         # a served turn's answer is often sealed after this worker returns, so what it learns is
         # held until the transcript records the answer, and dropped if the person stopped it.
         from core.finalization import _turn_cancel_marker_fired
-        from core.persistent_memory import after_transcript_records
+        from core.persistent_memory import _after_transcript_records
         from core.semantic.semantic_admissions import current_request_id
 
         _turn_stopped = _turn_cancel_marker_fired(base_context) or bool(
@@ -2087,7 +2087,7 @@ def _run_agent_locked(
                     source_context=base_context,
                 )
 
-            after_transcript_records(
+            _after_transcript_records(
                 str(current_request_id() or (base_context or {}).get("request_id") or ""), _learn_from_exchange
             )
         update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
