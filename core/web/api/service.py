@@ -869,6 +869,15 @@ def dispatch_get(
         """
         return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
+    if normalized_path == "/my-things":
+        from core.my_things_fragment import render_my_things_page
+
+        return apply_runtime_headers(html_response(200, render_my_things_page(resolve_page_locale(query, headers)), headers={"Cache-Control": "no-store"}), runtime)
+    if normalized_path == "/api/my-things" or normalized_path.startswith("/api/my-things/"):
+        from core.my_things.api import get as things_get
+
+        return apply_runtime_headers(things_get(normalized_path, client_host, headers), runtime)
+
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
 
@@ -3077,6 +3086,11 @@ def dispatch_post(
         # Every POST handler below reads body.get(...); a non-object JSON body (e.g. [], "x", 5)
         # would otherwise raise AttributeError -> 500. Fail cleanly instead.
         return apply_runtime_headers(json_response(400, {"error": "body must be a JSON object"}), runtime)
+
+    if normalized_path.startswith("/api/my-things/"):
+        from core.my_things.api import post as things_post
+
+        return apply_runtime_headers(things_post(normalized_path, body, headers, client_host), runtime)
 
     if normalized_path == "/api/addons":
         from core.web.api.addon_api import handle_addon_post
