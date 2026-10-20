@@ -15,6 +15,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from core.memory.admission import _APOSTROPHES
+
 _SEPARATORS = re.compile(r"[\s\-_]+")
 _LOG = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ def payload_strings(value: Any) -> tuple[str, ...]:
     raise ValueError("memory carrier has an opaque payload")
 
 
-_QUOTE_MARKS = str.maketrans({"\u2018": "'", "\u2019": "'", "\u02bc": "'", "\u201c": '"', "\u201d": '"'})
+_QUOTE_MARKS = str.maketrans({**dict.fromkeys(_APOSTROPHES, "'"), "\u201c": '"', "\u201d": '"'})
 
 
 def fold_forget_text(text: Any) -> str:

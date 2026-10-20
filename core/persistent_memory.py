@@ -666,13 +666,15 @@ def _described_forget_value(
     would also erase another memory (review of 9efc9e8: "Forget Bob's locker code 5906." erased Alice's 5906).
     Returns ("", "") when the target is not a described value or the words as typed already match.
     """
-    from core.memory.carriers import forget_needle_in
+    from core.memory.carriers import _QUOTE_MARKS, forget_needle_in
 
-    match = _FORGET_DESCRIBED_VALUE_RE.fullmatch(token)
+    # A phone keyboard types "Bob’s": the description reads the same as "Bob's" (review of 7e45341).
+    typed = token.translate(_QUOTE_MARKS)
+    match = _FORGET_DESCRIBED_VALUE_RE.fullmatch(typed)
     if match is None:
         return "", ""
     value = match.group("value").strip(" .,!?")
-    described = token[: match.start("value")].split()
+    described = typed[: match.start("value")].split()
     words = [word for word in described if word.casefold() not in _FORGET_DESCRIPTION_FILLER]
     rows = [
         str(row.get("text") or "")
