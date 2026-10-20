@@ -2260,6 +2260,14 @@ def maybe_handle_memory_command(
                     LOGGER.warning("prompt block verification failed: %s", type(exc).__name__)
                 result = block_status.get("stores", {}).get("memory_blocks", {"status": "incomplete"})
                 _record_erasure_store(erasures, f"{owner}_memory_blocks", result["status"], int(result.get("removed") or 0))
+            for owner, operation_store in owner_stores.items():
+                # The erased rows' terms leave the full-text index pages only when its segments merge.
+                try:
+                    operation_store._compact_full_text_indexes()
+                    _record_erasure_store(erasures, f"{owner}_full_text_indexes", "verified")
+                except Exception as exc:
+                    LOGGER.warning("full-text index compaction failed: %s", type(exc).__name__)
+                    _record_erasure_store(erasures, f"{owner}_full_text_indexes", "incomplete")
             required_stores = (
                 "structured_entries", "structured_summaries", "memory_mirror", "semantic_nodes",
                 "source_occurrences", "memory_receipts", "conversation_log", "revocation_ledger",

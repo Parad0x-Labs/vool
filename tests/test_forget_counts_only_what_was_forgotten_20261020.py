@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -203,6 +204,41 @@ def test_a_multi_target_forget_leaves_no_bytes_in_the_database_or_its_write_ahea
         assert _file_carriers(_runtime_db(), needle) == [], needle
     assert BYSTANDER in "\n".join(_live_entries())
     assert _carriers_outside_the_revocation_ledger(home, BYSTANDER)
+
+
+def test_a_forget_leaves_no_terms_in_the_full_text_index_pages(isolated_pages):
+    """Mac smoke on 4ed0e1f9 (also v0.7.1): after "Forget silver birch" the words were still in vool_memory.db.
+    FTS5 keeps a deleted row's terms in its index pages until the segments merge."""
+    from tests.test_question_date_time_leg_20261002 import _ingest
+
+    chat = "forget-count-index-terms"
+    _ingest(isolated_pages, chat, [(1792400000.0, "My favourite tree is the silver birch."),
+                                   (1792400100.0, "My harbor lantern is painted signal green.")])
+    memory_db = Path(isolated_pages) / "data" / "memory" / "vool_memory.db"
+
+    def index_terms(term: bytes) -> list[str]:
+        conn = sqlite3.connect(f"file:{memory_db}?mode=ro", uri=True)
+        try:
+            return [table for table in ("memory_fts_data", "source_fts_data")
+                    if any(term in bytes(row[0] or b"") for row in conn.execute(f'SELECT block FROM "{table}"'))]
+        finally:
+            conn.close()
+
+    assert index_terms(b"birch"), "probe is blind: the index never held the words"
+
+    handled, reply = command(isolated_pages, chat, "Forget silver birch.")
+
+    assert handled and reply.startswith("Forget applied"), reply
+    for term in (b"silver", b"birch"):
+        assert index_terms(term) == [], term
+    assert index_terms(b"lantern"), "the words nobody forgot must stay searchable"
+    conn = sqlite3.connect(f"file:{memory_db}?mode=ro", uri=True)
+    try:
+        # The revocation ledger keeps the token by design (it refuses the words later); nothing else does.
+        assert [row[0] for row in conn.execute("SELECT token FROM memory_revocations")] == ["silver birch"]
+    finally:
+        conn.close()
+    assert _carriers_outside_the_revocation_ledger(Path(isolated_pages), "birch") == {}
 
 
 def test_served_forget_counts_only_memory_and_forgets_the_named_label(served):
