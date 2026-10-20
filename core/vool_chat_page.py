@@ -1368,25 +1368,25 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
 </div>
-<div id="xpResize" title="Drag to resize the panel"></div>
-<aside id="xpanel" aria-label="Activity panel">
+<div id="xpResize" title="Drag to resize the panel" data-i18n-title="panel.resize_title"></div>
+<aside id="xpanel" aria-label="Activity panel" data-i18n-aria-label="panel.aria">
   <div class="xp-head">
-    <span class="xp-title">Activity</span>
-    <button type="button" id="xpCopy" class="xp-copy" title="Copy everything shown in this tab">Copy</button>
-    <button id="xpClose" class="xp-close" title="Hide panel" aria-label="Hide execution panel">&times;</button>
+    <span class="xp-title" data-i18n="panel.tab_activity">Activity</span>
+    <button type="button" id="xpCopy" class="xp-copy" title="Copy everything shown in this tab" data-i18n="msg.copy" data-i18n-title="panel.copy_title">Copy</button>
+    <button id="xpClose" class="xp-close" title="Hide panel" aria-label="Hide execution panel" data-i18n-title="panel.close_title" data-i18n-aria-label="panel.close_aria">&times;</button>
   </div>
   <div class="xp-scope-row">
-    <span class="xp-scope-lbl" id="xpScopeLbl">Scope</span>
-    <select class="xp-scope" id="xpScope" aria-labelledby="xpScopeLbl" title="Which activity this panel shows"></select>
+    <span class="xp-scope-lbl" id="xpScopeLbl" data-i18n="panel.scope_label">Scope</span>
+    <select class="xp-scope" id="xpScope" aria-labelledby="xpScopeLbl" title="Which activity this panel shows" data-i18n-title="panel.scope_title"></select>
   </div>
   <div class="xp-scope-note" id="xpScopeNote"></div>
   <div class="xp-tabs" id="xpTabs" role="tablist"></div>
   <div class="xp-search-row" id="xpSearchRow" role="search">
-    <input type="search" id="xpSearchInput" class="xp-search" placeholder="Filter events, tools, paths, models" autocomplete="off" spellcheck="false" aria-label="Search this Activity view">
+    <input type="search" id="xpSearchInput" class="xp-search" placeholder="Filter events, tools, paths, models" autocomplete="off" spellcheck="false" aria-label="Search this Activity view" data-i18n-placeholder="panel.search_placeholder" data-i18n-aria-label="panel.search_aria">
     <span id="xpSearchCount" class="search-count" aria-live="polite"></span>
-    <button type="button" id="xpSearchPrev" class="search-btn" title="Previous match" aria-label="Previous event match">&#8593;</button>
-    <button type="button" id="xpSearchNext" class="search-btn" title="Next match" aria-label="Next event match">&#8595;</button>
-    <button type="button" id="xpSearchClear" class="search-btn" title="Clear filter">Clear</button>
+    <button type="button" id="xpSearchPrev" class="search-btn" title="Previous match" aria-label="Previous event match" data-i18n-title="header.search_prev_aria" data-i18n-aria-label="panel.search_prev_aria">&#8593;</button>
+    <button type="button" id="xpSearchNext" class="search-btn" title="Next match" aria-label="Next event match" data-i18n-title="header.search_next_aria" data-i18n-aria-label="panel.search_next_aria">&#8595;</button>
+    <button type="button" id="xpSearchClear" class="search-btn" title="Clear filter" data-i18n="header.search_clear" data-i18n-title="panel.search_clear_title">Clear</button>
   </div>
   <div class="xp-body" id="xpBody" role="tabpanel" aria-live="polite"></div>
 </aside>
@@ -5972,6 +5972,71 @@ function paintFinishedCard(run) {
   }
 }
 
+// ---- Plain words for the run card ----
+// The card's action line, its recent-steps strip and its last-step line printed the task event's
+// `summary` verbatim, and for a tool step that summary is the runtime's own log line ("Running
+// live_data.weather_lookup", "Finished live_data.weather_lookup: failed"): English in every locale,
+// and naming an internal tool id. A tool step is now worded from the event's TYPE and the KIND of
+// tool, through the same catalog keys the Activity panel uses; engine lines the Activity table
+// already words (model choice, plan steps, the request arriving) read the same here. The server's
+// exact summary is not dropped: the event itself stays unchanged on run.events (Event log, Copy).
+//
+// Fail closed: a tool id this page does not recognise gets a plain generic line, never the id.
+// Words the server wrote for the person (an approval request, a picked-up note, a review cause, a
+// terminal reason) are not in these tables and are left exactly as sent.
+const RUN_CARD_ENGINE_TYPES = { 'task.started': 1, 'task.stage_changed': 1, 'model.changed': 1,
+  'model.call_started': 1, 'model.call_completed': 1, 'model.call_failed': 1, 'plan.step_started': 1, 'plan.step_completed': 1 };
+const RUN_STEP_GENERIC = {
+  active: ['step_working', 'Working on a step'], done: ['step_finished', 'Finished a step'],
+  failed: ['step_failed', 'This step didn’t work'], skipped: ['step_skipped', 'Skipped a step'],
+  ended: ['step_ended', 'A step ended'],
+};
+// 'active' | 'done' | 'failed' | 'skipped' | 'ended' for a tool or lane-node event, '' otherwise.
+// A node's completion row carries its own outcome; one that claims none has only "ended".
+function runStepPhase(ev) {
+  const type = String(ev.type || '');
+  if (type === 'tool.started' || type === 'agent_node_started') return 'active';
+  if (type === 'tool.completed') return 'done';
+  if (type === 'tool.failed') return 'failed';
+  if (type !== 'agent_node_completed') return '';
+  const status = String(ev.status || '');
+  return status === 'completed' ? 'done' : (status === 'failed' ? 'failed' : (status === 'cancelled' ? 'skipped' : 'ended'));
+}
+function runStepWords(ev, phase) {
+  const tool = String(ev.tool || '').trim();
+  const node = String(ev.type || '').indexOf('agent_node') === 0;
+  const liveData = tool.indexOf('live_data.') === 0;
+  // A lane node names its operation bare ("weather_lookup"); the tool loop prefixes it.
+  const op = liveData ? tool.slice('live_data.'.length) : ((node && ACTIVITY_PLAIN_LOOKUP_WHAT[tool]) ? tool : '');
+  if ((liveData || op) && (phase === 'active' || phase === 'done' || phase === 'failed')) {
+    const what = activityLookupWhat(op, null);
+    if (phase === 'active') return activityPlainT('lookup_active', 'Looking up {what}', { what: what });
+    if (phase === 'failed') return activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
+    return activityPlainT('lookup_done', 'Looked up {what}', { what: what });
+  }
+  // A tool of a kind the Activity panel names ("Running tests", "Read failed") reads the same here.
+  const kinds = { active: 'tool_selected', done: 'tool_executed', failed: 'tool_failed' };
+  if (tool && kinds[phase] && activityCategoryFor(tool)[0] !== 'tools') return humanToolTitle({ tool_name: tool }, kinds[phase], null);
+  const [id, english] = RUN_STEP_GENERIC[phase] || RUN_STEP_GENERIC.ended;
+  return activityPlainT(id, english);
+}
+// The card's words for one task event, or '' to keep the event's own summary.
+function runCardWords(ev) {
+  if (!ev) return '';
+  const phase = runStepPhase(ev);
+  if (phase) return runStepWords(ev, phase);
+  if (!RUN_CARD_ENGINE_TYPES[ev.type]) return '';
+  const raw = String(ev.raw_type || '');
+  if (ACTIVITY_PLAIN_MODEL[raw]) {
+    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[raw];
+    const m = ev.model || {};
+    const model = compactModelName(m.actual_adapter_model_id || m.selected_model_id || m.requested_model_id || m.policy_model_id || m.model_id || '');
+    return model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
+  }
+  if (ACTIVITY_PLAIN_TITLES[raw]) return activityPlainT(ACTIVITY_PLAIN_TITLES[raw][1], ACTIVITY_PLAIN_TITLES[raw][2]);
+  return '';
+}
+
 function applyTaskEvent(run, ev) {
   if (!ev || !ev.type) return;
   if (ev.seq != null) {
@@ -5988,7 +6053,9 @@ function applyTaskEvent(run, ev) {
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
-  if (ev.summary) { run.action = ev.summary; run.evented = true; }
+  // What the card says for this event (runCardWords), else the event's own summary.
+  const said = runCardWords(ev) || ev.summary;
+  if (said) { run.action = said; run.evented = true; }
   if (ev.model) { run.model = ev.model; rememberStickyModel(run.chatId, ev.model); }
   if (ev.cost) run.cost = Object.assign({}, run.cost, ev.cost);
   switch (ev.type) {
@@ -6002,25 +6069,25 @@ function applyTaskEvent(run, ev) {
       break;
     case 'tool.started':
       run.permission = false;
-      run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'running', stage: ev.stage,
+      run.steps.push({ tool: ev.tool, summary: said, status: 'running', stage: ev.stage,
         startedAt: Date.now(), finishedAt: 0, model: run.model, cost: run.cost });
       if (run.card) run.card.classList.remove('tc-hold');  // resume after a permission pause
       break;
     case 'tool.completed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].tool === ev.tool && run.steps[i].status === 'running') { s = run.steps[i]; break; } }
       if (!s) s = run.steps[run.steps.length - 1];
-      if (s) { s.status = 'completed'; if (ev.summary) s.summary = ev.summary; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = ev.summary || run.last;
+      if (s) { s.status = 'completed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
+      run.last = said || run.last;
       if (ev.path) run.files[ev.path] = (run.files[ev.path] || 0) + 1;
       if ((ev.stage || '') === 'Testing' && ev.measurable) { if (ev.measurable.current != null) run.tests.done = ev.measurable.current; if (ev.measurable.total != null) run.tests.total = ev.measurable.total; }
       break;
     }
     case 'tool.failed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].status === 'running') { s = run.steps[i]; break; } }
-      if (s) { s.status = 'failed'; if (ev.summary) s.summary = ev.summary; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = ev.summary || run.last;
+      if (s) { s.status = 'failed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
+      run.last = said || run.last;
       break;
     }
     case 'permission.required':
@@ -6100,6 +6167,10 @@ function visibleTabs() {
   };
   return PANEL_TABS.filter((t) => has[t]);
 }
+// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log).
+function panelTabLabel(name) {
+  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), name);
+}
 function buildTabs() {
   xpTabsEl.innerHTML = '';
   const tabs = visibleTabs();
@@ -6107,7 +6178,8 @@ function buildTabs() {
   tabs.forEach((name) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'xp-tab' + (name === panelTab ? ' active' : ''); b.setAttribute('role', 'tab');
-    b.innerHTML = esc(name) + ' <span class="cnt" data-tab="' + esc(name) + '"></span>';
+    // The tab's internal name stays the key (counts, copy, open state); a person reads its label.
+    b.innerHTML = esc(panelTabLabel(name)) + ' <span class="cnt" data-tab="' + esc(name) + '"></span>';
     b.addEventListener('click', () => { panelTab = name; buildTabs(); renderPanel(); });
     xpTabsEl.appendChild(b);
   });
@@ -7607,7 +7679,7 @@ function renderActivityTree(events, openState, opts) {
 // The work log for ONE already-built tree, without the bulk-action bar -- a per-turn section owns
 // its own disclosure, and one Expand all / Copy all at the top governs every turn on screen.
 function activityTreeBodyHtml(tree, openState, scopeId) {
-  if (!tree || !tree.categories.length) return '<div class="xp-empty">No recorded activity for this turn.</div>';
+  if (!tree || !tree.categories.length) return '<div class="xp-empty">' + esc(pageT('panel.empty_turn', 'No recorded activity for this turn.')) + '</div>';
   return tree.categories.map((c) => activityCategoryHtml(c, openState)).join('');
 }
 // ---- Bulk disclosure + copy ----
@@ -7628,9 +7700,9 @@ let lastActivityTurnLabels = [];
 let lastActivityOpenStore = null;
 function activityTreeActionsHtml() {
   return '<div class="xp-tree-actions">'
-    + '<button type="button" class="xp-mini" data-activity-action="expand">Expand all</button>'
-    + '<button type="button" class="xp-mini" data-activity-action="collapse">Collapse all</button>'
-    + '<button type="button" class="xp-mini" data-activity-action="copy">Copy all</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="expand">' + esc(pageT('panel.expand_all', 'Expand all')) + '</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="collapse">' + esc(pageT('panel.collapse_all', 'Collapse all')) + '</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button>'
     + '</div>';
 }
 function setActivityTreeOpen(open) {
@@ -7839,12 +7911,11 @@ function scopeNoteHtml() {
   const note = document.getElementById('xpScopeNote');
   if (!note) return;
   let text = '';
-  if (panelScope === 'chat') text = 'Showing only this chat\u2019s evidence.';
-  else if (panelScope === 'project') text = 'Showing every chat in ' + currentProjectName() + '.';
-  else text = 'Showing activity from every chat in VOOL.';
+  if (panelScope === 'chat') text = pageT('panel.scope_note_chat', 'Showing only this chat\u2019s evidence.');
+  else if (panelScope === 'project') text = pageTF('panel.scope_note_project', 'Showing every chat in {name}.', { name: currentProjectName() });
+  else text = pageT('panel.scope_note_all', 'Showing activity from every chat in VOOL.');
   if (panelScope !== 'chat' && scopedEvidence.dropped) {
-    text += ' Read the ' + SCOPE_SESSION_CAP + ' most recent chats; ' + scopedEvidence.dropped + ' older chat'
-      + (scopedEvidence.dropped === 1 ? '' : 's') + ' not read.';
+    text += ' ' + pageTF('panel.scope_note_dropped', 'Read the {cap} most recent chats; older chats not read: {n}.', { cap: SCOPE_SESSION_CAP, n: scopedEvidence.dropped });
   }
   note.textContent = text;
 }
@@ -7920,7 +7991,7 @@ function renderActivityHistoryHtml() {
   const items = activityHistory.filter((item) => !set || set.has(item.session_id));
   if (!items.length) return '';
   let html = '<div class="xp-history-title">'
-    + esc(panelScope === 'project' ? ('Chats in ' + currentProjectName()) : 'Every chat in VOOL')
+    + esc(panelScope === 'project' ? pageTF('panel.history_project', 'Chats in {name}', { name: currentProjectName() }) : pageT('panel.history_all', 'Every chat in VOOL'))
     + '</div>';
   for (const item of items) {
     const h = item.execution_history || {}, chat = _lastSessions.find((s) => s.session_id === item.session_id) || {};
@@ -7943,7 +8014,7 @@ function renderActivityHistoryHtml() {
     // the missing user path from an Activity failure event to the sanitized report
     // flow. Sibling button, not nested -- interactive elements cannot nest validly.
     const reportBtn = bounded.failure_count
-      ? '<button type="button" class="xp-mini" data-history-report="' + esc(item.session_id || '') + '" title="Build a sanitized bug report from this chat\'s failure">Report</button>'
+      ? '<button type="button" class="xp-mini" data-history-report="' + esc(item.session_id || '') + '" title="' + esc(pageT('panel.history_report_title', 'Build a sanitized bug report from this chat\u2019s failure')) + '">' + esc(pageT('msg.report', 'Report')) + '</button>'
       : '';
     html += '<div class="xp-history-row"' + (item.session_id === displayedChat ? ' data-current="1"' : '') + '>'
       + '<button type="button" class="xp-history-card' + (item.session_id === displayedChat ? ' current' : '') + '" data-history-session="' + esc(item.session_id || '') + '">'
@@ -7956,8 +8027,8 @@ function renderActivityHistoryHtml() {
 function renderRecoveryHtml() {
   if (!view.recoveredTask) return '';
   const h = view.recoveredTask.execution_history || {}, cp = h.checkpoint || {};
-  return '<div class="xp-recovery"><b>Task interrupted by application restart</b><p>' + esc(h.request_preview || view.recoveredTask.request_preview || 'Saved work can be continued from its checkpoint.') + '</p>'
-    + '<div class="xp-recovery-actions"><button type="button" data-recovery="resume">Resume</button><button type="button" data-recovery="review">Review activity</button><button type="button" data-recovery="cancel" data-checkpoint="' + esc(cp.checkpoint_id || view.recoveredTask.last_checkpoint_id || '') + '">Cancel task</button></div></div>';
+  return '<div class="xp-recovery"><b>' + esc(pageT('recovery.title', 'Task interrupted by application restart')) + '</b><p>' + esc(h.request_preview || view.recoveredTask.request_preview || pageT('recovery.default_preview', 'Saved work can be continued from its checkpoint.')) + '</p>'
+    + '<div class="xp-recovery-actions"><button type="button" data-recovery="resume">' + esc(pageT('recovery.resume', 'Resume')) + '</button><button type="button" data-recovery="review">' + esc(pageT('recovery.review', 'Review activity')) + '</button><button type="button" data-recovery="cancel" data-checkpoint="' + esc(cp.checkpoint_id || view.recoveredTask.last_checkpoint_id || '') + '">' + esc(pageT('recovery.cancel', 'Cancel task')) + '</button></div></div>';
 }
 // Complete evidence text for whichever tab is active, independent of what is expanded on screen.
 // Falls back to the rendered text only for the tabs that have no structured model behind them.
@@ -7996,9 +8067,10 @@ function panelEvidenceText() {
 }
 function copyPanelEvidence(btn, label) {
   const text = panelEvidenceText();
-  if (!text) { toast(emptyT('chat.toast_copy_empty', 'Nothing to copy in {label} yet.').replace('{label}', label)); return; }
+  const shown = panelTabLabel(label);
+  if (!text) { toast(emptyT('chat.toast_copy_empty', 'Nothing to copy in {label} yet.').replace('{label}', shown)); return; }
   // The copy carries its scope, so pasted evidence can never be read as covering more than it does.
-  const heading = 'VOOL ' + label + ' — ' + scopeWhere();
+  const heading = 'VOOL ' + shown + ' — ' + scopeWhere();
   copyText(heading + '\n' + '='.repeat(heading.length) + '\n' + text, btn);
 }
 function wireActivityPanelActions() {
@@ -8110,7 +8182,7 @@ function renderPanelBody() {
   // The one Copy control names the tab it will actually copy ("Copy Activity", "Copy Event log").
   const copyBtn = document.getElementById('xpCopy');
   if (copyBtn) {
-    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTab || pageT('panel.tab_activity', 'Activity'), scope: scopeWhere() });
+    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTabLabel(panelTab || 'Activity'), scope: scopeWhere() });
     copyBtn.title = copyLabel; copyBtn.setAttribute('aria-label', copyLabel);
   }
   const run = view.run, body = xpBodyEl;
@@ -8140,15 +8212,15 @@ function renderPanelBody() {
   if (panelTab === 'Steps') {
     // Retrospective tool-step history: completed/current actions only, never a fabricated planner.
     if (!run.steps.length) {
-      body.innerHTML = '<div class="xp-empty">' + (run.ended ? 'No tool steps -- answered directly.' : 'Planning…') + '</div>'; return;
+      body.innerHTML = '<div class="xp-empty">' + esc(run.ended ? pageT('panel.steps_none', 'No tool steps — answered directly.') : pageT('panel.planning', 'Planning…')) + '</div>'; return;
     }
     run.steps.forEach((s, i) => {
       const current = s.status === 'running' ? ' current' : '';
       html += '<div class="xp-row ' + rowCls(s.status) + current + '"><span class="ic">' + rowIcon(s.status) + '</span><div class="bd">'
-        + esc((i + 1) + '. ' + (s.summary || s.tool || 'Step ' + (i + 1))) + '<div class="st">' + esc((s.stage || '') + ' · ' + s.status) + '</div></div></div>';
+        + esc((i + 1) + '. ' + (s.summary || pageTF('panel.step_n', 'Step {n}', { n: i + 1 }))) + '<div class="st">' + esc((s.stage || '') + ' · ' + s.status) + '</div></div></div>';
     });
     if (!run.ended && run.steps.length && run.steps[run.steps.length - 1].status === 'completed') {
-      html += '<div class="xp-note">Deciding the next step…</div>';
+      html += '<div class="xp-note">' + esc(pageT('panel.deciding', 'Deciding the next step…')) + '</div>';
     }
   } else if (panelTab === 'Activity') {
     // The REAL runtime timeline from the ledger (scope, classification, model routing, tools,
@@ -8164,19 +8236,19 @@ function renderPanelBody() {
       if (!ledgerHasReview) html += reviewPanelRow(run);
       if (run.ended && ledgerRanNoTool(led, runExecutionTruth(run))) html += panelRow('run', '•', pageT('activity.no_tool_ran', 'No tool ran — answered directly'), pageT('activity.no_tool_ran_sub', 'a plain answer needs no tools'));
     } else if (run.steps.length) {
-      run.steps.forEach((s) => { html += panelRow(rowCls(s.status), rowIcon(s.status), s.summary || s.tool || 'Action', stepMeta(s)); });
+      run.steps.forEach((s) => { html += panelRow(rowCls(s.status), rowIcon(s.status), s.summary || pageT('activity.plain.step_working', 'Working on a step'), stepMeta(s)); });
       html += reviewPanelRow(run);
     } else {
       // A turn can have meaningful routing, approval, failure, or model-review state without ever
       // executing a tool. Render those recorded dimensions instead of claiming there is no trace.
-      if (run.model) html += panelRow('run', '◆', 'Model recorded', modelProviderPresentation(run.model));
-      if (run.permission || run.status === 'awaiting_approval') html += panelRow('wait', '⏸', 'Waiting for approval', run.action || 'Review the exact action before it runs');
+      if (run.model) html += panelRow('run', '◆', pageT('panel.model_recorded', 'Model recorded'), modelProviderPresentation(run.model));
+      if (run.permission || run.status === 'awaiting_approval') html += panelRow('wait', '⏸', pageT('run.stage_waiting_approval', 'Waiting for approval'), run.action || pageT('panel.review_action_sub', 'Review the exact action before it runs'));
       html += reviewPanelRow(run);
-      if (run.status === 'failed') html += panelRow('fail', '✕', 'Failed safely', run.endSummary || run.last || 'The task stopped without a successful terminal state');
-      else if (run.status === 'cancelled') html += panelRow('fail', '■', 'Stopped', run.endSummary || 'Cancelled before completion');
+      if (run.status === 'failed') html += panelRow('fail', '✕', pageT('run.failed_safely_label', 'Failed safely'), run.endSummary || run.last || pageT('panel.failed_sub', 'The task stopped before it finished.'));
+      else if (run.status === 'cancelled') html += panelRow('fail', '■', pageT('run.status_stopped', 'Stopped'), run.endSummary || pageT('panel.cancelled_sub', 'Cancelled before completion'));
       // Same authoritative check as the ledger branch above: this arm renders when the panel has no
       // steps of its own, which is exactly the case where a real execution went unrecognised.
-      else if (run.ended && run.status === 'completed') html += panelRow('ok', '✓', 'Completed', ledgerRanNoTool(led, runExecutionTruth(run)) ? 'No tool ran — answered directly' : 'Completed with recorded tool work');
+      else if (run.ended && run.status === 'completed') html += panelRow('ok', '✓', pageT('run.status_completed', 'Completed'), ledgerRanNoTool(led, runExecutionTruth(run)) ? pageT('activity.no_tool_ran', 'No tool ran — answered directly') : pageT('panel.completed_sub', 'Completed with recorded tool work'));
       if (!html) html = '<div class="xp-empty">' + esc(humanActivityState(run)) + '…</div>';
     }
     html = renderRecoveryHtml() + html + renderActivityHistoryHtml();
@@ -8187,10 +8259,11 @@ function renderPanelBody() {
   } else if (panelTab === 'Tests') {
     const t = run.tests;
     if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_test_runs', 'test runs'))) + '</div>'; return; }
-    html = '<div class="xp-note">' + esc(t.done + (t.total ? (' of ' + t.total) : '') + ' tests complete' + (t.failed ? (' · ' + t.failed + ' failed') : '')) + '</div>';
+    html = '<div class="xp-note">' + esc((t.total ? pageTF('panel.tests_done_of', '{done} of {total} tests complete', { done: t.done, total: t.total }) : pageTF('panel.tests_done', '{done} tests complete', { done: t.done }))
+      + (t.failed ? (' · ' + pageTF('panel.tests_failed', '{n} failed', { n: t.failed })) : '')) + '</div>';
   } else if (panelTab === 'Preview') {
-    if (run.preview) { html = '<div class="xp-note">Preview: <span class="mono">' + esc(run.preview) + '</span></div>'; }
-    else { body.innerHTML = '<div class="xp-empty">No preview for this task.</div>'; return; }
+    if (run.preview) { html = '<div class="xp-note">' + esc(pageT('panel.preview_label', 'Preview:')) + ' <span class="mono">' + esc(run.preview) + '</span></div>'; }
+    else { body.innerHTML = '<div class="xp-empty">' + esc(pageT('panel.preview_none', 'No preview for this task.')) + '</div>'; return; }
   }
   body.innerHTML = html;
   if (panelTab === 'Activity') { xpBodyEl.dataset.activityRendered = '1'; wireActivityPanelActions(); }
@@ -8227,7 +8300,7 @@ function eventLogSections() {
         index += 1;
         sections.push({
           kind: 'group',
-          title: byTurn.size > 1 ? ('Turn ' + index) : 'This chat',
+          title: byTurn.size > 1 ? pageTF('activity.turn_label', 'Turn {n}', { n: index }) : pageT('panel.this_chat', 'This chat'),
           total: events.length,
           rows: events.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')),
         });
@@ -8238,7 +8311,7 @@ function eventLogSections() {
     if (run && run.events.length) {
       sections.push({
         kind: sections.length ? 'group' : '',
-        title: sections.length ? 'Current turn' : '',
+        title: sections.length ? pageT('panel.current_turn', 'Current turn') : '',
         total: run.events.length,
         rows: run.events.slice().reverse().map((ev) => '[' + (ev.stage || ev.type) + '] ' + evTitle(ev)),
       });
@@ -8246,7 +8319,7 @@ function eventLogSections() {
     if (sections.length) return sections.reverse();
     const durable = view.recoveredLedger || [];
     if (!durable.length) return [];
-    return [{ kind: 'note', title: 'Last recorded turn in this chat', rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
+    return [{ kind: 'note', title: pageT('panel.last_turn', 'Last recorded turn in this chat'), rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
   }
   return scopedEvidence.sessions.map((s) => ({
     kind: 'group', title: s.title, total: s.events.length,
@@ -8257,7 +8330,7 @@ function eventLogText(sections) {
   const lines = [];
   for (const section of sections) {
     if (section.title) {
-      lines.push(section.title + (section.kind === 'group' ? (' \u2014 ' + section.total + ' event' + (section.total === 1 ? '' : 's')) : ''));
+      lines.push(section.title + (section.kind === 'group' ? (' \u2014 ' + activityEventCount(section.total)) : ''));
     }
     for (const row of section.rows) lines.push(row);
     lines.push('');
@@ -8266,12 +8339,12 @@ function eventLogText(sections) {
 }
 function renderAgents(body) {
   const rows = agentRowsFrom((view.chatLedger || []), Date.now());
-  if (!rows.length) { body.innerHTML = '<div class="xp-empty">No agent activity in ' + esc(scopeWhere()) + '.</div>'; return; }
+  if (!rows.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.agents_none', 'No agent activity in {scope}.', { scope: scopeWhere() })) + '</div>'; return; }
   const sum = agentSummaryOf(rows);
-  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">Copy all</button></div>';
-  html += '<div class="xp-group-head"><span class="xp-group-name">Agents</span>'
-       + '<span class="xp-group-meta">' + sum.running + ' running · ' + sum.done + ' done'
-       + (sum.failed ? ' · ' + sum.failed + ' failed' : '') + '</span></div>';
+  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button></div>';
+  html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(panelTabLabel('Agents')) + '</span>'
+       + '<span class="xp-group-meta">' + esc(pageTF('panel.agents_meta', '{running} running · {done} done', { running: sum.running, done: sum.done })
+       + (sum.failed ? ' · ' + pageTF('panel.tests_failed', '{n} failed', { n: sum.failed }) : '')) + '</span></div>';
   for (const r of rows) {
     const when = r.running
       ? ('running' + (r.elapsedMs != null ? ' · ' + fmtAgentDuration(r.elapsedMs) : ''))
@@ -8295,19 +8368,19 @@ function renderAgents(body) {
 }
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
-    if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">Reading activity for ' + esc(scopeWhere()) + '\u2026</div>'; return; }
+    if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.reading_scope', 'Reading activity for {scope}\u2026', { scope: scopeWhere() })) + '</div>'; return; }
     if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
   if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   // The event log is a flat list -- there is nothing to disclose -- so it gets the control that
   // actually applies to it. Copy all still reads from the data, not from what happens to be scrolled.
-  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">Copy all</button></div>';
+  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button></div>';
   for (const section of sections) {
     if (section.kind === 'note') html += '<div class="xp-note">' + esc(section.title) + '</div>';
     else if (section.kind === 'group') {
       html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(section.title) + '</span>'
-        + '<span class="xp-group-meta">' + section.total + ' event' + (section.total === 1 ? '' : 's') + '</span></div>';
+        + '<span class="xp-group-meta">' + esc(activityEventCount(section.total)) + '</span></div>';
     }
     for (const row of section.rows) html += '<div class="xp-row"><div class="bd mono">' + esc(row) + '</div></div>';
   }
@@ -8321,7 +8394,7 @@ function wireEventLogActions() {
 }
 
 async function renderReceipts(body) {
-  body.innerHTML = '<div class="xp-empty">Loading receipts…</div>';
+  body.innerHTML = '<div class="xp-empty">' + esc(pageT('panel.receipts_loading', 'Loading receipts…')) + '</div>';
   // A receipt belongs to the chat that produced it, so a wider scope reads each chat in scope and
   // keeps them grouped -- the chain is only meaningful within one chat, never across a merged list.
   if (panelScope !== 'chat') { renderScopedReceipts(body); return; }
@@ -8341,7 +8414,7 @@ async function renderReceipts(body) {
     list.slice().reverse().forEach((rc) => { html += receiptRowHtml(rc); });
     body.innerHTML = html;
     wireReceiptActions(body, list);
-  } catch (e) { body.innerHTML = '<div class="xp-empty">Receipts unavailable.</div>'; }
+  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; }
 }
 // The store keeps issued_at as an epoch float. Shown raw it is not a time anyone can read, so it
 // is rendered as a local timestamp; the untouched receipt is still what "Copy receipt" hands over.
@@ -8387,18 +8460,18 @@ function receiptRowHtml(rc) {
     + '<span class="rc-hd">Turn ' + esc(rc.turn_index) + ' · ' + esc(rc.verdict || 'unrecorded verdict')
     + '<span class="rc-sub mono">' + esc(String(rc.content_hash || 'no content hash').slice(0, 16)) + '</span></span></summary>'
     + '<div class="rc-body">'
-    + receiptField('Receipt id', rid)
-    + receiptField('Issued', receiptIssuedText(rc.issued_at))
-    + receiptField('Verdict', rc.verdict)
-    + receiptField('Verdict detail', rc.verdict_detail)
-    + receiptField('Content hash', rc.content_hash, true)
-    + receiptField('Signed', rc.signed ? 'yes' : 'no')
-    + receiptField('Signer', rc.signer_peer_id, true)
-    + receiptField('Executed tools', (rc.executed_tools || []).join(', '))
-    + receiptField('Claimed actions', (rc.claimed_actions || []).join(', '))
+    + receiptField(pageT('receipts.field_receipt_id', 'Receipt id'), rid)
+    + receiptField(pageT('receipts.field_issued', 'Issued'), receiptIssuedText(rc.issued_at))
+    + receiptField(pageT('receipts.field_verdict', 'Verdict'), rc.verdict)
+    + receiptField(pageT('receipts.field_verdict_detail', 'Verdict detail'), rc.verdict_detail)
+    + receiptField(pageT('receipts.field_content_hash', 'Content hash'), rc.content_hash, true)
+    + receiptField(pageT('receipts.field_signed', 'Signed'), rc.signed ? pageT('receipts.yes', 'yes') : pageT('receipts.no', 'no'))
+    + receiptField(pageT('receipts.field_signer', 'Signer'), rc.signer_peer_id, true)
+    + receiptField(pageT('receipts.field_executed_tools', 'Executed tools'), (rc.executed_tools || []).join(', '))
+    + receiptField(pageT('receipts.field_claimed_actions', 'Claimed actions'), (rc.claimed_actions || []).join(', '))
     + '<div class="rc-actions">'
-    + '<button type="button" class="rc-btn" data-copy="hash">Copy hash</button>'
-    + '<button type="button" class="rc-btn" data-copy="receipt">Copy receipt</button>'
+    + '<button type="button" class="rc-btn" data-copy="hash">' + esc(pageT('receipts.copy_hash', 'Copy hash')) + '</button>'
+    + '<button type="button" class="rc-btn" data-copy="receipt">' + esc(pageT('receipts.copy_receipt', 'Copy receipt')) + '</button>'
     + '</div></div></details>';
 }
 function receiptField(label, value, mono) {
@@ -13650,7 +13723,7 @@ const xpScopeEl = document.getElementById('xpScope');
 if (xpScopeEl) {
   PANEL_SCOPES.forEach((s) => {
     const opt = document.createElement('option');
-    opt.value = s[0]; opt.textContent = s[1];
+    opt.value = s[0]; opt.textContent = pageT('panel.scope_opt_' + s[0], s[1]);
     if (s[0] === panelScope) opt.selected = true;
     xpScopeEl.appendChild(opt);
   });
