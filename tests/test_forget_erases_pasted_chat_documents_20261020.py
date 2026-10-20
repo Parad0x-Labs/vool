@@ -28,7 +28,7 @@ INVENTORY = "\n".join(f"Inventory note {index:03d}: crate {index} holds spare ha
 @pytest.fixture(autouse=True)
 def _a_chat_that_has_taken_turns(request):
     """A chat's first turn opens its memory, which sets up the home's forget authority. Without one, nothing
-    the chat kept is carried (the authority cannot say what was forgotten); that is asserted below."""
+    the chat kept is carried: the authority cannot say what was forgotten."""
     if "isolated_pages" not in request.fixturenames:
         return
     from core.vool_memory import VoolMemory
@@ -106,7 +106,7 @@ def test_a_document_named_for_the_words_loses_the_name_and_keeps_unrelated_text(
 
     handled, reply = command(isolated_pages, chat, "Forget 4417.")
 
-    assert handled and "could not be verified" not in reply, reply
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
     assert "4417" not in json.dumps(_manifest(dropped))
     carried = _carried(chat)
     assert [entry["attachment_id"] for entry in carried] == [dropped["id"]]

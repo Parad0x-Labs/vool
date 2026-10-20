@@ -2270,14 +2270,14 @@ def _documents_carrying(session: str, carries: Any) -> list[tuple[dict[str, Any]
 def forget_documents_carrying(*, session_id: str, carries: Any) -> int:
     """Forget's step for the chat's documents: every document whose text or name carries the forgotten
     words loses its bytes (as `erase_document`), and a name that carries them is replaced. Returns how
-    many documents lost their bytes. Nothing of another chat is read or touched."""
+    many documents held the words. Nothing of another chat is read or touched."""
     session = _valid_session(session_id)
     erased = 0
     with _LOCK:
         for record, in_bytes, in_name in _documents_carrying(session, carries):
+            erased += 1
             if in_bytes:
                 _forget_bytes(record["id"])
-                erased += 1
                 if record.get("state") == "staged":
                     _unlink_no_follow(_manifest_path(record["id"]))
                     continue
