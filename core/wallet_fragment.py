@@ -1586,8 +1586,21 @@ function syncPilotCards(st, asked){
   // nothing here approves, rejects, quotes or pays.
   var pending = {};
   (st.pending || []).forEach(function(p){ if (p && p.proposal_id) pending[p.proposal_id] = true; });
-  var rows = {};
-  (st.in_flight || []).concat(st.transfers || []).forEach(function(t){ if (t && t.proposal_id && !rows[t.proposal_id]) rows[t.proposal_id] = t; });
+  // The transfers read model also carries refusal receipts (record_kind 'proposal_receipt'): a request that ended
+  // before any claim. That row is the receipt of an ended proposal, never a transfer, so it settles the card the
+  // way an ended proposal does instead of rendering a transfer line.
+  var rows = {}, ended = {};
+  (st.in_flight || []).concat(st.transfers || []).forEach(function(t){
+    if (!t || !t.proposal_id) return;
+    if (t.record_kind === 'proposal_receipt') { if (!ended[t.proposal_id] && t.proposal_state) ended[t.proposal_id] = t.proposal_state; return; }
+    if (!rows[t.proposal_id]) rows[t.proposal_id] = t;
+  });
+  function settleEnded(pid, entry, state){
+    entry.controls.remove();
+    entry.result.textContent = ENDED_TEXT[state] || ('This request ended (' + state + '). Nothing was signed or sent.');
+    entry.result.setAttribute('data-proposal-state', state);
+    delete pilotCards[pid];
+  }
   Object.keys(pilotCards).forEach(function(pid){
     if (pending[pid]) return;
     var entry = pilotCards[pid];
@@ -1597,16 +1610,15 @@ function syncPilotCards(st, asked){
       delete pilotCards[pid];
       return;
     }
+    if (ended[pid]) { settleEnded(pid, entry, ended[pid]); return; }
     if (entry.resolving) return;
     entry.resolving = true;
     getJson('/api/wallet/proposals/' + encodeURIComponent(pid)).then(function(j){
       var proposal = (j && j.proposal) || null;
       if (!proposal || !proposal.state) { entry.resolving = false; return; }
       if (proposal.state === 'pending_approval' || proposal.state === 'awaiting_signature') { entry.resolving = false; return; }  // a snapshot raced the record
-      entry.controls.remove();
-      entry.result.textContent = ENDED_TEXT[proposal.state] || ('This request ended (' + proposal.state + '). Nothing was signed or sent.');
-      entry.result.setAttribute('data-proposal-state', proposal.state);
-      delete pilotCards[pid];
+      if (pilotCards[pid] !== entry) return;  // settled meanwhile by a later snapshot
+      settleEnded(pid, entry, proposal.state);
     }).catch(function(){ entry.resolving = false; });
   });
 }
@@ -1663,7 +1675,8 @@ function openSheet(p, cardControls, cardResult, opener){
   function gate(){
     if (closed) return;
     later.textContent = decisionStarted ? 'Close' : 'Decide later';
-    var ok = !!quote && !invalid && !expired() && !busy;
+    var blocked = !!quote && !!(quote.fields || {}).approval_unavailable;
+    var ok = !!quote && !invalid && !expired() && !busy && !blocked;
     approve.disabled = !ok;
     if (quote && !invalid && expired()) setState('This preview expired. Refresh it to read the current balance and fees before approving.', true);
   }
@@ -1762,6 +1775,15 @@ function openSheet(p, cardControls, cardResult, opener){
     if (method === 'pin') cred.inputMode = 'numeric';
     var primary = r.primary_action || 'Approve and send';
     approve.textContent = method === 'device' ? 'Approve with Touch ID / password: ' + primary.replace(/^Approve and /, '') : primary;
+    if (f.approval_unavailable) {
+      // a connected or watch-only account: the preview is real, but this sheet cannot approve it, so no credential is
+      // asked; the server's words say what is really wrong. Cancelling the request still works.
+      cred.hidden = true; forgot.hidden = true; approve.hidden = true;
+      setState(f.approval_unavailable.message || 'This account cannot send from here. Nothing was signed or sent.', true);
+      state.setAttribute('data-approval-unavailable', f.approval_unavailable.code || '');
+      gate(); return;
+    }
+    approve.hidden = false; state.removeAttribute('data-approval-unavailable');
     setState(f.companion ? 'This approval covers exactly the two actions shown: the payment and the collection of previously accrued fees. Nothing else, nothing later.' : 'This approval covers only this transfer, exactly as shown.');
     gate();
   }
@@ -1845,6 +1867,7 @@ function openSheet(p, cardControls, cardResult, opener){
     cancel.disabled = true;
     postJson('/api/wallet/reject', { proposal_id: p.proposal_id }).then(function(res){
       close();
+      if (res.ok) refreshStatus();  // one authoritative read now, so the open Wallet panel shows the outcome without waiting for the poll
       var data = res.data || {};
       if (res.ok && (data.cancelled === true || data.transfer)) delete pilotCards[p.proposal_id];
       if (res.ok && data.cancelled === true) {
@@ -1937,7 +1960,14 @@ var walletHome = (function(){
   function say(text, isErr){ if (msgEl) { msgEl.textContent = text || ''; msgEl.className = 'vw-wh-msg' + (isErr ? ' err' : ''); } }
   function toastWallet(text){ var a = actions(); if (a && a.toast) a.toast(text); }
   function nowClock(){ try { return new Date().toLocaleTimeString(); } catch (e) { return ''; } }
-  function timeClock(epochSec){ try { return new Date(Number(epochSec) * 1000).toLocaleString(); } catch (e) { return ''; } }
+  function timeClock(when){
+    // the wallet's read models stamp rows in ISO-8601 text (proposals, transfers, receipts) and observations in epoch
+    // seconds (balances); an unreadable stamp shows nothing rather than "Invalid Date"
+    if (when === null || when === undefined || String(when).trim() === '') return '';
+    var n = Number(when);
+    var d = isFinite(n) ? new Date(n * 1000) : new Date(String(when));
+    return isNaN(d.getTime()) ? '' : d.toLocaleString();
+  }
   function rowsOf(st){ return ((st && st.crypto_pilot && st.crypto_pilot.networks) || []); }
   function activeRows(st){ return rowsOf(st).filter(function(r){ return r.active; }); }
   function rowFor(st, network){ return rowsOf(st).filter(function(r){ return r.network === network; })[0] || null; }
@@ -2223,7 +2253,7 @@ var walletHome = (function(){
     paintActivity(st, activity);
 
     var notes = el('div', 'vw-wh-note');
-    notes.textContent = (cp.pilot_notice || '') + ' Payments are noticed here and as toasts while VOOL is open; incoming payments are seen when this view refreshes, not by a background watcher.';
+    notes.textContent = (cp.pilot_notice || '') + ' Payments made through VOOL are noticed here and as toasts while VOOL is open. A rise in the network-coin balance is noticed when this view refreshes; VOOL keeps no full history of incoming transactions and does not watch the chain in the background.';
     bodyEl.appendChild(notes);
     if (account) loadBalance(st);
   }
@@ -2261,7 +2291,7 @@ var walletHome = (function(){
       amount.appendChild(el('span', 'vw-wh-unit', b.asset));
       var isZero = String(b.balance_minor || '0') === '0';
       stateLine.textContent = (isZero ? 'Balance 0 — confirmed zero as observed' : 'Observed ' + (b.ref || '') + ' · ' + timeClock(b.observed_at)) +
-        ' · native coin only (tokens are not sent by this wallet)';
+        ' · network coin only; token balances are not listed here';
       var refresh = el('button', 'vw-toggle', 'refresh'); refresh.type = 'button'; refresh.style.marginLeft = '6px';
       refresh.addEventListener('click', function(){ loadBalance(lastStatus); });
       stateLine.appendChild(refresh);
@@ -2334,7 +2364,7 @@ var walletHome = (function(){
     var rowEl = el('div', 'vw-wh-row'); rowEl.setAttribute('data-pid', t.proposal_id || '');
     var head = el('div', 'vw-wh-rowhead');
     head.appendChild(stateChip(t));
-    head.appendChild(el('span', 'vw-wh-amt', (t.amount_human || ((t.amount_minor || 0) + ' minor')) + ' ' + (t.display_symbol || t.asset || '')));
+    head.appendChild(el('span', 'vw-wh-amt', (t.amount_human || ((t.amount_minor || 0) + ' smallest units of')) + ' ' + (t.display_symbol || t.asset || '')));
     head.appendChild(el('span', null, (t.display_name || chainLabel(t.network)) + (t.to_address ? ' → ' + short(t.to_address) : '')));
     head.appendChild(el('span', 'vw-wh-when', timeClock(t.created_at || t.updated_at)));
     rowEl.appendChild(head);
@@ -2441,6 +2471,10 @@ var walletHome = (function(){
     to.setAttribute('aria-label', 'recipient address on ' + (row ? rowName(row) : selNetwork));
     form.appendChild(to);
     var contactNote = el('div', 'vw-wh-sub'); form.appendChild(contactNote);
+    // the note speaks only for the address it filled: any other text in the field (a typed name, a pasted address,
+    // a cleared field) drops it, so an old wrong-network warning never sits beside a different recipient
+    var filledFrom = null;
+    to.addEventListener('input', function(){ if (filledFrom === null || to.value !== filledFrom) { filledFrom = null; contactNote.textContent = ''; } });
     var pickBtn = el('button', 'vw-toggle', 'choose from contacts'); pickBtn.type = 'button'; pickBtn.id = 'vwHomePickContact';
     var list = el('div', 'vw-wh-contacts'); list.id = 'vwHomeContactList'; list.hidden = true;
     pickBtn.addEventListener('click', function(){
@@ -2466,7 +2500,7 @@ var walletHome = (function(){
                   ', not ' + rowName(row) + '. Sending on ' + rowName(row) + ' needs an address on this network.';
                 return;
               }
-              to.value = ep.value || '';
+              to.value = ep.value || ''; filledFrom = to.value;
               contactNote.className = 'vw-wh-sub';
               contactNote.textContent = 'Paying the saved contact ' + c.display_name + ' — the exact destination is the address shown in the field.';
               list.hidden = true;

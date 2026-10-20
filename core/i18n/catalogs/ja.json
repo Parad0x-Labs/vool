@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "注目",
     "addons.registry_metrics": "サイトのスター {stars} · ダウンロード要求 {downloads}",
     "addons.registry_newer": "このスキルはすでに最新です。後でもう一度更新を確認してください。",
-    "addons.registry_release_notes": "リリースノート"
+    "addons.registry_release_notes": "リリースノート",
+    "contacts.recipient.identity_changed": "この連絡先は変更されました。受取人と正確なアドレスをもう一度確認してください。",
+    "fault.wallet_send_needs_vool_wallet.action": "この端末のVOOL Walletから送金するか、接続しているウォレット自身のアプリから送金してください。このネットワークでVOOLが接続済みまたは閲覧専用のアカウントのために署名することはありません。",
+    "fault.wallet_send_needs_vool_wallet.message": "このアカウントはこのネットワークでVOOLから送金できません：ここで送金できるのはこの端末で作成したVOOL Walletだけです。接続済みまたは閲覧専用のアカウントでも受け取りと残高表示はできます。何も署名・送信されていません。 送金するには、この端末のVOOL Walletを選んでもう一度お試しください。",
+    "wallet.balance.native_only": "この残高にはネットワークのネイティブ通貨のみが表示され、トークンは含まれません。",
+    "wallet.commands.description": "ウォレットのアカウント、承認、領収書。暗号資産の機能は初期設定ではオフで、有効にするとメインネットを使用します。",
+    "wallet.receipt.cancelled": "キャンセル済み",
+    "wallet.receipt.not_sent": "未送信",
+    "wallet.receipt.not_sent_detail": "署名も送信も行われていません。"
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

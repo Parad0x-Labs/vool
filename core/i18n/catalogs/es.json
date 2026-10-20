@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "Destacado",
     "addons.registry_metrics": "{stars} estrellas en el sitio · {downloads} solicitudes de descarga",
     "addons.registry_newer": "Esta habilidad ya está actualizada. Vuelve más tarde para buscar una actualización.",
-    "addons.registry_release_notes": "Notas de versión"
+    "addons.registry_release_notes": "Notas de versión",
+    "contacts.recipient.identity_changed": "Este contacto ha cambiado. Revisa de nuevo el destinatario y la dirección exacta.",
+    "fault.wallet_send_needs_vool_wallet.action": "Envía desde un VOOL Wallet de este dispositivo, o desde la propia app del monedero conectado; VOOL no firma nada en esta red para una cuenta conectada o de solo observación.",
+    "fault.wallet_send_needs_vool_wallet.message": "Esta cuenta no puede enviar desde VOOL en esta red: aquí solo envía un VOOL Wallet creado en este dispositivo. Una cuenta conectada o de solo observación sigue pudiendo recibir y mostrar su saldo. No se firmó ni se envió nada. Para enviar, elige un VOOL Wallet de este dispositivo y vuelve a intentarlo.",
+    "wallet.balance.native_only": "Este saldo solo muestra la moneda nativa de la red; no incluye tokens.",
+    "wallet.commands.description": "Cuentas de la cartera, aprobaciones y recibos. Las criptomonedas están desactivadas de forma predeterminada; al activarlas se usa la red principal.",
+    "wallet.receipt.cancelled": "Cancelado",
+    "wallet.receipt.not_sent": "No enviado",
+    "wallet.receipt.not_sent_detail": "No se ha firmado ni enviado nada."
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

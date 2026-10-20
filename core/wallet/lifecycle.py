@@ -49,6 +49,9 @@ from core.wallet.errors import WalletFault
 from core.wallet.security import wallet_fault
 
 AUTHORITY = "core.wallet.lifecycle"
+# a Crypto Pilot row sends only from a Crypto Pilot wallet: a connected or watch-only account is told so, typed
+FAULT_SEND_NEEDS_VOOL_WALLET = "wallet_send_needs_vool_wallet"
+REASON_PILOT_SEND_NEEDS_VOOL_WALLET = "pilot_send_needs_vool_wallet"
 #: The effect-budget contract's two wallet operations (core.effect_budget on build/effect-budgets-p1-20260902,
 #: tip a94a4a48 / implementation 4190b717): reserve BEFORE authorization, consume immediately BEFORE execution,
 #: terminal exactly once. Both are opened at the claim, before any key is touched.
@@ -491,6 +494,13 @@ class PaymentLifecycle:
         spec = environment.require_active(proposal.network, source_context=self.source_context)
         from core.wallet import transfers
 
+        if spec.is_evm and spec.is_mainnet and transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) != custody.PILOT_SEAL_POLICY:
+            # a native-coin transfer on an EVM mainnet Crypto Pilot row from a connected or watch-only account: only a Crypto
+            # Pilot wallet sends on this row, and the EIP-3009 simulation below is not a native transfer's. Refused
+            # typed and truthfully here, before any chain read, quote or approval prompt.
+            end_refused(proposal.proposal_id, proposals.STATE_FAILED, fault_code=FAULT_SEND_NEEDS_VOOL_WALLET,
+                        detail={"reason": REASON_PILOT_SEND_NEEDS_VOOL_WALLET}, reason=REASON_PILOT_SEND_NEEDS_VOOL_WALLET)
+            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason=REASON_PILOT_SEND_NEEDS_VOOL_WALLET, mode=profile.mode)
         if spec.is_evm and transfers.is_pilot_transfer(proposal) and custody.seal_policy(proposal.wallet_id) == custody.PILOT_SEAL_POLICY:
             # a native-coin transfer from a Crypto Pilot wallet: the chain's identity, the stack and the asset are
             # proven here; the exact fee is the quote's, minted on the approval sheet. Nothing is signed here.
@@ -800,12 +810,11 @@ class PaymentLifecycle:
             # the quote the owner reviewed must name the same Contacts binding, and Contacts must still hold that exact destination
             if str(quote["fields"].get("recipient_fingerprint") or "") != str(recipient.get("fingerprint") or ""):
                 raise self._fault("wallet_quote_mismatch", proposal, reason="quote_recipient_binding_differs")
-            if recipient.get("resolution") == "contact":
-                from core.contacts import verify_snapshot
+            from core.contacts import verify_snapshot
 
-                check = verify_snapshot(recipient)
-                if not check.ok:
-                    raise self._fault("wallet_recipient_refused", proposal, reason=f"contact_{check.status}")
+            check = verify_snapshot(recipient)
+            if not check.ok:
+                raise self._fault("wallet_recipient_refused", proposal, reason=f"contact_{check.status}")
         if proposal.origin == proposals.ORIGIN_USEPOD:
             # the provider's durable requirement, before any credential: pinned fields equal, window still open
             from core.wallet import usepod
@@ -821,13 +830,15 @@ class PaymentLifecycle:
         if proposal.origin == proposals.ORIGIN_DNA_FEE:
             # a fee collection is approved WITH its provider payment, never on a sheet of its own
             raise self._fault("wallet_quote_mismatch", proposal, reason="dna_fee_collection_rides_its_payment")
+        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
+            # only a Crypto Pilot wallet moves funds through this lane; another custody (a connected or watch-only
+            # account) is refused before any approval prompt or credential, with what is really wrong. The quote and
+            # recipient bindings above answer first: a changed contact stays the refusal the owner must see.
+            raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         challenge = approval_module.ApprovalChallengeV3.for_quote(proposal, quote)
         decision = approver.approve(challenge)
         if not approval_module.decision_binds_v3(decision, challenge):
             self._refuse_pilot_approval(proposal, decision, reason=decision.reason or "challenge_mismatch")
-        if custody.seal_policy(profile.wallet_id) != custody.PILOT_SEAL_POLICY:
-            # only a Crypto Pilot wallet moves funds through this lane; another custody is refused before any prompt
-            raise self._fault("wallet_signing_unavailable", proposal, reason="pilot_approval_needs_pilot_wallet", mode=profile.mode)
         if not capabilities.pilot_transfer_ready(spec):
             # the credential is proven first (a wrong PIN is a counted attempt on any row), then the lane stops typed
             self._prove_pilot_credential(proposal, profile, decision)

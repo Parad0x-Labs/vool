@@ -1043,7 +1043,7 @@ def dispatch_get(
             )
         from core.web.api.wallet_api import handle_wallet_get
 
-        return apply_runtime_headers(handle_wallet_get(normalized_path, query, client_host=client_host), runtime)
+        return apply_runtime_headers(handle_wallet_get(normalized_path, query, client_host=client_host, headers=headers), runtime)
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_get
 

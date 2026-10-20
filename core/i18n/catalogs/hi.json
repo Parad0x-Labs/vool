@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "चुनिंदा",
     "addons.registry_metrics": "वेबसाइट पर {stars} सितारे · {downloads} डाउनलोड अनुरोध",
     "addons.registry_newer": "यह कौशल पहले से अद्यतित है। अपडेट के लिए बाद में फिर देखें।",
-    "addons.registry_release_notes": "संस्करण विवरण"
+    "addons.registry_release_notes": "संस्करण विवरण",
+    "contacts.recipient.identity_changed": "इस संपर्क में बदलाव हुआ है। प्राप्तकर्ता और पूरा पता फिर से जाँचें।",
+    "fault.wallet_send_needs_vool_wallet.action": "इस डिवाइस के VOOL Wallet से भेजें, या जुड़े हुए वॉलेट के अपने ऐप से भेजें; इस नेटवर्क पर VOOL किसी जुड़े हुए या केवल-देखना खाते के लिए कुछ भी हस्ताक्षर नहीं करता।",
+    "fault.wallet_send_needs_vool_wallet.message": "यह खाता इस नेटवर्क पर VOOL से नहीं भेज सकता: यहाँ केवल इसी डिवाइस पर बनाया गया VOOL Wallet भेजता है। जुड़ा हुआ या केवल-देखना खाता अब भी प्राप्त कर सकता है और अपना शेष दिखा सकता है। कुछ भी हस्ताक्षरित या भेजा नहीं गया। भेजने के लिए, इस डिवाइस का VOOL Wallet चुनें और फिर से कोशिश करें।",
+    "wallet.balance.native_only": "यह शेष राशि केवल नेटवर्क का मूल सिक्का दिखाती है; टोकन शामिल नहीं हैं।",
+    "wallet.commands.description": "वॉलेट खाते, स्वीकृतियाँ और रसीदें। क्रिप्टो डिफ़ॉल्ट रूप से बंद है; चालू करने पर मुख्य नेटवर्क का उपयोग होता है।",
+    "wallet.receipt.cancelled": "रद्द किया गया",
+    "wallet.receipt.not_sent": "नहीं भेजा गया",
+    "wallet.receipt.not_sent_detail": "न कुछ हस्ताक्षरित किया गया, न भेजा गया।"
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

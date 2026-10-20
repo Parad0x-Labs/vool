@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "Nổi bật",
     "addons.registry_metrics": "{stars} sao trên trang web · {downloads} yêu cầu tải xuống",
     "addons.registry_newer": "Kỹ năng này đã được cập nhật. Hãy kiểm tra lại sau để xem có bản cập nhật mới không.",
-    "addons.registry_release_notes": "Ghi chú phiên bản"
+    "addons.registry_release_notes": "Ghi chú phiên bản",
+    "contacts.recipient.identity_changed": "Liên hệ này đã thay đổi. Hãy kiểm tra lại người nhận và địa chỉ chính xác.",
+    "fault.wallet_send_needs_vool_wallet.action": "Hãy gửi từ một VOOL Wallet trên thiết bị này, hoặc từ chính ứng dụng của ví đã kết nối; trên mạng này VOOL không ký gì cho tài khoản đã kết nối hoặc chỉ-xem.",
+    "fault.wallet_send_needs_vool_wallet.message": "Tài khoản này không thể gửi từ VOOL trên mạng này: ở đây chỉ VOOL Wallet tạo trên thiết bị này mới gửi được. Tài khoản đã kết nối hoặc chỉ-xem vẫn có thể nhận và hiển thị số dư. Chưa ký hay gửi gì. Để gửi, hãy chọn một VOOL Wallet trên thiết bị này rồi thử lại.",
+    "wallet.balance.native_only": "Số dư này chỉ hiển thị đồng tiền gốc của mạng; không bao gồm token.",
+    "wallet.commands.description": "Tài khoản ví, phê duyệt và biên nhận. Tiền mã hóa mặc định bị tắt; khi bật sẽ sử dụng mạng chính.",
+    "wallet.receipt.cancelled": "Đã hủy",
+    "wallet.receipt.not_sent": "Chưa gửi",
+    "wallet.receipt.not_sent_detail": "Chưa ký hoặc gửi bất cứ nội dung nào."
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -54,6 +54,21 @@ def _is_companion_collection(p: Any) -> bool:
         return False
 
 
+def _amount_view(p: Any) -> dict[str, Any]:
+    """``amount_human``, ``display_symbol`` and ``decimals`` of a proposal, exact (no rounding), from the chain registry.
+    An asset the registry does not know yields nothing, never a guessed figure."""
+    from core.wallet import amounts, chains
+
+    try:
+        spec = chains.resolve_network(p.network)
+        native = chains.native_asset(spec.network)
+        asset = chains.asset_for(spec.network, str(p.asset or native.symbol))
+    except Exception:
+        return {}
+    symbol = (spec.native_display_symbol or native.symbol) if asset.native else asset.symbol
+    return {"amount_human": amounts.format_minor(int(p.amount_minor), asset.decimals), "display_symbol": symbol, "decimals": asset.decimals}
+
+
 def _pending_row(p: Any) -> dict[str, Any]:
     from core.wallet import quotes, transfers
 
@@ -61,6 +76,8 @@ def _pending_row(p: Any) -> dict[str, Any]:
         "proposal_id": p.proposal_id, "amount_minor": p.amount_minor, "asset": p.asset, "destination": p.destination, "origin": p.origin,
         "memo": p.memo, "created_at": p.created_at, "network": p.network, "state": p.state, "meaning": proposal_meaning(p),
     }
+    # the exact amount in the asset's own units, from the registry: a page never shows raw minor units
+    row.update(_amount_view(p))
     # a pilot transfer is approved only on the sheet; the open quote id lets an open sheet notice it was replaced
     row["pilot_transfer"] = transfers.is_pilot_transfer(p)
     # who receives what and why, from the operation owner's typed records (never from the memo's wording)

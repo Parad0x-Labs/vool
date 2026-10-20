@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "推荐",
     "addons.registry_metrics": "网站星标 {stars} · 下载请求 {downloads}",
     "addons.registry_newer": "此技能已是最新版本。请稍后再检查更新。",
-    "addons.registry_release_notes": "版本说明"
+    "addons.registry_release_notes": "版本说明",
+    "contacts.recipient.identity_changed": "此联系人已更改。请重新核对收款人和完整地址。",
+    "fault.wallet_send_needs_vool_wallet.action": "请从此设备上的 VOOL Wallet 发送，或从已连接钱包自己的应用发送；在此网络上，VOOL 不会为已连接或仅观察的账户签名任何内容。",
+    "fault.wallet_send_needs_vool_wallet.message": "此账户无法在此网络上通过 VOOL 发送：这里只有在此设备上创建的 VOOL Wallet 可以发送。已连接或仅观察的账户仍可接收并显示余额。没有签名或发送任何内容。 如需发送，请选择此设备上的 VOOL Wallet 后重试。",
+    "wallet.balance.native_only": "此余额仅显示该网络的原生币，不包含代币。",
+    "wallet.commands.description": "钱包账户、授权和收据。加密货币功能默认关闭；启用后使用主网。",
+    "wallet.receipt.cancelled": "已取消",
+    "wallet.receipt.not_sent": "未发送",
+    "wallet.receipt.not_sent_detail": "未进行任何签名或发送。"
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

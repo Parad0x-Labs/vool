@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "주목할 항목",
     "addons.registry_metrics": "웹사이트 별 {stars}개 · 다운로드 요청 {downloads}회",
     "addons.registry_newer": "이 스킬은 이미 최신 상태입니다. 나중에 업데이트를 다시 확인하세요.",
-    "addons.registry_release_notes": "릴리스 노트"
+    "addons.registry_release_notes": "릴리스 노트",
+    "contacts.recipient.identity_changed": "이 연락처가 변경되었습니다. 수신자와 정확한 주소를 다시 확인하세요.",
+    "fault.wallet_send_needs_vool_wallet.action": "이 기기의 VOOL Wallet에서 보내거나, 연결된 지갑의 자체 앱에서 보내세요. 이 네트워크에서 VOOL은 연결된 계정이나 보기 전용 계정을 위해 아무 것도 서명하지 않습니다.",
+    "fault.wallet_send_needs_vool_wallet.message": "이 계정은 이 네트워크에서 VOOL로 보낼 수 없습니다: 여기서는 이 기기에서 만든 VOOL Wallet만 보냅니다. 연결된 계정이나 보기 전용 계정도 받기와 잔액 표시는 할 수 있습니다. 아무 것도 서명하거나 보내지 않았습니다. 보내려면 이 기기의 VOOL Wallet을 선택한 뒤 다시 시도하세요.",
+    "wallet.balance.native_only": "이 잔액에는 네트워크의 기본 코인만 표시되며 토큰은 포함되지 않습니다.",
+    "wallet.commands.description": "지갑 계정, 승인 및 영수증. 암호화폐 기능은 기본적으로 꺼져 있으며, 켜면 메인넷을 사용합니다.",
+    "wallet.receipt.cancelled": "취소됨",
+    "wallet.receipt.not_sent": "전송되지 않음",
+    "wallet.receipt.not_sent_detail": "서명되거나 전송된 내용이 없습니다."
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

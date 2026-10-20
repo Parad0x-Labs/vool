@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "Рекомендуемое",
     "addons.registry_metrics": "{stars} звёзд на сайте · {downloads} запросов скачивания",
     "addons.registry_newer": "Этот навык уже обновлён. Проверьте наличие обновлений позже.",
-    "addons.registry_release_notes": "Примечания к версии"
+    "addons.registry_release_notes": "Примечания к версии",
+    "contacts.recipient.identity_changed": "Этот контакт изменился. Ещё раз проверьте получателя и точный адрес.",
+    "fault.wallet_send_needs_vool_wallet.action": "Отправьте из VOOL Wallet на этом устройстве или из приложения самого подключённого кошелька; в этой сети VOOL ничего не подписывает за подключённый аккаунт или аккаунт для просмотра.",
+    "fault.wallet_send_needs_vool_wallet.message": "С этого аккаунта нельзя отправлять из VOOL в этой сети: здесь отправляет только VOOL Wallet, созданный на этом устройстве. Подключённый аккаунт или аккаунт для просмотра по-прежнему может получать средства и показывать баланс. Ничего не подписано и не отправлено. Чтобы отправить, выберите VOOL Wallet на этом устройстве и попробуйте снова.",
+    "wallet.balance.native_only": "Этот баланс показывает только собственную монету сети; токены не включены.",
+    "wallet.commands.description": "Счета кошелька, подтверждения и квитанции. Криптовалюты по умолчанию отключены; после включения используется основная сеть.",
+    "wallet.receipt.cancelled": "Отменено",
+    "wallet.receipt.not_sent": "Не отправлено",
+    "wallet.receipt.not_sent_detail": "Ничего не было подписано или отправлено."
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

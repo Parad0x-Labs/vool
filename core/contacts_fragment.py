@@ -19,7 +19,8 @@ from __future__ import annotations
 
 _CSS = r"""
 #vcOverlay .vc-modal { width:min(920px,95vw); max-height:90vh; display:flex; flex-direction:column; }
-#vcOverlay .vc-head-actions { display:flex; align-items:center; gap:8px; }
+#vcOverlay .modal-head { flex-wrap:wrap; gap:12px; }
+#vcOverlay .vc-head-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 #vcOverlay .vc-help { margin:10px 16px 0; }
 #vcOverlay .vc-status { min-height:18px; margin:6px 16px 0; font-size:12.5px; color:var(--muted); }
 #vcOverlay .vc-status.vc-bad, .vc-form .vc-status.vc-bad { color:var(--bad, #f2545b); }
@@ -161,7 +162,8 @@ _JS = r"""
     if (!overlay) build();
     lastFocus = document.activeElement;
     overlay.hidden = false; say(''); state.view = '';
-    return refresh().then(function() { if (contactId) select(contactId); if (searchEl) searchEl.focus(); });
+    if (searchEl) searchEl.focus();
+    return refresh().then(function() { if (contactId && isOpen() && !state.view) select(contactId); });
   }
   function close() {
     clearSecrets();

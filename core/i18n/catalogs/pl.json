@@ -2807,9 +2807,17 @@
     "addons.registry_featured": "Polecane",
     "addons.registry_metrics": "{stars} gwiazdek w witrynie · {downloads} żądań pobrania",
     "addons.registry_newer": "Ta umiejętność jest już aktualna. Sprawdź później, czy jest dostępna aktualizacja.",
-    "addons.registry_release_notes": "Informacje o wersji"
+    "addons.registry_release_notes": "Informacje o wersji",
+    "contacts.recipient.identity_changed": "Ten kontakt się zmienił. Sprawdź ponownie odbiorcę i dokładny adres.",
+    "fault.wallet_send_needs_vool_wallet.action": "Wyślij z VOOL Wallet na tym urządzeniu albo z aplikacji połączonego portfela; w tej sieci VOOL niczego nie podpisuje za konto połączone lub w trybie podglądu.",
+    "fault.wallet_send_needs_vool_wallet.message": "To konto nie może wysyłać z VOOL w tej sieci: wysyła tu tylko VOOL Wallet utworzony na tym urządzeniu. Konto połączone lub w trybie podglądu nadal może odbierać środki i pokazywać saldo. Nic nie podpisano ani nie wysłano. Aby wysłać, wybierz VOOL Wallet na tym urządzeniu i spróbuj ponownie.",
+    "wallet.balance.native_only": "To saldo pokazuje tylko rodzimą monetę sieci; tokeny nie są uwzględnione.",
+    "wallet.commands.description": "Konta portfela, zatwierdzenia i potwierdzenia. Kryptowaluty są domyślnie wyłączone; po włączeniu używana jest sieć główna.",
+    "wallet.receipt.cancelled": "Anulowano",
+    "wallet.receipt.not_sent": "Nie wysłano",
+    "wallet.receipt.not_sent_detail": "Nic nie zostało podpisane ani wysłane."
   },
-  "source_catalog_sha256": "0b4fdea4d4c3e7cdf6cb2bb3abcd1bf7499db4443175ee70ae3da141f9d83689",
+  "source_catalog_sha256": "c42e901a5c7f834a4c980cdb4db83445ddd95b771ef8c5abd2a96845a0ce4eb1",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

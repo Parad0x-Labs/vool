@@ -8,8 +8,8 @@ of it: the codes, messages and actions below are exactly what the runtime emits.
 
 - **Schema:** `vool.fault.v1`
 - **Catalog version:** `1`
-- **Catalog digest:** `59c93f8b3d95a7674da724e2e87573853ca9aa642890152757abd06df9c2c1f0`
-- **Fault count:** 51
+- **Catalog digest:** `5ae1ef9922236c089be8b54de1e64d160ee13c0bad8f62ae02b401202bde55a1`
+- **Fault count:** 52
 
 A fault's `code` is stable and safe to match on; `user_message` is what a person sees;
 `operator_action` is what to do about it; `authority` names the module that owns the fault.
@@ -64,6 +64,7 @@ A fault's `code` is stable and safe to match on; `user_message` is what a person
 | `wallet_quote_expired` | low | yes | retry_after_change | no | This transfer preview expired or was replaced, so it cannot be approved and nothing was sent. Refresh the preview, then try again. | Nothing was sent, signed or changed | A quote lives for a short window and is superseded by a refresh or an environment switch; approval never carries over. | `core.wallet.quotes` |
 | `wallet_recipient_refused` | medium | yes | retry_after_change | no | That recipient cannot safely receive this transfer on this network, so nothing was prepared. Check the address, then try again. | Nothing was sent, signed or changed | Refused: a new Solana account below the rent minimum, an executable or off-curve account, a bad EIP-55 checksum, the zero address, precompiles and system contracts. | `core.wallet.quotes` |
 | `wallet_request_ambiguous` | low | yes | retry_after_change | no | More than one account or network fits this transfer, so nothing was proposed. Say which account or network you mean, then try again. | Nothing was sent, signed or changed | A transfer names one account on one network; the candidates are listed in the fault context. | `core.wallet.transfers` |
+| `wallet_send_needs_vool_wallet` | low | yes | retry_after_change | no | This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again. | Nothing was sent, signed or changed | Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network. | `core.wallet.lifecycle` |
 | `wallet_setup_state_invalid` | low | yes | retry_after_change | no | That setup step does not apply to this wallet right now, so nothing changed. Check the wallet's setup status, then try again. | Nothing was sent, signed or changed | Setup moves generating, awaiting backup, backup revealed, ready; cancel and resume never reveal a backup twice. | `core.wallet.pilot_custody` |
 | `wallet_signing_unavailable` | medium | yes | retry_after_change | no | This wallet cannot sign from here: it is watch-only or its external signer is not connected. Nothing was sent; connect a signer, then try again. | Nothing was sent, signed or changed | Connect the external wallet, or create a VOOL Wallet after reading its warning. | `core.wallet.signers` |
 | `wallet_storage_class_refused` | medium | yes | retry_after_change | no | This installation keeps its device key only in memory, so a wallet created here could not be opened after a restart. Nothing was created. Switch key storage to a lasting mode, then try again. | Nothing was sent, signed or changed | Crypto Pilot wallets are refused while VOOL_KEY_STORAGE_MODE is ephemeral; use file or keyring storage. | `core.wallet.pilot_custody` |

@@ -263,6 +263,12 @@
       "context": "Shown when the failure classified as 'wallet_request_ambiguous' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
     },
     {
+      "key": "fault.wallet_send_needs_vool_wallet.message",
+      "english": "This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again.",
+      "parameters": [],
+      "context": "Shown when the failure classified as 'wallet_send_needs_vool_wallet' reaches the user. Effect state 'none' must remain truthful in any wording: never translate an 'unknown outcome' into an implied 'nothing happened'."
+    },
+    {
       "key": "fault.wallet_setup_state_invalid.message",
       "english": "That setup step does not apply to this wallet right now, so nothing changed. Check the wallet's setup status, then try again.",
       "parameters": [],
