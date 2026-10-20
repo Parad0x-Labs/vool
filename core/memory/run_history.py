@@ -215,6 +215,11 @@ _BOOKKEEPING_KEY_RE = re.compile(
     r"(?:^|_)(?:ms|us|ns|sec|secs|seconds|elapsed|duration|latency|count|total|seq|sequence|step|steps|index|idx"
     r"|attempt|attempts|retries|bytes|size|tokens|used|version|generation|depth|pid|exit_code|port|offset|limit"
     r"|budget|priority|timestamp|epoch|confidence|score|ratio|rate)$")
+#: A value the runtime names or signs, never the person's words: the model and provider a call went to
+#: ("gemma3:12b") and a call's signature (random base64). Read as words, "Forget 12." could never be verified
+#: anywhere a 12b model had answered, and any number matched a signature about one time in ten (2026-10-20,
+#: provider_invocation_manifests; also on v0.7.2).
+_RUNTIME_NAMED_KEY_RE = re.compile(r"(?:^|_)(?:signature|model|model_id|model_name|provider|provider_id)$")
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -853,17 +858,30 @@ def resweep_forgotten_run_history(chat_id: str) -> int:
 # ── verification ─────────────────────────────────────────────────────────────
 
 
+def _runtime_named(key: Any, value: Any) -> bool:
+    return isinstance(value, str) and bool(_RUNTIME_NAMED_KEY_RE.search(str(key).casefold()))
+
+
+def _without_runtime_names(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _without_runtime_names(item) for key, item in value.items() if not _runtime_named(key, item)}
+    if isinstance(value, list):
+        return [_without_runtime_names(item) for item in value]
+    return value
+
+
 def _unclassified_payload(row: Mapping[str, Any]) -> list[Any]:
-    """A session-scoped table nobody classified: its words, without ids, stamps and counters."""
+    """A session-scoped table nobody classified: its words, without ids, stamps, counters, model names and
+    signatures."""
     words: list[Any] = []
     for key, value in dict(row).items():
-        if key in ROW_IDENTITIES or _runtime_made(value):
+        if key in ROW_IDENTITIES or _runtime_made(value) or _runtime_named(key, value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
-        words.append(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES)))
+        words.append(_without_runtime_names(_without_bookkeeping(_without_nested_identities(value, ROW_IDENTITIES))))
     return words
 
 
