@@ -46,8 +46,8 @@ transfers and payments sections below for exactly which lanes exist on mainnet.
 * A name matching several contacts or wallet addresses asks you to choose. Review the exact
   address and chain. A changed address or renamed contact invalidates the old review.
 * On mainnet, only a VOOL Wallet created on this device sends. An external wallet you connected
-  or a watch-only address can receive and show its balance; a send from it is refused
-  before any approval is asked, and nothing is signed.
+  or a watch-only address can receive and show its balance; a send or a payment-channel
+  payment from it is refused before any approval is asked, and nothing is signed.
 * Activity records payments made through VOOL and their receipts. It is not a complete
   incoming-payment history. No swap or bridge action is offered by this wallet.
 

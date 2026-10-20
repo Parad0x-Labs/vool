@@ -1,7 +1,8 @@
 """Served mainnet contact review: real daemon and Chromium; simulated RPC; no signing.
 
-Only public-shaped fixture addresses are registered through the external-wallet API.
-No signing request is submitted and no transaction may leave the simulation boundary.
+The sending account is a VOOL Wallet created through the product's own setup doors (on mainnet a connected or
+watch-only account receives and views only, so it is not offered Send). Recipients are public-shaped fixture
+addresses. Nothing is approved: no signature is made and no transaction may leave the simulation boundary.
 The controlled model chooses tools; this proves transport and execution, not model quality.
 """
 from __future__ import annotations
@@ -48,6 +49,19 @@ def _post(daemon, path, body):
 def _get(daemon, path):
     with urlopen(daemon.base_url + path, timeout=60) as response:
         return json.load(response)
+
+
+def _vool_wallet(daemon) -> str:
+    """A ready VOOL Wallet on the Solana mainnet row, through the same setup doors Wallet home uses; returns its address."""
+    code, created = _post(daemon, "/api/wallet/setup/create", {"network": chains.SOLANA_MAINNET, "method": "pin", "credential": PIN,
+                                                              "credential_confirmation": PIN, "creation_key": "served-" + uuid.uuid4().hex, "label": "Mainnet review"})
+    assert code == 200, created
+    setup = created["setup"]
+    code, revealed = _post(daemon, "/api/wallet/setup/reveal", {"wallet_id": setup["wallet_id"], "credential": PIN})
+    assert code == 200, revealed
+    code, acknowledged = _post(daemon, "/api/wallet/setup/acknowledge", {"wallet_id": setup["wallet_id"], "credential": PIN, "ack_token": revealed["backup"]["ack_token"]})
+    assert code == 200, acknowledged
+    return str(setup["address"])
 
 
 @pytest.fixture(scope="module")
@@ -143,8 +157,7 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         code, _ = _post(daemon, "/api/settings/prefs", {"wallet_enabled": True})
         assert code == 200
         assert _get(daemon, "/api/wallet/status")["status"]["crypto_pilot"]["active_environment"] == "mainnet"
-        code, account = _post(daemon, "/api/wallet/external", {"public_key": SENDER, "network": chains.SOLANA_MAINNET, "label": "Mainnet review"})
-        assert code == 200, account
+        sender = _vool_wallet(daemon)
 
         _home_item(page, "#contactsBtn")
         page.wait_for_selector("#vcAdd")
@@ -196,7 +209,7 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         _shot(page, "03-mainnet-wallet-balance-activity")
         _activate(page, "#vwHomeReceive")
         page.wait_for_selector("#vwHomeAddress")
-        assert page.locator("#vwHomeAddress").inner_text() == SENDER
+        assert page.locator("#vwHomeAddress").inner_text() == sender
         assert page.locator("#vwHomeQr canvas").count() == 1
         _shot(page, "04-mainnet-receive-address-qr")
         page.keyboard.press("Escape")
@@ -226,11 +239,9 @@ def test_mainnet_contacts_chat_wallet_receive_and_renamed_approval(mainnet_produ
         page.wait_for_selector("#vwSheet")
         expect(page.locator("#vwSheet")).to_contain_text(RECIPIENT)
         expect(page.locator("#vwSheet")).to_contain_text("Aster")
-        # a connected account previews but cannot approve here: no credential is asked, and the sheet says why
-        expect(page.locator("#vwSheetState")).to_have_attribute("data-approval-unavailable", "wallet_send_needs_vool_wallet")
-        expect(page.locator("#vwSheetState")).to_contain_text("only a VOOL Wallet created on this device sends here")
-        expect(page.locator("#vwSheetCredential")).to_be_hidden()
-        expect(page.locator("#vwSheetApprove")).to_be_hidden()
+        # a VOOL Wallet's review asks for its PIN; the test declines instead of approving
+        expect(page.locator("#vwSheetCredential")).to_be_visible()
+        expect(page.locator("#vwSheetApprove")).to_be_visible()
         _shot(page, "07-mainnet-send-review")
         _activate(page, "#vwSheetCancel")
         page.wait_for_selector("#vwSheet", state="detached")

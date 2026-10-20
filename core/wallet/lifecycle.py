@@ -52,6 +52,7 @@ AUTHORITY = "core.wallet.lifecycle"
 # a Crypto Pilot row sends only from a Crypto Pilot wallet: a connected or watch-only account is told so, typed
 FAULT_SEND_NEEDS_VOOL_WALLET = "wallet_send_needs_vool_wallet"
 REASON_PILOT_SEND_NEEDS_VOOL_WALLET = "pilot_send_needs_vool_wallet"
+REASON_CONNECTED_VIEW_ONLY = "connected_account_view_only_on_mainnet"
 #: The effect-budget contract's two wallet operations (core.effect_budget on build/effect-budgets-p1-20260902,
 #: tip a94a4a48 / implementation 4190b717): reserve BEFORE authorization, consume immediately BEFORE execution,
 #: terminal exactly once. Both are opened at the claim, before any key is touched.
@@ -462,6 +463,14 @@ class PaymentLifecycle:
             # the sheet, elsewhere they keep the lane stop
             reason = capabilities.REASON_PILOT_TRANSFER_NEEDS_QUOTE_APPROVAL if capabilities.pilot_transfer_ready(spec) else capabilities.REASON_PILOT_LANE_INCOMPLETE
             raise self._fault("wallet_network_disabled", proposal, reason=reason)
+        if spec.is_mainnet:
+            profile = custody.get_wallet(proposal.wallet_id)
+            if profile is None or profile.mode in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
+                # on a Mainnet row a connected or watch-only account receives and shows its balance only: no lane (a UsePod,
+                # fee or service payment included) claims, hands out bytes to sign or submits for it. Sending there stays in
+                # a VOOL Wallet, with its limits, approval and receipts. Typed, before any hold, signing request or socket.
+                # an account that cannot be read is refused the same way (unknown fails closed)
+                raise self._fault(FAULT_SEND_NEEDS_VOOL_WALLET, proposal, reason=REASON_CONNECTED_VIEW_ONLY, mode=profile.mode if profile else "unknown")
         if not capabilities.transfer_lane_ready(spec):
             raise self._fault("wallet_network_disabled", proposal, reason=capabilities.REASON_PILOT_LANE_INCOMPLETE)
         return spec

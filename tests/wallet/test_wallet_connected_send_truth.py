@@ -125,3 +125,89 @@ def test_a_solana_mainnet_preview_from_a_non_pilot_account_asks_no_credential_an
     status, door = _post("/api/wallet/approve", {"proposal_id": proposal_id, "quote_id": preview["quote"]["quote_id"], "quote_digest": preview["quote"]["digest"], "pin": "482913"})
     assert status >= 400 and door["error"] == "wallet_send_needs_vool_wallet", door
     assert "sendTransaction" not in [call.get("method") for call in sol.calls]
+
+
+def _usdc_accounts(sol, owners) -> None:
+    """The USDC mint and token accounts on the local Solana mainnet double, so a payment-channel row prepares as on the chain."""
+    from solders.pubkey import Pubkey
+    from solders.token.state import Mint, TokenAccount, TokenAccountState
+
+    from core.wallet import svm_tokens
+
+    usdc = chains.asset_for(chains.SOLANA_MAINNET, "USDC")
+    sol.accounts[usdc.address] = {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(Mint(mint_authority=None, supply=10**12, decimals=usdc.decimals, is_initialized=True, freeze_authority=None))}
+    for owner, amount in owners:
+        sol.accounts[svm_tokens.associated_account(owner, usdc.address)] = {"owner": svm_tokens.TOKEN_PROGRAM, "data": bytes(TokenAccount(
+            mint=Pubkey.from_string(usdc.address), owner=Pubkey.from_string(owner), amount=amount, delegate=None, state=TokenAccountState.Initialized,
+            is_native=None, delegated_amount=0, close_authority=None))}
+
+
+@pytest.mark.parametrize("origin", [proposals.ORIGIN_USEPOD, proposals.ORIGIN_DNA_FEE])
+def test_a_payment_channel_payment_from_a_connected_account_on_mainnet_gets_no_signing_request(mainnet, origin):
+    """Receive and view only on mainnet covers every lane: a UsePod or fee payment in USDC from a connected account is refused
+    at the external signing door before any hold or signing request, and the card says so instead of offering a signer."""
+    from solders.keypair import Keypair
+
+    from core.wallet import external_signing, lifecycle, status
+
+    _evm, sol = mainnet
+    sender, destination = str(Keypair().pubkey()), str(Keypair().pubkey())
+    _usdc_accounts(sol, [(sender, 10**9), (destination, 0)])
+    account = custody.register_external_signer_wallet(sender, network=chains.SOLANA_MAINNET)
+    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=destination, amount_minor=1000, asset="USDC", origin=origin, network=chains.SOLANA_MAINNET)
+    prepared = lifecycle.default_lifecycle().prepare(proposal.proposal_id)
+    assert prepared.state == proposals.STATE_PENDING_APPROVAL
+    status_code, refused = _post("/api/wallet/approve", {"proposal_id": proposal.proposal_id, "method": "external"})
+    assert status_code >= 400 and refused["error"] == "wallet_send_needs_vool_wallet", refused
+    assert refused["fault"]["context"]["reason"] == "connected_account_view_only_on_mainnet", refused
+    assert "only a VOOL Wallet created on this device sends here" in refused["message"]
+    assert external_signing.open_request_for_proposal(proposal.proposal_id) is None, "no bytes to sign left VOOL"
+    assert limits.reservation_state(proposal.proposal_id) == "", "nothing was held"
+    after = proposals.get_proposal(proposal.proposal_id)
+    assert (after.state, after.tx_signature) == (proposals.STATE_PENDING_APPROVAL, ""), "refused, not ended: the owner can still reject it"
+    row = next(r for r in status.wallet_status()["pending"] if r["proposal_id"] == proposal.proposal_id)
+    assert row["mainnet"] is True and row["pilot_transfer"] is False
+    assert row["send_unavailable"]["code"] == "wallet_send_needs_vool_wallet"
+    assert "only a VOOL Wallet created on this device sends here" in row["send_unavailable"]["message"]
+    # the reject door still works: refusing to send never strands the request
+    status_code, rejected = _post("/api/wallet/reject", {"proposal_id": proposal.proposal_id})
+    assert status_code == 200, rejected
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_REJECTED
+
+
+def test_a_testnet_row_from_a_connected_account_keeps_its_signer(monkeypatch):
+    """The view-only rule is a Mainnet rule: a connected account's test-network row still offers its own signer."""
+    from core.wallet import status
+
+    monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
+    monkeypatch.setenv("VOOL_WALLET_NETWORK_ENVIRONMENT", "testnet")
+    chains.invalidate_chain_identity()
+    account = custody.register_external_signer_wallet(b58encode(bytes([63]) * 32), network=chains.SOLANA_DEVNET)
+    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=b58encode(bytes([64]) * 32), amount_minor=1000, asset="SOL", origin="user", network=chains.SOLANA_DEVNET)
+    row = status._pending_row(proposal)
+    assert (row["mainnet"], row["send_unavailable"]) == (False, None)
+
+
+@pytest.mark.parametrize("door", ["pin", "external"])
+@pytest.mark.parametrize("register", [custody.register_external_signer_wallet, custody.create_watch_only_wallet], ids=["connected", "watch_only"])
+def test_every_legacy_door_refuses_a_view_only_account_on_mainnet_before_any_hold(mainnet, register, door):
+    """The same refusal from the legacy PIN door (approve and execute) and the external signing door, for a connected and a
+    watch-only account: nothing is held, no signing request opens, no credential is consumed."""
+    from solders.keypair import Keypair
+
+    from core.wallet import external_signing, lifecycle
+
+    _evm, sol = mainnet
+    sender, destination = str(Keypair().pubkey()), str(Keypair().pubkey())
+    _usdc_accounts(sol, [(sender, 10**9), (destination, 0)])
+    account = register(sender, network=chains.SOLANA_MAINNET)
+    proposal = proposals.propose_transaction(wallet_id=account.wallet_id, destination=destination, amount_minor=1000, asset="USDC", origin=proposals.ORIGIN_USEPOD, network=chains.SOLANA_MAINNET)
+    lifecycle.default_lifecycle().prepare(proposal.proposal_id)
+    body = {"proposal_id": proposal.proposal_id, **({"method": "external"} if door == "external" else {"pin": "482913"})}
+    status_code, refused = _post("/api/wallet/approve", body)
+    assert status_code >= 400 and refused["error"] == "wallet_send_needs_vool_wallet", refused
+    assert refused["fault"]["context"]["reason"] == "connected_account_view_only_on_mainnet", refused
+    assert external_signing.open_request_for_proposal(proposal.proposal_id) is None
+    assert limits.reservation_state(proposal.proposal_id) == ""
+    assert proposals.get_proposal(proposal.proposal_id).state == proposals.STATE_PENDING_APPROVAL
+    assert "sendTransaction" not in [call.get("method") for call in sol.calls]
