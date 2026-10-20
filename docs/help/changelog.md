@@ -6,6 +6,52 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.2-beta — 2026-10-20
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.2-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.2-beta).
+Updating from 0.7.1 or 0.7.0: download 0.7.2 and install it over your current version. Your chats and settings
+live in your profile, outside the app.
+
+* **Try again and edit.** Every reply has Try again, and you can edit and resend your own message. Attachments come along.
+* **Themes.** Light, Dark or Match system, plus bigger conversation text.
+* **Bring your chats with you.** Import chats from another AI app on this computer or from an export file. Chat titles and messages come over.
+* **"Go online on its own" switch, off by default.** No downloads or cloud checks on VOOL's own until you allow it.
+* **X from any chat.** Search posts and accounts, Spaces, trends and DMs, and look up past calls on a token. Anything that acts on your account waits for your OK.
+* **Email accounts.** Add one from Settings. The login and the server's certificate are checked before saving.
+* **Cloud web search.** Cloud models can use their own built-in web search when you switch it on. Fees still go through your spending limits.
+* **Crypto (off by default).**
+  * Send USDT from chat on Solana, Ethereum, BNB Smart Chain and Arbitrum One, with your approval, limits and a receipt.
+  * All your balances on every chain in one answer.
+  * Save a friend's wallet on their contact, with the right chain.
+  * Watch alerts for a wallet or a token price. Read-only; VOOL never trades.
+  * Trader tools: who is buying, selling or holding a token; collect its trades; check a thesis claim by claim.
+  * Pay-per-answer AI services, paid from your VOOL wallet only after you approve.
+
+* **Clean streaming.** No raw symbols flash on screen while an answer arrives.
+* **Calmer chat.** Jump to latest, clear tab titles, one icon style, and a friendly "are you sure?" before deleting.
+* **Esc stops the answer,** every time.
+* **Your words, as typed.** Messages in your own language are kept as you wrote them.
+* **Desk pet.** Says what VOOL is doing, stays quiet otherwise, and keeps problems on screen.
+* **Private chat in every app language.** Works in all 17 languages and leaves nothing behind.
+* **Deeper forget.** Forget also clears the matching run history, and "forget 12" no longer touches "room 312".
+* **Calendar.** Understands "next Friday" or "for two hours", warns about clashes, and no longer reads "3 apples" as a date.
+* **Safer installs.** Safety checks run again right before any skill or plugin installs; a failure shows on the skill's card.
+* **Secrets.** Kept out of more logs and files, with clearer messages when an API key is blocked.
+* **Slower computers.** Local models on computers without a graphics chip get more time, so answers finish.
+* **Stop VOOL, then start again.** VOOL now restarts properly after "Stop VOOL".
+
+Known limits in this beta:
+
+* Skill Codex is not open yet. Browsing, installing and sharing skills start once it opens.
+* A forgotten item is no longer recalled or listed, but its text can stay in VOOL's local memory file. Removing it from that file is planned for 0.7.3, not released yet.
+* On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now.
+* Paying websites through Solana pay-kit is not included in the downloads.
+* No live mainnet payment has been made yet with x402 or pay-per-answer AI services.
+* Before a local model can write answers, press **Certify** for it once (Settings > Models & Providers > Local models).
+* Scanned-PDF reading works on Macs only.
+* The macOS apps are not notarized.
+
 ## 0.7.1-beta — 2026-10-14
 
 Downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 are on the
