@@ -5086,7 +5086,8 @@ function mountAnswerExport(host, chatId, requestId) {
         status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
-          + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
+          + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf'
+          + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || ''));
         if (!response.ok) {
           const refusal = await response.json();
           throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
@@ -5094,7 +5095,7 @@ function mountAnswerExport(host, chatId, requestId) {
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
         const url = URL.createObjectURL(blob), link = document.createElement('a');
-        link.href = url; link.download = 'vool-answer.pdf';
+        link.href = url; link.download = downloadFilenameFrom(response.headers.get('Content-Disposition'), 'VOOL answer.pdf');
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = label('msg.pdf_downloaded', 'Downloaded');
@@ -5105,6 +5106,23 @@ function mountAnswerExport(host, chatId, requestId) {
   actions.appendChild(button); host.appendChild(status);
 }
 
+// The name an export is saved under: the server's exact UTF-8 name (filename*, RFC 5987) when it
+// sends one, else its plain filename=, else the fallback. The server names the file after the
+// chat; this only reads that name, never invents one, and keeps any path out of it.
+function downloadFilenameFrom(disposition, fallback) {
+  const header = String(disposition || '');
+  let name = '';
+  const extended = header.match(/filename\*\s*=\s*UTF-8''([^;\s]+)/i);
+  if (extended) { try { name = decodeURIComponent(extended[1]); } catch (e) { name = ''; } }
+  if (!name) {
+    const quoted = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/i);
+    const bare = quoted ? null : header.match(/filename\s*=\s*([^;\s]+)/i);
+    name = quoted ? quoted[1].replace(/\\(.)/g, '$1') : (bare ? bare[1] : '');
+  }
+  name = name.replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ')
+    .split(/[\\/]/).pop().replace(/^[.\s]+/, '').trim();
+  return name || fallback;
+}
 async function mountProofChip(host, chatId, requestId, presentationSelection) {
   if (typeof mountAnswerExport === 'function') mountAnswerExport(host, chatId, requestId);
   const id = String(requestId || '');
@@ -13693,6 +13711,7 @@ panelBtnEl.addEventListener('click', togglePanel);
     + '&format=' + el('exportFormat').value
     + '&timestamps=' + (el('exportTimestamps').checked ? 1 : 0)
     + '&no_attachments=' + (el('exportAttachments').checked ? 0 : 1)
+    + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || '')
     + (extra || '');
   async function refreshPreview() {
     const goEl = el('exportGo');
@@ -13759,11 +13778,10 @@ panelBtnEl.addEventListener('click', togglePanel);
         return;
       }
       const blob = await r.blob();
-      const cd = r.headers.get('Content-Disposition') || '';
-      const name = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = name ? decodeURIComponent(name[1]) : ('vool-chat.' + fmt);
+      a.download = (typeof downloadFilenameFrom === 'function')
+        ? downloadFilenameFrom(r.headers.get('Content-Disposition'), 'VOOL chat.' + fmt) : ('VOOL chat.' + fmt);
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       statusEl.textContent = 'Export downloaded.';
