@@ -288,6 +288,33 @@ class ThingsStore:
         self._collect()
         return {"deleted": True}
 
+    def matching(self, token: str) -> list[dict]:
+        """Read saved text without deleting, collecting objects or reading files again."""
+        needle = self._forget_needle(token)
+        if not (self.root / "records.sqlite3").exists():
+            return []
+        with self._tx() as conn:
+            return self._forget_matches(conn, needle)
+
+    @staticmethod
+    def _forget_needle(token):
+        if not isinstance(token, str) or len(token.strip()) < 2:
+            raise ThingsError("bad_target", "Give the exact words to forget.")
+        return unicodedata.normalize("NFKC", token.strip()).casefold()
+
+    def _forget_matches(self, conn, needle):
+        def carries(value):
+            return isinstance(value, str) and needle in unicodedata.normalize("NFKC", value).casefold()
+
+        matches = []
+        for (thing_id,) in conn.execute("SELECT id FROM records ORDER BY id").fetchall():
+            record = self._load(conn, thing_id)
+            matched = any(carries(record.get(key, "")) for key in FIELDS)
+            matched = matched or any(carries(f.get("name", "")) or carries(f.get("extracted_text", "")) for f in record["files"])
+            if matched:
+                matches.append({"id": thing_id, "revision": record["revision"], "name": record["name"]})
+        return matches
+
     def forget(self, token: str, *, confirm: bool = False, expected: list[dict] | None = None) -> dict:
         """Preview or confirm deletion of person-made records, using only saved text.
 
@@ -296,24 +323,11 @@ class ThingsStore:
         Unreadable files remain attached unless their saved name/details match. They
         do not turn an unrelated memory erasure into an endless incomplete operation.
         """
-        if not isinstance(token, str) or len(token.strip()) < 2:
-            raise ThingsError("bad_target", "Give the exact words to forget.")
-        needle = unicodedata.normalize("NFKC", token.strip()).casefold()
-
-        def carries(value):
-            return isinstance(value, str) and needle in unicodedata.normalize("NFKC", value).casefold()
-
+        needle = self._forget_needle(token)
         matches = []
         if (self.root / "records.sqlite3").exists():
             with self._tx() as conn:
-                for (thing_id,) in conn.execute("SELECT id FROM records ORDER BY id").fetchall():
-                    record = self._load(conn, thing_id)
-                    matched = any(carries(record.get(key, "")) for key in FIELDS)
-                    # Names are carriers even when their bytes could not be read. The
-                    # encrypted extraction was made at attachment time; never OCR here.
-                    matched = matched or any(carries(f.get("name", "")) or carries(f.get("extracted_text", "")) for f in record["files"])
-                    if matched:
-                        matches.append({"id": thing_id, "revision": record["revision"], "name": record["name"]})
+                matches = self._forget_matches(conn, needle)
                 if matches and confirm is True:
                     if json.dumps(expected, sort_keys=True) != json.dumps(matches, sort_keys=True):
                         raise ThingsError("stale", "The matching things changed. Review them again before deleting.", 409)
