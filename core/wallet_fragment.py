@@ -237,7 +237,7 @@ var sec = null, statusEl = null, msgEl = null, lastStatus = null;
 function setMsg(text, isErr){ if (!msgEl) return; msgEl.textContent = text || ''; msgEl.className = 'vw-msg' + (isErr ? ' err' : ''); }
 var CHAIN_LABELS = { 'eip155:84532': 'Base Sepolia', 'eip155:11155111': 'Ethereum Sepolia', 'eip155:97': 'BNB Smart Chain Testnet', 'eip155:46630': 'Robinhood Chain Testnet', 'eip155:4663': 'Robinhood Chain', 'eip155:8453': 'Base', 'eip155:1': 'Ethereum', 'eip155:56': 'BNB Smart Chain', 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1': 'Solana Devnet', 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp': 'Solana' };
 function chainLabel(caip2){ return CHAIN_LABELS[caip2] || caip2; }
-var MODE_LABELS = { watch_only: 'watch-only (observe and propose; cannot sign)', pocket_sealed: 'VOOL Wallet (key sealed on this device, approved by you at payment)', external_signer: 'external wallet (signing stays in your wallet)' };
+var MODE_LABELS = { watch_only: 'watch-only (observe and propose; cannot sign; on mainnet, receive and view only)', pocket_sealed: 'VOOL Wallet (key sealed on this device, approved by you at payment)', external_signer: 'external wallet (signing stays in your wallet; on mainnet, receive and view only)' };
 function maskedLine(label, value, id){
   // public identifiers are public ON CHAIN; masked by default so a screenshot does not
   // glue a person's profile to their address — one click reveals the exact value
@@ -1203,7 +1203,8 @@ function cardFor(p){
   card.appendChild(purposeBlock(p.purpose, WT('wallet.review_title', 'Payment approval needed')));
   var chainRow = el('div', 'vw-row');
   chainRow.appendChild(document.createTextNode('network: ' + chainLabel(p.network) + ' · '));
-  chainRow.appendChild(el('span', 'vw-badge testnet', WT('wallet.testnet_badge', 'testnet funds, not real money')));
+  if (p.mainnet) chainRow.appendChild(el('span', 'vw-badge', 'real money'));
+  else chainRow.appendChild(el('span', 'vw-badge testnet', WT('wallet.testnet_badge', 'testnet funds, not real money')));
   card.appendChild(chainRow);
   card.appendChild(el('div', 'vw-row', p.amount_minor + ' ' + p.asset + ' ' + WT('wallet.minor_units', '(minor units)')));
   card.appendChild(maskedLine('destination', p.destination, 'vwDest-' + p.proposal_id));
@@ -1220,12 +1221,18 @@ function cardFor(p){
   function ackText(){ return (p.meaning && p.meaning.tier === 'red') ? p.meaning.ack_text : undefined; }
   var controls = el('div', 'vw-row');
   var watchOnly = lastStatus && lastStatus.custody_mode === 'watch_only';
+  // on a Mainnet row a connected or watch-only account receives and shows its balance only: the card asks for no
+  // credential and offers no signer, it says why (every door refuses it the same way) and keeps Reject
+  var viewOnly = !!p.send_unavailable;
   var method = (lastStatus && lastStatus.approval_method) || 'pin';
   var pin = el('input', 'vw-pin'); pin.type = 'password'; pin.autocomplete = 'off'; pin.setAttribute('aria-label', method === 'password' ? WT('wallet.pw_aria', 'wallet password') : WT('wallet.pin_aria', 'wallet PIN'));
   if (method === 'password') { pin.placeholder = WT('wallet.pw_aria', 'wallet password'); } else { pin.placeholder = WT('wallet.pin_short', 'PIN'); pin.inputMode = 'numeric'; }
   var approve = el('button', 'vw-btn primary vw-approve' + (method === 'device' ? ' vw-approve-device' : ''), method === 'device' ? WT('wallet.approve_device', 'Approve with Touch ID / password') : (method === 'password' ? WT('wallet.approve_password', 'Approve with password') : WT('wallet.approve_pin', 'Approve with PIN'))); approve.type = 'button';
   var reject = el('button', 'vw-btn vw-reject', WT('wallet.reject', 'Reject')); reject.type = 'button'; reject.setAttribute('aria-label', WT('wallet.reject_aria', 'reject the payment proposal'));
-  if (watchOnly) {
+  if (viewOnly) {
+    var why = el('span', 'vw-line vw-cx-warn', p.send_unavailable.message || 'This account cannot send from VOOL on this network. Nothing was signed or sent.');
+    why.setAttribute('data-send-unavailable', p.send_unavailable.code || ''); controls.appendChild(why);
+  } else if (watchOnly) {
     // a watch-only wallet has no signer: offering a PIN box would be a dead end
     controls.appendChild(el('span', 'vw-line', WT('wallet.watch_only_hint', 'watch-only: this proposal can be approved in an external wallet, not signed here')));
   } else {
@@ -1233,7 +1240,7 @@ function cardFor(p){
     controls.appendChild(approve);
   }
   var ext = null, evm = null;
-  if (lastStatus && lastStatus.custody_mode === 'external_signer') {
+  if (!viewOnly && lastStatus && lastStatus.custody_mode === 'external_signer') {
     if (isEvmNetwork(p.network)) {
       evm = el('button', 'vw-btn primary vw-sign-evm', WT('wallet.sign_evm', 'Sign with EVM wallet')); evm.type = 'button'; controls.appendChild(evm);
     } else {
@@ -1250,7 +1257,7 @@ function cardFor(p){
     finish(WT('wallet.payment_state', 'Payment ') + receipt.state + ' · ' + WT('wallet.signature', 'signature') + ' ' + (receipt.tx_signature || '-') + ' · ' + receipt.network);
     var a = actions(); if (a && a.toast) a.toast(WT('wallet.payment_state', 'Payment ') + receipt.state);
   }
-  if (!watchOnly) approve.addEventListener('click', function(){
+  if (!watchOnly && !viewOnly) approve.addEventListener('click', function(){
     approve.disabled = true;
     var approvalBody = method === 'device' ? { proposal_id: p.proposal_id, method: 'device', acknowledged_capability: ackText() } : (method === 'password' ? { proposal_id: p.proposal_id, password: pin.value, acknowledged_capability: ackText() } : { proposal_id: p.proposal_id, pin: pin.value, acknowledged_capability: ackText() });
     if (method === 'device') setMsg(WT('wallet.confirm_device', 'Confirm with Touch ID or your Mac password…'));
@@ -2227,7 +2234,8 @@ var walletHome = (function(){
     var caps = (row && row.capabilities) || {};
     var sendReason = '';
     if (!account) sendReason = 'no account on this network yet';
-    else if (account.mode === 'watch_only') sendReason = 'watch-only accounts can observe and propose, but never sign here';
+    else if (account.mode === 'watch_only') sendReason = 'watch-only accounts receive and show their balance; they never send from here';
+    else if (account.mode === 'external_signer' && row && row.environment === 'mainnet') sendReason = 'a connected wallet receives and shows its balance here; on this network only a VOOL Wallet created on this device sends';
     else if (account.setup_state && account.setup_state !== 'ready') sendReason = 'finish this wallet\'s setup before sending';
     else if (!(caps.send && caps.send.available)) sendReason = CAP_REASONS[(caps.send || {}).reason] || (caps.send || {}).reason || 'unavailable';
     send.disabled = !!sendReason;
@@ -2305,8 +2313,9 @@ var walletHome = (function(){
       stateLine.appendChild(retry);
     }
     box.appendChild(amount); box.appendChild(stateLine);
-    var kind = account.mode === 'watch_only' ? 'watch-only: observe and propose; signing happens elsewhere' :
-      (account.mode === 'external_signer' ? 'external wallet: signing stays in your wallet' :
+    var viewOnly = !!row && row.environment === 'mainnet';
+    var kind = account.mode === 'watch_only' ? (viewOnly ? 'watch-only: receive and view only' : 'watch-only: observe and propose; signing happens elsewhere') :
+      (account.mode === 'external_signer' ? (viewOnly ? 'connected wallet: receive and view only in VOOL' : 'external wallet: signing stays in your wallet') :
       (account.setup_state && account.setup_state !== 'ready' ? 'setup not finished: ' + (SETUP_TEXT[account.setup_state] || account.setup_state) : 'VOOL Wallet: key sealed on this device'));
     box.appendChild(el('div', 'vw-wh-balstate', kind));
   }
@@ -2670,7 +2679,7 @@ var walletHome = (function(){
         }).then(function(res){
           evm.disabled = false;
           if (!res || !res.ok) { say((res && faultMessage(res, 'Not connected.')) || 'Not connected.', true); return; }
-          say('EVM wallet registered on ' + evmChainLabel(chain) + '.'); view = 'home'; renderFromStatus();
+          say('EVM wallet registered on ' + evmChainLabel(chain) + '.' + (evmNetworks[0].environment === 'mainnet' ? ' Here it receives and shows its balance; sending on this network stays in a VOOL Wallet created on this device.' : '')); view = 'home'; renderFromStatus();
         }).catch(function(err){ evm.disabled = false; say('The EVM wallet did not connect: ' + (err && err.message ? err.message : 'unknown error'), true); });
       });
       acts.appendChild(evm);

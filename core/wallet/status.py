@@ -69,6 +69,26 @@ def _amount_view(p: Any) -> dict[str, Any]:
     return {"amount_human": amounts.format_minor(int(p.amount_minor), asset.decimals), "display_symbol": symbol, "decimals": asset.decimals}
 
 
+def _mainnet_view(p: Any) -> dict[str, Any]:
+    """Whether the payment is on a Mainnet row, and, when its account is connected or watch-only, the refusal every door
+    gives it there (receive and view only): a card says so instead of offering a credential or a signer."""
+    from core.wallet import chains, custody
+
+    try:
+        mainnet = bool(chains.resolve_network(p.network).is_mainnet)
+    except Exception:
+        return {"mainnet": None, "send_unavailable": None}
+    profile = custody.get_wallet(str(p.wallet_id)) if mainnet else None
+    if profile is None or profile.mode not in (custody.MODE_EXTERNAL_SIGNER, custody.MODE_WATCH_ONLY):
+        return {"mainnet": mainnet, "send_unavailable": None}
+    from core.faults.catalog import get_spec
+    from core.i18n.catalog import fault_message_key
+    from core.i18n.turn_locale import turn_text
+
+    code = "wallet_send_needs_vool_wallet"
+    return {"mainnet": True, "send_unavailable": {"code": code, "message": turn_text(fault_message_key(code), get_spec(code).user_message)}}
+
+
 def _pending_row(p: Any) -> dict[str, Any]:
     from core.wallet import quotes, transfers
 
@@ -80,6 +100,7 @@ def _pending_row(p: Any) -> dict[str, Any]:
     row.update(_amount_view(p))
     # a pilot transfer is approved only on the sheet; the open quote id lets an open sheet notice it was replaced
     row["pilot_transfer"] = transfers.is_pilot_transfer(p)
+    row.update(_mainnet_view(p))
     # who receives what and why, from the operation owner's typed records (never from the memo's wording)
     from core.wallet import purpose
 
