@@ -5972,71 +5972,6 @@ function paintFinishedCard(run) {
   }
 }
 
-// ---- Plain words for the run card ----
-// The card's action line, its recent-steps strip and its last-step line printed the task event's
-// `summary` verbatim, and for a tool step that summary is the runtime's own log line ("Running
-// live_data.weather_lookup", "Finished live_data.weather_lookup: failed"): English in every locale,
-// and naming an internal tool id. A tool step is now worded from the event's TYPE and the KIND of
-// tool, through the same catalog keys the Activity panel uses; engine lines the Activity table
-// already words (model choice, plan steps, the request arriving) read the same here. The server's
-// exact summary is not dropped: the event itself stays unchanged on run.events (Event log, Copy).
-//
-// Fail closed: a tool id this page does not recognise gets a plain generic line, never the id.
-// Words the server wrote for the person (an approval request, a picked-up note, a review cause, a
-// terminal reason) are not in these tables and are left exactly as sent.
-const RUN_CARD_ENGINE_TYPES = { 'task.started': 1, 'task.stage_changed': 1, 'model.changed': 1,
-  'model.call_started': 1, 'model.call_completed': 1, 'model.call_failed': 1, 'plan.step_started': 1, 'plan.step_completed': 1 };
-const RUN_STEP_GENERIC = {
-  active: ['step_working', 'Working on a step'], done: ['step_finished', 'Finished a step'],
-  failed: ['step_failed', 'This step didn’t work'], skipped: ['step_skipped', 'Skipped a step'],
-  ended: ['step_ended', 'A step ended'],
-};
-// 'active' | 'done' | 'failed' | 'skipped' | 'ended' for a tool or lane-node event, '' otherwise.
-// A node's completion row carries its own outcome; one that claims none has only "ended".
-function runStepPhase(ev) {
-  const type = String(ev.type || '');
-  if (type === 'tool.started' || type === 'agent_node_started') return 'active';
-  if (type === 'tool.completed') return 'done';
-  if (type === 'tool.failed') return 'failed';
-  if (type !== 'agent_node_completed') return '';
-  const status = String(ev.status || '');
-  return status === 'completed' ? 'done' : (status === 'failed' ? 'failed' : (status === 'cancelled' ? 'skipped' : 'ended'));
-}
-function runStepWords(ev, phase) {
-  const tool = String(ev.tool || '').trim();
-  const node = String(ev.type || '').indexOf('agent_node') === 0;
-  const liveData = tool.indexOf('live_data.') === 0;
-  // A lane node names its operation bare ("weather_lookup"); the tool loop prefixes it.
-  const op = liveData ? tool.slice('live_data.'.length) : ((node && ACTIVITY_PLAIN_LOOKUP_WHAT[tool]) ? tool : '');
-  if ((liveData || op) && (phase === 'active' || phase === 'done' || phase === 'failed')) {
-    const what = activityLookupWhat(op, null);
-    if (phase === 'active') return activityPlainT('lookup_active', 'Looking up {what}', { what: what });
-    if (phase === 'failed') return activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
-    return activityPlainT('lookup_done', 'Looked up {what}', { what: what });
-  }
-  // A tool of a kind the Activity panel names ("Running tests", "Read failed") reads the same here.
-  const kinds = { active: 'tool_selected', done: 'tool_executed', failed: 'tool_failed' };
-  if (tool && kinds[phase] && activityCategoryFor(tool)[0] !== 'tools') return humanToolTitle({ tool_name: tool }, kinds[phase], null);
-  const [id, english] = RUN_STEP_GENERIC[phase] || RUN_STEP_GENERIC.ended;
-  return activityPlainT(id, english);
-}
-// The card's words for one task event, or '' to keep the event's own summary.
-function runCardWords(ev) {
-  if (!ev) return '';
-  const phase = runStepPhase(ev);
-  if (phase) return runStepWords(ev, phase);
-  if (!RUN_CARD_ENGINE_TYPES[ev.type]) return '';
-  const raw = String(ev.raw_type || '');
-  if (ACTIVITY_PLAIN_MODEL[raw]) {
-    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[raw];
-    const m = ev.model || {};
-    const model = compactModelName(m.actual_adapter_model_id || m.selected_model_id || m.requested_model_id || m.policy_model_id || m.model_id || '');
-    return model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
-  }
-  if (ACTIVITY_PLAIN_TITLES[raw]) return activityPlainT(ACTIVITY_PLAIN_TITLES[raw][1], ACTIVITY_PLAIN_TITLES[raw][2]);
-  return '';
-}
-
 function applyTaskEvent(run, ev) {
   if (!ev || !ev.type) return;
   if (ev.seq != null) {
@@ -6054,7 +5989,7 @@ function applyTaskEvent(run, ev) {
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
   // What the card says for this event (runCardWords), else the event's own summary.
-  const said = runCardWords(ev) || ev.summary;
+  const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
   if (said) { run.action = said; run.evented = true; }
   if (ev.model) { run.model = ev.model; rememberStickyModel(run.chatId, ev.model); }
   if (ev.cost) run.cost = Object.assign({}, run.cost, ev.cost);
@@ -7318,6 +7253,74 @@ function activityPlainRow(e, machine, places) {
   return { cls: cls, icon: icon, title: title, sub: machineBits.join(' · '), tier: tier, machine: row };
 }
 
+// ---- Plain words for the run card ----
+// The card's action line, its recent-steps strip and its last-step line printed the task event's
+// `summary` verbatim, and for a tool step that summary is the runtime's own log line ("Running
+// live_data.weather_lookup", "Finished live_data.weather_lookup: failed"): English in every locale,
+// and naming an internal tool id. A tool step is now worded from the event's TYPE and the KIND of
+// tool, through the same catalog keys the Activity panel uses; engine lines the Activity table
+// already words (model choice, plan steps, the request arriving) read the same here. The server's
+// exact summary is not dropped: the event itself stays unchanged on run.events (Event log, Copy).
+//
+// It lives here, beside the tables it reads; applyTaskEvent calls it behind a typeof guard so the
+// harnesses that run the card lifecycle slice on its own keep the event's summary.
+//
+// Fail closed: a tool id this page does not recognise gets a plain generic line, never the id.
+// Words the server wrote for the person (an approval request, a picked-up note, a review cause, a
+// terminal reason) are not in these tables and are left exactly as sent.
+const RUN_CARD_ENGINE_TYPES = { 'task.started': 1, 'task.stage_changed': 1, 'model.changed': 1,
+  'model.call_started': 1, 'model.call_completed': 1, 'model.call_failed': 1, 'plan.step_started': 1, 'plan.step_completed': 1 };
+const RUN_STEP_GENERIC = {
+  active: ['step_working', 'Working on a step'], done: ['step_finished', 'Finished a step'],
+  failed: ['step_failed', 'This step didn’t work'], skipped: ['step_skipped', 'Skipped a step'],
+  ended: ['step_ended', 'A step ended'],
+};
+// 'active' | 'done' | 'failed' | 'skipped' | 'ended' for a tool or lane-node event, '' otherwise.
+// A node's completion row carries its own outcome; one that claims none has only "ended".
+function runStepPhase(ev) {
+  const type = String(ev.type || '');
+  if (type === 'tool.started' || type === 'agent_node_started') return 'active';
+  if (type === 'tool.completed') return 'done';
+  if (type === 'tool.failed') return 'failed';
+  if (type !== 'agent_node_completed') return '';
+  const status = String(ev.status || '');
+  return status === 'completed' ? 'done' : (status === 'failed' ? 'failed' : (status === 'cancelled' ? 'skipped' : 'ended'));
+}
+function runStepWords(ev, phase) {
+  const tool = String(ev.tool || '').trim();
+  const node = String(ev.type || '').indexOf('agent_node') === 0;
+  const liveData = tool.indexOf('live_data.') === 0;
+  // A lane node names its operation bare ("weather_lookup"); the tool loop prefixes it.
+  const op = liveData ? tool.slice('live_data.'.length) : ((node && ACTIVITY_PLAIN_LOOKUP_WHAT[tool]) ? tool : '');
+  if ((liveData || op) && (phase === 'active' || phase === 'done' || phase === 'failed')) {
+    const what = activityLookupWhat(op, null);
+    if (phase === 'active') return activityPlainT('lookup_active', 'Looking up {what}', { what: what });
+    if (phase === 'failed') return activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
+    return activityPlainT('lookup_done', 'Looked up {what}', { what: what });
+  }
+  // A tool of a kind the Activity panel names ("Running tests", "Read failed") reads the same here.
+  const kinds = { active: 'tool_selected', done: 'tool_executed', failed: 'tool_failed' };
+  if (tool && kinds[phase] && activityCategoryFor(tool)[0] !== 'tools') return humanToolTitle({ tool_name: tool }, kinds[phase], null);
+  const [id, english] = RUN_STEP_GENERIC[phase] || RUN_STEP_GENERIC.ended;
+  return activityPlainT(id, english);
+}
+// The card's words for one task event, or '' to keep the event's own summary.
+function runCardWords(ev) {
+  if (!ev) return '';
+  const phase = runStepPhase(ev);
+  if (phase) return runStepWords(ev, phase);
+  if (!RUN_CARD_ENGINE_TYPES[ev.type]) return '';
+  const raw = String(ev.raw_type || '');
+  if (ACTIVITY_PLAIN_MODEL[raw]) {
+    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[raw];
+    const m = ev.model || {};
+    const model = compactModelName(m.actual_adapter_model_id || m.selected_model_id || m.requested_model_id || m.policy_model_id || m.model_id || '');
+    return model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
+  }
+  if (ACTIVITY_PLAIN_TITLES[raw]) return activityPlainT(ACTIVITY_PLAIN_TITLES[raw][1], ACTIVITY_PLAIN_TITLES[raw][2]);
+  return '';
+}
+
 // Builds {categories:[{key,label,items:[...]}], totalActions} from a flat, already-turn-scoped
 // ledger slice. Tool calls are paired start->end the same way the live status card already pairs
 // them (applyTaskEvent's tool.completed handler): most-recently-opened call of that name resolves
@@ -8275,6 +8278,10 @@ function renderPanelBody() {
 // per-chat cap is applied here once instead of in the renderer alone.
 function eventLogSections() {
   const run = view.run;
+  // Catalog words when the page's translator is there (it always is in the page); the English as is
+  // when this function runs on its own.
+  const tr = (key, english, params) => (typeof pageTF === 'function' ? pageTF(key, english, params || {})
+    : String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : '')));
   if (panelScope === 'chat') {
     // THE WHOLE CHAT, grouped by turn -- not just the newest one.
     //
@@ -8300,7 +8307,7 @@ function eventLogSections() {
         index += 1;
         sections.push({
           kind: 'group',
-          title: byTurn.size > 1 ? pageTF('activity.turn_label', 'Turn {n}', { n: index }) : pageT('panel.this_chat', 'This chat'),
+          title: byTurn.size > 1 ? tr('activity.turn_label', 'Turn {n}', { n: index }) : tr('panel.this_chat', 'This chat'),
           total: events.length,
           rows: events.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')),
         });
@@ -8311,7 +8318,7 @@ function eventLogSections() {
     if (run && run.events.length) {
       sections.push({
         kind: sections.length ? 'group' : '',
-        title: sections.length ? pageT('panel.current_turn', 'Current turn') : '',
+        title: sections.length ? tr('panel.current_turn', 'Current turn') : '',
         total: run.events.length,
         rows: run.events.slice().reverse().map((ev) => '[' + (ev.stage || ev.type) + '] ' + evTitle(ev)),
       });
@@ -8319,7 +8326,7 @@ function eventLogSections() {
     if (sections.length) return sections.reverse();
     const durable = view.recoveredLedger || [];
     if (!durable.length) return [];
-    return [{ kind: 'note', title: pageT('panel.last_turn', 'Last recorded turn in this chat'), rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
+    return [{ kind: 'note', title: tr('panel.last_turn', 'Last recorded turn in this chat'), rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
   }
   return scopedEvidence.sessions.map((s) => ({
     kind: 'group', title: s.title, total: s.events.length,
@@ -8339,12 +8346,15 @@ function eventLogText(sections) {
 }
 function renderAgents(body) {
   const rows = agentRowsFrom((view.chatLedger || []), Date.now());
-  if (!rows.length) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.agents_none', 'No agent activity in {scope}.', { scope: scopeWhere() })) + '</div>'; return; }
+  // As in eventLogSections: catalog words in the page, the English as is when run on its own.
+  const tr = (key, english, params) => (typeof pageTF === 'function' ? pageTF(key, english, params || {})
+    : String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : '')));
+  if (!rows.length) { body.innerHTML = '<div class="xp-empty">' + esc(tr('panel.agents_none', 'No agent activity in {scope}.', { scope: scopeWhere() })) + '</div>'; return; }
   const sum = agentSummaryOf(rows);
-  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button></div>';
-  html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(panelTabLabel('Agents')) + '</span>'
-       + '<span class="xp-group-meta">' + esc(pageTF('panel.agents_meta', '{running} running · {done} done', { running: sum.running, done: sum.done })
-       + (sum.failed ? ' · ' + pageTF('panel.tests_failed', '{n} failed', { n: sum.failed }) : '')) + '</span></div>';
+  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">' + esc(tr('panel.copy_all', 'Copy all')) + '</button></div>';
+  html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(tr('panel.tab_agents', 'Agents')) + '</span>'
+       + '<span class="xp-group-meta">' + esc(tr('panel.agents_meta', '{running} running · {done} done', { running: sum.running, done: sum.done })
+       + (sum.failed ? ' · ' + tr('panel.tests_failed', '{n} failed', { n: sum.failed }) : '')) + '</span></div>';
   for (const r of rows) {
     const when = r.running
       ? ('running' + (r.elapsedMs != null ? ' · ' + fmtAgentDuration(r.elapsedMs) : ''))
