@@ -198,4 +198,4 @@ No update policy, release manifest or feed format is defined here.
 same tarball into a fresh HOME on Ubuntu 22.04 and 24.04, removes the extracted
 source, checks exact-head health and a real chat answer, proves shutdown, then
 uninstalls while preserving profile data. Tag assets are attached only after
-both tests pass. AppImage and DEB are not part of v0.7.1.
+both tests pass. AppImage and DEB are not part of v0.7.2.
