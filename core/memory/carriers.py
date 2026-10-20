@@ -15,6 +15,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from core.memory.admission import _APOSTROPHES
+
 _SEPARATORS = re.compile(r"[\s\-_]+")
 _LOG = logging.getLogger(__name__)
 
@@ -63,8 +65,11 @@ def payload_strings(value: Any) -> tuple[str, ...]:
     raise ValueError("memory carrier has an opaque payload")
 
 
+_QUOTE_MARKS = str.maketrans({**dict.fromkeys(_APOSTROPHES, "'"), "\u201c": '"', "\u201d": '"'})
+
+
 def fold_forget_text(text: Any) -> str:
-    """Case folded, every decimal digit written as an ASCII digit.
+    """Case folded, curly quotes written straight, every decimal digit written as an ASCII digit.
 
     A fullwidth "１２" or a "١٢" in another script is the number 12. Letters are not normalized
     beyond case: a decomposed and a composed spelling stay distinct entries (the exactness law in
@@ -73,6 +78,8 @@ def fold_forget_text(text: Any) -> str:
     folded = str(text or "").casefold()
     if folded.isascii():
         return folded
+    # A phone keyboard's curly quote is the same mark as a straight one: "Bob’s" is "Bob's".
+    folded = folded.translate(_QUOTE_MARKS)
     return "".join(str(unicodedata.decimal(char)) if char.isdecimal() else char for char in folded)
 
 
@@ -163,23 +170,34 @@ _RUNTIME_MADE_RE = re.compile(
 _MIRROR_STAMPS_RE = re.compile(r"^\s*-\s*\[\d{4}-\d{2}-\d{2}\]\s*|<!--\s*mem:[A-Za-z0-9_.:-]+\s*-->\s*$")
 
 
-def _without_nested_identities(value: Any, structural: frozenset[str]) -> Any:
+def _without_nested_identities(value: Any, structural: frozenset[str], own: frozenset[str] = frozenset()) -> Any:
     """Nested copies of a row identity (``provenance.recorded_at``, ``provenance.content_hash``) are the
-    runtime's own bookkeeping, like the top-level ones. Dropped only when the value has the runtime's shape,
-    so a nested field that happens to share an identity's name but holds words still answers to a forget
-    (measured 2026-10-14: "forget 14" matched every row recorded on the 14th and then refused its own rewrite)."""
+    runtime's own bookkeeping, like the top-level ones. Dropped only when the value has the runtime's shape or
+    repeats one of the row's own identities (``own``), so a nested field that happens to share an identity's name
+    but holds words still answers to a forget (measured 2026-10-14: "forget 14" matched every row recorded on the
+    14th and then refused its own rewrite)."""
     if isinstance(value, Mapping):
-        return {key: _without_nested_identities(item, structural) for key, item in value.items()
+        return {key: _without_nested_identities(item, structural, own) for key, item in value.items()
                 if not (key in structural and (item is None or isinstance(item, (int, float))
-                                               or (isinstance(item, str) and _RUNTIME_MADE_RE.fullmatch(item))))}
+                                               or (isinstance(item, str) and (
+                                                   item in own or _RUNTIME_MADE_RE.fullmatch(item)))))}
     if isinstance(value, list):
-        return [_without_nested_identities(item, structural) for item in value]
+        return [_without_nested_identities(item, structural, own) for item in value]
     return value
+
+
+def _own_identities(row: Any, structural: frozenset[str]) -> frozenset[str]:
+    """The identity values a row states at its top level ("session_id": "chat-5906"). A nested field of the same
+    kind holding one of them is the row naming itself, not words: measured 2026-10-20, in a chat named
+    "chat-5906", "Forget 5906." erased "my phone number is 555-5906." through provenance.origin_chat_id."""
+    if not isinstance(row, Mapping):
+        return frozenset()
+    return frozenset(item for key, item in row.items() if key in structural and isinstance(item, str) and item)
 
 
 def memory_words(value: Any) -> Any:
     """A payload as it is checked against a forget: its row ids and stamps, at any depth, left out."""
-    return _without_nested_identities(value, ROW_IDENTITIES)
+    return _without_nested_identities(value, ROW_IDENTITIES, _own_identities(value, ROW_IDENTITIES))
 
 
 def row_payload(
@@ -188,6 +206,7 @@ def row_payload(
 ) -> dict[str, Any]:
     structural = frozenset(structural_fields)
     structured = frozenset(json_fields)
+    own = _own_identities(dict(row), structural)
     payload = {}
     for key, value in dict(row).items():
         if key in structural:
@@ -195,7 +214,7 @@ def row_payload(
         if key in structured or key.endswith("_json"):
             if value is not None and isinstance(value, (str, bytes, bytearray)):
                 value = json.loads(value)
-        payload[key] = _without_nested_identities(value, structural) if structural else value
+        payload[key] = _without_nested_identities(value, structural, own) if structural else value
     return _without_derived_keywords(payload)
 
 

@@ -167,6 +167,66 @@ def test_a_described_value_nothing_holds_is_echoed_as_typed(isolated_pages):
     assert _live_entries() == [f"my storage label is {LABEL}."]
 
 
+def test_a_chat_whose_name_holds_the_number_forgets_only_that_number(isolated_pages):
+    """Review of da776d5 (also on main 29945fd and v0.7.1): in a chat named "chat-5906", "Forget 5906." erased "my
+    phone number is 555-5906." too, through the chat's own id copied into the row's provenance."""
+    from core.memory.files import memory_entries_path
+    from core.memory.revocation import authorize_payload
+
+    chat = f"chat-{CODE}"
+    _remember(isolated_pages, chat, f"my locker code is {CODE}.")
+    _remember(isolated_pages, chat, f"my phone number is 555-{CODE}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget {CODE}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert _live_entries() == [f"my phone number is 555-{CODE}."]
+    phone = next(row for row in map(json.loads, memory_entries_path().read_text(encoding="utf-8").splitlines())
+                 if row.get("status") != "erased")
+    assert authorize_payload(phone, chat_id=chat), "the phone number must still be served in its chat"
+
+
+def test_a_curly_apostrophe_is_the_same_mark_as_a_straight_one(isolated_pages):
+    chat = "forget-count-curly"
+    _remember(isolated_pages, chat, f"Bob’s locker code is {CODE}.")
+    _remember(isolated_pages, chat, f"my harbor lantern is painted {BYSTANDER}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget Bob's locker code {CODE}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
+
+
+def test_a_curly_apostrophe_typed_in_the_forget_is_the_same_mark_as_a_straight_one(isolated_pages):
+    """Review of 7e45341: a phone keyboard's "Forget Bob’s locker code 5906." answered "Nothing was removed" and the
+    stored "Bob's locker code is 5906." stayed."""
+    chat = "forget-count-curly-typed"
+    _remember(isolated_pages, chat, f"Bob's locker code is {CODE}.")
+    _remember(isolated_pages, chat, f"my harbor lantern is painted {BYSTANDER}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget Bob’s locker code {CODE}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
+
+
+@pytest.mark.parametrize("mark", ["\uff07", "\u201b", "\u2032", "\u00b4"], ids=["fullwidth", "reversed", "prime", "acute"])
+def test_every_apostrophe_the_memory_reads_as_one_is_one_for_forget_too(isolated_pages, mark):
+    """Review of 7e45341: memory admission read a fullwidth apostrophe as an apostrophe, forget did not; neither read
+    the reversed, prime or acute marks some keyboards type for one."""
+    from core.memory.admission import _normalize_possessive_typography
+
+    assert _normalize_possessive_typography(f"Bob{mark}s") == "Bob's"
+    chat = f"forget-count-apostrophe-{ord(mark):x}"
+    _remember(isolated_pages, chat, f"Bob{mark}s locker code is {CODE}.")
+    _remember(isolated_pages, chat, f"my harbor lantern is painted {BYSTANDER}.")
+
+    handled, reply = command(isolated_pages, chat, f"Forget Bob's locker code {CODE}.")
+
+    assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
+    assert _live_entries() == [f"my harbor lantern is painted {BYSTANDER}."]
+
+
 def test_a_quoted_phrase_holding_forget_is_one_target(isolated_pages):
     chat = "forget-count-quoted"
     _remember(isolated_pages, chat, "my favourite song line is 'stop and forget me'.")
