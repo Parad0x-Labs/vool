@@ -218,6 +218,8 @@ class Authority:
     # ---- the server ----
 
     def _http(self, method: str, url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
+        # The site's firewall refuses Python's default client name, so the signer names itself.
+        headers = {"User-Agent": "skill-codex-signer", **headers}
         request = urllib.request.Request(url, data=body if method == "POST" else None, method=method, headers=headers)
         try:
             with open_request(request, service="authority", timeout=60) as response:
