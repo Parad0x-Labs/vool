@@ -83,9 +83,10 @@ def action(path, body):
 
         return _download(packet(store.get(body.get("id"), with_files=True), kind=body.get("kind"), issue=body.get("issue", "")), "request-draft.zip")
     elif name == "manual":
-        # Online acquisition belongs to the existing web approval/disclosure lane. This local
-        # records door cannot accept a URL, fetch authority or a claimed online flag.
-        raise ThingsError("manual_fetch_unavailable", "Attach a manual you already have. Finding one online is not available here yet.", 409)
+        _only(body, {"id", "url", "confirm"})
+        from core.my_things.manuals import preview
+
+        result = preview(body.get("id"), body.get("url"), confirmed=body.get("confirm"))
     else:
         raise ThingsError("not_found", "That action is not available.", 404)
     return json_response(200, {"ok": True, **result}, headers={"Cache-Control": "no-store"})
@@ -106,11 +107,10 @@ def post(path, body, headers, client_host):
 
 
 def get(path, client_host, headers):
-    from core.request_trust import is_loopback_host
-    from core.web.api.service import json_response
+    from core.web.api.service import _credential_page_refusal, json_response
 
     lowered = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
-    if not is_loopback_host(client_host) or lowered.get("sec-fetch-site", "same-origin") not in {"same-origin", "none"}:
+    if _credential_page_refusal({**lowered, "content-type": "application/json"}, client_host):
         return json_response(403, {"ok": False, "error": "owner_request_required"}, headers={"Cache-Control": "no-store"})
     try:
         store = ThingsStore()

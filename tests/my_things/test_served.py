@@ -109,7 +109,7 @@ def test_served_owner_guards_and_bad_upload(daemon):
     assert call(base, "save", {}, {"Content-Type": "text/plain"})[0] == 415
     assert call(base, "attach", {"file": {"name": "bad", "kind": "photo", "data": "broken!"}})[0] == 400
     assert call(base, "preferences", {"enabled": "false"})[0] == 400
-    assert call(base, "manual", {"url": "https://example.invalid/manual.pdf", "online": True})[0] == 409
+    assert call(base, "manual", {"id": "a" * 32, "url": "https://example.invalid/manual.pdf", "confirm": True})[0] == 409
     assert call(base)[1]["things"] == []
 
 
