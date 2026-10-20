@@ -181,7 +181,9 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
     ctx = source_context or {}
     turn = ctx.get('turn_request')
     rating = arguments.get('rating')
-    comment = arguments.get('comment', '')
+    comment = arguments.get('comment')
+    if comment is None:
+        comment = ''
     if not isinstance(turn, TurnRequest) or type(rating) is not int or not isinstance(comment, str):
         return {'ok': False, 'status': 'user_rating_required'}
     # Only an unambiguous explicit score, verbatim in THIS immutable user turn.
@@ -199,7 +201,9 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
         with x_actions._lock:
             account = str((x_actions._load()['actions'][action_id].get('account') or {}).get('id') or '')
     else:
-        text, kind, account = arguments.get('text', ''), arguments.get('kind', 'post'), ''
+        text, kind, account = arguments.get('text', ''), arguments.get('kind'), ''
+        if kind is None:
+            kind = 'post'
         if not text or text not in turn.user_text:
             return {'ok': False, 'status': 'draft_text_required'}
     return save(x_voice_profile.turn_scope(ctx), rating, text, comment=comment, kind=kind,

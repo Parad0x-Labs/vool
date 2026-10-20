@@ -74,7 +74,7 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
         names = {t['function']['name'] for t in body['tools']}
         offered.append(names)
         if cursor[0] >= len(script):
-            return provider._completion(content='Proposal ready for owner review.')
+            return provider._completion(tool_calls=[provider._tool_call('skill-flow-finish', 'respond__direct', {'message': 'Protocol fixture finished; inspect the tool receipts.'})], finish='tool_calls')
         intent, args = script[cursor[0]]
         cursor[0] += 1
         name = intent.replace('.', '__')
@@ -153,6 +153,26 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         assert duplicate.value.code == 400
         assert json.load(duplicate.value)['state'] == 'not_pending'
         assert len([r for r in requests if r[0] == 'POST']) == 1
+        # Exercise valid nullable native parameters through the same served turn parser.
+        script[:] = [
+            ('x.feedback.save', {'rating': 9, 'comment': None, 'action_id': None,
+                                 'text': 'A concrete checkpoint note.', 'kind': None}),
+            ('x.feedback.list', {}),
+        ]
+        cursor[0] = 0
+        payload['session_id'] = reply['vool_session_id']
+        payload['turn_id'] = 'skill-social-native-rating'
+        payload['messages'] = [{'role': 'user', 'content': '9/10 A concrete checkpoint note. orchard social-manager'}]
+        if not os.environ.get('SOCIAL_M6_LEGACY'):
+            rated = daemon.post('/v1/chat/completions', payload, timeout=90)
+            assert cursor[0] == 2, rated
+            assert not [event for event in daemon.session_events(payload['session_id']) if event.get('event_type') == 'model.call_failed']
+            from core import x_feedback
+
+            [stored_rating] = x_feedback.inspect('global', home=vault_home)['entries']
+            assert stored_rating['rating'] == 9 and stored_rating['comment'] == ''
+            assert stored_rating['kind'] == 'post'
+            (shots / 'native-rating-receipt.json').write_text(json.dumps({'reply': rated, 'rating': stored_rating}, indent=2))
         failure_receipts = {}
         for outcome in ('decline', 'expiry', 'unknown'):
             script[:] = [('x.action.propose', {

@@ -119,3 +119,21 @@ def test_model_rating_write_requires_the_normal_manual_mode_approval(vault_home)
         },
     )
     assert decision.effect is PermissionEffect.REQUIRE_APPROVAL
+
+
+def test_native_nullable_optional_fields_preserve_an_explicit_rating(vault_home):
+    from core import x_feedback
+    from core.turn_contract import TurnRequest
+
+    ctx = {'surface': 'desktop', '_owner_local': True, 'runtime_session_id': 'nullable-rating'}
+    ctx['turn_request'] = TurnRequest.from_ingress(
+        user_text='9/10 A concrete checkpoint note.', source_context=ctx,
+        request_id='nullable-rating-request', turn_id='nullable-rating-turn', session_id='nullable-rating',
+    )
+    saved = x_feedback.save_from_turn({
+        'rating': 9, 'comment': None, 'action_id': None,
+        'text': 'A concrete checkpoint note.', 'kind': None,
+    }, ctx)
+    assert saved['ok'], saved
+    [row] = x_feedback.inspect('global')['entries']
+    assert row['comment'] == '' and row['kind'] == 'post'
