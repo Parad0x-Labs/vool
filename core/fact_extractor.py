@@ -399,16 +399,17 @@ class FactExtractor:
         return str(dict(data.get("message") or {}).get("content") or "")
 
     def _local_endpoint_answers(self) -> bool:
-        """Whether this extractor's Ollama endpoint can run a model now. The runtime's presence
-        check covers the runtime's own endpoint; an explicitly different endpoint is the caller's
-        choice and is tried as before."""
+        """Whether this extractor's Ollama endpoint can run a model now. An explicitly different
+        endpoint is the caller's choice and is tried as before."""
         try:
-            from core.local_model_presence import local_model_running
+            from core.local_model_presence import _ollama_has_chat_model
             from core.ollama_endpoint import ollama_base_url
 
             if self._ollama_url != str(ollama_base_url()).rstrip("/"):
                 return True
-            return local_model_running()
+            # Probe this endpoint itself: another local lane answering (an LM Studio server, say)
+            # does not make the runtime's Ollama answer.
+            return _ollama_has_chat_model(self._ollama_url)
         except Exception:
             return False
 
