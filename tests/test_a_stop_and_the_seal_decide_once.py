@@ -503,6 +503,58 @@ class _Model:
         return None
 
 
+class _LocalOllama:
+    """The raw Ollama API memory extraction posts to, as on a machine with a local model.
+
+    The extractor posts only when that endpoint lists a chat model (``FactExtractor`` probes its
+    ``/api/tags``; with none it extracts without the model). The scripted provider lists none on
+    purpose (one identity, one manifest), so this front lists one and hands every other request to
+    the provider unchanged: what extraction is handed still lands in ``provider.calls``.
+    """
+
+    TAGS = {"models": [{"name": "local-extractor:latest", "details": {"families": ["llama"]}}]}
+
+    def __init__(self, upstream: str) -> None:
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        tags = json.dumps(self.TAGS).encode()
+
+        class _Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *_args) -> None:
+                return
+
+            def _reply(self, status: int, body: bytes) -> None:
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def _forward(self, data: bytes | None) -> None:
+                request = Request(f"{upstream}{self.path}", data=data, headers={"Content-Type": "application/json"}, method=self.command)
+                with urlopen(request, timeout=300) as response:
+                    self._reply(response.status, response.read())
+
+            def do_GET(self) -> None:
+                if self.path.startswith("/api/tags"):
+                    return self._reply(200, tags)
+                return self._forward(None)
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length") or 0)
+                return self._forward(self.rfile.read(length) if length else b"{}")
+
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+        self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}"
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
 @pytest.fixture(scope="module")
 def served(tmp_path_factory):
     import tests._reader_served_rig as rig
@@ -511,9 +563,11 @@ def served(tmp_path_factory):
     model = _Model()
     root = tmp_path_factory.mktemp("stop-seal")
     with rig.CapturingProvider(default="Pasta with lemon and peas.", reply_fn=model) as provider:
-        # Memory extraction posts to the raw Ollama API: point it at the scripted model too, so
-        # what it is handed is observed (the session fence otherwise points it at a dead port).
-        daemon = rig.ServedDaemon(root / "home", provider=provider, env_extra={"VOOL_RAW_OLLAMA_API_URL": provider.base_url})
+        # Memory extraction posts to the raw Ollama API: point it at a local endpoint that lists a
+        # model and forwards to the scripted one, so what it is handed is observed (the session
+        # fence otherwise points it at a dead port, and an endpoint listing no model is not posted to).
+        local = _LocalOllama(provider.base_url)
+        daemon = rig.ServedDaemon(root / "home", provider=provider, env_extra={"VOOL_RAW_OLLAMA_API_URL": local.base_url})
         start_gated(daemon, root / "gate")
         assert daemon.certify(timeout=180).get("state") == "verified"
         try:
@@ -521,6 +575,7 @@ def served(tmp_path_factory):
         finally:
             model.release.set()
             daemon.stop()
+            local.close()
 
 
 def _post(daemon, path: str, body: dict) -> dict:
