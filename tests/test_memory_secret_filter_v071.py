@@ -20,6 +20,7 @@ THE CONTRACT UNDER TEST
 from __future__ import annotations
 
 import contextlib
+import re
 import sqlite3
 from unittest import mock
 
@@ -104,7 +105,8 @@ def test_fresh_home_never_writes_or_serves_the_values(source_env):
     _store_story(source_env, "secret-fresh")
     on_disk = _home_bytes(source_env)
     for value in FILTERED_VALUES:
-        assert value.encode() not in on_disk, value
+        # The value as written, not four digits inside a random id or a float ("8264" in "...a8264f-..." or "0.18264").
+        assert not re.search(rb"(?<![0-9A-Za-z.-])" + re.escape(value.encode()) + rb"(?![0-9A-Za-z-])", on_disk), value
     for question in ("What's my card PIN?", "What is my full bank card number?", "What is my email password?"):
         capsule = _recall(source_env, "secret-fresh", question)
         assert not any(value in capsule for value in FILTERED_VALUES), capsule
