@@ -171,6 +171,24 @@ def serialized(runtime_home=None):
                 _funlock(lock)
 
 
+@contextlib.contextmanager
+def fence_first(runtime_home=None):
+    """The fence's place in the process's one lock order, for a module lock taken inside it.
+
+    A forget holds `serialized()` for its whole run and takes module locks inside it (the chat
+    attachment store's, the memory entries'). Any path that holds such a lock and may then enter
+    the fence (a fenced write, a ledger read) takes this first, at its outer call; entering the
+    fence under the module lock deadlocks against a forget in another thread. The process-wide lock
+    is held even when the ledger's file lock cannot be taken: the fenced read or write inside then
+    raises as it always did (fail closed), and the order still holds."""
+    with _LOCK, contextlib.ExitStack() as fence:
+        try:
+            fence.enter_context(serialized(runtime_home))
+        except Exception:  # noqa: BLE001 -- the fenced read or write inside reports it, typed
+            pass
+        yield
+
+
 def _read(directory: Path) -> dict:
     value = json.loads((directory / 'ledger.json').read_text(encoding='utf-8'))
     if (not isinstance(value, dict) or set(value) != {'version', 'operations'}
