@@ -59,7 +59,7 @@ def _is_git_directory(directory: Path) -> bool:
 _GIT_TIMEOUT_SECONDS = 10.0
 # One write asks several times (each check, each path of a patch); git's answer is reused for this long.
 _CACHE_SECONDS = 2.0
-_TARGETS_CACHE: dict[str, tuple[float, "tuple[list[Path], list[Path]] | None"]] = {}
+_TARGETS_CACHE: dict[str, tuple[float, tuple[list[Path], list[Path]] | None]] = {}
 
 
 def _worktree_top(form: Path) -> Path | None:
