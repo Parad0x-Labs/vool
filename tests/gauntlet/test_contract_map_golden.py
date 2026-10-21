@@ -228,6 +228,10 @@ GOLDEN_TIERS: dict[str, tuple[str, str]] = {
     'workspace.search_text': ('read_only', 'none'),
     'workspace.symbol_search': ('read_only', 'none'),
     'workspace.write_file': ('workspace_write', 'runtime_policy'),
+    'x.feedback.save': ('workspace_write', 'runtime_policy'),
+    'x.feedback.list': ('read_only', 'none'),
+    'x.results': ('read_only', 'none'),
+    'x.replies.unanswered': ('read_only', 'none'),
     'x.action.propose': ('creative_state', 'none'),  # drafts only; the user's approval in Settings sends
     'x.account': ('read_only', 'none'),
     'x.action.status': ('read_only', 'none'),
@@ -389,7 +393,7 @@ def test_contract_map_and_list_agree():
     # 188 -> 189: token.performance, a token's price then/now/peak from public DEX data (web access on).
     # 189 -> 192: x.spaces, x.dms and x.account, reads with the user's own X keys.
     # 192 -> 204: the 0.7.2 trader tools (ai.paid_ask, watch.*, market.*, token.flow), pinned above.
-    assert len(contract_map) == len(GOLDEN_TIERS) == 204
+    assert len(contract_map) == len(GOLDEN_TIERS) == 208
 
 
 def test_only_expected_tools_hold_explicit_opt_in():
