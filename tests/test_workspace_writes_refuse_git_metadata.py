@@ -157,3 +157,45 @@ def test_ordinary_patches_still_apply(repo) -> None:
     assert created["ok"] is True, created["response_text"]
     assert (repo / ".github/hooks/notes.txt").exists()
     assert os.access(repo / ".git/config", os.R_OK)
+
+
+def test_a_context_format_patch_naming_git_is_refused_and_never_reaches_gnu_patch(repo) -> None:
+    hook = repo / ".git/hooks/pre-commit"
+    hook.write_text("a\nb\n", encoding="utf-8")
+    patch = "*** .git/hooks/pre-commit\n--- x/y/pre-commit\n***************\n*** 1,2 ****\n  a\n! b\n--- 1,2 ----\n  a\n! c\n"
+    result = apply_unified_diff_workspace({"patch": patch}, workspace_root=repo, session_id="t")
+    assert result["ok"] is False and result["status"] == "workspace_path_refused"
+    assert hook.read_text() == "a\nb\n"
+
+
+def test_gnu_patch_never_gets_a_patch_whose_names_it_would_pick_by_other_rules(repo, monkeypatch) -> None:
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def spy(cmd, *args, **kwargs):
+        calls.append(list(cmd))
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    result = _apply(repo, "Index: f.txt\n--- a/f.txt\n+++ b/f.txt\n@@ -1 +1 @@\n-nope\n+two")
+    assert result["ok"] is False
+    assert not any(Path(cmd[0]).name == "patch" for cmd in calls)
+
+
+def test_rollback_does_not_write_through_a_directory_swapped_for_a_link_to_git(repo, tmp_path) -> None:
+    from core.execution.artifacts import rollback_last_workspace_mutation
+    from core.runtime_paths import configure_runtime_home
+
+    configure_runtime_home(tmp_path / "home")
+    try:
+        original = (repo / ".git/config").read_text()
+        for content in ("[core]\n\tfirst = 1\n", original):
+            result = execute_runtime_tool("workspace.write_file", {"path": "d/config", "content": content},
+                                          source_context={"workspace": str(repo), "session_id": "rb"})
+            assert result is not None and result.ok, result.response_text
+        shutil.rmtree(repo / "d")
+        (repo / "d").symlink_to(".git")
+        rollback_last_workspace_mutation(session_id="rb", workspace_root=repo)
+        assert (repo / ".git/config").read_text() == original
+    finally:
+        configure_runtime_home(None)

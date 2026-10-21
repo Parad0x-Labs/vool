@@ -541,6 +541,10 @@ def _diagnose_rollback_conflict(
     """
     if not _target_parent_within_workspace(raw_target, workspace_root=workspace_root):
         return "parent_directory_escapes_workspace"
+    from core.git_metadata_protection import refusal as git_metadata_refusal
+
+    if git_metadata_refusal(raw_target):
+        return "repository_metadata"
     if raw_target.is_symlink():
         return "target_replaced_by_symlink"
     exists = raw_target.exists()

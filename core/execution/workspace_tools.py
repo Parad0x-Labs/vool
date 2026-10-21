@@ -36,6 +36,15 @@ _SYMBOL_DEFINITION_TEMPLATES = (
     ("javascript_const", r"^\s*(?:export\s+)?(?:const|let|var)\s+{symbol}\b"),
 )
 _PATCH_TARGET_RE = re.compile(r"^(?:\+\+\+|---)\s+(?P<path>.+)$", re.MULTILINE)
+# Other lines GNU patch takes a file name from: a context diff's `*** name` and `Index:`/`Prereq:`-style headers.
+_OTHER_NAME_HEADER_RE = re.compile(r"^(?:\*\*\*|Index:)\s+(?P<path>.+)$")
+_CONTEXT_RANGE_RE = re.compile(r"^\*\*\*\s+\d+(?:,\d+)?\s+\*\*\*\*\s*$")
+# A line that makes GNU patch read a patch as something other than a plain `---`/`+++` unified diff, or pick a
+# file name from somewhere other than those headers. Such a patch is never handed to it.
+_GNU_PATCH_UNSAFE_LINE_RE = re.compile(
+    r"^(?:\*\*\* |Index:|Prereq:|diff --git |rename |copy |old mode |new mode |new file mode |deleted file mode |"
+    r"similarity index |dissimilarity index |GIT binary patch|Binary files |\d+(?:,\d+)?[acd]\d)"
+)
 _GIT_PATH_HEADER_RE = re.compile(r"^(?:rename|copy) (?:from|to) (?P<path>.+)$")
 _GIT_DIFF_LINE_RE = re.compile(r'^diff --git (?P<old>"(?:[^"\\]|\\.)*"|\S+) (?P<new>"(?:[^"\\]|\\.)*"|\S+)$')
 _HUNK_HEADER_RE = re.compile(
@@ -414,7 +423,12 @@ def apply_unified_diff_workspace(
         except Exception as exc:
             errors.append(str(exc).strip())
     if not applied_with:
+        # GNU patch picks file names by rules of its own (context headers, `Index:`, git's copy/rename lines), so it
+        # only ever gets a plain unified diff whose names are exactly the `---`/`+++` pairs checked above.
         patch_available = shutil.which("patch")
+        if patch_available and any(_GNU_PATCH_UNSAFE_LINE_RE.match(line) for line in patch_text.splitlines()):
+            errors.append("this patch is not a plain unified diff, so it is not handed to GNU patch")
+            patch_available = None
         if patch_available:
             strip = "1" if "/dev/null" in patch_text or " a/" in patch_text or " b/" in patch_text or "\na/" in patch_text else "0"
             # `--fuzz=0` is load-bearing, not a style choice: GNU patch's default fuzz factor (2)
@@ -820,6 +834,10 @@ def _extract_patch_paths(patch_text: str) -> list[str]:
         match = _PATCH_TARGET_RE.match(line)
         if match:
             add(str(match.group("path") or ""))
+            continue
+        other = _OTHER_NAME_HEADER_RE.match(line)
+        if other and not _CONTEXT_RANGE_RE.match(line):
+            add(other.group("path"))
             continue
         header = _GIT_PATH_HEADER_RE.match(line)
         if header:
