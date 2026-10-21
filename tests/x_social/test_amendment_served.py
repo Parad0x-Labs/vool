@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,9 +15,27 @@ from tests.x_social.support import resource
 
 
 @pytest.fixture
-def served(vault_home, monkeypatch):
+def served(vault_home, monkeypatch, request, tmp_path):
     import tests._served_skill_rig as provider
 
+    selection = getattr(request, 'param', '')
+    if selection:
+        from core.skill_tools import install_skill
+        monkeypatch.setenv('VOOL_PLUGINS_DIR', str(vault_home / 'empty-plugins'))
+        source = tmp_path / 'social-manager/SKILL.md'
+        source.parent.mkdir()
+        if selection == 'editorial':
+            supplied = os.environ.get('SOCIAL_EDITORIAL_SKILL_FILE')
+            source.write_text(Path(supplied).read_text() if supplied else
+                '---\nname: social-manager\ndescription: social-manager caption workflow\n'
+                'allowed-tools: [operator.save_note, operator.find_notes, operator.show_note, x.trending]\n'
+                '---\nDraft from supplied facts and recover saved notes when requested.\n')
+        else:
+            source.write_text('---\nname: social-manager\ndescription: orchard social-manager workflow\n'
+                'triggers: [orchard, social-manager]\nallowed-tools: [x.feedback.save, x.feedback.list, operator.find_notes]\n'
+                '---\nUse explicit feedback when preparing a concrete caption.\n')
+        installed = install_skill(str(source))
+        assert installed['status'] == 'ok', installed
     state = ProviderState()
     cursor = [0]
     original = provider._turn_response
@@ -45,13 +64,15 @@ def served(vault_home, monkeypatch):
         daemon.pin_provider_model()
         cert = daemon.certify_provider_model()
         assert (cert.get('result') or cert).get('state') == 'verified', cert
+        with urllib.request.urlopen(daemon.base_url + '/chat', timeout=15) as page:
+            browser_surface = 'desktop' if "surface: 'desktop'" in page.read().decode() else 'api'
         def chat(text, script, label, session='amendment-chat'):
             state.script = script
             state.requests.clear()
             cursor[0] = 0
             reply = daemon.post('/v1/chat/completions', {
                 'model': 'custom-byok:probe-model', 'messages': [{'role': 'user', 'content': text}],
-                'surface': 'desktop', 'stream': False, 'mode': 'auto',
+                'surface': browser_surface, 'stream': False, 'mode': 'auto',
                 'session_id': session, 'turn_id': label,
             }, timeout=90)
             folder = Path(os.environ['SOCIAL_SHOTS'])
@@ -77,15 +98,9 @@ def test_bare_chat_rating_reaches_native_save_with_server_stored_draft(served):
     from core import x_feedback
 
     draft = 'Checkpoint recovery keeps completed work safe.'
-    first = served.chat('Hello.', [{'final': 'Hello.'}], 'rating-open')
-    # Seed a prior assistant turn through its public persistence writer. The rating
-    # request still crosses real HTTP ingress, planning, native offer and execution.
-    from core.persistent_memory import append_conversation_event
-    from core.chat_housekeeping import last_assistant_message
-    append_conversation_event(session_id=first['vool_session_id'], user_input='Draft a caption.',
-        assistant_output='Draft:\n' + draft + '\n\nHow would you rate this draft from 1 to 10?',
-        source_context={'surface': 'desktop'})
-    assert draft in last_assistant_message(first['vool_session_id'])['text']
+    first = served.chat('Give a short example caption and ask me to rate it.',
+        [{'final': 'Draft:\n' + draft + '\n\nHow would you rate this draft from 1 to 10?'}], 'rating-question')
+    assert draft in first['choices'][0]['message']['content'], first
     rated = served.chat('7 - hook too long', [
         {'tool': 'x.feedback.save', 'arguments': {'rating': 7, 'comment': 'hook too long',
           'text': 'invented provider text', 'action_id': None, 'kind': None}},
@@ -95,3 +110,19 @@ def test_bare_chat_rating_reaches_native_save_with_server_stored_draft(served):
     assert row['rating'] == 7 and row['comment'] == 'hook too long' and row['text'] == draft, rated
     assert any('x__feedback__save' == tool['function']['name']
                for body in served.state.requests for tool in body.get('tools', []))
+
+
+@pytest.mark.parametrize('served', ['ratings'], indirect=True)
+def test_matched_social_turn_receives_ratings_and_pause_removes_them(served):
+    from core import x_feedback
+
+    marker = 'Prefer concrete shipped facts rather than broad promises.'
+    assert x_feedback.save('global', 7, 'A concrete checkpoint caption.', comment=marker, home=served.home)['ok']
+    served.chat('Run the orchard social-manager workflow for today.', [{'final': 'Finished.'}],
+                'ratings-consumed', session='ratings-consumed')
+    assert marker in json.dumps(served.state.requests, ensure_ascii=False)
+    assert any('social-manager' in str(body.get('messages')) for body in served.state.requests)
+    assert served.daemon.post('/api/x/feedback', {'action': 'pause', 'scope': 'global', 'paused': True})['ok']
+    served.chat('Run the orchard social-manager workflow for today.', [{'final': 'Finished.'}],
+                'ratings-paused', session='ratings-paused')
+    assert marker not in json.dumps(served.state.requests, ensure_ascii=False)

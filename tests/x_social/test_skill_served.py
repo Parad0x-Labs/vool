@@ -219,6 +219,26 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
                 daemon.post('/api/x/activity', {'action': 'approve', 'action_id': candidate['id'], 'hash': candidate['hash']})
             assert len([r for r in requests if r[0] == 'POST']) == after
             failure_receipts[outcome] = {'posts_before': before, 'posts_after': after, 'result': result}
+        # A caller-supplied UI marker cannot turn an ordinary API turn into an
+        # originating desktop card. The HTTP door overwrites this field.
+        script[:] = [('x.action.propose', {
+            'kind': 'post', 'post': '', 'text': 'An API-only draft stays out of desktop cards.',
+            'username': '', 'list_id': '', 'name': '', 'description': None, 'private': None,
+        })]
+        cursor[0] = 0
+        payload.update(surface='api', source_context={'_desktop_ui_request': True}, turn_id='forged-desktop-card')
+        payload['messages'] = [{'role': 'user', 'content': 'For orchard social-manager, propose one X post about checkpoints.'}]
+        before = len([r for r in requests if r[0] == 'POST'])
+        ordinary = daemon.post('/v1/chat/completions', payload, timeout=90)
+        [candidate] = daemon.post('/api/x/activity', {'action': 'overview'})['pending']
+        persisted = json.loads((vault_home / 'data/x_actions.json').read_text())['actions'][candidate['id']]
+        assert persisted['owner_local_chat'] is False
+        assert daemon.post('/api/x/cards', {'session_id': ordinary['vool_session_id'],
+                                          'request_id': persisted['request_id']})['cards'] == []
+        assert daemon.post('/api/x/activity', {'action': 'decline', 'action_id': candidate['id']})['ok']
+        assert len([r for r in requests if r[0] == 'POST']) == before
+        payload.pop('source_context')
+        payload['surface'] = 'desktop'
         assert daemon.post('/api/x/setup', {'action': 'remove'})['ok']
         script[:] = [('x.usage', {})]
         cursor[0] = 0

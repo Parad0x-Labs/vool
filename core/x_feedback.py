@@ -146,6 +146,19 @@ def summary(scope: str, *, home: Path | None = None) -> str:
     return '\n'.join(lines)[:MAX_PROMPT_CHARS] if len(lines) > 1 else ''
 
 
+def prompt_segment_for_turn(user_text: str, *, task_class: str, source_context: dict | None,
+                            guidance: Any = None) -> str:
+    """Use the real matched skill selection on native and plain drafting turns."""
+    from core.tool_offer_assembly import skill_guidance_for
+    from core.x_voice_profile import turn_scope
+
+    if guidance is None:
+        guidance = skill_guidance_for(user_text, task_class=task_class, source_context=source_context)
+    if not guidance.skills or not any(name.startswith('x.') for name in guidance.allowed_tools):
+        return ''
+    return summary(turn_scope(source_context))
+
+
 def forget(scope: str, entry_id: str = '', *, home: Path | None = None) -> dict:
     from core import x_voice_profile
 
@@ -233,7 +246,7 @@ def reply_intents(user_text: str, source_context: dict | None) -> tuple[str, ...
     if (not _plain_rating(user_text) or not isinstance(turn, TurnRequest)
             or turn.user_text.strip() != user_text.strip()
             or turn.trust_principal != 'owner_local'
-            or turn.surface not in {'', 'desktop', 'cli', 'local'}):
+            or turn.surface not in {'', 'desktop', 'cli', 'local', 'api'}):
         return ()
     return ('x.feedback.save',) if _asked_draft(turn.session_id) else ()
 
@@ -250,7 +263,7 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
         comment = ''
     if (not isinstance(turn, TurnRequest) or type(rating) is not int or not isinstance(comment, str)
             or turn.trust_principal != 'owner_local'
-            or turn.surface not in {'', 'desktop', 'cli', 'local'}):
+            or turn.surface not in {'', 'desktop', 'cli', 'local', 'api'}):
         return {'ok': False, 'status': 'user_rating_required'}
     target = _asked_draft(turn.session_id)
     if target:

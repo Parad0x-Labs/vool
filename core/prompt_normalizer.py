@@ -343,6 +343,12 @@ def normalize_prompt(
                             "skills": skill_provenance_rows(_matched_worker_skills.skills),
                         },
                     )
+    from core.x_feedback import prompt_segment_for_turn
+
+    _worker_ratings = prompt_segment_for_turn(
+        str(user_text or ""), task_class=str(task_class or ""), source_context=source_context,
+        guidance=getattr(tool_offer, "skill_guidance", None),
+    )
     system = InternalMessage(
         role="system",
         content=(
@@ -352,6 +358,7 @@ def normalize_prompt(
             f"Output mode: {output_mode}. "
             f"Constraints: {' '.join(constraints)}"
             + (f"\n\n{_skill_guidance_block}" if _skill_guidance_block else "")
+            + (f"\n\n{_worker_ratings}" if _worker_ratings else "")
         ),
     )
     user = InternalMessage(
@@ -776,6 +783,17 @@ def _build_conversational_request(
                 system_segments.append(
                     ("x_editorial_voice", _PAYLOAD_SYSTEM_BOOTSTRAP, _voice_segment)
                 )
+
+    # Local social guidance also belongs to native tool turns. Their skill text is
+    # already in the tool catalog, while the dynamic rating store must be read now.
+    from core.x_feedback import prompt_segment_for_turn
+
+    _rating_segment = prompt_segment_for_turn(
+        str(user_text or ""), task_class=str(task_class or ""), source_context=source_context,
+        guidance=getattr(tool_offer, "skill_guidance", None),
+    )
+    if _rating_segment and not any(_rating_segment in str(segment[2]) for segment in system_segments):
+        system_segments.append(("x_feedback", _PAYLOAD_SYSTEM_BOOTSTRAP, _rating_segment))
 
     # User rules (core.user_rules): the rules that bind this chat, stable until a rule is added or
     # removed, so they belong in the cached system prefix rather than the per-turn message.

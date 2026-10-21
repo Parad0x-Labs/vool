@@ -253,7 +253,9 @@ def propose(arguments: dict[str, Any], *, source_context: dict[str, Any] | None 
 
     turn = (source_context or {}).get("turn_request")
     owner_chat = bool(isinstance(turn, TurnRequest) and turn.trust_principal == PRINCIPAL_OWNER_LOCAL
-                      and turn.surface == "desktop" and (source_context or {}).get("turn_author", "owner") == "owner")
+                      and (turn.surface == "desktop" or
+                           (turn.surface == "api" and (source_context or {}).get("_desktop_ui_request") is True))
+                      and (source_context or {}).get("turn_author", "owner") == "owner")
     now = time.time()
     action = {
         "id": "xa_" + secrets.token_hex(8), "kind": kind, "payload": payload,

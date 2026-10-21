@@ -7569,6 +7569,12 @@ def _dispatch_post_inner(
             is_loopback_host(client_host)
             and resolved_surface != "channel"
         )
+        # Desktop is UI provenance, not a worker/model execution surface.
+        # Overwrite the inbound marker here: it grants nothing without the actual
+        # owner-local peer and must never be inherited from a relayed request.
+        desktop_ui_request = resolved_surface == "desktop" and owner_local
+        if resolved_surface == "desktop":
+            resolved_surface = "api"
         session_id = stable_openclaw_session_id_provider(
             body=body,
             history=client_history,
@@ -7696,6 +7702,7 @@ def _dispatch_post_inner(
             "transcript_commit_boundary": True,
             **inbound_source_context,
             "surface": resolved_surface,
+            "_desktop_ui_request": desktop_ui_request,
             "platform": str(inbound_source_context.get("platform") or body.get("platform") or "api").strip() or "api",
             OWNER_LOCAL_KEY: owner_local,
             "client_conversation_history": client_history,
