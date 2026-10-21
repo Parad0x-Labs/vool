@@ -413,6 +413,13 @@ def _bind_tool_step_evidence(context: dict[str, Any], steps: list[dict[str, Any]
         history.append({'role': 'user', 'content': manifest})
     context['conversation_history'] = history[-12:]
 
+
+def _is_x_rate_limit_refusal(execution: Any) -> bool:
+    observation = (getattr(execution, 'details', None) or {}).get('observation') or {}
+    return (not execution.ok and execution.status == 'rate_limited'
+            and str(execution.tool_name or '').startswith('x.')
+            and observation.get('tool_surface') == 'x')
+
 #: Executor refusals made BEFORE any tool owner ran: nothing executed, so the evidence-required
 #: fallthrough to the research path still applies (the research lanes may retrieve on their own).
 _PRE_OWNER_FAILURE_STATUSES = frozenset({"unsupported", "mcp_server_not_configured", "mcp_server_unavailable"})
@@ -2045,6 +2052,7 @@ class ResearchToolLoopFacadeMixin:
             # operator or after something that failed.
             ran_inline: list[str] = []
             failed_inline: list[dict[str, Any]] = []
+            rate_limit_member = None
             deferred_members: list[dict[str, Any]] = list(batch_members)
             for position, member in enumerate(batch_members):
                 member_intent = str(member.get("intent") or "").strip()
@@ -2163,8 +2171,16 @@ class ResearchToolLoopFacadeMixin:
                 deferred_members = batch_members[position + 1 :]
                 if member_failed:
                     failed_inline.append(member)
+                    if _is_x_rate_limit_refusal(member_execution):
+                        rate_limit_member = (member_execution, member_payload, member_receipt)
                     break
                 ran_inline.append(member_intent)
+            if rate_limit_member is not None:
+                # The failed member owns the terminal refusal; the successful
+                # head stays recorded in executed_steps without authorizing more reads.
+                execution, tool_payload, action_receipt = rate_limit_member
+                tool_name = str(execution.tool_name or '')
+                step_summary = str(execution.response_text or '')
             unexecuted_calls = [
                 str(member.get("intent") or "") for member in deferred_members if member.get("intent")
             ]
@@ -2269,9 +2285,7 @@ class ResearchToolLoopFacadeMixin:
                 break
             # This gateway refusal is already written for the person. Preserve
             # its reset time and stop; another synthesis round can lose both.
-            if (not execution.ok and execution.status == 'rate_limited'
-                    and str(execution.tool_name or '').startswith('x.')
-                    and (execution.details.get('observation') or {}).get('tool_surface') == 'x'):
+            if _is_x_rate_limit_refusal(execution):
                 execution.user_safe_response_text = str(execution.response_text or '')
             # A refused step is not a terminal turn: the correction path or grounded synthesis
             # below still owns it. Finalization records failure when the turn actually ends.

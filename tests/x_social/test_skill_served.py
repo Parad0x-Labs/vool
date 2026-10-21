@@ -82,6 +82,10 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
             return provider._completion(content='Protocol fixture continuation.')
         names = {t['function']['name'] for t in body['tools']}
         offered.append(names)
+        if os.environ.get('SOCIAL_RATE_LIMIT_BATCH') and cursor[0] == 0:
+            cursor[0] = 3
+            return provider._completion(tool_calls=[provider._tool_call('rate-batch-' + str(i),
+                intent.replace('.', '__'), args) for i, (intent, args) in enumerate(script[:3])], finish='tool_calls')
         if cursor[0] >= len(script):
             final = opportunity if fast_card else 'Protocol fixture finished; inspect the tool receipts.'
             if fast_card and os.environ.get('SOCIAL_FAST_CARD_UNBACKED'):
