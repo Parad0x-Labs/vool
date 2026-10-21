@@ -2471,6 +2471,30 @@ def erase_finalizations_for_session(session_id: str) -> list[dict[str, Any]]:
     ]
 
 
+def _rewrite_without_session(path: Path, sid: str) -> bool:
+    """Drop one chat's rows from a shared JSONL carrier; True when any went.
+
+    The read and the rewrite are one step: both run inside the forget fence (`fence_first`, for the
+    carrier's own home) and the JSONL append lock (`_JSONL_LOCK`), in that order. A row another
+    chat appends meanwhile waits and lands after the rewrite instead of being dropped with a stale
+    copy, and no forget can erase a row between the read and the rewrite, so the rewrite never
+    carries back a value just forgotten (and is never refused for one)."""
+    from core.memory.files import _JSONL_LOCK, _store_home
+    from core.memory.revocation import fence_first
+
+    try:
+        home = _store_home(path)
+    except Exception:  # noqa: BLE001 -- the fenced rewrite reports it; the order still holds
+        home = None
+    with fence_first(home), _JSONL_LOCK:
+        rows = _load_jsonl(path)
+        kept = [row for row in rows if str(row.get("session_id") or "").strip() != sid]
+        if len(kept) == len(rows):
+            return False
+        rewrite_jsonl(path, kept)
+        return True
+
+
 def delete_conversation_session(session_id: str) -> bool:
     """Permanently remove ONE chat: its transcript, its learned memory + summaries, its meta entry,
     and its namespace.
@@ -2566,10 +2590,7 @@ def delete_conversation_session(session_id: str) -> bool:
     if delete_imported_chat(sid):
         removed = True
     for path in (conversation_log_path(), session_summaries_path()):
-        rows = _load_jsonl(path)
-        kept = [row for row in rows if str(row.get("session_id") or "").strip() != sid]
-        if len(kept) != len(rows):
-            rewrite_jsonl(path, kept)
+        if _rewrite_without_session(path, sid):
             removed = True
     # P0 erasure law: the chat's memory rows become durable tombstones and the
     # mirror projection is rewritten, so deleting a chat cannot leave its
