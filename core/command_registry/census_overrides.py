@@ -94,6 +94,8 @@ _ADAPTERS: dict[str, str] = {
     "http:POST:/api/chain/test": "chain.test",
     "http:POST:/api/x/setup": "x.setup",
     "http:POST:/api/x/activity": "x.activity",
+    "http:POST:/api/x/cards": "x.cards",
+    "http:POST:/api/x/feedback": "x.feedback.manage",
     # memory + tasks
     "http:POST:/api/memory/forget": "memory.forget",
     "http:POST:/api/task/recovery": "tasks.recovery",

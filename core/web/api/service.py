@@ -5308,18 +5308,18 @@ def _dispatch_post_inner(
             return apply_runtime_headers(json_response(403, {"ok": False, "cards": []}), runtime)
         if set(body) - {"session_id", "request_id"} or any(not isinstance(body.get(k), str) or not 0 < len(body[k]) <= 200 for k in ("session_id", "request_id")):
             return apply_runtime_headers(json_response(400, {"ok": False, "cards": []}), runtime)
-        from core.x_actions import chat_cards
+        from core.command_registry.legacy import forward as _cr_forward
 
-        payload = chat_cards(body["session_id"], body["request_id"])
-        return apply_runtime_headers(json_response(200 if payload["ok"] else 400, payload), runtime)
+        code, payload = _cr_forward("x.cards", dict(body), client_host=client_host, headers=headers)
+        return apply_runtime_headers(json_response(code, payload), runtime)
 
     if normalized_path == "/api/x/feedback":
         refusal = _credential_page_refusal(headers, client_host)
         if refusal:
             return apply_runtime_headers(json_response(403, {"ok": False, "status": "owner_local_required"}), runtime)
-        from core.x_feedback import handle_owner
+        from core.command_registry.legacy import forward as _cr_forward
 
-        code, payload = handle_owner(body)
+        code, payload = _cr_forward("x.feedback.manage", dict(body), client_host=client_host, headers=headers)
         return apply_runtime_headers(json_response(code, payload), runtime)
 
     if normalized_path == "/api/x/activity":

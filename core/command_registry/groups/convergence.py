@@ -516,6 +516,65 @@ def _handle_x_activity(inp, ctx):
     return _legacy_fault("usage", f"X activity refused: {payload.get('state', 'invalid')}", status, payload)
 
 
+@dataclass(frozen=True)
+class XCardsInput:
+    session_id: str
+    request_id: str
+
+
+@dataclass(frozen=True)
+class XFeedbackInput:
+    action: str
+    action_id: str = ""
+    scope: str = "global"
+    rating: Any = None
+    comment: str = ""
+    id: str = ""
+    paused: Any = None
+
+
+def _gate_x_social_owner(inp, ctx) -> AuthorityDecision:
+    # A registry projection must not expose approval hashes to a model, CLI or MCP caller.
+    # HTTP adapters carry the actual peer and headers; never derive them from input fields.
+    from core.web.api.service import _credential_page_refusal
+
+    extra = dict(ctx.extra or {})
+    refusal = _credential_page_refusal(extra.get("headers") or {}, str(extra.get("client_host") or ""))
+    granted = str(ctx.principal or "") == "operator" and str(ctx.projection or "") == "api" and not refusal
+    return AuthorityDecision(granted=granted, reason="" if granted else "owner-local X page required")
+
+
+def _handle_x_cards(inp, ctx):
+    from core.x_actions import chat_cards
+
+    if any(not isinstance(value, str) or not 0 < len(value) <= 200
+           for value in (inp.session_id, inp.request_id)):
+        return _legacy_fault("usage", "Invalid X card origin", 400, {"ok": False, "cards": []})
+    payload = chat_cards(inp.session_id, inp.request_id)
+    if payload.get("ok"):
+        return HandlerOk(data=payload, summary="X proposal cards")
+    return _legacy_fault("usage", "X cards unavailable", 400, payload)
+
+
+def _handle_x_feedback(inp, ctx):
+    from core.x_feedback import handle_owner
+
+    status, payload = handle_owner(dataclasses.asdict(inp))
+    if status == 200:
+        return HandlerOk(data=payload, summary="X ratings")
+    return _legacy_fault("usage", "X rating change refused", status, payload)
+
+
+def _probe_x_social_state(context: dict) -> tuple[bool, str]:
+    try:
+        import core.x_actions
+        import core.x_feedback
+
+        return True, ""
+    except Exception as exc:
+        return False, f"X local state unavailable: {exc}"
+
+
 def _probe_x_setup_state(context: dict) -> tuple[bool, str]:
     try:
         import core.x_setup  # noqa: F401
@@ -1056,6 +1115,29 @@ def register(reg) -> None:
             ),
             handler=Handler("core.command_registry.groups.convergence:_handle_x_activity"),
             availability=Availability("core.command_registry.groups.convergence:_probe_x_setup_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+
+    reg.add(
+        CommandSpec(
+            command_id="x.cards", group="x",
+            description="Read originating owner-desktop X proposal cards; approval hashes stay on the local HTTP page",
+            input_schema=XCardsInput, effects="read_only", capabilities=frozenset({"settings.x_cards"}),
+            permission=OperatorAuthority(kind="x.local_page", verifier="core.command_registry.groups.convergence:_gate_x_social_owner"),
+            handler=Handler("core.command_registry.groups.convergence:_handle_x_cards"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_x_social_state"),
+            exit_codes=(0, 2, 20),
+        )
+    )
+    reg.add(
+        CommandSpec(
+            command_id="x.feedback.manage", group="x",
+            description="Manage explicit ratings and voice-sample opt-in from the owner-local X page",
+            input_schema=XFeedbackInput, effects="mutating", capabilities=frozenset({"settings.x_feedback"}),
+            permission=OperatorAuthority(kind="x.local_page", verifier="core.command_registry.groups.convergence:_gate_x_social_owner"),
+            handler=Handler("core.command_registry.groups.convergence:_handle_x_feedback"),
+            availability=Availability("core.command_registry.groups.convergence:_probe_x_social_state"),
             exit_codes=(0, 2, 20),
         )
     )

@@ -2899,6 +2899,20 @@
       "registry_command_id": "x.activity",
       "surface": "http"
     },
+    "http:POST:/api/x/cards": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/cards",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.cards",
+      "surface": "http"
+    },
+    "http:POST:/api/x/feedback": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/x/feedback",
+      "note": "legacy surface forwards through execute_command",
+      "registry_command_id": "x.feedback.manage",
+      "surface": "http"
+    },
     "http:POST:/api/x/setup": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/x/setup",
@@ -3155,7 +3169,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 309,
-    "GENERATED_ADAPTER": 132,
+    "GENERATED_ADAPTER": 134,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }
