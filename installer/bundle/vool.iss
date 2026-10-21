@@ -82,7 +82,7 @@ Filename: "{sys}\wscript.exe"; Parameters: """{app}\vool.vbs"""; Description: "L
 ; reuses them, no multi-GB re-download and no lost wallet). A full reset stays a manual choice.
 
 [Code]
-procedure StopNulla();
+procedure StopVoolProcesses();
 var
   ResultCode: Integer;
 begin
@@ -99,12 +99,12 @@ end;
 
 function InitializeSetup(): Boolean;
 begin
-  StopNulla();
+  StopVoolProcesses();
   Result := True;
 end;
 
 function InitializeUninstall(): Boolean;
 begin
-  StopNulla();
+  StopVoolProcesses();
   Result := True;
 end;

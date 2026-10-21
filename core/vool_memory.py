@@ -322,6 +322,8 @@ class VoolMemory:
         self._conn.row_factory = sqlite3.Row
         self._conn.create_function("vool_scope_matches", 3, _sqlite_scope_matches)
         self._conn.execute("PRAGMA journal_mode=WAL;")
+        # A deleted row's bytes are overwritten, not left in a free page: SQLite's own default differs by build.
+        self._conn.execute("PRAGMA secure_delete=ON;")
         self._conn.execute("PRAGMA busy_timeout=5000;")
         self._conn.execute("PRAGMA synchronous=NORMAL;")
         self._conn.executescript(self.SCHEMA)
@@ -2569,6 +2571,22 @@ class VoolMemory:
             ).fetchone()
             if status is None or status[0] != "complete":
                 raise RuntimeError("erasure completion could not be verified")
+
+    def _compact_full_text_indexes(self) -> None:
+        """Merge each full-text index into one segment. FTS5 records a delete as a marker beside the old
+        entry, so the terms of an erased row stayed in the index pages until a later merge."""
+        with self._lock:
+            for table in ("memory_fts", "source_fts"):
+                self._conn.execute(f"INSERT INTO {table}({table}) VALUES('optimize')")
+            self._conn.commit()
+
+    def _erasure_pending(self, chat_id: str, token: str) -> bool:
+        """True while an earlier forget of exactly these words in this chat has not completed."""
+        with self._lock:
+            return self._conn.execute(
+                "SELECT 1 FROM memory_erasure_operations WHERE chat_id = ? AND token = ? AND status != 'complete' LIMIT 1",
+                (str(chat_id), _normalize_forget_token(token)),
+            ).fetchone() is not None
 
     def erasure_incomplete(self, chat_id: str) -> bool:
         with self._lock:

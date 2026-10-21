@@ -359,16 +359,23 @@ def _settings_groups() -> list[dict]:
                     keywords="web search lookups online internet browse network access fallback allow",
                 ),
                 _row(
+                    id="live_browser", label="Browser", kind="custom", widget="live_browser",
+                    help="Review every action before it runs. Page scripts are off. Use the wallet for payments.",
+                    read={"url": "/api/browser/settings"}, keywords="browser live navigate forms",
+                ),
+                _row(
                     id="automatic_checks",
                     label="Go online on its own",
                     kind="custom",
                     widget="automatic_checks",
                     help=(
                         "Lets VOOL go online on its own, without you asking. When this is on, VOOL may "
-                        "download a missing local model when it starts and check which cloud models are "
-                        "available. If this computer is set up for the public VOOL network, VOOL also "
-                        "tells that network when it is online. Questions you ask are not affected: Web "
-                        "lookups has its own switch. Off by default."
+                        "download a missing local model when it starts, check which cloud models are "
+                        "available, check for updates and sync the online calendars you chose. If this "
+                        "computer is set up for the public VOOL network, VOOL also tells that network when "
+                        "it is online. While this is off, VOOL does none of these, even when you press "
+                        "Check for updates or Sync now. Questions you ask are not affected: Web lookups "
+                        "has its own switch. Off by default."
                     ),
                     read={"url": WEB_LOOKUPS_READ},
                     keywords="online on its own automatic outbound background network model download cloud models public network",
@@ -1875,6 +1882,7 @@ function renderWidget(row, host) {
   if (w === 'email_accounts') return widgetEmailAccounts(stack);
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
   if (w === 'answer_language') return widgetAnswerLanguage(stack);
+  if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
   if (w === 'wallet') return widgetWallet(stack);
@@ -2420,11 +2428,32 @@ function widgetUpdates(stack) {
      say so in plain words and do not offer a button that can only fail. The server's own reason
      stays reachable under Technical details. */
   const unavailable = phase === 'unavailable';
-  const message = phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
+  /* The outbound switch is the master over update checks: while it is off no check goes online, a
+     pressed Check included. Say so calmly, with the way to the switch, instead of a failure. */
+  const onlineOff = !unavailable && !!src && src.online_access === false;
+  const offText = T('update.online_off', 'Online access is off, so VOOL does not check for updates.');
+  /* Only a phase with nothing of its own to say (idle, up to date, a check) is replaced by the off line; a ready,
+     ready-to-restart, rolled-back or failed update keeps its own message, with the off line under it. */
+  const quiet = phase === 'idle' || phase === 'up_to_date' || phase === 'checking';
+  const message = onlineOff && quiet ? offText
+    : phase === 'up_to_date' ? T('update.up_to_date', 'Up to date')
     : unavailable ? T('settings.updates.unavailable', 'Automatic updates are not available for this copy of VOOL.')
     : error || src && src.message || T('settings.widget.loading', 'Loading…');
   const status = el('div', 'subtle', message); status.setAttribute('role', 'status');
   status.dataset.testid = 'settings-update-status'; stack.appendChild(status);
+  let onlineLink = null;
+  const showOnlineSwitch = () => {
+    if (onlineLink) return;
+    if (!quiet) {
+      const note = el('div', 'subtle', offText); note.dataset.testid = 'settings-update-online-note';
+      stack.appendChild(note);
+    }
+    onlineLink = el('button', 'btn', T('online_access.open_setting', 'Open \u201cGo online on its own\u201d'));
+    onlineLink.type = 'button'; onlineLink.dataset.testid = 'settings-update-online-setting';
+    onlineLink.addEventListener('click', () => { location.hash = '#permissions/automatic_checks'; });
+    stack.appendChild(onlineLink);
+  };
+  if (onlineOff) showOnlineSwitch();
   const check = el('button', 'btn', T('update.action_check', 'Check for updates'));
   check.type = 'button'; check.dataset.testid = 'settings-update-check';
   check.disabled = unavailable || ['checking', 'downloading', 'verifying', 'preparing', 'backing_up', 'installing', 'restarting'].includes(phase);
@@ -2435,6 +2464,10 @@ function widgetUpdates(stack) {
       const response = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const result = await response.json().catch(() => ({}));
+      if (result.reason === 'online_access_off' || result.error === 'online_access_off') {
+        status.textContent = quiet ? offText : message;
+        showOnlineSwitch(); check.disabled = false; return;
+      }
       if (!response.ok || result.ok === false) throw new Error(T('settings.updates.check_failed', 'VOOL could not check for updates just now. Try again later.'));
       await readSource('/api/update/status');
       widgetUpdates(stack);
@@ -5055,6 +5088,39 @@ function boundarySwitchWidget(stack, cfg) {
   });
 }
 const LOCAL_ONLY_NOTE_EN = 'Local-only mode is on for this whole computer, so this stays off. Settings has no switch to turn local-only mode off.';
+function widgetLiveBrowser(stack) {
+  const data = state.sources['/api/browser/settings'];
+  if (!data || typeof data.enabled !== 'boolean') { stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return; }
+  const button = el('button', 'sw'); button.type = 'button'; button.setAttribute('role', 'switch');
+  button.setAttribute('aria-label', T('settings.row.live_browser.label', 'Browser'));
+  const note = el('div', 'subtle'); const status = el('div', 'state idle'); status.setAttribute('role', 'status');
+  let current = data, busy = false;
+  const paint = back => {
+    current = back;
+    button.setAttribute('aria-checked', back.enabled === true ? 'true' : 'false');
+    button.disabled = busy || (!back.enabled && (back.local_only || !back.web_enabled));
+    note.textContent = back.local_only || !back.web_enabled ? T('vcs.state.egress_refused', 'Network access is off') : '';
+  };
+  const reread = async () => {
+    const r = await fetch('/api/browser/settings', {cache:'no-store'}); const back = await r.json();
+    if (!r.ok || !back.ok || typeof back.enabled !== 'boolean') throw new Error('unavailable');
+    paint(back); return back;
+  };
+  paint(data);
+  button.onclick = async () => {
+    busy = true; button.disabled = true;
+    const want = !current.enabled; status.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch('/api/browser/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:want})});
+      const back = await reread();
+      status.textContent = r.ok && back.enabled === want ? T('settings.switch.saved', 'Saved') : T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } catch(e) { status.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    busy = false; paint(current);
+  };
+  stack.appendChild(button); stack.appendChild(note); stack.appendChild(status);
+  const link = el('a', '', T('live.browser', 'Browser')); link.href = '/browser?chat=browser'; link.target = '_blank'; link.rel = 'noopener'; stack.appendChild(link);
+  const timer = setInterval(() => { if (!button.isConnected) { clearInterval(timer); return; } if (!busy) reread().catch(() => { button.disabled = true; }); }, 1500);
+}
 function widgetWebLookups(stack) {
   return boundarySwitchWidget(stack, {
     key: 'web_lookups', field: 'allow_web_fallback',

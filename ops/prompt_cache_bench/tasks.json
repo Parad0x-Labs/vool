@@ -1,0 +1,177 @@
+{
+ "schema": "vool.prompt_cache_bench.tasks.v1",
+ "tasks": [
+  {
+   "id": "long_doc_chat",
+   "kind": "chat",
+   "description": "A pasted plan, then quick follow-up questions in one chat.",
+   "turns": [
+    {
+     "text": "Here is the plan for our neighbourhood repair cafe. Read it, then answer my questions one at a time. For now just tell me in two sentences what it is about.\n\n# Riverside Repair Cafe: plan for the first season\n\n## Why we are doing this\nOur street throws away a surprising amount of things that are nearly working: lamps with a loose wire, trousers with a broken zip, bicycles with a slipped chain, toasters that only heat one side. Three neighbours (Ines Duarte, Kofi Mensah and Hanna Lind) agreed in August to run a monthly repair cafe where people bring broken items and volunteers help them fix them. The goal for the first season is simple: keep things out of the bin, teach people one repair skill each, and find out whether the street wants this every month.\n\n## When and where\nThe cafe runs on the second Saturday of each month from October to March, six sessions in total. Doors open at 10:00 and the last item is accepted at 13:30; we close at 14:30. The venue is the back hall of the Riverside Community Centre, 14 Willow Lane. The hall holds 60 people standing or 40 seated. The centre charges 35 euros per session for the hall, which includes tables, chairs, heating and use of the small kitchen. The first session is on 10 October; the second on 14 November; the third on 12 December.\n\n## Repair stations\nWe will run five stations, each with one lead volunteer:\n1. Electrical (lamps, small appliances, chargers) - lead: Kofi. Rule: nothing that plugs into the wall is opened while plugged in, and every repaired appliance gets a visual check and a test on the RCD-protected extension before it goes home. No microwaves and no anything with a large capacitor.\n2. Textiles (zips, hems, buttons, small tears) - lead: Hanna. Two sewing machines on loan from the school.\n3. Bicycles (chains, brakes, punctures, gears) - lead: Marco Bellini. Works outdoors under the canopy if dry.\n4. Furniture and wood (wobbly chairs, drawers, small joinery) - lead: Ines.\n5. Electronics advice (phones, laptops) - lead: Priya Nair. Advice only in the first season: diagnosis, battery and screen part sourcing, no soldering.\n\nEach station has a sign-in sheet. Visitors may bring at most two items per visit so the queue stays fair. Children are welcome but must stay with an adult at the electrical and bicycle stations.\n\n## Budget for the season\nIncome: a grant of 900 euros from the municipal Small Green Projects fund, which has been confirmed, plus a donation jar. We will not charge an entry fee.\nPlanned costs:\n- Hall hire: 6 sessions x 35 euros = 210 euros.\n- Tools and consumables (solder is not needed this season; fuses, cable, thread, zips, inner tubes, glue, screws): 320 euros.\n- Insurance (public liability for volunteer events, through the federation): 145 euros for the season.\n- Printing posters and the feedback cards: 60 euros.\n- Coffee, tea and biscuits: 15 euros per session, 90 euros total.\nTotal planned: 825 euros, leaving 75 euros of the grant as a reserve for broken tools.\n\n## Safety rules\n- Volunteers decide whether an item is safe to repair; they can refuse any item.\n- Visitors do the repair themselves where possible, with the volunteer guiding; this is a learning space, not a free repair shop.\n- A first aid kit is kept at the kitchen door and Hanna holds the first aid certificate.\n- The fire exit at the back of the hall must stay clear; the bicycle station never blocks it.\n\n## How we measure the season\nAt the sign-in table, every item gets a ticket with its station and outcome: fixed, partly fixed, not fixable, or advice given. We will count items per station and outcome after each session. The success line for the season: at least 120 items seen in total and at least half of them fixed or partly fixed. We will also ask every visitor one question on a feedback card: \"Would you come again next month?\"\n\n## Open questions\n- Whether to add a knife and tool sharpening table in January (Marco has offered).\n- Whether the March session moves to an outdoor spring fair on the river path, which would need a separate permit.\n- How to store the tool boxes between sessions: the centre offered a locked cupboard for 10 euros per month, which is not in the budget yet.\n",
+     "expect": [
+      "repair"
+     ],
+     "reference": "A monthly repair cafe on a street, run by neighbours, October to March, where volunteers help people fix broken items."
+    },
+    {
+     "text": "What date is the second session, and what time is the last item accepted?",
+     "expect": [
+      "14 November",
+      "13:30"
+     ],
+     "reference": "14 November; last item accepted at 13:30."
+    },
+    {
+     "text": "Who leads the bicycle station, and where does it work when it's dry?",
+     "expect": [
+      "Marco"
+     ],
+     "reference": "Marco Bellini; outdoors under the canopy."
+    },
+    {
+     "text": "How much of the grant is left as a reserve, and what is it for?",
+     "expect": [
+      "75"
+     ],
+     "reference": "75 euros, kept as a reserve for broken tools."
+    },
+    {
+     "text": "If we also rent the locked cupboard for the six months of the season, how much reserve would be left?",
+     "expect": [
+      "15"
+     ],
+     "reference": "The cupboard is 10 euros per month, so 60 euros for six months; 75 - 60 = 15 euros left."
+    },
+    {
+     "text": "Can a visitor bring three items in one visit?",
+     "expect": [
+      "two"
+     ],
+     "reference": "No, at most two items per visit."
+    },
+    {
+     "text": "What counts as success for the season? One sentence.",
+     "expect": [
+      "120",
+      "half"
+     ],
+     "reference": "At least 120 items seen in total and at least half of them fixed or partly fixed."
+    },
+    {
+     "text": "Which station won't do soldering this season, and what does it do instead?",
+     "expect": [
+      "Priya"
+     ],
+     "reference": "The electronics advice station (Priya Nair): advice only, diagnosis and battery/screen part sourcing."
+    }
+   ]
+  },
+  {
+   "id": "files_tools",
+   "kind": "tools",
+   "description": "Questions that need reading files in a small workspace.",
+   "turns": [
+    {
+     "text": "Look at the files in this folder. What is the total of all shared expenses in expenses_2026_q3.csv?",
+     "expect": [
+      "924.95"
+     ],
+     "reference": "924.95 euros."
+    },
+    {
+     "text": "How much did Mira pay and how much did Tomas pay?",
+     "expect": [
+      "416.70",
+      "508.25"
+     ],
+     "reference": "Mira 416.70 euros, Tomas 508.25 euros."
+    },
+    {
+     "text": "If they split everything evenly, who owes whom and how much?",
+     "expect": [
+      "Mira",
+      "45.7"
+     ],
+     "reference": "Mira owes Tomas about 45.78 euros (half of the difference, 45.775)."
+    },
+    {
+     "text": "Now the garden: which zones are watered, and why is the lemon tree off?",
+     "expect": [
+      "tomatoes",
+      "herbs",
+      "drain"
+     ],
+     "reference": "Tomatoes and herbs; the lemon tree is paused until the new pot drains properly."
+    },
+    {
+     "text": "From the controller log, did the tomatoes get watered on the morning of 11 October? Why or why not?",
+     "expect": [
+      "no",
+      "pressure"
+     ],
+     "reference": "No: valve 2 had low pressure (0.6 bar) and failed to open after 3 attempts."
+    },
+    {
+     "text": "How many minutes in total were the tomatoes watered across 10 and 11 October?",
+     "expect": [
+      "18"
+     ],
+     "reference": "18 minutes: 9 on the morning of 10 October and 9 on the evening of 11 October (the 10 October evening run was skipped for rain, the 11 October morning run failed)."
+    }
+   ]
+  },
+  {
+   "id": "quick_chat",
+   "kind": "chat",
+   "description": "Short everyday back-and-forth with recall of earlier details.",
+   "turns": [
+    {
+     "text": "I'm hosting dinner on Saturday for six people. One is vegetarian and one can't eat nuts. Suggest a simple three-course menu.",
+     "expect": [],
+     "reference": "A three-course menu for six that works for a vegetarian guest and avoids nuts."
+    },
+    {
+     "text": "Make the main course vegetarian for everyone so I only cook one main.",
+     "expect": [],
+     "reference": "A vegetarian main for everyone, still nut-free."
+    },
+    {
+     "text": "Dessert must be ready the day before. Change it if needed.",
+     "expect": [],
+     "reference": "A make-ahead, nut-free dessert."
+    },
+    {
+     "text": "Give me the shopping list for the main course only, for six people.",
+     "expect": [],
+     "reference": "Quantities for six for the vegetarian main."
+    },
+    {
+     "text": "How many guests did I say, and which two dietary needs?",
+     "expect": [
+      "six",
+      "vegetarian",
+      "nut"
+     ],
+     "reference": "Six people; one vegetarian and one who cannot eat nuts."
+    },
+    {
+     "text": "What time should I start cooking if dinner is at 19:30 and the main takes 50 minutes plus 15 minutes prep?",
+     "expect": [
+      "18:25"
+     ],
+     "reference": "18:25 (65 minutes before 19:30)."
+    },
+    {
+     "text": "One guest just cancelled. Do I need to change the shopping list a lot? One sentence.",
+     "expect": [],
+     "reference": "Only slightly: scale quantities from six to five, or keep them and have leftovers."
+    },
+    {
+     "text": "Remind me which dessert we settled on.",
+     "expect": [],
+     "reference": "The make-ahead nut-free dessert chosen in the third turn."
+    }
+   ]
+  }
+ ]
+}

@@ -72,7 +72,9 @@ class MediaIngestionTests(unittest.TestCase):
                 "weight_location": "user-supplied",
                 "redistribution_allowed": True,
                 "runtime_dependency": "openai-compatible-local-runtime",
-                "capabilities": ["summarize", "multimodal"],
+                # The review asks for a summary_block: a reader of images that also declares the
+                # JSON output contract that block requires.
+                "capabilities": ["summarize", "multimodal", "structured_json"],
                 "runtime_config": {"base_url": "http://127.0.0.1:1234"},
                 "enabled": True,
             }

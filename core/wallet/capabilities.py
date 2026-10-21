@@ -13,6 +13,11 @@ from core.wallet import chains
 
 CAPABILITIES: tuple[str, ...] = ("list", "create", "backup", "balance", "quote", "sign", "send", "receipt")
 
+# Presentation policy only. Keep the current six chains visible until the owner
+# chooses otherwise. Hiding an empty card never hides an existing account or changes
+# registry admission, spending, receipts or the active network environment.
+DEFAULT_VISIBLE_CHAIN_KEYS: frozenset[str] = frozenset(chains.CHAIN_KEY_ORDER)
+
 REASON_ENVIRONMENT_INACTIVE = "environment_inactive"
 REASON_EVM_DEPENDENCIES_MISSING = "evm_dependencies_missing"
 REASON_PILOT_LANE_INCOMPLETE = "pilot_lane_incomplete"
@@ -167,6 +172,8 @@ def network_rows(*, active_environment: str, wallets: list[dict[str, Any]]) -> l
     for spec in ordered:
         native = chains.native_asset(spec.network)
         row_accounts = accounts.get(spec.network, [])
+        if spec.chain_key not in DEFAULT_VISIBLE_CHAIN_KEYS and not row_accounts:
+            continue
         rows.append({
             "network": spec.network, "chain_key": spec.chain_key, "chain_label": chains.CHAIN_KEY_LABELS.get(spec.chain_key, spec.display_name),
             "display_name": spec.display_name, "environment": spec.environment, "family": spec.family, "active": spec.environment == active_environment,
@@ -184,6 +191,7 @@ def network_rows(*, active_environment: str, wallets: list[dict[str, Any]]) -> l
 
 __all__ = [
     "CAPABILITIES",
+    "DEFAULT_VISIBLE_CHAIN_KEYS",
     "MODE_LABELS",
     "PILOT_CUSTODY_READY",
     "PILOT_TRANSFER_READY_ROWS",

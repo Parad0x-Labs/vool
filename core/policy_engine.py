@@ -519,6 +519,11 @@ def browser_runtime_enabled() -> bool:
     if not allow_browser_fallback():
         return False
     env_enabled = str(os.getenv("PLAYWRIGHT_ENABLED", "")).strip().lower()
+    from core.vool_browser.live import available as live_browser_available
+    from core.vool_browser.live import configured as live_browser_configured
+
+    if live_browser_configured():
+        return bool(live_browser_available() and importlib.util.find_spec("playwright") is not None)
     policy_enabled = playwright_enabled()
     if env_enabled:
         policy_enabled = env_enabled in {"1", "true", "yes"}

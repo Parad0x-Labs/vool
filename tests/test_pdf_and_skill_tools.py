@@ -404,8 +404,17 @@ def test_no_package_was_added_to_this_project() -> None:
 
     assert pdf_tools._SYSTEM_PYTHON == "/usr/bin/python3"
     pyproject = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8")
-    for package in ("PyPDF2", "pdfminer", "pdfplumber", "PyMuPDF", "pyobjc"):
+    for package in ("PyPDF2", "pdfminer", "pdfplumber", "PyMuPDF"):
         assert package.lower() not in pyproject.lower(), package
+    # pyobjc stays out of the PDF lane: the only pyobjc lines are the Mac app's Calendar and
+    # Contacts frameworks (desktop extra), never Quartz/PDFKit/Vision or the pyobjc meta package.
+    pyobjc_lines = sorted(
+        line.strip() for line in pyproject.splitlines() if "pyobjc" in line.lower() and not line.strip().startswith("#")
+    )
+    assert pyobjc_lines == [
+        "\"pyobjc-framework-Contacts==12.2.2; sys_platform == 'darwin'\",",
+        "\"pyobjc-framework-EventKit==12.2.2; sys_platform == 'darwin'\",",
+    ], pyobjc_lines
     # The one sanctioned pdf dependency is the confined-reader fallback, pinned exactly.
     assert "pypdf==6.21.0" in pyproject
 

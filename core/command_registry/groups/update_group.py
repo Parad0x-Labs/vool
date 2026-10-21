@@ -63,6 +63,14 @@ def _handle_check(inp, ctx):
     subsystem = boot_update_subsystem()
     payload = subsystem.trigger_check()
     check_ok = bool(payload.get("check_ok"))
+    if not check_ok and payload.get("reason") == "online_access_off":
+        # Not a failed check: none was sent, because the outbound switch is off. The page shows the
+        # calm line and the way to the switch from this payload.
+        return HandlerFault(
+            fault_code="unavailable",
+            summary=str(payload.get("detail") or "Online access is off; no update check was sent."),
+            detail={"legacy_status": 409, **payload, "ok": False},
+        )
     if not check_ok:
         return HandlerFault(
             fault_code="fault_provider",

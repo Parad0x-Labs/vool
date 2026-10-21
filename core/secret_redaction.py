@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 import threading
 
+from core.memory.admission import _APOSTROPHES
+
 #: Exact-value scrub registry (credential intelligence, 2026-09-02). The pattern rules below
 #: only catch keys with a KNOWN vendor shape; a custom-gateway key like ``zk9-…`` matches
 #: nothing and would survive every rule. The intake boundary therefore registers the exact
@@ -512,9 +514,14 @@ _PHRASE_SECRET_LABEL = (
     r"|backup\s+phrase|backup\s+seed|backup\s+words|mnemonic(?:\s+(?:phrase|words|seed))?"
     r"|passphrase|secret\s+phrase|secret\s+words"
 )
+# An aside between the label and its colon ("my mnemonic, which isn't public: <words>", "seed phrase (old one):
+# <words>") is still the label's own value: before 2026-10-20 the words after such an aside stayed in clear (also on
+# v0.7.2 and v0.7.1). An aside is one clause with no sentence end, and it needs the colon or "=": with a bare "is" the
+# clause would be the value ("my seed phrase, which is stored in the vault").
+_PHRASE_LABEL_ASIDE = r"(?P<aside>\s*(?:,|\(|\s[-\u2013\u2014])[^:=\n.;!?()]{1,60}\)?)"
 _LABELED_PHRASE_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:" + _PHRASE_SECRET_LABEL + r")(?:[_-][A-Za-z0-9]+)*)"
-    r"\s*(?:[:=]|(?:\bis\b|\bare\b)\s*[:=]?)\s*[\u201c\u2018\"']?"
+    r"(?:" + _PHRASE_LABEL_ASIDE + r"\s*[:=]|\s*(?:[:=]|(?:\bis\b|\bare\b)\s*[:=]?))\s*[\u201c\u2018\"']?"
     r"([A-Za-z]{3,8}(?:(?:\s+|\s*,\s*)[A-Za-z]{3,8}){3,23})"
     r"[\u201d\u2019\"']?(?![A-Za-z0-9'\-])"
 )
@@ -563,11 +570,9 @@ _CLAUSE_BOUNDARY_RE = re.compile(r"[.;:!?\u2014\n]")
 
 #: Typography equivalence for the ANALYSIS copy only (same convention as
 #: core/memory/admission.py's possessive normalization): apostrophe-family
-#: characters fold to ASCII ' so "isn\u2019t" analyses as "isn't". Stored user
+#: characters (the one shared set) fold to ASCII ' so "isn\u2019t" and "isn\u00b4t" analyse as "isn't". Stored user
 #: text is never rewritten — only the slices the publicity checks inspect.
-_ANALYSIS_APOSTROPHES = str.maketrans({
-    "\u2018": "'", "\u2019": "'", "\u02bc": "'", "\uff07": "'",
-})
+_ANALYSIS_APOSTROPHES = str.maketrans(dict.fromkeys(_APOSTROPHES, "'"))
 
 
 def _publicity_analysis_text(text: str) -> str:
@@ -613,7 +618,8 @@ def _label_declared_public(label: str, text: str, start: int) -> bool:
 def _mask_secret_label(match: re.Match) -> str:
     if _label_declared_public(match.group(1), match.string, match.start()):
         return match.group(0)
-    return f"{match.group(1)}: [redacted]"
+    aside = (match.groupdict().get("aside") or "").rstrip()
+    return f"{match.group(1)}{aside}: [redacted]"
 
 
 def redact_secrets(text: str, *, personal: bool = True) -> str:

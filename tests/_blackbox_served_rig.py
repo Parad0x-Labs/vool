@@ -100,6 +100,14 @@ class ScriptedProvider:
                             "path": self.path,
                             "tools": [str(((t or {}).get("function") or {}).get("name") or "") for t in tools if isinstance(t, dict)],
                             "has_tool_result": has_tool_result,
+                            # Each message's role and content as sent, so a proof can say WHICH
+                            # message carried a tool result into the next round, not only that the
+                            # joined prompt contains it. Additive: no existing field changes.
+                            "messages": [
+                                {"role": str(m.get("role") or ""), "content": str(m.get("content") or "")[:8000]}
+                                for m in messages
+                                if isinstance(m, dict)
+                            ],
                         }
                     )
                 reply = rig.reply_for(model, has_tool_result=has_tool_result, body=body)
@@ -415,7 +423,9 @@ def manifest(name):
         adapter_type="openai_compatible", license_name="Apache-2.0",
         license_reference="https://ollama.com/library/qwen3",
         weight_location="external", runtime_dependency="ollama",
-        capabilities=["summarize", "classify", "format", "extract", "structured_json"],
+        # The stub selects tools when scripted to, so it declares tool selection the way VOOL's
+        # general local lane does; a lane declaring none is never handed a tool step.
+        capabilities=["summarize", "classify", "format", "extract", "structured_json", "tool_intent"],
         runtime_config={{"base_url": "{base_url}", "timeout_seconds": 30}},
         metadata={{
             "runtime_family": "ollama", "cost_class": "free_local",

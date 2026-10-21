@@ -33,13 +33,23 @@ transfers and payments sections below for exactly which lanes exist on mainnet.
 
 ## What moves on which lane
 
-* **Pilot transfers move native coins only** (for example SOL on Solana, ETH on Base,
-  Ethereum or Arbitrum One).
-* **The Mainnet tokens are USDC on Solana and USDC on Base**, and they exist for x402
-  payments only. Proposals refuse them for every other origin.
+* **Transfers move native coins** (for example SOL on Solana, ETH on Base, Ethereum or
+  Arbitrum One), and **USDT on Solana, Ethereum, BNB Smart Chain and Arbitrum One**.
+  The chain is part of each saved contact address and each approval. Token transfers also
+  need that chain's native coin for fees; the quote shows both amounts within your limits.
+* **USDC on Solana and Base is available for payment channels only.** It is not offered
+  for ordinary sends. The wallet's main balance display shows native coins, not a complete
+  token portfolio.
 * Every transfer is previewed (a **quote**: amount, fee ceiling, recipient, network) and needs
   your explicit approval bound to exactly that preview. Change anything and the approval is
   void — nothing is signed.
+* A name matching several contacts or wallet addresses asks you to choose. Review the exact
+  address and chain. A changed address or renamed contact invalidates the old review.
+* On mainnet, only a VOOL Wallet created on this device sends. An external wallet you connected
+  or a watch-only address can receive and show its balance; a send or a payment-channel
+  payment from it is refused before any approval is asked, and nothing is signed.
+* Activity records payments made through VOOL and their receipts. It is not a complete
+  incoming-payment history. No swap or bridge action is offered by this wallet.
 
 ## How a payment is approved
 
@@ -82,9 +92,11 @@ separate charge.
 
 ## Recovery
 
-* The **recovery phrase is shown exactly once**, at creation. There is no export door: private
-  keys are never exported by this runtime, in any mode.
-* A pilot wallet's backup key is likewise released once during setup. If you did not save it,
-  cancel setup and do not send funds to that address.
+* The **recovery phrase is shown exactly once**, at creation.
+* A pilot wallet's backup key is likewise released once during setup, and there is no later
+  export for it. If you did not save it, cancel setup and do not send funds to that address.
+* An older VOOL Wallet, made before Crypto Pilot, can export its private key once for import into
+  another wallet app. The export opens only with your Mac's own sign-in (Touch ID or your Mac password),
+  never with the wallet PIN, and the key is shown once without being stored.
 * Lost a wallet? Recover from the phrase you wrote down at creation. A recovery proof that
   does not fit this exact wallet is refused before any write.

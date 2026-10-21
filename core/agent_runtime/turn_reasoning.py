@@ -571,6 +571,15 @@ def _escalate_to_a_certified_author(
     return escalated
 
 
+_NO_MODEL_SOURCES = frozenset({"no_provider_available"})
+
+
+def _model_execution_source(model_execution: Any) -> str:
+    if isinstance(model_execution, dict):
+        return str(model_execution.get("source") or "")
+    return str(getattr(model_execution, "source", "") or "")
+
+
 def execute_grounded_turn(
     agent: Any,
     *,
@@ -2023,7 +2032,15 @@ def execute_grounded_turn(
         source_context,
         event_type="task_failed" if terminal_outcome.is_unfulfilled else "task_completed",
         message=(
-            "Task did not meet its completion requirements."
+            # The Activity panel shows this line under "Failed". When no model could answer, say
+            # that; the generic sentence read as if a model had answered and been graded short.
+            "No model was available to answer this message."
+            if terminal_outcome.is_unfulfilled
+            and "chat_model_unavailable_degraded" in terminal_outcome.failure_codes
+            # The same code also covers a paid call whose answer never came, a rejected key, a
+            # cancel and cache or memory sources: only a turn no model could take gets this line.
+            and _model_execution_source(evidence["model_execution"]) in _NO_MODEL_SOURCES
+            else "Task did not meet its completion requirements."
             if terminal_outcome.is_unfulfilled
             else f"Completed task with final response: {agent._runtime_preview(response)}"
         ),

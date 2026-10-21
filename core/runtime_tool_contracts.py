@@ -155,9 +155,10 @@ def runtime_tool_contracts(*, web_available_fn: Any = None) -> list[RuntimeToolC
     different authorities.
     """
     from core.code_assistant.contracts import with_step_argument_fields
+    from core.vool_browser.live_contracts import apply_live_browser_contracts
 
     return _apply_edition_floor(
-        with_step_argument_fields(_runtime_tool_contracts_raw(web_available_fn=web_available_fn))
+        apply_live_browser_contracts(with_step_argument_fields(_runtime_tool_contracts_raw(web_available_fn=web_available_fn)))
     )
 
 

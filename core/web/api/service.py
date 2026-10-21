@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 import hashlib
 import json
 import logging
@@ -54,6 +55,7 @@ from storage.adaptation_store import (
 from .runtime import (
     RuntimeServices,
     extract_user_message,
+    no_answer_chat_response,
     normalize_chat_history,
     ollama_chat_response,
     ollama_stream_chunks,
@@ -721,6 +723,28 @@ def _inbound_source_context(body: dict[str, Any]) -> dict[str, Any]:
     return dict(payload) if isinstance(payload, dict) else {}
 
 
+def _commit_goal_reply(session_id: str, user_text: str, meta: dict[str, Any]) -> None:
+    """Persist the /goal control exchange in the chat transcript.
+
+    The control reply is a local answer (no model call, no A7 seal), so it commits itself
+    through the same dialogue store every turn uses, labeled `goal_control`. The goal RECORD
+    stays the authoritative state; this row only keeps the conversation coherent on reload.
+    """
+    try:
+        from core.persistent_memory import append_conversation_event
+
+        append_conversation_event(
+            session_id=session_id,
+            user_input=str(user_text),
+            assistant_output=str(meta.get("reply") or ""),
+            source_context={"surface": "goal", "response_class": "goal_control"},
+            response_class="goal_control",
+            persist_now=True,
+        )
+    except Exception:
+        pass  # best-effort transcript row; the durable goal record is authoritative
+
+
 def _runtime_model_catalog(
     *,
     capability_snapshot: dict[str, Any],
@@ -869,12 +893,33 @@ def dispatch_get(
         """
         return request_ui_locale(page_headers, (page_query.get("ui_locale") or [""])[0])
 
+    if normalized_path == "/browser" or normalized_path.startswith("/api/browser/"):
+        from core.vool_browser.live import BrowserFault
+        from core.web.api import browser_api
+
+        if not is_loopback_host(client_host) or str((headers or {}).get("Sec-Fetch-Site", (headers or {}).get("sec-fetch-site", ""))) not in {"", "same-origin", "none"}:
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        try:
+            return browser_api.get(
+                normalized_path,
+                query,
+                locale=resolve_page_locale(query, headers),
+                appearance=appearance_from_cookie_header(_header_value(headers, "cookie")),
+            )
+        except BrowserFault as exc:
+            return json_response(409, {"ok": False, "error": str(exc)})
+
     if normalized_path.startswith("/chat-assets/"):
         from core.web.api.chat_assets_api import handle_chat_asset_get
 
         return handle_chat_asset_get(normalized_path)
 
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        # Media Studio reads and writes the owner's projects and serves their media files: owner-local
+        # only, like the other private doors. A daemon started with --bind on a LAN address must not
+        # hand a peer the editor, its projects or a file proxy.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_get
 
         return handle_media_editor_get(normalized_path, query)
@@ -1015,7 +1060,7 @@ def dispatch_get(
             )
         from core.web.api.wallet_api import handle_wallet_get
 
-        return apply_runtime_headers(handle_wallet_get(normalized_path, query, client_host=client_host), runtime)
+        return apply_runtime_headers(handle_wallet_get(normalized_path, query, client_host=client_host, headers=headers), runtime)
     if normalized_path.startswith("/api/mobile/"):
         from core.web.api.mobile_companion_api import handle_mobile_companion_get
 
@@ -2115,6 +2160,14 @@ def dispatch_get(
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 
+        # The chip's poll is also the cue to start the scheduled update check when it became allowed
+        # after boot (the outbound switch turned on); idempotent, and a refused gate starts nothing.
+        with contextlib.suppress(Exception):
+            from core.updater.runtime import get_update_subsystem
+
+            _subsystem = get_update_subsystem()
+            if _subsystem is not None:
+                _subsystem.ensure_background_checks()
         _us_status, payload = _cr_forward("update.status", {})
         return apply_runtime_headers(json_response(_us_status, payload), runtime)
 
@@ -2318,6 +2371,8 @@ def dispatch_get(
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
         # The Media Studio child editor. Recovered from feature/media-studio-m1 (2026-08-25),
         # whose worker docstring names VOOL as the host process. Additive: a new route only.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_get
 
         return handle_media_editor_get(normalized_path, query)
@@ -2699,6 +2754,20 @@ def dispatch_get(
             runtime,
         )
 
+    if normalized_path == "/api/goal/state":
+        # The goal card's bounded hydration snapshot: the canonical durable goal record for
+        # this chat, or {"goal": null}. Read-only; an orphaned mid-dispatch goal reads
+        # as interrupted (never resurrected as running by hydration).
+        goal_session = str((query.get("session") or [""])[0] or "").strip()
+        if not goal_session:
+            return apply_runtime_headers(json_response(400, {"error": "missing session"}), runtime)
+        from core.web.api.goal_api import goal_state_payload
+
+        return apply_runtime_headers(
+            json_response(200, goal_state_payload(goal_session)),
+            runtime,
+        )
+
     if normalized_path in {"/api/runtime/changes", "/v1/runtime/changes"}:
         from core.workspace_change_projection import (
             InvalidWorkspaceChangeSessionIdError,
@@ -2726,14 +2795,28 @@ def dispatch_get(
         # Pending/in-flight queued messages for a session -- restores the queue after a
         # UI refresh, app restart, or daemon reconnect (persisted server-side).
         # Queued user messages are the operator's own content; the read is
-        # owner-local like the queue's write path.
+        # owner-local like the queue's write path. `turn_active` is the chat's slot
+        # truth (a turn worker is executing now), so a page that sees its own state as
+        # idle can still decide run-now vs enqueue correctly when ANOTHER tab holds
+        # the slot.
         if not is_loopback_host(client_host):
             return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
-        from core.runtime_continuity import list_queued_messages
+        from core.runtime_continuity import chat_slot_held_by_other, chat_turn_active, list_queued_messages
 
         session_id = str((query.get("session") or [""])[0] or "").strip()
         items = list_queued_messages(session_id) if session_id else []
-        return apply_runtime_headers(json_response(200, {"session_id": session_id, "queue": items}), runtime)
+        payload: dict[str, Any] = {"session_id": session_id, "queue": items}
+        if session_id:
+            payload["turn_active"] = chat_turn_active(session_id)
+            # `mine`: the asking page's own turn ids / claimed item ids. `turn_active_other` says
+            # whether something ELSE holds the slot, so a page never queues behind its own turn.
+            mine = frozenset(
+                token.strip()[:200]
+                for token in str((query.get("mine") or [""])[0] or "").split(",")[:32]
+                if token.strip()
+            )
+            payload["turn_active_other"] = chat_slot_held_by_other(session_id, mine)
+        return apply_runtime_headers(json_response(200, payload), runtime)
 
     if normalized_path == "/api/bug-report/status":
         # Bug-report draft status (owner-local read of the local store).
@@ -3053,6 +3136,22 @@ def _credential_page_refusal(headers: dict[str, Any] | None, client_host: str) -
     return ""
 
 
+# The chat's one-turn slot a /api/chat request holds and has not yet handed to a turn worker,
+# as (session_id, token). Set by the chat door when it takes the slot; cleared when the slot is
+# handed to a worker (whose end releases it) or released by the door itself. Whatever is still
+# set when the request leaves the door -- an exception between the two, or a return path that
+# forgot -- is released there, so a failed request can never hold a chat until its lease runs out.
+_CHAT_SLOT_HELD: contextvars.ContextVar[tuple[str, str] | None] = contextvars.ContextVar(
+    "vool_chat_slot_held", default=None
+)
+# The queued message a /api/chat request's dispatch consumed the claim of, as the mutable record
+# core.runtime_continuity.finish_consumed_queue_item finishes once BOTH the turn and the request
+# have ended. Set by the chat door; read by dispatch_post at the request's end.
+_CONSUMED_QUEUE_ITEM: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "vool_consumed_queue_item", default=None
+)
+
+
 def dispatch_post(
     *,
     path: str,
@@ -3072,6 +3171,13 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith("/api/browser/"):
+        from core.web.api import browser_api
+
+        if _credential_page_refusal(headers, client_host):
+            return json_response(403, {"ok": False, "error": "owner_local_required"})
+        return browser_api.post(normalized_path, body, headers=headers, client_host=client_host)
 
     if not isinstance(body, dict):
         # Every POST handler below reads body.get(...); a non-object JSON body (e.g. [], "x", 5)
@@ -3111,7 +3217,7 @@ def dispatch_post(
         "/api/notifications/audio", "/api/notifications/native/outbox", "/api/notifications/native/report", "/api/notifications/native/test",
         "/api/notifications/native/authorize", "/api/calendar/accounts/add", "/api/calendar/accounts/discover",
         "/api/calendar/accounts/select", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/disconnect",
-        "/api/calendar/accounts/reconnect",
+        "/api/calendar/accounts/reconnect", "/api/calendar/accounts/remove",
         "/api/market/watches/pause", "/api/market/watches/resume", "/api/market/watches/remove",
     }:
         if not is_loopback_host(client_host):
@@ -3168,6 +3274,11 @@ def dispatch_post(
                 return apply_runtime_headers(json_response(409, result), runtime)
             view = {**calendar_accounts.presented(result), "ok": True}
             return apply_runtime_headers(json_response(200, view), runtime)
+        if normalized_path == "/api/calendar/accounts/remove":
+            # VOOL forgets its own copy of the account; the provider and the credential binding are never touched.
+            result = calendar_accounts.remove_account(account_id)
+            status_code = 200 if result.get("ok") else 404 if result.get("reason") == "unknown_account" else 409
+            return apply_runtime_headers(json_response(status_code, result), runtime)
         if normalized_path == "/api/notifications/read":
             result = notification_center.mark_read(body.get("notification_ids"))
             return apply_runtime_headers(json_response(200 if result.get("ok") else 400, result), runtime)
@@ -3282,6 +3393,7 @@ def dispatch_post(
     _req_token = None
     _transcript_request_id = ""
     _transcript_flush_deferred = False
+    _consumed_queue_record: dict[str, Any] | None = None
     # The app language the page chose (its vool_ui_locale cookie) for this one request: chat
     # commands VOOL answers itself (core.i18n.turn_locale) speak it. Bound before the turn's
     # ingress context is captured, so the streaming worker sees it too.
@@ -3394,24 +3506,36 @@ def dispatch_post(
         except Exception:
             _transcript_request_id = ""
 
-        _response = _dispatch_post_inner(
-            path=path,
-            body=body,
-            headers=headers,
-            runtime=runtime,
-            model_name=model_name,
-            normalized_path=normalized_path,
-            workspace_root_provider=workspace_root_provider,
-            normalize_chat_history_provider=normalize_chat_history_provider,
-            extract_user_message_provider=extract_user_message_provider,
-            stable_openclaw_session_id_provider=stable_openclaw_session_id_provider,
-            run_agent_provider=run_agent_provider,
-            stream_agent_with_events_provider=stream_agent_with_events_provider,
-            resolve_null_domain_provider=resolve_null_domain_provider,
-            try_dial_provider=try_dial_provider,
-            client_host=client_host,
-            request_id=_r2_request_id,
-        )
+        _chat_slot_scope = _CHAT_SLOT_HELD.set(None)
+        _consumed_queue_scope = _CONSUMED_QUEUE_ITEM.set(None)
+        try:
+            _response = _dispatch_post_inner(
+                path=path,
+                body=body,
+                headers=headers,
+                runtime=runtime,
+                model_name=model_name,
+                normalized_path=normalized_path,
+                workspace_root_provider=workspace_root_provider,
+                normalize_chat_history_provider=normalize_chat_history_provider,
+                extract_user_message_provider=extract_user_message_provider,
+                stable_openclaw_session_id_provider=stable_openclaw_session_id_provider,
+                run_agent_provider=run_agent_provider,
+                stream_agent_with_events_provider=stream_agent_with_events_provider,
+                resolve_null_domain_provider=resolve_null_domain_provider,
+                try_dial_provider=try_dial_provider,
+                client_host=client_host,
+                request_id=_r2_request_id,
+            )
+        finally:
+            _consumed_queue_record = _CONSUMED_QUEUE_ITEM.get()
+            _CONSUMED_QUEUE_ITEM.reset(_consumed_queue_scope)
+            _held_slot = _CHAT_SLOT_HELD.get()
+            _CHAT_SLOT_HELD.reset(_chat_slot_scope)
+            if _held_slot is not None:
+                from core.runtime_continuity import release_chat_turn_admission as _release_held_slot
+
+                _release_held_slot(*_held_slot)
         # A streamed turn is not over when this function returns: the model is still
         # being read. The admission has to live as long as the turn actually does, or a
         # council could take the pin mid-stream — which is the same defect one layer
@@ -3429,6 +3553,11 @@ def dispatch_post(
                 _transcript_request_id, _response.stream
             )
             _transcript_flush_deferred = True
+        if _consumed_queue_record is not None and _response.stream is not None:
+            # A streamed turn's request ends with its stream: report it there, outside the
+            # transcript flush, so the queue row finishes only after the answer is recorded.
+            _response.stream = _finish_consumed_queue_item_after(_consumed_queue_record, _response.stream)
+            _consumed_queue_record = None
         return _response
     finally:
         reset_turn_locale(_turn_locale_token)
@@ -3436,6 +3565,9 @@ def dispatch_post(
             if _transcript_request_id and not _transcript_flush_deferred:
                 _flush_staged_transcript_rows(_transcript_request_id)
             _CURRENT_REQUEST_ID.reset(_req_token)
+        if _consumed_queue_record is not None:
+            # The buffered (or refused) request ended here, after its transcript flush.
+            _finish_consumed_queue_item(_consumed_queue_record, party="request")
         if _council_admission is not None:
             _council_admission.release()
 
@@ -3911,6 +4043,34 @@ def _flush_staged_transcript_after(request_id: str, stream: Iterable[bytes]) -> 
         _flush_staged_transcript_rows(request_id)
 
 
+def _finish_consumed_queue_item(record: Any, *, party: str, status: str = "", cancel_event: Any = None) -> None:
+    """Report one party's end (``turn`` or ``request``) for the queued message whose claim this
+    request's dispatch consumed. The row is finished only once both have ended -- the request's
+    end comes after the transcript's request-end flush and the private-chat scrub -- so a drained
+    queue always means a recorded answer, and the row never stays in flight when the page that
+    sent it is gone (the streaming worker reports its end from core/web/api/runtime.py)."""
+    if not isinstance(record, dict):
+        return
+    if status and cancel_event is not None and cancel_event.is_set():
+        status = "cancelled"
+    try:
+        from core.runtime_continuity import finish_consumed_queue_item
+
+        finish_consumed_queue_item(record, party=party, status=status)
+    except Exception:
+        logging.getLogger("vool.api").exception("could not finish queued message %s", record.get("queue_item_id"))
+
+
+def _finish_consumed_queue_item_after(record: dict[str, Any], stream: Iterable[bytes]) -> Iterator[bytes]:
+    """Yield ``stream`` through, then report the request's end for its consumed queue item.
+    Wrapped OUTSIDE the transcript flush, so its ``finally`` runs after that flush (on
+    exhaustion, on a client disconnect, and on collection of an unfinished generator)."""
+    try:
+        yield from stream
+    finally:
+        _finish_consumed_queue_item(record, party="request")
+
+
 def _release_admission_after(admission: Any, stream: Iterable[bytes]) -> Iterator[bytes]:
     """Yield `stream` through, then hand the council-fence admission back.
 
@@ -4329,6 +4489,8 @@ def _dispatch_post_inner(
     request_id: str = "",
 ) -> ApiResponse:
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_post
 
         return handle_media_editor_post(normalized_path, body)
@@ -4999,6 +5161,7 @@ def _dispatch_post_inner(
 
         from core.runtime_continuity import (
             cancel_queue_item,
+            chat_turn_active,
             claim_next_message,
             complete_queue_item,
             enqueue_message,
@@ -5076,6 +5239,11 @@ def _dispatch_post_inner(
                 if not gate.get("ready"):
                     return apply_runtime_headers(json_response(200, {"item": None, "waiting": gate}), runtime)
             item = claim_next_message(q_session, expected_queue_item_id=expected, lease_owner=str(body.get("lease_owner") or "").strip()[:80], turn_id=str(body.get("turn_id") or "").strip()[:80])
+            if item is None and chat_turn_active(q_session):
+                # An empty claim because the chat's slot is taken, not because the queue is:
+                # the claiming page must not treat this as "nothing will ever arrive". The
+                # running turn's completion is the wakeup that claims the item next.
+                return apply_runtime_headers(json_response(200, {"item": None, "turn_active": True}), runtime)
             return apply_runtime_headers(json_response(200, {"item": item}), runtime)
         if op == "complete":
             qid = str(body.get("queue_item_id") or "").strip()
@@ -5090,7 +5258,21 @@ def _dispatch_post_inner(
                 return apply_runtime_headers(json_response(400, {"error": "cancel requires queue_item_id"}), runtime)
             cancelled = cancel_queue_item(qid, session_id=q_session)
             return apply_runtime_headers(json_response(200, {"cancelled": cancelled}), runtime)
-        return apply_runtime_headers(json_response(400, {"error": "op must be one of enqueue|claim|complete|cancel"}), runtime)
+        if op == "release":
+            # Return a CLAIMED, still-unstarted message to its pending FIFO position. The
+            # owning operation for a claimed dispatch refused before execution (the typed
+            # chat_turn_active 409): the ORIGINAL row keeps its identity, payload and queue
+            # position -- answered None when this caller does not own the claim.
+            from core.runtime_continuity import release_claimed_queue_item
+
+            qid = str(body.get("queue_item_id") or "").strip()
+            if not qid:
+                return apply_runtime_headers(json_response(400, {"error": "release requires queue_item_id"}), runtime)
+            released = release_claimed_queue_item(qid, session_id=q_session)
+            return apply_runtime_headers(
+                json_response(200, {"released": released is not None, "item": released}), runtime
+            )
+        return apply_runtime_headers(json_response(400, {"error": "op must be one of enqueue|claim|complete|cancel|release"}), runtime)
 
     if normalized_path == "/api/settings/credentials":
         # GENERATED_ADAPTER: settings.credentials.set owns the action; the verbatim
@@ -5898,6 +6080,8 @@ def _dispatch_post_inner(
         return apply_runtime_headers(json_response(council_status, council_payload), runtime)
 
     if normalized_path == "/media-editor" or normalized_path.startswith("/media-editor/"):
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
         from core.web.api.media_editor_api import handle_media_editor_post
 
         return handle_media_editor_post(normalized_path, body)
@@ -6586,6 +6770,41 @@ def _dispatch_post_inner(
         state = request_cancel(cancel_session, cancel_turn)
         return apply_runtime_headers(json_response(200, {"ok": True, "state": state}), runtime)
 
+    if normalized_path in {"/api/goal/pause", "/api/goal/resume", "/api/goal/stop", "/api/goal/retry"}:
+        # Explicit goal lifecycle controls from the goal card (owner-local, loopback), under
+        # the same guards as /api/chat/cancel. The control reaches the in-flight step turn
+        # through the existing live-turn cancel owner; no new authority is minted here.
+        if not is_loopback_host(client_host):
+            return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
+        from core.web.api.runtime import host_header_allowed
+
+        def _ph_goal(name: str) -> str:
+            for key, value in (headers or {}).items():
+                if str(key).lower() == name:
+                    return str(value or "")
+            return ""
+
+        _goal_ct = _ph_goal("content-type").lower()
+        if _goal_ct and "json" not in _goal_ct:
+            return apply_runtime_headers(json_response(415, {"error": "content-type must be application/json"}), runtime)
+        _goal_origin = _ph_goal("origin").strip()
+        if _goal_origin and not host_header_allowed(_goal_origin.split("://", 1)[-1]):
+            return apply_runtime_headers(json_response(403, {"error": "cross-origin request not allowed"}), runtime)
+        _allowed_fields = {"session_id", "goal_id"}
+        if normalized_path == "/api/goal/retry":
+            _allowed_fields.add("approval_token")
+        _unknown = set(body.keys()) - _allowed_fields
+        if _unknown:
+            return apply_runtime_headers(json_response(400, {"error": f"unknown fields: {sorted(_unknown)}"}), runtime)
+        _goal_session = str(body.get("session_id") or "").strip()
+        if not _goal_session:
+            return apply_runtime_headers(json_response(400, {"error": "missing session_id"}), runtime)
+        from core.web.api.goal_api import goal_control
+
+        _action = normalized_path.rsplit("/", 1)[-1]
+        _status, _payload = goal_control(_action, body, _goal_session, runtime=runtime, owner_local=True)
+        return apply_runtime_headers(json_response(_status, _payload), runtime)
+
     if normalized_path == "/api/chat/followup":
         # A message sent while this chat's task is still working. It never waits behind the task:
         # a stop stops it, a note is attached to it, a plan change is held for a yes/no, and a
@@ -7041,6 +7260,12 @@ def _dispatch_post_inner(
                 )
 
             if operation in {"archive", "restore", "delete"}:
+                if operation != "restore":
+                    from core.web.api.browser_api import before_chat_end
+
+                    refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+                    if refusal is not None:
+                        return apply_runtime_headers(refusal, runtime)
                 state = {
                     "archive": "archived",
                     "restore": "active",
@@ -7195,6 +7420,11 @@ def _dispatch_post_inner(
         # memory, summaries, metadata, and pins. Missing sessions retain the historical idempotent
         # response rather than creating a namespace solely to delete it.
         if body.get("delete") is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
             namespace = load_chat_namespace(session_id)
             if namespace is None and has_existing_session:
                 namespace = ensure_chat_namespace(
@@ -7316,6 +7546,12 @@ def _dispatch_post_inner(
                 json_response(409, {"error": "deleted chat namespaces cannot be changed"}),
                 runtime,
             )
+        if archived_arg is True:
+            from core.web.api.browser_api import before_chat_end
+
+            refusal = before_chat_end(session_id, locale=request_ui_locale(headers))
+            if refusal is not None:
+                return apply_runtime_headers(refusal, runtime)
         try:
             # Restore before assigning a project; archive after assignment. This keeps project
             # mutation restricted to active namespaces while supporting one atomic metadata POST.
@@ -7568,6 +7804,65 @@ def _dispatch_post_inner(
             source_context=inbound_source_context,
             page_believes_private=body.get("private_chat") is True,
         )
+        # ---- One slot per chat, server-enforced -------------------------------------------
+        # The queue's "busy decides run-now vs enqueue" law used to live only in the page's own
+        # buckets, so a second tab with the same chat open could start a SECOND concurrent turn
+        # on the same session -- the durable queue was bypassed entirely and "exactly once, in
+        # order" had no meaning across tabs. The live-turn registry is the slot's truth; a
+        # turn POST that loses the race is refused with a typed 409 the page reroutes into the
+        # queue. Two exemptions are the contract, not accidents: the agent brake stays usable
+        # at every moment (stopping work must never wait for an idle chat), and non-owner-local
+        # callers keep their existing remote API semantics -- the queue door they would need is
+        # loopback-only anyway. Checked before anything is spent (attachments, modes, gates).
+        # The precheck is claim-aware: a queued dispatch presenting its OWN claim's
+        # queue_item_id passes (the atomic gate below consumes the claim) -- a session's
+        # reservation must never reject the very dispatch it was taken for. It stands AFTER the
+        # private-door observation above on purpose: a message that turns privacy on must make
+        # the chat private even when this slot refusal reroutes it into the queue, so the
+        # queued item keeps its unsaved contract.
+        from core.vool_agent_brake import is_brake_command
+
+        # A question the SERVER confirms is asked beside a live task (0.7.2's side-answer lane,
+        # core.followup_continuity) is answered beside it: it is not an ordinary turn, takes no
+        # slot and never competes with the task. Confirmed exactly as the lane below confirms it
+        # -- a caller-forged side_answer marker with no live task is NOT exempt (it is refused or
+        # runs as the ordinary turn it is, per test_a_forged_side_answer_marker_is_dropped).
+        _side_answer = False
+        if owner_local and str(body.get("followup_mode") or "").strip() == "side_answer":
+            from core import followup_continuity as _fc_precheck
+
+            _side_answer = _fc_precheck.task_snapshot(session_id) is not None
+
+        # Who is refused, and who waits. The typed refusal is for a caller that can act on it:
+        # the chat page declares it (``on_busy: "refuse"``) because it reroutes a refused send
+        # into the durable queue, and a queued dispatch (it presents a ``queue_item_id``) is the
+        # queue's own law. Every other caller -- a script on this machine, the school page, an
+        # agent team's runner, a remote client -- keeps the session gate's contract: its turn
+        # waits behind the running one and then runs once. It never overtakes, so the slot law
+        # holds for it too; it only never sees a refusal it was not written to handle.
+        _refuse_when_busy = owner_local and (
+            str(body.get("on_busy") or "").strip() == "refuse" or bool(str(body.get("queue_item_id") or "").strip())
+        )
+        # The brake never waits for an idle chat and never takes the slot: it is answered by the
+        # grounded lane below, beside whatever turn is running.
+        _brake = owner_local and is_brake_command(user_text)
+
+        if _refuse_when_busy and not _side_answer and not _brake:
+            from core.runtime_continuity import chat_admission_free_for
+
+            if not chat_admission_free_for(
+                session_id, queue_item_id=str(body.get("queue_item_id") or "").strip()[:200]
+            ):
+                return apply_runtime_headers(
+                    json_response(
+                        409,
+                        {
+                            "error": "chat_turn_active",
+                            "detail": "This chat is already running a turn. The message was not started.",
+                        },
+                    ),
+                    runtime,
+                )
         history = _augment_history_from_session_log(
             client_history,
             session_id=session_id,
@@ -7795,11 +8090,132 @@ def _dispatch_post_inner(
         if operating_mode is not None:
             source_context["bypass_token"] = str(body.get("bypass_token") or "").strip()
         source_context["runtime_session_id"] = session_id
+        # ---- Explicit /goal ingress ------------------------------------------------
+        # A message that IS a goal command is answered here, before any lane claims the turn:
+        # the goal controller owns goal creation, planning dispatch and controls, all under
+        # THIS request's fully-derived context (same session, workspace, mode authority — the
+        # context this ladder built, never a second ingress derivation). Owner-local only: a
+        # remote peer's "/goal ..." text is an ordinary message and reaches the model as such.
+        if owner_local:
+            from core.goal_workflow import parse_goal_command, parse_goal_reference
+
+            _goal_parsed = parse_goal_command(user_text)
+            if _goal_parsed is None:
+                # Unambiguous conversational goal corrections: the explicit ``goal:``
+                # prefix reaches the ACTIVE goal as a revision (durable provenance);
+                # ambiguous references ask ONE concise question and mutate nothing;
+                # ordinary chat leaves the goal intact.
+                from core.goal_workflow import load_active_goal_for_session as _load_active
+
+                _active_goal = _load_active(session_id)
+                if _active_goal is not None:
+                    _goal_ref = parse_goal_reference(user_text)
+                    if _goal_ref is not None and _goal_ref.get("kind") == "instruction":
+                        from core.web.api.goal_api import serve_goal_ingress
+
+                        _goal_parsed = {"sub": "revise", "arg": str(_goal_ref.get("arg") or "")}
+                        if not _goal_parsed["arg"]:
+                            _goal_parsed = None
+                    elif _goal_ref is not None and _goal_ref.get("kind") == "ambiguous":
+                        from core.web.api.goal_api import serve_goal_ambiguous_note
+
+                        _status, _goal_iter, _goal_meta = serve_goal_ambiguous_note(
+                            runtime,
+                            session_id=session_id,
+                            source_context=source_context,
+                            model=model,
+                        )
+                        _commit_goal_reply(session_id, user_text, _goal_meta)
+                        return apply_runtime_headers(
+                            stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
+                            runtime,
+                        )
+            if _goal_parsed is not None:
+                from core.web.api.goal_api import serve_goal_ingress
+
+                _status, _goal_iter, _goal_meta = serve_goal_ingress(
+                    runtime,
+                    parsed=_goal_parsed,
+                    user_text=user_text,
+                    session_id=session_id,
+                    source_context=source_context,
+                    model=model,
+                )
+                _commit_goal_reply(session_id, user_text, _goal_meta)
+                return apply_runtime_headers(
+                    stream_response(_status, _goal_iter, content_type="application/x-ndjson"),
+                    runtime,
+                )
+        # ---- Atomic admission: the session's one ordinary-turn slot, taken here -----------
+        # The earlier read-only 409 is a fast fail; THIS is the law. It closes the two windows
+        # the live-turn registry cannot see (a claim not yet dispatched, an accepted POST not
+        # yet pulled): admit_chat_turn atomically refuses a session whose slot is taken and
+        # lets a queued dispatch consume its OWN claim by presenting the claim's queue_item_id
+        # (any other presenter is refused). Placement matters: after the typed mode gates,
+        # before attachments are spent -- the two refusal paths below this line each release
+        # the admission they took, and the dispatch lanes hand it to the worker's lifetime
+        # (released at its unregister) or, when the client never pulls the stream, by the
+        # reservation's bounded lease.
+        from core.runtime_continuity import admit_chat_turn
+
+        _admit_turn_id = str(body.get("turn_id") or "").strip()[:80]
+        if _side_answer or _brake:
+            # A confirmed side answer runs beside the live task, and the brake is answered beside
+            # any turn: neither reserves (or waits for) the chat's ordinary-turn slot, and the
+            # release paths below must not free a slot this request never held.
+            _admission = {"admitted": True, "reason": "side_answer" if _side_answer else "brake"}
+            _admit_turn_id = ""
+        else:
+            _admission = admit_chat_turn(
+                session_id,
+                _admit_turn_id,
+                queue_item_id=str(body.get("queue_item_id") or "").strip()[:200] if _refuse_when_busy else "",
+            )
+        if not _admission.get("admitted") and not _refuse_when_busy:
+            # A caller that did not ask for the typed refusal waits at the session gate behind
+            # the running turn, as it always has. It holds no reservation, so nothing below may
+            # release one in its name.
+            _admission = {"admitted": True, "reason": "waits_at_session_gate"}
+            _admit_turn_id = ""
+        # The streaming lane's worker releases the admission at its end by THIS token, never by
+        # the caller's turn id: a request that holds no reservation (or names another turn's id)
+        # must not free one. Stamped unconditionally, so a caller-sent copy never survives.
+        source_context["chat_admission_token"] = _admit_turn_id if _admission.get("admitted") else ""
+        # A queued dispatch that consumed its item's claim: the server finishes that queue row once
+        # both the turn (the streaming worker in core/web/api/runtime.py, the buffered lane below)
+        # and the request (dispatch_post, after the transcript flush) have ended, so it never
+        # depends on the page that sent it still being open. Stamped unconditionally, like the token.
+        _consumed_qid = (
+            str(body.get("queue_item_id") or "").strip()[:200]
+            if _admission.get("admitted") and str(_admission.get("reason") or "").startswith("claim_consumed")
+            else ""
+        )
+        source_context["consumed_queue_item"] = {"queue_item_id": _consumed_qid, "status": "failed"} if _consumed_qid else None
+        _CONSUMED_QUEUE_ITEM.set(source_context["consumed_queue_item"])
+        if not _admission.get("admitted"):
+            return apply_runtime_headers(
+                json_response(
+                    409,
+                    {
+                        "error": "chat_turn_active",
+                        "detail": "This chat is already running a turn. The message was not started.",
+                    },
+                ),
+                runtime,
+            )
         # ---- Attachments: spend what THIS chat staged, on THIS turn, and hand it over as bounded
         # evidence. The ids are the only thing a client may name; the bytes, the kinds and the
         # text all come from the authority. A client-stamped turn id or delivery record is a forgery
         # and is dropped before anything is read.
         from core import chat_attachments as _chat_attachments
+        from core.runtime_continuity import release_chat_turn_admission as _release_admission
+
+        def _release_turn_admission() -> None:
+            _CHAT_SLOT_HELD.set(None)
+            _release_admission(session_id, _admit_turn_id)
+
+        if _admission.get("admitted") and _admit_turn_id:
+            _CHAT_SLOT_HELD.set((session_id, _admit_turn_id))
 
         source_context.pop("attachment_turn_id", None)
         source_context.pop("attachment_delivery", None)
@@ -7827,6 +8243,7 @@ def _dispatch_post_inner(
                     details={"code": exc.code},
                     turn_id=_attachment_turn,
                 )
+                _release_turn_admission()  # refused before dispatch: the slot was never used
                 return apply_runtime_headers(
                     json_response(422, {"error": "attachment_rejected", "code": exc.code, "message": exc.message}),
                     runtime,
@@ -7860,6 +8277,11 @@ def _dispatch_post_inner(
                     )
                 )
             ]
+        # Server-owned: the supervised browser waits for the owner while this
+        # very turn is alive, so approval resumes its existing model/tool loop.
+        from core.vool_browser.live import available as _live_browser_available
+
+        source_context["live_browser_wait_for_owner"] = bool(owner_local and _live_browser_available())
         approval_token = str(body.get("approval_token") or "").strip()
         if approval_token and len(approval_token) <= 128:
             source_context["mode_approval_token"] = approval_token
@@ -7884,6 +8306,10 @@ def _dispatch_post_inner(
             requested_model=requested_model,
         )
         if model_status_result is not None:
+            # Answered here, by the door itself (the build/model status answer): no worker ever
+            # runs for it, so the admission this request took must be free the moment it answers,
+            # not when its lease runs out.
+            _release_turn_admission()
             result = apply_exact_response_control(dict(model_status_result), user_text)
             if stream:
                 stream_iter = ollama_stream_chunks(result, str(model))
@@ -7941,6 +8367,10 @@ def _dispatch_post_inner(
         # not topic matchers, and stay; every other message now reaches the ordinary lanes.
         grounded_result = update_result
         if grounded_result is not None:
+            # The grounded lane (brake/update exact commands and their instant answers) is not
+            # an ordinary turn and never registers a worker: release the admission this request
+            # took so the chat's slot is free the moment it answers.
+            _release_turn_admission()
             result = apply_exact_response_control(dict(grounded_result), user_text)
             # A7 product decision (X-FAST closure): a route that emits semantic
             # assistant answer bytes to the user MUST converge through A2
@@ -8052,6 +8482,8 @@ def _dispatch_post_inner(
                 # Outermost on purpose: the turn's attachments are released only once every
                 # byte has left (or the client has), never while a frame is still being built.
                 stream_iter = _release_attachments_after(stream_iter, session_id=session_id, turn_id=_attachment_turn)
+            # Handed over: the streaming worker's end releases the slot from here on.
+            _CHAT_SLOT_HELD.set(None)
             if normalized_path.startswith("/v1/"):
                 return apply_runtime_headers(
                     stream_response(
@@ -8077,11 +8509,14 @@ def _dispatch_post_inner(
         from core.live_turns import unregister_turn as _buf_unregister_turn
 
         _buf_cancel_turn = str(source_context.get("cancel_turn_id") or "").strip()
+        # Handed over: the buffered lane's own finally below releases the slot from here on.
+        _CHAT_SLOT_HELD.set(None)
         _buf_task_turn = bool(_buf_cancel_turn) and not source_context.get(_buf_followups.SIDE_ANSWER_CONTEXT_KEY)
         if _buf_cancel_turn:
             source_context["cancel_event"] = _buf_register_turn(session_id, _buf_cancel_turn)
         if _buf_task_turn:
             _buf_followups.begin_task(session_id, _buf_cancel_turn, user_text)
+        _buf_queue_status = "failed"
         try:
             with _update_turn_guard(source_context, session_id):
                 result = run_agent_provider(
@@ -8091,18 +8526,27 @@ def _dispatch_post_inner(
                     source_context=source_context,
                     workspace_root_provider=workspace_root_provider,
                 )
+            _buf_queue_status = "completed"
         except Exception as exc:
             # A served turn that dies as a bare 500 leaves no trace anywhere -- measured
             # 2026-09-03: a concurrent-edit journey lost one turn to a FileNotFoundError and
             # the daemon log recorded nothing, so the flake looked environmental for a day.
             # The traceback is operator-side only; the client still gets the safe text.
             logging.getLogger("vool.api").exception("served chat turn failed (session=%s)", session_id)
+            _release_turn_admission()  # the turn is over, however it ended: free the slot
             return apply_runtime_headers(json_response(500, {"error": safe_error_text(exc)}), runtime)
         finally:
             if _buf_cancel_turn:
                 _buf_unregister_turn(session_id, _buf_cancel_turn)
+                _release_turn_admission()  # the buffered lane's admission ends with its registration
             if _buf_task_turn:
                 _buf_followups.end_task(session_id, _buf_cancel_turn)
+            _finish_consumed_queue_item(
+                source_context.get("consumed_queue_item"),
+                party="turn",
+                status=_buf_queue_status,
+                cancel_event=source_context.get("cancel_event"),
+            )
             # The buffered lane's turn is over here, answered or failed: release its attachments.
             if _attachment_turn:
                 _release_turn_attachments(session_id, _attachment_turn)
@@ -8153,7 +8597,24 @@ def _dispatch_post_inner(
                 logging.getLogger("vool.api").exception(
                     "school post-turn gate failed (session=%s)", session_id
                 )
-        payload = openai_chat_response(result, model, source_context) if normalized_path.startswith("/v1/") else ollama_chat_response(result, model, runtime, source_context)
+        from core.final_response_store import FinalizationRejected
+
+        try:
+            payload = openai_chat_response(result, model, source_context) if normalized_path.startswith("/v1/") else ollama_chat_response(result, model, runtime, source_context)
+        except FinalizationRejected as exc:
+            # The answer could not be committed (an action whose outcome is unknown keeps the
+            # turn's obligations open). Same truth the streamed lane ends with: typed no-answer,
+            # zero answer bytes -- not a bare 500, and never a success claim.
+            logging.getLogger("vool.api").warning(
+                "buffered chat turn ended with no committed answer (session=%s): %s", session_id, exc
+            )
+            return apply_runtime_headers(
+                json_response(
+                    200,
+                    no_answer_chat_response(exc, str(model), openai_shape=normalized_path.startswith("/v1/")),
+                ),
+                runtime,
+            )
         payload = _attach_work_receipt(payload, result=result, session_id=session_id)
         payload = _attach_profile_frame(payload, result=result)
         # R-7 (A-6): buffered lanes mark ATTEMPTED_UNKNOWN before the bytes

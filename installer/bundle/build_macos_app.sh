@@ -371,6 +371,10 @@ builder_root_list() {
   {
     for r in "${HOME:-}" "${PROJECT_ROOT:-}" "${OUT_DIR:-}" "${TMPDIR:-}" "$@"; do
       [[ -n "${r}" ]] || continue
+      while [[ "${r}" == */ ]]; do r="${r%/}"; done
+      # A shared short root stays excluded when macOS resolves its /private alias.
+      [[ ${#r} -ge 5 ]] || continue
+      case "${r}" in /private/tmp|/private/var|/private/usr) continue ;; esac
       printf '%s\n' "${r}"
       if [[ -d "${r}" ]]; then (cd "${r}" 2>/dev/null && pwd -P) || true; fi
     done
@@ -577,6 +581,12 @@ stage_self_contained() {
   # UV_OFFLINE=1 to make a network fetch impossible rather than merely unnecessary. Wheels are
   # resolved from the directory first; anything not there still comes from the cache or the
   # index exactly as before, so an unset variable changes nothing.
+  # Build the pure-Python dependency from its verified sdist, twice, with the recorded recipe.
+  local input_scratch
+  input_scratch="$(mktemp -d -t vool-build-inputs)"
+  "${embedded}" "${PROJECT_ROOT}/ops/macos_build_inputs.py" proxy-wheel \
+      --cache "${input_scratch}/cache" --out "${input_scratch}/wheels" \
+      || die "pinned proxy-tools wheel build failed"
   wheelhouse_args=()
   if [[ -n "${VOOL_BUNDLE_WHEELHOUSE:-}" ]]; then
     [[ -d "${VOOL_BUNDLE_WHEELHOUSE}" ]] \
@@ -584,6 +594,7 @@ stage_self_contained() {
     wheelhouse_args=(--find-links "${VOOL_BUNDLE_WHEELHOUSE}")
     say "  local wheelhouse: ${VOOL_BUNDLE_WHEELHOUSE}"
   fi
+  wheelhouse_args+=(--find-links "${input_scratch}/wheels")
   # DEPENDENCY PROVENANCE. A package manager accepting a wheel is not provenance: during this
   # lane's preflight, two pins were supplied from wheels RE-ZIPPED out of unpacked ~/.cache/uv
   # directories -- contents intact, RECORD verified, and their own sha256 matching nothing in
@@ -614,6 +625,8 @@ stage_self_contained() {
   # the packaging test fails the build if this list drops them again.
   # The x402 Foundation SDK (the optional `x402` extra, with web3 at the lock's version) lets a Crypto Pilot wallet pay
   # x402 offers in USDC on Base (core/wallet/x402_sdk.py); without it that payment channel refuses typed.
+  # Apple Calendar (core/kas/adapters/eventkit_mac.py) and Apple Contacts import (core/contacts/importers/apple.py)
+  # import pyobjc's EventKit and Contacts modules; without them both answer os_binding_unavailable in the app.
   # bash-3.2-safe: an empty array under set -u is "unbound" unless guarded
   # --python-platform pins wheel selection to the target. A host cache holding the other
   # architecture's wheels cannot contaminate the bundle: an arm64 CPython that loads an
@@ -637,6 +650,7 @@ stage_self_contained() {
       zstandard \
       "eth-abi>=6.0" "eth-utils>=6.0" "eth-account>=0.13" \
       "x402[evm]==2.25.0" "web3==8.0.0" \
+      "pyobjc-framework-EventKit==12.2.2" "pyobjc-framework-Contacts==12.2.2" \
     || die "lean dependency install failed"
 
   # Deterministic bytecode for the embedded runtime: wipe any install-time caches, then compile
@@ -708,17 +722,14 @@ stage_self_contained() {
 
   say "  [4/4] bundled ollama"
   mkdir -p "${res}/ollama"
-  local oll resolved
-  oll="$(command -v ollama || true)"
-  if [[ -n "${oll}" ]]; then
-    resolved="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${oll}" 2>/dev/null || echo "${oll}")"
-    if [[ -f "${resolved}" ]]; then
-      cp -f "${resolved}" "${res}/ollama/ollama" && chmod +x "${res}/ollama/ollama"
-      say "        bundled: ${resolved}"
-      bundle_ollama_runtime "$(dirname "${resolved}")" "${res}/ollama" "${TARGET_ARCH}"
-    fi
-  fi
-  [[ -x "${res}/ollama/ollama" ]] || say "        WARNING: no ollama binary bundled; the app will use a system ollama if present"
+  "${embedded}" "${PROJECT_ROOT}/ops/macos_build_inputs.py" ollama \
+      --cache "${input_scratch}/cache" --out "${input_scratch}/ollama" \
+      || die "pinned Ollama download failed"
+  cp -f "${input_scratch}/ollama/ollama" "${res}/ollama/ollama"
+  chmod +x "${res}/ollama/ollama"
+  bundle_ollama_runtime "${input_scratch}/ollama" "${res}/ollama" "${TARGET_ARCH}"
+  [[ -x "${res}/ollama/ollama" ]] || die "the pinned Ollama executable is missing"
+  rm -rf "${input_scratch}"
 
   # ---- BUILDER-FOOTPRINT SCRUB (must run before any code signature) ------------------------
   # A distributed bundle must not carry the BUILD MACHINE's footprint: compiled .pyc bytecode
@@ -805,6 +816,20 @@ cat >"${APP}/Contents/Info.plist" <<PLIST
   <string>VOOL uses the microphone only when you start a voice request, and the audio never leaves this Mac unless you send it.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>VOOL transcribes what you dictate so it can act on it. Transcription runs on this Mac by default.</string>
+  <!-- Apple Calendar and Apple Contacts. macOS asks only when the user connects Apple Calendar or starts a contacts
+       import in VOOL; without these strings it never shows the prompt (it refuses, or ends the process) and VOOL never
+       appears in Privacy & Security.
+       macOS 14 and later read the FullAccess key; the plain key covers a build with an older floor. -->
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>VOOL reads the calendars you choose in Settings to show your agenda and remind you of events. It adds or changes an event only after you approve it.</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>VOOL reads the calendars you choose in Settings to show your agenda and remind you of events. It adds or changes an event only after you approve it.</string>
+  <key>NSContactsUsageDescription</key>
+  <string>VOOL reads your contacts only when you import them, and shows you the list before anything is saved.</string>
+  <!-- Apple Notes (core/operator/apple_notes.py) runs through osascript, which macOS attributes to this app: the
+       Automation prompt for Notes shows this text, and without it the request is refused. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>VOOL works with Apple Notes only when you ask it to save, find or change a note.</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

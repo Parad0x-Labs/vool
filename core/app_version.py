@@ -8,7 +8,7 @@ sees the install as up to date.
 """
 from __future__ import annotations
 
-VOOL_VERSION = "0.7.2"
+VOOL_VERSION = "0.7.3"
 
 
 def installed_version() -> str:

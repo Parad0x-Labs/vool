@@ -351,6 +351,19 @@ def test_service_hosted_worker_refuses_without_independent_scope_tool(tmp_path, 
 
 
 @pytest.fixture
+def outbound_on(monkeypatch):
+    """Online access is on: update checks go online only when the user allows VOOL to."""
+    import copy
+
+    from core import policy_engine
+
+    policy = copy.deepcopy(policy_engine.load())
+    policy.setdefault("network", {})["outbound_enabled"] = True
+    policy.setdefault("system", {})["local_only_mode"] = False
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", policy)
+
+
+@pytest.fixture
 def configured_update_checks(tmp_path, monkeypatch):
     import json
 
@@ -382,6 +395,7 @@ def configured_update_checks(tmp_path, monkeypatch):
                 assert not subsystem.service._thread.is_alive()
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_fresh_feed_waits_for_a_user_check_and_the_census_uses_that_same_gate(configured_update_checks):
     from core.first_run_pact import egress_census
     from core.updater.feed import automatic_checks_enabled
@@ -419,6 +433,7 @@ def test_absent_or_invalid_update_choice_cannot_open_the_feed(configured_update_
     assert calls == []
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_check_choice_survives_restart_but_cannot_enable_a_different_feed(configured_update_checks):
     import threading
     from dataclasses import replace
@@ -454,6 +469,7 @@ def test_check_choice_survives_restart_but_cannot_enable_a_different_feed(config
             restarted.service._thread.join(timeout=2)
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_failure_to_save_the_user_choice_sends_no_update_request(configured_update_checks, monkeypatch):
     from core.updater import runtime
 
@@ -469,6 +485,7 @@ def test_failure_to_save_the_user_choice_sends_no_update_request(configured_upda
     assert calls == [] and subsystem.service._thread is None
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_census_tracks_the_live_feed_when_configuration_changes(configured_update_checks, monkeypatch):
     from core import runtime_paths
     from core.first_run_pact import egress_census
@@ -485,6 +502,7 @@ def test_census_tracks_the_live_feed_when_configuration_changes(configured_updat
     assert next(row for row in egress_census()["doors"] if row["door"] == "updater_feed")["closed"]
 
 
+@pytest.mark.usefixtures("outbound_on")
 @pytest.mark.parametrize("setting, enabled", [(False, False), ("true", False), (1, False), (True, True)])
 def test_automatic_update_setting_requires_a_boolean_true(tmp_path, setting, enabled):
     import json
@@ -496,6 +514,7 @@ def test_automatic_update_setting_requires_a_boolean_true(tmp_path, setting, ena
     assert automatic_checks_enabled(feed=load_feed_config(config_path=config, env={}), data_dir=tmp_path) is enabled
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_operator_feed_override_is_explicit_and_the_disable_switch_still_wins(tmp_path):
     from core.updater.feed import automatic_checks_enabled, load_feed_config
 

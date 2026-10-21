@@ -409,6 +409,7 @@ product story. Root placement alone is not evidence a file is safe to delete.
 
 - `recovery/` holds isolated historical source with provenance; see its README.
 - `research/` documents retained experimental systems and their activation boundary.
-- `nulladocs/` currently contains a clock-caller engineering inventory, not the public docs root.
+- `docs/remaining-direct-clock-callers.tsv` is an engineering inventory of call sites that still
+  read the clock directly instead of through `core/time_authority.py`; it is not a published page.
 - Public documentation lives in `docs/`. Do not infer that previously documented archive
   directories still exist, or delete source because an old map called it historical.

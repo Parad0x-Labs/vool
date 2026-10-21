@@ -1196,6 +1196,15 @@ body:not(.panel-open) #xpanel { display:none; }
   .setup-line-open { background:var(--accent,#4c7df0); border:1px solid var(--accent,#4c7df0); color:var(--accent-ink); border-radius:6px; padding:4px 11px; cursor:pointer; font-size:12.5px; font-weight:600; }
   .setup-line-x { background:none; border:none; color:var(--muted,#9a9aa2); cursor:pointer; font-size:16px; line-height:1; padding:2px 6px; }
   .setup-line-x:hover { color:var(--text,#eee); }
+  /* No-model notice: the same calm line, but its two short sentences wrap instead of ellipsizing,
+     and the reply that says the same thing carries the same button. */
+  .setup-line .no-model-part { display:none; }
+  .setup-line.no-model-line .no-model-part { display:inline-block; }
+  .setup-line.no-model-line .setup-line-plain { display:none; }
+  .setup-line.no-model-line .setup-line-text { white-space:normal; color:var(--text,#eee); }
+  .no-model-actions { margin:10px 0 0; }
+  .chat-provenance.no-model-detail { margin-top:8px; }
+  .no-model-actions .setup-line-open { font-size:13px; padding:6px 13px; }
 </style>
 </head>
 <body>
@@ -1250,6 +1259,7 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
   <span class="spacer"></span>
+  <button id="browserBtn" type="button" data-i18n="live.browser">Browser</button>
   <button id="pinBtn" type="button" title="Pinned messages in this chat" aria-label="Pinned messages" data-i18n-title="header.pins_title" data-i18n-aria-label="header.pins_aria"><span class="pin-i vi" data-ico="pin" aria-hidden="true"></span><span class="pin-n"></span></button>
   <button id="searchBtn" type="button" aria-pressed="false" title="Search this chat (Cmd/Ctrl+F)" aria-label="Search this chat" data-i18n="header.search" data-i18n-title="header.search_title" data-i18n-aria-label="header.search_aria">Search</button>
   <button id="exportBtn" type="button" title="Export this whole chat as TXT or Markdown — every message, not just what is on screen" aria-label="Export this chat" data-i18n="header.export" data-i18n-title="header.export_title" data-i18n-aria-label="header.export_aria">Export</button>
@@ -1263,8 +1273,10 @@ body:not(.panel-open) #xpanel { display:none; }
       <div class="upd-notes" id="updateNotes"></div>
       <div class="upd-bar" id="updateBar" hidden><i id="updateBarFill"></i></div>
       <div class="upd-msg" id="updateMessage" data-testid="update-message" role="status"></div>
+      <div class="upd-msg" id="updateOnlineNote" data-testid="update-online-note" hidden></div>
       <button type="button" class="pop-item" id="updateActionBtn" data-testid="update-action" hidden></button>
       <button type="button" class="pop-item" id="updateCheckBtn" data-i18n="update.action_check">Check for updates</button>
+      <button type="button" class="pop-item" id="updateOnlineBtn" data-testid="update-online-setting" data-i18n="online_access.open_setting" hidden>Open “Go online on its own”</button>
       <button type="button" class="pop-item" id="updateRollbackBtn" data-testid="update-rollback" hidden></button>
     </div>
   </div>
@@ -1285,9 +1297,11 @@ body:not(.panel-open) #xpanel { display:none; }
 <div id="jumpLatestWrap"><button type="button" id="jumpLatest" hidden title="Jump to the latest message" aria-label="Jump to the latest message" data-i18n="chat.jump_latest" data-i18n-title="chat.jump_latest_title" data-i18n-aria-label="chat.jump_latest_title">&darr; Latest</button></div>
 <footer>
   <div id="setupLine" class="setup-line" role="status" hidden>
-    <span class="setup-line-text" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
-    <button type="button" class="setup-line-open" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
-    <button type="button" class="setup-line-x" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
+    <span class="setup-line-text setup-line-plain" id="setupLineText" data-i18n="chat.setup_line_text">Finish setting up VOOL &mdash; four quick steps.</span>
+    <button type="button" class="setup-line-open setup-line-plain" id="setupLineOpen" data-i18n="chat.setup_line_open">Finish setup</button>
+    <button type="button" class="setup-line-x setup-line-plain" id="setupLineHide" aria-label="Don&rsquo;t remind me" title="Don&rsquo;t remind me &mdash; you can still finish setup from Settings rows" data-i18n-aria-label="chat.setup_line_hide_aria" data-i18n-title="chat.setup_line_hide_title">&times;</button>
+    <span class="setup-line-text no-model-part" id="noModelLineText" data-i18n="chat.no_model.line_text">VOOL needs an AI model before it can answer. Setting one up takes about two minutes.</span>
+    <button type="button" class="setup-line-open no-model-part" id="noModelLineOpen" title="Opens Setup at the step where you choose a model" data-i18n="chat.no_model.setup_button" data-i18n-title="chat.no_model.setup_button_title">Set up a model</button>
   </div>
   <div id="queueWaiting" role="status"></div>
   <div id="queue" aria-label="Queued messages" data-i18n-aria-label="chat.queue_aria"></div>
@@ -1368,25 +1382,25 @@ body:not(.panel-open) #xpanel { display:none; }
     </div>
   </div>
 </div>
-<div id="xpResize" title="Drag to resize the panel"></div>
-<aside id="xpanel" aria-label="Activity panel">
+<div id="xpResize" title="Drag to resize the panel" data-i18n-title="panel.resize_title"></div>
+<aside id="xpanel" aria-label="Activity panel" data-i18n-aria-label="panel.aria">
   <div class="xp-head">
-    <span class="xp-title">Activity</span>
-    <button type="button" id="xpCopy" class="xp-copy" title="Copy everything shown in this tab">Copy</button>
-    <button id="xpClose" class="xp-close" title="Hide panel" aria-label="Hide execution panel">&times;</button>
+    <span class="xp-title" data-i18n="panel.tab_activity">Activity</span>
+    <button type="button" id="xpCopy" class="xp-copy" title="Copy everything shown in this tab" data-i18n="msg.copy" data-i18n-title="panel.copy_title">Copy</button>
+    <button id="xpClose" class="xp-close" title="Hide panel" aria-label="Hide execution panel" data-i18n-title="panel.close_title" data-i18n-aria-label="panel.close_aria">&times;</button>
   </div>
   <div class="xp-scope-row">
-    <span class="xp-scope-lbl" id="xpScopeLbl">Scope</span>
-    <select class="xp-scope" id="xpScope" aria-labelledby="xpScopeLbl" title="Which activity this panel shows"></select>
+    <span class="xp-scope-lbl" id="xpScopeLbl" data-i18n="panel.scope_label">Scope</span>
+    <select class="xp-scope" id="xpScope" aria-labelledby="xpScopeLbl" title="Which activity this panel shows" data-i18n-title="panel.scope_title"></select>
   </div>
   <div class="xp-scope-note" id="xpScopeNote"></div>
   <div class="xp-tabs" id="xpTabs" role="tablist"></div>
   <div class="xp-search-row" id="xpSearchRow" role="search">
-    <input type="search" id="xpSearchInput" class="xp-search" placeholder="Filter events, tools, paths, models" autocomplete="off" spellcheck="false" aria-label="Search this Activity view">
+    <input type="search" id="xpSearchInput" class="xp-search" placeholder="Filter events, tools, paths, models" autocomplete="off" spellcheck="false" aria-label="Search this Activity view" data-i18n-placeholder="panel.search_placeholder" data-i18n-aria-label="panel.search_aria">
     <span id="xpSearchCount" class="search-count" aria-live="polite"></span>
-    <button type="button" id="xpSearchPrev" class="search-btn" title="Previous match" aria-label="Previous event match">&#8593;</button>
-    <button type="button" id="xpSearchNext" class="search-btn" title="Next match" aria-label="Next event match">&#8595;</button>
-    <button type="button" id="xpSearchClear" class="search-btn" title="Clear filter">Clear</button>
+    <button type="button" id="xpSearchPrev" class="search-btn" title="Previous match" aria-label="Previous event match" data-i18n-title="header.search_prev_aria" data-i18n-aria-label="panel.search_prev_aria">&#8593;</button>
+    <button type="button" id="xpSearchNext" class="search-btn" title="Next match" aria-label="Next event match" data-i18n-title="header.search_next_aria" data-i18n-aria-label="panel.search_next_aria">&#8595;</button>
+    <button type="button" id="xpSearchClear" class="search-btn" title="Clear filter" data-i18n="header.search_clear" data-i18n-title="panel.search_clear_title">Clear</button>
   </div>
   <div class="xp-body" id="xpBody" role="tabpanel" aria-live="polite"></div>
 </aside>
@@ -2209,6 +2223,12 @@ function newChatState(chatId) {
     // while an enqueue was still on the wire re-reads it and claims again (see pumpQueue), so a
     // message sent inside the claim window is never left without a wakeup.
     queueArrivals: 0,
+    // Whether ANOTHER holder (another tab's turn or claim) has this chat's server slot, as the
+    // server last reported it -- what send() decides from without waiting on a round trip -- and
+    // the turn and claim ids this page itself holds or held, which the queue read sends as `mine`
+    // so the page's own turn finishing on the server never reads as another tab's.
+    slotHeldElsewhere: false,
+    ownSlotTokens: [],
     mode: 'manual',
     projectId: '',
     pins: [],
@@ -2216,8 +2236,12 @@ function newChatState(chatId) {
     bypassGrant: null,
     approvalToken: '',
     pendingApproval: null,
+    // The run whose stream raised `pendingApproval`, and -- once it is allowed -- that run plus the
+    // grant, waiting to be resumed. An approval belongs to the TURN that asked: the resume re-sends
+    // that turn's own message under its own turn id, never whatever the chat said last.
+    pendingApprovalRun: null,
+    approvalResume: null,
     resumeApprovedTurn: false,
-    approvalResumeTurnId: '',
     recoveredLedger: [],
     // Every event this chat has ever recorded, in seq order -- the Activity tab's real source.
     // `recoveredLedger` stays the LAST turn's slice, which the Event log and the tab-visibility
@@ -2438,6 +2462,13 @@ function splitAssistantDisplayContent(text, metadata) {
   }
   return { content: content, display_metadata: displayMetadata };
 }
+// How much of the canonical transcript a turn sends: all of it, except for a resumed approval,
+// whose transcript ends at the message it answers (nothing, if that message is gone).
+function resumedTranscriptLength(run, owner) {
+  if (!run.approvalResume) return undefined;
+  const at = owner.history.indexOf(run.promptEntry);
+  return at < 0 ? 0 : canonicalMessagesForModel(owner.history.slice(0, at + 1)).length;
+}
 function canonicalMessagesForModel(history) {
   // Messages brought in from another app are history to read, never model input: they are
   // left out here, so continuing such a chat sends only what was said in VOOL.
@@ -2506,12 +2537,17 @@ function buildTurnRequestBody(run, modelId, modelSelection) {
     model_selection: selectionKind,
     // Only canonical role/content pairs cross the model boundary. Completion timestamps,
     // provenance, usage and response hashes belong to the display/audit envelope, not the prompt.
-    messages: canonicalMessagesForModel(owner.history),
+    // A resumed approval answers the message that asked, so its transcript ends there even when
+    // the chat has moved on: the server reads the LAST user message as the turn's request.
+    messages: canonicalMessagesForModel(owner.history).slice(0, resumedTranscriptLength(run, owner)),
     stream: true,
     stream_task_events: true,
     session_id: run.chatId,
     turn_id: run.turnId,
     ...(run.queueItemId ? { queue_item_id: run.queueItemId } : {}),
+    // This page handles the chat's typed "a turn is already running" refusal (it reroutes the
+    // message into the chat's queue), so it asks for it; a caller that does not ask waits its turn.
+    on_busy: 'refuse',
     mode: owner.mode,
     autonomy: (owner.mode === 'auto' || owner.mode === 'bypass_permissions') ? 'auto' : '',
     approval_token: owner.approvalToken,
@@ -3898,6 +3934,27 @@ async function refreshSidebarActivity() {
   } catch (e) { /* transient; the next tick retries */ }
   maybeRepaintSidebarLifecycle();
   await refreshReminderArtifacts(displayedChat);
+  // The queue's bounded fallback wakeup. Common cases never reach here (the sending page's own
+  // post-enqueue pump; the running turn's post-release pump). This covers the orphaned case:
+  // the tab whose turn would have pumped was closed or reloaded, and every other pump exited
+  // against the slot it found busy. Only chats THIS page knows still hold queued items are
+  // pumped -- an empty pass refreshes that record and stops the traffic.
+  pumpKnownQueuedChats();
+}
+
+// One bounded pump sweep for chats with known pending items. pumpQueue's own slot discipline
+// (pumpHold / the server's live-turn refusal) makes repeated ticks cheap and exactly-once.
+function pumpKnownQueuedChats() {
+  for (const entry of lastQueueItemsByChat) {
+    const chatId = entry[0];
+    const items = entry[1] || [];
+    // PENDING only: an in_flight item is being executed by whoever claimed it -- polling it
+    // from here cannot advance it, and a claim whose page died is startup recovery's owner,
+    // not this tick's (an in_flight row would otherwise poll forever, every 5 seconds).
+    if (!items.some((item) => item && item.status === 'pending')) continue;
+    if (isChatBusy(chatId)) continue;
+    pumpQueue(chatId);
+  }
 }
 
 // Background deliveries are transcript artifacts, not new user/model turns.
@@ -4239,9 +4296,14 @@ async function openSession(id) {
   reflectPermBar();
   document.body.classList.remove('sidebar-open');
   loadSessions();
-  refreshQueue();
+  refreshQueue(id);
   await loadRecoveredLedger(); await loadActivityHistory(); renderPanel();
   inputEl.focus();
+  // Opening a chat is itself a wakeup for its queue: items another tab left pending (or that
+  // a closed page never pumped) execute now, without a second manual send -- the open is the
+  // user asking for this chat, ahead of the heartbeat's slower sweep. The pump's own slot
+  // discipline makes this a no-op while a turn already runs in the chat.
+  if (!isChatBusy(id)) pumpQueue(id);
 }
 
 // A chat address typed or pasted into this tab (/chat#<chat>) opens that chat.
@@ -4361,7 +4423,11 @@ async function newChatInProject(pid) {
   }
   // Project binding may persist the chat container, but its mode remains a local draft preference
   // until an explicit mode change or the first task request.
-  await loadSessions(); refreshQueue(); inputEl.focus();
+  await loadSessions(); refreshQueue(sid); inputEl.focus();
+  // Opening a chat is itself a wakeup for its queue: pending items left by another tab (or by a
+  // page that closed before its pump ran) execute now, without a second manual send. The pump's
+  // own slot discipline keeps this a no-op while a turn is already running.
+  if (!isChatBusy(sid)) pumpQueue(sid);
 }
 let _toastTimer = null;
 function toast(text, action) {
@@ -4748,7 +4814,10 @@ function provenanceBlockHtml(rawLine, renderedLine) {
 // The code-block Copy label in the UI language. The renderer is also lifted out and run on its
 // own (rich copy, sanitised exports), where the page's catalog lookup may not exist: English then.
 function codeCopyLabel(key, fallback) { return (typeof pageT === 'function') ? pageT(key, fallback) : fallback; }
-function renderRichText(el, text) {
+// `state` (optional) carries the one thing a block hands to the blocks after it -- where a
+// restarted "1." list continues (`olResumeAt`) -- in and out, so text rendered in pieces that
+// split at block boundaries reads exactly like the whole (the live stream paints that way).
+function renderRichText(el, text, state) {
   const raw = text == null ? '' : String(text);
   el.dataset.raw = raw;
   // Index-aligned with `lines`: escaping adds and removes no newlines, so line i of the escaped
@@ -4850,7 +4919,7 @@ function renderRichText(el, text) {
   // Paragraphs and code blocks between lists keep it — the model writes numbered steps split by
   // commentary, and each piece restarting at 1 read "1. 1. 1.". Any other block (a heading, a
   // rule, a table, a quote, another kind of list) starts the numbering over.
-  let olResumeAt = 0;
+  let olResumeAt = (state && state.olResumeAt) || 0;
 
   while (i < lines.length) {
     const line = lines[i];
@@ -4974,6 +5043,7 @@ function renderRichText(el, text) {
   // Drop a bare local render path that trails the image (the fast-path echoes it) - the image and
   // its actions replace it; showing the raw path as text is just noise.
   html = html.replace(/(<img class="chat-img"[^>]*>)\s*(?:<br>)?\s*\/[^\s<]+\.(?:png|jpe?g|webp|gif)\b/gi, '$1');
+  if (state) state.olResumeAt = olResumeAt;
   el.innerHTML = html;
 }
 
@@ -4983,6 +5053,7 @@ function renderRichText(el, text) {
 function renderAssistantContent(el, text, displayMetadata) {
   const normalized = splitAssistantDisplayContent(text, displayMetadata);
   renderRichText(el, normalized.content);
+  if (typeof mountNoModelActions === 'function') mountNoModelActions(el, normalized.content);
   // A verifier verdict suppressed from the answer bytes by an output contract still reaches the
   // reader HERE, beside the answer rather than inside it. Measured: a flagged one-word answer
   // rendered as a bare word -- the only trace of the failed review was an Activity row nobody
@@ -5069,7 +5140,8 @@ function mountAnswerExport(host, chatId, requestId) {
         status.textContent = result.cancelled ? label('msg.pdf_cancelled', 'Cancelled') : label('msg.pdf_saved', 'Saved');
       } else {
         const response = await fetch('/api/chat/export?session=' + encodeURIComponent(chatId)
-          + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf');
+          + '&request_id=' + encodeURIComponent(requestId) + '&format=pdf'
+          + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || ''));
         if (!response.ok) {
           const refusal = await response.json();
           throw new Error(refusal.message || refusal.error || label('msg.pdf_failed', 'PDF export failed'));
@@ -5077,7 +5149,7 @@ function mountAnswerExport(host, chatId, requestId) {
         const blob = await response.blob();
         if (!/^application\/pdf\b/i.test(blob.type)) throw new Error('The server did not return a PDF');
         const url = URL.createObjectURL(blob), link = document.createElement('a');
-        link.href = url; link.download = 'vool-answer.pdf';
+        link.href = url; link.download = downloadFilenameFrom(response.headers.get('Content-Disposition'), 'VOOL answer.pdf');
         document.body.appendChild(link); link.click(); link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 30000);
         status.textContent = label('msg.pdf_downloaded', 'Downloaded');
@@ -5088,6 +5160,23 @@ function mountAnswerExport(host, chatId, requestId) {
   actions.appendChild(button); host.appendChild(status);
 }
 
+// The name an export is saved under: the server's exact UTF-8 name (filename*, RFC 5987) when it
+// sends one, else its plain filename=, else the fallback. The server names the file after the
+// chat; this only reads that name, never invents one, and keeps any path out of it.
+function downloadFilenameFrom(disposition, fallback) {
+  const header = String(disposition || '');
+  let name = '';
+  const extended = header.match(/filename\*\s*=\s*UTF-8''([^;\s]+)/i);
+  if (extended) { try { name = decodeURIComponent(extended[1]); } catch (e) { name = ''; } }
+  if (!name) {
+    const quoted = header.match(/filename\s*=\s*"((?:[^"\\]|\\.)*)"/i);
+    const bare = quoted ? null : header.match(/filename\s*=\s*([^;\s]+)/i);
+    name = quoted ? quoted[1].replace(/\\(.)/g, '$1') : (bare ? bare[1] : '');
+  }
+  name = name.replace(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ')
+    .split(/[\\/]/).pop().replace(/^[.\s]+/, '').trim();
+  return name || fallback;
+}
 async function mountProofChip(host, chatId, requestId, presentationSelection) {
   if (typeof mountAnswerExport === 'function') mountAnswerExport(host, chatId, requestId);
   const id = String(requestId || '');
@@ -5534,10 +5623,69 @@ function streamingPreviewText(text) {
   if (link) return link[1] ? t.slice(0, nl + 1 + link.index) : holdFrom(link.index);
   return t;
 }
+// A long answer repaints only its unfinished end. Everything before the last settled block
+// boundary is rendered once and kept; each paint renders the rest. A boundary is a line that
+// starts flush left after a blank line, outside a code block, and is neither a list item nor the
+// last (still growing) line: every block above it is closed and none can reach past it, so pieces
+// split there render to exactly the same markup as the whole answer (the list numbering it
+// carries rides in `state`). A long answer used to cost a full re-render of everything so far on
+// every paint -- about a third of the page's time on a 95k-character answer.
+const STREAM_FREEZE_MIN = 4000;
+function streamSettledCut(text, from) {
+  let fence = null;
+  let cut = from;
+  let pos = from;
+  let prevBlank = false;
+  while (true) {
+    const nl = text.indexOf('\n', pos);
+    if (nl < 0) break;                               // the last line is still being written
+    const line = text.slice(pos, nl);
+    if (fence) {
+      const close = line.match(/^\s*(`{3,}|~{3,})\s*$/);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+      prevBlank = false;
+    } else {
+      const open = line.match(/^\s*(`{3,}|~{3,})(\w*)\s*$/);
+      if (prevBlank && pos > from && /^\S/.test(line) && !/^(?:\d+[.)]|[-*+])\s/.test(line)) cut = pos;
+      if (open) fence = open[1];
+      prevBlank = !line.trim();
+    }
+    pos = nl + 1;
+  }
+  return cut;
+}
+function appendRendered(el, text, state) {
+  const part = document.createElement('div');
+  renderRichText(part, text, state);
+  while (part.firstChild) el.appendChild(part.firstChild);
+}
 function paintStreamingText(run) {
-  if (!run.textEl) return;
-  run.textEl.dataset.streaming = '1';
-  renderRichText(run.textEl, streamingPreviewText(run.text));
+  const el = run.textEl;
+  if (!el) return;
+  // The bubble leaves its typing state in the same step that puts text in it: a reply that is not
+  // .pending always shows words, never the '…' placeholder of an answer that has not painted yet.
+  if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+  el.dataset.streaming = '1';
+  const shown = streamingPreviewText(run.text);
+  let kept = run.streamKept;
+  if (shown.length < STREAM_FREEZE_MIN) {
+    run.streamKept = null;
+    renderRichText(el, shown);
+    return;
+  }
+  if (!kept || kept.el !== el || !shown.startsWith(kept.text) || el.childNodes.length < kept.nodes) {
+    kept = run.streamKept = { el: el, text: '', nodes: 0, olResumeAt: 0 };
+    el.textContent = '';
+  }
+  while (el.childNodes.length > kept.nodes) el.removeChild(el.lastChild);
+  const cut = streamSettledCut(shown, kept.text.length);
+  if (cut > kept.text.length) {
+    const state = { olResumeAt: kept.olResumeAt };
+    appendRendered(el, shown.slice(kept.text.length, cut), state);
+    kept.text = shown.slice(0, cut); kept.nodes = el.childNodes.length; kept.olResumeAt = state.olResumeAt;
+  }
+  appendRendered(el, shown.slice(kept.text.length), { olResumeAt: kept.olResumeAt });
+  el.dataset.raw = shown;
 }
 function scheduleStreamPaint(run) {
   if (run.streamPaintTimer) return;
@@ -5559,6 +5707,7 @@ function scheduleStreamPaint(run) {
 }
 function endStreamPaint(run) {
   if (run.streamPaintTimer) { clearTimeout(run.streamPaintTimer); run.streamPaintTimer = null; }
+  run.streamKept = null;
   if (run.textEl) delete run.textEl.dataset.streaming;
 }
 
@@ -5895,6 +6044,8 @@ function applyResultSummary(run) {
 // background chat therefore lands in full, and touches nothing the displayed chat owns.
 function finishRun(run, kind, summaryText, tsIso) {
   if (run.ended) return; run.ended = true; run.status = kind;
+  // A run that was not refused held the chat's slot itself: no other holder is known now.
+  if (!run.slotRefused) ownerOf(run).slotHeldElsewhere = false;
   // The bubble's real completion time: the server's own ts on the terminal event when the stream
   // carried one, else the instant this client-detected end (stream close, abort, fetch error) is
   // actually happening right now -- never a re-guess for a message that finished earlier.
@@ -5986,9 +6137,16 @@ function applyTaskEvent(run, ev) {
   // Placed before the switch because the terminal cases below return early. The typeof
   // guard keeps function-slicing harnesses (no DOM globals) running unchanged.
   if (typeof window !== 'undefined' && window.VoolCompanion) window.VoolCompanion.consume(run.chatId, ev);
+  // The goal card consumes the same durable event (also before the ended-gate: a goal event
+  // that arrives after the carrying turn finished is still live goal truth).
+  if (ev.type === 'goal.updated' && typeof window !== 'undefined' && window.VoolGoalCard) {
+    window.VoolGoalCard.consume(ev.goal || null, ev.summary);
+  }
   run.events.push(ev);
   if (ev.stage) { run.stage = ev.stage; run.evented = true; }
-  if (ev.summary) { run.action = ev.summary; run.evented = true; }
+  // What the card says for this event (runCardWords), else the event's own summary.
+  const said = (typeof runCardWords === 'function' ? runCardWords(ev) : '') || ev.summary;
+  if (said) { run.action = said; run.evented = true; }
   if (ev.model) { run.model = ev.model; rememberStickyModel(run.chatId, ev.model); }
   if (ev.cost) run.cost = Object.assign({}, run.cost, ev.cost);
   switch (ev.type) {
@@ -6002,25 +6160,25 @@ function applyTaskEvent(run, ev) {
       break;
     case 'tool.started':
       run.permission = false;
-      run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'running', stage: ev.stage,
+      run.steps.push({ tool: ev.tool, summary: said, status: 'running', stage: ev.stage,
         startedAt: Date.now(), finishedAt: 0, model: run.model, cost: run.cost });
       if (run.card) run.card.classList.remove('tc-hold');  // resume after a permission pause
       break;
     case 'tool.completed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].tool === ev.tool && run.steps[i].status === 'running') { s = run.steps[i]; break; } }
       if (!s) s = run.steps[run.steps.length - 1];
-      if (s) { s.status = 'completed'; if (ev.summary) s.summary = ev.summary; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = ev.summary || run.last;
+      if (s) { s.status = 'completed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'completed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
+      run.last = said || run.last;
       if (ev.path) run.files[ev.path] = (run.files[ev.path] || 0) + 1;
       if ((ev.stage || '') === 'Testing' && ev.measurable) { if (ev.measurable.current != null) run.tests.done = ev.measurable.current; if (ev.measurable.total != null) run.tests.total = ev.measurable.total; }
       break;
     }
     case 'tool.failed': {
       let s = null; for (let i = run.steps.length - 1; i >= 0; i--) { if (run.steps[i].status === 'running') { s = run.steps[i]; break; } }
-      if (s) { s.status = 'failed'; if (ev.summary) s.summary = ev.summary; s.finishedAt = Date.now(); }
-      else run.steps.push({ tool: ev.tool, summary: ev.summary, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
-      run.last = ev.summary || run.last;
+      if (s) { s.status = 'failed'; if (said) s.summary = said; s.finishedAt = Date.now(); }
+      else run.steps.push({ tool: ev.tool, summary: said, status: 'failed', stage: ev.stage, startedAt: Date.now(), finishedAt: Date.now() });
+      run.last = said || run.last;
       break;
     }
     case 'permission.required':
@@ -6030,6 +6188,7 @@ function applyTaskEvent(run, ev) {
       // permission bar when that chat is on screen -- otherwise one chat's approval request would
       // appear above another chat's composer, and be answered there.
       showPermBar(run.chatId, ev);
+      if (ev.approval && ev.approval.approval_id) ownerOf(run).pendingApprovalRun = run;
       break;
     case 'verification.started':
       // The primary answer is done; the verifier now runs a second model call. Show
@@ -6100,6 +6259,10 @@ function visibleTabs() {
   };
   return PANEL_TABS.filter((t) => has[t]);
 }
+// A tab's displayed name. PANEL_TABS entries are internal keys ('Event log' -> panel.tab_event_log).
+function panelTabLabel(name) {
+  return pageT('panel.tab_' + String(name || '').toLowerCase().replace(/ /g, '_'), name);
+}
 function buildTabs() {
   xpTabsEl.innerHTML = '';
   const tabs = visibleTabs();
@@ -6107,7 +6270,8 @@ function buildTabs() {
   tabs.forEach((name) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'xp-tab' + (name === panelTab ? ' active' : ''); b.setAttribute('role', 'tab');
-    b.innerHTML = esc(name) + ' <span class="cnt" data-tab="' + esc(name) + '"></span>';
+    // The tab's internal name stays the key (counts, copy, open state); a person reads its label.
+    b.innerHTML = esc(panelTabLabel(name)) + ' <span class="cnt" data-tab="' + esc(name) + '"></span>';
     b.addEventListener('click', () => { panelTab = name; buildTabs(); renderPanel(); });
     xpTabsEl.appendChild(b);
   });
@@ -6687,11 +6851,17 @@ const ACTIVITY_MUTATION_SUCCESS_TYPES = { workspace_mutation_completed: 1, works
 const ACTIVITY_MUTATION_UNSUCCESSFUL_TYPES = { workspace_mutation_failed: 1, workspace_mutation_rollback_conflict: 1 };
 const ACTIVITY_CHANGES_CATEGORY = ['changes', 'Files changed'];
 const ACTIVITY_CATEGORY_FALLBACK = ['tools', 'Tool calls'];
-const ACTIVITY_RUNTIME_CATEGORY = ['runtime', 'Runtime'];
+const ACTIVITY_RUNTIME_CATEGORY = ['runtime', 'What VOOL did'];
+// Bookkeeping rows and any event type the plain-words table does not know (activityPlainRow).
+// Collapsed by default; Expand all opens it like every other node.
+const ACTIVITY_BACKGROUND_CATEGORY = ['background', 'Behind the scenes'];
+// A category whose displayed name has its own catalog key. The 'runtime' KEY is kept (open state,
+// tests and copied evidence key on it); only the words a person reads changed.
+const ACTIVITY_CATEGORY_LABEL_KEYS = { runtime: 'activity.category.steps', background: 'activity.category.background' };
 // The two ledger event types that OPEN a tool call, paired against whichever of the three closes it.
 const ACTIVITY_TOOL_START_TYPES = { tool_selected: 1 };
 const ACTIVITY_TOOL_END_TYPES = { tool_executed: 1, tool_failed: 1, audit_step: 1, audit_budget_refused: 1 };
-const ACTIVITY_CATEGORY_ORDER = ['changes', 'commands', 'tests', 'reads', 'edits', 'searches', 'tools', 'runtime'];
+const ACTIVITY_CATEGORY_ORDER = ['changes', 'commands', 'tests', 'reads', 'edits', 'searches', 'tools', 'runtime', 'background'];
 // Localized rollups: one catalog key per category with the ICU-lite plural the engine and
 // the mirrored browser formatter both resolve. English fallbacks reproduce the historical
 // concatenation byte-for-byte (n === 1 → singular), so an unwired locale renders as before.
@@ -7036,6 +7206,278 @@ function usePodReceiptDetailLines(e) {
   return out;
 }
 
+// ---- Plain words for the Activity tree ----
+// ledgerRow() is the MACHINE row: the exact title and sub-line the ledger authority shipped
+// ("Conservation: slots conserved, publication NOT conserved (...)", "Runtime attempt attempt-… ->
+// FAILED_TOOL."). It stays exactly that for the Event log, the copied failure report and the
+// tests that pin it. What a person sees by default in the Activity tree is this projection
+// instead: one plain sentence per event, chosen by the event's TYPE (a stable key, never prose
+// parsing), with ids, enum names and engine counters kept out of it. Nothing is dropped: the
+// machine line becomes the row's expandable sub-line, its raw fields stay in the row's details,
+// and Copy all serializes both.
+//
+// Fail closed: an event type this table does not know is shown as a calm generic line in
+// "Behind the scenes", never as its raw message.
+//
+// [tier, catalog key, English]. Tier 'main' rows file under "What VOOL did"; 'background' rows are
+// bookkeeping a normal person does not need to read and file under the collapsed "Behind the
+// scenes". Ids are stable catalog keys under activity.plain.*.
+const ACTIVITY_PLAIN_TITLES = {
+  task_received:                 ['main', 'task_received', 'Got your message'],
+  task_classified:               ['main', 'task_classified', 'Worked out what you’re asking for'],
+  task_completed:                ['main', 'task_completed', 'Answer ready'],
+  task_failed:                   ['main', 'task_failed', 'Couldn’t finish this one'],
+  task_cancelled:                ['main', 'task_cancelled', 'Stopped'],
+  task_interrupted:              ['main', 'task_interrupted', 'Stopped before it finished'],
+  task_pending_approval:         ['main', 'task_pending_approval', 'Waiting for your OK'],
+  task_resumed:                  ['main', 'task_resumed', 'Picked up where it left off'],
+  permission_approved:           ['main', 'permission_approved', 'You said OK'],
+  scope_resolved:                ['main', 'scope_resolved', 'Working in your folder'],
+  model_routing_failed:          ['main', 'model_routing_failed', 'No model could answer'],
+  model_lane_contract_failed:    ['main', 'model_answer_set_aside', 'Set aside an answer that didn’t fit'],
+  'model.response_constraint_retry': ['main', 'model_retry', 'Asked the model to try again'],
+  'model.call_retrying':         ['main', 'model_retry', 'Asked the model to try again'],
+  model_lane_verifier_started:   ['main', 'review_running', 'Double-checking the answer'],
+  model_lane_verifier_completed: ['main', 'review_passed', 'Answer double-checked'],
+  model_lane_verifier_degraded:  ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_blocked:   ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_failed:    ['main', 'review_incomplete', 'Couldn’t fully double-check the answer'],
+  model_lane_verifier_flagged:   ['main', 'review_flagged', 'The double-check found a problem'],
+  cloud_route_declined:          ['main', 'cloud_declined', 'Didn’t use an online model'],
+  grounding_required:            ['main', 'grounding_required', 'This needs up-to-date information'],
+  grounding_publication:         ['main', 'grounding_publication', 'Checked the answer against what was found'],
+  web_retrieval_started:         ['main', 'web_started', 'Searching the web'],
+  web_retrieval_completed:       ['main', 'web_done', 'Searched the web'],
+  web_retrieval_failed:          ['main', 'web_failed', 'The web search didn’t work'],
+  fx_retrieval_started:          ['main', 'fx_started', 'Getting the exchange rate'],
+  fx_retrieval_completed:        ['main', 'fx_done', 'Got the exchange rate'],
+  fx_retrieval_failed:           ['main', 'fx_failed', 'Couldn’t get the exchange rate'],
+  live_data_plan_unavailable:    ['main', 'lookup_unavailable', 'Couldn’t look this up right now'],
+  tool_fallback_to_research:     ['main', 'tool_fallback', 'Switched to searching instead'],
+  tool_loop_resumed:             ['main', 'tool_resumed', 'Carried on'],
+  tool_loop_completed:           ['main', 'tool_loop_done', 'Finished the steps'],
+  tool_repeat_blocked:           ['main', 'tool_repeat_blocked', 'Skipped repeating the same step'],
+  tool_synthesizing:             ['main', 'synthesizing', 'Putting the answer together'],
+  workflow_planner_step:         ['main', 'plan_step', 'Planned the next step'],
+  workflow_planner_stop:         ['main', 'plan_done', 'Plan finished'],
+  stale_result_rejected:         ['main', 'stale_result', 'Set aside an out-of-date result'],
+  model_routing_started:         ['background', 'choosing_model', 'Choosing a model'],
+  model_verification_receipt:    ['background', 'record', 'Kept a record of this step'],
+  model_lane_proof:              ['background', 'record', 'Kept a record of this step'],
+  'turn.trace_completed':        ['background', 'record', 'Kept a record of this step'],
+  runtime_attempt_created:       ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_updated:       ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_completed:     ['background', 'attempt', 'Kept track of this attempt'],
+  runtime_attempt_abandoned:     ['background', 'attempt', 'Kept track of this attempt'],
+  live_data_plan_created:        ['background', 'lookup_plan', 'Planned what to look up'],
+  live_data_plan_completed:      ['background', 'lookup_plan_done', 'Finished looking things up'],
+  live_data_operation_outcome:   ['background', 'lookup_noted', 'Noted how the lookup went'],
+  agent_node_started:            ['background', 'step_started', 'Started a step'],
+  agent_node_completed:          ['background', 'step_finished', 'Finished a step'],
+  semantic_resolution_receipt:   ['background', 'resolution', 'Matched your question to the right kind of answer'],
+  semantic_conservation_verdict: ['background', 'conservation', 'Checked nothing was lost from the answer'],
+  mode_changed:                  ['background', 'mode_changed', 'Changed how VOOL works in this chat'],
+  session_started:               ['background', 'session_started', 'Opened this chat'],
+  // Failures the runtime names by type. A fourth element 'fail' draws the row as a failure; these
+  // are never filed behind the scenes.
+  audit_budget_refused:          ['main', 'audit_refused', 'Stopped checking to stay within the limit', 'fail'],
+  audit_step:                    ['main', 'audit_step', 'Checked a step'],
+  conductor_integrity_failure:   ['main', 'plan_broken', 'The plan didn’t hold together, so it stopped', 'fail'],
+  task_envelope_dependency_failed: ['main', 'dependency_failed', 'A step it depended on didn’t work', 'fail'],
+  task_envelope_restore_failed:  ['main', 'restore_failed', 'Couldn’t restore earlier work', 'fail'],
+  task_envelope_capacity_blocked: ['main', 'capacity_blocked', 'Held back: too much was already running', 'fail'],
+  attempt_claim_refused:         ['main', 'attempt_refused', 'Couldn’t start this attempt', 'fail'],
+  code_task_refusal_returned:    ['main', 'step_refused', 'That step was refused', 'fail'],
+  tool_argument_rejected:        ['main', 'step_args_rejected', 'A step was set up wrong, so it asked again', 'fail'],
+};
+// The model rows name the model when the ledger recorded one (the person chose or sees that name in
+// the header); the provider id, lane and attempt plumbing stay in the details.
+const ACTIVITY_PLAIN_MODEL = {
+  model_lane_selected:    ['model_selected', 'Chose a model to answer', 'Chose {model} to answer'],
+  model_lane_started:     ['model_running', 'Asking the model', 'Asking {model}'],
+  'model.call_started':   ['model_running', 'Asking the model', 'Asking {model}'],
+  model_lane_completed:   ['model_answered', 'The model answered', '{model} answered'],
+  'model.call_completed': ['model_answered', 'The model answered', '{model} answered'],
+  model_lane_failed:      ['model_failed', 'The model couldn’t answer', '{model} couldn’t answer'],
+  'model.call_failed':    ['model_failed', 'The model couldn’t answer', '{model} couldn’t answer'],
+};
+// What a live-data lookup was for, by its operation id, as a noun phrase that slots into
+// "Looking up {what}" / "Looked up {what}" / "Looked up {what}: it didn’t work".
+const ACTIVITY_PLAIN_LOOKUP_WHAT = {
+  weather_lookup:    ['weather', 'the weather', 'weather_in', 'the weather in {place}'],
+  water_temperature: ['water', 'the water temperature', 'water_in', 'the water temperature in {place}'],
+  market_quote:      ['price', 'the price', 'price_of', 'the price of {place}'],
+  fx_quote:          ['fx', 'the exchange rate', 'fx', 'the exchange rate'],
+};
+const ACTIVITY_PLAIN_GENERIC = ['generic', 'Worked on your request'];
+// Fail closed on failures too: an event this table does not know, whose TYPE or own status says it
+// failed, must not read "Worked on your request" behind a collapsed group. It gets a visible
+// failure line with a calm sub-line; the raw text stays in the row's details.
+const ACTIVITY_FAIL_TYPE = /fail|refus|block|denied|deny|reject|error|abort|violation/i;
+const ACTIVITY_FAIL_STATUS = /^(fail|error|refus|denied|deny|reject|block|abort|timeout|timed_out)/i;
+function activityEventLooksFailed(e, t) {
+  if (ACTIVITY_FAIL_TYPE.test(t)) return true;
+  if (!e) return false;
+  if (e.ok === false) return true;
+  for (const field of ['status', 'state', 'lifecycle', 'lifecycle_state', 'result_state', 'outcome']) {
+    if (ACTIVITY_FAIL_STATUS.test(String(e[field] == null ? '' : e[field]).trim())) return true;
+  }
+  return /^(error:|rejected:)/i.test(String(e.result || ''));
+}
+function activityPlainT(id, english, params) {
+  return params ? pageTF('activity.plain.' + id, english, params) : pageT('activity.plain.' + id, english);
+}
+// operation id -> the place/thing the person asked about, read from the turn's own live-data plan
+// (subtask.entity). Two different entities for one operation are ambiguous, so neither is named.
+function activityLookupPlaces(events) {
+  const places = {};
+  for (const e of events || []) {
+    if (String(e.event_type || '') !== 'live_data_plan_created' || !Array.isArray(e.subtasks)) continue;
+    for (const s of e.subtasks) {
+      const op = String((s && s.operation) || '').trim();
+      if (!op) continue;
+      const place = String((s && s.entity) || '').trim();
+      if (places[op] === undefined) places[op] = place;
+      else if (places[op] !== place) places[op] = '';
+    }
+  }
+  return places;
+}
+function activityLookupWhat(op, places) {
+  const spec = ACTIVITY_PLAIN_LOOKUP_WHAT[op];
+  const place = places && places[op] ? String(places[op]) : '';
+  if (!spec) return activityPlainT('what.current', 'current information');
+  if (place && spec[3].indexOf('{place}') !== -1) return activityPlainT('what.' + spec[2], spec[3], { place: place });
+  return activityPlainT('what.' + spec[0], spec[1]);
+}
+// A retrieval receipt row whose own receipts all failed is not "Searched the web".
+function activityRetrievalAllFailed(e) {
+  const receipts = Array.isArray(e && e.receipts) ? e.receipts : [];
+  if (!receipts.length) return false;
+  return receipts.every((r) => { const s = String((r && (r.status || r.lifecycle)) || '').toLowerCase(); return s && s !== 'succeeded' && s !== 'completed' && s !== 'ok'; });
+}
+// One event -> {cls, icon, title, sub, tier}. `machine` is ledgerRow(e) (or the tree's fallback for
+// a tool row); `places` is activityLookupPlaces() over the same turn.
+function activityPlainRow(e, machine, places) {
+  const t = String((e && e.event_type) || '');
+  const row = machine || { cls: 'run', icon: '•', title: '', sub: '' };
+  let tier = 'main', title = '', icon = row.icon, cls = row.cls;
+  if (t.indexOf('tool_') === 0 && (t === 'tool_selected' || t === 'tool_executed' || t === 'tool_failed')) {
+    const tool = String(e.tool_name || e.tool || '').trim();
+    if (tool.indexOf('live_data.') === 0) {
+      const what = activityLookupWhat(tool.slice('live_data.'.length), places);
+      if (t === 'tool_selected') title = activityPlainT('lookup_active', 'Looking up {what}', { what: what });
+      else if (t === 'tool_failed') title = activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
+      else title = activityPlainT('lookup_done', 'Looked up {what}', { what: what });
+    } else {
+      // humanToolTitle(): already plain ("Running tests", "Search failed"), and the tool id it
+      // deliberately leaves out of the title stays in the sub-line.
+      title = row.title;
+    }
+  } else if (ACTIVITY_PLAIN_MODEL[t]) {
+    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[t];
+    const model = String(ledgerModelName(e) || '').trim();
+    title = model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
+  } else if (ACTIVITY_PLAIN_TITLES[t]) {
+    const [rowTier, id, english, kind] = ACTIVITY_PLAIN_TITLES[t];
+    tier = rowTier;
+    if (kind === 'fail') { cls = 'fail'; icon = '✕'; }
+    // A live-data plan's retrieval receipt repeats what the lookup's own row already says.
+    if (t.indexOf('web_retrieval') === 0 && e.plan_id) tier = 'background';
+    if (t === 'web_retrieval_completed' && activityRetrievalAllFailed(e)) {
+      title = activityPlainT('web_nothing', 'Looked it up, but nothing came back');
+      icon = '✕'; cls = 'fail';
+    } else {
+      title = activityPlainT(id, english);
+    }
+  } else if (LEDGER_MAP[t] && LEDGER_MAP[t][2]) {
+    // Already a plain label (attachments, file-change receipts): the label alone, never ": " + message.
+    title = pageT('activity.ledger.' + t, LEDGER_MAP[t][2]);
+  } else if (activityEventLooksFailed(e, t)) {
+    return { cls: 'fail', icon: '✕', title: activityPlainT('step_failed', 'This step didn’t work'),
+      sub: activityPlainT('step_failed_sub', 'What happened is in the details below.'), tier: 'main', machine: row };
+  } else {
+    tier = 'background';
+    title = activityPlainT(ACTIVITY_PLAIN_GENERIC[0], ACTIVITY_PLAIN_GENERIC[1]);
+  }
+  // The exact machine words, one click away: the old title (when it says something the plain one
+  // does not) followed by the old sub-line.
+  const machineBits = [];
+  // A machine title that IS the event's message is already the details' "result" line; repeating
+  // it as the sub-line would print the same engine sentence twice.
+  if (row.title && !ledgerSameText(row.title, title) && !ledgerSameText(row.title, e && e.message)) machineBits.push(row.title);
+  if (row.sub) machineBits.push(row.sub);
+  return { cls: cls, icon: icon, title: title, sub: machineBits.join(' · '), tier: tier, machine: row };
+}
+
+// ---- Plain words for the run card ----
+// The card's action line, its recent-steps strip and its last-step line printed the task event's
+// `summary` verbatim, and for a tool step that summary is the runtime's own log line ("Running
+// live_data.weather_lookup", "Finished live_data.weather_lookup: failed"): English in every locale,
+// and naming an internal tool id. A tool step is now worded from the event's TYPE and the KIND of
+// tool, through the same catalog keys the Activity panel uses; engine lines the Activity table
+// already words (model choice, plan steps, the request arriving) read the same here. The server's
+// exact summary is not dropped: the event itself stays unchanged on run.events (Event log, Copy).
+//
+// It lives here, beside the tables it reads; applyTaskEvent calls it behind a typeof guard so the
+// harnesses that run the card lifecycle slice on its own keep the event's summary.
+//
+// Fail closed: a tool id this page does not recognise gets a plain generic line, never the id.
+// Words the server wrote for the person (an approval request, a picked-up note, a review cause, a
+// terminal reason) are not in these tables and are left exactly as sent.
+const RUN_CARD_ENGINE_TYPES = { 'task.started': 1, 'task.stage_changed': 1, 'model.changed': 1,
+  'model.call_started': 1, 'model.call_completed': 1, 'model.call_failed': 1, 'plan.step_started': 1, 'plan.step_completed': 1 };
+const RUN_STEP_GENERIC = {
+  active: ['step_working', 'Working on a step'], done: ['step_finished', 'Finished a step'],
+  failed: ['step_failed', 'This step didn’t work'], skipped: ['step_skipped', 'Skipped a step'],
+  ended: ['step_ended', 'A step ended'],
+};
+// 'active' | 'done' | 'failed' | 'skipped' | 'ended' for a tool or lane-node event, '' otherwise.
+// A node's completion row carries its own outcome; one that claims none has only "ended".
+function runStepPhase(ev) {
+  const type = String(ev.type || '');
+  if (type === 'tool.started' || type === 'agent_node_started') return 'active';
+  if (type === 'tool.completed') return 'done';
+  if (type === 'tool.failed') return 'failed';
+  if (type !== 'agent_node_completed') return '';
+  const status = String(ev.status || '');
+  return status === 'completed' ? 'done' : (status === 'failed' ? 'failed' : (status === 'cancelled' ? 'skipped' : 'ended'));
+}
+function runStepWords(ev, phase) {
+  const tool = String(ev.tool || '').trim();
+  const node = String(ev.type || '').indexOf('agent_node') === 0;
+  const liveData = tool.indexOf('live_data.') === 0;
+  // A lane node names its operation bare ("weather_lookup"); the tool loop prefixes it.
+  const op = liveData ? tool.slice('live_data.'.length) : ((node && ACTIVITY_PLAIN_LOOKUP_WHAT[tool]) ? tool : '');
+  if ((liveData || op) && (phase === 'active' || phase === 'done' || phase === 'failed')) {
+    const what = activityLookupWhat(op, null);
+    if (phase === 'active') return activityPlainT('lookup_active', 'Looking up {what}', { what: what });
+    if (phase === 'failed') return activityPlainT('lookup_failed', 'Looked up {what}: it didn’t work', { what: what });
+    return activityPlainT('lookup_done', 'Looked up {what}', { what: what });
+  }
+  // A tool of a kind the Activity panel names ("Running tests", "Read failed") reads the same here.
+  const kinds = { active: 'tool_selected', done: 'tool_executed', failed: 'tool_failed' };
+  if (tool && kinds[phase] && activityCategoryFor(tool)[0] !== 'tools') return humanToolTitle({ tool_name: tool }, kinds[phase], null);
+  const [id, english] = RUN_STEP_GENERIC[phase] || RUN_STEP_GENERIC.ended;
+  return activityPlainT(id, english);
+}
+// The card's words for one task event, or '' to keep the event's own summary.
+function runCardWords(ev) {
+  if (!ev) return '';
+  const phase = runStepPhase(ev);
+  if (phase) return runStepWords(ev, phase);
+  if (!RUN_CARD_ENGINE_TYPES[ev.type]) return '';
+  const raw = String(ev.raw_type || '');
+  if (ACTIVITY_PLAIN_MODEL[raw]) {
+    const [id, bare, named] = ACTIVITY_PLAIN_MODEL[raw];
+    const m = ev.model || {};
+    const model = compactModelName(m.actual_adapter_model_id || m.selected_model_id || m.requested_model_id || m.policy_model_id || m.model_id || '');
+    return model ? activityPlainT(id + '_named', named, { model: model }) : activityPlainT(id, bare);
+  }
+  if (ACTIVITY_PLAIN_TITLES[raw]) return activityPlainT(ACTIVITY_PLAIN_TITLES[raw][1], ACTIVITY_PLAIN_TITLES[raw][2]);
+  return '';
+}
+
 // Builds {categories:[{key,label,items:[...]}], totalActions} from a flat, already-turn-scoped
 // ledger slice. Tool calls are paired start->end the same way the live status card already pairs
 // them (applyTaskEvent's tool.completed handler): most-recently-opened call of that name resolves
@@ -7045,6 +7487,14 @@ function buildActivityTree(events) {
   const pending = {};   // tool label -> stack of still-open items for that tool
   const changedByPath = {};   // canonical path -> the single row that path owns
   const ensureCat = (key, label) => cats[key] || (cats[key] = { key, label, items: [] });
+  // What each live-data lookup was about ("Rome"), from this turn's own plan, for the plain titles.
+  const places = activityLookupPlaces(events);
+  const plain = (e, machine) => activityPlainRow(e, machine, places);
+  // A non-tool row files by its plain tier: what VOOL did, or behind the scenes.
+  const fileRow = (e, display) => {
+    const [key, label] = display.tier === 'background' ? ACTIVITY_BACKGROUND_CATEGORY : ACTIVITY_RUNTIME_CATEGORY;
+    ensureCat(key, label).items.push({ id: 'ai-' + e.seq, tool: '', display: display, endEvent: e });
+  };
 
   for (const e of (events || [])) {
     const t = String(e.event_type || '');
@@ -7057,10 +7507,7 @@ function buildActivityTree(events) {
       if (!activityMutationSucceeded(e)) {
         // A failed, denied or pathless receipt is still shown -- filed under Runtime, where it
         // reads as what it is. It must never reach "Files changed".
-        if (row) {
-          const [rk, rl] = ACTIVITY_RUNTIME_CATEGORY;
-          ensureCat(rk, rl).items.push({ id: 'ai-' + e.seq, tool: '', display: row, endEvent: e });
-        }
+        if (row) fileRow(e, plain(e, row));
         continue;
       }
       const [ck, cl] = ACTIVITY_CHANGES_CATEGORY;
@@ -7082,7 +7529,7 @@ function buildActivityTree(events) {
 
     if (ACTIVITY_TOOL_START_TYPES[t] || ACTIVITY_TOOL_END_TYPES[t]) {
       const toolName = activityToolLabel(e);
-      const row = ledgerRow(e) || { cls: 'run', icon: '▸', title: toolName, sub: '' };
+      const row = plain(e, ledgerRow(e) || { cls: 'run', icon: '▸', title: toolName, sub: '' });
       if (ACTIVITY_TOOL_START_TYPES[t]) {
         const item = { id: 'ai-' + e.seq, tool: toolName, status: 'running', display: row, startEvent: e, endEvent: null };
         (pending[toolName] || (pending[toolName] = [])).push(item);
@@ -7109,8 +7556,7 @@ function buildActivityTree(events) {
     // this panel has always shown for it, just filed under Runtime instead of sitting flat.
     const row = ledgerRow(e);
     if (!row) continue;
-    const [key, label] = ACTIVITY_RUNTIME_CATEGORY;
-    ensureCat(key, label).items.push({ id: 'ai-' + e.seq, tool: '', display: row, endEvent: e });
+    fileRow(e, plain(e, row));
   }
 
   const categories = ACTIVITY_CATEGORY_ORDER.filter((k) => cats[k] && cats[k].items.length).map((k) => cats[k]);
@@ -7118,13 +7564,16 @@ function buildActivityTree(events) {
   const latestSeq = (item) => Number((item.endEvent || item.startEvent || {}).seq || 0);
   for (const cat of categories) cat.items.sort((a, b) => latestSeq(b) - latestSeq(a));
   categories.sort((a, b) => latestSeq(b.items[0]) - latestSeq(a.items[0]));
-  const totalActions = categories.filter((c) => c.key !== 'runtime').reduce((n, c) => n + c.items.length, 0);
+  // "Behind the scenes" is never the first thing a person reads, however late its newest row was.
+  const backgroundAt = categories.findIndex((c) => c.key === 'background');
+  if (backgroundAt !== -1) categories.push(categories.splice(backgroundAt, 1)[0]);
+  const totalActions = categories.filter((c) => c.key !== 'runtime' && c.key !== 'background').reduce((n, c) => n + c.items.length, 0);
   return { categories, totalActions };
 }
 function activityRollupText(tree) {
   const parts = [];
   for (const cat of tree.categories) {
-    if (cat.key === 'runtime') continue;
+    if (cat.key === 'runtime' || cat.key === 'background') continue;
     const phrase = ACTIVITY_ROLLUP_PHRASE[cat.key];
     if (phrase) parts.push(phrase(cat.items.length));
   }
@@ -7187,7 +7636,10 @@ function priceReviewTargetForEvent(e) {
   return { provider: 'usepod', id: model, label: model };
 }
 function activityItemHtml(item, openState) {
-  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : 'run';
+  // A tool call's state comes from its pairing; a step row (no pairing) is drawn the way its own
+  // display says, so a failure there shows in the failure colour rather than as ordinary progress.
+  const stepCls = item.display && (item.display.cls === 'ok' || item.display.cls === 'fail') ? item.display.cls : 'run';
+  const cls = item.status === 'completed' ? 'ok' : item.status === 'failed' ? 'fail' : (item.status ? 'run' : stepCls);
   const icon = item.display ? item.display.icon : '•';
   const title = item.display ? item.display.title : (item.tool || 'Action');
   const sub = item.display ? item.display.sub : '';
@@ -7218,10 +7670,12 @@ function activityItemHtml(item, openState) {
     + '</details>';
 }
 function activityCategoryHtml(cat, openState) {
-  const openAttr = openState[cat.key] !== false ? ' open' : '';   // categories default OPEN
+  // Categories default OPEN, except "Behind the scenes", which a person opens when they want it.
+  const defaultOpen = cat.key !== 'background';
+  const openAttr = (openState[cat.key] === undefined ? defaultOpen : openState[cat.key] !== false) ? ' open' : '';
   const items = cat.items.map((it) => activityItemHtml(it, openState)).join('');
   return '<details class="xp-cat" data-node-id="' + esc(cat.key) + '"' + openAttr + '>'
-    + '<summary>' + esc(pageT('activity.category.' + cat.key, cat.label)) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
+    + '<summary>' + esc(pageT(ACTIVITY_CATEGORY_LABEL_KEYS[cat.key] || ('activity.category.' + cat.key), cat.label)) + ' <span class="xp-cat-count">(' + cat.items.length + ')</span></summary>'
     + '<div class="xp-cat-body">' + items + '</div>'
     + '</details>';
 }
@@ -7326,8 +7780,8 @@ function renderChatActivity(owner, opts) {
     const tree = buildActivityTree(group.events);
     trees.push(tree);
     const label = group.turnId
-      ? ('Turn ' + group.number + (isLatest && options.live ? ' · running' : '') + ' — ' + activityWorkLogSummary(tree))
-      : ('Between turns — ' + group.events.length + ' event' + (group.events.length === 1 ? '' : 's'));
+      ? (activityLocalT('activity.turn_label', 'Turn {n}', { n: group.number }) + (isLatest && options.live ? (' · ' + pageT('activity.turn_running', 'running')) : '') + ' — ' + activityWorkLogSummary(tree))
+      : activityLocalT('activity.between_turns', 'Between turns — {events}', { events: activityEventCount(group.events.length) });
     labels.push(label);
     html += '<details class="xp-turn" data-node-id="' + esc(nodeId) + '"' + (open ? ' open' : '') + '>'
       + '<summary>' + esc(label) + '</summary>'
@@ -7340,11 +7794,23 @@ function renderChatActivity(owner, opts) {
   lastActivityTree = trees.length ? trees[0] : null;
   return html;
 }
+// The panel's own framing words, localized. A catalog entry is used only when the bundle's
+// formatter is there to resolve its plurals; otherwise the English below is composed exactly as it
+// always was (so a page without a bundle, and every English reader, sees identical text).
+function activityLocalT(key, english, params) {
+  const plain = () => String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : ''));
+  const t = pageT(key, '');
+  if (!t || typeof VOOLFMT !== 'function') return plain();
+  try { return VOOLFMT(t, params || {}); } catch (e) { return plain(); }
+}
+function activityEventCount(n) {
+  return activityLocalT('activity.scope_events', n + (n === 1 ? ' event' : ' events'), { n: n });
+}
 function activityScopeSummary(eventCount, turnCount, truncated) {
-  const turnsText = turnCount + (turnCount === 1 ? ' turn' : ' turns');
-  const base = 'This chat — ' + turnsText + ', ' + eventCount + (eventCount === 1 ? ' event' : ' events');
+  const turnsText = activityLocalT('activity.scope_turns', turnCount + (turnCount === 1 ? ' turn' : ' turns'), { n: turnCount });
+  const base = activityLocalT('activity.scope_summary', 'This chat — {turns}, {events}', { turns: turnsText, events: activityEventCount(eventCount) });
   // A bounded view says it is bounded. The loader stops at 8 pages of 200.
-  return truncated ? (base + ' (the 1600 most recent; older events not loaded)') : base;
+  return truncated ? (base + ' (' + activityLocalT('activity.scope_truncated', 'the {n} most recent; older events not loaded', { n: 1600 }) + ')') : base;
 }
 
 function renderActivityTree(events, openState, opts) {
@@ -7373,7 +7839,7 @@ function renderActivityTree(events, openState, opts) {
 // The work log for ONE already-built tree, without the bulk-action bar -- a per-turn section owns
 // its own disclosure, and one Expand all / Copy all at the top governs every turn on screen.
 function activityTreeBodyHtml(tree, openState, scopeId) {
-  if (!tree || !tree.categories.length) return '<div class="xp-empty">No recorded activity for this turn.</div>';
+  if (!tree || !tree.categories.length) return '<div class="xp-empty">' + esc(pageT('panel.empty_turn', 'No recorded activity for this turn.')) + '</div>';
   return tree.categories.map((c) => activityCategoryHtml(c, openState)).join('');
 }
 // ---- Bulk disclosure + copy ----
@@ -7394,9 +7860,9 @@ let lastActivityTurnLabels = [];
 let lastActivityOpenStore = null;
 function activityTreeActionsHtml() {
   return '<div class="xp-tree-actions">'
-    + '<button type="button" class="xp-mini" data-activity-action="expand">Expand all</button>'
-    + '<button type="button" class="xp-mini" data-activity-action="collapse">Collapse all</button>'
-    + '<button type="button" class="xp-mini" data-activity-action="copy">Copy all</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="expand">' + esc(pageT('panel.expand_all', 'Expand all')) + '</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="collapse">' + esc(pageT('panel.collapse_all', 'Collapse all')) + '</button>'
+    + '<button type="button" class="xp-mini" data-activity-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button>'
     + '</div>';
 }
 function setActivityTreeOpen(open) {
@@ -7605,12 +8071,11 @@ function scopeNoteHtml() {
   const note = document.getElementById('xpScopeNote');
   if (!note) return;
   let text = '';
-  if (panelScope === 'chat') text = 'Showing only this chat\u2019s evidence.';
-  else if (panelScope === 'project') text = 'Showing every chat in ' + currentProjectName() + '.';
-  else text = 'Showing activity from every chat in VOOL.';
+  if (panelScope === 'chat') text = pageT('panel.scope_note_chat', 'Showing only this chat\u2019s evidence.');
+  else if (panelScope === 'project') text = pageTF('panel.scope_note_project', 'Showing every chat in {name}.', { name: currentProjectName() });
+  else text = pageT('panel.scope_note_all', 'Showing activity from every chat in VOOL.');
   if (panelScope !== 'chat' && scopedEvidence.dropped) {
-    text += ' Read the ' + SCOPE_SESSION_CAP + ' most recent chats; ' + scopedEvidence.dropped + ' older chat'
-      + (scopedEvidence.dropped === 1 ? '' : 's') + ' not read.';
+    text += ' ' + pageTF('panel.scope_note_dropped', 'Read the {cap} most recent chats; older chats not read: {n}.', { cap: SCOPE_SESSION_CAP, n: scopedEvidence.dropped });
   }
   note.textContent = text;
 }
@@ -7686,7 +8151,7 @@ function renderActivityHistoryHtml() {
   const items = activityHistory.filter((item) => !set || set.has(item.session_id));
   if (!items.length) return '';
   let html = '<div class="xp-history-title">'
-    + esc(panelScope === 'project' ? ('Chats in ' + currentProjectName()) : 'Every chat in VOOL')
+    + esc(panelScope === 'project' ? pageTF('panel.history_project', 'Chats in {name}', { name: currentProjectName() }) : pageT('panel.history_all', 'Every chat in VOOL'))
     + '</div>';
   for (const item of items) {
     const h = item.execution_history || {}, chat = _lastSessions.find((s) => s.session_id === item.session_id) || {};
@@ -7709,7 +8174,7 @@ function renderActivityHistoryHtml() {
     // the missing user path from an Activity failure event to the sanitized report
     // flow. Sibling button, not nested -- interactive elements cannot nest validly.
     const reportBtn = bounded.failure_count
-      ? '<button type="button" class="xp-mini" data-history-report="' + esc(item.session_id || '') + '" title="Build a sanitized bug report from this chat\'s failure">Report</button>'
+      ? '<button type="button" class="xp-mini" data-history-report="' + esc(item.session_id || '') + '" title="' + esc(pageT('panel.history_report_title', 'Build a sanitized bug report from this chat\u2019s failure')) + '">' + esc(pageT('msg.report', 'Report')) + '</button>'
       : '';
     html += '<div class="xp-history-row"' + (item.session_id === displayedChat ? ' data-current="1"' : '') + '>'
       + '<button type="button" class="xp-history-card' + (item.session_id === displayedChat ? ' current' : '') + '" data-history-session="' + esc(item.session_id || '') + '">'
@@ -7722,8 +8187,8 @@ function renderActivityHistoryHtml() {
 function renderRecoveryHtml() {
   if (!view.recoveredTask) return '';
   const h = view.recoveredTask.execution_history || {}, cp = h.checkpoint || {};
-  return '<div class="xp-recovery"><b>Task interrupted by application restart</b><p>' + esc(h.request_preview || view.recoveredTask.request_preview || 'Saved work can be continued from its checkpoint.') + '</p>'
-    + '<div class="xp-recovery-actions"><button type="button" data-recovery="resume">Resume</button><button type="button" data-recovery="review">Review activity</button><button type="button" data-recovery="cancel" data-checkpoint="' + esc(cp.checkpoint_id || view.recoveredTask.last_checkpoint_id || '') + '">Cancel task</button></div></div>';
+  return '<div class="xp-recovery"><b>' + esc(pageT('recovery.title', 'Task interrupted by application restart')) + '</b><p>' + esc(h.request_preview || view.recoveredTask.request_preview || pageT('recovery.default_preview', 'Saved work can be continued from its checkpoint.')) + '</p>'
+    + '<div class="xp-recovery-actions"><button type="button" data-recovery="resume">' + esc(pageT('recovery.resume', 'Resume')) + '</button><button type="button" data-recovery="review">' + esc(pageT('recovery.review', 'Review activity')) + '</button><button type="button" data-recovery="cancel" data-checkpoint="' + esc(cp.checkpoint_id || view.recoveredTask.last_checkpoint_id || '') + '">' + esc(pageT('recovery.cancel', 'Cancel task')) + '</button></div></div>';
 }
 // Complete evidence text for whichever tab is active, independent of what is expanded on screen.
 // Falls back to the rendered text only for the tabs that have no structured model behind them.
@@ -7762,9 +8227,10 @@ function panelEvidenceText() {
 }
 function copyPanelEvidence(btn, label) {
   const text = panelEvidenceText();
-  if (!text) { toast(emptyT('chat.toast_copy_empty', 'Nothing to copy in {label} yet.').replace('{label}', label)); return; }
+  const shown = panelTabLabel(label);
+  if (!text) { toast(emptyT('chat.toast_copy_empty', 'Nothing to copy in {label} yet.').replace('{label}', shown)); return; }
   // The copy carries its scope, so pasted evidence can never be read as covering more than it does.
-  const heading = 'VOOL ' + label + ' — ' + scopeWhere();
+  const heading = 'VOOL ' + shown + ' — ' + scopeWhere();
   copyText(heading + '\n' + '='.repeat(heading.length) + '\n' + text, btn);
 }
 function wireActivityPanelActions() {
@@ -7876,7 +8342,7 @@ function renderPanelBody() {
   // The one Copy control names the tab it will actually copy ("Copy Activity", "Copy Event log").
   const copyBtn = document.getElementById('xpCopy');
   if (copyBtn) {
-    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTab || pageT('panel.tab_activity', 'Activity'), scope: scopeWhere() });
+    const copyLabel = pageTF('panel.copy_label', 'Copy {tab} ({scope})', { tab: panelTabLabel(panelTab || 'Activity'), scope: scopeWhere() });
     copyBtn.title = copyLabel; copyBtn.setAttribute('aria-label', copyLabel);
   }
   const run = view.run, body = xpBodyEl;
@@ -7906,15 +8372,15 @@ function renderPanelBody() {
   if (panelTab === 'Steps') {
     // Retrospective tool-step history: completed/current actions only, never a fabricated planner.
     if (!run.steps.length) {
-      body.innerHTML = '<div class="xp-empty">' + (run.ended ? 'No tool steps -- answered directly.' : 'Planning…') + '</div>'; return;
+      body.innerHTML = '<div class="xp-empty">' + esc(run.ended ? pageT('panel.steps_none', 'No tool steps — answered directly.') : pageT('panel.planning', 'Planning…')) + '</div>'; return;
     }
     run.steps.forEach((s, i) => {
       const current = s.status === 'running' ? ' current' : '';
       html += '<div class="xp-row ' + rowCls(s.status) + current + '"><span class="ic">' + rowIcon(s.status) + '</span><div class="bd">'
-        + esc((i + 1) + '. ' + (s.summary || s.tool || 'Step ' + (i + 1))) + '<div class="st">' + esc((s.stage || '') + ' · ' + s.status) + '</div></div></div>';
+        + esc((i + 1) + '. ' + (s.summary || pageTF('panel.step_n', 'Step {n}', { n: i + 1 }))) + '<div class="st">' + esc((s.stage || '') + ' · ' + s.status) + '</div></div></div>';
     });
     if (!run.ended && run.steps.length && run.steps[run.steps.length - 1].status === 'completed') {
-      html += '<div class="xp-note">Deciding the next step…</div>';
+      html += '<div class="xp-note">' + esc(pageT('panel.deciding', 'Deciding the next step…')) + '</div>';
     }
   } else if (panelTab === 'Activity') {
     // The REAL runtime timeline from the ledger (scope, classification, model routing, tools,
@@ -7928,21 +8394,21 @@ function renderPanelBody() {
       html = renderChatActivity(view, { live: !run.ended });
       const ledgerHasReview = led.some((e) => String(e.event_type || '').indexOf('verifier') !== -1);
       if (!ledgerHasReview) html += reviewPanelRow(run);
-      if (run.ended && ledgerRanNoTool(led, runExecutionTruth(run))) html += panelRow('run', '•', 'No tool ran — answered directly', 'a plain answer needs no tools');
+      if (run.ended && ledgerRanNoTool(led, runExecutionTruth(run))) html += panelRow('run', '•', pageT('activity.no_tool_ran', 'No tool ran — answered directly'), pageT('activity.no_tool_ran_sub', 'a plain answer needs no tools'));
     } else if (run.steps.length) {
-      run.steps.forEach((s) => { html += panelRow(rowCls(s.status), rowIcon(s.status), s.summary || s.tool || 'Action', stepMeta(s)); });
+      run.steps.forEach((s) => { html += panelRow(rowCls(s.status), rowIcon(s.status), s.summary || pageT('activity.plain.step_working', 'Working on a step'), stepMeta(s)); });
       html += reviewPanelRow(run);
     } else {
       // A turn can have meaningful routing, approval, failure, or model-review state without ever
       // executing a tool. Render those recorded dimensions instead of claiming there is no trace.
-      if (run.model) html += panelRow('run', '◆', 'Model recorded', modelProviderPresentation(run.model));
-      if (run.permission || run.status === 'awaiting_approval') html += panelRow('wait', '⏸', 'Waiting for approval', run.action || 'Review the exact action before it runs');
+      if (run.model) html += panelRow('run', '◆', pageT('panel.model_recorded', 'Model recorded'), modelProviderPresentation(run.model));
+      if (run.permission || run.status === 'awaiting_approval') html += panelRow('wait', '⏸', pageT('run.stage_waiting_approval', 'Waiting for approval'), run.action || pageT('panel.review_action_sub', 'Review the exact action before it runs'));
       html += reviewPanelRow(run);
-      if (run.status === 'failed') html += panelRow('fail', '✕', 'Failed safely', run.endSummary || run.last || 'The task stopped without a successful terminal state');
-      else if (run.status === 'cancelled') html += panelRow('fail', '■', 'Stopped', run.endSummary || 'Cancelled before completion');
+      if (run.status === 'failed') html += panelRow('fail', '✕', pageT('run.failed_safely_label', 'Failed safely'), run.endSummary || run.last || pageT('panel.failed_sub', 'The task stopped before it finished.'));
+      else if (run.status === 'cancelled') html += panelRow('fail', '■', pageT('run.status_stopped', 'Stopped'), run.endSummary || pageT('panel.cancelled_sub', 'Cancelled before completion'));
       // Same authoritative check as the ledger branch above: this arm renders when the panel has no
       // steps of its own, which is exactly the case where a real execution went unrecognised.
-      else if (run.ended && run.status === 'completed') html += panelRow('ok', '✓', 'Completed', ledgerRanNoTool(led, runExecutionTruth(run)) ? 'No tool ran — answered directly' : 'Completed with recorded tool work');
+      else if (run.ended && run.status === 'completed') html += panelRow('ok', '✓', pageT('run.status_completed', 'Completed'), ledgerRanNoTool(led, runExecutionTruth(run)) ? pageT('activity.no_tool_ran', 'No tool ran — answered directly') : pageT('panel.completed_sub', 'Completed with recorded tool work'));
       if (!html) html = '<div class="xp-empty">' + esc(humanActivityState(run)) + '…</div>';
     }
     html = renderRecoveryHtml() + html + renderActivityHistoryHtml();
@@ -7953,10 +8419,11 @@ function renderPanelBody() {
   } else if (panelTab === 'Tests') {
     const t = run.tests;
     if (!t.total && !t.done) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_test_runs', 'test runs'))) + '</div>'; return; }
-    html = '<div class="xp-note">' + esc(t.done + (t.total ? (' of ' + t.total) : '') + ' tests complete' + (t.failed ? (' · ' + t.failed + ' failed') : '')) + '</div>';
+    html = '<div class="xp-note">' + esc((t.total ? pageTF('panel.tests_done_of', '{done} of {total} tests complete', { done: t.done, total: t.total }) : pageTF('panel.tests_done', '{done} tests complete', { done: t.done }))
+      + (t.failed ? (' · ' + pageTF('panel.tests_failed', '{n} failed', { n: t.failed })) : '')) + '</div>';
   } else if (panelTab === 'Preview') {
-    if (run.preview) { html = '<div class="xp-note">Preview: <span class="mono">' + esc(run.preview) + '</span></div>'; }
-    else { body.innerHTML = '<div class="xp-empty">No preview for this task.</div>'; return; }
+    if (run.preview) { html = '<div class="xp-note">' + esc(pageT('panel.preview_label', 'Preview:')) + ' <span class="mono">' + esc(run.preview) + '</span></div>'; }
+    else { body.innerHTML = '<div class="xp-empty">' + esc(pageT('panel.preview_none', 'No preview for this task.')) + '</div>'; return; }
   }
   body.innerHTML = html;
   if (panelTab === 'Activity') { xpBodyEl.dataset.activityRendered = '1'; wireActivityPanelActions(); }
@@ -7968,6 +8435,10 @@ function renderPanelBody() {
 // per-chat cap is applied here once instead of in the renderer alone.
 function eventLogSections() {
   const run = view.run;
+  // Catalog words when the page's translator is there (it always is in the page); the English as is
+  // when this function runs on its own.
+  const tr = (key, english, params) => (typeof pageTF === 'function' ? pageTF(key, english, params || {})
+    : String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : '')));
   if (panelScope === 'chat') {
     // THE WHOLE CHAT, grouped by turn -- not just the newest one.
     //
@@ -7993,7 +8464,7 @@ function eventLogSections() {
         index += 1;
         sections.push({
           kind: 'group',
-          title: byTurn.size > 1 ? ('Turn ' + index) : 'This chat',
+          title: byTurn.size > 1 ? tr('activity.turn_label', 'Turn {n}', { n: index }) : tr('panel.this_chat', 'This chat'),
           total: events.length,
           rows: events.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')),
         });
@@ -8004,7 +8475,7 @@ function eventLogSections() {
     if (run && run.events.length) {
       sections.push({
         kind: sections.length ? 'group' : '',
-        title: sections.length ? 'Current turn' : '',
+        title: sections.length ? tr('panel.current_turn', 'Current turn') : '',
         total: run.events.length,
         rows: run.events.slice().reverse().map((ev) => '[' + (ev.stage || ev.type) + '] ' + evTitle(ev)),
       });
@@ -8012,7 +8483,7 @@ function eventLogSections() {
     if (sections.length) return sections.reverse();
     const durable = view.recoveredLedger || [];
     if (!durable.length) return [];
-    return [{ kind: 'note', title: 'Last recorded turn in this chat', rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
+    return [{ kind: 'note', title: tr('panel.last_turn', 'Last recorded turn in this chat'), rows: durable.slice().reverse().map((ev) => '[' + (ev.event_type || 'event') + '] ' + (ev.message || '')) }];
   }
   return scopedEvidence.sessions.map((s) => ({
     kind: 'group', title: s.title, total: s.events.length,
@@ -8023,7 +8494,7 @@ function eventLogText(sections) {
   const lines = [];
   for (const section of sections) {
     if (section.title) {
-      lines.push(section.title + (section.kind === 'group' ? (' \u2014 ' + section.total + ' event' + (section.total === 1 ? '' : 's')) : ''));
+      lines.push(section.title + (section.kind === 'group' ? (' \u2014 ' + activityEventCount(section.total)) : ''));
     }
     for (const row of section.rows) lines.push(row);
     lines.push('');
@@ -8032,12 +8503,15 @@ function eventLogText(sections) {
 }
 function renderAgents(body) {
   const rows = agentRowsFrom((view.chatLedger || []), Date.now());
-  if (!rows.length) { body.innerHTML = '<div class="xp-empty">No agent activity in ' + esc(scopeWhere()) + '.</div>'; return; }
+  // As in eventLogSections: catalog words in the page, the English as is when run on its own.
+  const tr = (key, english, params) => (typeof pageTF === 'function' ? pageTF(key, english, params || {})
+    : String(english).replace(/\{(\w+)\}/g, (_, k) => ((params && params[k] != null) ? params[k] : '')));
+  if (!rows.length) { body.innerHTML = '<div class="xp-empty">' + esc(tr('panel.agents_none', 'No agent activity in {scope}.', { scope: scopeWhere() })) + '</div>'; return; }
   const sum = agentSummaryOf(rows);
-  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">Copy all</button></div>';
-  html += '<div class="xp-group-head"><span class="xp-group-name">Agents</span>'
-       + '<span class="xp-group-meta">' + sum.running + ' running · ' + sum.done + ' done'
-       + (sum.failed ? ' · ' + sum.failed + ' failed' : '') + '</span></div>';
+  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-agents-action="copy">' + esc(tr('panel.copy_all', 'Copy all')) + '</button></div>';
+  html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(tr('panel.tab_agents', 'Agents')) + '</span>'
+       + '<span class="xp-group-meta">' + esc(tr('panel.agents_meta', '{running} running · {done} done', { running: sum.running, done: sum.done })
+       + (sum.failed ? ' · ' + tr('panel.tests_failed', '{n} failed', { n: sum.failed }) : '')) + '</span></div>';
   for (const r of rows) {
     const when = r.running
       ? ('running' + (r.elapsedMs != null ? ' · ' + fmtAgentDuration(r.elapsedMs) : ''))
@@ -8061,19 +8535,19 @@ function renderAgents(body) {
 }
 function renderEventLog(body) {
   if (panelScope !== 'chat') {
-    if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">Reading activity for ' + esc(scopeWhere()) + '\u2026</div>'; return; }
+    if (scopedEvidence.loading) { body.innerHTML = '<div class="xp-empty">' + esc(pageTF('panel.reading_scope', 'Reading activity for {scope}\u2026', { scope: scopeWhere() })) + '</div>'; return; }
     if (!scopedEvidence.sessions.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   }
   const sections = eventLogSections();
   if (!sections.length) { body.innerHTML = '<div class="xp-empty">' + esc(emptyScopeText(pageT('panel.kind_events', 'events'))) + '</div>'; return; }
   // The event log is a flat list -- there is nothing to disclose -- so it gets the control that
   // actually applies to it. Copy all still reads from the data, not from what happens to be scrolled.
-  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">Copy all</button></div>';
+  let html = '<div class="xp-tree-actions"><button type="button" class="xp-mini" data-eventlog-action="copy">' + esc(pageT('panel.copy_all', 'Copy all')) + '</button></div>';
   for (const section of sections) {
     if (section.kind === 'note') html += '<div class="xp-note">' + esc(section.title) + '</div>';
     else if (section.kind === 'group') {
       html += '<div class="xp-group-head"><span class="xp-group-name">' + esc(section.title) + '</span>'
-        + '<span class="xp-group-meta">' + section.total + ' event' + (section.total === 1 ? '' : 's') + '</span></div>';
+        + '<span class="xp-group-meta">' + esc(activityEventCount(section.total)) + '</span></div>';
     }
     for (const row of section.rows) html += '<div class="xp-row"><div class="bd mono">' + esc(row) + '</div></div>';
   }
@@ -8087,7 +8561,7 @@ function wireEventLogActions() {
 }
 
 async function renderReceipts(body) {
-  body.innerHTML = '<div class="xp-empty">Loading receipts…</div>';
+  body.innerHTML = '<div class="xp-empty">' + esc(pageT('panel.receipts_loading', 'Loading receipts…')) + '</div>';
   // A receipt belongs to the chat that produced it, so a wider scope reads each chat in scope and
   // keeps them grouped -- the chain is only meaningful within one chat, never across a merged list.
   if (panelScope !== 'chat') { renderScopedReceipts(body); return; }
@@ -8107,7 +8581,7 @@ async function renderReceipts(body) {
     list.slice().reverse().forEach((rc) => { html += receiptRowHtml(rc); });
     body.innerHTML = html;
     wireReceiptActions(body, list);
-  } catch (e) { body.innerHTML = '<div class="xp-empty">Receipts unavailable.</div>'; }
+  } catch (e) { body.innerHTML = '<div class="xp-empty">' + esc(pageT('receipts.unavailable', 'Receipts unavailable.')) + '</div>'; }
 }
 // The store keeps issued_at as an epoch float. Shown raw it is not a time anyone can read, so it
 // is rendered as a local timestamp; the untouched receipt is still what "Copy receipt" hands over.
@@ -8153,18 +8627,18 @@ function receiptRowHtml(rc) {
     + '<span class="rc-hd">Turn ' + esc(rc.turn_index) + ' · ' + esc(rc.verdict || 'unrecorded verdict')
     + '<span class="rc-sub mono">' + esc(String(rc.content_hash || 'no content hash').slice(0, 16)) + '</span></span></summary>'
     + '<div class="rc-body">'
-    + receiptField('Receipt id', rid)
-    + receiptField('Issued', receiptIssuedText(rc.issued_at))
-    + receiptField('Verdict', rc.verdict)
-    + receiptField('Verdict detail', rc.verdict_detail)
-    + receiptField('Content hash', rc.content_hash, true)
-    + receiptField('Signed', rc.signed ? 'yes' : 'no')
-    + receiptField('Signer', rc.signer_peer_id, true)
-    + receiptField('Executed tools', (rc.executed_tools || []).join(', '))
-    + receiptField('Claimed actions', (rc.claimed_actions || []).join(', '))
+    + receiptField(pageT('receipts.field_receipt_id', 'Receipt id'), rid)
+    + receiptField(pageT('receipts.field_issued', 'Issued'), receiptIssuedText(rc.issued_at))
+    + receiptField(pageT('receipts.field_verdict', 'Verdict'), rc.verdict)
+    + receiptField(pageT('receipts.field_verdict_detail', 'Verdict detail'), rc.verdict_detail)
+    + receiptField(pageT('receipts.field_content_hash', 'Content hash'), rc.content_hash, true)
+    + receiptField(pageT('receipts.field_signed', 'Signed'), rc.signed ? pageT('receipts.yes', 'yes') : pageT('receipts.no', 'no'))
+    + receiptField(pageT('receipts.field_signer', 'Signer'), rc.signer_peer_id, true)
+    + receiptField(pageT('receipts.field_executed_tools', 'Executed tools'), (rc.executed_tools || []).join(', '))
+    + receiptField(pageT('receipts.field_claimed_actions', 'Claimed actions'), (rc.claimed_actions || []).join(', '))
     + '<div class="rc-actions">'
-    + '<button type="button" class="rc-btn" data-copy="hash">Copy hash</button>'
-    + '<button type="button" class="rc-btn" data-copy="receipt">Copy receipt</button>'
+    + '<button type="button" class="rc-btn" data-copy="hash">' + esc(pageT('receipts.copy_hash', 'Copy hash')) + '</button>'
+    + '<button type="button" class="rc-btn" data-copy="receipt">' + esc(pageT('receipts.copy_receipt', 'Copy receipt')) + '</button>'
     + '</div></div></details>';
 }
 function receiptField(label, value, mono) {
@@ -8235,13 +8709,19 @@ async function queueOp(op, chatId, extra) {
 
 // The queue chips belong to the chat on screen. Bound before the await so a switch mid-request
 // cannot paint one chat's queue under another's composer.
-async function refreshQueue() {
-  const chatId = displayedChat;
+async function refreshQueue(forChatId) {
+  const chatId = String(forChatId || displayedChat);   // bind the chat before any await
   try {
-    const res = await fetch('/api/chat/queue?session=' + encodeURIComponent(chatId));
+    const res = await fetch(queueReadUrl(chatId));
     const data = await res.json();
-    if (isDisplayed(chatId)) renderQueue((data && data.queue) || []);
-  } catch (e) { /* leave chips as-is on a transient error */ }
+    const items = (data && data.queue) || [];
+    noteServerSlot(chatId, data);
+    // The displayed chat's strip repaints; a background chat's record is kept for the pump
+    // heartbeat, so its chips stay truthful without painting another chat's footer.
+    if (isDisplayed(chatId)) renderQueue(items);
+    else lastQueueItemsByChat.set(chatId, items);
+    return items;
+  } catch (e) { /* leave chips as-is on a transient error */ return null; }
 }
 
 // Presentation-only density cap: past this many chips the strip collapses the rest behind a
@@ -8252,6 +8732,25 @@ async function refreshQueue() {
 const QUEUE_VISIBLE_LIMIT = 2;
 const queueExpandedByChat = new Map();
 const lastQueueItemsByChat = new Map();
+// The chat's slot as this page knows it lives in the chat's own state (slotHeldElsewhere,
+// ownSlotTokens). The page tells the server which holders are its own (`mine`: its recent turn ids
+// and claimed item ids), so its own turn finalizing after the answer never reads as another tab.
+function noteOwnSlotToken(chatId, token) {
+  if (!chatId || !token) return;
+  const state = chatState(chatId);
+  const list = state.ownSlotTokens.filter((t) => t !== String(token));
+  list.push(String(token));
+  state.ownSlotTokens = list.slice(-16);
+}
+function queueReadUrl(chatId) {
+  const mine = chatId ? chatState(chatId).ownSlotTokens : [];
+  return '/api/chat/queue?session=' + encodeURIComponent(chatId) + (mine.length ? '&mine=' + encodeURIComponent(mine.join(',')) : '');
+}
+function noteServerSlot(chatId, data) {
+  if (!chatId || !data) return;
+  if (typeof data.turn_active_other === 'boolean') chatState(chatId).slotHeldElsewhere = data.turn_active_other;
+  else if (data.turn_active === false) chatState(chatId).slotHeldElsewhere = false;
+}
 
 function renderQueue(items) {
   lastQueueItemsByChat.set(displayedChat, items || []);
@@ -8430,15 +8929,24 @@ async function pumpQueue(forChatId) {
     const arrivals = owner.queueArrivals;
     const res = await queueOp('claim', chatId, { lease_owner: PAGE_LEASE });
     const claimed = res && res.item ? res.item : null;
+    if (claimed) noteOwnSlotToken(chatId, claimed.queue_item_id);
     if (!claimed) {
       // A send() can enqueue while this empty claim was on the wire, and its own pumpQueue() call
       // returns early against this hold -- so THIS pump is that item's only wakeup. Claim once
       // more when one arrived; the server's claim is a compare-and-swap, so the extra round
-      // either takes the item or comes back empty again with nothing left to run.
+      // either takes the item or comes back empty again with nothing left to run. Checked FIRST
+      // so a busy slot can never swallow that arrival signal: the recovery claim below either
+      // takes the item or defers it to the wakeup chain with the page still knowing it exists.
       if (owner.queueArrivals !== arrivals) continue;
-      owner.pumpHold = false; refreshQueue(); reflectComposer(); return;
+      // No new arrival, and the chat's slot is held by a live turn (this page's or another
+      // tab's -- the server's live-turn registry is the truth here). Do not spin against it:
+      // the running turn's completion pumps this queue again, and the sidebar heartbeat is the
+      // fallback wakeup when that tab is gone. Nothing is lost -- the item stays pending in the
+      // durable queue and this page's record of it was just refreshed.
+      if (res && res.turn_active) { owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return; }
+      owner.pumpHold = false; refreshQueue(chatId); reflectComposer(); return;
     }
-    refreshQueue();
+    refreshQueue(chatId);
     // The attachments the queued item owns, by the ids the server stored; names come from this
     // chat's own bucket (recorded when the item was queued) or fall back to a plain label.
     const queuedIds = (claimed.payload && Array.isArray(claimed.payload.attachments)) ? claimed.payload.attachments : [];
@@ -8485,6 +8993,10 @@ async function runTurn(text, queueItemId, opts) {
   // spent the draft, the queue item that owned them, or the resend of a failed turn -- and then
   // ride the run. Nothing after this line re-reads the composer's strip.
   const turnAttachments = Array.isArray(opts.attachments) ? opts.attachments.map((a) => Object.assign({}, a)) : [];
+  // A grant is held only for the resumed turn that carries it (resumeApprovedTurn). A NEW message
+  // is a different turn: whatever is still held in this chat (a resumed turn the server refused
+  // before it could act) must not ride on it.
+  if (!opts.resend) releaseApprovalTokenFor(chatId);
   let userMsgEl = null, userHistoryIndex = -1;
   if (!opts.resend) {
     const sentAt = new Date().toISOString();
@@ -8499,6 +9011,9 @@ async function runTurn(text, queueItemId, opts) {
   }
   const run = adoptRun(chatId, newRun(chatId));
   run.userMsgEl = userMsgEl; run.userHistoryIndex = userHistoryIndex;
+  // The transcript entry this turn answers: the one it just recorded, or the one a resume names.
+  run.promptEntry = opts.resend ? (opts.promptEntry || null) : (owner.history[userHistoryIndex] || null);
+  run.approvalResume = !!opts.approvalResume;
   // The companion learns that a NEW turn opened on this lane from the page's own fact -- the
   // request left the composer -- not from the server's later `task.started`. Until that
   // acknowledgement arrived, the last card wore the previous turn's terminal phrase under a
@@ -8510,6 +9025,8 @@ async function runTurn(text, queueItemId, opts) {
   reflectComposer();   // the Send button follows the DISPLAYED chat, which may not be this one
   if (opts.turnId) run.turnId = opts.turnId;
   run.queueItemId = queueItemId || null;
+  noteOwnSlotToken(chatId, run.turnId);
+  if (run.queueItemId) noteOwnSlotToken(chatId, run.queueItemId);
   run.aborter = new AbortController();
   // Timers belong to the run for its whole life -- navigation never starts or stops them.
   startRunTimers(run);
@@ -8524,7 +9041,7 @@ async function runTurn(text, queueItemId, opts) {
   let hasResponseCommit = false;
   run.text = '';
   try {
-    const lastUser = owner.history.slice().reverse().find((m) => m && m.role === 'user') || {};
+    const lastUser = run.promptEntry || owner.history.slice().reverse().find((m) => m && m.role === 'user') || {};
     // Resolve the owning chat's pin before the paid gate and carry it into the request inputs.
     // Local Only must override queued or trial models without a later page-state lookup.
     const chatModel = modelForChat(chatId);
@@ -8599,6 +9116,70 @@ async function runTurn(text, queueItemId, opts) {
     if (res.status === 409 && typeof res.clone === 'function') {
       let refusal = null;
       try { refusal = await res.clone().json(); } catch (e) { refusal = null; }
+      if (refusal && refusal.error === 'chat_turn_active') {
+        const owner = ownerOf(run);
+        // Another holder has the slot: later sends from this page go straight to the queue.
+        run.slotRefused = true;
+        owner.slotHeldElsewhere = true;
+        if (run.queueItemId) {
+          // A CLAIMED message refused before execution: the item is already the queue's row.
+          // Return the ORIGINAL to its pending FIFO position through the queue's
+          // ownership-checked release -- same identity, same position, no duplicate row. A
+          // pump (this page's release pump, another tab's, or the heartbeat) claims it again
+          // once the chat's current turn frees the slot.
+          const released = await queueOp('release', chatId, { queue_item_id: run.queueItemId });
+          if (released && released.released) {
+            run.text = pageT('run.queue_returned', 'Queued \u2014 waiting for this chat\u2019s current turn to finish.');
+            if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+            if (run.textEl) run.textEl.textContent = run.text;
+            finishRun(run, 'cancelled', pageT('run.queue_returned_summary', 'Returned to the queue behind the chat\u2019s active turn'));
+            releaseComposer(run);
+            refreshQueue(chatId);
+            return;
+          }
+          // The release was refused (another dispatch consumed this claim) or the door
+          // failed. The row keeps its in_flight record -- restart recovery's owner -- and
+          // the turn ends failed and says so. Never a duplicate, never a loss.
+          run.text = pageT('run.queue_claim_stuck', 'This message was claimed but could not start, and could not be returned to the queue. It stays recorded; restart VOOL to recover it.');
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          finishRun(run, 'failed', pageT('run.queue_claim_stuck_summary', 'The claimed message could not start or return to the queue'));
+          releaseComposer(run);
+          return;
+        }
+        // A DIRECT send refused on the race (two tabs sending in the same instant, or a turn
+        // that began between the check and this POST). Nothing executed -- the server
+        // refused before spending anything -- so the message goes to the SAME durable queue
+        // the busy-branch uses, idempotent under this run's turn id, and runs once the
+        // active turn frees the chat's slot.
+        const extra = { text: text, idempotency_key: 'reroute-' + (run.turnId || ('t-' + Date.now())) };
+        if (run.attachments && run.attachments.length) {
+          extra.attachments = run.attachments.map((a) => String(a.id));
+          run.attachments.forEach((a) => { owner.queuedAttachmentMeta[a.id] = a; });
+        }
+        const queued = await queueOp('enqueue', chatId, extra);
+        if (queued && queued.item) {
+          owner.queueArrivals++;
+          run.text = pageT('run.queue_rerouted', 'Queued \u2014 this chat is finishing a turn in another window.');
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          finishRun(run, 'cancelled', pageT('run.queue_rerouted_summary', 'Queued behind the chat\u2019s active turn'));
+          releaseComposer(run);
+          refreshQueue(chatId);
+          return;
+        }
+        // The queue door itself failed: recover exactly like the busy-branch's failed enqueue
+        // -- the text goes back to this chat's draft and the turn ends failed, never lost
+        // silently behind a bubble claiming it was queued.
+        // The ORIGINAL draft, exactly as typed -- never the text rebuilt from what was sent.
+        if (window.VoolComposerExtras) window.VoolComposerExtras.restoreDraft(chatId, typeof opts.draftText === 'string' ? opts.draftText : text);
+        run.text = pageT('run.queue_reroute_failed', 'The chat is finishing a turn and the message could not be queued. Its text was restored to this chat\u2019s draft.');
+        if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+        if (run.textEl) run.textEl.textContent = run.text;
+        finishRun(run, 'failed', pageT('run.queue_reroute_failed_summary', 'This chat is finishing a turn and the message could not be queued'));
+        releaseComposer(run);
+        return;
+      }
       if (refusal && refusal.error === 'council_model_pin_active') {
         setCouncilLock(true, String(refusal.detail || ''));
         if (window.VoolCouncilCard) { try { window.VoolCouncilCard.refreshLock(); } catch (e) {} }
@@ -8683,7 +9264,9 @@ async function runTurn(text, queueItemId, opts) {
           run.tokens = Math.round(assistant.length / 4);
           withRunDom(run, () => {
             if (!run.textEl) return;   // this chat is on screen but the run has no bubble yet
-            run.assistantMsgEl.classList.remove('pending');
+            // The typing state ends when the text is painted (paintStreamingText), not here: an early
+            // task.completed event can end the run first, and then no stream paint follows until the
+            // server commit renders the answer.
             if (run.refs && run.refs.tokens && !run.ended) run.refs.tokens.innerHTML = '<b>' + run.tokens + '</b> tok';
             followLog();
           });
@@ -8746,7 +9329,11 @@ async function runTurn(text, queueItemId, opts) {
     // The answer is appended to the chat that ASKED for it, resolved off the run -- never off the
     // chat currently on screen. This is the line that would silently move A's answer into B.
     recordAssistantMessage(run, assistant, run.displayMetadata);
-    withRunDom(run, () => { if (run.textEl) renderAssistantContent(run.textEl, assistant, run.displayMetadata); });
+    withRunDom(run, () => {
+      if (!run.textEl) return;
+      if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+      renderAssistantContent(run.textEl, assistant, run.displayMetadata);
+    });
   }
   if (!run.ended) finishRun(run, run.permissionDenied ? 'failed' : (run.permission ? 'awaiting_approval' : (run.terminal ? 'failed' : 'completed')), run.permissionDenied ? pageT('run.permission_denied', 'Permission denied') : (run.permission ? pageT('run.review_action', 'Review the exact action below.') : (run.terminal ? (run.action || pageT('run.failed_safely_label', 'Failed safely')) : pageT('run.complete', 'Complete'))));
   // The turn ran to the end without asking again, so the server either matched the token or never
@@ -8865,6 +9452,25 @@ async function checkUsePodSpending(selected, chatId = displayedChat) {
   return false;
 }
 
+// The chat's slot, from the ONE place that knows it across tabs: the server's live-turn registry.
+// send() never waits on it: pressing Send must paint at once, never after a round trip with the
+// draft already cleared. It reads what the page already knows -- its own run, and the server's
+// last report of ANOTHER holder (a queue read, a refused send). A send the page believed free
+// is refused by the server's typed 409 when another tab holds the slot, and is rerouted into this
+// chat's queue with the original draft. This fresh read refreshes that knowledge; a failed read
+// is not a busy signal.
+function chatSlotBusyKnown(chatId) {
+  return !!chatId && chatState(chatId).slotHeldElsewhere === true;
+}
+async function chatSlotBusyOnServer(chatId) {
+  if (!chatId) return false;
+  try {
+    const res = await fetchJsonWithin(queueReadUrl(chatId), null, 5000);
+    noteServerSlot(chatId, res);
+    return !!(res && res.turn_active);
+  } catch (e) { return false; }
+}
+
 async function send() {
   // Refused BEFORE the draft is read or cleared: a disabled textarea is the visible half,
   // and a keyboard path or a stale handler must not get past it either -- nor eat what the
@@ -8912,7 +9518,11 @@ async function send() {
   }
   inputEl.value = '';
   if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
-  if (isChatBusy(chatId)) {
+  // Busy is a property of THE CHAT, not of this page: this page's own run or claim window, or a
+  // turn another tab is executing right now (the server's slot truth -- the only cross-tab
+  // witness). Either way the message is stored durably and runs once the slot frees.
+  const slotBusy = isChatBusy(chatId) || chatSlotBusyKnown(chatId);
+  if (slotBusy) {
     // Do not drop it -- persist it in THIS chat's queue and show a chip. Another chat being busy
     // is irrelevant here; only this chat's own slot decides run-now vs enqueue. The staged
     // attachments travel with the queued item by id; their names are remembered in this chat's
@@ -8936,7 +9546,7 @@ async function send() {
     }
     return;
   }
-  await runTurn(text, null, { chatId: chatId, attachments: attachments });
+  await runTurn(text, null, { chatId: chatId, attachments: attachments, draftText: draftText });
 }
 
 // =========================== Attachments: files and photos in the composer ===========================
@@ -9928,6 +10538,8 @@ function reflectModel() {
     renderConnections(lastConnectionRows || []);
     refreshCloudStatus(false);
   }
+  // The no-model notice depends on this chat's model choice (a chosen cloud model can answer).
+  if (typeof noModelLinePaint === 'function') { try { noModelLinePaint(); } catch (e) {} }
   if (modelValue === 'vool' && view.stickyModel) {
     if (lbl) lbl.textContent = pageT('header.model_auto_option', 'VOOL Auto') + ' 📌';
   } else if (lbl) lbl.textContent = compactLabel(label);
@@ -11676,6 +12288,9 @@ function openSettings(section) {
   openSettingsInFrame(section);
 }
 function openSettingsInFrame(section) { openSurfaceInFrame('/settings' + (section ? ('#' + section) : ''), 'VOOL Settings'); }
+document.getElementById('browserBtn').addEventListener('click', () => {
+  openSurfaceInFrame('/browser?chat=' + encodeURIComponent(displayedChat), pageT('live.browser', 'Browser'));
+});
 // The SAME frame overlay carries any second surface of this runtime (Settings, guided setup): one
 // overlay, one close path (Back / Escape / click outside), the chat and its draft untouched.
 function openSurfaceInFrame(url, label) {
@@ -13017,6 +13632,7 @@ function showPermBar(chatId, ev) {
   // A different request means the server did not match the token still in hand: it is spent now.
   if (owner.approvalToken && owner.approvalToken !== a.approval_id) releaseApprovalTokenFor(chatId);
   owner.pendingApproval = a;
+  owner.goalApproval = null;
   // Painting the single permission bar is display work: only the chat on screen may drive it.
   if (!permBarEl || !isDisplayed(chatId)) return;
   permMsgEl.textContent = a.action || ev.summary || pageT('permissions.needs_approval_default', 'VOOL needs approval for one exact action.');
@@ -13089,34 +13705,71 @@ function syncAnswerPendingSurfaces() {
 }
 // Re-send the approved turn IN THE CHAT THAT WAS APPROVED. The chat id is explicit, so an
 // approval granted in one chat can never resend into another.
+// It re-sends the message of the turn that ASKED, under that turn's id -- not the chat's latest
+// message, which may be a newer one sent (or queued) while the approval was being answered. The
+// grant is put in hand only here, as that turn goes out: the chat is busy from this call on, so no
+// other turn of this chat can be built while it is held.
 function resumeApprovedTurn(chatId) {
   const owner = chatState(chatId || displayedChat);
   if (!owner.resumeApprovedTurn || isChatBusy(owner.chatId)) return;
   owner.resumeApprovedTurn = false;
-  const lastUser = owner.history.slice().reverse().find((m) => m && m.role === 'user');
-  if (!lastUser) return;
-  if (owner.history.length && owner.history[owner.history.length - 1].role === 'assistant') {
+  const resume = owner.approvalResume; owner.approvalResume = null;
+  const asking = resume && resume.run;
+  const entry = asking && asking.promptEntry;
+  // Without the asking turn and its message there is nothing exact to resume: send nothing.
+  // Said, not silent: the operator allowed an action that will not run now.
+  if (!entry || owner.history.indexOf(entry) < 0 || !asking.turnId) {
+    releaseApprovalTokenFor(owner.chatId);
+    toast(pageT('permissions.approval_gone', 'This approval is no longer available.'));
+    return;
+  }
+  // The asking turn's own answer is replaced by the resumed one only when it is still the last
+  // entry; an answer to a later message is that message's, and stays.
+  if (asking.historyIndex >= 0 && asking.historyIndex === owner.history.length - 1 && owner.history[asking.historyIndex].role === 'assistant') {
     owner.history.pop();
     if (isDisplayed(owner.chatId)) {
       const bubbles = logEl.querySelectorAll('.msg.assistant');
       if (bubbles.length) bubbles[bubbles.length - 1].remove();
     }
   }
-  const resumeTurnId = owner.approvalResumeTurnId; owner.approvalResumeTurnId = '';
-  runTurn(lastUser.content, null, { resend: true, turnId: resumeTurnId, chatId: owner.chatId });
+  setApprovalToken(owner.chatId, resume.token);
+  runTurn(entry.content, null, { resend: true, turnId: asking.turnId, chatId: owner.chatId, promptEntry: entry, approvalResume: true });
 }
 // The permission bar only ever shows the DISPLAYED chat's request (showPermBar enforces that), so
 // resolving it resolves that chat's grant -- recorded in that chat's bucket, never a global one.
+// The goal card hands a waiting step's approval to the one permission bar, only for the chat on
+// screen and only when the approval belongs to that goal's current step.
+function reviewGoalApproval(goal, approval) {
+  if (!goal || !approval || String(goal.session_id || '') !== displayedChat || goal.state !== 'waiting_approval') return;
+  const step = (goal.steps || []).find((item) => item.id === goal.current_step_id);
+  if (!step || step.turn_id !== approval.task_id) return;
+  showPermBar(displayedChat, {approval:approval});
+  chatState(displayedChat).goalApproval = {goal_id:goal.goal_id};
+}
+
 async function resolvePermission(decision, scope) {
   const chatId = displayedChat;
   const owner = chatState(chatId);
+  const goalApproval = owner.goalApproval;
   const approval = owner.pendingApproval; if (!approval || !approval.approval_id) { toast(pageT('permissions.approval_gone', 'This approval is no longer available.')); return; }
+  // The turn that asked, bound before the await: a message sent while the answer is on the wire
+  // becomes this chat's current run, and must not be mistaken for the one being approved.
+  const asking = owner.pendingApprovalRun;
   try {
     const data = await postMode({ op: 'resolve_approval', approval_id: approval.approval_id, decision: decision, scope: scope || 'once' });
-    hidePermBar(); owner.pendingApproval = null;
+    hidePermBar(); owner.pendingApproval = null; owner.goalApproval = null;
+    if (goalApproval) {
+      if (decision === 'allow') {
+        const response = await fetch('/api/goal/retry', {method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({session_id:chatId, goal_id:goalApproval.goal_id})});
+        const resumed = await response.json();
+        if (!response.ok || !resumed.ok) throw new Error(resumed.error || pageT('permissions.approval_gone', 'This approval is no longer available.'));
+        if (window.VoolGoalCard) window.VoolGoalCard.refresh();
+      } else toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
+      return;
+    }
     if (decision === 'allow') {
-      setApprovalToken(chatId, approval.approval_id); owner.resumeApprovedTurn = true;
-      owner.approvalResumeTurnId = (owner.run && owner.run.turnId) || approval.task_id || '';
+      owner.approvalResume = { token: approval.approval_id, run: asking }; owner.resumeApprovedTurn = true;
       const grantedScope = (data.approval && data.approval.scope) || 'once';
       toast(grantedScope === 'project'
         ? pageT('permissions.toast_project', 'Allowed in this project: reads and in-project file writes. Deletes, moves, commands, network, and payments still ask.')
@@ -13127,7 +13780,9 @@ async function resolvePermission(decision, scope) {
             : pageT('permissions.toast_once', 'Approved once for this exact action.'))));
       if (!isChatBusy(chatId)) resumeApprovedTurn(chatId);
     } else {
-      releaseApprovalTokenFor(chatId); owner.resumeApprovedTurn = false; owner.approvalResumeTurnId = '';
+      releaseApprovalTokenFor(chatId);
+      // A denial answers its own request; an allowed one from an earlier turn still resumes.
+      if (!owner.approvalResume || owner.approvalResume.token === approval.approval_id) { owner.resumeApprovedTurn = false; owner.approvalResume = null; }
       if (owner.run) { owner.run.permission = false; owner.run.permissionDenied = true; owner.run.action = pageT('run.permission_denied', 'Permission denied'); renderCard(owner.run); }
       toast(pageT('permissions.denied_toast', 'Denied. The action did not run.'));
     }
@@ -13249,6 +13904,7 @@ panelBtnEl.addEventListener('click', togglePanel);
     + '&format=' + el('exportFormat').value
     + '&timestamps=' + (el('exportTimestamps').checked ? 1 : 0)
     + '&no_attachments=' + (el('exportAttachments').checked ? 0 : 1)
+    + '&ui_locale=' + encodeURIComponent(document.documentElement.lang || '')
     + (extra || '');
   async function refreshPreview() {
     const goEl = el('exportGo');
@@ -13315,11 +13971,10 @@ panelBtnEl.addEventListener('click', togglePanel);
         return;
       }
       const blob = await r.blob();
-      const cd = r.headers.get('Content-Disposition') || '';
-      const name = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = name ? decodeURIComponent(name[1]) : ('vool-chat.' + fmt);
+      a.download = (typeof downloadFilenameFrom === 'function')
+        ? downloadFilenameFrom(r.headers.get('Content-Disposition'), 'VOOL chat.' + fmt) : ('VOOL chat.' + fmt);
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
       statusEl.textContent = 'Export downloaded.';
@@ -13416,7 +14071,7 @@ const xpScopeEl = document.getElementById('xpScope');
 if (xpScopeEl) {
   PANEL_SCOPES.forEach((s) => {
     const opt = document.createElement('option');
-    opt.value = s[0]; opt.textContent = s[1];
+    opt.value = s[0]; opt.textContent = pageT('panel.scope_opt_' + s[0], s[1]);
     if (s[0] === panelScope) opt.selected = true;
     xpScopeEl.appendChild(opt);
   });
@@ -13503,6 +14158,19 @@ const updateBarFill = document.getElementById('updateBarFill');
 const updateActionBtn = document.getElementById('updateActionBtn');
 const updateCheckBtn = document.getElementById('updateCheckBtn');
 const updateRollbackBtn = document.getElementById('updateRollbackBtn');
+const updateOnlineBtn = document.getElementById('updateOnlineBtn');
+const updateOnlineNote = document.getElementById('updateOnlineNote');
+// Phases with nothing of their own to say (idle, up to date, a check): there the off line IS the status. Every other phase
+// (ready, ready to restart, rolled back, failed, in progress) keeps its own message, with the off
+// line under it, and restart and rollback stay usable.
+const UPDATE_QUIET = new Set(['idle', 'up_to_date', 'checking']);
+function showUpdateOnlineOff(on, phase) {
+  const quiet = UPDATE_QUIET.has(phase || 'idle');
+  if (on && quiet) updateMessageEl.textContent = UPDATE_ONLINE_OFF;
+  if (updateOnlineNote) { updateOnlineNote.textContent = (on && !quiet) ? UPDATE_ONLINE_OFF : ''; updateOnlineNote.hidden = !(on && !quiet); }
+  if (updateOnlineBtn) updateOnlineBtn.hidden = !on;
+}
+const UPDATE_ONLINE_OFF = pageT('update.online_off', 'Online access is off, so VOOL does not check for updates.');
 // The updater's state machine names stay exactly as shipped (phase keys below); only
 // their display words resolve through the catalog's update.* keys.
 const UPDATE_LABELS = {
@@ -13535,7 +14203,10 @@ function renderUpdateChip(payload) {
   else if (phase === 'unavailable') updateChip.classList.add('upd-off');
   updateVersionEl.textContent = payload.target_version ? pageTF('update.version_line', 'Version {version}', { version: payload.target_version }) : '';
   updateNotesEl.textContent = (payload.notes || '').trim();
+  // The outbound switch is the master over update checks: while it is off the popover says so and
+  // offers the way to the switch, instead of a check that would only look like it failed.
   updateMessageEl.textContent = payload.message || '';
+  showUpdateOnlineOff(payload.online_access === false, phase);
   updateBar.hidden = !(phase === 'downloading' && payload.progress_percent != null);
   updateBarFill.style.width = `${payload.progress_percent || 0}%`;
   updateActionBtn.hidden = true; updateCheckBtn.hidden = false;
@@ -13595,12 +14266,26 @@ if (updateCheckBtn) updateCheckBtn.addEventListener('click', async () => {
   // Every press ends in a visible result line; a failed check used to change nothing at all.
   updateMessageEl.textContent = UPDATE_LABELS.checking;
   let ok = false;
+  let result = {};
   try { const r = await fetch('/api/update/check', { method: 'POST', credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok); } catch (e) { ok = false; }
+    headers: { 'Content-Type': 'application/json' }, body: '{}' }); ok = !!(r && r.ok);
+    result = await r.json().catch(() => ({})); } catch (e) { ok = false; }
+  if (result && (result.reason === 'online_access_off' || result.error === 'online_access_off')) {
+    // Put back what the status said before "Checking…", then the off line (the status line itself in a
+    // quiet phase, under the real message otherwise).
+    updateMessageEl.textContent = (_updateStatus && _updateStatus.message) || '';
+    showUpdateOnlineOff(true, (_updateStatus && _updateStatus.phase) || 'idle');
+    return;
+  }
   if (!ok) { updateMessageEl.textContent = "Couldn't check for updates right now. Try again later."; return; }
   setTimeout(refreshUpdateStatus, 400);
 });
 if (updateRollbackBtn) updateRollbackBtn.addEventListener('click', () => pressUpdate('rollback'));
+if (updateOnlineBtn) updateOnlineBtn.addEventListener('click', () => {
+  updatePop.classList.remove('open');
+  updateChip.setAttribute('aria-expanded', 'false');
+  openSettings('permissions/automatic_checks');
+});
 setInterval(() => { if (!document.hidden) refreshUpdateStatus(); }, _updateFast ? 700 : 3500);
 refreshUpdateStatus();
 
@@ -13699,6 +14384,7 @@ window.VoolPageActions = Object.freeze({
   focusComposer: () => { if (inputEl) inputEl.focus(); },
   toast: (text) => toast(String(text == null ? '' : text)),
   displayedChat: () => displayedChat,
+  reviewGoalApproval: (goal, approval) => reviewGoalApproval(goal, approval),
   chatLog: () => logEl,
   // Close EVERY composer while a council owns the machine's model pin, and hand them back
   // when it does not. The caller passes what the SERVER said; the page decides what
@@ -13755,9 +14441,11 @@ async function setupLineLoad() {
   if (!line) return;
   try {
     const r = await fetch('/api/setup/state');
-    if (!r.ok) { line.hidden = true; return; }
+    if (!r.ok) { line.hidden = true; noModelState = null; noModelLinePaint(); return; }
     const d = await r.json();
+    noModelState = (d && d.cloud_default && typeof d.cloud_default === 'object') ? d.cloud_default : null;
     const show = !!(d && d.show_chat_line);
+    setupLineWanted = show;   // the no-model notice (noModelLinePaint, below) may take this line over
     const text = document.getElementById('setupLineText');
     if (text && d && typeof d.done_count === 'number' && d.done_count > 0) {
       let prog = 'Finish setting up VOOL \u2014 ' + d.done_count + ' of ' + d.total + ' done.';
@@ -13770,9 +14458,82 @@ async function setupLineLoad() {
       text.textContent = prog;
     }
     line.hidden = !show;
-  } catch (e) { line.hidden = true; }
-  finally { line.dataset.loaded = '1'; }   // the markup starts hidden; this says the decision was made
+  } catch (e) { line.hidden = true; noModelState = null; }
+  finally { line.dataset.loaded = '1'; noModelLinePaint(); }   // the markup starts hidden; this says the decision was made
 }
+
+// --- No-model notice -------------------------------------------------------------------------
+// Before the first send, the composer says when nothing can answer: no local model runs here and
+// this chat would not reach a cloud model (Auto with no cloud model saved in setup, or Local Only).
+// The facts are /api/setup/state's `cloud_default` -- the same presence authority the turn itself
+// is refused by -- re-read on boot, focus, visibility and setup close, and every 20 s while the
+// notice shows, so it goes away by itself once a model can answer. An unreadable state shows
+// nothing here (the reply still explains and carries the same button). It is the setup line in
+// its no-model form -- one line at a time, in the place the pet already keeps clear -- and it is
+// not dismissible: until a model exists every message gets the same refusal, so hiding the reason
+// helps nobody (the setup line's own "don't remind me" stays as it was for the other steps).
+var noModelState = null;
+var setupLineWanted = false;
+var noModelPoll = null;
+function noModelNeeded() {
+  const cd = noModelState;
+  if (!cd || cd.check_failed || cd.local_model_running !== false) return false;
+  const m = String((typeof modelValue === 'string' && modelValue) || 'vool');
+  if (m === LOCAL_ONLY_MODEL) return true;                                   // only a local model may answer
+  if (m !== 'vool' && !MODEL_LABELS[m] && !isLocalModel(m)) return false;     // this chat names a cloud model
+  if (m === 'vool' && view && view.stickyModel) return false;                 // Auto sticks to this chat's cloud model
+  const saved = cd.decision === 'use_cloud' && !!cd.model && Array.isArray(cd.candidates)
+    && cd.candidates.some((row) => row && row.id === cd.model);
+  return !saved;
+}
+function noModelLinePaint() {
+  const line = document.getElementById('setupLine');
+  if (!line) return;
+  const show = noModelNeeded();
+  line.classList.toggle('no-model-line', show);
+  if (show) line.hidden = false;
+  else if (line.dataset.loaded === '1') line.hidden = !setupLineWanted;
+  if (show && !noModelPoll) noModelPoll = setInterval(() => { if (!document.hidden) setupLineLoad(); }, 20000);
+  if (!show && noModelPoll) { clearInterval(noModelPoll); noModelPoll = null; }
+}
+// The reply that says no model is set up carries the same button. Recognised by its own lead in
+// every shipped language (core.final_answer_authorship.no_model_notice_leads), never by wording a
+// model chose. Its last paragraph is the cause, folded behind the same "details" toggle the
+// provenance line uses. Both live outside the message's source, so Copy and Pin stay the reply.
+var NO_MODEL_LEADS = /*__VOOL_NO_MODEL_LEADS__*/[];
+function mountNoModelActions(el, content) {
+  const body = String(content || '').replace(/^\s+/, '');
+  if (!el || !Array.isArray(NO_MODEL_LEADS) || !NO_MODEL_LEADS.some((lead) => lead && body.startsWith(lead))) return;
+  let detailBox = null;
+  const parts = body.split(/\n\s*\n/);
+  if (parts.length >= 3) {
+    const detail = parts[parts.length - 1].trim();
+    const para = Array.from(el.querySelectorAll('p')).reverse().find((p) => p.textContent.trim() === detail);
+    if (para) {
+      detailBox = document.createElement('p'); detailBox.className = 'chat-provenance no-model-detail';
+      const more = document.createElement('button'); more.type = 'button'; more.className = 'prov-more';
+      more.setAttribute('aria-expanded', 'false'); more.textContent = pageT('chat.provenance.details', 'details');
+      const raw = document.createElement('span'); raw.className = 'prov-raw'; raw.hidden = true; raw.textContent = detail;
+      detailBox.appendChild(more); detailBox.appendChild(raw);
+      para.replaceWith(detailBox);
+    }
+  }
+  const row = document.createElement('p'); row.className = 'no-model-actions';
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'setup-line-open no-model-setup';
+  btn.textContent = pageT('chat.no_model.setup_button', 'Set up a model');
+  btn.title = pageT('chat.no_model.setup_button_title', 'Opens Setup at the step where you choose a model');
+  btn.addEventListener('click', () => openSetup('thinking'));
+  row.appendChild(btn);
+  if (detailBox) el.insertBefore(row, detailBox); else el.appendChild(row);
+  // The server just found nothing that can answer: if the notice is not up (a model stopped since
+  // the last read), read the state once more so the composer says it too.
+  if (!noModelNeeded() && !noModelRecheck) noModelRecheck = setTimeout(() => { noModelRecheck = null; setupLineLoad(); }, 300);
+}
+var noModelRecheck = null;
+(function noModelLineBoot() {
+  const open = document.getElementById('noModelLineOpen');
+  if (open) open.addEventListener('click', () => openSetup('thinking'));
+})();
 (function setupLineBoot() {
   const line = document.getElementById('setupLine');
   if (!line) return;
@@ -13827,6 +14588,7 @@ def _page_fragments() -> tuple[str, ...]:
     from core.contacts_fragment import render_contacts_fragment
     from core.council_chat_card_fragment import render_council_card_fragment
     from core.council_fragment import render_council_fragment
+    from core.goal_progress_fragment import render_goal_progress_fragment
     from core.model_radar_fragment import render_model_radar_fragment
     from core.notification_fragment import render_notification_fragment
     from core.price_safety_fragment import render_price_safety_fragment
@@ -13842,6 +14604,7 @@ def _page_fragments() -> tuple[str, ...]:
         render_composer_extras_fragment(),
         render_price_safety_fragment(),
         render_notification_fragment(),
+        render_goal_progress_fragment(),
         render_model_radar_fragment(),
         render_settings_extras_fragment(),
         render_companion_drawer_fragment(),
@@ -13852,6 +14615,21 @@ def _page_fragments() -> tuple[str, ...]:
         render_contacts_fragment(),
     )
 
+
+
+def _no_model_leads_js() -> str:
+    """The no-model reply's lead in every shipped language, as a JS array literal for the page."""
+    import json
+
+    from core.final_answer_authorship import LEGACY_NO_MODEL_NOTICE_LEAD, NO_MODEL_NOTICE_LEAD, no_model_notice_leads
+
+    try:
+        leads = list(no_model_notice_leads())
+    except Exception:
+        leads = [NO_MODEL_NOTICE_LEAD]
+    leads.append(LEGACY_NO_MODEL_NOTICE_LEAD)
+    # `<` is escaped so translated text can never close the script element.
+    return json.dumps(leads, ensure_ascii=False).replace("<", "\\u003c")
 
 
 def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appearance: tuple[str, int] | None = None) -> str:
@@ -13874,6 +14652,7 @@ def render_vool_chat_html(*, build_commit: str = "", ui_locale: str = "en", appe
     page = (
         _VOOL_CHAT_HTML.replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         .replace("__VOOL_LOGO_URI__", logo_uri)
+        .replace("/*__VOOL_NO_MODEL_LEADS__*/[]", _no_model_leads_js(), 1)
         .replace("</body>", "".join(_page_fragments()) + "</body>")
     )
     # The UI locale rides the same deterministic i18n authority the Settings selector drives

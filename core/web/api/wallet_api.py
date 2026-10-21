@@ -6,6 +6,9 @@ The recovery phrase crosses this seam exactly once, in the pocket-creation respo
 """
 from __future__ import annotations
 
+import contextlib
+import functools
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from core.request_trust import is_loopback_host
@@ -114,6 +117,42 @@ def _prepared(proposal: proposals.TransactionProposal, *, source_context: dict[s
     return _ok({"proposal": prepared.to_dict(), "duplicate": duplicate})
 
 
+@contextlib.contextmanager
+def _request_locale(headers: dict[str, Any] | None, query: dict[str, list[str]] | None = None) -> Iterator[None]:
+    """Bind the app language this request's page chose (?ui_locale= > the vool_ui_locale cookie) while the wallet
+    builds its words, so receipt labels and refusal texts read in that language. A request that names none (a
+    command-dispatch projection, a chat turn's own tool call) leaves the locale already bound untouched."""
+    from core.i18n.catalog import resolve_render_locale
+    from core.i18n.turn_locale import bind_turn_locale, reset_turn_locale
+    from core.web.api.service import _ui_locale_cookie
+
+    query_locale = str(((query or {}).get("ui_locale") or [""])[0] or "")
+    cookie_locale = _ui_locale_cookie(headers)
+    if not (query_locale.strip() or cookie_locale.strip()):
+        yield
+        return
+    token = bind_turn_locale(resolve_render_locale(query_locale, cookie_locale, "en"))
+    try:
+        yield
+    finally:
+        reset_turn_locale(token)
+
+
+def _in_request_locale(*, reads_query: bool) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Run a door handler inside `_request_locale`. A decorator, not a renamed inner handler: the command census reads
+    each door's route literals from the body of the function that carries the public name."""
+    def wrap(handler: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(handler)
+        def bound(path: str, payload: Any, *, headers: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+            with _request_locale(headers, payload if reads_query else None):
+                if reads_query:
+                    return handler(path, payload, **kwargs)
+                return handler(path, payload, headers=headers, **kwargs)
+        return bound
+    return wrap
+
+
+@_in_request_locale(reads_query=True)
 def handle_wallet_get(path: str, query: dict[str, list[str]], *, client_host: str = "") -> Any:
     if not is_loopback_host(client_host):
         return _json(403, {"ok": False, "error": "owner_local_required"})
@@ -233,6 +272,7 @@ def _recovery_door(path: str, body: dict[str, Any], *, source_context: dict[str,
     return _json(404, {"ok": False, "error": "not found"})
 
 
+@_in_request_locale(reads_query=False)
 def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = "", headers: dict[str, Any] | None = None) -> Any:
     """``headers`` are the real request's headers. A caller without a request behind it (the command-dispatch
     projection) passes none, and a trusted door refuses it: loopback alone never authorizes a trusted door."""
@@ -351,13 +391,26 @@ def handle_wallet_post(path: str, body: dict[str, Any], *, client_host: str = ""
         if path == "/api/wallet/propose":
             key = str(body.get("idempotency_key") or "")
             wallet_id = _wallet_id(body)
+            from core.contacts.consumers import resolve_wallet_recipient
             from core.wallet import idempotency
+
+            profile = custody.require_wallet(wallet_id, source_context=source_context)
+            network = str(body.get("network") or "") or profile.network
+            recipient = resolve_wallet_recipient(str(body.get("destination") or ""), network=network,
+                asset=str(body.get("asset") or "SOL"))
+            if not recipient.ok:
+                fault = wallet_fault("wallet_recipient_refused", authority="core.wallet", context={
+                    "reason": recipient.status, "recipient": recipient.resolution or {},
+                }, source_context=source_context)
+                fault.user_message = recipient.message
+                return _fault(fault)
+            destination = recipient.snapshots[0]
 
             existed = idempotency.existing_for_key(wallet_id, key) is not None if key else False
             proposal = proposals.propose_transaction(
-                wallet_id=wallet_id, destination=str(body.get("destination") or ""), amount_minor=int(body.get("amount_minor") or 0),
+                wallet_id=wallet_id, destination=str(destination["value"]), amount_minor=int(body.get("amount_minor") or 0),
                 asset=str(body.get("asset") or "SOL"), origin=str(body.get("origin") or proposals.ORIGIN_USER), memo=str(body.get("memo") or ""),
-                idempotency_key=key, source_context=source_context, network=str(body.get("network") or ""),
+                idempotency_key=key, source_context=source_context, network=network, recipient=destination,
             )
             return _prepared(proposal, source_context=source_context, duplicate=existed)
         if path == "/api/wallet/x402/propose":

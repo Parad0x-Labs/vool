@@ -90,6 +90,30 @@ from core.enum_compat import StrEnum
 #: byte-identically.
 UNCERTIFIED_AUTHOR_NOTICE_LEAD = "I can't publish this answer:"
 
+#: The first sentence of the refusal for the case where nothing at all can write a reply (no
+#: local model runs and no other author was tried): the first answer most new users ever get, so
+#: it is plain words, in the app language of the turn. It is load-bearing exactly like the lead
+#: above -- `is_authorship_refusal_text` recognises it in every shipped catalog so gating these
+#: bytes again returns them unchanged -- and the chat page recognises it to offer a Set up button.
+NO_MODEL_NOTICE_LEAD = "I can't answer yet because no AI model is set up on this computer."
+NO_MODEL_NOTICE_LEAD_KEY = "chat.no_model.reply_lead"
+NO_MODEL_NOTICE_BODY = (
+    "Setting one up takes about two minutes: open Setup and choose where VOOL should think. If "
+    "you already have a model app on this computer, such as Ollama, open it and ask again."
+)
+NO_MODEL_NOTICE_BODY_KEY = "chat.no_model.reply_body"
+#: The cause, last and on its own paragraph (the chat page shows it behind "details").
+#: Worded to hold in every case that reaches it -- no cloud key, a key with no model chosen for
+#: Auto, or Local Only keeping cloud models off -- because the decision does not carry which.
+NO_MODEL_NOTICE_DETAIL = (
+    "Details: no local model is running on this computer, and no cloud model is available to "
+    "answer instead."
+)
+NO_MODEL_NOTICE_DETAIL_KEY = "chat.no_model.reply_detail"
+#: How the same refusal began before 0.7.2 (still in people's saved chats). Recognised by the chat
+#: page only, so those replies get the same button; the lead above already covers it server-side.
+LEGACY_NO_MODEL_NOTICE_LEAD = f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} no AI model is connected and ready yet"
+
 #: How many turns' decisions are kept. Same order of magnitude as the model-call ledger's own
 #: bound; a decision is only read once, by the finalization of the turn that made it.
 _MAX_TRACKED_TURNS = 512
@@ -270,16 +294,10 @@ class AuthorshipDecision:
         if (not attempted and self.reason not in (REASON_CLOUD_ESCALATION_NOT_PERMITTED, REASON_AUTHOR_UNRESOLVED)
                 and _local_author_not_running(author)):
             # Nothing can write a reply at all: this is the first answer most new users ever get,
-            # so it says that in plain words and names the way to connect a model. The lead stays
-            # (it is how this transform recognises its own output); the engine detail goes last.
-            return (
-                f"{UNCERTIFIED_AUTHOR_NOTICE_LEAD} no AI model is connected and ready yet, so there "
-                "is nothing that can write a reply.\n\n"
-                "To connect one, open Setup and choose a model under \u201cWhere should it "
-                "think?\u201d. If you already have a key for an online service, you can also pick a "
-                "cloud model in the model selector at the top of the chat.\n\n"
-                "Details: no local model is running on this computer right now."
-            )
+            # so it says that in plain words, in the turn's app language, and names the one way
+            # forward. No model id, no engine words: the chat page puts a Set up button under it
+            # and folds the last paragraph -- the cause -- behind "details".
+            return no_model_notice_text()
         if _local_author_not_running(author):
             # Certifying a model that is not running cannot help; name the fix that can.
             remedy = (
@@ -292,6 +310,47 @@ class AuthorshipDecision:
             f"backs it, so the answer would rest on the writing model alone. {cause}\n\n"
             f"{remedy}"
         )
+
+
+def no_model_notice_text(locale: str = "") -> str:
+    """The no-model refusal in the turn's app language (English when none is bound)."""
+    from core.i18n.turn_locale import turn_text
+
+    lead = turn_text(NO_MODEL_NOTICE_LEAD_KEY, NO_MODEL_NOTICE_LEAD, locale)
+    body = turn_text(NO_MODEL_NOTICE_BODY_KEY, NO_MODEL_NOTICE_BODY, locale)
+    detail = turn_text(NO_MODEL_NOTICE_DETAIL_KEY, NO_MODEL_NOTICE_DETAIL, locale)
+    return f"{lead}\n\n{body}\n\n{detail}"
+
+
+_NO_MODEL_LEADS: tuple[str, ...] | None = None
+
+
+def no_model_notice_leads() -> tuple[str, ...]:
+    """The no-model lead in English and in every shipped catalog -- read once, never guessed."""
+    global _NO_MODEL_LEADS
+    if _NO_MODEL_LEADS is None:
+        leads = [NO_MODEL_NOTICE_LEAD]
+        try:
+            from core.i18n.catalog import catalog_for
+            from core.i18n.locales import ui_catalog_tags
+
+            for tag in ui_catalog_tags():
+                text = str(catalog_for(tag).text(NO_MODEL_NOTICE_LEAD_KEY) or "").strip()
+                if text and text != NO_MODEL_NOTICE_LEAD_KEY and text not in leads:
+                    leads.append(text)
+        except Exception:
+            pass  # English is always recognised; a catalog that cannot load adds nothing
+        _NO_MODEL_LEADS = tuple(leads)
+    return _NO_MODEL_LEADS
+
+
+def is_authorship_refusal_text(text: str) -> bool:
+    """Whether ``text`` already carries a refusal this module shipped (either lead family)."""
+    body = str(text or "")
+    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in body:
+        return True
+    stripped = body.lstrip()
+    return any(stripped.startswith(lead) for lead in no_model_notice_leads())
 
 
 def _local_author_not_running(author: str) -> bool:
@@ -1207,7 +1266,7 @@ def gate_authored_content(content: str, *, turn_id: str = "") -> tuple[str, dict
     if not record.must_refuse:
         payload["publication"] = "published"
         return text, payload
-    if UNCERTIFIED_AUTHOR_NOTICE_LEAD in text:
+    if is_authorship_refusal_text(text):
         payload["publication"] = "refused_idempotent"
         return text, payload
     payload["publication"] = "refused"
@@ -1427,6 +1486,7 @@ __all__ = [
     "CERTIFICATION_SOURCE_OPERATOR",
     "EXECUTION_CLAIM_NOTICE_LEAD",
     "FINAL_ANSWER_ROLE",
+    "NO_MODEL_NOTICE_LEAD",
     "REASON_AUTHOR_UNRESOLVED",
     "REASON_BLOCKED_BEFORE_GENERATION",
     "REASON_CERTIFIED",
@@ -1453,6 +1513,9 @@ __all__ = [
     "gate_authored_content",
     "gate_execution_claims",
     "invalidate_author_certification",
+    "is_authorship_refusal_text",
+    "no_model_notice_leads",
+    "no_model_notice_text",
     "record_authorship_decision",
     "record_runtime_support",
     "reset_for_tests",

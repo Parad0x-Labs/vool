@@ -38,3 +38,5 @@ solders>=0.21
 # macOS. Without it the eventkit adapter reports its typed os_binding_unavailable state and
 # Apple Calendar stays honestly unsupported; with it the adapter runs against the real store.
 pyobjc-framework-EventKit>=12.2.2; sys_platform == "darwin"
+# Apple Contacts import (core/contacts/importers/apple.py): same reason, same platform.
+pyobjc-framework-Contacts>=12.2.2; sys_platform == "darwin"

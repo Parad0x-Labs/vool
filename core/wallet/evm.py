@@ -11,7 +11,7 @@ secp256k1 signing and recovery are the maintained ``eth-account`` implementation
 EVERY third-party Ethereum dependency here is optional and is resolved at USE, never at
 import. ``eth_abi``/``eth_utils`` used to be module-level imports, and because
 ``core.wallet.lifecycle`` imports this module unconditionally, their absence made the
-Solana lane, custody, spend ceilings and the mainnet-impossible guard raise
+Solana lane, custody and spend ceilings raise
 ``ModuleNotFoundError`` instead of returning a typed result -- a raw 500 on the served
 door and a collapsed model turn, not a refusal. Now an EVM-only operation raises the
 typed ``wallet_dependency_unavailable`` fault that every wallet caller already handles,

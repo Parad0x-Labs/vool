@@ -24,8 +24,14 @@ What is never printed, logged, written to the record or committed: the recovery 
 unread at creation), the PIN, the sealed blob, the seed, the device secret, the key passphrase.
 Those live only inside the isolated home, in files this module creates at mode 0600.
 
-Mainnet is impossible by construction: ``core.wallet.config.ALLOWED_NETWORKS`` has no mainnet
-entry, and both phases assert that before doing anything else.
+The product wallet supports Mainnet; this proof deliberately stays off it. The run is pinned to
+the Test networks environment (``VOOL_WALLET_NETWORK_ENVIRONMENT=testnet``), and before doing
+anything else both phases run ``_assert_devnet_only``: the Solana Devnet row must be a Test networks
+row, undeclared mainnet aliases (``solana-mainnet``, ``mainnet-beta``, ...) must be refused, the
+Solana mainnet endpoints must be refused for the devnet client, and the declared network set must
+be exactly the chain registry's rows. A failed check stops the run. The verdict comes from the
+endpoint's genesis hash, so only an endpoint that really serves Solana devnet can yield
+DEVNET-PROVEN.
 """
 from __future__ import annotations
 

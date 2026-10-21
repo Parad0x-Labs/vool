@@ -24,6 +24,11 @@ Each table gets one of three actions:
   not complete.
 * ``artifact`` -- an archived artifact: the packed file and its manifest row are both removed.
 * ``queue`` -- a queued message: one that already ran is redacted, one still waiting is kept.
+* ``goal`` -- the chat's explicit /goal record (``core.goal_workflow``): redacted like a state record, and a
+  goal that is not finished and whose working text (objective, acceptance, plan steps, execution binding)
+  carried the words is stopped and its worker fenced, so it never runs on blanked text. A step's settled
+  reason and answer excerpt, the last reason and superseded revisions are record only: blanked, and the
+  goal goes on.
 
 A row that carried the words also loses every nested digest (``request_sha256``,
 ``original_request_hash``, any ``*_hash``/``*_sha256``/``*_digest`` leaf): an unsalted digest of a short
@@ -185,12 +190,18 @@ _INVENTORY: tuple[_Table, ...] = (
         "seen_curiosity_topic_ids_json", "seen_curiosity_run_ids_json", "seen_agent_ids_json",
         "last_active_agents", "snooze_until", "last_prompted_at", "interaction_mode", "smalltalk_repeat_count",
         "updated_at")),
+    # The chat's explicit /goal record (core/goal_workflow.py): objective, acceptance, plan and step results.
+    _Table("chat_goals", "goal", _SESSION, _cols(
+        "goal_id", "session_id", "project_id", "state", "revision", "current_step_id", "created_at", "updated_at",
+        "ended_at", "started_at", "paused_at", "paused_seconds", "created_turn_id", "model", "worker_epoch")),
     # An agent-team member started from a chat: its record is re-adopted by id after a restart, so it stays.
     _Table("agents", "redact", _SESSION, _cols(
         "agent_id", "team_id", "key", "importance", "effective_importance", "depth", "parent_id", "state",
         "run_token", "pid", "create_time", "launched_at", "ended_at", "exit_code", "progress_done",
         "progress_planned", "running_seconds", "session_id")),
 )
+
+_GOAL_IDENTITIES = ROW_IDENTITIES | next(spec.structural for spec in _INVENTORY if spec.name == "chat_goals")
 
 #: Session-scoped tables whose words are not run history and are not this operation's to erase:
 #: objects the person made and manages themselves (a scheduled reminder, the chat's own list of
@@ -220,6 +231,11 @@ _SIGNATURE_RE = re.compile(r"[A-Za-z0-9+/]{86}==|[A-Za-z0-9_-]{86}")
 #: Tables whose ``signature`` is one the runtime signed itself (the provider gateway's call records). A ``signature``
 #: elsewhere may be one the person pasted (a transaction signature in a tool's arguments) and is read as words.
 _RUNTIME_SIGNED_TABLES = frozenset({"provider_invocation_manifests"})
+#: In those call records, the fields that name the model and provider the call went to ("gemma3:12b"): the
+#: runtime's names, never the person's words. Read as words, "Forget 12." could never be verified once a 12b model
+#: had answered (2026-10-20, also on v0.7.2; v0.7.1 applied it). Only these exact keys, and only in those tables:
+#: a ``model`` or ``car_model`` anywhere else is read as words.
+_RUNTIME_NAME_KEYS = frozenset({"model_id", "provider_id"})
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -594,6 +610,16 @@ def _erase_table(conn: Any, spec: _Table, owners: _Owners, token: str, command: 
         _erase_finalizations([*matched, *unswept])
         if _unswept_finalizations(conn, spec, owners):
             raise RuntimeError("finalization derivative sweep is incomplete")
+    elif spec.action == "goal":
+        from core.goal_workflow import forget_goal_row, stop_goals_after_forget
+
+        # A goal row is rewritten whole from what was read, so it is read again under the write lock: a
+        # worker's save that committed after the first read is erased, not overwritten by the older row.
+        conn.execute("BEGIN IMMEDIATE")
+        matched, _ = _carrying(conn, spec, owners, token)
+        stopped = [forget_goal_row(conn, row, token) for row in matched]
+        conn.commit()
+        stop_goals_after_forget([goal for goal in stopped if goal is not None])
     elif spec.action == "artifact":
         for row in matched:
             path = Path(str(row["file_path"] or "")).expanduser()
@@ -821,6 +847,17 @@ def carries_forgotten_words(chat_id: str, texts: Iterable[Any]) -> bool:
     return any(text_carries(text, token) for text in values for token in tokens)
 
 
+def goal_words_carry(value: Any, token: str) -> bool:
+    """Whether part of a chat goal (a field, the plan, the binding) carries ``token``, read the way the forget
+    sweep reads a ``chat_goals`` row: runtime-made identities and counters are not words."""
+    return carries(_without_bookkeeping(_without_nested_identities(value, _GOAL_IDENTITIES)), token)
+
+
+def goal_words_redacted(value: Any, token: str) -> Any:
+    """Part of a chat goal with every leaf that carries ``token`` blanked, as the forget sweep blanks it."""
+    return _redacted(value, token, _GOAL_IDENTITIES)
+
+
 def resweep_forgotten_run_history(chat_id: str) -> int:
     """Erase this chat's forgotten words from the run history a turn wrote after the forget.
 
@@ -896,18 +933,26 @@ def _without_runtime_ids(value: Any) -> Any:
     return value
 
 
+def _without_runtime_names(value: Any) -> Any:
+    """A call record's own model and provider names, at its top level, left out (``_RUNTIME_NAME_KEYS``)."""
+    if isinstance(value, Mapping):
+        return {key: item for key, item in value.items() if not (key in _RUNTIME_NAME_KEYS and isinstance(item, str))}
+    return value
+
+
 def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
-    """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures."""
+    """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures
+    and model names."""
     signed = table in _RUNTIME_SIGNED_TABLES
     words: list[Any] = []
-    for key, value in (_without_signatures(dict(row)) if signed else dict(row)).items():
+    for key, value in (_without_runtime_names(_without_signatures(dict(row))) if signed else dict(row)).items():
         if key in ROW_IDENTITIES or _runtime_made(value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
-            value = _without_signatures(value) if signed else value
+            value = _without_runtime_names(_without_signatures(value)) if signed else value
         words.append(_without_bookkeeping(_without_runtime_ids(_without_nested_identities(value, ROW_IDENTITIES))))
     return words
 

@@ -1895,6 +1895,14 @@ def cmd_update(*, apply: bool = False, json_mode: bool = False) -> int:
     checked = subsystem.trigger_check()
     payload = subsystem.status_payload()
 
+    if checked.get("reason") == "online_access_off":
+        # Not a failed check: none was sent, because the outbound switch is off.
+        if json_mode:
+            _emit_json({"ok": False, "error": "online_access_off", "detail": checked.get("detail", ""), "installed": installed})
+        else:
+            print(checked.get("detail", ""))
+        return 1
+
     if not checked.get("check_ok"):
         if json_mode:
             _emit_json({"ok": False, "error": "check_failed", "detail": checked.get("detail", ""), "installed": installed})

@@ -272,9 +272,10 @@ _THIRD_PERSON_POSSESSIVE_RE = re.compile(
     r"\b(?:his|her|their|its|your)\b|\b\w+'s\b|\b\w+s'(?!\w)",
     re.IGNORECASE,
 )
-_POSSESSIVE_APOSTROPHES = str.maketrans(
-    {"\u2018": "'", "\u2019": "'", "\u02bc": "'", "\uff07": "'"}
-)
+#: Every mark a keyboard writes for an apostrophe: curly left/right, reversed, modifier letter, prime, acute
+#: accent and fullwidth. Forget matching folds the same set (core/memory/carriers.py), so the two never disagree.
+_APOSTROPHES = ("\u2018", "\u2019", "\u201b", "\u02bc", "\u2032", "\u00b4", "\uff07")
+_POSSESSIVE_APOSTROPHES = str.maketrans(dict.fromkeys(_APOSTROPHES, "'"))
 
 
 def _normalize_possessive_typography(text: str) -> str:

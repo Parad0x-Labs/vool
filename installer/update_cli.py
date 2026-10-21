@@ -63,6 +63,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         feed = replace(feed, channel=args.channel)
     subsystem = UpdateSubsystem(feed=feed, data_dir=_data_dir(args), platform=_platform(args))
     payload = subsystem.trigger_check()
+    if payload.get("reason") == "online_access_off":
+        print(payload.get("detail") or "Online access is off, so VOOL did not check for updates.")
+        return 1
     if payload.get("message"):
         print(payload["message"])
     if not payload.get("configured"):
@@ -135,6 +138,14 @@ def cmd_apply(args: argparse.Namespace) -> int:
     if not args.i_pressed_update:
         print("Refusing to install: no explicit update press (--i-pressed-update).")
         return 2
+    from core.updater.feed import ONLINE_ACCESS_OFF_DETAIL, FeedConfig, online_access_allowed
+
+    # The outbound switch is the master over every update request, a pressed install included: the
+    # manifest fetch below is a check, so it asks the same gate as the app's own check before anything.
+    feed = FeedConfig(manifest_url=args.manifest_url, channel=args.channel, source="cli")
+    if not online_access_allowed(feed):
+        print(ONLINE_ACCESS_OFF_DETAIL)
+        return 1
     coordinator = WorkCoordinator()
     service = UpdateCheckService(
         manifest_url=args.manifest_url,
@@ -143,6 +154,7 @@ def cmd_apply(args: argparse.Namespace) -> int:
         channel=args.channel,
         platform=_platform(args),
         data_dir=_data_dir(args),
+        check_allowed=lambda: online_access_allowed(feed),
     )
     outcome = service.check_once()
     if not outcome.ok or service.current_offer() is None:

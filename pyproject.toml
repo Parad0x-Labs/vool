@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.2"
+version = "0.7.3"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
@@ -122,6 +122,11 @@ runtime = [
 # sdist-only proxy-tools, whose wheel the bundle now supplies through built_wheels.json.
 desktop = [
     "pywebview==6.2.1",
+    # Apple Calendar (core/kas/adapters/eventkit_mac.py) and Apple Contacts import
+    # (core/contacts/importers/apple.py) in the packaged Mac app. Without them both report
+    # os_binding_unavailable there. Pinned so the bundle's lean install resolves from the lock.
+    "pyobjc-framework-EventKit==12.2.2; sys_platform == 'darwin'",
+    "pyobjc-framework-Contacts==12.2.2; sys_platform == 'darwin'",
 ]
 proof = [
     "pytest>=7.0",

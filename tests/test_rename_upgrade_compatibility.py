@@ -170,9 +170,16 @@ def test_download_without_platform_metadata_is_refused_before_any_profile_choice
         encoding="utf-8",
     )
     launcher_path.chmod(0o755)
+    commands = tmp_path / "commands"
+    commands.mkdir()
+    alert_arguments = tmp_path / "alert-arguments.txt"
+    alert = commands / "osascript"
+    alert.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ALERT_ARGUMENTS"\nexit 0\n')
+    alert.chmod(0o755)
     done = subprocess.run(
         [str(launcher_path)],
-        env={"PATH": BASE_PATH, "HOME": str(home)},
+        env={"PATH": str(commands) + os.pathsep + BASE_PATH, "HOME": str(home),
+             "ALERT_ARGUMENTS": str(alert_arguments)},
         capture_output=True, text=True, timeout=60,
     )
     assert done.returncode == 1, f"the refusal gate must exit 1: {done.stdout}\n{done.stderr}"
@@ -182,6 +189,7 @@ def test_download_without_platform_metadata_is_refused_before_any_profile_choice
     log = home / "Library/Application Support/VOOL/app.log"
     log_text = log.read_text() if log.exists() else ""
     assert "VOOL cannot start: This download has missing platform metadata." in log_text, log_text
+    assert "This download has missing platform metadata. Download a verified VOOL build again." in alert_arguments.read_text()
     assert "LAUNCHER-DONE" not in log_text, (
         "the window host was opened despite unverifiable platform metadata"
     )

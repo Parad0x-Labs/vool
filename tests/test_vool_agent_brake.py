@@ -168,6 +168,25 @@ def test_natural_language_variants_trigger_the_brake(monkeypatch) -> None:
         assert limits.is_frozen() is False, f"canonical freeze not lifted: {phrase!r}"
 
 
+def test_is_brake_command_recognises_every_variant_without_acting() -> None:
+    """The pure predicate the chat door uses to exempt brake commands from the one-slot-per-chat
+    refusal must agree with the handler's own matching -- on every variant the handler fires
+    for, and on nothing else -- while flipping no store."""
+    from core.vool_agent_brake import is_brake_command
+
+    for phrase in ("freeze spending", "emergency stop", "pause the agent", "stop the x402 agent",
+                   "please freeze the wallet", "panic", "/stopx402", "/stopall", "stop everything",
+                   "start x402", "resume spending", "unfreeze", "resume the agent"):
+        assert is_brake_command(phrase), f"predicate missed a brake command: {phrase!r}"
+    for phrase in ("hi", "please write a poem about stopping the agent",
+                   "what does freeze spending mean?", "Write one friendly sentence.", ""):
+        assert not is_brake_command(phrase), f"predicate over-matched: {phrase!r}"
+    # Pure: matching applies nothing (no wallet touch, no state flip).
+    state = _State()
+    assert is_brake_command("/stopx402")
+    assert state.policy.frozen is False
+
+
 def test_startx402_denied_consent_keeps_spending_frozen(monkeypatch) -> None:
     # Declining the OS prompt must leave the freeze in place and persist nothing.
     state = _State(frozen=True)

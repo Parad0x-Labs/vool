@@ -255,6 +255,19 @@ def execute_tool_intent(
     `trusted_local_only` is a server-only channel: it may be set solely by a Python caller that
     built the command itself, never from anything carried inside `payload`."""
     call_id = str(tool_call_id or "").strip() or f"tool-{uuid.uuid4().hex}"
+    from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
+
+    browser_payload = _normalize_payload(payload)
+    requested_intent = str(browser_payload.get("intent") or "")
+    browser_arguments = browser_payload.get("arguments")
+    if not browser_tool_allowed(requested_intent, browser_arguments if isinstance(browser_arguments, dict) else {}):
+        from core.i18n import catalog_for
+
+        return ToolIntentExecution(
+            handled=True, ok=False, status="browser_scope_required", mode="refused", tool_name=requested_intent,
+            response_text=catalog_for("en").text("live.refused"),
+            details={"tool_call_id": call_id, "executed": False, "allowed_toolset": "vool-browser"},
+        )
 
     # A DIRECT call — no turn ledger active — is legitimate library use of the
     # executor, and THIS function is its owning entry point. It opens the R2b1
@@ -1553,6 +1566,12 @@ def _execute_tool_intent_impl(
             # reads is what the turn shows when the refusal ends it. Measured served 2026-09-14: without
             # this, a needs_setup read ended the turn on the generic "I wasn't able to turn that into a
             # completed action" and the reconnect instruction never reached the user.
+            execution.user_safe_response_text = str(runtime_execution.response_text or "")
+        if not runtime_execution.ok and str((runtime_details.get("observation") or {}).get("tool_surface") or "") == "sandbox":
+            # A command that ran and exited non-zero (failing tests above all) or that the sandbox
+            # refused ends the turn on what happened: the command, its exit code and output, or the
+            # reason it did not run. Measured served 2026-10-19: `false && touch x` and a refused
+            # `bash -c` both ended on "I wasn't able to turn that into a completed action".
             execution.user_safe_response_text = str(runtime_execution.response_text or "")
         _maybe_store_tool_receipt(
             execution,

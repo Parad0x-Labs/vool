@@ -195,6 +195,7 @@
     "begin_group": "authority",
     "prepare": "authority",
     "initialize_memory_home": "authority",
+    "memory_home_is_new": "authority",
     "poison": "authority",
     "begin": "authority",
     "complete": "authority",
@@ -211,6 +212,8 @@
     "checkpoint_write_ahead_logs": "writer",
     "forgotten_tokens": "reader",
     "carries_forgotten_words": "authority",
+    "goal_words_carry": "transform",
+    "goal_words_redacted": "transform",
     "resweep_forgotten_run_history": "writer"
   },
   "core/memory/withdrawals.py": {

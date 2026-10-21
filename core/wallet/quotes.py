@@ -294,6 +294,20 @@ def _held_elsewhere(wallet_id: str, network: str, proposal_id: str, *, asset: st
     return int(row[0] or 0)
 
 
+def _approval_block(profile: custody.WalletProfile) -> dict[str, Any]:
+    """A connected or watch-only account previews a Crypto Pilot transfer but cannot approve it here: the quote
+    says so, with the fault's own words, so the sheet asks for no credential and says what is really wrong. A
+    Crypto Pilot wallet's quote carries nothing extra."""
+    if custody.seal_policy(profile.wallet_id) == custody.PILOT_SEAL_POLICY:
+        return {}
+    from core.faults.catalog import get_spec
+    from core.i18n.catalog import fault_message_key
+    from core.i18n.turn_locale import turn_text
+
+    code = "wallet_send_needs_vool_wallet"
+    return {"approval_unavailable": {"code": code, "message": turn_text(fault_message_key(code), get_spec(code).user_message)}}
+
+
 def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any]:
     custody.require_enabled(source_context=source_context)
     proposal = proposals.get_proposal(proposal_id)
@@ -305,6 +319,15 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         raise _fault("wallet_quote_unavailable", proposal_id=proposal.proposal_id, reason=f"proposal_state_{proposal.state}", source_context=source_context)
     spec = environment.require_active(proposal.network, source_context=source_context)
     profile = custody.require_wallet(proposal.wallet_id, source_context=source_context)
+    recipient = dict(getattr(proposal, "recipient", {}) or {})
+    if recipient:
+        # Validate every stored contract, including unknown ones from an older install,
+        # before selecting a quote lane or reading the chain.
+        from core.contacts import verify_snapshot
+
+        check = verify_snapshot(recipient)
+        if not check.ok:
+            raise _fault("wallet_recipient_refused", proposal_id=proposal.proposal_id, reason=f"contact_{check.status}", detail=check.message, source_context=source_context)
     if custody.seal_policy(profile.wallet_id) == custody.PILOT_SEAL_POLICY and custody.setup_state(profile.wallet_id) not in {"", "ready"}:
         raise _fault("wallet_setup_state_invalid", wallet_id=profile.wallet_id, reason="setup_not_finished", source_context=source_context)
     native = chains.native_asset(spec.network)
@@ -327,14 +350,6 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         from core.wallet import usepod
 
         usepod.require_binding(proposal, moment=_now(), expiry_code="wallet_quote_unavailable", source_context=source_context)
-    recipient = dict(getattr(proposal, "recipient", {}) or {})
-    if recipient.get("resolution") == "contact":
-        # the destination came from a saved contact: quote it only while Contacts still holds exactly that destination
-        from core.contacts import verify_snapshot
-
-        check = verify_snapshot(recipient)
-        if not check.ok:
-            raise _fault("wallet_recipient_refused", proposal_id=proposal.proposal_id, reason=f"contact_{check.status}", detail=check.message, source_context=source_context)
     if proposal.origin == proposals.ORIGIN_DNA_FEE:
         # a fee collection has no sheet of its own: it is planned into, shown on and approved with its provider
         # payment's quote (nobody volunteers to pay fees through a separate card)
@@ -371,6 +386,7 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
         "minimum_after_minor": balance - amount - fee_max,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        **_approval_block(profile),
         **_recipient_fields(recipient),
     }
     if paykit is not None:
@@ -515,6 +531,7 @@ def _mint_authorization_quote(spec: chains.ChainIdentity, proposal: Any, profile
         "max_total_minor": amount, "estimated_after_minor": balance - amount, "minimum_after_minor": spendable - amount,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        **_approval_block(profile),
         "x402sdk": sdk,
     }
     for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):
@@ -632,6 +649,7 @@ def _mint_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: Any, *
         "fee_balance_after_minimum_minor": fee_balance - held_native - fee_minor,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        **_approval_block(profile),
     }
     if owner_route:
         # bound by the approval: whether this transfer opens the recipient's account, and that account's rent, and who
@@ -719,6 +737,7 @@ def _mint_evm_token_quote(spec: chains.ChainIdentity, proposal: Any, profile: An
         "fee_balance_after_minimum_minor": fee_balance - held_native - fee_max,
         "quoted_at": now, "expires_at": now + QUOTE_TTL_SECONDS,
         "approval_method": str(getattr(profile, "approval_method", "") or custody.APPROVAL_PIN),
+        **_approval_block(profile),
         **_recipient_fields(recipient),
     }
     for name in ("balance", "principal_balance", "max_total", "estimated_after", "minimum_after"):

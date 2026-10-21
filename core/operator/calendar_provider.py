@@ -956,7 +956,7 @@ def propose_event(
         return OperatorActionResult(
             ok=False,
             status="invalid_request",
-            response_text='I can propose an event, but I need its title. Use a form like: propose "Project review" Tuesday 15:00 for 30 minutes.',
+            response_text='Happy to suggest an event. What should it be called? You can tell me in one go, like: propose "Project review" on Tuesday at 15:00 for 30 minutes.',
             details={},
         )
     if when is None or not when.ok:

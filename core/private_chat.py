@@ -32,6 +32,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from core.memory.admission import _APOSTROPHES as _APOSTROPHE_MARKS
 from storage.db import get_connection
 
 __all__ = [
@@ -422,7 +423,8 @@ _OFF_RE = _clause_re(_OFF_PHRASES)
 _BARE_ON_RE = re.compile(r"^\s*" + _LEAD + rf"(?:{_BARE_TURN_ON})" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _STATUS_RE = re.compile(r"^\s*" + _LEAD + "(?:" + "|".join(f"(?:{p})" for p in _STATUS_PHRASES) + ")" + _TAIL + r"\s*[.!?]*\s*$", re.IGNORECASE)
 _FILLER_RE = re.compile(r"^[\s.,;:!?—–\-]*(?:(?:but|and|so|ok|okay|please|thanks|thank\s+you|now|just)[\s.,;:!?—–\-]*)*$", re.IGNORECASE)
-_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
+#: Every mark a keyboard types for an apostrophe (the one shared set): "Don´t record this" asks what "Don't" does.
+_APOSTROPHES = str.maketrans(dict.fromkeys(_APOSTROPHE_MARKS, "'"))
 
 
 @dataclass(frozen=True)

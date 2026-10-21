@@ -1169,6 +1169,23 @@ def deactivate_openrouter_byok() -> int:
 
 
 # Capabilities for a direct-provider BYOK lane (mirrors OpenRouter's single-lane default set).
+# The local OpenAI-compatible runtimes (vLLM, llama.cpp, MLX) select tools: their adapter sends
+# native tool schemas (adapters/openai_compatible_adapter.py `_supports_native_tools`, which names
+# these lanes as having gained tool calling) and demotes a server that rejects them. Selection
+# treats `tool_intent` as a hard contract (core.model_selection_policy.HARD_REQUIRED_CAPABILITIES),
+# so a lane that can carry a tool step has to declare it, or a machine whose only local runtime is
+# one of these would have no candidate for any tool turn.
+_LOCAL_RUNTIME_LANE_CAPS = (
+    "summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context",
+    "tool_intent",
+)
+
+
+def _declares_local_runtime_caps(existing: ModelProviderManifest | None) -> bool:
+    """A persisted lane registered before it declared tool selection is registered again."""
+    return existing is not None and "tool_intent" in list(existing.capabilities or [])
+
+
 _DIRECT_BYOK_CAPS = ["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context"]
 
 
@@ -1553,7 +1570,7 @@ def _ensure_vllm_provider(
     resolved_model_name = _env_first(env, "VLLM_MODEL", "VOOL_VLLM_MODEL") or model_name or default_runtime_model_tag(env=env)
     existing = registry.get_manifest("vllm-local", resolved_model_name)
     has_base_url = bool(str(getattr(existing, "runtime_config", {}).get("base_url") or "").strip()) if existing else False
-    if existing and existing.enabled and has_base_url:
+    if existing and existing.enabled and has_base_url and _declares_local_runtime_caps(existing):
         return existing.provider_id
     context_window = _env_int(
         env,
@@ -1578,7 +1595,7 @@ def _ensure_vllm_provider(
         weight_location="external",
         runtime_dependency="vllm",
         notes="Local vLLM OpenAI-compatible lane — auto-registered when VLLM_BASE_URL is configured.",
-        capabilities=["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context"],
+        capabilities=list(_LOCAL_RUNTIME_LANE_CAPS),
         runtime_config={
             "base_url": base_url,
             "api_path": "/chat/completions",
@@ -1768,6 +1785,7 @@ def _ensure_llamacpp_provider(
         and existing_base_url == base_url
         and int(existing_runtime_config.get("context_window") or existing_metadata.get("context_window") or 0) == context_window
         and int(existing_metadata.get("max_safe_concurrency") or 0) == max_safe_concurrency
+        and _declares_local_runtime_caps(existing)
     ):
         return existing.provider_id
     manifest = ModelProviderManifest(
@@ -1781,7 +1799,7 @@ def _ensure_llamacpp_provider(
         weight_location="external",
         runtime_dependency="llama.cpp",
         notes="Local llama.cpp OpenAI-compatible verifier/coding lane — auto-registered when LLAMACPP_BASE_URL is configured.",
-        capabilities=["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context"],
+        capabilities=list(_LOCAL_RUNTIME_LANE_CAPS),
         runtime_config={
             "base_url": base_url,
             "api_path": "/chat/completions",
@@ -1831,7 +1849,7 @@ def _ensure_llamacpp_deep_provider(
         default=1,
     )
     existing = registry.get_manifest("llamacpp-local", model_name)
-    if existing and existing.enabled:
+    if existing and existing.enabled and _declares_local_runtime_caps(existing):
         return existing.provider_id
     manifest = ModelProviderManifest(
         provider_name="llamacpp-local",
@@ -1844,7 +1862,7 @@ def _ensure_llamacpp_deep_provider(
         weight_location="external",
         runtime_dependency="llama.cpp",
         notes="Local llama.cpp deep/quality lane — auto-registered when VOOL_LLAMACPP_DEEP_BASE_URL is configured.",
-        capabilities=["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context"],
+        capabilities=list(_LOCAL_RUNTIME_LANE_CAPS),
         runtime_config={
             "base_url": base_url,
             "api_path": "/chat/completions",
@@ -1904,6 +1922,7 @@ def _ensure_mlx_provider(
         and existing_base_url == base_url
         and int(existing_runtime_config.get("context_window") or existing_metadata.get("context_window") or 0) == context_window
         and int(existing_metadata.get("max_safe_concurrency") or 0) == max_safe_concurrency
+        and _declares_local_runtime_caps(existing)
     ):
         return existing.provider_id
     manifest = ModelProviderManifest(
@@ -1917,7 +1936,7 @@ def _ensure_mlx_provider(
         weight_location="external",
         runtime_dependency="mlx-lm",
         notes="Local MLX OpenAI-compatible lane — auto-registered when MLX_BASE_URL is configured.",
-        capabilities=["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context"],
+        capabilities=list(_LOCAL_RUNTIME_LANE_CAPS),
         runtime_config={
             "base_url": base_url,
             "api_path": "/chat/completions",
