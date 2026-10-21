@@ -206,7 +206,7 @@ def use_as_voice(scope: str, entry_id: str, *, home: Path | None = None) -> dict
         return {'ok': False, 'status': 'store_unreadable'}
 
 
-def _asked_draft(session_id: str) -> str:
+def _asked_draft(session_id: str) -> str | None:
     """Read the previous served answer, never caller/model supplied history."""
     from core.chat_housekeeping import last_assistant_message
 
@@ -217,11 +217,14 @@ def _asked_draft(session_id: str) -> str:
     if not (re.search(r'\b(?:rate|rating)\b', question, re.I)
             and re.search(r'\b(?:draft|this|it)\b', question, re.I)
             and re.search(r'\b1\s*(?:-|–|to|out of|/)\s*10\b', question, re.I)):
-        return ''
+        return None
     body = '\n\n'.join(paragraphs[:-1]).strip()
     fenced = re.findall(r'```[^\n]*\n(.*?)\n```', body, re.S)
     if len(fenced) == 1 and body.count('```') == 2:
         return fenced[0].strip()
+    if '```' in body:
+        # A missing fence or multiple draft blocks cannot identify one rating target.
+        return ''
     labelled = re.fullmatch(r'(?:\*\*)?Draft(?:\*\*)?:\s*(.+)', body, re.I | re.S)
     if labelled:
         return labelled[1].strip()
@@ -267,7 +270,9 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
             or turn.surface not in {'', 'desktop', 'cli', 'local', 'api'}):
         return {'ok': False, 'status': 'user_rating_required'}
     target = _asked_draft(turn.session_id)
-    if target:
+    if target is not None:
+        if not target:
+            return {'ok': False, 'status': 'draft_text_required'}
         parsed = _plain_rating(turn.user_text)
         if not parsed or parsed[0] != rating or (comment and comment != parsed[1]):
             return {'ok': False, 'status': 'user_rating_required'}

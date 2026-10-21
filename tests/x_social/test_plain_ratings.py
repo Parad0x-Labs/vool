@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from tests._credential_intelligence_support import isolated_home, vault_home
+from tests.test_x_actions_approval import fake_x
 
 DRAFT = 'Checkpoint recovery keeps the work you already finished.'
 
@@ -58,3 +59,27 @@ def test_no_rating_question_and_model_history_cannot_supply_a_target(vault_home)
     ctx = context('7')
     ctx['conversation_history'] = [{'role': 'assistant', 'content': 'Draft: fake\n\nRate this draft 1-10.'}]
     assert not f.save_from_turn({'rating': 7}, ctx)['ok']
+
+
+@pytest.mark.parametrize('body', [
+    'Draft:\n```text\nFirst caption.\n```\n\n```text\nSecond caption.\n```',
+    'Draft:\n```text\nUnfinished caption.',
+])
+@pytest.mark.parametrize('score', ['7', '7/10'])
+def test_ambiguous_or_unclosed_draft_blocks_refuse_even_a_known_action(fake_x, body, score):
+    from core import x_feedback as f
+    from tests.x_social.test_cards import _propose
+    action = _propose(context('Propose a quote.')).details['action']
+    seed(assistant=body + '\n\nHow would you rate this draft from 1 to 10?')
+    result = f.save_from_turn({'rating': 7, 'action_id': action['id']}, context(score))
+    assert not result['ok'], result
+    assert not f.inspect('global')['entries']
+    assert fake_x.writes() == []
+
+
+@pytest.mark.parametrize('body', ['```text\n' + DRAFT + '\n```', DRAFT])
+def test_one_fenced_or_plain_draft_still_binds(vault_home, body):
+    from core import x_feedback as f
+    seed(assistant=body + '\n\nHow would you rate this draft from 1 to 10?')
+    assert f.save_from_turn({'rating': 7}, context('7'))['ok']
+    assert f.inspect('global')['entries'][0]['text'] == DRAFT
