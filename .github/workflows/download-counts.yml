@@ -1,0 +1,42 @@
+name: Download counts
+
+# Publishes the README download badges (app installers summed over every release)
+# to GitHub Pages as shields.io endpoint JSON.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: download-counts
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Count installer downloads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python ops/release_download_counts.py --repo "${{ github.repository }}" --out site/badges
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5
