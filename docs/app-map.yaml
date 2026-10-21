@@ -1251,6 +1251,26 @@ rows:
     label: TESTED
     target_release: 0.7.0
     note: The keys feed a trend lane that stays off; no visible effect.
+  - id: x-action-cards
+    title: See proposed and sent posts for the short-post network under a chat answer
+    area: other
+    ui: []
+    wired: ["/api/x/cards"]
+    default: []
+    tests: [tests/x_social/test_cards.py, tests/x_social/test_card_retention.py]
+    label: TESTED
+    target_release: unknown
+    note: The cards are drawn under the answer without an element id; approve and decline go through the existing activity door.
+  - id: x-post-ratings
+    title: Rate drafts for the short-post network and guide later drafts
+    area: other
+    ui: []
+    wired: ["/api/x/feedback", x.feedback.list, x.feedback.save]
+    default: []
+    tests: [tests/x_social/test_feedback.py, tests/x_social/test_plain_ratings.py, tests/x_social/test_settings_ui.py]
+    label: TESTED
+    target_release: unknown
+    note: Owner-local ratings, 1 to 10 with a comment; forgetting a rating does not erase copies already in chat history.
   - id: posting-to-x
     title: Posting directly to the short-post network
     area: other
