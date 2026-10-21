@@ -167,6 +167,26 @@ _STOPWORDS = {
 _HEURISTIC_ALWAYS_INCLUDE = {"response_style", "autonomy_preference", "source_preference", "preferred_stack"}
 _MEMORY_ENTRY_LOCK = threading.Lock()
 
+
+@contextlib.contextmanager
+def _entry_lock():
+    """`_MEMORY_ENTRY_LOCK`, always taken inside the forget fence (`revocation.fence_first`).
+
+    A forget holds the fence for its whole run and takes this lock inside it; every writer here may
+    enter the fence under this lock (`rewrite_jsonl`, `write_text_atomic`, `load_jsonl`'s reads).
+    So every holder takes the fence first, at its outer call -- never the other way round, which
+    deadlocks a chat or project delete, the finalization erase or a convergence erase against a
+    forget in another thread. The fence is the entries file's own home, the one its rewrite enters."""
+    from core.memory.files import _store_home
+    from core.memory.revocation import fence_first
+
+    try:
+        home = _store_home(memory_entries_path())
+    except Exception:  # noqa: BLE001 -- the fenced write inside reports it; the order still holds
+        home = None
+    with fence_first(home), _MEMORY_ENTRY_LOCK:
+        yield
+
 # ---------------------------------------------------------------------------
 # P0 erasure law — ONE canonical memory authority.
 #
@@ -240,7 +260,7 @@ def forget_profile_derivatives(
     def carries(value: Any) -> bool:
         return payload_carries(value, token)
 
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         _forget_session_metadata(token, chat_id=access_policy.chat_id, erasures=erasures)
         try:
             rows = _load_erasure_rows(user_heuristics_path())
@@ -372,7 +392,7 @@ def _row_is_active_memory(row: dict[str, Any]) -> bool:
 
 
 def _erase_rows_locked(record_ids: list[str]) -> list[str]:
-    """Identity-bound durable erasure. Caller holds ``_MEMORY_ENTRY_LOCK``.
+    """Identity-bound durable erasure. Caller holds ``_entry_lock()``.
 
     Each selected row becomes a tombstone in ONE atomic rewrite of the
     canonical store — the removal and its erasure evidence are the same
@@ -420,7 +440,7 @@ def _erase_rows_locked(record_ids: list[str]) -> list[str]:
 def _rewrite_memory_mirror_locked() -> None:
     """Regenerate the MEMORY.md projection from the canonical store.
 
-    Caller holds ``_MEMORY_ENTRY_LOCK``. The Learned Knowledge section is
+    Caller holds ``_entry_lock()``. The Learned Knowledge section is
     rebuilt from ACTIVE governed rows, each line bound to its record id —
     the mirror can never contain a memory that is not exactly some governed
     row. Unbound (legacy / hand-written) lines are preserved verbatim unless
@@ -874,7 +894,7 @@ def add_memory_fact(
     # to its record id, so a forget erases by identity and no mirror line can
     # outlive its row. It remains a human-readable audit surface only — never
     # eligible for provider context without structured provenance.
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         _rewrite_memory_mirror_locked()
     return True
 
@@ -915,7 +935,7 @@ def forget_memory_record(record_id: str) -> bool:
     if not wanted:
         return False
     _ensure_memory_files()
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         erased_texts = _erase_rows_locked([wanted])
         if not erased_texts:
             return False
@@ -938,7 +958,7 @@ def sweep_governed_memory_rows(request_id: str) -> bool:
     if not clean_request_id:
         return False
     _ensure_memory_files()
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         rows = _load_jsonl(memory_entries_path())
         kept = [
             row
@@ -2055,7 +2075,7 @@ def record_memory_entry(
         "keywords": normalized_keywords,
         "share_scope": normalize_share_scope(share_scope, default="local_only"),
     }
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         existing = load_jsonl(memory_entries_path())
         if any(
             str(row.get("text") or "").strip().lower() == normalized
@@ -2189,7 +2209,7 @@ def forget_structured_memory(
 
     subject_key = _forget_subject_fact_key(clean_token)
     summary_error: Exception | None = None
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         rows = _load_erasure_rows(memory_entries_path())
 
         def _selected(needle: str) -> list[str]:
@@ -2372,7 +2392,7 @@ def forget_sessions_memory(session_ids: Any) -> int:
     if not ids:
         return 0
     _ensure_memory_files()
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         target_ids = [
             str(row.get("record_id") or "").strip()
             for row in _load_jsonl(memory_entries_path())
@@ -2554,7 +2574,7 @@ def delete_conversation_session(session_id: str) -> bool:
     # P0 erasure law: the chat's memory rows become durable tombstones and the
     # mirror projection is rewritten, so deleting a chat cannot leave its
     # facts alive in (or resurrectable from) MEMORY.md.
-    with _MEMORY_ENTRY_LOCK:
+    with _entry_lock():
         target_ids = [
             str(row.get("record_id") or "").strip()
             for row in _load_jsonl(memory_entries_path())
