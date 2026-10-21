@@ -514,9 +514,14 @@ _PHRASE_SECRET_LABEL = (
     r"|backup\s+phrase|backup\s+seed|backup\s+words|mnemonic(?:\s+(?:phrase|words|seed))?"
     r"|passphrase|secret\s+phrase|secret\s+words"
 )
+# An aside between the label and its colon ("my mnemonic, which isn't public: <words>", "seed phrase (old one):
+# <words>") is still the label's own value: before 2026-10-20 the words after such an aside stayed in clear (also on
+# v0.7.2 and v0.7.1). An aside is one clause with no sentence end, and it needs the colon or "=": with a bare "is" the
+# clause would be the value ("my seed phrase, which is stored in the vault").
+_PHRASE_LABEL_ASIDE = r"(?P<aside>\s*(?:,|\(|\s[-\u2013\u2014])[^:=\n.;!?()]{1,60}\)?)"
 _LABELED_PHRASE_RE = re.compile(
     r"(?i)(?<![A-Za-z0-9])((?:[A-Za-z0-9]+[_-])*(?:" + _PHRASE_SECRET_LABEL + r")(?:[_-][A-Za-z0-9]+)*)"
-    r"\s*(?:[:=]|(?:\bis\b|\bare\b)\s*[:=]?)\s*[\u201c\u2018\"']?"
+    r"(?:" + _PHRASE_LABEL_ASIDE + r"\s*[:=]|\s*(?:[:=]|(?:\bis\b|\bare\b)\s*[:=]?))\s*[\u201c\u2018\"']?"
     r"([A-Za-z]{3,8}(?:(?:\s+|\s*,\s*)[A-Za-z]{3,8}){3,23})"
     r"[\u201d\u2019\"']?(?![A-Za-z0-9'\-])"
 )
@@ -613,7 +618,8 @@ def _label_declared_public(label: str, text: str, start: int) -> bool:
 def _mask_secret_label(match: re.Match) -> str:
     if _label_declared_public(match.group(1), match.string, match.start()):
         return match.group(0)
-    return f"{match.group(1)}: [redacted]"
+    aside = (match.groupdict().get("aside") or "").rstrip()
+    return f"{match.group(1)}{aside}: [redacted]"
 
 
 def redact_secrets(text: str, *, personal: bool = True) -> str:

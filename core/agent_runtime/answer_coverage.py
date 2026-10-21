@@ -70,6 +70,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
+from core.memory.admission import _APOSTROPHES as _APOSTROPHE_MARKS
+
 #: A claim that answers the entire message and may end the turn.
 CLAIM_SCOPE_WHOLE_TURN = "whole_turn"
 #: A claim that answers named clauses only. Ending the turn on one drops the rest.
@@ -150,7 +152,7 @@ class ClaimCoverage:
 #: An apostrophe that FOLLOWS a word character belongs to the word -- "what's", "cats'", "o'clock"
 #: -- and is not a quote opening. Same idea as `_INTRA_TOKEN_RE` above, which already keeps the "."
 #: in "8,500" and "app.py" from ending a clause.
-_APOSTROPHES = frozenset({"'", "\u2019"})
+_APOSTROPHES = frozenset({"'", *_APOSTROPHE_MARKS})
 
 
 def _opens_a_quote(text: str, index: int, char: str) -> bool:
@@ -172,8 +174,12 @@ def _opens_a_quote(text: str, index: int, char: str) -> bool:
     before it to belong to.
     """
 
+    if char not in _QUOTE_PAIRS:
+        # Only a mark with a closing pair opens a span: a "’Cause" or "(’90s" has nothing to close (and raised
+        # KeyError before 2026-10-20).
+        return False
     if char not in _APOSTROPHES:
-        return char in _QUOTE_PAIRS
+        return True
     return index == 0 or not text[index - 1].isalnum()
 
 

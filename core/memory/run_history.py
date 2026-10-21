@@ -231,6 +231,11 @@ _SIGNATURE_RE = re.compile(r"[A-Za-z0-9+/]{86}==|[A-Za-z0-9_-]{86}")
 #: Tables whose ``signature`` is one the runtime signed itself (the provider gateway's call records). A ``signature``
 #: elsewhere may be one the person pasted (a transaction signature in a tool's arguments) and is read as words.
 _RUNTIME_SIGNED_TABLES = frozenset({"provider_invocation_manifests"})
+#: In those call records, the fields that name the model and provider the call went to ("gemma3:12b"): the
+#: runtime's names, never the person's words. Read as words, "Forget 12." could never be verified once a 12b model
+#: had answered (2026-10-20, also on v0.7.2; v0.7.1 applied it). Only these exact keys, and only in those tables:
+#: a ``model`` or ``car_model`` anywhere else is read as words.
+_RUNTIME_NAME_KEYS = frozenset({"model_id", "provider_id"})
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -928,18 +933,26 @@ def _without_runtime_ids(value: Any) -> Any:
     return value
 
 
+def _without_runtime_names(value: Any) -> Any:
+    """A call record's own model and provider names, at its top level, left out (``_RUNTIME_NAME_KEYS``)."""
+    if isinstance(value, Mapping):
+        return {key: item for key, item in value.items() if not (key in _RUNTIME_NAME_KEYS and isinstance(item, str))}
+    return value
+
+
 def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
-    """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures."""
+    """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures
+    and model names."""
     signed = table in _RUNTIME_SIGNED_TABLES
     words: list[Any] = []
-    for key, value in (_without_signatures(dict(row)) if signed else dict(row)).items():
+    for key, value in (_without_runtime_names(_without_signatures(dict(row))) if signed else dict(row)).items():
         if key in ROW_IDENTITIES or _runtime_made(value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
-            value = _without_signatures(value) if signed else value
+            value = _without_runtime_names(_without_signatures(value)) if signed else value
         words.append(_without_bookkeeping(_without_runtime_ids(_without_nested_identities(value, ROW_IDENTITIES))))
     return words
 
