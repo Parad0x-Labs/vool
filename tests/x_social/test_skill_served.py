@@ -62,6 +62,11 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
     state = ProviderState()
     cursor = [0]
     offered = []
+    fast_card = bool(os.environ.get('SOCIAL_FAST_CARD'))
+    opportunity = ('Opportunity: "Recovering interrupted builds." — https://x.com/builder/status/555\n'
+                   'The post \"Recovering interrupted builds.\" has 7 observed likes.\n'
+                   'Quote awaiting your approval: "Checkpoint resume makes interrupted work recoverable."')
+    unsupported = 'The post has 900000 impressions and guarantees a threefold conversion increase.'
     script = [
         ('x.usage', {}),
         ('x.search', {'query': 'checkpoint resume', 'max_results': 10}),
@@ -74,7 +79,10 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
         names = {t['function']['name'] for t in body['tools']}
         offered.append(names)
         if cursor[0] >= len(script):
-            return provider._completion(tool_calls=[provider._tool_call('skill-flow-finish', 'respond__direct', {'message': 'Protocol fixture finished; inspect the tool receipts.'})], finish='tool_calls')
+            final = opportunity if fast_card else 'Protocol fixture finished; inspect the tool receipts.'
+            if fast_card and os.environ.get('SOCIAL_FAST_CARD_UNBACKED'):
+                final += '\n' + unsupported
+            return provider._completion(tool_calls=[provider._tool_call('skill-flow-finish', 'respond__direct', {'message': final})], finish='tool_calls')
         intent, args = script[cursor[0]]
         cursor[0] += 1
         name = intent.replace('.', '__')
@@ -128,6 +136,8 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         assert (cert.get('result') or cert).get('state') == 'verified', cert
         state.requests.clear()
         payload = {'model': 'custom-byok:probe-model', 'messages': [{'role': 'user', 'content': ('Run the orchard social-manager workflow for today.' if os.environ.get('SOCIAL_M6_QUIET') else 'Check my X API usage and research checkpoint discussions for orchard social-manager; read the post and propose one quote.')}], 'surface': 'desktop', 'stream': False, 'mode': 'auto', 'session_id': 'skill-social-flow', 'turn_id': 'skill-social-origin'}
+        if fast_card:
+            payload['messages'] = [{'role': 'user', 'content': "Run orchard social-manager fast lane using today's checkpoint recovery conversations."}]
         reply = daemon.post('/v1/chat/completions', payload, timeout=90)
         debug = Path(os.environ['SOCIAL_SHOTS']); debug.mkdir(parents=True, exist_ok=True)
         (debug / 'provider-wire.json').write_text(json.dumps({'reply': reply, 'requests': state.requests, 'events': daemon.session_events(reply.get('vool_session_id', 'skill-social-flow'))}, indent=2))
@@ -139,6 +149,22 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         action = overview['pending'][0]
         assert action['kind'] == 'quote' and action['text'] == script[-1][1]['text']
         assert not [r for r in requests if r[0] == 'POST']
+        if fast_card:
+            text = reply['choices'][0]['message']['content']
+            notice = 'Withheld from this answer:'
+            asserted = text.split(notice, 1)[0]
+            assert 'Recovering interrupted builds.' in asserted and '7 observed likes' in asserted, text
+            assert 'Checkpoint resume makes interrupted work recoverable.' in asserted, text
+            assert unsupported not in asserted, text
+            verdicts = [e for e in daemon.session_events(reply['vool_session_id'])
+                        if e.get('event_type') == 'grounding_publication']
+            assert verdicts, text
+            if os.environ.get('SOCIAL_FAST_CARD_UNBACKED'):
+                assert notice in text and verdicts[-1]['state'] == 'partial', (text, verdicts)
+                assert verdicts[-1]['withheld_claim_count'] >= 1
+            else:
+                assert notice not in text and verdicts[-1]['state'] == 'published', (text, verdicts)
+            return
         manager, browser = launch_chromium()
         page = browser.new_page(viewport={'width': 1180, 'height': 1000})
         page.goto(daemon.base_url + '/chat#' + reply['vool_session_id'])
@@ -179,8 +205,8 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
                         if entry.get('intent') == 'x.feedback.save' and entry.get('kind') == 'coverage_post_terminal']
             assert len(recorded) == 1, recorded
             assert recorded[0]['rollback_capable'] is False
-            assert len(recorded[0]['postimages']) == 1
-            assert recorded[0]['postimages'][0]['path'].endswith('/config/x_feedback.json')
+            assert recorded[0]['postimages'] == []  # deletable ratings must not gain historical CAS copies
+            assert recorded[0]['coverage']['capability']['snapshot_strategy'] == 'receipt_only'
             (shots / 'native-rating-receipt.json').write_text(json.dumps({'reply': rated, 'rating': stored_rating, 'recorded': recorded}, indent=2))
         failure_receipts = {}
         for outcome in ('decline', 'expiry', 'unknown'):
