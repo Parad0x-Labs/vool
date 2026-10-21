@@ -110,6 +110,9 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         kind=operator_kind,
         target_path=target_path,
         destination_path=destination_path,
+        target_label=(str(arguments.get("title") or "").strip() if operator_kind == "show_note"
+                      else str(arguments.get("query") or "").strip() if operator_kind == "find_notes"
+                      else None),
         approval_requested=False,
         action_id=str(arguments.get("action_id") or "").strip() or None,
         raw_text=raw_text,
