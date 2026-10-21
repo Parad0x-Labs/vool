@@ -14,8 +14,9 @@ Now both call `assemble_tool_offer`. It:
   families, follow-up inheritance, turn expansions — all of `model_visible_specs`);
 - ranks installed skills against the user's words and renders the matched bodies with
   **provenance** (plugin id, file) under hard **bounds** (`MAX_SKILLS`, `MAX_SKILL_CHARS`);
-- seats available tools declared by matched installed guidance before narrowing ranked fill;
-  reserved seats and explicitly demanded intents stay, unavailable and owner-only tools never seat;
+- seats available built-in tools declared by matched installed guidance before narrowing ranked
+  fill; reserved seats and explicitly demanded intents stay, unavailable and owner-only tools never
+  seat, and plugin or MCP tools stay behind their family's expansion;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
   audited against what was offered.
 
@@ -557,10 +558,25 @@ def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[d
 
 
 def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
-    """Resolve declarations through the ordinary availability/owner-only graph."""
+    """Resolve declarations through the ordinary availability/owner-only graph.
+
+    Only built-in tools seat this way. A plugin or MCP tool stays behind its family:
+    the model reaches it through ``capability.expand_family`` (or the user's own words
+    naming it), so a pack's own skill matching the user's words never seats the pack.
+    """
     if not guidance.allowed_tools:
         return ()
-    from core.capability_graph import _HARD_MAX_CANDIDATES, model_visible_specs
+    from core.capability_graph import (
+        _HARD_MAX_CANDIDATES,
+        _PROJECTED_SOURCE_PREFIXES,
+        ImplementationId,
+        _implementations,
+        model_visible_specs,
+    )
+
+    def _projected(intent: str) -> bool:
+        impl = _implementations.get(ImplementationId(intent))
+        return impl is not None and str(impl.source).startswith(_PROJECTED_SOURCE_PREFIXES)
 
     allowed = set(guidance.allowed_tools)
     return tuple(
@@ -568,7 +584,7 @@ def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
         for spec in model_visible_specs(
             explicit_intents=tuple(guidance.allowed_tools), max_candidates=_HARD_MAX_CANDIDATES
         )
-        if spec.get("intent") in allowed
+        if spec.get("intent") in allowed and not _projected(str(spec["intent"]))
     )
 
 
