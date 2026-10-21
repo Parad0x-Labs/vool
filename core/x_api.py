@@ -221,8 +221,19 @@ def _send_read(path: str, url: str, authorization: str) -> dict[str, Any]:
             body = None
         failure = _for_path(path, _http_failure(int(exc.code or 0), body))
         if int(exc.code or 0) == 429:
-            raw_reset = str((exc.headers or {}).get("x-rate-limit-reset") or "")
-            failure.reset_at = int(raw_reset) if raw_reset.isdigit() else None
+            raw_reset = str((exc.headers or {}).get("x-rate-limit-reset") or "").strip()
+            failure.reset_at = None
+            reset_label = "X did not provide a usable reset time."
+            try:
+                if raw_reset.isdigit() and len(raw_reset) <= 12:
+                    reset_at = int(raw_reset)
+                    label = datetime.fromtimestamp(reset_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                    failure.reset_at = reset_at
+                    reset_label = f"Reset time: {label}."
+            except (ValueError, OverflowError, OSError):
+                pass
+            failure.message = f"X is limiting requests for your app. {reset_label} Nothing was sent."
+            failure.args = (failure.message,)
         raise failure from None
     except XReadError:
         raise
@@ -289,7 +300,10 @@ def _guard(fn):
     try:
         return fn()
     except XReadError as exc:
-        return XResult(False, exc.status, exc.message, {"http_status": exc.http_status} if exc.http_status else {})
+        detail = {"http_status": exc.http_status} if exc.http_status else {}
+        if exc.status == "rate_limited":
+            detail["reset_at"] = getattr(exc, "reset_at", None)
+        return XResult(False, exc.status, exc.message, detail)
     except Exception as exc:  # never raise into the tool loop
         return XResult(False, "failed", f"Reading X failed ({type(exc).__name__}).")
 

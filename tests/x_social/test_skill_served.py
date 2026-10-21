@@ -38,11 +38,15 @@ def test_installed_skill_reaches_native_x_flow_and_owner_card(vault_home, tmp_pa
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(raw)))
+            if status == 429:
+                self.send_header('x-rate-limit-reset', '2000000000')
             self.end_headers()
             self.wfile.write(raw)
         def do_GET(self):
             path = urlsplit(self.path).path
             requests.append(('GET', path))
+            if os.environ.get('SOCIAL_RATE_LIMIT') and path == '/2/tweets/search/recent':
+                return self.answer(429, {'title': 'Too Many Requests'})
             post = {'id': '555', 'author_id': '22', 'text': 'Recovering interrupted builds.', 'created_at': '2026-10-20T01:00:00Z', 'public_metrics': {'like_count': 7}}
             if path == '/2/tweets/search/recent' or path == '/2/tweets':
                 return self.answer(200, {'data': [post], 'includes': {'users': [{'id': '22', 'username': 'builder', 'name': 'Builder'}]}})
@@ -141,6 +145,13 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         reply = daemon.post('/v1/chat/completions', payload, timeout=90)
         debug = Path(os.environ['SOCIAL_SHOTS']); debug.mkdir(parents=True, exist_ok=True)
         (debug / 'provider-wire.json').write_text(json.dumps({'reply': reply, 'requests': state.requests, 'events': daemon.session_events(reply.get('vool_session_id', 'skill-social-flow'))}, indent=2))
+        if os.environ.get('SOCIAL_RATE_LIMIT'):
+            text = reply['choices'][0]['message']['content']
+            assert '2033-05-18' in text and '03:33:20' in text and 'UTC' in text, text
+            assert 'nothing was sent' in text.lower(), text
+            assert requests == [('GET', '/2/tweets/search/recent')], requests
+            assert not daemon.post('/api/x/activity', {'action': 'overview'})['pending']
+            return
         assert cursor[0] == 4, (reply, cursor, offered)
         required = {t.replace('.', '__') for t in DECLARED_TOOLS}
         assert offered and all(required <= names for names in offered), offered

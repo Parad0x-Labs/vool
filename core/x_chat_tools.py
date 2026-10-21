@@ -30,6 +30,8 @@ def _result(intent: str, outcome: Any, *, keys: tuple[str, ...]):
     payload = {key: data.get(key) for key in keys if key in data}
     if not outcome.ok and outcome.status != "no_results":
         payload["error"] = outcome.message
+        if outcome.status == "rate_limited":
+            payload["reset_at"] = data.get("reset_at")
     return RuntimeExecutionResult(
         handled=True,
         ok=bool(outcome.ok),

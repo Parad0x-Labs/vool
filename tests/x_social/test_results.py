@@ -52,7 +52,8 @@ def social_x(vault_home, monkeypatch):
             self.send_response(code)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(raw)))
-            self.send_header('x-rate-limit-reset', '2000000000')
+            if state.get('reset', '2000000000') is not None:
+                self.send_header('x-rate-limit-reset', state.get('reset', '2000000000'))
             self.end_headers()
             self.wfile.write(raw)
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
@@ -107,6 +108,17 @@ def test_rate_limit_returns_reset_and_stops_without_retry(social_x):
     assert not out.ok and out.status == 'rate_limited'
     assert len(social_x['requests']) == 1
     assert out.details['reset_at'] == 2000000000
+
+
+@pytest.mark.parametrize('header', [None, 'not-a-time', '99999999999999999999'])
+def test_missing_or_unusable_rate_reset_never_invents_a_time(social_x, header):
+    social_x.update(status=429, reset=header)
+    out = _results(['556', '557'])
+    assert not out.ok and out.status == 'rate_limited'
+    assert out.details['reset_at'] is None
+    assert 'did not provide a usable reset time' in out.response_text
+    assert 'Nothing was sent.' in out.response_text
+    assert len(social_x['requests']) == 1
 
 
 def test_equal_ages_compared_and_unequal_ages_never_called_trends(social_x):

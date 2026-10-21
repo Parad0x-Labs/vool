@@ -2267,6 +2267,12 @@ class ResearchToolLoopFacadeMixin:
             ):
                 loop_stop_reason = "tool_completed_turn"
                 break
+            # This gateway refusal is already written for the person. Preserve
+            # its reset time and stop; another synthesis round can lose both.
+            if (not execution.ok and execution.status == 'rate_limited'
+                    and str(execution.tool_name or '').startswith('x.')
+                    and (execution.details.get('observation') or {}).get('tool_surface') == 'x'):
+                execution.user_safe_response_text = str(execution.response_text or '')
             # A refused step is not a terminal turn: the correction path or grounded synthesis
             # below still owns it. Finalization records failure when the turn actually ends.
             # Marking it failed here seals the checkpoint and discards a later approval pause,
