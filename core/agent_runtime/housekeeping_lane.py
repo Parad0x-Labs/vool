@@ -961,6 +961,12 @@ def maybe_handle_housekeeping_request(
 ) -> dict[str, Any] | None:
     """The front door's housekeeping lane. Returns {"result": ...} when it owns the turn."""
     text = str(raw_user_input or effective_input or "")
+    # The shared demand authority already recognizes an explicit X retrieval.
+    # Conversation search must not consume it before the normal tool gates run.
+    from core.tool_demand_signals import resolve_demand_signals
+
+    if any(intent.startswith("x.") for intent in resolve_demand_signals(text).explicit_intents):
+        return None
     try:
         plan = parse_housekeeping(text)
     except Exception:

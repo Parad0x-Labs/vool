@@ -108,8 +108,9 @@ def test_bare_chat_rating_reaches_native_save_with_server_stored_draft(served):
     ], 'rating-answer', session=first['vool_session_id'])
     [row] = x_feedback.inspect('global', home=served.home)['entries']
     assert row['rating'] == 7 and row['comment'] == 'hook too long' and row['text'] == draft, rated
-    assert any('x__feedback__save' == tool['function']['name']
-               for body in served.state.requests for tool in body.get('tools', []))
+    descriptions = [tool['function']['description'] for body in served.state.requests
+                    for tool in body.get('tools', []) if tool['function']['name'] == 'x__feedback__save']
+    assert descriptions and all('stored previous assistant message' in text for text in descriptions)
 
 
 @pytest.mark.parametrize('served', ['ratings'], indirect=True)

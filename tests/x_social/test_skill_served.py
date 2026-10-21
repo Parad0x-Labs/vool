@@ -144,6 +144,8 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         assert (cert.get('result') or cert).get('state') == 'verified', cert
         state.requests.clear()
         payload = {'model': 'custom-byok:probe-model', 'messages': [{'role': 'user', 'content': ('Run the orchard social-manager workflow for today.' if os.environ.get('SOCIAL_M6_QUIET') else 'Check my X API usage and research checkpoint discussions for orchard social-manager; read the post and propose one quote.')}], 'surface': 'desktop', 'stream': False, 'mode': 'auto', 'session_id': 'skill-social-flow', 'turn_id': 'skill-social-origin'}
+        if os.environ.get('SOCIAL_EXPLICIT_SEARCH'):
+            payload['messages'] = [{'role': 'user', 'content': 'Search X for checkpoint recovery with orchard social-manager.'}]
         if fast_card:
             payload['messages'] = [{'role': 'user', 'content': "Run orchard social-manager fast lane using today's checkpoint recovery conversations."}]
         reply = daemon.post('/v1/chat/completions', payload, timeout=90)
@@ -164,6 +166,10 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         action = overview['pending'][0]
         assert action['kind'] == 'quote' and action['text'] == script[-1][1]['text']
         assert not [r for r in requests if r[0] == 'POST']
+        if os.environ.get('SOCIAL_EXPLICIT_SEARCH'):
+            assert ('GET', '/2/tweets/search/recent') in requests, requests
+            assert any('Check usage, search, read post context, then propose one quote for owner approval.' in str(body.get('messages')) for body in state.requests), state.requests
+            return
         if fast_card:
             text = reply['choices'][0]['message']['content']
             notice = 'Withheld from this answer:'
