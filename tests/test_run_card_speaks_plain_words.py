@@ -32,7 +32,7 @@ _SCRIPTS: dict[str, str] = {}
 def _script(locale: str) -> str:
     if locale not in _SCRIPTS:
         html = render_vool_chat_html(ui_locale=locale)
-        scripts = sorted(re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL), key=len, reverse=True)
+        scripts = sorted(re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL | re.IGNORECASE), key=len, reverse=True)
         _SCRIPTS[locale] = scripts[0]
     return _SCRIPTS[locale]
 

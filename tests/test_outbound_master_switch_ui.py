@@ -65,7 +65,7 @@ out({shown, pressed, opened, onAgain: {message: updateMessageEl.textContent, but
 def _settings_updates_code() -> str:
     from core.vool_settings_page import render_vool_settings_html
 
-    source = next(part for part in re.findall(r"<script[^>]*>(.*?)</script>", render_vool_settings_html(), re.DOTALL)
+    source = next(part for part in re.findall(r"<script[^>]*>(.*?)</script>", render_vool_settings_html(), re.DOTALL | re.IGNORECASE)
                   if "function widgetUpdates(stack)" in part)
     return slice_source(source, "function widgetUpdates(stack)", "function widgetBuild(stack)")
 
