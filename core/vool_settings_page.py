@@ -3315,9 +3315,9 @@ function widgetXActivity(host) {
     host.appendChild(note);
     pending.forEach(a => {
       const card = el('div', 'x-action-card');
-      const summary = a.summary || a.kind;
+      const summary = window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind);
       card.appendChild(el('strong', null, summary));
-      card.appendChild(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'));
+      card.appendChild(Object.assign(el('p', 'subtle', '@' + ((a.account || {}).username || '?') + ' · ' + String(a.weighted_length || 0) + '/280'), { dir: 'ltr' }));
       if (a.text) { const words = el('p', 'x-action-text', a.text); words.dir = 'auto'; card.appendChild(words); }
       const t = a.target || {};
       const reply = a.kind === 'hide_reply' || a.kind === 'unhide_reply';
@@ -3395,9 +3395,11 @@ function widgetXActivity(host) {
       recent.forEach(a => {
         const line = el('p', 'subtle');
         const word = X_STATE_WORDS[a.state];
-        line.textContent = (a.summary || a.kind) + ' · ' + (a.message || (word ? T(word[0], word[1]) : a.state));
+        const summary = window.VoolXSocial ? window.VoolXSocial.summary(a) : (a.summary || a.kind);
+        const state = window.VoolXSocial ? window.VoolXSocial.state(a) : (word ? T(word[0], word[1]) : a.message || a.state);
+        line.textContent = summary + ' · ' + state;
         const url = (a.result || {}).url;
-        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, a.summary || a.kind)); }
+        if (url) { line.appendChild(document.createTextNode(' ')); line.appendChild(xOpenLink(url, summary)); }
         host.appendChild(line);
         if (a.state === 'sent' && window.VoolXSocial) window.VoolXSocial.rating(host, a);
       });
