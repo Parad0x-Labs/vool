@@ -87,7 +87,7 @@ _NAMES_THIS_TARGET_RE = re.compile(
 _AUTHORING_REQUEST_RE = re.compile(
     r"^\s*(?:(?:ok(?:ay)?|so|hey|hi|yo|please|pls|just|and|but|also|instead|now|then)\b[\s,]*)*"
     r"(?:(?:can|could|would)\s+(?:you|u)\s+(?:please\s+)?)?"
-    r"(?:write|draft|compose|generate)\s+(?:me\s+|up\s+)?(?:a|an|the)?\s*"
+    r"(?:write|draft|compose|generate)\s+(?:me\s+|up\s+)?(?:(?:a|an|the)\s*)?"
     r"(?:[\w.+#/-]+\s+){0,4}?"
     r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
     r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
@@ -98,8 +98,8 @@ _AUTHORING_REQUEST_RE = re.compile(
 #: The same authoring ask after an in-turn pivot ("WAIT. Cancel the email. Instead, write a bash
 #: one-liner..."): anchored to a sentence start, not only the turn start.
 _AUTHORING_PIVOT_RE = re.compile(
-    r"(?:^|[.!?]\s+)(?:instead|now|then|just)?[\s,]*"
-    r"(?:write|draft|compose|generate)\s+(?:me\s+|up\s+)?(?:a|an|the)?\s*"
+    r"(?:^(?:instead|now|then|just)?|[.!?]\s(?:\s*(?:instead|now|then|just))?)[\s,]*"
+    r"(?:write|draft|compose|generate)\s+(?:me\s+|up\s+)?(?:(?:a|an|the)\s*)?"
     r"(?:[\w.+#/-]+\s+){0,4}?"
     r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
     r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
