@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug in Nulla Hive Mind
+description: Report a bug in VOOL
 labels: ["bug"]
 body:
   - type: markdown

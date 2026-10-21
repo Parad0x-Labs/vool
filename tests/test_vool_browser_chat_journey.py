@@ -47,7 +47,9 @@ PLUGIN = "vool-browser"
 
 
 def _wire_name(intent: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", intent.replace(".", "__")).strip("_") or "tool"
+    from core.cloud_tool_call_contract import _NATIVE_NAME_RE
+
+    return _NATIVE_NAME_RE.sub("_", intent.replace(".", "__")).strip("_") or "tool"
 
 
 class SequencedToolProvider:
@@ -151,7 +153,7 @@ def _seed_stub_model(home: Path, provider: SequencedToolProvider) -> None:
             adapter_type="openai_compatible", license_name="Apache-2.0",
             license_reference="https://ollama.com/library/qwen3",
             weight_location="external", runtime_dependency="ollama",
-            capabilities=["summarize", "classify", "format", "extract", "structured_json"],
+            capabilities=["summarize", "classify", "format", "extract", "structured_json", "tool_intent"],
             runtime_config={{"base_url": "{provider.base_url}", "timeout_seconds": 60}},
             metadata={{
                 "runtime_family": "ollama", "cost_class": "free_local",

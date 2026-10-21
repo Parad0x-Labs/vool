@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import platform
+import plistlib
 import shutil
 import signal
 import socket
@@ -103,6 +104,12 @@ class Run:
         if not ok and fatal:
             raise SmokeFailure(f"{name}: {detail}")
 
+    def not_run(self, name: str, detail: str) -> None:
+        """Record a manual check this run could not perform: neither a pass nor a failure."""
+        self.steps.append({"step": name, "ok": None, "detail": detail})
+        (self.scratch / "steps.json").write_text(json.dumps(self.steps, indent=2) + "\n")
+        print(f"NOT RUN {name}: {detail}", flush=True)
+
     def check(self, name: str, step) -> None:
         """Run one chat check and record it without stopping the run; an error in it is its FAIL."""
         try:
@@ -116,13 +123,14 @@ class Run:
         width = max(len(step["step"]) for step in self.steps)
         print("----- smoke steps -----", flush=True)
         for step in self.steps:
-            print(f"{'PASS' if step['ok'] else 'FAIL'}  {step['step'].ljust(width)}", flush=True)
-        return [step["step"] for step in self.steps if not step["ok"]]
+            mark = "NOT RUN" if step["ok"] is None else "PASS" if step["ok"] else "FAIL"
+            print(f"{mark.ljust(7)}  {step['step'].ljust(width)}", flush=True)
+        return [step["step"] for step in self.steps if step["ok"] is False]
 
-    def chat(self, origin: str, name: str, message: str, model: str, timeout: float) -> str:
+    def chat(self, origin: str, name: str, message: str, model: str, timeout: float, session: str = SESSION) -> str:
         body = {
             "messages": [{"role": "user", "content": message}],
-            "session_id": SESSION,
+            "session_id": session,
             "stream": False,
             "model": model,
             "model_selection": "pin",
@@ -137,6 +145,136 @@ class Run:
         text = reply_text(answer)
         print(f"  {name} ({seconds}s): {text[:300]!r}", flush=True)
         return text
+
+
+PIN_SESSION, PRIVATE_SESSION = "release-pin-check", "release-private-check"
+SECRET = "Quillmere"
+
+
+def files_holding(root: Path, needle: str) -> list[str]:
+    raw = needle.encode()
+    hits = []
+    for p in root.rglob("*"):
+        try:
+            if p.is_file() and not p.is_symlink() and raw in p.read_bytes():
+                hits.append(str(p.relative_to(root)))
+        except OSError as error:
+            raise SmokeFailure(f"cannot inspect smoke profile: {p.relative_to(root)}") from error
+    return hits
+
+
+
+def release_privacy_checks(run: Run, origin: str, home: Path, model: str, timeout: float) -> None:
+    """Exercise PIN redaction, private chat and forgetting through the served chat API."""
+    def chat(session, name, text, model, timeout):
+        return run.chat(origin, name, text, model, timeout, session=session)
+
+    db = home / "Library/Application Support/VOOL/runtime/data/vool_web0_v2.db"
+
+    def bench_rows():
+        import shutil
+        import sqlite3
+        import tempfile
+        # Read a private copy: a read-only open of a live WAL database cannot create its -shm.
+        with tempfile.TemporaryDirectory(dir=run.scratch) as tmp:
+            for suffix in ("", "-wal", "-shm"):
+                src = Path(str(db) + suffix)
+                if src.exists():
+                    shutil.copyfile(src, Path(tmp) / ("copy.db" + suffix))
+            con = sqlite3.connect(str(Path(tmp) / "copy.db"))
+            try:
+                return [r[0] for r in con.execute("select raw_result_json from local_inference_benchmarks order by rowid")]
+            finally:
+                con.close()
+
+    def string_leaves(value):
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return [s for v in value.values() for s in string_leaves(v)]
+        if isinstance(value, list):
+            return [s for v in value for s in string_leaves(v)]
+        return []
+
+    def snapshot_db(label):
+        import shutil
+        out = run.scratch / label
+        out.mkdir(exist_ok=True)
+        for suffix in ("", "-wal", "-shm"):
+            src = Path(str(db) + suffix)
+            if src.exists():
+                shutil.copyfile(src, out / ("vool_web0_v2.db" + suffix))
+
+    def pin():
+        said = chat(PIN_SESSION, "pin", "My card PIN is 4821, please remember it.", model, timeout)
+        mem = request(origin, f"/api/memory/entries?session={PIN_SESSION}")
+        (run.scratch / "memory-after-pin.json").write_text(json.dumps(mem, indent=2) + "\n")
+        # Neither the digits nor an empty "PIN is [redacted]" shell may be remembered.
+        stored = "4821" in json.dumps(mem) or bool((mem or {}).get("entries"))
+        extra_answer = "locked in" in said.lower() or "remember \"it\"" in said.lower() or "remember “it”" in said.lower()
+        return ("4821" not in said and not stored and not extra_answer), {
+            "reply": said[:300], "pin_in_memory": stored, "second_answer": extra_answer}
+
+    def private():
+        before = len(bench_rows())
+        on = chat(PRIVATE_SESSION, "private-on", "private chat", model, timeout)
+        chat(PRIVATE_SESSION, "private-fact", f"My cousin's boat is called {SECRET}. Remember that.", model, timeout)
+        snapshot_db("wal-snap-1-after-private-fact")
+        during = len(bench_rows())
+        off = chat(PRIVATE_SESSION, "private-off", "turn recording back on", model, timeout)
+        snapshot_db("wal-snap-2-after-recording-on")
+        hist = request(origin, f"/api/chat/history?session={PRIVATE_SESSION}")
+        (run.scratch / "history-private.json").write_text(json.dumps(hist, indent=2) + "\n")
+        on_disk = files_holding(home, SECRET)
+        ok = SECRET not in json.dumps(hist) and not on_disk and during == before
+        return ok, {"on": on[:200], "off": off[:200], "in_history": SECRET in json.dumps(hist), "files": on_disk[:10],
+                    "benchmark_rows_before_private_turn": before, "after_private_fact": during}
+
+    def bench_content_free():
+        rows = bench_rows()
+        (run.scratch / "benchmark-rows.json").write_text(json.dumps(rows, indent=2) + "\n")
+        strings = sorted({s for r in rows for s in string_leaves(json.loads(r) if r else {})})
+        return not strings, {"rows": len(rows), "string_values": strings[:20]}
+
+    def guarded(fn):
+        def run_it():
+            try:
+                return fn()
+            except Exception as error:  # a broken check is its own FAIL, never a crash of the smoke
+                return False, f"{type(error).__name__}: {error}"
+        return run_it
+
+    def forget_digit():
+        # Forgetting a word that also appears in today's date must not block every other memory.
+        s = "release-forget-digit-check"
+        chat(s, "digit-remember-teal", "Remember that my favourite colour is teal.", model, timeout)
+        chat(s, "digit-remember-locker", "Remember that my locker is 14.", model, timeout)
+        forgot = chat(s, "digit-forget", os.environ.get("FORGET_DIGIT_PHRASE", "Forget 14."), model, timeout)
+        mem = request(origin, f"/api/memory/entries?session={s}")
+        (run.scratch / "memory-after-forget-digit.json").write_text(json.dumps(mem, indent=2) + "\n")
+        dump = json.dumps(mem).lower()
+        teal = chat(s, "digit-recall-teal", "What is my favourite colour?", model, timeout)
+        locker = chat(s, "digit-recall-locker", "What is my locker number?", model, timeout)
+        forget_ok = "could not" not in forgot.lower() and "retry" not in forgot.lower()
+        locker_files = files_holding(home, "locker is 14")
+        ok = (forget_ok and "teal" in dump and "locker" not in dump and "teal" in teal.lower() and "14" not in locker
+              and not locker_files)
+        return ok, {"forget": forgot[:200], "locker_files": locker_files[:10], "teal_in_memory": "teal" in dump, "locker_in_memory": "locker" in dump,
+                    "recall_teal": teal[:200], "recall_locker": locker[:200]}
+
+    pin, private, bench_content_free = guarded(pin), guarded(private), guarded(bench_content_free)
+    forget_digit = guarded(forget_digit)
+    run.check("forget '14' keeps unrelated memories and drops the locker", forget_digit)
+
+    def birch_gone():
+        files = files_holding(home, "silver birch")
+        return not files, {"files_holding_silver_birch": files[:10]}
+
+    run.check("forgotten 'silver birch' is gone from every file under HOME", guarded(birch_gone))
+    run.check("PIN not echoed and not stored", pin)
+    run.check("private chat leaves no transcript, memory or file", private)
+    run.check("speed records hold only numbers", bench_content_free)
+
 
 
 def host_identity() -> dict:
@@ -154,11 +292,17 @@ def host_identity() -> dict:
 
 
 def stage_app(dmg: Path, scratch: Path) -> Path:
-    mount = scratch / "mount"
-    mount.mkdir()
-    subprocess.run(
-        ["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", str(mount), str(dmg)], check=True
+    attached = subprocess.run(
+        ["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-plist", str(dmg)],
+        check=True, capture_output=True,
     )
+    mounts = [Path(entry["mount-point"]) for entry in plistlib.loads(attached.stdout)["system-entities"]
+              if entry.get("mount-point")]
+    if len(mounts) != 1:
+        for mounted in mounts:
+            subprocess.run(["hdiutil", "detach", str(mounted)], check=True)
+        raise SmokeFailure(f"expected one mounted filesystem, found {len(mounts)}")
+    mount = mounts[0]
     try:
         apps = sorted(mount.glob("*.app"))
         if len(apps) != 1:
@@ -178,7 +322,8 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
-def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_timeout: float) -> None:
+def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_timeout: float,
+          pet_verdict: Path | None = None, unattended: bool = False) -> None:
     scratch.mkdir(parents=True, exist_ok=False)
     run = Run(scratch)
     host = host_identity()
@@ -316,6 +461,17 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
         run.check("recall answers from memory", recall)
         run.check("forget removed the entry", forget)
         run.check("recall after forget does not return the fact", recall_after_forget)
+        release_privacy_checks(run, origin, home, model, chat_timeout)
+        pet_step = "pet: one pet, preview, drag to desktop (manual native check)"
+        if pet_verdict is None and unattended:
+            # Nobody is at this screen (a CI runner): the check stays open for the release rehearsal.
+            run.not_run(pet_step, "unattended run; the release rehearsal supplies --pet-verdict")
+        else:
+            try:
+                verdict = json.loads(pet_verdict.read_text()) if pet_verdict is not None else {}
+            except (OSError, ValueError) as error:
+                verdict = {"error": str(error)}
+            run.record(pet_step, verdict.get("ok") is True, verdict or "manual verdict required", fatal=False)
     finally:
         early_exit = process.poll()
         if early_exit is not None:
@@ -358,7 +514,9 @@ def smoke(dmg: Path, scratch: Path, expected: str, arch: str, model: str, chat_t
     if failed:
         raise SmokeFailure(f"{len(failed)} of {len(run.steps)} steps failed: {', '.join(failed)}")
     digest = hashlib.sha256(dmg.read_bytes()).hexdigest()
-    print(f"PASS: {dmg.name} sha256 {digest} on {host['cpu']} macOS {host['macos']}, commit {expected}")
+    open_checks = [step["step"] for step in run.steps if step["ok"] is None]
+    suffix = f"; manual checks not run: {', '.join(open_checks)}" if open_checks else ""
+    print(f"PASS: {dmg.name} sha256 {digest} on {host['cpu']} macOS {host['macos']}, commit {expected}{suffix}")
 
 
 def main() -> int:
@@ -369,8 +527,12 @@ def main() -> int:
     parser.add_argument("--arch", choices=("arm64", "x86_64"), required=True)
     parser.add_argument("--model", default="qwen3:8b")
     parser.add_argument("--chat-timeout", type=float, default=900)
+    parser.add_argument("--pet-verdict", type=Path, help="JSON verdict from the manual native pet check")
+    parser.add_argument("--unattended", action="store_true",
+                        help="nobody is at the screen (CI): manual checks without a verdict are reported as not run")
     args = parser.parse_args()
-    smoke(args.dmg.resolve(), args.scratch.resolve(), args.expected_commit, args.arch, args.model, args.chat_timeout)
+    smoke(args.dmg.resolve(), args.scratch.resolve(), args.expected_commit, args.arch, args.model,
+          args.chat_timeout, args.pet_verdict, args.unattended)
     return 0
 
 

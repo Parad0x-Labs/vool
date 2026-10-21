@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="356" viewBox="0 0 760 356" role="img" aria-labelledby="title desc">
+<title id="title">Claude Code sent 13 times as much text as VOOL for the same 44 messages</title><desc id="desc">Claude Code: 2,345,311 prompt tokens, 2,214,625 cached; VOOL, Claude, cache off: 178,025 prompt tokens, 0 cached; VOOL, Claude, system cache: 180,833 prompt tokens, 30,124 cached; VOOL, Claude, system + history cache: 178,599 prompt tokens, 31,236 cached; VOOL, GPT-4.1-mini: 120,074 prompt tokens, 18,432 cached; VOOL, Kimi K3: 128,945 prompt tokens, 11,549 cached</desc>
+<style>svg{--bg:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--muted:#898781;--grid:#e1e0d9;--axis:#c3c2b7;--s-vool:#2a78d6;--s-hermes:#eb6834;--s-openclaw:#1baf7a;--s-full-transcript:#a3a29b;}@media (prefers-color-scheme: dark){svg{--bg:#1a1a19;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;--s-vool:#3987e5;--s-hermes:#d95926;--s-openclaw:#199e70;--s-full-transcript:#6f6e69;}}text{font-family:system-ui, -apple-system, "Segoe UI", sans-serif;fill:var(--ink)}.t{font-size:17px;font-weight:600}.st{font-size:12.5px;fill:var(--ink2)}.lb{font-size:13px}.v{font-size:12.5px;font-variant-numeric:tabular-nums}.ax{font-size:11.5px;fill:var(--muted);font-variant-numeric:tabular-nums}.g{stroke:var(--grid);stroke-width:1}.b{stroke:var(--axis);stroke-width:1}</style>
+<style>svg{--acc:#2a78d6;--acc-soft:#b8d3f3;--box:#fcfcfb;--grey:#c3c2b7}@media (prefers-color-scheme: dark){svg{--acc:#3987e5;--acc-soft:#2b4a70;--box:#1a1a19;--grey:#55544f}}.n{font-size:13px;font-weight:600}.q{font-size:11.5px;fill:var(--ink2)}</style>
+<rect width="760" height="356" rx="8" fill="var(--bg)"/>
+<text class="t" x="24" y="34">Claude Code sent 13 times as much text as VOOL for the same 44 messages</text>
+<text class="st" x="24" y="54">Run 4, prompt tokens per setup. Light blue was read from cache at a discount.</text>
+<rect x="24" y="66" width="12" height="12" rx="3" fill="var(--acc-soft)"/>
+<text class="lb" x="42" y="76">read from cache at a discount (a tenth of the price on Claude)</text>
+<rect x="490" y="66" width="12" height="12" rx="3" fill="var(--grey)"/>
+<text class="lb" x="508" y="76">sent at full price</text>
+<text class="lb" x="288" y="117" text-anchor="end">Claude Code</text>
+<rect x="300" y="100" width="283.3" height="24" fill="var(--acc-soft)"/>
+<rect x="583.3" y="100" width="16.7" height="24" fill="var(--grey)"/>
+<text class="v" x="608.0" y="117">2.35M · 94% cached</text>
+<text class="lb" x="288" y="157" text-anchor="end">VOOL, Claude, cache off</text>
+<rect x="300.0" y="140" width="22.8" height="24" fill="var(--grey)"/>
+<text class="v" x="330.8" y="157">178k · 0% cached</text>
+<text class="lb" x="288" y="197" text-anchor="end">VOOL, Claude, system cache</text>
+<rect x="300" y="180" width="3.9" height="24" fill="var(--acc-soft)"/>
+<rect x="303.9" y="180" width="19.3" height="24" fill="var(--grey)"/>
+<text class="v" x="331.1" y="197">181k · 17% cached</text>
+<text class="lb" x="288" y="237" text-anchor="end">VOOL, Claude, system + history cache</text>
+<rect x="300" y="220" width="4.0" height="24" fill="var(--acc-soft)"/>
+<rect x="304.0" y="220" width="18.8" height="24" fill="var(--grey)"/>
+<text class="v" x="330.8" y="237">179k · 17% cached</text>
+<text class="lb" x="288" y="277" text-anchor="end">VOOL, GPT-4.1-mini</text>
+<rect x="300" y="260" width="2.4" height="24" fill="var(--acc-soft)"/>
+<rect x="302.4" y="260" width="13.0" height="24" fill="var(--grey)"/>
+<text class="v" x="323.4" y="277">120k · 15% cached</text>
+<text class="lb" x="288" y="317" text-anchor="end">VOOL, Kimi K3</text>
+<rect x="300" y="300" width="1.5" height="24" fill="var(--acc-soft)"/>
+<rect x="301.5" y="300" width="15.0" height="24" fill="var(--grey)"/>
+<text class="v" x="324.5" y="317">129k · 9% cached</text>
+</svg>

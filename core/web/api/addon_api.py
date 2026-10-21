@@ -41,8 +41,11 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             # A check on this device and a website link; nothing is sent from here.
             if not isinstance(body.get("name"), str):
                 return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
+            from core.registry.client import CLOSED, is_open
             from core.registry.handoff import publish_handoff
 
+            if not is_open():
+                return 400, {"error": "registry_closed", "message": CLOSED}
             result = publish_handoff(body["name"])
         elif action.startswith("registry_"):
             from core.registry.client import handle
@@ -77,11 +80,12 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
     except AddonError as exc:
         return exc.status, {"ok": False, "error": exc.code, "message": exc.message}
     except ValueError as exc:
-        from core.registry.codec import DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, RegistryError
+        from core.registry.codec import DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, NEWER_VERSION_REQUIRED, RegistryError
 
         if isinstance(exc, RegistryError):
             # These get their own codes, so the page can say so calmly in the person's language.
-            code = {DOWNLOADS_PAUSED: "registry_paused", FAILED_SAFETY_CHECKS: "registry_unsafe"}.get(str(exc))
+            code = {DOWNLOADS_PAUSED: "registry_paused", FAILED_SAFETY_CHECKS: "registry_unsafe",
+                    NEWER_VERSION_REQUIRED: "registry_newer"}.get(str(exc))
             return 400, {"ok": False, "error": code or "registry_refused", "message": str(exc)}
         return 400, {"ok": False, "error": "addon_refused", "message": "The add-on input was refused."}
     except Exception:

@@ -587,6 +587,42 @@ COMPANION_WINDOW_FLAGS: dict = {
 }
 
 
+_WINDOWS_RESERVED_NAMES = frozenset({"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
+                                      *(f"LPT{i}" for i in range(1, 10))})
+
+
+def _export_save_name(disposition: str | None, format_name: str, *, answer: bool) -> str:
+    """The name the save dialog offers for a chat export: the server's own file name.
+
+    The server names the export after the chat (``Content-Disposition``, exact UTF-8 name in
+    ``filename*``, ASCII ``filename=`` as fallback), the same name the browser saves under. The
+    name is offered only when it is already a safe file name by the server's own rule
+    (``filename_title`` leaves it unchanged), ends in the format asked for, fits 255 bytes and is
+    not a name Windows reserves; anything else, or no name at all, offers the neutral name.
+    """
+    import re
+    from urllib.parse import unquote
+
+    neutral = ("VOOL answer" if answer else "VOOL chat") + "." + format_name
+    header = str(disposition or "")
+    try:
+        exact = re.search(r"filename\*\s*=\s*UTF-8''([^;\s]+)", header, re.IGNORECASE)
+        if exact:
+            name = unquote(exact.group(1), encoding="utf-8", errors="strict")
+        else:
+            quoted = re.search(r'filename\s*=\s*"([^"\\]*)"', header, re.IGNORECASE)
+            name = quoted.group(1) if quoted else ""
+        from core.web.api.chat_export_api import filename_title
+    except Exception:
+        return neutral
+    suffix = "." + format_name
+    stem = name[: -len(suffix)] if name.endswith(suffix) else ""
+    if (not stem or filename_title(stem, max_bytes=255) != stem or len(name.encode("utf-8")) > 255
+            or stem.split(".")[0].rstrip(" ").upper() in _WINDOWS_RESERVED_NAMES):
+        return neutral
+    return name
+
+
 class _WindowApi:
     """Bridge exposed to the VOOL page as ``window.pywebview.api`` (native window only).
 
@@ -806,13 +842,15 @@ class _WindowApi:
                 body = response.read(limit + 1)
                 if response.headers.get_content_type() != expected_type or (pdf and not body.startswith(b"%PDF-")):
                     return {"ok": False, "error": "invalid_pdf_response" if pdf else "invalid_export_response"}
+                save_name = _export_save_name(response.headers.get("Content-Disposition"), format_name,
+                                              answer=bool(request_id))
             if len(body) > limit:
                 return {"ok": False, "error": "pdf_too_large" if pdf else "export_too_large",
                         "message": "Export exceeds the native save size limit; no partial file was saved."}
             file_type = {"md": "Markdown documents (*.md)", "txt": "Text documents (*.txt)",
                          "pdf": "PDF documents (*.pdf)"}[format_name]
             result = self._window.create_file_dialog(self._webview.SAVE_DIALOG,
-                save_filename=("vool-answer" if request_id else "vool-chat") + "." + format_name,
+                save_filename=save_name,
                 file_types=(file_type,))
             if not result:
                 return {"ok": False, "cancelled": True}

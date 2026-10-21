@@ -10,6 +10,7 @@ from core.command_registry.registry import CommandRegistry
 
 _GROUP_MODULES = (
     "core.command_registry.groups.meta",
+    "core.command_registry.groups.browser_group",
     "core.command_registry.groups.receipts",
     "core.command_registry.groups.blackbox_group",
     "core.command_registry.groups.logs_group",
@@ -20,6 +21,7 @@ _GROUP_MODULES = (
     "core.command_registry.groups.update_group",
     "core.command_registry.groups.faults_group",
     "core.command_registry.groups.tasks",
+    "core.command_registry.groups.goals",
     "core.command_registry.groups.convergence",
     "core.command_registry.groups.contacts_group",
     "core.command_registry.groups.ops_surfaces",

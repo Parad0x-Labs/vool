@@ -1,0 +1,16 @@
+date,category,vendor,amount_eur,paid_by
+2026-07-02,travel,Lisbon Rail,48.20,Mira
+2026-07-05,office,Paper & Ink Co,19.90,Tomas
+2026-07-11,software,Notehive,12.00,Mira
+2026-07-19,travel,Alfama Guesthouse,236.00,Tomas
+2026-07-28,meals,Cafe Lumen,31.40,Mira
+2026-08-03,software,Notehive,12.00,Mira
+2026-08-09,office,Desk Supply Hub,154.75,Tomas
+2026-08-14,meals,Cafe Lumen,27.10,Tomas
+2026-08-21,travel,Porto Air,189.00,Mira
+2026-08-30,meals,Taberna Norte,64.50,Mira
+2026-09-03,software,Notehive,12.00,Mira
+2026-09-08,office,Paper & Ink Co,22.30,Tomas
+2026-09-15,travel,Lisbon Rail,48.20,Tomas
+2026-09-22,software,Grid Sheets,29.00,Mira
+2026-09-29,meals,Cafe Lumen,18.60,Mira

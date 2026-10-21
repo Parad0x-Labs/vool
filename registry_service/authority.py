@@ -105,7 +105,7 @@ def verify_request(root: dict, header: str, method: str, path: str, body: bytes,
 
 def marks_document(value: dict, *, now: int) -> dict:
     """The hand-made marks, as the Mac signs them. Everything not listed is unmarked."""
-    require(isinstance(value, dict) and set(value) == {"schema", "sequence", "issued_at", "tested", "highlighted",
+    require(isinstance(value, dict) and set(value) - {"operations", "curation"} == {"schema", "sequence", "issued_at", "tested", "highlighted",
                                                        "suspended", "teams"} and value["schema"] == MARKS_SCHEMA,
             "invalid marks document")
     require(type(value["sequence"]) is int and value["sequence"] > 0 and type(value["issued_at"]) is int and
@@ -129,6 +129,12 @@ def marks_document(value: dict, *, now: int) -> dict:
                 all(isinstance(member, str) and member.isdigit() and 0 < len(member) <= 20 for member in members)
                 for name, members in teams.items()), "invalid teams")
     require(not set(teams) & set(suspended), "a team cannot be suspended")
+    from registry_service.curation import validate_curation
+    from registry_service.operations import validate
+
+    validate(value.get("operations", []))
+    if "curation" in value:
+        validate_curation(value["curation"])
     return value
 
 
@@ -223,7 +229,7 @@ class OnlineCatalog:
             raw = self.store.admitted_artifact(entry["artifact_sha256"])
             if raw is None:
                 continue  # an older entry served from the artifact folder at start
-            self.store.publish(self.trust, entry["metadata"]["id"], entry["metadata"]["version"], self.target, raw, now=now)
+            self.store.publish(self.trust, entry["metadata"]["id"], entry["metadata"]["version"], None, raw, now=now)
             published.append(entry["metadata"]["id"] + "@" + entry["metadata"]["version"])
         return published
 

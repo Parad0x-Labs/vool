@@ -28,6 +28,13 @@ _HARDLINK_SCAN_FILE_LIMIT = 200_000
 
 
 
+#: The only variables a caller may add to a job's environment: the operator's git identity, so a
+#: commit made in the sandbox (whose HOME hides ~/.gitconfig) is attributed to them.
+_EXTRA_ENV_ALLOWED = frozenset(
+    {"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"}
+)
+
+
 def _is_windows_platform() -> bool:
     """Indirection over ``os.name == "nt"`` so tests can simulate "running on Windows" for one
     call without mutating the real ``os.name`` -- ``pathlib.Path`` itself branches on ``os.name``
@@ -237,6 +244,13 @@ def _sensitive_read_deny_roots() -> list[Path]:
         home / ".ssh", home / ".aws", home / ".gnupg", home / ".config" / "solana",
         home / ".config" / "gcloud", home / ".config" / "gh", home / ".config" / "solana-keygen",
         home / ".vool_runtime", home / ".config" / "solana" / "id.json",
+        # Package-registry, git, container and cloud credentials. A job that is ever given the
+        # network for an approved install must not be able to read and send these either.
+        home / ".npmrc", home / ".yarnrc", home / ".yarnrc.yml", home / ".pypirc", home / ".netrc",
+        home / ".git-credentials", home / ".config" / "git" / "credentials", home / ".docker",
+        home / ".kube", home / ".cargo" / "credentials", home / ".cargo" / "credentials.toml",
+        home / ".gem" / "credentials", home / ".config" / "hub", home / ".terraform.d",
+        home / ".azure", home / ".config" / "op",
     ]
     for env in ("VOOL_HOME", "VOOL_RUNTIME_HOME"):
         val = str(os.environ.get(env) or "").strip()
@@ -574,6 +588,7 @@ class JobRunner:
         *,
         cwd: str | Path | None = None,
         cancel_event: threading.Event | None = None,
+        extra_env: dict[str, str] | None = None,
     ) -> ExecutionResult:
         if not argv:
             raise ValueError("No command provided.")
@@ -604,6 +619,8 @@ class JobRunner:
         argv = self._with_network_isolation(argv, allowed_roots)
 
         env = self._child_environment(cwd_path)
+        # Only named git identity values may be added on top of the allow-listed environment.
+        env.update({key: str(value) for key, value in dict(extra_env or {}).items() if key in _EXTRA_ENV_ALLOWED})
         # `start_new_session=True` puts the child in its OWN process group, which is what makes
         # the whole tree killable. `subprocess.run(timeout=…)` kills the direct child and reaps
         # it; anything that child spawned keeps running, reparented to init, with the caller
@@ -907,6 +924,30 @@ class JobRunner:
         for root in allowed_roots:
             resolved = str(root.resolve() if isinstance(root, Path) else Path(root).resolve())
             cmd += ["--bind", resolved, resolved]
+        # The home is a private tmpfs above, so a credential is hidden unless one of the binds
+        # just made re-exposes the tree that holds it (a workspace or read root inside the home).
+        # Cover each such secret again, last, so no bind can hand it back: a directory becomes an
+        # empty read-only tmpfs and a file reads as /dev/null.
+        write_binds = {Path(root).resolve() for root in allowed_roots}
+        rebound = tuple(
+            Path(root).resolve()
+            for root in (*self.policy.read_roots, self.policy.workspace_root, *program_reads, *allowed_roots)
+        )
+        for secret in _sensitive_read_deny_roots():
+            try:
+                resolved_secret = secret.resolve()
+                exists = resolved_secret.exists()
+            except OSError:
+                continue
+            if not exists or resolved_secret in write_binds or not any(
+                resolved_secret == bound or resolved_secret.is_relative_to(bound) for bound in rebound
+            ):
+                # A writable root that IS one of these trees stays the job's workspace.
+                continue
+            if resolved_secret.is_dir():
+                cmd += ["--tmpfs", str(resolved_secret), "--remount-ro", str(resolved_secret)]
+            else:
+                cmd += ["--ro-bind", "/dev/null", str(resolved_secret)]
         # Mountpoint parents created inside the private tmpfs trees are otherwise
         # writable. A child could report an unauthorized write there even though
         # the file disappears with its namespace. Freeze those trees after all

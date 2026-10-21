@@ -429,6 +429,7 @@ def build_live_data_plan(
         # on" for sea asks; solo water asks fell to the model, which improvised
         # unsourced prose). One text, two families, disjoint spans.
         from core.fresh_data.water_temperature import extract_water_asks
+        from core.measurement_medium import without_setting_temperatures
         from tools.web.web_research import _extract_weather_locations_with_confidence
 
         weather_text = candidate_text
@@ -448,6 +449,10 @@ def build_live_data_plan(
                 + " " * (span_end - span_start)
                 + weather_text[span_end:]
             )
+        # An appliance or cooking temperature ("oven temperature for roasting potatoes") is not
+        # a place's weather: blanked the same way, so it never becomes a weather subtask for a
+        # "place" named after the dish while a real weather ask beside it is still planned.
+        weather_text = without_setting_temperatures(weather_text)
         for location, confident in _extract_weather_locations_with_confidence(weather_text):
             # B2 INTERIM span binding.
             slice_id = _interim_slice_id(user_text, location)

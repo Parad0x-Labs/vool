@@ -30,7 +30,16 @@ from enum import Enum
 from pathlib import Path
 
 from core.updater.download import StagedDownloader
-from core.updater.feed import FeedConfig, automatic_checks_enabled, enable_automatic_checks, load_feed_config
+from core.updater.feed import (
+    ONLINE_ACCESS_OFF,
+    ONLINE_ACCESS_OFF_DETAIL,
+    ONLINE_ACCESS_OFF_INSTALL_DETAIL,
+    FeedConfig,
+    automatic_checks_enabled,
+    enable_automatic_checks,
+    load_feed_config,
+    online_access_allowed,
+)
 from core.updater.health import HttpHealthProbe
 from core.updater.macos import ExternalScriptHelper, MacProcessHelper
 from core.updater.migrations import MigrationCatalog
@@ -238,6 +247,20 @@ class UpdateSubsystem:
             self.service.start()
         return self
 
+    def ensure_background_checks(self) -> bool:
+        """Start the scheduled check if it is allowed now but not running: the outbound switch (or the
+        check choice) can be turned on after boot. Called on the owner-local status poll, the same cue the
+        model radar uses to start its observer. Idempotent; returns whether it started the thread."""
+        if not self._started or not self.configured or self.service is None:
+            return False
+        thread = self.service._thread
+        if thread is not None and thread.is_alive():
+            return False
+        if not automatic_checks_enabled(feed=self.feed, data_dir=self.data_dir):
+            return False
+        self.service.start()
+        return True
+
     def _recover_bounded(self) -> None:
         if self._worker_alive():
             return  # the detached transaction still owns recovery/finalization
@@ -392,6 +415,9 @@ class UpdateSubsystem:
             "recovery_action": (status.recovery_action if status else ""),
             "notes": "",
             "restart_pending": bool(self._paused_txid),
+            # The outbound switch as the check door reads it: False means no update check can go
+            # online until the user turns "Go online on its own" on.
+            "online_access": online_access_allowed(self.feed),
         }
         offer = self.service.current_offer() if self.service else None
         if offer is not None:
@@ -416,6 +442,15 @@ class UpdateSubsystem:
             payload = self.status_payload()
             payload["check_ok"] = False
             payload["detail"] = payload["unavailable_plain"]
+            return payload
+        if not online_access_allowed(self.feed):
+            # The outbound switch is the master: a pressed Check sends nothing while it is off, and
+            # the answer says why and where to turn it on instead of reading as a failed check.
+            # The press is not recorded as a check choice either, so nothing changes on disk.
+            payload = self.status_payload()
+            payload["check_ok"] = False
+            payload["reason"] = ONLINE_ACCESS_OFF
+            payload["detail"] = ONLINE_ACCESS_OFF_DETAIL
             return payload
         try:
             enable_automatic_checks(feed=self.feed, data_dir=self.data_dir)
@@ -465,6 +500,10 @@ class UpdateSubsystem:
             return PressOutcome(False, detail=self.status_payload()["unavailable_plain"] or "updates are unavailable")
         if not self.feed.has_target:
             return PressOutcome(False, detail="no app path is configured for this install, so nothing can be updated")
+        if not online_access_allowed(self.feed):
+            # Installing downloads the update, so the outbound switch decides it like a check. Restart into
+            # an already downloaded update and rollback stay local and are not gated.
+            return PressOutcome(False, detail=ONLINE_ACCESS_OFF_INSTALL_DETAIL)
         prior_status = self.status.load()
         if self._recovering or (prior_status and prior_status.fault_code == "rollback_failed"):
             return PressOutcome(False, detail="the previous update needs recovery before another can be installed")

@@ -3,7 +3,7 @@
 Add a calendar source (Google Calendar, Microsoft 365, an iCloud or other CalDAV server, Apple Calendar on this Mac) with
 the capability each path really has, pick its credential by binding id (never a password or token), refresh the calendar
 list, choose which calendars VOOL reads and which one takes new events, opt in to sync and alerts, set the default lead
-time, sync now, disconnect and reconnect. Every state an attempt proved is shown with its recovery step.
+time, sync now, disconnect, reconnect and remove. Every state an attempt proved is shown with its recovery step.
 
 The panel only calls the account routes (core/web/api/service.py -> core/operator/calendar_accounts.py) and renders what
 they return; calendar names and account labels are provider data and are always written as text, never as markup.
@@ -22,6 +22,7 @@ _CSS = """
 .vcs-connected{color:var(--ok,#3ecf8e);border-color:var(--ok,#3ecf8e)}
 .vcs-revoked,.vcs-denied,.vcs-unreadable,.vcs-provider_error,.vcs-unsupported,.vcs-egress_refused{color:var(--bad,#f2545b);border-color:var(--bad,#f2545b)}
 .vcs-recovery{font-size:12px;color:var(--ink,#e8eaf0)}
+.vcs-card>.vcs-btn{align-self:flex-start}
 .vcs-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
 .vcs-cals{display:flex;flex-direction:column;gap:4px}
 .vcs-cal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
@@ -77,6 +78,17 @@ function stateText(status, raw){
              provider_error: 'vcs.state.provider_error', disconnected: 'vcs.state.disconnected'}[status];
   return key ? CT(key, raw) : raw;
 }
+/* The next step for an account's state, in the page's language. It names what is on this card (Refresh
+   calendar list, Reconnect, Remove account) rather than sending the reader to "Settings", where they already are.
+   The server's English text is the fallback for a state the catalog does not know. */
+function recoveryText(status, raw){
+  var key = {configured: 'vcs.recovery.configured', stale: 'vcs.recovery.stale', revoked: 'vcs.recovery.revoked',
+             denied: 'vcs.recovery.denied', rate_limited: 'vcs.recovery.rate_limited', offline: 'vcs.recovery.offline',
+             egress_refused: 'vcs.recovery.egress_refused', unreadable: 'vcs.recovery.unreadable',
+             calendar_missing: 'vcs.recovery.calendar_missing', unsupported: 'vcs.recovery.unsupported',
+             provider_error: 'vcs.recovery.provider_error', disconnected: 'vcs.recovery.disconnected'}[status];
+  return key ? CT(key, raw) : raw;
+}
 function h(tag, cls, text){ var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 function request(method, url, body){
   var options = {method: method, headers: {'Accept': 'application/json'}};
@@ -115,11 +127,21 @@ function mountInto(host){
       say('');   /* loaded: the "Loading…" line must not stay above a list that is already drawn */
     }).catch(function(){ say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
   }
+  /* The outbound switch is the master over online calendars: while it is off nothing is fetched (not the
+     background sync, not Sync now, not Refresh calendar list), and the panel says so with the way to the switch. */
+  function onlineOffText(){ return CT('vcs.online_off', 'Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.'); }
+  function isOnlineOff(j){ return !!j && (j.reason === 'online_access_off' || j.status === 'online_access_off'); }
+  function onlineSwitchLink(){
+    var go = button(CT('online_access.open_setting', 'Open \u201cGo online on its own\u201d'), function(){ location.hash = '#permissions/automatic_checks'; });
+    go.setAttribute('data-testid', 'vcs-online-setting');
+    return go;
+  }
   function act(url, body, done){
     say(CT('vns.status.working', 'Working…'));
     return request('POST', url, body).then(function(j){
       return load().then(function(){
-        if (!j.ok) say(j.detail || j.recovery || j.reason || CT('vns.status.failed', 'That did not work.'), true);
+        if (isOnlineOff(j)) say(onlineOffText());
+        else if (!j.ok) say(j.detail || j.recovery || j.reason || CT('vns.status.failed', 'That did not work.'), true);
         else say(done || CT('vcs.status.done', 'Done.'));
         return j;
       });
@@ -127,6 +149,13 @@ function mountInto(host){
   }
   function paint(){
     list.textContent = '';
+    if (view.online_access === false) {
+      var off = h('div', 'vcs-row');
+      off.setAttribute('data-testid', 'vcs-online-off');
+      off.appendChild(h('span', 'vcs-note', onlineOffText()));
+      off.appendChild(onlineSwitchLink());
+      list.appendChild(off);
+    }
     var accounts = view.accounts || [];
     if (!accounts.length) list.appendChild(h('div', 'vcs-empty', CT('vcs.empty.accounts', 'No calendar accounts yet. Add one below.')));
     accounts.forEach(function(account){ list.appendChild(accountCard(account)); });
@@ -152,10 +181,11 @@ function mountInto(host){
     var source = capability.label || account.provider;
     var detail = (source !== title ? source : '') + (account.credential_binding ? (source !== title ? ' · ' : '') + CTF('vcs.detail.binding', 'credential binding {binding}', {binding: account.credential_binding}) : '');
     if (detail) card.appendChild(h('div', 'vcs-detail', detail));
-    if (account.recovery) card.appendChild(h('div', 'vcs-recovery', account.recovery));
+    if (account.recovery) card.appendChild(h('div', 'vcs-recovery', recoveryText(account.status, account.recovery)));
     if (account.status_detail) card.appendChild(h('div', 'vcs-detail', account.status_detail));
     if (account.status === 'disconnected') {
       card.appendChild(button(CT('vcs.btn.reconnect', 'Reconnect'), function(){ act('/api/calendar/accounts/reconnect', {account_id: account.account_id}, CT('vcs.saved.reconnected', 'Reconnected. Choose calendars and turn sync on to fetch again.')); }));
+      card.appendChild(removeButton(account, title));
       return card;
     }
     var toggles = h('div', 'vcs-row');
@@ -196,7 +226,8 @@ function mountInto(host){
         var report = (j.reports || [])[0] || {};
         var read = (report.calendars || []).filter(function(c){ return c.ok; }).length;
         return load().then(function(){
-          if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
+          if (isOnlineOff(j) || isOnlineOff(report)) say(onlineOffText());
+          else if (!account.sync_enabled) say(CE('vcs.sync.off', 'Nothing synced: turn on \u201cSync this account\u201d first.'), true);
           else if (!j.ok) say(report.detail || CT('vns.status.failed', 'That did not work.'), true);
           else if (!read) say(CE('vcs.sync.nothing', 'Nothing synced: no calendars are chosen for this account yet. Tick the calendars VOOL should read.'), true);
           else say(read === 1 ? CTF('vcs.sync.done_one', 'Synced 1 calendar, {events} events read.', {events: report.events_seen || 0})
@@ -209,9 +240,29 @@ function mountInto(host){
       if (!window.confirm(CE('vcs.disconnect.confirm', 'Disconnect this calendar account? VOOL stops reading it, and its pending alerts are cancelled. You can reconnect it later.'))) return;
       act('/api/calendar/accounts/disconnect', {account_id: account.account_id}, CT('vcs.saved.disconnected', 'Disconnected. Pending alerts from this account were cancelled; alerts already shown stay in the bell.'));
     }));
+    actions.appendChild(removeButton(account, title));
     card.appendChild(actions);
     if (account.last_sync_ok_at && !unconfirmed && readCals.some(function(c){ return c.selected; })) card.appendChild(h('div', 'vcs-detail', CTF('vcs.detail.last_sync', 'Last good sync: {when}', {when: new Date(account.last_sync_ok_at).toLocaleString()})));
     return card;
+  }
+  /* Remove account: VOOL forgets its own copy (the account, its calendar choices, the events it copied and its
+     pending alerts). The calendar itself and the sign-in under API Keys are not touched, and the confirm says so. */
+  function removeButton(account, name){
+    var b = button(CT('vcs.btn.remove', 'Remove account'), function(){
+      if (b.disabled) return;
+      if (!window.confirm(CTF('vcs.remove.confirm', 'Remove “{name}” from VOOL? VOOL forgets the calendars you chose and the events it copied, and cancels its pending alerts. Nothing changes in the calendar itself, and alerts already shown stay in the bell.', {name: name}))) return;
+      b.disabled = true;
+      say(CT('vns.status.working', 'Working…'));
+      request('POST', '/api/calendar/accounts/remove', {account_id: account.account_id}).then(function(j){
+        return load().then(function(){
+          if (j.ok) say(CTF('vcs.saved.removed', 'Removed “{name}”. Nothing changed in the calendar itself.', {name: name}));
+          else if (j.reason === 'unknown_account') say(CT('vcs.remove.gone', 'That account was already removed.'));
+          else if (j.reason === 'sync_in_progress') { b.disabled = false; say(CT('vcs.remove.busy', 'This account is syncing right now. Try again in a moment.'), true); }
+          else { b.disabled = false; say(CT('vns.status.failed', 'That did not work.'), true); }
+        });
+      }).catch(function(){ b.disabled = false; say(CT('notif.no_answer', 'VOOL did not answer; nothing was changed.'), true); });
+    });
+    return b;
   }
   function calendarRow(account, calendar){
     var row = h('div', 'vcs-cal' + (calendar.present ? '' : ' vcs-gone'));

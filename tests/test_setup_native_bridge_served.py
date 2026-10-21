@@ -78,9 +78,11 @@ def test_the_chat_line_opens_setup_through_the_shell_not_the_frame(served):
     page = browser.new_page()
     page.add_init_script(FAKE_BRIDGE)
     page.goto(f"{daemon.base_url}/chat", wait_until="networkidle")
-    page.wait_for_selector("#setupLineOpen", state="visible", timeout=30000)
-    page.click("#setupLineOpen")
+    # This home has no model, so the line shows its no-model form; its button opens Setup at the
+    # model step, through the shell like every other way into Setup.
+    page.wait_for_selector("#noModelLineOpen", state="visible", timeout=30000)
+    page.click("#noModelLineOpen")
     page.wait_for_function("() => window.__bridge.open_setup.length === 1", timeout=10000)
-    assert page.evaluate("window.__bridge.open_setup") == [""]
+    assert page.evaluate("window.__bridge.open_setup") == ["thinking"]
     assert page.query_selector("iframe[src*='/setup']") is None, "the frame overlay must not open when the shell has a window"
     page.close()

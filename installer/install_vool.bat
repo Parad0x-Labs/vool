@@ -62,13 +62,21 @@ if /i "%~1"=="/OPENCLAW" (
   shift
   goto parse_args
 )
+REM Runtime home. cmd splits arguments on "=", so an unquoted /VOOLHOME=PATH arrives as two
+REM arguments (/VOOLHOME, PATH); a quoted "/VOOLHOME=PATH" arrives whole. Both forms are
+REM accepted. The second spelling below is a legacy alias kept for existing scripts.
+if /i "%~1"=="/VOOLHOME" goto parse_home_split
+if /i "%~1"=="/NULLAHOME" goto parse_home_split
 if /i "%~1"=="/HELP" goto usage
 if /i "%~1"=="/?" goto usage
 set "ARG=%~1"
+if /i "!ARG:~0,10!"=="/VOOLHOME=" (
+  set "HOME_ARG_VALUE=!ARG:~10!"
+  goto apply_home_arg
+)
 if /i "!ARG:~0,11!"=="/NULLAHOME=" (
-  set "VOOL_HOME_OVERRIDE=!ARG:~11!"
-  shift
-  goto parse_args
+  set "HOME_ARG_VALUE=!ARG:~11!"
+  goto apply_home_arg
 )
 if /i "!ARG:~0,11!"=="/AGENTNAME=" (
   set "AGENT_NAME_OVERRIDE=!ARG:~11!"
@@ -88,8 +96,24 @@ if /i "!ARG:~0,10!"=="/OPENCLAW=" (
 echo ERROR: Unknown option %~1
 goto usage
 
+:parse_home_split
+shift
+set "HOME_ARG_VALUE=%~1"
+:apply_home_arg
+if "!HOME_ARG_VALUE!"=="" (
+  echo ERROR: /VOOLHOME requires a path, e.g. /VOOLHOME="C:\VOOL Runtime".
+  goto usage
+)
+if "!HOME_ARG_VALUE:~0,1!"=="/" (
+  echo ERROR: /VOOLHOME requires a path, not the option !HOME_ARG_VALUE!.
+  goto usage
+)
+set "VOOL_HOME_OVERRIDE=!HOME_ARG_VALUE!"
+shift
+goto parse_args
+
 :usage
-echo Usage: install_vool.bat [/Y] [/START] [/NULLAHOME=PATH] [/INSTALLPROFILE=ID] [/AGENTNAME=NAME]
+echo Usage: install_vool.bat [/Y] [/START] [/VOOLHOME=PATH] [/INSTALLPROFILE=ID] [/AGENTNAME=NAME]
 exit /b 2
 
 :args_done

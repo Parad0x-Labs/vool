@@ -16,6 +16,12 @@ Law:
   good sync when the account is shown, never stored as a guess.
 * Disconnecting stops future fetches and cancels that account's pending alerts. It cannot retract an alert
   already shown.
+* Removing forgets the account and everything VOOL copied from it. It never writes to the provider and never touches
+  the credential binding the account named.
+* The outbound switch ("Go online on its own", network.outbound_enabled) is the master over every calendar
+  source that is reached over the network: while it is off nothing is fetched from it, neither by the
+  background sync nor by Sync now or Refresh calendar list, and the answer says so. Apple Calendar on this Mac
+  and a server address on this computer itself are not online and keep working.
 """
 from __future__ import annotations
 
@@ -56,24 +62,58 @@ PROVIDERS: dict[str, dict[str, str]] = {
     },
 }
 
-#: What to do next for each state an attempt can prove.
+#: The refusal state when the outbound switch is off. It is not stored on the account: what the last real
+#: attempt proved stays as it was.
+ONLINE_ACCESS_OFF = "online_access_off"
+ONLINE_ACCESS_OFF_DETAIL = (
+    "Online access is off, so VOOL did not contact this calendar. "
+    "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
+)
+
+
+def outbound_switch_on() -> bool:
+    """The master switch as the one policy gate answers it; an unreadable setting is off."""
+    try:
+        from core import policy_engine
+
+        return policy_engine.automatic_outbound_enabled() is True
+    except Exception:
+        return False
+
+
+def _reached_on_this_computer(account: dict[str, Any]) -> bool:
+    """Apple Calendar (EventKit), or an account whose own server address names this computer literally (a CalDAV
+    server on this machine). No name is resolved: an empty address (the provider's public default) or a host name
+    that is not literally loopback counts as online."""
+    if str(account.get("provider") or "") == "eventkit":
+        return True
+    from core.provider_http import is_loopback_url
+
+    return is_loopback_url(str(account.get("base_url") or ""))
+
+
+def online_access_allowed(account: dict[str, Any]) -> bool:
+    """Whether VOOL may contact this account's source now."""
+    return _reached_on_this_computer(account) or outbound_switch_on()
+
+
+#: What to do next for each state an attempt can prove. Each step names what is on the account's own card in Settings
+#: (Refresh calendar list, Reconnect, Remove account), never "Settings" itself. The Calendars panel shows these through
+#: the ``vcs.recovery.<state>`` catalog keys, whose English text is this text.
 RECOVERY: dict[str, str] = {
     "configured": "Refresh the calendar list, choose calendars, then turn on sync.",
     "connected": "",
-    "revoked": "The provider no longer accepts this account's credential. Reconnect the account in Settings; "
-               "VOOL keeps the alerts it already scheduled but cannot see changes until then.",
-    "denied": "The provider refused access to this calendar. Check the account's calendar permission, then reconnect it in Settings.",
+    "revoked": "The provider no longer accepts this account's sign-in. Check the sign-in under API Keys, then refresh the calendar list. Alerts already scheduled stay, but VOOL cannot see changes until then.",
+    "denied": "The provider refused access to this calendar. Check the account's calendar permission, then refresh the calendar list.",
     "rate_limited": "The provider asked VOOL to slow down. VOOL tries again later on its own.",
-    "offline": "The provider could not be reached. VOOL retries on its own; check the network or the server address.",
-    "egress_refused": "This VOOL keeps network access off for this request (local-only mode or a permission rule). "
-                      "Change that setting to sync this account.",
-    "unreadable": "The provider answered with data VOOL could not read as a calendar. VOOL kept the alerts it had; "
-                  "try again later or reconnect the account.",
-    "calendar_missing": "A chosen calendar is no longer on the account. Refresh the calendar list in Settings.",
-    "unsupported": "This calendar source cannot be used on this machine as configured.",
-    "provider_error": "The provider returned an error. VOOL retries on its own.",
+    "offline": "The provider could not be reached. VOOL tries again on its own; check the network or the server address.",
+    "egress_refused": "Network access is off for this account (local-only mode or a permission rule). Turn it on to sync this account.",
+    "unreadable": "The provider sent something VOOL could not read as a calendar. VOOL kept the alerts it had; refresh the calendar list later.",
+    "calendar_missing": "A chosen calendar is no longer on the account. Refresh the calendar list.",
+    "unsupported": "This calendar source cannot be used on this computer as set up. You can remove this account.",
+    "provider_error": "The provider returned an error. VOOL tries again on its own.",
     "stale": "VOOL has not refreshed this account recently, so recent changes may be missing.",
-    "disconnected": "Disconnected. Reconnect the account in Settings to fetch events and schedule alerts again.",
+    "disconnected": "Disconnected. Reconnect to fetch events and schedule alerts again, or remove the account.",
 }
 
 
@@ -224,7 +264,9 @@ def present_account(account: dict[str, Any], *, now_iso: str, stale_after_minute
         if last_ok is not None and now is not None and now - last_ok > timedelta(minutes=stale_after_minutes):
             status = "stale"
     view["status"] = status
-    view["recovery"] = RECOVERY.get(status, "")
+    # Apple Calendar's refusal is macOS's, not a provider's: its detail names the System Settings step, so the
+    # generic "reconnect the account" line would point the wrong way.
+    view["recovery"] = "" if status == "denied" and account.get("provider") == "eventkit" else RECOVERY.get(status, "")
     return view
 
 
@@ -277,6 +319,8 @@ def classify_calendar_error(exc: BaseException) -> tuple[str, str]:
     if isinstance(exc, CalendarRefusedError):
         if exc.reason in {"os_binding_unavailable", "unsupported"}:
             return "unsupported", str(exc.detail or exc.reason)[:200]
+        if exc.reason == "os_permission_denied":
+            return "denied", str(exc.detail or "macOS refused access to this calendar")[:300]
         if exc.status_code == 401:
             return "revoked", "the provider answered HTTP 401"
         if exc.status_code == 403:
@@ -323,18 +367,28 @@ def discover_calendars(
     get_connection_fn: Callable[[], Any] = _default_connection,
     adapter_factory: Callable[[dict[str, Any]], Any] | None = None,
 ) -> dict[str, Any]:
-    """Read the account's calendars from the provider and record them. Existing choices are kept."""
+    """Read the account's calendars from the provider and record them. Existing choices are kept.
+
+    This is the user's own step (Add account, Refresh calendar list), so an adapter that needs an operating-system
+    permission asks for it here, and only here: Apple Calendar shows the macOS prompt the first time. Sync and
+    alerts never ask."""
     account = load_account(account_id, get_connection_fn=get_connection_fn)
     if account is None:
         return {"ok": False, "status": "unknown_account", "calendars": []}
     if account["status"] == "disconnected":
         return {"ok": False, "status": "disconnected", "recovery": RECOVERY["disconnected"], "calendars": []}
+    if not online_access_allowed(account):
+        return {"ok": False, "status": ONLINE_ACCESS_OFF, "reason": ONLINE_ACCESS_OFF, "detail": ONLINE_ACCESS_OFF_DETAIL,
+                "calendars": list_selections(account_id, get_connection_fn=get_connection_fn)}
     now = now_fn()
     from core.effect_gateway import named_background_effect_scope
 
     try:
         with named_background_effect_scope(DISCOVERY_SCOPE_NAME):
             adapter = (adapter_factory or build_adapter)(account)
+            request_access = getattr(adapter, "request_access", None)
+            if callable(request_access):
+                request_access()
             calendars = list(adapter.list_calendars())
     except Exception as exc:
         status, detail = classify_calendar_error(exc)
@@ -344,6 +398,10 @@ def discover_calendars(
     conn = get_connection_fn()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT 1 FROM calendar_accounts WHERE account_id = ?", (account_id,)).fetchone() is None:
+            # Removed while the provider was being read: record nothing, so no calendar is left without its account.
+            conn.rollback()
+            return {"ok": False, "status": "unknown_account", "calendars": []}
         conn.execute("UPDATE calendar_selections SET present = 0 WHERE account_id = ?", (account_id,))
         for calendar in calendars:
             stated = getattr(calendar, "can_write", None)
@@ -578,6 +636,64 @@ def reconnect_account(
     return result
 
 
+def remove_account(
+    account_id: str,
+    *,
+    now_fn: Callable[[], str] = _utcnow,
+    get_connection_fn: Callable[[], Any] = _default_connection,
+) -> dict[str, Any]:
+    """Forget an account: its record, its calendar choices, the events VOOL copied from it and its pending alerts.
+
+    Any account can be removed, in whatever state the last attempt left it: a half-made or broken account must not
+    have to be disconnected first, and removing does everything a disconnect does. VOOL only forgets its own copy.
+    Nothing is sent to the provider, so the real calendar is never changed, and the credential binding the account
+    named is left alone: the binding belongs to API Keys and may serve other accounts. Alerts already shown stay in
+    the bell as history; pending ones are cancelled first (so a macOS notification VOOL scheduled is withdrawn) and
+    then deleted. An account that is being synced right now is not removed; the caller is asked to try again.
+    """
+    from core.operator import calendar_alerts
+
+    account = load_account(account_id, get_connection_fn=get_connection_fn)
+    if account is None:
+        return {"ok": False, "reason": "unknown_account"}
+    # The per-account sync lock: a sync holding it is reading and writing this account's events and alerts. A sync
+    # that starts after the removal finds no account (or no chosen calendars) and writes nothing.
+    lock = calendar_alerts._account_lock(account_id)
+    if not lock.acquire(blocking=False):
+        return {"ok": False, "reason": "sync_in_progress", "detail": "This account is syncing right now. Try again in a moment."}
+    try:
+        cancelled = calendar_alerts.cancel_calendar_alerts(
+            account_id=account_id, reason="account removed", now_fn=now_fn, get_connection_fn=get_connection_fn,
+        )
+        conn = get_connection_fn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM calendar_accounts WHERE account_id = ?", (account_id,)).fetchone() is None:
+                conn.rollback()
+                return {"ok": False, "reason": "unknown_account"}
+            # Alert rows a bell item points at are that item's history (snooze and details read them); the rest of
+            # this account's alerts, pending or long finished, are deleted with the events they came from.
+            alerts = conn.execute(
+                """
+                DELETE FROM reminder_requests
+                WHERE source_kind = 'calendar_alert' AND status IN ('scheduled', 'cancelled', 'expired')
+                  AND source_ref IN (SELECT event_key FROM calendar_event_projections WHERE account_id = ?)
+                  AND NOT EXISTS (SELECT 1 FROM notification_items i WHERE i.schedule_id = reminder_requests.reminder_id)
+                """,
+                (account_id,),
+            ).rowcount
+            events = conn.execute("DELETE FROM calendar_event_projections WHERE account_id = ?", (account_id,)).rowcount
+            calendars = conn.execute("DELETE FROM calendar_selections WHERE account_id = ?", (account_id,)).rowcount
+            conn.execute("DELETE FROM calendar_accounts WHERE account_id = ?", (account_id,))
+            conn.commit()
+        finally:
+            conn.close()
+    finally:
+        lock.release()
+    return {"ok": True, "account_id": account_id, "removed": True, "label": account.get("label") or "",
+            "alerts_cancelled": cancelled, "alerts_deleted": alerts, "events_deleted": events, "calendars_deleted": calendars}
+
+
 def presented(account: dict[str, Any], *, now_fn: Callable[[], str] = _utcnow,
               get_connection_fn: Callable[[], Any] = _default_connection) -> dict[str, Any]:
     """One account as Settings shows it, with its calendars."""
@@ -600,10 +716,12 @@ def settings_view(*, now_fn: Callable[[], str] = _utcnow, get_connection_fn: Cal
     except Exception as exc:
         bindings_error = type(exc).__name__
     return {"ok": True, "accounts": accounts, "providers": PROVIDERS, "bindings": bindings, "bindings_error": bindings_error,
-            "default_base_urls": dict(DEFAULT_BASE_URLS)}
+            "default_base_urls": dict(DEFAULT_BASE_URLS), "online_access": outbound_switch_on()}
 
 
 __all__ = [
+    "ONLINE_ACCESS_OFF",
+    "ONLINE_ACCESS_OFF_DETAIL",
     "PROVIDERS",
     "RECOVERY",
     "add_account",
@@ -616,10 +734,13 @@ __all__ = [
     "list_credential_bindings",
     "list_selections",
     "load_account",
+    "online_access_allowed",
+    "outbound_switch_on",
     "present_account",
     "presented",
     "reconnect_account",
     "record_sync_result",
+    "remove_account",
     "select_calendar",
     "set_opt_in",
     "settings_view",

@@ -16,7 +16,8 @@ adds: the alert schedule. The flow runs through existing authorities:
   already started are collected into one catch-up notice rather than shown one by one.
 
 Sync runs on a bounded cadence per account (every 10 minutes, backing off after failures), never on chat turns,
-and only while a VOOL process is running. Nothing here watches a calendar while VOOL is closed.
+and only while a VOOL process is running. Nothing here watches a calendar while VOOL is closed. While the outbound
+switch is off, no online calendar is read at all (see ``calendar_accounts.online_access_allowed``).
 """
 from __future__ import annotations
 
@@ -367,6 +368,13 @@ def sync_account(
         return report
     if not account["sync_enabled"]:
         report.update(status="sync_off", detail="sync is off for this account")
+        return report
+    if not accounts.online_access_allowed(account):
+        # The outbound switch is the master over sync, the background tick and Sync now alike: nothing is
+        # fetched, the account keeps what its last real attempt proved, no failure backoff is recorded and
+        # every pending alert stays scheduled.
+        report.update(status=accounts.ONLINE_ACCESS_OFF, reason=accounts.ONLINE_ACCESS_OFF,
+                      detail=accounts.ONLINE_ACCESS_OFF_DETAIL)
         return report
     lock = _account_lock(account_id)
     if not lock.acquire(blocking=False):
@@ -772,19 +780,26 @@ class CalendarAlertSync:
         self._thread: threading.Thread | None = None
 
     def due_accounts(self) -> list[str]:
+        from core.operator import calendar_accounts as accounts
+
         conn = self._get_connection_fn()
         try:
             rows = conn.execute(
                 """
-                SELECT account_id FROM calendar_accounts
+                SELECT account_id, provider, base_url FROM calendar_accounts
                 WHERE sync_enabled = 1 AND status != 'disconnected' AND (next_sync_due_at = '' OR next_sync_due_at <= ?)
-                ORDER BY next_sync_due_at ASC LIMIT ?
+                ORDER BY next_sync_due_at ASC
                 """,
-                (self._now_fn(), WORKER_ACCOUNTS_PER_TICK),
+                (self._now_fn(),),
             ).fetchall()
         finally:
             conn.close()
-        return [str(row["account_id"]) for row in rows]
+        # Accounts the outbound switch holds back are left out BEFORE the per-tick bound: they keep their
+        # old due time while it is off, and would otherwise fill every tick ahead of the sources on this
+        # computer that may still sync.
+        switch_on = accounts.outbound_switch_on()
+        allowed = [row for row in rows if switch_on or accounts.online_access_allowed(dict(row))]
+        return [str(row["account_id"]) for row in allowed[:WORKER_ACCOUNTS_PER_TICK]]
 
     def run_due_once(self) -> list[dict[str, Any]]:
         reports = []

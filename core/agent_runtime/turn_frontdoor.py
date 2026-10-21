@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from core.agent_runtime.fast_command_surface import deferred_turn_rows, record_deferred_turn_rows
 from core.execution.constants import asks_about_contents, explicit_path_in
 
 
@@ -1162,12 +1163,15 @@ def handle_turn_frontdoor(
         if bool((source_context or {}).get("workspace_audit_evidence_collected")):
             return {"result": None}
     elif audit_coverage.consumed:
-        audit_slice_result = agent._maybe_handle_workspace_audit_request(
-            slice_text(effective_input, audit_coverage.consumed),
-            session_id=session_id,
-            source_surface=source_surface,
-            source_context=source_context,
-        )
+        # A slice answer is carried into the whole reply, never a turn of its own: its row is
+        # held and dropped (the lane that answers the whole message records the turn).
+        with deferred_turn_rows():
+            audit_slice_result = agent._maybe_handle_workspace_audit_request(
+                slice_text(effective_input, audit_coverage.consumed),
+                session_id=session_id,
+                source_surface=source_surface,
+                source_context=source_context,
+            )
         if audit_slice_result is not None:
             record_slice_answer(
                 source_context,
@@ -1512,14 +1516,15 @@ def handle_turn_frontdoor(
     # a multi-demand message drops the siblings (same measured class as the clock
     # and currency arms). Refused, the request still runs below as a slice answer.
     _receipt_may_claim = _lane_may_finalize("turn_frontdoor_deterministic")
-    receipt_location = maybe_handle_action_receipt_location_request(
-        agent,
-        effective_input if (receipt_coverage.covers_whole_turn and _receipt_may_claim)
-        else slice_text(effective_input, receipt_coverage.consumed),
-        session_id=session_id,
-        source_surface=source_surface,
-        source_context=source_context,
-    ) if (receipt_coverage.covers_whole_turn or receipt_coverage.consumed) else None
+    with deferred_turn_rows() as _receipt_rows:
+        receipt_location = maybe_handle_action_receipt_location_request(
+            agent,
+            effective_input if (receipt_coverage.covers_whole_turn and _receipt_may_claim)
+            else slice_text(effective_input, receipt_coverage.consumed),
+            session_id=session_id,
+            source_surface=source_surface,
+            source_context=source_context,
+        ) if (receipt_coverage.covers_whole_turn or receipt_coverage.consumed) else None
     if receipt_location is not None and not (
         receipt_coverage.covers_whole_turn and _receipt_may_claim
     ):
@@ -1540,6 +1545,7 @@ def handle_turn_frontdoor(
                 "fast_path_hit": True,
             }
         )
+        record_deferred_turn_rows(_receipt_rows)
         return {"result": receipt_location}
 
     workspace_identity_first = None if (
@@ -2176,19 +2182,22 @@ def handle_turn_frontdoor(
         live_info_wanted = False
     from core.model_own_tools import turn_has_provider_search as _model_searches_itself
 
-    live_info_status = None if (
-        action_forbidden
-        or not live_info_wanted
-        # The owner handed the pinned cloud model its provider's own web search: the live lookup
-        # is the model's to make, so VOOL's price/weather lane steps aside.
-        or _model_searches_itself(source_context)
-    ) else agent._maybe_handle_live_info_fast_path(
-        effective_input if _live_info_whole_claim
-        else slice_text(effective_input, live_info_coverage.consumed),
-        session_id=session_id,
-        source_context=source_context,
-        interpretation=interpreted if _live_info_whole_claim else None,
-    )
+    # The lane's conversation row is held until this door SERVES its result: a refusal or a slice
+    # answer set aside below is not this message's turn, and the lane that does answer records it.
+    with deferred_turn_rows() as _live_info_rows:
+        live_info_status = None if (
+            action_forbidden
+            or not live_info_wanted
+            # The owner handed the pinned cloud model its provider's own web search: the live
+            # lookup is the model's to make, so VOOL's price/weather lane steps aside.
+            or _model_searches_itself(source_context)
+        ) else agent._maybe_handle_live_info_fast_path(
+            effective_input if _live_info_whole_claim
+            else slice_text(effective_input, live_info_coverage.consumed),
+            session_id=session_id,
+            source_context=source_context,
+            interpretation=interpreted if _live_info_whole_claim else None,
+        )
     if live_info_status is not None and not _live_info_whole_claim:
         record_slice_answer(
             source_context,
@@ -2218,9 +2227,11 @@ def handle_turn_frontdoor(
             and not bool(_policy_engine.allow_web_fallback())
             and not bool(_policy_engine.get("network.outbound_enabled", False))
         ):
+            record_deferred_turn_rows(_live_info_rows)
             return {"result": live_info_status}
         live_info_status = None
     if live_info_status is not None:
+        record_deferred_turn_rows(_live_info_rows)
         return {"result": live_info_status}
 
     evaluative = None if (model_owns_judgement or mixed_turn) else agent._evaluative_conversation_fast_path(

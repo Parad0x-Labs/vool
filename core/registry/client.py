@@ -6,6 +6,7 @@ import hashlib
 import http.client
 import os
 import platform
+import sqlite3
 import threading
 import time
 import urllib.error
@@ -13,7 +14,16 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from core.registry.codec import COMMIT, DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, HEX, RegistryError, decode, require
+from core.registry.codec import (
+    COMMIT,
+    DOWNLOADS_PAUSED,
+    FAILED_SAFETY_CHECKS,
+    HEX,
+    RegistryError,
+    decode,
+    require,
+    version_key,
+)
 from core.registry.media import LIMITS, describe
 from core.registry.native import STATE_NAME, _write, home, install, preview
 from core.registry.trust import TrustedCatalog
@@ -86,6 +96,48 @@ class Client:
     def close(self):
         self.catalog.close()
 
+    def _presentation(self, rows: list[dict], *, now: int) -> None:
+        """Optional display facts, fetched only by Browse; they never authorize installation."""
+        from core.registry.codec import digest
+        from core.registry.trust import verify
+
+        try:
+            value = decode(self.request(self.origin + PREFIX + "/presentation", limit=1024 * 1024), 1024 * 1024)
+            require(isinstance(value, dict) and set(value) == {"marks", "metrics"} and
+                    isinstance(value["metrics"], list) and len(value["metrics"]) <= 4096, "invalid presentation")
+            metrics = {}
+            for item in value["metrics"]:
+                require(isinstance(item, dict) and set(item) == {"id", "stars", "download_requests"} and
+                        isinstance(item["id"], str) and all(type(item[field]) is int and 0 <= item[field] <= 10**12
+                        for field in ("stars", "download_requests")), "invalid popularity metric")
+                metrics[item["id"]] = {key: item[key] for key in ("stars", "download_requests")}
+            curated = {}
+            if value["marks"] is not None:
+                marks = verify(value["marks"], self.catalog.root, "admission")
+                require(marks.get("schema") == "vool.registry.marks.v1" and type(marks.get("sequence")) is int and
+                        marks["sequence"] > 0 and type(marks.get("issued_at")) is int and marks["issued_at"] <= now + 300,
+                        "invalid editorial marks")
+                curated = marks.get("curation", {})
+                require(isinstance(curated, dict) and all(isinstance(curated.get(field, []), list) and
+                        len(curated.get(field, [])) <= 24 and all(isinstance(item, str) for item in curated.get(field, []))
+                        for field in ("editors_picks", "featured")), "invalid editorial curation")
+                with self.catalog.lock, self.catalog.db:
+                    self.catalog.db.execute("CREATE TABLE IF NOT EXISTS presentation_state (root INTEGER PRIMARY KEY, sequence INTEGER, digest TEXT)")
+                    previous = self.catalog.db.execute("SELECT sequence,digest FROM presentation_state WHERE root=?",
+                                                       (self.catalog.root["version"],)).fetchone()
+                    require(not previous or marks["sequence"] > previous[0] or
+                            (marks["sequence"] == previous[0] and digest(marks) == previous[1]), "editorial marks rollback")
+                    self.catalog.db.execute("INSERT OR REPLACE INTO presentation_state VALUES (?,?,?)",
+                                            (self.catalog.root["version"], marks["sequence"], digest(marks)))
+            for row in rows:
+                row.update(metrics.get(row["id"], {}))
+                row.update(editors_pick=row["id"] in curated.get("editors_picks", []),
+                           featured=row["id"] in curated.get("featured", []))
+            rows.sort(key=lambda item: (not item.get("editors_pick", False), not item.get("featured", False),
+                                       -item.get("stars", 0), item["id"]))
+        except (RegistryError, OSError, ValueError, TypeError, KeyError):
+            return  # An unavailable display feed does not grant a label or change the verified catalog.
+
     def refresh(self, *, approved: bool, now: int) -> dict:
         require(approved is True, "explicit registry network consent required")
         snapshot = decode(self.request(self.origin + PREFIX + "/snapshot", limit=4 * 1024 * 1024), 4 * 1024 * 1024)
@@ -99,6 +151,13 @@ class Client:
                 continue
             rows.append({**info, "reviewed": True, "import_ready": True, "discovery_only": False,
                          "sha256": entry["artifact_sha256"], "targets": entry["targets"]})
+        latest = {}
+        for row in rows:
+            prior = latest.get(row["id"])
+            if prior is None or version_key(row["version"]) > version_key(prior["version"]):
+                latest[row["id"]] = row
+        rows = [latest[package_id] for package_id in sorted(latest)]
+        self._presentation(rows, now=now)
         with _PICTURE_LOCK:
             # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
             _PICTURES.clear()
@@ -181,16 +240,43 @@ class Client:
         return result
 
 
-def configured_client() -> Client:
+CLOSED = "Skill Codex is not open yet in this version of VOOL"
+
+
+def _anchor() -> Path:
     from core.runtime_paths import PROJECT_ROOT
 
-    # An optional owner-installed anchor is local configuration. The HTTP API
-    # cannot pass a root, URL, path, target build or a trust override.
-    anchor = Path(os.environ.get("VOOL_REGISTRY_ROOT_FILE") or Path(PROJECT_ROOT) / "core" / "registry" / "trusted-root.json")
+    return Path(os.environ.get("VOOL_REGISTRY_ROOT_FILE") or Path(PROJECT_ROOT) / "core" / "registry" / "trusted-root.json")
+
+
+def _read_anchor() -> dict:
+    from core.registry.trust import persisted_root, root_document, verify
+
     try:
-        root = decode(anchor.read_bytes(), 65536)
-    except OSError:
-        raise RegistryError("Skill Codex is not open yet in this version of VOOL") from None
+        root = decode(_anchor().read_bytes(), 65536)
+        require(isinstance(root, dict), CLOSED)
+        now = int(time.time())
+        document = root_document(root.get("signed"), now, allow_expired=True)
+        verify(root, document, "root")
+        if document["expires"] <= now:
+            return persisted_root(root, home() / "config" / STATE_NAME, now=now)
+        return root
+    except (OSError, RegistryError, sqlite3.Error, KeyError, TypeError, ValueError):
+        raise RegistryError(CLOSED) from None
+
+
+def is_open() -> bool:
+    """Local capability only: no network and no trust-state writes during startup or listing."""
+    try:
+        _read_anchor()
+        return True
+    except RegistryError:
+        return False
+
+
+def configured_client() -> Client:
+    # Only local configuration selects the trust anchor and the actual release identity.
+    root = _read_anchor()
     return Client(root, runtime_target())
 
 

@@ -35,6 +35,16 @@ rows:
     tests: [tests/test_message_queue.py]
     label: TESTED
     target_release: 0.7.0
+  - id: chat-goals
+    title: Work toward a goal across turns with /goal
+    area: chat-models
+    ui: []
+    wired: ["/api/goal/pause", "/api/goal/resume", "/api/goal/retry", "/api/goal/state", "/api/goal/stop"]
+    default: []
+    tests: [tests/test_goal_served_workflow.py, tests/test_goal_card_browser.py]
+    label: TESTED
+    target_release: unknown
+    note: The goal card is drawn above the composer without an element id.
   - id: attach-files
     title: Attach files and photos to a message
     area: chat-models
@@ -880,7 +890,7 @@ rows:
     tests: [tests/wallet/test_wallet_chains.py]
     label: TESTED
     target_release: 0.7.0
-    note: Five chain keys ship, each with a main and a test variant; once the wallet is on, the network default is the main setting.
+    note: Six chain keys ship (Solana, Base, Ethereum, BNB Smart Chain, Arbitrum and Robinhood Chain), each with a main and a test variant; once the wallet is on, the network default is the main setting.
   - id: wallet-environment-switch
     title: Network environment switch in developer options
     area: crypto
@@ -1035,7 +1045,7 @@ rows:
     tests: [tests/wallet/test_wallet_x402_flow.py, tests/wallet/test_wallet_x402_v2.py]
     label: TESTED
     target_release: 0.7.0
-    note: No page; test networks only on this commit — the main network entry refuses.
+    note: Crypto is off by default and uses mainnet when enabled. Website x402 payments support USDC on Base; payment channels show availability. No live mainnet payment proof is recorded.
   - id: marketplace-x402
     title: x402 payments through the model marketplace lane
     area: crypto
@@ -1154,7 +1164,7 @@ rows:
     title: Calendar accounts and sync
     area: other
     ui: [calendar_accounts_panel]
-    wired: ["/api/calendar/accounts", "/api/calendar/accounts/add", "/api/calendar/accounts/disconnect", "/api/calendar/accounts/discover", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/reconnect", "/api/calendar/accounts/select", "/api/calendar/sync"]
+    wired: ["/api/calendar/accounts", "/api/calendar/accounts/add", "/api/calendar/accounts/disconnect", "/api/calendar/accounts/discover", "/api/calendar/accounts/opt-in", "/api/calendar/accounts/reconnect", "/api/calendar/accounts/remove", "/api/calendar/accounts/select", "/api/calendar/sync"]
     default: []
     tests: [tests/pa_beta_gate/test_v5_served_calendar_effect_phase.py]
     label: TESTED

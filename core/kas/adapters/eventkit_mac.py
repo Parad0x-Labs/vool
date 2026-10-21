@@ -10,8 +10,10 @@ and every VOOL-side law above it (permission door, approval turns, receipts).
 Real integration surface (Apple EventKit, macOS):
 * ``EKEventStore`` scoped to events; the app-level permission state is read from
   ``EKEventStore.authorizationStatusForEntityType`` — NOT bypassed and NOT re-requested
-  in a loop. A denied/restricted state is a RECOVERABLE, typed state whose message
-  names the exact System Settings pane, because only the user can grant it.
+  in a loop. Access is asked for once, only from ``request_access`` (the user connecting
+  Apple Calendar in Settings), never on a read or a background sync. A denied, restricted
+  or write-only state is a RECOVERABLE, typed state whose message names the exact System
+  Settings pane, because only the user can grant it.
 * calendars: ``calendarsForEntityType:`` with source identity (``calendar.source.title``,
   iana time zone, ``allowsContentModifications``) — read-only calendars are reported as
   read-only, never silently selected for writes.
@@ -33,6 +35,7 @@ typed ``os_permission_denied``. Neither is ever reported as a connected calendar
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -48,10 +51,20 @@ from core.kas.contract import (
 )
 from core.kas.registry import register_adapter
 
-_PERMISSION_GUIDE = (
-    "grant Calendars access in System Settings > Privacy & Security > Calendars "
-    "for this app, then ask again"
-)
+_PANE = "System Settings > Privacy & Security > Calendars"
+#: What the user sees for each state that is not full access. Plain words, the pane named, nothing touched.
+_STATE_DETAIL = {
+    "not_determined": f"VOOL has not been given access to Apple Calendar yet. Choose Refresh calendar list to see the "
+                      f"macOS prompt, or allow VOOL in {_PANE}. Nothing was read or changed.",
+    "denied": f"macOS is not letting VOOL use Apple Calendar. Allow VOOL in {_PANE}, then refresh the calendar list. "
+              "Nothing was read or changed.",
+    "restricted": "Apple Calendar access is blocked on this Mac, for example by a device management profile. "
+                  "Nothing was read or changed.",
+    "write_only": f"VOOL can add events to Apple Calendar but cannot read them. Choose Full Access for VOOL in {_PANE}, "
+                  "then refresh the calendar list. Nothing was read or changed.",
+}
+#: How long an owner-started access request waits for the user to answer the macOS prompt.
+_ACCESS_WAIT_SECONDS = 120.0
 
 
 def _binding_error(detail: str) -> CalendarRefusedError:
@@ -98,7 +111,8 @@ class EventKitStore:
 
         pyobjc exposes the class method with its selector's trailing underscore; the
         answer is the AuthorizationStatus enum (0 notDetermined, 1 restricted,
-        2 denied, 3 authorized), mapped to its named truth.
+        2 denied, 3 authorized -- fullAccess from macOS 14 --, 4 writeOnly), mapped to
+        its named truth. Write-only cannot read a calendar, so it is never "authorized".
         """
         raw = self._ek.EKEventStore.authorizationStatusForEntityType_(self._ek.EKEntityTypeEvent)
         try:
@@ -110,7 +124,37 @@ class EventKitStore:
             1: "restricted",
             2: "denied",
             3: "authorized",
+            4: "write_only",
         }.get(code, str(raw))
+
+    def request_access(self) -> str:
+        """Ask macOS for full Calendars access, and return the state after the answer.
+
+        Only a not-determined state asks: macOS shows its prompt once per app, and a
+        denied, restricted or write-only answer can be changed only by the user in System
+        Settings. The prompt needs the bundle's NSCalendarsFullAccessUsageDescription
+        (macOS 14+) or NSCalendarsUsageDescription; without it macOS never shows the prompt
+        (it refuses, or ends the process). A prompt left unanswered past the wait returns the
+        state as it then is.
+        """
+        state = self.authorization()
+        if state != "not_determined":
+            return state
+        answered = threading.Event()
+
+        def handler(granted: Any, error: Any) -> None:
+            answered.set()
+
+        if self._store.respondsToSelector_("requestFullAccessToEventsWithCompletion:"):
+            self._store.requestFullAccessToEventsWithCompletion_(handler)
+        else:  # a macOS before 14
+            self._store.requestAccessToEntityType_completion_(self._ek.EKEntityTypeEvent, handler)
+        answered.wait(_ACCESS_WAIT_SECONDS)
+        state = self.authorization()
+        if state == "authorized":
+            # A store made before the grant keeps its empty view of the database; read through a fresh one.
+            self._store = self._ek.EKEventStore.alloc().init()
+        return state
 
     def require_authorized(self) -> None:
         state = self.authorization()
@@ -118,7 +162,8 @@ class EventKitStore:
             raise CalendarRefusedError(
                 403,
                 reason="os_permission_denied",
-                detail=f"Apple Calendar access is {state}; {_PERMISSION_GUIDE}. Nothing was read or changed.",
+                detail=_STATE_DETAIL.get(state, f"Apple Calendar access is not available ({state}). Allow VOOL in {_PANE}. "
+                                                "Nothing was read or changed."),
             )
 
     def calendars(self) -> list[Any]:
@@ -324,6 +369,14 @@ class EventKitCalendarAdapter(CalendarAdapter):
             _EventKit, Foundation = _load_eventkit()
             self._foundation = Foundation
         return self._foundation
+
+    def request_access(self) -> str:
+        """The owner-started access request (Settings: add Apple Calendar or refresh its calendar list).
+
+        An injected store with no operating-system permission step has nothing to ask; its reads still pass
+        through its own authorization."""
+        ask = getattr(self._store, "request_access", None)
+        return str(ask()) if callable(ask) else "not_requested"
 
     def list_calendars(self) -> list[CalCalendar]:
         rows: list[CalCalendar] = []

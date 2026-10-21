@@ -60,6 +60,9 @@ SHIPS_OFF = {
     # Lets a model restructure an already-sanitized bug-report draft. Off by design: the local
     # model-free formatter is the working path; the cloud path is opt-in and fail-closed.
     "bug_report_cloud_synthesis",
+    # Marks the stable opening of an Anthropic request on OpenRouter as cacheable. Off until the
+    # paid before/after bench shows it saves money on real chats (a cache write costs 1.25x).
+    "prompt_cache_breakpoints",
 }
 
 

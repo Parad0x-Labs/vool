@@ -61,6 +61,19 @@ def _reset():
     reset_update_subsystem_for_tests()
 
 
+@pytest.fixture
+def outbound_on(monkeypatch):
+    """Online access is on: update checks go online only when the user allows VOOL to."""
+    import copy
+
+    from core import policy_engine
+
+    policy = copy.deepcopy(policy_engine.load())
+    policy.setdefault("network", {})["outbound_enabled"] = True
+    policy.setdefault("system", {})["local_only_mode"] = False
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", policy)
+
+
 def _bump(version: str) -> str:
     major, minor, patch = [*version.split("."), "0", "0"][:3]
     return f"{major}.{minor}.{int(patch) + 1}"
@@ -85,12 +98,14 @@ def _booted_subsystem(tmp_path: Path, version: str, notes: str):
     )
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_update_check_up_to_date(tmp_path, capsys) -> None:
     with mock.patch("core.updater.runtime.get_update_subsystem", return_value=_booted_subsystem(tmp_path, VOOL_VERSION, "same version")):
         assert cmd_update() == 0
     assert "up to date" in capsys.readouterr().out.lower()
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_update_check_available_does_not_apply(tmp_path, capsys) -> None:
     subsystem = _booted_subsystem(tmp_path, _bump(VOOL_VERSION), "- Fixed a thing\n- Added another")
     press = mock.Mock(return_value=None)
@@ -104,6 +119,7 @@ def test_update_check_available_does_not_apply(tmp_path, capsys) -> None:
     press.assert_not_called()  # check-only must never launch the updater
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_update_apply_starts_the_install(tmp_path, capsys) -> None:
     subsystem = _booted_subsystem(tmp_path, _bump(VOOL_VERSION), "- Fixed a thing")
     from core.updater.runtime import PressOutcome
@@ -118,6 +134,7 @@ def test_update_apply_starts_the_install(tmp_path, capsys) -> None:
     assert "update" in capsys.readouterr().out.lower()
 
 
+@pytest.mark.usefixtures("outbound_on")
 def test_update_apply_without_target_refuses(tmp_path, capsys) -> None:
     subsystem = _booted_subsystem(tmp_path, _bump(VOOL_VERSION), "- Fixed a thing")
     # offer exists but no app target configured: the press must refuse, not guess a path

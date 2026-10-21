@@ -32,7 +32,7 @@ def test_pdf_is_only_the_selected_answer(answer, expected):
     text = "\n".join(page.extract_text() for page in PdfReader(BytesIO(response.body)).pages)
     assert expected in text
     assert all(secret not in text for secret in ["UNRELATED-ANSWER-831", "PRIVATE-QUESTION-452", "OTHER-CHAT-829"])
-    assert "vool-answer" in response.headers["Content-Disposition"]
+    assert "VOOL answer" in response.headers["Content-Disposition"]
     preview = json.loads(export._export(format="pdf", request_id="chosen-answer", preview="1").body)
     assert preview["user_messages"] == 0 and preview["assistant_messages"] == 1
 

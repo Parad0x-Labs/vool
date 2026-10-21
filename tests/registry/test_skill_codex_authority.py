@@ -113,6 +113,12 @@ def draft(world, token, csrf, package_id, text=SKILL, *, summary="Turn meeting n
     else:
         body["agreement"] = agreement
     response = world.http.post(PREFIX + "/drafts", json=body, headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+    if response.status_code == 201 and agreement == AGREEMENT and response.json()["state"] == "checking":
+        item = response.json()
+        consent = world.http.post(PREFIX + "/submissions/" + item["id"] + "/consent",
+                                  json={"sha256": item["sha256"], "public": True},
+                                  headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+        assert consent.status_code == 200, consent.text
     world.http.cookies.clear()
     return response
 
@@ -284,6 +290,12 @@ def upload_with_icon(world, token, csrf, version, icon, *, source=None, status=2
     world.http.cookies.set("vool_registry", token)
     response = world.http.post(PREFIX + "/submissions", content=raw, headers={
         "Origin": ORIGIN, "X-Vool-CSRF": csrf, "Content-Type": "application/vnd.vool.registry+json", "X-Vool-Agreement": AGREEMENT})
+    if response.status_code == 201 and response.json()["state"] == "checking":
+        item = response.json()
+        consent = world.http.post(PREFIX + "/submissions/" + item["id"] + "/consent",
+                                  json={"sha256": item["sha256"], "public": True},
+                                  headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+        assert consent.status_code == 200, consent.text
     world.http.cookies.clear()
     assert response.status_code == status, response.text
     return response.json()
@@ -353,7 +365,10 @@ def test_a_lost_answer_to_an_admission_is_sent_again_and_never_reviewed_twice(wo
     lost = lose_answers(world, "/authority/submissions/")
     report = world.mac.run_once()
     assert lost and report["admitted"] == [] and report["errors"] == ["alice/notes 1.0.0: the server refused: HTTP 502"]
-    assert "alice/notes" not in rows(world) and world.store.queue() == []  # admitted on the service, not yet listed
+    assert world.http.get(PREFIX + "/catalog").status_code == 400
+    assert world.http.get(PREFIX + "/catalog").json() == {"error": "approved catalog is not configured"}
+    assert world.store.queue() == []  # admitted on the service; the stopped run signed no catalog
+    assert "catalog" not in report and "did not confirm" in report["stopped"]
     report = world.mac.run_once()
     assert report["admitted"] == ["alice/notes 1.0.0"] and report["errors"] == []
     assert "alice/notes" in rows(world) and len(world.model.calls) == 1
@@ -569,6 +584,7 @@ def test_one_version_number_never_names_two_skills(world, monkeypatch):
     second = draft(world, sls_token, sls_csrf, "vool-team/notes").json()
     monkeypatch.setattr(store_module, "secret_findings", real)
     assert raced[0]["state"] == second["state"] == "checking" and raced[0]["sha256"] != second["sha256"]
+    world.store.consent(kas, raced[0]["id"], raced[0]["sha256"], public=True)
 
     report = world.mac.run_once()
     assert report["admitted"] == ["vool-team/helper 1.0.0", "vool-team/notes 1.0.0"]

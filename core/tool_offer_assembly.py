@@ -628,6 +628,21 @@ def assemble_tool_offer(
         )
     )
     specs = _scope_download_specs(specs, str(user_text or ""))
+    from core.vool_browser.live_contracts import SUPPORTED as BROWSER_INTENTS
+    from core.vool_browser.live_requests import confined as browser_confined
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if browser_confined() or browser_requested(str(user_text or "")):
+        from core.remote_fetch_policy import local_only_active
+        from core.tool_intent_executor import runtime_tool_specs
+        from core.tool_registry import tool_for_intent
+        from core.vool_browser.live_requests import tool_allowed as browser_tool_allowed
+
+        permitted = {"respond.direct"} | (set() if local_only_active(source_context) else set(BROWSER_INTENTS))
+        specs = [spec for spec in runtime_tool_specs()
+                 if str(spec.get("intent") or "") in permitted
+                 and browser_tool_allowed(str(spec["intent"]))
+                 and (contract := tool_for_intent(str(spec["intent"]))) is not None and contract.supported]
     if task_seats and "code.task.open" not in task_seats:
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.

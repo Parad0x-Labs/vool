@@ -362,6 +362,14 @@ def should_attempt_tool_intent(
     constraints = analyze_retrieval_constraints(intent_surface)
     if constraints.forbids_all_tools:
         return False
+    # A supervised-browser request or follow-up about this chat's open page is tool work even
+    # without a URL or tool word in it ("now fill the address field and submit the form"). A
+    # turn that takes back part of itself is left to the ordinary reading below.
+    from core.vool_browser.live_requests import confined as browser_confined
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if _live_remainder is None and browser_confined() and browser_requested(user_text):
+        return True
     text = constraints.eligible_text.strip()
     lowered = text.lower()
     if not lowered:
@@ -2842,6 +2850,10 @@ def plan_tool_workflow(
     executed_steps: list[dict[str, Any]],
     source_context: dict[str, Any] | None,
 ) -> WorkflowPlannerDecision:
+    from core.vool_browser.live_requests import requested as browser_requested
+
+    if browser_requested(user_text):
+        return WorkflowPlannerDecision(handled=False, reason="supervised_browser_model_loop")
     raw_text = str(user_text or "")
     text = " ".join(raw_text.split()).strip()
     lowered = f" {text.lower()} "

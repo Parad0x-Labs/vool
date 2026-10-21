@@ -21,7 +21,9 @@ Empty manifest_url or an unpinned trust set is a FIRST-CLASS state, not an error
 subsystem boots, reports `unavailable` with the plain reason, and runs no background
 thread. The UI shows "Updates are unavailable" — never silence.
 With a configured feed, a fresh home waits for an explicit Check action or an
-operator's auto_check setting/feed override before contacting it.
+operator's auto_check setting/feed override before contacting it. Above all of these sits the
+outbound switch ("Go online on its own", network.outbound_enabled): while it is off no check goes
+online, whatever the feed, the setting or an earlier Check press says.
 """
 from __future__ import annotations
 
@@ -105,9 +107,44 @@ def load_feed_config(
     )
 
 
+ONLINE_ACCESS_OFF = "online_access_off"
+ONLINE_ACCESS_OFF_DETAIL = (
+    "Online access is off, so VOOL did not check for updates. "
+    "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
+)
+
+ONLINE_ACCESS_OFF_INSTALL_DETAIL = (
+    "Online access is off, so VOOL did not download the update. "
+    "Turn on \u201cGo online on its own\u201d in Settings, Privacy & Permissions."
+)
+
+
+def online_access_allowed(feed: FeedConfig | None = None) -> bool:
+    """The master switch (network.outbound_enabled, vetoed by local-only mode) for every update check.
+
+    Off, no update check goes online: not the background schedule, not a check the user pressed. The answer
+    comes from the one policy gate the radar, presence and model downloads use; an unreadable setting is off.
+    A feed whose address names this computer literally (a sandbox release server on loopback) is not online.
+    """
+    if feed is not None:
+        from core.provider_http import is_loopback_url
+
+        if is_loopback_url(feed.manifest_url):
+            return True
+    try:
+        from core import policy_engine
+
+        return policy_engine.automatic_outbound_enabled() is True
+    except Exception:
+        return False
+
+
 def automatic_checks_enabled(*, feed: FeedConfig | None = None, data_dir: Path | None = None) -> bool:
-    """The shipped feed alone never grants permission to contact it."""
+    """The shipped feed alone never grants permission to contact it, and nothing does while the
+    outbound switch is off."""
     config = feed or load_feed_config()
+    if not online_access_allowed(config):
+        return False
     if not config.has_feed or config.source == "disabled-by-env":
         return False
     # An operator-supplied feed override or auto_check setting is an explicit choice.
@@ -132,4 +169,13 @@ def enable_automatic_checks(*, feed: FeedConfig, data_dir: Path) -> None:
                        {"enabled": True, "manifest_url": feed.manifest_url})
 
 
-__all__ = ["FeedConfig", "automatic_checks_enabled", "enable_automatic_checks", "load_feed_config"]
+__all__ = [
+    "ONLINE_ACCESS_OFF",
+    "ONLINE_ACCESS_OFF_DETAIL",
+    "ONLINE_ACCESS_OFF_INSTALL_DETAIL",
+    "FeedConfig",
+    "automatic_checks_enabled",
+    "enable_automatic_checks",
+    "load_feed_config",
+    "online_access_allowed",
+]

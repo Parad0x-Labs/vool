@@ -99,6 +99,29 @@ def _lane_lists_models(data: dict | None) -> bool:
     )
 
 
+def _registered_ollama_endpoints() -> list[str]:
+    """Where the enabled Ollama manifests send their turns, when that is not the process default.
+
+    A turn goes to its manifest's ``base_url``; presence must look where the turns go, or a model
+    VOOL can actually reach reads as "no model set up".
+    """
+    try:
+        from core.local_model_policy import manifest_is_local
+        from storage.model_provider_manifest import list_provider_manifests
+
+        manifests = list_provider_manifests(enabled_only=True)
+    except Exception:
+        return []
+    endpoints: list[str] = []
+    for manifest in manifests:
+        if not manifest.provider_name.startswith("ollama") or not manifest_is_local(manifest):
+            continue
+        base_url = str((manifest.runtime_config or {}).get("base_url") or "").strip().rstrip("/")
+        if base_url and base_url not in endpoints:
+            endpoints.append(base_url)
+    return endpoints
+
+
 def _local_lane_endpoints() -> list[str]:
     try:
         from core.local_model_policy import manifest_is_local
@@ -126,6 +149,9 @@ def _probe() -> LocalModelPresence:
     base_url = ollama_base_url()
     if _ollama_has_chat_model(base_url):
         return LocalModelPresence(running=True, reason="running", endpoint=base_url)
+    for endpoint in _registered_ollama_endpoints():
+        if endpoint != base_url and _ollama_has_chat_model(endpoint):
+            return LocalModelPresence(running=True, reason="running", endpoint=endpoint)
     for endpoint in _local_lane_endpoints():
         if _lane_lists_models(_get_json(f"{endpoint}/models")):
             return LocalModelPresence(running=True, reason="running", endpoint=endpoint)

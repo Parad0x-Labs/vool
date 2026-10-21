@@ -46,10 +46,11 @@ from cryptography.hazmat.primitives.serialization import (
 
 from core.registry import checks
 from core.registry.admission import validate_policy
-from core.registry.codec import HEX, IDENTITY, RegistryError, canonical, decode, digest, require, version_key
+from core.registry.codec import HEX, IDENTITY, VERSION, RegistryError, canonical, decode, digest, require, version_key
 from core.registry.publisher import add_signature, admission, authorize_catalog
 from core.registry.trust import AUTHORIZATION_SECONDS, root_document, verify
 from registry_service.authority import HEADER, MARKS_SCHEMA, keyid, marks_document, sign_request
+from registry_service.http_transport import open_request
 
 PREFIX = "/registry/api"
 ADMISSION_SECONDS = 30 * 86400 - 3600
@@ -62,6 +63,10 @@ REVIEW_ATTEMPTS = 3
 REVIEWS_PER_CREATOR = 30
 _FINDING_KEYS = {"check": 64, "path": 300, "reason": 600, "quote": 120, "rule": 64}
 STEP = 30
+
+
+class RunStopped(Exception):
+    """A run-wide failure that must not become one upload's content refusal."""
 
 
 # ---- one-time codes (RFC 6238, as Google Authenticator uses them) ----
@@ -213,9 +218,11 @@ class Authority:
     # ---- the server ----
 
     def _http(self, method: str, url: str, body: bytes, headers: dict) -> tuple[int, bytes]:
+        # The site's firewall refuses Python's default client name, so the signer names itself.
+        headers = {"User-Agent": "skill-codex-signer", **headers}
         request = urllib.request.Request(url, data=body if method == "POST" else None, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with open_request(request, service="authority", timeout=60) as response:
                 return response.status, response.read(16 * 1024 * 1024)
         except urllib.error.HTTPError as error:
             return error.code, error.read(65536)
@@ -232,7 +239,27 @@ class Authority:
             except (RegistryError, ValueError, AttributeError):
                 message = ""
             raise RegistryError("the server refused: " + (message or f"HTTP {status}"))
-        return data if raw else decode(data, 16 * 1024 * 1024)
+        if raw:
+            return data
+        answer = decode(data, 16 * 1024 * 1024)
+        if method == "POST":
+            if path.startswith("/authority/submissions/"):
+                state = "admitted" if "admission" in value else "refused"
+                require(answer == {"state": state}, "the service returned an invalid decision acknowledgement")
+            elif path == "/authority/marks":
+                require(isinstance(answer, dict) and type(answer.get("sequence")) is int and
+                        answer == {"sequence": value["signed"]["sequence"]},
+                        "the service returned an invalid marks acknowledgement")
+            elif path == "/authority/catalog":
+                published = {entry["signed"]["metadata"]["id"] + "@" + entry["signed"]["metadata"]["version"]
+                             for entry in value["entries"]}
+                require(isinstance(answer, dict) and set(answer) == {"sequence", "expires", "published"} and
+                        type(answer["sequence"]) is int and answer["sequence"] > 0 and
+                        type(answer["expires"]) is int and self.now() < answer["expires"] <= value["authorization"]["signed"]["expires"] and
+                        isinstance(answer["published"], list) and len(answer["published"]) <= len(published) and
+                        all(isinstance(item, str) and item in published for item in answer["published"]),
+                        "the service returned an invalid catalog acknowledgement")
+        return answer
 
     # ---- checks and signing ----
 
@@ -256,8 +283,8 @@ class Authority:
         try:
             return self._check(raw, official=official)
         except Exception as exc:  # anything unexpected about one package refuses it, never stops the signer
-            if isinstance(exc, (OSError, MemoryError)):
-                raise  # this Mac's own trouble, not the package's
+            if isinstance(exc, (OSError, MemoryError, RunStopped)):
+                raise  # a device or run-wide failure, not the package's content
             self._said_unreadable(raw, exc)
             return {"refused": [{"check": "archive", "path": "package", "reason": checks.UNREADABLE}]}
 
@@ -270,8 +297,9 @@ class Authority:
 
     def _clash(self, metadata: dict) -> str | None:
         """A version number this skill already used or passed, which the signed list cannot hold twice."""
-        mine = [item["signed"]["metadata"] for item in self.state["entries"]] + \
-            [item["admission"]["signed"]["metadata"] for item in self.state.get("pending", {}).values()]
+        mine = ([item["signed"]["metadata"] for item in self.state["entries"]] +
+                [item["admission"]["signed"]["metadata"] for item in self.state.get("pending", {}).values()] +
+                [item["signed"]["metadata"] for item in getattr(self, "_batch_admissions", [])])
         for other in mine:
             if other["id"] == metadata["id"] and version_key(other["version"]) >= version_key(metadata["version"]):
                 return "Version " + metadata["version"] + " is not higher than " + other["version"] + \
@@ -300,9 +328,12 @@ class Authority:
                 return {"refused": [{"check": "instructions-secondary", "path": "package", "reason":
                                      "This account has used this month's checks. Upload it again next month."}]}
             self.state["reviews"] = {month: used}  # older months are done with
+            self.before_review()
             try:
                 result = self.review.review(artifact, self._texts(artifact))
-            except (CapReached, NoAnswer):
+            except (CapReached, NoAnswer) as exc:
+                self._review_stop = ("monthly review cap reached; uploads wait for the next budget" if
+                                     isinstance(exc, CapReached) else "review service unavailable; the next run retries")
                 return {}  # nothing was answered: it waits, and nothing counts against it
             except ReviewUnavailable:
                 used[publisher] = used.get(publisher, 0) + 1
@@ -343,13 +374,21 @@ class Authority:
             if entry["expires"] - self.now() > RENEW_BEFORE and entry["targets"] == self.state["targets"]:
                 kept.append(envelope)
                 continue
-            changed = True
             try:
                 raw = self._artifact(entry["artifact_sha256"])
             except MissingArtifact:
                 # Nobody can download bytes the service no longer has; only this entry leaves the list.
+                changed = True
                 self._said_dropped(entry, "the service no longer has its bytes")
                 continue
+            except RegistryError:
+                # Its bytes could not be read this run: only this entry waits, and it leaves the list before it expires.
+                if entry["expires"] > self.now() + 3600:
+                    kept.append(envelope)
+                else:
+                    changed = True
+                continue
+            changed = True
             result = self.check(raw, official=entry["metadata"]["id"].split("/")[0] in self.state["marks"]["teams"])
             if "admission" in result:
                 kept.append(result["admission"])
@@ -385,7 +424,8 @@ class Authority:
             except RegistryError as exc:
                 if "not waiting for checks" not in str(exc):
                     report["errors"].append(item["label"] + ": " + str(exc))
-                    continue  # try again next run
+                    report["stopped"] = "the service did not confirm an admission; the next run retries"
+                    return  # retain this pending decision and stop before any later send
                 # Refused or gone on the service meanwhile (a suspension, say): it is not listed.
                 report["errors"].append(item["label"] + ": no longer waiting on the service; not listed")
             else:
@@ -396,21 +436,80 @@ class Authority:
             del pending[sha]
             self.save()
 
+    def before_review(self) -> None:
+        """Check run-wide prerequisites immediately before spending on a new verdict."""
+
+    def review_checkpoint(self) -> None:
+        self.save()
+
+    def upload_queue(self) -> dict:
+        """Validate the complete queue before making any signed write."""
+        queue = self.call("GET", "/authority/queue")
+        require(isinstance(queue, dict) and set(queue) == {"submissions"} and isinstance(queue["submissions"], list) and
+                len(queue["submissions"]) <= 20, "the service returned an invalid upload queue")
+        for item in queue["submissions"]:
+            require(isinstance(item, dict) and set(item) == {"id", "package_id", "version", "sha256", "created", "official"} and
+                    isinstance(item["id"], str) and len(item["id"]) == 32 and all(char in "0123456789abcdef" for char in item["id"]) and
+                    isinstance(item["package_id"], str) and len(item["package_id"].split("/")) == 2 and
+                    all(IDENTITY.fullmatch(part) for part in item["package_id"].split("/")) and
+                    isinstance(item["version"], str) and VERSION.fullmatch(item["version"]) and
+                    isinstance(item["sha256"], str) and HEX.fullmatch(item["sha256"]) and
+                    type(item["created"]) is int and type(item["official"]) is bool, "the service returned an invalid upload queue")
+        return queue
+
+    def read_uploads(self, queue: dict) -> list:
+        # Read the whole batch before paying or sending decisions. A broken source cannot publish half a batch.
+        prepared = []
+        for item in queue["submissions"]:
+            raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
+            require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
+            prepared.append((item, raw))
+        return prepared
+
     @_exclusive
-    def run_once(self) -> dict:
+    def run_once(self, *, queue: dict | None = None, prepared: list | None = None, held: str | None = None) -> dict:
         report = {"admitted": [], "refused": [], "waiting": [], "errors": []}
+        self._review_stop = None
+        self._batch_admissions = []
+        if queue is None:
+            try:
+                queue = self.upload_queue()
+                prepared = self.read_uploads(queue)
+            except RegistryError as exc:
+                # A broken upload batch waits whole; the list already signed still renews.
+                held, queue, prepared = str(exc) + "; the uploads wait for the next run", {"submissions": []}, []
+        prepared = self.read_uploads(queue) if prepared is None else prepared
+        checked = []
+        for item, raw in prepared:
+            if item["sha256"] in self.state.get("pending", {}):
+                continue  # the saved decision is retried by _deliver, without another check
+            publisher = item["package_id"].split("/")[0]
+            result = self.check(raw, official=publisher in self.state["marks"]["teams"])
+            self.review_checkpoint()  # keep review costs before attempting another upload
+            checked.append((item, raw, result))
+            if "admission" in result:
+                self._batch_admissions.append(result["admission"])
+            if self._review_stop:
+                break
+        # Listed skills renew from their saved verdicts, so this pays for nothing while the batch waits on the review.
+        renewed = self._renew()
+        if self._review_stop:
+            report["waiting"] = [item["package_id"] + " " + item["version"] for item in queue["submissions"]]
+            report["stopped"] = self._review_stop
+            self.save()  # preserve paid costs and verdicts for the retry, without an admission from this batch
+            self._keep_listed(report, renewed)
+            return report
         self._deliver(report)
-        for item in self.call("GET", "/authority/queue")["submissions"]:
+        if report.get("stopped"):
+            self.save()
+            self._keep_listed(report, renewed)
+            return report
+        for item, raw, result in checked:
             label = item["package_id"] + " " + item["version"]
             try:
-                raw = self.call("GET", "/authority/submissions/" + item["id"], raw=True)
-                require(hashlib.sha256(raw).hexdigest() == item["sha256"], "the server sent different bytes")
-                # Whether a skill is the team's comes from this Mac's own signed marks, never from the service's reply.
-                publisher = item["package_id"].split("/")[0]
-                result = self.check(raw, official=publisher in self.state["marks"]["teams"])
                 if "refused" in result:
-                    self.call("POST", "/authority/submissions/" + item["id"], {"sha256": item["sha256"],
-                                                                             "refused": _shown(result["refused"])})
+                    self.call("POST", "/authority/submissions/" + item["id"],
+                              {"sha256": item["sha256"], "refused": _shown(result["refused"])})
                     report["refused"].append(label)
                 elif "admission" in result:
                     self._store(raw)
@@ -422,14 +521,38 @@ class Authority:
                 else:
                     report["waiting"].append(label)
             except RegistryError as exc:
-                report["errors"].append(label + ": " + str(exc))  # this upload waits; the others go on
+                report["errors"].append(label + ": " + str(exc))
+                report["stopped"] = "the service did not confirm a decision; the next run retries"
             self.save()
-        if self._renew():
+            if report.get("stopped"):
+                self._keep_listed(report, renewed)
+                return report
+        if held:
+            report["stopped"] = held  # the batch could not be read: none of it was checked or signed
+            self._keep_listed(report, renewed)
+            self.save()
+            return report
+        if renewed:
             self.state["unpublished"] = True
         if self.state.get("unpublished") or self.state.get("authorized_until", 0) - self.now() < AUTHORIZE_BEFORE:
             report["catalog"] = self.publish()
         self.save()
         return report
+
+    def _keep_listed(self, report: dict, renewed: bool) -> None:
+        """A held batch signs nothing of its own, but the list already signed must not lapse for everyone.
+
+        Only admissions the service confirmed are in the entries, so this never lists an upload that still waits.
+        A signer that never published waits for its first complete run."""
+        if renewed:
+            self.state["unpublished"] = True
+        if not self.state.get("authorized_until"):
+            return
+        if self.state.get("unpublished") or self.state["authorized_until"] - self.now() < AUTHORIZE_BEFORE:
+            try:
+                report["catalog"] = self.publish()
+            except RegistryError as exc:
+                report["errors"].append("the signed list was not renewed: " + str(exc))
 
     # ---- hand actions ----
 

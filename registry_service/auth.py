@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 from core.registry.codec import RegistryError, decode, require
+from registry_service.http_transport import open_request
 from registry_service.store import Store
 
 PROVIDERS = {
@@ -94,11 +95,6 @@ def oidc_subject(token: str, jwks: dict, provider: Provider, nonce: str, *, now:
     return subject
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise RegistryError("provider redirect refused")
-
-
 def provider_request(url: str, data: dict | None = None, *, token: str = "") -> dict:
     allowed = {item[key] for item in PROVIDERS.values() for key in ("exchange", "keys") if key in item}
     allowed.add("https://api.github.com/user")
@@ -112,7 +108,7 @@ def provider_request(url: str, data: dict | None = None, *, token: str = "") -> 
         headers["Content-Type"] = "application/x-www-form-urlencoded"
     request = urllib.request.Request(url, data=body, headers=headers)
     try:
-        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=15) as response:
+        with open_request(request, service="provider", timeout=15) as response:
             result = decode(response.read(65537), 65536)
             require(isinstance(result, dict), "invalid provider response")
             return result

@@ -201,6 +201,11 @@ def propose_transaction(*, wallet_id: str, destination: str, amount_minor: int, 
         if recipient_record.get("resolution") == "contact" and _canonical_network(saved_network) != _canonical_network(resolved_network):
             # the same-looking address saved for another network is not this payment's destination
             raise wallet_fault("wallet_recipient_refused", authority=AUTHORITY, context={"reason": "recipient_saved_for_another_network", "saved_network": saved_network, "proposal_network": _canonical_network(resolved_network)}, source_context=source_context)
+        from core.contacts import verify_snapshot
+
+        check = verify_snapshot(recipient_record)
+        if not check.ok:
+            raise wallet_fault("wallet_recipient_refused", authority=AUTHORITY, context={"reason": f"contact_{check.status}"}, source_context=source_context)
     try:
         amount = int(amount_minor)
     except (TypeError, ValueError):

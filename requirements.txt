@@ -5,7 +5,7 @@ pynacl>=1.5
 keyring>=24.0  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
 psutil>=5.9
 pyyaml>=6.0
-pypdf==6.20.1  # Projection of the confined PDF fallback in pyproject.toml.
+pypdf==6.21.0  # Projection of the confined PDF fallback in pyproject.toml.
 reportlab==5.0.1
 markdown-it-py==4.2.0
 xlrd==2.0.2  # Projection of the legacy XLS reader in pyproject.toml.
@@ -37,7 +37,7 @@ torch>=2.13.0; sys_platform != 'darwin' or platform_machine != 'x86_64'
 transformers>=4.48
 peft>=0.14; sys_platform != 'darwin' or platform_machine != 'x86_64'
 accelerate>=1.2; sys_platform != 'darwin' or platform_machine != 'x86_64'
-aiohttp>=3.14.3
+aiohttp>=3.14.4
 datasets>=3.2
 huggingface_hub>=0.28
 playwright>=1.52,<2.0

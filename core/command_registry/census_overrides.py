@@ -11,6 +11,7 @@ explicitly out-of-scope lane per the P1 goal exclusions).
 from __future__ import annotations
 
 _ADAPTERS: dict[str, str] = {
+    **{f"http:POST:/api/browser/{action}": f"browser.{action}" for action in ("settings", "propose", "decide", "takeover", "stop")},
     # module CLI (python -m core.blackbox)
     "cli-module:core.blackbox:status": "blackbox.status",
     "cli-module:core.blackbox:verify": "blackbox.verify",
@@ -102,6 +103,7 @@ _ADAPTERS: dict[str, str] = {
 }
 
 _EXTERNAL: dict[str, str] = {
+    **{f"http:GET:{path}": "owner-local supervised browser view and evidence feed" for path in ("/browser", "/api/browser/settings", "/api/browser/state", "/api/browser/download", "/api/browser/*")},
     # -- daemon / service entry points --------------------------------------
     "cli-script:vool-agent": "runtime daemon entry point",
     "cli-script:vool-api": "API server entry point",
@@ -337,6 +339,7 @@ _EXTERNAL: dict[str, str] = {
     "http:POST:/api/calendar/accounts/opt-in": "calendar lane operator action (projection opt-in)",
     "http:POST:/api/calendar/accounts/disconnect": "calendar lane operator action (account disconnect)",
     "http:POST:/api/calendar/accounts/reconnect": "calendar lane operator action (account reconnect)",
+    "http:POST:/api/calendar/accounts/remove": "calendar lane operator action (account remove)",
     "http:GET:/api/email/accounts": "email lane read feed (accounts)",
     "http:GET:/api/email/recovery": "email lane read feed (store recovery surface)",
     "http:POST:/api/email/recovery/acknowledge": "email lane operator action (recovery acknowledgement)",
@@ -399,6 +402,7 @@ _EXTERNAL: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 _ADAPTER_FAMILIES: dict[str, tuple[str, ...]] = {
+    "http:POST:/api/browser/*": tuple("browser." + action for action in ("settings", "propose", "decide", "takeover", "stop")),
     # One POST under each prefix is ONE registered command (S-P6); the table that binds
     # them lives in core/web/api/onboarding_endpoints.py (_PACT_POST_PATHS).
     "http:POST:/api/onboarding/*": (
@@ -446,6 +450,7 @@ def _delegated_route_adapters() -> dict[str, str]:
     try:
         from core.command_registry.groups.delegated_routes import (
             chat_action_command_map,
+            goal_action_command_map,
             inline_route_command_map,
             route_command_map,
         )
@@ -453,6 +458,7 @@ def _delegated_route_adapters() -> dict[str, str]:
         merged = route_command_map()
         merged.update(inline_route_command_map())
         merged.update(chat_action_command_map())
+        merged.update(goal_action_command_map())
         from core.command_registry.groups.housekeeping_group import housekeeping_route_command_map
 
         merged.update(housekeeping_route_command_map())

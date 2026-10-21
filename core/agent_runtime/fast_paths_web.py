@@ -132,6 +132,10 @@ def url_read_request(text: str) -> dict[str, Any] | None:
 
     if analyze_retrieval_constraints(raw).forbids("web_fetch"):
         return None
+    from core.vool_browser import live_requests
+
+    if live_requests.requested(raw):
+        return None
     # An x402 demand is a PAYMENT lane request, not a plain URL read: the resource is fetched
     # by the wallet's proposal flow (challenge -> approval -> bounded paid retry), never by
     # this lane's unauthenticated fetch. Yielding here keeps the URL-read lane from claiming
@@ -192,6 +196,11 @@ def maybe_handle_url_read(
     source_context: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
     """Fetch the URL the message names. None when it names none, so dispatch continues as today."""
+    from core.vool_browser.live_chat import refuse_if_off
+
+    off = refuse_if_off(agent, user_input, session_id=session_id, source_context=source_context)
+    if off is not None:
+        return off
     request = url_read_request(user_input)
     if request is None:
         return None

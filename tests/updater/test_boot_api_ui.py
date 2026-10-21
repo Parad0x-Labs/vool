@@ -54,6 +54,19 @@ def unconfigured_pin_map(tmp_path, monkeypatch):
     return pin
 
 
+@pytest.fixture
+def outbound_on(monkeypatch):
+    """Online access is on: update checks go online only when the user allows VOOL to."""
+    import copy
+
+    from core import policy_engine
+
+    policy = copy.deepcopy(policy_engine.load())
+    policy.setdefault("network", {})["outbound_enabled"] = True
+    policy.setdefault("system", {})["local_only_mode"] = False
+    monkeypatch.setattr(policy_engine, "_POLICY_CACHE", policy)
+
+
 class TestHonestDisable:
     def test_no_trusted_key_means_unavailable_not_silent(self, tmp_path, monkeypatch):
         monkeypatch.delenv("VOOL_UPDATE_PUBLISHER_KEYS", raising=False)
@@ -109,6 +122,7 @@ class TestBoundedBoot:
         subsystem.start()
         assert time.monotonic() - began < 2.0  # the check thread never blocks boot
 
+    @pytest.mark.usefixtures("outbound_on")
     def test_configured_boot_produces_ready_status(self, tmp_path):
         private_hex, public_hex = generate_publisher_keypair()
         blob = b"SANDBOX-ARTIFACT"

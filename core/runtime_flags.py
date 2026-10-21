@@ -165,6 +165,17 @@ _FLAGS: tuple[RuntimeFlag, ...] = (
             "is the working path and needs no model."
         ),
     ),
+    RuntimeFlag(
+        name="prompt_cache_breakpoints",
+        env_var="VOOL_PROMPT_CACHE_BREAKPOINTS",
+        default=False,
+        description=(
+            "Mark the stable opening of an Anthropic request on the OpenRouter lane as cacheable "
+            "(core.prompt_cache). A cached prefix is re-billed at a tenth of the input price, but "
+            "the first write costs 1.25x, so every such call is reserved at the write price. "
+            "Default OFF until measured: with it off the wire is byte-identical."
+        ),
+    ),
 )
 
 _BY_NAME: dict[str, RuntimeFlag] = {flag.name: flag for flag in _FLAGS}

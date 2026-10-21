@@ -1949,11 +1949,19 @@ def _run_agent_locked(
             )
         from core.usepod.price_wait import running_task
         with running_task(session_id, user_text, queue_item_id=base_context.get("price_wait_queue_id", ""), source_context=base_context):
-            result = runtime.agent.run_once(
-                user_text,
-                session_id_override=session_id,
-                source_context=base_context,
-            )
+            from core import runtime_active_clock
+
+            with contextlib.ExitStack() as clock_scope:
+                from core.vool_browser.live_requests import turn_scope as browser_turn_scope
+
+                clock_scope.enter_context(browser_turn_scope(user_text, session_id))
+                if base_context.get("live_browser_wait_for_owner") and not runtime_active_clock.enabled():
+                    clock_scope.enter_context(runtime_active_clock.task_clock())
+                result = runtime.agent.run_once(
+                    user_text,
+                    session_id_override=session_id,
+                    source_context=base_context,
+                )
         # The service re-verifies the sealed reply using its original request context.
         # Publish the same owner object the executor registered, never a result field.
         _publish_canonical_turn_request(base_context, source_context)
@@ -2775,6 +2783,58 @@ def openai_chat_response(
     return payload
 
 
+def no_answer_chat_response(
+    exc: BaseException, model: str, *, openai_shape: bool
+) -> dict[str, Any]:
+    """The buffered reply for a turn whose answer finalization refused to commit.
+
+    `finalize_answer` refuses a turn whose obligations are still open -- by law an effect whose
+    outcome is unknown keeps its obligation open (`discharge_effect_obligation`), so a turn that
+    dispatched an action and lost its acknowledgement can commit no answer. The streamed lane
+    already ends such a turn with typed NO_ANSWER_TERMINAL truth (`stream_agent_with_events`); the
+    buffered lane let the same refusal escape the request, which ended as a bare HTTP 500 with
+    nothing a client could read. This is the buffered twin of that terminal frame: zero answer
+    bytes, the typed terminal on its own `vool_terminal` key, and never a success claim.
+    """
+    from core.error_surface import safe_error_text
+
+    detail = safe_error_text(exc, prefix="This turn failed before it finished: ")
+    try:
+        terminal = _no_answer_terminal("turn_failed", detail)
+    except Exception:
+        # The durable terminal row can itself be refused (fence or admission guards). The turn has
+        # still produced no answer, so the reply stays typed no-answer truth, unpersisted.
+        from core.finalization import no_answer_terminal
+
+        terminal = no_answer_terminal(turn_id="", reason_code="turn_failed", detail=detail, persist=False)
+    now = datetime.now(timezone.utc)
+    terminal = {**dict(terminal), "ts": terminal.get("ts") or now.strftime("%Y-%m-%dT%H:%M:%S.%fZ")}
+    if openai_shape:
+        return {
+            "id": f"chatcmpl-{hashlib.sha256(f'{model}:{now.timestamp()}'.encode()).hexdigest()[:12]}",
+            "object": "chat.completion",
+            "created": int(now.timestamp()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": ""},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "vool_terminal": terminal,
+        }
+    return {
+        "model": model,
+        "created_at": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "message": {"role": "assistant", "content": ""},
+        "done": True,
+        "done_reason": "stop",
+        "vool_terminal": terminal,
+    }
+
+
 def _attach_root_cause_status(payload: dict[str, Any], commit: dict[str, Any]) -> None:
     """Rule 8 publication: the compact operator status beside the answer.
 
@@ -3429,8 +3489,17 @@ def _stream_agent_with_events_inner(
     # suspended at disconnect. See core/live_turns.py.
     from core import followup_continuity
     from core.live_turns import register_turn, unregister_turn
+    from core.runtime_continuity import finish_consumed_queue_item, release_chat_turn_admission
 
     cancel_turn_id = str(stream_context.get("cancel_turn_id") or "").strip()
+    # The chat's one-slot admission this turn holds, stamped by the chat door (empty when the
+    # request took none: a brake, a side answer, a caller that waited at the session gate).
+    admission_token = str(stream_context.get("chat_admission_token") or "").strip()
+    # The queued message this turn consumed the claim of (None for a direct send). The worker's
+    # end reports the turn's outcome; the row is finished once the request has also ended (after
+    # the transcript seal and flush), so it never stays in flight when the page that sent it
+    # closed or reloaded mid-turn (only the page used to complete it).
+    consumed_queue_item = stream_context.get("consumed_queue_item")
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
     is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
     if cancel_turn_id:
@@ -3443,6 +3512,17 @@ def _stream_agent_with_events_inner(
         if is_task_turn:
             followup_continuity.end_task(session_id, cancel_turn_id)
 
+    def _finish_consumed_queue_item(status: str) -> None:
+        if not isinstance(consumed_queue_item, dict):
+            return
+        cancel_event = stream_context.get("cancel_event")
+        if cancel_event is not None and cancel_event.is_set():
+            status = "cancelled"
+        try:
+            finish_consumed_queue_item(consumed_queue_item, party="turn", status=status)
+        except Exception:
+            logging.getLogger("vool.api").exception("could not finish queued message %s", consumed_queue_item.get("queue_item_id"))
+
     def sink(event: dict[str, Any]) -> None:
         if is_task_turn and str((event or {}).get("event_type") or "") != "model_output_chunk":
             followup_continuity.note_progress(
@@ -3452,19 +3532,25 @@ def _stream_agent_with_events_inner(
 
     def worker() -> None:
         def _body() -> None:
+            queue_status = "failed"
             try:
                 agent_runner = run_agent_provider or run_agent
                 result = agent_runner(runtime, user_text, session_id=session_id, source_context=stream_context)
+                queue_status = "completed"
                 event_queue.put(("result", result))
             except Exception as exc:
                 # Make it chat-safe HERE, where the exception object still exists, so the class name
-                # (the genuinely useful, safe part) survives while paths/credentials do not.
+                # (the genuinely useful, safe part) survives while paths and credentials do not.
                 event_queue.put(("error", safe_error_text(exc)))
             finally:
+                _finish_consumed_queue_item(queue_status)
                 # The turn is genuinely over -- completed, failed or cancelled. This is the ONLY place
-                # the live-turn entry is released, so it can neither leak nor disappear early.
+                # the live-turn entry is released, so it can neither leak nor disappear early. Its
+                # ADMISSION ends with it (token-checked): the chat's one-slot reservation was taken
+                # at POST-accept and must not outlive the registration by its lease.
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                release_chat_turn_admission(session_id, admission_token)
                 _release_followups()
 
         # F-01 (independent-proof repair): execute the turn under the ingress
@@ -3484,6 +3570,7 @@ def _stream_agent_with_events_inner(
                 # from context machinery itself (before _body ever ran).
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
+                release_chat_turn_admission(session_id, admission_token)
                 _release_followups()
                 raise
         else:
@@ -3499,6 +3586,7 @@ def _stream_agent_with_events_inner(
         # the turn stays falsely cancellable forever.
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
+        release_chat_turn_admission(session_id, admission_token)
         _release_followups()
         if stream_id:
             unregister_runtime_event_sink(stream_id)

@@ -422,21 +422,30 @@ def searched_call_cost_estimate(*, provider_id: str, model_id: str, usage: Any) 
     """
     from core.model_pricing import (
         BASIS_NO_USAGE,
+        BASIS_PROVIDER_REPORTED,
         BASIS_UNKNOWN_CEILING,
         estimate_call_usd,
         settlement_usd,
-        usage_tokens,
     )
 
     base = settlement_usd(provider_id=provider_id, model_id=model_id, usage=usage)
     if base.basis == BASIS_NO_USAGE:
         return None
-    prompt_tokens, completion_tokens = usage_tokens(usage)
-    tokens = estimate_call_usd(
-        provider_id=provider_id, model_id=model_id, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
-    )
     fee = provider_search_fee_usd(usage)
-    floor = float(tokens.usd) + fee
+    if base.basis == BASIS_PROVIDER_REPORTED:
+        # A reported total already holds any cache write, so the floor is the tokens at the
+        # published input rate (no worst-case write) plus the search.
+        tokens = estimate_call_usd(
+            provider_id=provider_id,
+            model_id=model_id,
+            prompt_tokens=base.prompt_tokens,
+            completion_tokens=base.completion_tokens,
+            include_cache_write=False,
+        )
+        floor = float(tokens.usd) + fee
+    else:
+        # Priced from tokens (with the reported or worst-case cache write): the search is on top.
+        floor = float(base.usd) + fee
     estimate = base.as_dict()
     if floor > float(base.usd):
         estimate.update(

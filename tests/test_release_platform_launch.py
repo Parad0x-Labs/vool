@@ -101,13 +101,18 @@ def test_mac_rejects_incompatible_build_before_python(tmp_path: Path, host: str,
     launcher.write_text(prefix + '\nprintf passed > "$VOOL_TEST_MARKER"\n')
     shims = tmp_path / "bin"
     shims.mkdir()
-    for name, output in (("uname", host), ("sw_vers", version), ("osascript", "alert shown")):
+    for name, output in (("uname", host), ("sw_vers", version)):
         shim = shims / name
         shim.write_text(f"#!/bin/bash\necho '{output}'\n")
         shim.chmod(0o755)
+    alert_arguments = tmp_path / "alert-arguments.txt"
+    alert = shims / "osascript"
+    alert.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ALERT_ARGUMENTS"\nexit 0\n')
+    alert.chmod(0o755)
     marker = tmp_path / "python-reached"
     env = {**os.environ, "HOME": str(tmp_path / "home"), "PATH": f"{shims}:/usr/bin:/bin",
            "VOOL_TEST_MARKER": str(marker),
+           "ALERT_ARGUMENTS": str(alert_arguments),
            "VOOL_HOME": str(tmp_path / "home/Library/Application Support/VOOL/runtime")}
     done = subprocess.run(["bash", str(launcher)], env=env, capture_output=True, text=True, timeout=15)
     assert marker.exists() is accepted
@@ -115,6 +120,11 @@ def test_mac_rejects_incompatible_build_before_python(tmp_path: Path, host: str,
     if not accepted:
         log = tmp_path / "home/Library/Application Support/VOOL/app.log"
         assert "VOOL cannot start" in log.read_text()
+        refusal = next(line.removeprefix("VOOL cannot start: ") for line in log.read_text().splitlines()
+                       if line.startswith("VOOL cannot start: "))
+        assert refusal in alert_arguments.read_text()
+    else:
+        assert not alert_arguments.exists()
 
 
 def test_public_bootstrap_uses_the_public_repository() -> None:

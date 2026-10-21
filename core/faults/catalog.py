@@ -139,6 +139,7 @@ FAULT_WALLET_RECIPIENT_REFUSED = "wallet_recipient_refused"
 FAULT_WALLET_REQUEST_AMBIGUOUS = "wallet_request_ambiguous"
 FAULT_WALLET_PAYMENT_CHANNEL_OFF = "wallet_payment_channel_off"
 FAULT_WALLET_X402_SDK_UNAVAILABLE = "wallet_x402_sdk_unavailable"
+FAULT_WALLET_SEND_NEEDS_VOOL_WALLET = "wallet_send_needs_vool_wallet"
 
 
 class FaultVocabularyError(Exception):
@@ -493,6 +494,10 @@ _WALLET_SPECS: tuple[FaultSpec, ...] = (
               user_message="This build cannot pay x402 offers on Base through the x402 Foundation SDK: the optional x402 extra is not installed on this machine. Nothing was signed or sent. Every other wallet lane works without it; once it is installed, try again.",
               operator_action="Install VOOL's optional x402 extra to pay x402 offers on Base from a Crypto Pilot wallet; the wallet keeps its own signer, spend caps and approval either way.",
               authority="core.wallet.x402_sdk"),
+    FaultSpec(code=FAULT_WALLET_SEND_NEEDS_VOOL_WALLET, category=CATEGORY_POLICY, severity=SEVERITY_LOW, retry=RETRY_AFTER_CHANGE,
+              user_message="This account cannot send from VOOL on this network: only a VOOL Wallet created on this device sends here. A connected or watch-only account can still receive and show its balance. Nothing was signed or sent. To send, choose a VOOL Wallet on this device and try again.",
+              operator_action="Send from a VOOL Wallet on this device, or send from the connected wallet's own app; nothing in VOOL signs for a connected or watch-only account on this network.",
+              authority="core.wallet.lifecycle"),
 )
 
 #: The effect state of every code, EXPLICIT: one row per entry, no defaults. Applied (and
@@ -553,6 +558,7 @@ _EFFECT_BY_CODE: dict[str, str] = {
     FAULT_WALLET_RECOVERY_REFUSED: EFFECT_NONE,
     FAULT_WALLET_PAYMENT_CHANNEL_OFF: EFFECT_NONE,
     FAULT_WALLET_X402_SDK_UNAVAILABLE: EFFECT_NONE,
+    FAULT_WALLET_SEND_NEEDS_VOOL_WALLET: EFFECT_NONE,
 }
 
 

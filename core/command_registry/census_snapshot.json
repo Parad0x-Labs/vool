@@ -757,6 +757,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/browser/*": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /api/browser/*",
+      "note": "owner-local supervised browser view and evidence feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/api/bug-report/candidates": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/bug-report/candidates",
@@ -1154,6 +1161,13 @@
       "name": "GET /api/files/raw",
       "note": "workspace files feed",
       "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:GET:/api/goal/state": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/goal/state",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.state",
       "surface": "http"
     },
     "http:GET:/api/intake/quarantine/list": {
@@ -1611,6 +1625,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/browser": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "GET /browser",
+      "note": "owner-local supervised browser view and evidence feed",
+      "registry_command_id": "",
+      "surface": "http"
+    },
     "http:GET:/chat": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /chat",
@@ -1800,6 +1821,13 @@
       "registry_command_id": "auth.callback.record",
       "surface": "http"
     },
+    "http:POST:/api/browser/*": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/browser/*",
+      "note": "legacy surface forwards through execute_command; typed family: browser.settings, browser.propose, browser.decide, browser.takeover, browser.stop",
+      "registry_command_id": "browser.settings",
+      "surface": "http"
+    },
     "http:POST:/api/bug-report/answer-draft": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/bug-report/answer-draft",
@@ -1902,6 +1930,13 @@
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/calendar/accounts/reconnect",
       "note": "calendar lane operator action (account reconnect)",
+      "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/calendar/accounts/remove": {
+      "classification": "EXTERNAL_TRANSPORT_ONLY",
+      "name": "POST /api/calendar/accounts/remove",
+      "note": "calendar lane operator action (account remove)",
       "registry_command_id": "",
       "surface": "http"
     },
@@ -2246,6 +2281,34 @@
       "name": "POST /api/generate",
       "note": "machine/model-lane or satellite transport",
       "registry_command_id": "",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/pause": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/pause",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.pause",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/resume": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/resume",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.resume",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/retry": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/retry",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.retry",
+      "surface": "http"
+    },
+    "http:POST:/api/goal/stop": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/goal/stop",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "goal.stop",
       "surface": "http"
     },
     "http:POST:/api/intake/*": {
@@ -3154,8 +3217,8 @@
   },
   "totals": {
     "DEAD": 0,
-    "EXTERNAL_TRANSPORT_ONLY": 309,
-    "GENERATED_ADAPTER": 132,
+    "EXTERNAL_TRANSPORT_ONLY": 312,
+    "GENERATED_ADAPTER": 138,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

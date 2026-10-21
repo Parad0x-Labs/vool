@@ -346,7 +346,7 @@ def test_iss_packages_stage_and_installs_per_user() -> None:
     # uninstall must NOT delete the user's data/models dir (wallet, keys, LLMs survive)
     assert 'Type: filesandordirs; Name: "{localappdata}\\VOOL"' not in iss
     # installer stops the running server itself -> no "close Python" prompt on reinstall
-    assert "StopNulla" in iss and "vool_api_server.py" in iss
+    assert "StopVoolProcesses" in iss and "vool_api_server.py" in iss
     assert "CloseApplications=no" in iss
 
 

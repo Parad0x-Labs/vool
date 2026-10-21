@@ -33,6 +33,7 @@ from core.candidate_knowledge_lane import build_task_hash, get_exact_candidate, 
 from core.cloud_tool_call_contract import (
     DuplicateToolCallError,
     MalformedToolArgumentsError,
+    ToolArgumentSchemaError,
     ToolCallParseError,
     UnknownToolNameError,
 )
@@ -127,7 +128,7 @@ from core.response_language_policy import (
     response_language_retry_instruction,
     response_language_safe_fallback,
 )
-from core.retry_policy import RetryPolicy, should_retry
+from core.retry_policy import RetryPolicy, next_delay, should_retry
 from core.runtime_evidence import PROVENANCE_CONTEXT_KEY
 from core.runtime_flags import flag_enabled
 from core.runtime_task_events import emit_runtime_event
@@ -145,11 +146,20 @@ from core.turn_model_call_ledger import (
 _STRUCTURED_OUTPUT_MODES = {"json_object", "action_plan", "tool_intent", "summary_block"}
 _CHAT_TRUTH_SURFACES = {"channel", "openclaw", "api"}
 
-# Existing provider policy classifies structurally empty responses as retryable.  Keep the live
-# execution budget narrower than the generic three-attempt default: one same-model retry, matching
-# the already-established bounded retry in the free-cloud broker.  Cross-model fallback remains
-# entirely owned by the outer candidate loop.
-_EMPTY_RESPONSE_RETRY_POLICY = RetryPolicy(max_attempts=2)
+# The one same-model retry this router performs inside _invoke_manifest: for a structurally
+# empty response (the taxonomy has always called that retryable) and, since 2026-10-02, for a
+# transient transport fault (connection/timeout/429/5xx -- the rest of RETRYABLE_ERROR_CLASSES,
+# which previously fell straight through to cross-model fallback and, with no eligible successor,
+# ended the turn the user then had to repeat manually). Keep the live execution budget narrower
+# than the generic three-attempt default: one retry, matching the already-established bounded
+# retry in the free-cloud broker.  Cross-model fallback remains entirely owned by the outer
+# candidate loop.
+_SAME_MODEL_RETRY_POLICY = RetryPolicy(max_attempts=2)
+
+# A provider's Retry-After is honoured only up to this cap, matching the free-cloud broker's own
+# wait law (core/cloud_broker.py): a same-turn retry may pause briefly, never hand one endpoint
+# the whole turn.  A longer hint falls through to the next candidate instead of sleeping it off.
+_RETRY_AFTER_WAIT_CAP_SECONDS = 2.0
 
 # CPU-only detection for the provider-fallback budget. Cached once per process: hardware does not change
 # mid-run, and probe_machine() may shell out to nvidia-smi (bounded), so it must not run on every turn.
@@ -466,8 +476,10 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
         model_id = str(getattr(manifest, "model_name", "") or "")
         cost_class = reported_cost_class(manifest)
         from core.model_pricing import cached_prompt_tokens
+        from core.prompt_cache import cache_write_prompt_tokens
 
         cached_tokens = cached_prompt_tokens(usage)
+        cache_write_tokens = cache_write_prompt_tokens(usage)
         usage_meter.record_usage(
             provider_id=provider_id,
             model_id=model_id,
@@ -478,6 +490,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             prompt_tokens_reported=prompt_tokens_reported,
             output_tokens_reported=output_tokens_reported,
             cached_prompt_tokens=cached_tokens,
+            cache_write_prompt_tokens=cache_write_tokens,
         )
         summary = {
             "provider_id": provider_id,
@@ -489,6 +502,7 @@ def _record_response_usage(manifest: Any, response: Any) -> dict[str, Any] | Non
             "prompt_tokens_reported": prompt_tokens_reported,
             "output_tokens_reported": output_tokens_reported,
             "cached_prompt_tokens": cached_tokens,
+            "cache_write_prompt_tokens": cache_write_tokens,
         }
         if cost_class == "paid_cloud":
             # The priced figure a surface can render: the same number the spend ledger settles
@@ -2980,17 +2994,163 @@ class MemoryFirstRouter:
                 )
                 return widened_request
 
+            def _same_model_retry_wait(
+                exc: Exception,
+                task_request: ModelRequest,
+                attempt: int,
+                *,
+                error_class: Any,
+            ) -> float | None:
+                """Bounded wait before the one same-model retry, or None to not retry at all.
+
+                None means a shared authority denied the pause: the enclosing turn deadline has
+                no room left, or cancellation landed while waiting. The retry itself never gets a
+                fresh deadline -- ``effective_timeout_seconds`` re-clamps the next call to the
+                SAME absolute deadline the first attempt ran under.
+                """
+                from core.normalized_provider_result import retry_after_hint
+                from core.provider_call_deadline import PROVIDER_DEADLINE_KEY
+                from core.runtime_active_clock import monotonic as active_monotonic
+
+                if error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE:
+                    # The empty-retry law has always been immediate; the bounded pause belongs
+                    # to transport faults, where the endpoint may genuinely need a beat.
+                    return 0.0
+                delay = next_delay(attempt, _SAME_MODEL_RETRY_POLICY)
+                hint = retry_after_hint(exc)
+                if hint is not None:
+                    delay = max(0.0, min(hint, _RETRY_AFTER_WAIT_CAP_SECONDS))
+                deadline = 0.0
+                metadata = getattr(task_request, "metadata", None)
+                if isinstance(metadata, dict):
+                    try:
+                        deadline = float(metadata.get(PROVIDER_DEADLINE_KEY) or 0.0)
+                    except (TypeError, ValueError):
+                        deadline = 0.0
+                if deadline > 0:
+                    # The deadline lives on the execution clock the adapter clamps against
+                    # (`effective_timeout_seconds`), so the room is measured on that clock too.
+                    remaining = deadline - active_monotonic()
+                    if remaining <= delay + 0.05:
+                        return None
+                wake_at = time.monotonic() + delay
+                while True:
+                    if _model_request_cancelled(task_request):
+                        return None
+                    now = time.monotonic()
+                    if now >= wake_at:
+                        return delay
+                    time.sleep(min(0.05, wake_at - now))
+
+            def _transport_retry_within_first_window(
+                task_request: ModelRequest,
+                first_started: float,
+            ) -> ModelRequest | None:
+                """The transport-fault retry request, bound to the window the FIRST attempt had.
+
+                The retry runs inside this call, below the candidate loop whose between-attempt
+                budget check and per-call cap (the fallback budget) bound every call it starts. An
+                unbound retry re-ran the same per-call ceiling from zero: a call that timed out
+                after its whole window was retried for a second whole window, outside the turn's
+                budget. The pair therefore shares ONE window: the enclosing deadline when the turn
+                bound one, and otherwise the first attempt's start plus the per-call ceiling this
+                manifest runs under. A call whose window cannot be known (no enclosing deadline and
+                no declared ceiling) is not retried: an adapter's private default is not a bound
+                this router can hold the retry to.
+                """
+                from core.provider_call_deadline import (
+                    PROVIDER_DEADLINE_KEY,
+                    PROVIDER_DEADLINE_REASON_KEY,
+                    local_manifest_call_timeout_seconds,
+                )
+
+                metadata = dict(getattr(task_request, "metadata", None) or {})
+                try:
+                    enclosing = float(metadata.get(PROVIDER_DEADLINE_KEY) or 0.0)
+                except (TypeError, ValueError):
+                    enclosing = 0.0
+                window_deadline = 0.0
+                declared = (getattr(manifest, "runtime_config", None) or {}).get("timeout_seconds")
+                try:
+                    declared_seconds = float(declared or 0.0)
+                except (TypeError, ValueError):
+                    declared_seconds = 0.0
+                if declared_seconds > 0:
+                    window_deadline = first_started + local_manifest_call_timeout_seconds(
+                        manifest, declared_seconds
+                    )
+                bounds = [value for value in (enclosing, window_deadline) if value > 0]
+                if not bounds:
+                    return None
+                bound = min(bounds)
+                if bound != enclosing:
+                    metadata[PROVIDER_DEADLINE_REASON_KEY] = "first attempt's call window"
+                metadata[PROVIDER_DEADLINE_KEY] = bound
+                return replace(task_request, metadata=metadata)
+
             def _call_adapter_task_with_empty_retry(
                 method_name: str,
                 task_request: ModelRequest,
             ) -> ModelResponse:
+                nonlocal call_request
                 from core.output_budget_policy import manifest_declares_reasoning
+                from core.runtime_active_clock import monotonic as active_monotonic
 
                 attempt = 1
+                first_started = active_monotonic()
                 while True:
                     try:
                         return _call_adapter_task(method_name, task_request)
                     except Exception as exc:
+                        # Only arguments that parsed but broke the offered schema are re-asked.
+                        # Text that is not JSON, or a missing call, stays a closed refusal.
+                        if isinstance(exc, ToolArgumentSchemaError):
+                            from core.provider_call_deadline import deadline_expired
+                            from core.tool_schema_recovery import (
+                                admit_paid_tool_correction,
+                                corrected_tool_request,
+                            )
+
+                            # Selection has not crossed the executor. Re-generate rather
+                            # than rename/drop arguments or turn a schema error into an
+                            # answer-only call. One shared retry budget; never replay work.
+                            can_correct = (
+                                output_mode == "tool_intent" and bool(task_request.tools)
+                                and attempt == 1 and task_request.allow_provider_retry
+                                and not _model_request_cancelled(task_request)
+                                and not deadline_expired(task_request)
+                            )
+                            if can_correct:
+                                corrected = corrected_tool_request(task_request)
+                                free = (
+                                    provider_cost_class(manifest) == "free_local"
+                                    or is_verified_free_cloud_manifest(manifest)
+                                )
+                                can_correct = free or admit_paid_tool_correction(
+                                    manifest=manifest, authorization=paid_authorization,
+                                    original=task_request, corrected=corrected,
+                                    prompt_tokens=_int_attr(task, "prompt_tokens"),
+                                )
+                            if not can_correct:
+                                # The final refusal carries the LAST validation result.
+                                call_request.metadata["tool_call_resolution"] = dict(
+                                    task_request.metadata.get("tool_call_resolution") or {}
+                                )
+                                raise
+                            _emit_model_routing_event(
+                                source_context, "model.call_retrying",
+                                "Tool arguments failed schema validation; asking the same "
+                                "model to correct the selection once before execution.",
+                                **identity, provider_id=manifest.provider_id,
+                                model_id=manifest.model_name,
+                                error_class=ProviderErrorClass.MALFORMED_TOOL_CALL.value,
+                                retry_index=attempt,
+                                retry_policy="same_model_tool_schema_correction",
+                            )
+                            attempt += 1
+                            task_request = corrected
+                            call_request = corrected
+                            continue
                         error_class = classify_error_class(exc)
                         exhausted = (
                             error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
@@ -3014,31 +3174,61 @@ class MemoryFirstRouter:
                             attempt += 1
                             task_request = widened_request
                             continue
+                        # 2026-10-02: the admission used to match EMPTY_PROVIDER_RESPONSE only,
+                        # so a transient transport fault (connection refused, 429 with
+                        # Retry-After, a 5xx) never reached this bounded same-model retry -- it
+                        # fell to the outer candidate loop, and with no eligible successor the
+                        # turn ended as all_ranked_providers_failed and the user repeated the
+                        # request by hand. The taxonomy (RETRYABLE_ERROR_CLASSES) already called
+                        # exactly these classes same-model-retryable; the gate now admits what
+                        # it classified. Non-retryable classes (auth, policy, malformed tool
+                        # calls, context overflow) still fail closed on the first attempt, and
+                        # the free-lane cost law below still refuses an unpaid second paid call.
+                        free_lane = (
+                            provider_cost_class(manifest) == "free_local"
+                            or is_verified_free_cloud_manifest(manifest)
+                        )
                         retry_allowed = bool(
                             getattr(task_request, "allow_provider_retry", True)
                         ) and (
                             exhausted
                             or (
-                                error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
-                                and is_retryable(error_class)
-                                and (
-                                    provider_cost_class(manifest) == "free_local"
-                                    or is_verified_free_cloud_manifest(manifest)
-                                )
+                                is_retryable(error_class)
+                                and free_lane
                             )
-                        ) and should_retry(attempt, _EMPTY_RESPONSE_RETRY_POLICY) and not _model_request_cancelled(task_request)
+                        ) and should_retry(attempt, _SAME_MODEL_RETRY_POLICY) and not _model_request_cancelled(task_request)
                         if not retry_allowed:
+                            raise
+                        if not exhausted and error_class != ProviderErrorClass.EMPTY_PROVIDER_RESPONSE:
+                            bounded_request = _transport_retry_within_first_window(task_request, first_started)
+                            if bounded_request is None:
+                                raise
+                            task_request = bounded_request
+                        wait_seconds = _same_model_retry_wait(
+                            exc, task_request, attempt, error_class=error_class
+                        )
+                        if wait_seconds is None:
                             raise
                         _emit_model_routing_event(
                             source_context,
                             "model.call_retrying",
-                            "Structurally empty provider response; retrying the same model once.",
+                            (
+                                "Structurally empty provider response; retrying the same model once."
+                                if error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
+                                else f"Transient provider fault ({error_class.value if error_class else 'unclassified'}); retrying the same model once."
+                            ),
                             **identity,
                             provider_id=manifest.provider_id,
                             model_id=manifest.model_name,
-                            error_class=ProviderErrorClass.EMPTY_PROVIDER_RESPONSE.value,
+                            error_class=error_class.value if error_class else "",
                             retry_index=attempt,
                             retry_policy="same_provider_model",
+                            retry_reason=(
+                                "output_budget_exhausted"
+                                if exhausted
+                                else (error_class.value if error_class else "unclassified")
+                            ),
+                            retry_wait_seconds=round(wait_seconds, 3),
                         )
                         attempt += 1
 
@@ -3073,6 +3263,7 @@ class MemoryFirstRouter:
                 from core.output_budget_policy import manifest_declares_reasoning as _stream_declares_reasoning
 
                 stream_attempt = 1
+                stream_first_started = active_monotonic()
                 while True:
                     try:
                         response = self._stream_response(
@@ -3108,6 +3299,60 @@ class MemoryFirstRouter:
                             call_request = _widened_stream_request
                             stream_attempt += 1
                             continue
+                        # 2026-10-02 parity with the buffered arm: a transient transport fault
+                        # mid-stream (peer closed the connection, a 5xx, a rate limit) gets the
+                        # same ONE bounded same-model retry the buffered arm owns -- same
+                        # attempt policy, same free-lane cost law, same cancellation check and
+                        # shared deadline through _same_model_retry_wait. Previously only the
+                        # exhaustion-widening re-stream existed here, so a mid-stream disconnect
+                        # killed the candidate outright.
+                        _stream_error_class = classify_error_class(exc)
+                        if (
+                            bool(getattr(call_request, "allow_provider_retry", True))
+                            and is_retryable(_stream_error_class)
+                            and (
+                                provider_cost_class(manifest) == "free_local"
+                                or is_verified_free_cloud_manifest(manifest)
+                            )
+                            and should_retry(stream_attempt, _SAME_MODEL_RETRY_POLICY)
+                            and not _model_request_cancelled(call_request)
+                        ):
+                            _bounded_stream_request = (
+                                call_request
+                                if _stream_error_class == ProviderErrorClass.EMPTY_PROVIDER_RESPONSE
+                                else _transport_retry_within_first_window(call_request, stream_first_started)
+                            )
+                            _stream_wait = (
+                                None
+                                if _bounded_stream_request is None
+                                else _same_model_retry_wait(
+                                    exc, _bounded_stream_request, stream_attempt, error_class=_stream_error_class
+                                )
+                            )
+                            if _stream_wait is not None and _bounded_stream_request is not None:
+                                call_request = _bounded_stream_request
+                            if _stream_wait is not None:
+                                _emit_model_routing_event(
+                                    source_context,
+                                    "model.call_retrying",
+                                    (
+                                        "Transient provider fault mid-stream"
+                                        f" ({_stream_error_class.value if _stream_error_class else 'unclassified'});"
+                                        " re-streaming the same model once."
+                                    ),
+                                    **identity,
+                                    provider_id=manifest.provider_id,
+                                    model_id=manifest.model_name,
+                                    error_class=_stream_error_class.value if _stream_error_class else "",
+                                    retry_index=stream_attempt,
+                                    retry_policy="same_provider_model",
+                                    retry_reason=(
+                                        _stream_error_class.value if _stream_error_class else "unclassified"
+                                    ),
+                                    retry_wait_seconds=round(_stream_wait, 3),
+                                )
+                                stream_attempt += 1
+                                continue
                         raise
                 response.provider_metadata = dict(response.provider_metadata or {})
                 response.provider_metadata["vool_call_seconds"] = max(0.0, active_monotonic() - stream_started)
@@ -4195,6 +4440,7 @@ class MemoryFirstRouter:
                     actual_usd=_response_actual_usd(manifest, response),
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
+                    invocation_id=response_id,
                 )
             from core.bootstrap_context import finalize_request_evidence
 
@@ -4318,11 +4564,20 @@ class MemoryFirstRouter:
             # provider/model pairing, unlike RequiredToolsNotOfferedError above (which is a runtime
             # capability mismatch, not model behavior). Never executed: the exception unwound
             # before any tool dispatch could see it.
-            error_kind = {
-                UnknownToolNameError: "unknown_tool_name",
-                MalformedToolArgumentsError: "malformed_tool_arguments",
-                DuplicateToolCallError: "duplicate_tool_call",
-            }.get(type(exc), "malformed_tool_call")
+            # isinstance, not the exact type: a schema violation is a typed subclass of
+            # MalformedToolArgumentsError and keeps that error kind.
+            error_kind = next(
+                (
+                    kind
+                    for error_type, kind in (
+                        (UnknownToolNameError, "unknown_tool_name"),
+                        (MalformedToolArgumentsError, "malformed_tool_arguments"),
+                        (DuplicateToolCallError, "duplicate_tool_call"),
+                    )
+                    if isinstance(exc, error_type)
+                ),
+                "malformed_tool_call",
+            )
             # The tool loop decides what a zero-executed-steps turn becomes AFTER this frame has
             # unwound, and "the model expressed a call the runtime refused" must stay
             # distinguishable there from "the provider never answered" — otherwise the refused
@@ -4362,7 +4617,10 @@ class MemoryFirstRouter:
             if paid_authorization is not None:
                 release_owner_pick_paid_call(
                     paid_authorization,
-                    reason=error_kind,
+                    # The provider replied: a refused call can still be billed.
+                    # In particular, denying the corrective dispatch must not
+                    # release the first attempt as if nothing had been sent.
+                    reason="call_failed",
                     source_context=source_context,
                     call_role=str((source_context or {}).get("model_call_role") or ""),
                 )
@@ -5443,6 +5701,7 @@ class MemoryFirstRouter:
             min_trust=0.45,
             enforce_hardware_fit=True,
             local_only=turn_is_local_only(source_context),
+            explicit_model_pin=explicit_pin_selected,
         )
         ranked_manifests = [
             manifest

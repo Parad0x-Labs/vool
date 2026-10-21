@@ -9,6 +9,43 @@ import sys
 from core.drop import WARNING, DropError, require_enabled
 from core.drop.service import DropHome, LocalRelay
 
+# Each subcommand's own flags and how many words each takes ("+" = one or more).
+_SUBCOMMAND_FLAGS = {"send": {"--note": 1, "--file": 1}, "task": {"--permissions": "+"}}
+
+
+def _positionals_last(argv, subcommands):
+    """Fingerprints, session ids and task ids are base64url, so any of them can start with "-",
+    and argparse would read such a value as an unknown flag. Keep the subcommand's own flags in
+    front and put every other word after "--", where argparse takes it as a positional."""
+    argv = list(argv)
+    at = next((i for i, word in enumerate(argv) if word in subcommands), None)
+    if at is None:
+        return argv
+    flags = {"-h": 0, "--help": 0, **_SUBCOMMAND_FLAGS.get(argv[at], {})}
+    rest, options, positionals = argv[at + 1:], [], []
+    i = 0
+    while i < len(rest):
+        word = rest[i]
+        i += 1
+        if word == "--":
+            positionals.extend(rest[i:])
+            break
+        name, has_value, _ = word.partition("=")
+        if name not in flags:
+            positionals.append(word)
+            continue
+        options.append(word)
+        if has_value or flags[name] == 0:
+            continue
+        taken = 0
+        while i < len(rest) and rest[i] != "--" and rest[i].partition("=")[0] not in flags:
+            if flags[name] != "+" and taken == flags[name]:
+                break
+            options.append(rest[i])
+            i += 1
+            taken += 1
+    return argv[:at + 1] + options + (["--", *positionals] if positionals else [])
+
 
 def main():
     parser = argparse.ArgumentParser(description=WARNING)
@@ -36,15 +73,7 @@ def main():
     approve = sub.add_parser("approve")
     approve.add_argument("sid")
     approve.add_argument("task_id")
-    # Fingerprints and links are base64url, so one can start with "-": end option parsing right
-    # after the subcommand, or argparse would read such a pin as an unknown flag.
-    argv = list(sys.argv[1:])
-    for i, word in enumerate(argv):
-        if word in ("invite", "join"):
-            if i + 1 >= len(argv) or argv[i + 1] != "--":
-                argv.insert(i + 1, "--")
-            break
-    args = parser.parse_args(argv)
+    args = parser.parse_args(_positionals_last(sys.argv[1:], sub.choices))
     print(WARNING, file=sys.stderr)
     try:
         require_enabled()

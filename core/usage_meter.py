@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS token_usage (
     usd_actual    REAL,
     prompt_tokens_reported INTEGER NOT NULL DEFAULT 1,
     output_tokens_reported INTEGER NOT NULL DEFAULT 1,
-    cached_prompt_tokens INTEGER
+    cached_prompt_tokens INTEGER,
+    cache_write_prompt_tokens INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_token_usage_ts    ON token_usage(created_ts);
 CREATE INDEX IF NOT EXISTS idx_token_usage_class ON token_usage(cost_class);
@@ -125,6 +126,10 @@ def _ensure_schema(conn: Any) -> None:
         # (unknown), never a confirmed zero. Existing rows stay NULL.
         with contextlib.suppress(Exception):
             conn.execute("ALTER TABLE token_usage ADD COLUMN cached_prompt_tokens INTEGER")
+        # Prompt tokens the provider WROTE to its cache (billed above the input rate); NULL means
+        # it reported nothing. Existing rows stay NULL.
+        with contextlib.suppress(Exception):
+            conn.execute("ALTER TABLE token_usage ADD COLUMN cache_write_prompt_tokens INTEGER")
         conn.commit()
         _SCHEMA_READY_PATHS.add(key)
 
@@ -193,6 +198,7 @@ def _record_usage_once(
     prompt_tokens_reported: bool = True,
     output_tokens_reported: bool = True,
     cached_prompt_tokens: int | None = None,
+    cache_write_prompt_tokens: int | None = None,
 ) -> bool:
     """Record one served response's token usage. Fail-soft: returns True on success, False on
     any error (never raises), so a metering write cannot abort a chat turn. A row is skipped
@@ -227,6 +233,9 @@ def _record_usage_once(
         cached: int | None = None
         if isinstance(cached_prompt_tokens, int) and not isinstance(cached_prompt_tokens, bool):
             cached = min(max(0, cached_prompt_tokens), pt) if pt else max(0, cached_prompt_tokens)
+        cache_written: int | None = None
+        if isinstance(cache_write_prompt_tokens, int) and not isinstance(cache_write_prompt_tokens, bool):
+            cache_written = max(0, cache_write_prompt_tokens)
         ts = _now_ts() if now is None else float(now)
         from storage.db import get_connection
 
@@ -238,8 +247,9 @@ def _record_usage_once(
                 INSERT INTO token_usage
                     (entry_id, created_at, created_ts, provider_id, model_id,
                      cost_class, prompt_tokens, output_tokens, usd_actual,
-                     prompt_tokens_reported, output_tokens_reported, cached_prompt_tokens)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     prompt_tokens_reported, output_tokens_reported, cached_prompt_tokens,
+                     cache_write_prompt_tokens)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -254,6 +264,7 @@ def _record_usage_once(
                     1 if prompt_tokens_reported else 0,
                     1 if output_tokens_reported else 0,
                     cached,
+                    cache_written,
                 ),
             )
             # Opportunistic prune so the table can't grow without bound. Indexed on
@@ -285,6 +296,7 @@ def record_usage(
     prompt_tokens_reported: bool = True,
     output_tokens_reported: bool = True,
     cached_prompt_tokens: int | None = None,
+    cache_write_prompt_tokens: int | None = None,
 ) -> bool:
     """Record usage without letting transient SQLite contention abort a chat turn."""
     for attempt in range(_BUSY_RETRIES):
@@ -300,6 +312,7 @@ def record_usage(
                 prompt_tokens_reported=prompt_tokens_reported,
                 output_tokens_reported=output_tokens_reported,
                 cached_prompt_tokens=cached_prompt_tokens,
+                cache_write_prompt_tokens=cache_write_prompt_tokens,
             )
         except sqlite3.OperationalError as exc:
             is_busy = any(word in str(exc).lower() for word in ("busy", "locked"))

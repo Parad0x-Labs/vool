@@ -118,6 +118,12 @@ def upload(world, token, csrf, package_id, text=SKILL, *, version):
                          "category": "productivity", "subcategory": "meetings", "license": "MIT", "languages": ["en"]},
             "skill_markdown": text, "agreement": AGREEMENT}
     response = world.http.post(PREFIX + "/drafts", json=body, headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+    if response.status_code == 201 and response.json()["state"] == "checking":
+        item = response.json()
+        consent = world.http.post(PREFIX + "/submissions/" + item["id"] + "/consent",
+                                  json={"sha256": item["sha256"], "public": True},
+                                  headers={"Origin": ORIGIN, "X-Vool-CSRF": csrf})
+        assert consent.status_code == 200, consent.text
     world.http.cookies.clear()
     assert response.status_code == 201, response.text
     return response.json()
@@ -203,6 +209,26 @@ def test_setup_puts_the_online_keys_only_in_github_and_the_main_key_offline(worl
                   set_secret=world.secrets.__setitem__)
     assert not (fresh / FOLDER).exists()
 
+
+
+def test_setup_that_cant_write_the_main_key_says_why_and_leaves_the_repository_empty(tmp_path, monkeypatch, capsys):
+    # A Windows-formatted stick mounts read-only on a Mac: the person needs the system's reason, not just its type.
+    repo = tmp_path / "signer"
+    (repo / ".git").mkdir(parents=True)
+    stick = tmp_path / "stick"
+    stick.write_text("not a folder that can hold the main key")
+    targets = tmp_path / "targets.json"
+    targets.write_text(json.dumps([TARGET]))
+    secrets = []
+    monkeypatch.setattr(github_authority, "gh_secret", lambda github: lambda name, value: secrets.append(name))
+    monkeypatch.setattr(github_authority.getpass, "getpass", lambda prompt="": PASSPHRASE)
+    code = github_authority.main(["setup", "--repo", str(repo), "--github", GITHUB, "--catalog-key", "ab" * 32,
+                                  "--model", "review-model", "--offline", str(stick / "skill-codex-root"),
+                                  "--targets", str(targets), "--vool-commit", "a" * 40])
+    assert code == 1
+    assert capsys.readouterr().out == "Stopped: NotADirectoryError: Not a directory\n"
+    assert sorted(path.name for path in repo.iterdir()) == [".git"]
+    assert len(secrets) == 3  # replaced by the next setup run, which makes new keys
 
 def test_an_upload_is_checked_signed_listed_and_its_state_is_on_github(world):
     _, token, csrf = creator(world, "101", "alice")
@@ -297,7 +323,7 @@ def test_a_second_signer_running_at_the_same_time_stops_before_sending_anything(
     with pytest.raises(github_authority.Superseded, match="another signer run changed the state"):
         late.run_once()
     assert [call for call in world.sent[sent:] if call[0] == "POST"] == []  # not even the refusal
-    assert len(world.model.calls) == reviews + 1  # it stopped at its first send, not after paying for the rest
+    assert len(world.model.calls) == reviews  # a superseded run stops before any paid review
     assert "alice/other" not in rows(world) and json.loads(on_github(world, FOLDER + "/state.json"))["epoch"] == 1
     # The next scheduled run starts from GitHub's newest state and carries on.
     report = run(world)
@@ -372,9 +398,10 @@ def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_not
     assert row["tested"] is True and row["highlighted"] is True
 
     team_steps(world, "tested alice/notes\nremoved alice/notes\n")
-    report = run(world)
-    assert report["steps"]["applied"] is False and "line 1" in report["steps"]["problems"][0]
-    assert quiet(report)["team_steps"][-1] == "nothing applied"
+    before = on_github(world, FOLDER + "/state.json")
+    with pytest.raises(RegistryError, match=r"team-steps\.txt line 1"):
+        run(world)
+    assert on_github(world, FOLDER + "/state.json") == before
     row = rows(world)["alice/notes"]
     assert row["tested"] is True and row["highlighted"] is True  # nothing half-applied
 
@@ -393,6 +420,10 @@ def test_team_steps_apply_from_the_file_and_a_line_that_cant_be_read_applies_not
 
     team_steps(world, "removed alice/notes\nwhatever this is\n")  # broken again: the removal keeps holding
     upload(world, token, csrf, "alice/notes", version="1.0.2")
+    with pytest.raises(RegistryError, match=r"team-steps\.txt line 2"):
+        run(world)
+    assert "alice/notes" not in rows(world)
+    team_steps(world, "removed alice/notes\n")
     assert run(world)["refused"] == ["alice/notes 1.0.2"]
 
     team_steps(world, "")
@@ -467,9 +498,12 @@ def test_the_signed_builds_follow_vools_published_releases(world):
         raise RegistryError("GitHub could not list VOOL's releases: URLError")
 
     world.clock.t += DAY
-    report = run(world, releases=down)
+    before = on_github(world, FOLDER + "/state.json")
+    with pytest.raises(RegistryError, match="release discovery failed"):
+        run(world, releases=down)
+    assert on_github(world, FOLDER + "/state.json") == before
     world.online.refresh(now=world.clock.t)  # the service's own stamp, every ten minutes
-    assert report["releases_waiting"].startswith("GitHub could not") and "alice/notes" in rows(world)
+    assert "alice/notes" in rows(world)
 
 
 def test_a_build_the_team_names_is_signed_for_before_its_release_and_leaves_with_its_line(world):

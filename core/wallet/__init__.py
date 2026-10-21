@@ -1,4 +1,4 @@
-"""VOOL wallet: default-disabled, watch-only by default, testnet-only, owner-approved payments.
+"""VOOL wallet: default-disabled, mainnet by default when enabled, owner-approved payments.
 
 Public surface for proposers (skills, plugins, models): :mod:`core.wallet.proposals` and
 :mod:`core.wallet.status`. Custody and signing are owner-local doors and are deliberately not

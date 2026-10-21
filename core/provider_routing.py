@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -101,6 +102,10 @@ class ProviderRoutingPlan:
     routing_requirements: dict[str, Any] = field(default_factory=dict)
     rejected_candidates: tuple[dict[str, str], ...] = field(default_factory=tuple)
     selection_notes: tuple[str, ...] = field(default_factory=tuple)
+    # Per-candidate decision receipt (envelope path): final score plus the decisive value
+    # terms, so a reviewer can see why a fast cheap route lost to a stronger one — or won —
+    # without the chat surface carrying developer scoring internals.
+    selection_scores: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     @property
     def candidate_provider_ids(self) -> tuple[str, ...]:
@@ -120,7 +125,17 @@ def rank_provider_candidates(
     min_trust: float = 0.0,
     enforce_hardware_fit: bool = False,
     local_only: bool = False,
+    min_context_tokens: Any = 0,
+    explicit_model_pin: bool = False,
 ) -> list[ModelProviderManifest]:
+    """Rank the candidates for one model call.
+
+    ``min_context_tokens`` is the call's serialized size (messages, tool schemas and completion
+    headroom) when the caller knows it, read through ``parse_token_count``. A declared context
+    window below it is not eligible; an unknown window stays eligible but ranks after every window
+    known to cover it. Absent or 0 means the caller supplied no size, and nothing is filtered. A
+    malformed size cannot be verified against any window, so nothing is eligible.
+    """
     return _rank_provider_candidates_internal(
         registry,
         task_kind=task_kind,
@@ -134,7 +149,24 @@ def rank_provider_candidates(
         enforce_hardware_fit=enforce_hardware_fit,
         limit_to_swarm_size=True,
         local_only=local_only,
+        min_context_tokens=min_context_tokens,
+        explicit_model_pin=explicit_model_pin,
     )
+
+
+def _context_eligible(manifests: list[ModelProviderManifest], required_tokens: int) -> list[ModelProviderManifest]:
+    """Drop declared windows smaller than the call; keep unknown windows, after the known ones."""
+    if required_tokens <= 0:
+        return manifests
+    known: list[ModelProviderManifest] = []
+    unknown: list[ModelProviderManifest] = []
+    for manifest in manifests:
+        window = provider_capability_truth_for_manifest(manifest).context_window
+        if window <= 0:
+            unknown.append(manifest)
+        elif window >= required_tokens:
+            known.append(manifest)
+    return known + unknown
 
 
 def _rank_provider_candidates_internal(
@@ -151,7 +183,14 @@ def _rank_provider_candidates_internal(
     enforce_hardware_fit: bool = False,
     limit_to_swarm_size: bool = True,
     local_only: bool = False,
+    min_context_tokens: Any = 0,
+    explicit_model_pin: bool = False,
 ) -> list[ModelProviderManifest]:
+    required_context_tokens = parse_token_count(min_context_tokens)
+    if required_context_tokens is None:
+        # Fail closed: a size that is not a usable count is never read as "no size" (which would
+        # disable context eligibility) and never truncated below what was asked.
+        return []
     normalized_role = _normalize_role(role)
     resolved_allow_paid = _resolve_allow_paid_fallback(normalized_role, allow_paid_fallback)
     resolved_swarm_size = _resolve_swarm_size(normalized_role, swarm_size)
@@ -167,6 +206,7 @@ def _rank_provider_candidates_internal(
             allow_paid_fallback=resolved_allow_paid and not local_only,
             min_trust=min_trust,
             local_only=bool(local_only),
+            explicit_model_pin=explicit_model_pin,
         )
     )
     if enforce_hardware_fit:
@@ -205,6 +245,7 @@ def _rank_provider_candidates_internal(
         if _any_certified_local(unfiltered):
             base_ranked = unfiltered
     if normalized_role == "auto":
+        base_ranked = _context_eligible(base_ranked, required_context_tokens)
         return base_ranked[:resolved_swarm_size] if limit_to_swarm_size else base_ranked
 
     total = max(len(base_ranked), 1)
@@ -235,7 +276,7 @@ def _rank_provider_candidates_internal(
             base_score -= float(total) + 1.0
         rescored.append((base_score + role_bonus, manifest))
     rescored.sort(key=lambda item: (item[0], item[1].provider_name, item[1].model_name), reverse=True)
-    ranked = [manifest for _, manifest in rescored]
+    ranked = _context_eligible([manifest for _, manifest in rescored], required_context_tokens)
     return ranked[:resolved_swarm_size] if limit_to_swarm_size else ranked
 
 
@@ -342,7 +383,7 @@ def resolve_provider_routing_plan_for_envelope(
         limit_to_swarm_size=False,
     )
     requirements = _build_envelope_routing_requirements(envelope, output_mode=output_mode, provider_role=resolved_role)
-    accepted: list[tuple[float, ModelProviderManifest, ProviderCapabilityTruth]] = []
+    accepted: list[tuple[float, ModelProviderManifest, ProviderCapabilityTruth, dict[str, float]]] = []
     rejected: list[dict[str, str]] = []
     selection_notes = list(requirements["notes"])
     total = max(len(ranked), 1)
@@ -352,27 +393,78 @@ def resolve_provider_routing_plan_for_envelope(
         if rejection_reason:
             rejected.append({"provider_id": manifest.provider_id, "reason": rejection_reason})
             continue
-        accepted.append(
-            (
-                _envelope_manifest_score(
-                    capability,
-                    requirements=requirements,
-                    provider_role=resolved_role,
-                    rank_index=index,
-                    total_candidates=total,
-                ),
-                manifest,
-                capability,
-            )
+        score, terms = _envelope_manifest_score_terms(
+            capability,
+            requirements=requirements,
+            provider_role=resolved_role,
+            rank_index=index,
+            total_candidates=total,
         )
-    accepted.sort(key=lambda item: (item[0], item[1].provider_name, item[1].model_name), reverse=True)
+        accepted.append((score, manifest, capability, terms))
+    # A declared context requirement orders an UNKNOWN window after every window known to cover
+    # it. Unknown stays eligible (most manifests carry no window metadata) but is never treated
+    # as verified: measured on 57fdc03, the ordinal rank lead outweighed the +0.3 known-sufficient
+    # term and an unknown-window model was selected over a 32768-window one for a 12000-token ask.
+    required_window = int(requirements.get("required_window_tokens") or 0)
+
+    def _window_verified(item: tuple[float, ModelProviderManifest, ProviderCapabilityTruth, dict[str, float]]) -> int:
+        return 0 if required_window > 0 and item[2].context_window <= 0 else 1
+
+    accepted.sort(
+        key=lambda item: (_window_verified(item), item[0], item[1].provider_name, item[1].model_name),
+        reverse=True,
+    )
+    unverified_windows = [item[1].model_name for item in accepted if not _window_verified(item)]
+    if unverified_windows:
+        selection_notes.append(
+            f"Context window unknown for {', '.join(unverified_windows)}; ranked after candidates whose "
+            f"declared window covers the {required_window}-token requirement."
+        )
     selected_rows = accepted[:resolved_swarm_size]
     candidates = tuple(item[1] for item in selected_rows)
     capability_truth = tuple(item[2] for item in selected_rows)
+    selection_scores = tuple(
+        {
+            "provider_id": item[1].provider_id,
+            "model_id": item[1].model_name,
+            "score": round(item[0], 4),
+            "terms": {key: (round(value, 4) if isinstance(value, float) else value) for key, value in item[3].items()},
+        }
+        for item in accepted
+    )
     if not candidates and requirements["fail_closed"]:
         selection_notes.append("No providers satisfied the envelope's hard locality requirements; routing failed closed.")
     elif any(item[2].queue_depth > 0 for item in selected_rows):
         selection_notes.append("Queue-depth pressure was applied while scoring provider candidates.")
+    # Decision evidence for the value tradeoff: when the turn declared a latency or quality
+    # budget and the winner is not the fastest MEASURED candidate, name both numbers so the
+    # "expensive/slow but justified" choice is auditable. Measured-only: unmeasured candidates
+    # never appear (their selection was deterministic-prior, not observation-driven).
+    rejection_reasons_seen = {row["reason"] for row in rejected}
+    if "context_window_too_small" in rejection_reasons_seen:
+        selection_notes.append(
+            "Candidates with a declared context window below the envelope's token requirement were rejected."
+        )
+    if "missing_required_tool_support" in rejection_reasons_seen:
+        selection_notes.append("Candidates missing a hard-required model tool capability were rejected.")
+    measured = [
+        (float(item[2].tokens_per_second or 0.0), item[1])
+        for item in accepted
+        if float(item[2].tokens_per_second or 0.0) > 0.0
+    ]
+    if candidates and len(measured) >= 2 and str(requirements.get("latency_budget") or "") == "low_latency":
+        winner = candidates[0]
+        fastest = max(measured, key=lambda entry: entry[0])[1]
+        winner_tps = next(
+            (tps for tps, manifest in measured if manifest.provider_id == winner.provider_id),
+            0.0,
+        )
+        fastest_tps = max(tps for tps, _ in measured)
+        if winner.provider_id != fastest.provider_id:
+            selection_notes.append(
+                f"low_latency budget was overridden by other requirements: selected {winner.model_name} "
+                f"({winner_tps:.1f} tok/s measured) over {fastest.model_name} ({fastest_tps:.1f} tok/s)."
+            )
     return ProviderRoutingPlan(
         role=resolved_role,
         task_kind=task_kind,
@@ -388,7 +480,66 @@ def resolve_provider_routing_plan_for_envelope(
         routing_requirements={key: value for key, value in requirements.items() if key != "notes"},
         rejected_candidates=tuple(rejected),
         selection_notes=tuple(selection_notes),
+        selection_scores=selection_scores,
     )
+
+
+# Upper bound of the token-count domain. Far above any declared context window, and small enough
+# that a decimal string of it never approaches the interpreter's integer-conversion limit.
+MAX_TOKEN_COUNT = 1_000_000_000
+_MAX_TOKEN_COUNT_DIGITS = len(str(MAX_TOKEN_COUNT))
+
+
+def parse_token_count(value: Any) -> int | None:
+    """A declared token count, 0 when absent, or None when the value is not a usable count.
+
+    The one domain for both selection entry points that take a size: the live ranking call
+    (``rank_provider_candidates(min_context_tokens=)``) and the envelope's token requirements.
+    Absent (None, a blank string) and 0 mean the caller supplied no size. A usable count is a
+    whole number in ``[0, MAX_TOKEN_COUNT]``: an int, a finite float (a fraction rounds UP, so a
+    requirement is never weakened below what was asked) or a string of ASCII decimal digits.
+    Everything else is malformed, and a malformed hard requirement must not quietly become "no
+    requirement": measured on 57fdc03, ``min_context_tokens="12,000"`` read as 0 and a
+    4096-window model was selected. It must not raise either: ``str.isdigit`` admits
+    superscript and other non-decimal digits that ``int`` cannot read.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 0 <= value <= MAX_TOKEN_COUNT else None
+    if isinstance(value, float):
+        if not math.isfinite(value) or value < 0 or value > MAX_TOKEN_COUNT:
+            return None
+        return math.ceil(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return 0
+        if not (text.isascii() and text.isdigit()):
+            return None
+        digits = text.lstrip("0") or "0"
+        if len(digits) > _MAX_TOKEN_COUNT_DIGITS:
+            return None
+        count = int(digits)
+        return count if count <= MAX_TOKEN_COUNT else None
+    return None
+
+
+def _tool_requirement(value: Any) -> tuple[str, ...] | None:
+    """Required tool names as a tuple; one bare name counts as one tool; None when malformed."""
+    if value is None:
+        return ()
+    if isinstance(value, str):
+        items: list[Any] = [value]
+    elif isinstance(value, (list, tuple, set, frozenset)):
+        items = list(value)
+    else:
+        return None
+    if any(not isinstance(item, str) for item in items):
+        return None
+    return tuple(dict.fromkeys(item.strip() for item in items if item.strip()))
 
 
 def _build_envelope_routing_requirements(
@@ -415,11 +566,56 @@ def _build_envelope_routing_requirements(
         notes.append("Envelope requires a local provider because the task is private or has mutating side effects.")
     if constraints.get("queue_pressure_strategy") == "fail_closed":
         notes.append("Queue-pressure strategy is fail-closed for this envelope.")
+    # Context eligibility, through the same requirements channel `CloudTaskRequirements` uses on
+    # the cloud lane (`min_context_tokens` + `expected_output_tokens`). The number is the
+    # serialized-payload token estimate the ENVELOPE OWNER supplies — tool schema bytes and
+    # completion headroom belong in it, exactly as the cloud lane's contract already states;
+    # provider routing does not re-estimate packing here (that owner is `core.prompt_budget`).
+    malformed: list[str] = []
+    parsed_context = parse_token_count(constraints.get("min_context_tokens"))
+    parsed_output = parse_token_count(constraints.get("expected_output_tokens"))
+    if parsed_context is None:
+        malformed.append("min_context_tokens")
+    if parsed_output is None:
+        malformed.append("expected_output_tokens")
+    min_context_tokens = parsed_context or 0
+    expected_output_tokens = parsed_output or 0
+    required_window_tokens = min_context_tokens + expected_output_tokens
+    # REQUIRED tool support is an explicit operator constraint, distinct from the soft preference
+    # inferred from a web.* permission GRANT (a permission to use VOOL's runtime web tool is not
+    # a demand for model-native web_search). Unknown-declared tool support fails this gate — an
+    # unknown required capability is never assumed true.
+    parsed_tools = _tool_requirement(constraints.get("required_tool_support"))
+    if parsed_tools is None:
+        malformed.append("required_tool_support")
+    required_tool_support = parsed_tools or ()
+    for name in malformed:
+        notes.append(
+            f"Envelope constraint {name}={constraints.get(name)!r} is not a usable requirement; "
+            "no candidate can be verified against it, so routing failed closed."
+        )
+    if required_window_tokens > 0:
+        notes.append(
+            f"Envelope requires a context window of at least {required_window_tokens} tokens "
+            f"(payload {min_context_tokens} + completion {expected_output_tokens})."
+        )
+    if required_tool_support:
+        notes.append(f"Envelope hard-requires model tool support: {', '.join(required_tool_support)}.")
     return {
         "required_locality": required_locality or ("local" if requires_local else None),
         "preferred_locality": str(constraints.get("preferred_locality") or "").strip() or ("local" if envelope.role in {"coder", "verifier", "memory_clerk"} else None),
         "preferred_role_fit": str(constraints.get("preferred_provider_role") or "").strip() or (provider_role if provider_role != "auto" else ""),
         "preferred_tool_support": tuple(dict.fromkeys(preferred_tool_support)),
+        "required_tool_support": required_tool_support,
+        "min_context_tokens": min_context_tokens,
+        "expected_output_tokens": expected_output_tokens,
+        "required_window_tokens": required_window_tokens,
+        "malformed_constraints": tuple(malformed),
+        # Value priors from the envelope's own budget fields (the vocabulary task_router mints
+        # and resource_scheduler already consumes): low_latency wants measured speed,
+        # quality high wants the stronger lane, draft tolerates the small fast one.
+        "latency_budget": str(envelope.latency_budget or "balanced").strip().lower() or "balanced",
+        "quality_target": str(envelope.quality_target or "standard").strip().lower() or "standard",
         "prefer_structured_output": bool(constraints.get("prefer_structured_output", output_mode != "plain_text" or envelope.role in {"coder", "verifier", "queen", "narrator"})),
         "prefer_long_context": bool(constraints.get("prefer_long_context", envelope.role in {"queen", "researcher"})),
         "prefer_code_complex": bool(constraints.get("prefer_code_complex", envelope.role == "coder")),
@@ -429,11 +625,28 @@ def _build_envelope_routing_requirements(
 
 
 def _routing_rejection_reason(capability: ProviderCapabilityTruth, requirements: dict[str, Any]) -> str:
+    if requirements.get("malformed_constraints"):
+        return "malformed_requirement"
     if capability.availability_state == "blocked":
         return "provider_circuit_open"
     required_locality = str(requirements.get("required_locality") or "").strip()
     if required_locality and capability.locality != required_locality:
         return "requires_local_provider"
+    # Context eligibility is a HARD gate, mirroring the cloud lane's `context_too_small` law in
+    # `core.cloud_routing`: a declared window smaller than the envelope's serialized-payload
+    # requirement can never serve that turn regardless of score. Measured on the pinned base,
+    # a 4096-window model was SELECTED for a 12000-token requirement because context was at
+    # most a `prefer_long_context` bonus. A window of 0 means UNKNOWN, never "small": unknown
+    # data must not hard-reject (that would brick every manifest without window metadata), it
+    # only loses the known-sufficient preference in scoring.
+    required_window = int(requirements.get("required_window_tokens") or 0)
+    if required_window > 0 and capability.context_window > 0 and capability.context_window < required_window:
+        return "context_window_too_small"
+    required_tools = tuple(str(item).strip().lower() for item in requirements.get("required_tool_support") or ())
+    if required_tools:
+        declared_tools = {str(item).strip().lower() for item in capability.tool_support}
+        if any(tool not in declared_tools for tool in required_tools):
+            return "missing_required_tool_support"
     return ""
 
 
@@ -576,49 +789,131 @@ def _envelope_manifest_score(
     rank_index: int,
     total_candidates: int,
 ) -> float:
+    """Score one eligible candidate. The float contract the envelope callers and the hardware-fit
+    laws have always consumed; the decision receipt's per-term breakdown lives beside it in
+    ``_envelope_manifest_score_terms`` so the two can never drift apart.
+    """
+    return _envelope_manifest_score_terms(
+        capability,
+        requirements=requirements,
+        provider_role=provider_role,
+        rank_index=rank_index,
+        total_candidates=total_candidates,
+    )[0]
+
+
+def _envelope_manifest_score_terms(
+    capability: ProviderCapabilityTruth,
+    *,
+    requirements: dict[str, Any],
+    provider_role: str,
+    rank_index: int,
+    total_candidates: int,
+) -> tuple[float, dict[str, float]]:
+    """Score one eligible candidate and return the decisive terms for the decision receipt.
+
+    The second element separates each value term from the base score so the routing plan can
+    explain WHY a fast cheap route lost to a stronger one (or won) without dumping developer
+    internals into the chat surface.
+    """
     score = float(max(1, total_candidates - rank_index))
+    terms: dict[str, float] = {"rank_base": score}
     cap_tools = {str(item).strip().lower() for item in capability.tool_support if str(item).strip()}
     preferred_role_fit = str(requirements.get("preferred_role_fit") or "").strip()
     if preferred_role_fit and capability.role_fit == preferred_role_fit:
         score += 1.4
+        terms["role_fit"] = 1.4
     elif preferred_role_fit and capability.role_fit not in {"", "auto", preferred_role_fit}:
         score -= 0.6
+        terms["role_fit"] = -0.6
     preferred_locality = str(requirements.get("preferred_locality") or "").strip()
     if preferred_locality and capability.locality == preferred_locality:
         score += 1.0
+        terms["locality_fit"] = 1.0
     elif preferred_locality and capability.locality != preferred_locality:
         score -= 0.35
+        terms["locality_fit"] = -0.35
     if bool(requirements.get("prefer_structured_output", False)):
-        score += 0.45 if capability.structured_output_support else -0.2
+        delta = 0.45 if capability.structured_output_support else -0.2
+        score += delta
+        terms["structured_output"] = delta
     if bool(requirements.get("prefer_long_context", False)) and capability.context_window > 0:
-        score += min(0.8, float(capability.context_window) / 64000.0)
+        delta = min(0.8, float(capability.context_window) / 64000.0)
+        score += delta
+        terms["long_context"] = delta
     if bool(requirements.get("prefer_code_complex", False)):
         if "code_complex" in cap_tools:
             score += 0.55
+            terms["code_complex"] = 0.55
         elif capability.locality == "local":
             score += 0.15
+            terms["code_complex"] = 0.15
     for preferred_tool in tuple(requirements.get("preferred_tool_support") or ()):
         if preferred_tool in cap_tools:
             score += 0.4
+            terms[f"tool:{preferred_tool}"] = 0.4
         else:
             score -= 0.15
+            terms[f"tool:{preferred_tool}"] = -0.15
     if capability.availability_state == "degraded":
         score -= 0.75
+        terms["degraded"] = -0.75
     queue_pressure = float(capability.queue_depth) / float(max(1, capability.max_safe_concurrency))
-    score -= min(2.5, queue_pressure)
+    queue_penalty = min(2.5, queue_pressure)
+    if queue_penalty:
+        score -= queue_penalty
+        terms["queue_pressure"] = -queue_penalty
     if provider_role == "queen" and capability.locality == "remote":
         score += 0.15
+        terms["queen_remote"] = 0.15
+    # Context-window preference (only meaningful once the turn declared a requirement):
+    # a DECLARED window at or above the requirement is preferred over an UNKNOWN one; a
+    # hard-too-small window never reaches here (rejected above), and unknown (0) stays
+    # neutral rather than penalized on missing data.
+    required_window = int(requirements.get("required_window_tokens") or 0)
+    if required_window > 0 and capability.context_window >= required_window:
+        delta = 0.3
+        score += delta
+        terms["context_known_sufficient"] = delta
+    # Latency prior (low_latency budget): measured throughput only. tokens_per_second == 0 is
+    # UNKNOWN, never "slow" — an unmeasured candidate keeps its prior score exactly, so
+    # selection stays deterministic when optional enrichment (benchmarks, catalog) is absent.
+    tokens_per_second = float(capability.tokens_per_second or 0.0)
+    if str(requirements.get("latency_budget") or "") == "low_latency" and tokens_per_second > 0.0:
+        speed_delta = min(1.2, tokens_per_second / 50.0)
+        if tokens_per_second < 8.0:
+            speed_delta -= 0.8
+        score += speed_delta
+        terms["measured_speed"] = round(speed_delta, 4)
+    # Quality prior, local lane only: a remote model id carries no meaningful parameter count,
+    # so bands would misread names rather than measure fit. draft prefers the small fast local
+    # model; high prefers the stronger local lane.
+    quality_target = str(requirements.get("quality_target") or "")
+    if capability.locality == "local":
+        size_b = model_parameter_billions(capability.model_id)
+        if quality_target == "draft" and size_b > 0.0:
+            delta = 0.4 if size_b <= 4.0 else (-0.2 if size_b >= 13.0 else 0.0)
+            if delta:
+                score += delta
+                terms["quality_band"] = delta
+        elif quality_target == "high" and ("code_complex" in cap_tools or size_b >= 13.0):
+            delta = 0.4
+            score += delta
+            terms["quality_band"] = delta
     # Hardware-fit: prefer a model that fits the user's actual box, sink one that
     # won't. Inert for manifests that declare no ram/vram footprint.
     probe = _device_probe()
     if probe is not None:
-        score += _hardware_fit_adjustment(
+        hardware_delta = _hardware_fit_adjustment(
             capability,
             ram_gb=float(probe.ram_gb or 0.0),
             vram_gb=float(probe.vram_gb or 0.0),
             accelerator=str(probe.accelerator or "cpu"),
         )
-    return score
+        if hardware_delta:
+            score += hardware_delta
+            terms["hardware_fit"] = round(hardware_delta, 4)
+    return score, terms
 
 
 def _normalize_role(role: str) -> ProviderRole:

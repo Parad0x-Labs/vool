@@ -1,0 +1,26 @@
+# Balcony garden watering controller
+[controller]
+name = "balcony-east"
+timezone = "Europe/Lisbon"
+dry_run = false
+
+[schedule]
+morning = "06:40"
+evening = "19:15"
+skip_if_rain_mm_over = 3.5
+
+[zones.tomatoes]
+valve = 2
+minutes = 9
+enabled = true
+
+[zones.herbs]
+valve = 4
+minutes = 4
+enabled = true
+
+[zones.lemon_tree]
+valve = 1
+minutes = 12
+enabled = false
+note = "paused until the new pot drains properly"
