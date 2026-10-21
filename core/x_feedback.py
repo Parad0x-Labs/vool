@@ -192,6 +192,52 @@ def use_as_voice(scope: str, entry_id: str, *, home: Path | None = None) -> dict
         return {'ok': False, 'status': 'store_unreadable'}
 
 
+def _asked_draft(session_id: str) -> str:
+    """Read the previous served answer, never caller/model supplied history."""
+    from core.chat_housekeeping import last_assistant_message
+
+    previous = last_assistant_message(session_id) if session_id else None
+    message = str((previous or {}).get('text') or '').strip()
+    paragraphs = re.split(r'\n\s*\n', message)
+    question = paragraphs[-1] if paragraphs else ''
+    if not (re.search(r'\b(?:rate|rating)\b', question, re.I)
+            and re.search(r'\b(?:draft|this|it)\b', question, re.I)
+            and re.search(r'\b1\s*(?:-|–|to|out of|/)\s*10\b', question, re.I)):
+        return ''
+    body = '\n\n'.join(paragraphs[:-1]).strip()
+    fenced = re.findall(r'```[^\n]*\n(.*?)\n```', body, re.S)
+    if len(fenced) == 1 and body.count('```') == 2:
+        return fenced[0].strip()
+    labelled = re.fullmatch(r'(?:\*\*)?Draft(?:\*\*)?:\s*(.+)', body, re.I | re.S)
+    if labelled:
+        return labelled[1].strip()
+    return body if len(paragraphs) == 2 else ''
+
+
+def _plain_rating(text: str) -> tuple[int, str] | None:
+    match = re.fullmatch(r'\s*(?:Rating\s*:?\s*)?(\d{1,3})(?:\s*/\s*10)?(?:\s*[-–,:]\s*|\s+)?(.*?)\s*', text, re.I | re.S)
+    if not match or not 1 <= int(match[1]) <= 10:
+        return None
+    tail = match[2]
+    if (re.search(r'\b\d+\s*/\s*10\b|\b(?:or|rating|score)\s*:?\s*\d+', tail, re.I)
+            or re.match(r'\d', tail)):
+        return None
+    return int(match[1]), tail
+
+
+def reply_intents(user_text: str, source_context: dict | None) -> tuple[str, ...]:
+    """A short answer to this chat's stored rating question owns one tool seat."""
+    from core.turn_contract import TurnRequest
+
+    turn = (source_context or {}).get('turn_request')
+    if (not _plain_rating(user_text) or not isinstance(turn, TurnRequest)
+            or turn.user_text.strip() != user_text.strip()
+            or turn.trust_principal != 'owner_local'
+            or turn.surface not in {'', 'desktop', 'cli', 'local'}):
+        return ()
+    return ('x.feedback.save',) if _asked_draft(turn.session_id) else ()
+
+
 def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
     from core import x_actions, x_voice_profile
     from core.turn_contract import TurnRequest
@@ -202,8 +248,16 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
     comment = arguments.get('comment')
     if comment is None:
         comment = ''
-    if not isinstance(turn, TurnRequest) or type(rating) is not int or not isinstance(comment, str):
+    if (not isinstance(turn, TurnRequest) or type(rating) is not int or not isinstance(comment, str)
+            or turn.trust_principal != 'owner_local'
+            or turn.surface not in {'', 'desktop', 'cli', 'local'}):
         return {'ok': False, 'status': 'user_rating_required'}
+    target = _asked_draft(turn.session_id)
+    if target:
+        parsed = _plain_rating(turn.user_text)
+        if not parsed or parsed[0] != rating or (comment and comment != parsed[1]):
+            return {'ok': False, 'status': 'user_rating_required'}
+        return save(x_voice_profile.turn_scope(ctx), rating, target, comment=parsed[1])
     # Only an unambiguous explicit score, verbatim in THIS immutable user turn.
     scores = re.findall(r'(?<![\w/])([1-9]|10)\s*/\s*10(?!\d)', turn.user_text)
     explicit = re.match(r'(?:Rating:\s*|I rate (?:this|it)\s+)?(?:[1-9]|10)\s*/\s*10(?!\d)', turn.user_text.strip())

@@ -580,11 +580,14 @@ def matched_skill_tool_intents(
     Admission means the model may choose a tool. Execution still consults the mode,
     network, usage and action approval authorities independently.
     """
-    return _available_skill_tools(skill_guidance_for(
+    from core.x_feedback import reply_intents
+
+    available = _available_skill_tools(skill_guidance_for(
         str(user_text or ""), task_class=str(task_class or ""),
         task_chars=MAX_TOOL_LANE_SKILL_CHARS, doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
         source_context=source_context,
     ))
+    return tuple(dict.fromkeys((*reply_intents(user_text, source_context), *available)))
 
 
 def assemble_tool_offer(
@@ -652,7 +655,9 @@ def assemble_tool_offer(
         doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
         source_context=source_context if isinstance(source_context, dict) else None,
     )
-    skill_seats = _available_skill_tools(guidance)
+    from core.x_feedback import reply_intents
+
+    skill_seats = tuple(dict.fromkeys((*_available_skill_tools(guidance), *reply_intents(user_text, source_context))))
     # Grow only for rendered, available declarations, inside the graph's hard cap.
     # An explicit caller budget remains authoritative; unrelated turns keep eight seats.
     budget = max_candidates if max_candidates is not None else max(
