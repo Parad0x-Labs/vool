@@ -257,3 +257,18 @@ def test_git_answers_are_not_steered_by_the_runtime_environment(repo, tmp_path, 
     _git(repo, "config", "core.hooksPath", ".husky")
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
     assert refusal(repo / ".husky" / "pre-commit")
+
+
+def test_ordinary_files_named_by_non_program_settings_stay_writable(repo) -> None:
+    for key, value in (("blame.ignoreRevsFile", ".git-blame-ignore-revs"), ("commit.template", ".gitmessage"),
+                       ("user.name", "Jane Doe"), ("branch.main.remote", "origin")):
+        _git(repo, "config", key, value)
+    for name in (".git-blame-ignore-revs", ".gitmessage", "Jane", "origin"):
+        assert _write(repo, name, "x\n").ok is True, name
+
+
+def test_a_script_a_filter_names_is_refused_before_it_exists(repo) -> None:
+    _git(repo, "config", "filter.x.clean", "sh clean.sh")
+    result = _write(repo, "clean.sh", "exit 0\n")
+    assert result is not None and result.ok is False
+    assert not (repo / "clean.sh").exists()

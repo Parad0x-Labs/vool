@@ -12,8 +12,8 @@ that git itself would treat as a repository directory, whatever that directory i
 A repository's configuration can also send git to ordinary project files: `core.hooksPath` names the hooks folder
 (Husky sets it to a folder in the project) and `include.path` / `includeIf.*.path` pull in more configuration.
 For a path inside a working tree, git itself is asked where its hooks folder and every configuration file it reads
-are, and a write there is refused too, as is any file in the working tree that a setting names (a program git
-runs, such as `core.fsmonitor` or a filter or diff driver). When git cannot answer and the repository's own configuration names either
+are, and a write there is refused too, as is any file in the working tree named on the command line of a setting
+that makes git run a program (such as `core.fsmonitor` or a filter or diff driver). When git cannot answer and the repository's own configuration names either
 setting, the write is refused rather than guessed.
 """
 from __future__ import annotations
@@ -103,6 +103,23 @@ def _git(top: Path, *args: str, timeout: float) -> str | None:
     return done.stdout if done.returncode == 0 else None
 
 
+# Settings whose value is a command line git runs.
+_PROGRAM_KEYS = frozenset({
+    "core.fsmonitor", "core.pager", "core.editor", "core.sshcommand", "core.askpass", "sequence.editor",
+    "credential.helper", "gpg.program", "gpg.openpgp.program", "gpg.x509.program", "gpg.ssh.program",
+    "diff.external", "difftool.cmd", "mergetool.cmd", "pager.log", "web.browser", "sendemail.smtpserver",
+})
+_PROGRAM_SUFFIXES = (".clean", ".smudge", ".process", ".command", ".textconv", ".driver", ".cmd", ".helper",
+                     ".program", ".path", ".receivepack", ".uploadpack", ".proxy", ".sshcommand")
+
+
+def _runs_a_program(key: str) -> bool:
+    if key in _PROGRAM_KEYS or key.startswith(("alias.", "pager.")):
+        return True
+    return "." in key and key.startswith(("filter.", "diff.", "merge.", "difftool.", "mergetool.", "credential.",
+                                          "remote.", "core.", "gpg.", "browser.", "man.")) and key.endswith(_PROGRAM_SUFFIXES)
+
+
 def _redirect_targets(top: Path) -> tuple[list[Path], list[Path]] | None:
     """(hooks folders, configuration files) git uses for the working tree at ``top``, or None if git cannot say."""
     cached = _TARGETS_CACHE.get(str(top))
@@ -133,14 +150,18 @@ def _redirect_targets(top: Path) -> tuple[list[Path], list[Path]] | None:
         elif value and lowered == "core.hookspath":
             named = Path(value).expanduser()
             hooks.append(named if named.is_absolute() else top / named)
-        elif value:
-            # Any other setting that names a file in the working tree (a program git runs, such as
-            # core.fsmonitor or a filter or diff driver): that file is git's to run, not a file tools' to change.
+        elif value and _runs_a_program(lowered):
+            # A setting that makes git run a program (core.fsmonitor, a filter or diff driver, ...): any file in the
+            # working tree its command line names is git's to run, not the file tools' to change -- named now or later.
             for token in value.replace('"', " ").replace("'", " ").split():
+                if token.startswith("-") or token.startswith("!"):
+                    token = token.lstrip("!")
+                    if not token or token.startswith("-"):
+                        continue
                 named = Path(token).expanduser()
                 named = named if named.is_absolute() else top / named
                 with contextlib.suppress(OSError, ValueError):
-                    if (("/" in token) or named.exists()) and (named.resolve() == top.resolve() or top.resolve() in named.resolve().parents):
+                    if named.resolve() == top.resolve() or top.resolve() in named.resolve().parents:
                         files.append(named)
     result = (hooks, files)
     _TARGETS_CACHE[str(top)] = (time.monotonic(), result)
