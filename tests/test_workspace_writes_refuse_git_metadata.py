@@ -239,3 +239,21 @@ def test_when_git_cannot_answer_a_repository_naming_those_settings_is_refused(re
     assert refusal(repo / "src" / "app.py")
     (repo / ".git/config").write_text("[core]\n\tbare = false\n", encoding="utf-8")
     assert refusal(repo / "src" / "app.py") == ""
+
+
+def test_a_project_script_a_git_setting_runs_is_refused(repo) -> None:
+    (repo / "tools").mkdir()
+    (repo / "tools" / "watch.sh").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    _git(repo, "config", "core.fsmonitor", "tools/watch.sh")
+    result = _write(repo, "tools/watch.sh", "#!/bin/sh\nexit 0\n")
+    assert result is not None and result.ok is False
+    assert (repo / "tools" / "watch.sh").read_text() == "#!/bin/sh\nexit 1\n"
+    assert _write(repo, "tools/other.sh", "x\n").ok is True
+
+
+def test_git_answers_are_not_steered_by_the_runtime_environment(repo, tmp_path, monkeypatch) -> None:
+    other = tmp_path / "other"
+    _git(other, "init", "-q") if other.mkdir() is None else None
+    _git(repo, "config", "core.hooksPath", ".husky")
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    assert refusal(repo / ".husky" / "pre-commit")

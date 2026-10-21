@@ -12,7 +12,8 @@ that git itself would treat as a repository directory, whatever that directory i
 A repository's configuration can also send git to ordinary project files: `core.hooksPath` names the hooks folder
 (Husky sets it to a folder in the project) and `include.path` / `includeIf.*.path` pull in more configuration.
 For a path inside a working tree, git itself is asked where its hooks folder and every configuration file it reads
-are, and a write there is refused too. When git cannot answer and the repository's own configuration names either
+are, and a write there is refused too, as is any file in the working tree that a setting names (a program git
+runs, such as `core.fsmonitor` or a filter or diff driver). When git cannot answer and the repository's own configuration names either
 setting, the write is refused rather than guessed.
 """
 from __future__ import annotations
@@ -21,6 +22,7 @@ import contextlib
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 REFUSAL_PREFIX = "protected_git_metadata"
@@ -54,7 +56,10 @@ def _is_git_directory(directory: Path) -> bool:
         return False
 
 
-_GIT_TIMEOUT_SECONDS = 10
+_GIT_TIMEOUT_SECONDS = 10.0
+# One write asks several times (each check, each path of a patch); git's answer is reused for this long.
+_CACHE_SECONDS = 2.0
+_TARGETS_CACHE: dict[str, tuple[float, "tuple[list[Path], list[Path]] | None"]] = {}
 
 
 def _worktree_top(form: Path) -> Path | None:
@@ -83,14 +88,16 @@ def _local_config_names_redirect(top: Path) -> bool:
     return "hookspath" in text or "include" in text
 
 
-def _git(top: Path, *args: str) -> str | None:
+def _git(top: Path, *args: str, timeout: float) -> str | None:
     git = shutil.which("git")
     if not git:
         return None
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+    # VOOL's own GIT_* variables (GIT_DIR, GIT_CONFIG_*) would make git describe some other repository.
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env.update({"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"})
     try:
         done = subprocess.run([git, "-C", str(top), *args], capture_output=True, text=True,
-                              timeout=_GIT_TIMEOUT_SECONDS, env=env)
+                              timeout=timeout, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
     return done.stdout if done.returncode == 0 else None
@@ -98,9 +105,15 @@ def _git(top: Path, *args: str) -> str | None:
 
 def _redirect_targets(top: Path) -> tuple[list[Path], list[Path]] | None:
     """(hooks folders, configuration files) git uses for the working tree at ``top``, or None if git cannot say."""
-    hooks_out = _git(top, "rev-parse", "--path-format=absolute", "--git-path", "hooks")
-    config_out = _git(top, "config", "--list", "--show-origin", "-z")
+    cached = _TARGETS_CACHE.get(str(top))
+    if cached is not None and time.monotonic() - cached[0] < _CACHE_SECONDS:
+        return cached[1]
+    started = time.monotonic()
+    hooks_out = _git(top, "rev-parse", "--path-format=absolute", "--git-path", "hooks", timeout=_GIT_TIMEOUT_SECONDS)
+    remaining = _GIT_TIMEOUT_SECONDS - (time.monotonic() - started)
+    config_out = _git(top, "config", "--list", "--show-origin", "-z", timeout=remaining) if hooks_out is not None and remaining > 0 else None
     if hooks_out is None or config_out is None:
+        _TARGETS_CACHE[str(top)] = (time.monotonic(), None)
         return None
     hooks = [Path(hooks_out.strip())] if hooks_out.strip() else []
     files: list[Path] = []
@@ -120,7 +133,18 @@ def _redirect_targets(top: Path) -> tuple[list[Path], list[Path]] | None:
         elif value and lowered == "core.hookspath":
             named = Path(value).expanduser()
             hooks.append(named if named.is_absolute() else top / named)
-    return hooks, files
+        elif value:
+            # Any other setting that names a file in the working tree (a program git runs, such as
+            # core.fsmonitor or a filter or diff driver): that file is git's to run, not a file tools' to change.
+            for token in value.replace('"', " ").replace("'", " ").split():
+                named = Path(token).expanduser()
+                named = named if named.is_absolute() else top / named
+                with contextlib.suppress(OSError, ValueError):
+                    if (("/" in token) or named.exists()) and (named.resolve() == top.resolve() or top.resolve() in named.resolve().parents):
+                        files.append(named)
+    result = (hooks, files)
+    _TARGETS_CACHE[str(top)] = (time.monotonic(), result)
+    return result
 
 
 def _redirect_refusal(candidate: Path, forms: list[Path], top: Path) -> str:
