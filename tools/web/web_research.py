@@ -3286,13 +3286,24 @@ def web_research(
             notes.append("deadline_exhausted:pages")
             break
         try:
-            fetched = http_fetch_text(hit.url, timeout_s=max(2.0, min(fetch_timeout_s, _remaining())))
+            # A search hit is a page some engine returned, so it is public by nature: a hit (or the
+            # page its redirects land on) that points at this computer or its local network is a
+            # poisoned result, and reading it would put the owner's own services into the answer.
+            # It is refused, and a refused hit is never handed to the browser either. Not pinned
+            # like a remote turn's public-only fetch, so the owner's proxy keeps working; remote
+            # turns never reach research at all (core.request_trust.REMOTE_TURN_TOOL_INTENTS).
+            fetched = http_fetch_text(hit.url, timeout_s=max(2.0, min(fetch_timeout_s, _remaining())), not_local=True)
             status = str(fetched.get("status") or "fetch_error")
             text = str(fetched.get("text") or "")
             html_text = str(fetched.get("html") or "")
             final_url = str(fetched.get("final_url") or hit.url)
 
-            if _should_try_browser() and _needs_browser(status, text) and _remaining() >= _BROWSER_MIN_BUDGET_S:
+            if (
+                status != "private_target_refused"
+                and _should_try_browser()
+                and _needs_browser(status, text)
+                and _remaining() >= _BROWSER_MIN_BUDGET_S
+            ):
                 screenshot_path = None
                 if evidence_screenshot_dir:
                     os.makedirs(evidence_screenshot_dir, exist_ok=True)

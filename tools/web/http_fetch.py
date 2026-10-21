@@ -82,7 +82,8 @@ def _decompress(raw: bytes, content_encoding: str) -> bytes | None:
 
 
 def http_fetch_text(
-    url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000_000, public_only: bool = False
+    url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000_000, public_only: bool = False,
+    not_local: bool = False,
 ) -> dict[str, str]:
     """Fetch and normalize one page -- THROUGH THE ONE DOOR (R2b2b).
 
@@ -98,8 +99,13 @@ def http_fetch_text(
     ``public_only`` (a turn from another device, core.remote_turn_fetch) reaches public addresses
     only, checked after DNS and on every redirect hop; a refused target answers
     ``private_target_refused``.
+
+    ``not_local`` (the owner's research reading search hits) goes through the normal door, proxy
+    included, but refuses a URL that names this computer or its local network before it is sent,
+    and a page whose redirects landed there before its body is read
+    (core.remote_turn_fetch.refuse_local_target).
     """
-    from core.remote_turn_fetch import RemoteTurnTargetRefused, open_public_only
+    from core.remote_turn_fetch import RemoteTurnTargetRefused, open_public_only, refuse_local_target
 
     max_bytes = max(1024, min(int(max_bytes), policy_engine.max_fetch_bytes()))
 
@@ -121,6 +127,8 @@ def http_fetch_text(
         )
 
     try:
+        if not_local and not public_only:
+            refuse_local_target(url)
         opened = (
             open_public_only(url, make_request=_request, timeout=timeout_s)
             if public_only
@@ -128,6 +136,8 @@ def http_fetch_text(
         )
         with opened as response:
             final_url = str(response.geturl() or url)
+            if not_local and not public_only:
+                refuse_local_target(final_url)
             content_encoding = str(response.headers.get("Content-Encoding") or "")
             raw = response.read(max_bytes)
     except RemoteFetchRefusedError:
