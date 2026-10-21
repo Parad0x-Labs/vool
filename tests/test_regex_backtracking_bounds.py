@@ -56,6 +56,21 @@ NEW_THIRD_PARTY_SPLIT = (
     r",\s*(?:and|but|so|while|whereas)\s+|;\s+|(?<!\s)\s+(?:and|but|whereas|while)\s+(?=i\b|we\b|so\s+(?:am|do)\s+i)"
 )
 ORIGINAL_FOCUS = re.compile(r",\s*((?:what|which)\s+.+)$", re.IGNORECASE)
+_ORIGINAL_AUTHORING_TAIL = (
+    r"(?:write|draft|compose|generate)\s+(?:me\s+|up\s+)?(?:a|an|the)?\s*"
+    r"(?:[\w.+#/-]+\s+){0,4}?"
+    r"(?:command|one[-\s]?liner|script|query|queries|email|e-mail|mail|message|sms|text\s+message|"
+    r"reply|snippet|interface|function|regex|expression|schema|struct|class|type|"
+    r"letter|note|memo|tweet|post|caption|paragraph|poem|essay|summary|template|statement)\b"
+)
+ORIGINAL_AUTHORING_REQUEST = re.compile(
+    r"^\s*(?:(?:ok(?:ay)?|so|hey|hi|yo|please|pls|just|and|but|also|instead|now|then)\b[\s,]*)*"
+    r"(?:(?:can|could|would)\s+(?:you|u)\s+(?:please\s+)?)?" + _ORIGINAL_AUTHORING_TAIL,
+    re.IGNORECASE,
+)
+ORIGINAL_AUTHORING_PIVOT = re.compile(
+    r"(?:^|[.!?]\s+)(?:instead|now|then|just)?[\s,]*" + _ORIGINAL_AUTHORING_TAIL, re.IGNORECASE
+)
 
 
 def test_provenance_suffix_is_fast_on_an_unclosed_stated_chain_and_matches_as_before():
@@ -113,3 +128,20 @@ def test_interrogative_focus_is_fast_across_many_lines_and_finds_the_same_match(
         new = plain_task_routing._INTERROGATIVE_FOCUS_RE.search(text, floor(text))
         old = ORIGINAL_FOCUS.search(text)
         assert (new and (new.span(), new.group(1))) == (old and (old.span(), old.group(1))), text
+
+
+def test_authoring_requests_are_fast_on_space_runs_and_match_as_before():
+    for hostile in ("write " + "  " * 20_000 + "!", "! " + "\t\t" * 20_000 + "!", "! write " + "  " * 20_000 + "!"):
+        assert _elapsed(instructional_request._AUTHORING_REQUEST_RE.match, hostile) < BUDGET_SECONDS
+        assert _elapsed(instructional_request._AUTHORING_PIVOT_RE.search, hostile) < BUDGET_SECONDS
+        assert _elapsed(instructional_request.asks_for_instructions_not_execution, hostile) < BUDGET_SECONDS
+    alphabet = [
+        "write ", "draft ", "me ", "up ", "a", "an ", "the", " ", "  ", "\t", ", ", ".", "!", "?",
+        "instead", "now ", "then", "just", "please ", "can you ", "bash ", "one-liner", "script", "email", "x",
+    ]
+    for text in _fuzz(alphabet, count=6000):
+        new = instructional_request._AUTHORING_REQUEST_RE.match(text)
+        old = ORIGINAL_AUTHORING_REQUEST.match(text)
+        assert (new and new.span()) == (old and old.span()), text
+        new, old = instructional_request._AUTHORING_PIVOT_RE.search(text), ORIGINAL_AUTHORING_PIVOT.search(text)
+        assert (new and new.span()) == (old and old.span()), text
