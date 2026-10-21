@@ -208,23 +208,21 @@ def capability_requires_owner_local(capability: str) -> bool:
 
 # What a turn that is NOT the owner's own session may still run: a paired phone, a channel, or any
 # other device on the network "can chat and read; they can never inherit owner-gated privileges"
-# (core.channel_gateway). These read only public information. Everything else -- files and folders
-# on this computer, notes, calendar, mail, contacts, the profile, media projects, the browser
-# profile, repositories, skills, the wallet, the owner's X account -- is the owner's own.
+# (core.channel_gateway). Everything else -- files and folders on this computer, notes, calendar,
+# mail, contacts, the profile, media projects, the browser profile, repositories, skills, the
+# wallet, the owner's X account, and every lane that spends the owner's provider keys or money --
+# is the owner's own. Fail closed: an intent is the owner's unless it is listed here.
 REMOTE_TURN_TOOL_INTENTS = frozenset({
     "respond.direct",
     "capability.expand_family",
-    # public pages only: core.remote_turn_fetch refuses this computer and its local network
+    # One public page, unkeyed: core.remote_turn_fetch refuses this computer and its local network
+    # and checks every redirect hop. It uses no key and no paid provider.
     "web.fetch",
-    # browser.render is NOT here: a browser follows redirects and loads sub-resources that cannot be
-    # pinned to checked public addresses, so from another device it could reach the owner's network.
-    "web.chain_lookup",
-    "token.research",
-    "token.launches",
-    "token.performance",
-    "token.flow",
-    "marketplace.search_listings",
-    "sell.quote",
+    # NOT here, each because it would spend the owner's keys, money or network position:
+    # web.search / web.research (keyed search providers), web.chain_lookup and token.* (chain-data
+    # API keys), marketplace.search_listings and sell.quote (paid marketplace and quote services),
+    # pay.* (payments), and browser.render (a browser follows redirects and loads sub-resources that
+    # cannot be pinned to checked public addresses, so it could reach the owner's network).
 })
 
 

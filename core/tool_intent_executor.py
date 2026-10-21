@@ -1055,6 +1055,26 @@ def _execute_tool_intent_impl(
     if intent in {"respond.direct", "none", "no_tool"}:
         return ToolIntentExecution(handled=False, ok=True, status="direct_response")
 
+    # Remote-turn fence, once, ahead of every lane (web, browser, payment, hive, operator, plugin,
+    # runtime) and of the receipt cache: a turn the server stamped as NOT the owner's own session
+    # may run only the intents core.request_trust lists for it. The web and payment lanes used to
+    # dispatch without asking, so a phone turn ran keyed web searches, rendered pages in a browser
+    # on this computer and reached pay.x402's approval gate.
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+    remote_refusal = remote_turn_tool_refusal(intent, source_context)
+    if remote_refusal:
+        return ToolIntentExecution(
+            handled=True,
+            ok=False,
+            status=remote_refusal,
+            mode="refused",
+            tool_name=intent,
+            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            user_safe_response_text=REMOTE_TURN_REFUSAL_TEXT,
+            details={"executed": False, "reason": remote_refusal},
+        )
+
     # `machine.list_directory` is a particularly sharp lexical collision: "List only members of
     # this standard" is a response-shape/knowledge request, while the tool reads a local path.
     # The front door stamps this proof only when the existing typed list-directory probe found an
