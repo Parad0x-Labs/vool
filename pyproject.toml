@@ -9,7 +9,7 @@ description = "VOOL — local-first AI agent runtime with memory, tools, optiona
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [
     {name = "sls_0x"},
 ]
@@ -17,6 +17,7 @@ keywords = ["ai", "agent", "local-first", "memory", "tools", "proof"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
