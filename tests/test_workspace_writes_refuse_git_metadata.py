@@ -199,3 +199,43 @@ def test_rollback_does_not_write_through_a_directory_swapped_for_a_link_to_git(r
         assert (repo / ".git/config").read_text() == original
     finally:
         configure_runtime_home(None)
+
+
+def _write(repo: Path, path: str, content: str):
+    return execute_runtime_tool("workspace.write_file", {"path": path, "content": content},
+                                source_context={"workspace": str(repo)})
+
+
+def test_the_hooks_folder_named_by_core_hookspath_is_refused(repo) -> None:
+    (repo / ".husky").mkdir()
+    hook = repo / ".husky/pre-commit"
+    hook.write_text("#!/bin/sh\ntrue\n", encoding="utf-8")
+    hook.chmod(0o755)
+    _git(repo, "config", "core.hooksPath", ".husky")
+    result = _write(repo, ".husky/pre-commit", f"#!/bin/sh\ntouch {MARK}\n")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-qm", "x")
+    assert result is not None and result.ok is False
+    assert hook.read_text() == "#!/bin/sh\ntrue\n"
+    assert not (repo / MARK).exists()
+    assert _write(repo, ".husky_notes.md", "ok\n").ok is True
+
+
+def test_a_config_file_pulled_in_by_include_is_refused_even_before_it_exists(repo) -> None:
+    _git(repo, "config", "include.path", "../team.gitconfig")
+    _git(repo, "config", "includeIf.onbranch:main.path", "../branch.gitconfig")
+    for name in ("team.gitconfig", "branch.gitconfig"):
+        result = _write(repo, name, "[core]\n\tbare = false\n")
+        assert result is not None and result.ok is False, name
+        assert not (repo / name).exists()
+    assert _write(repo, "other.gitconfig", "x\n").ok is True
+
+
+def test_when_git_cannot_answer_a_repository_naming_those_settings_is_refused(repo, monkeypatch) -> None:
+    from core import git_metadata_protection
+
+    _git(repo, "config", "core.hooksPath", ".husky")
+    monkeypatch.setattr(git_metadata_protection.shutil, "which", lambda _name: None)
+    assert refusal(repo / "src" / "app.py")
+    (repo / ".git/config").write_text("[core]\n\tbare = false\n", encoding="utf-8")
+    assert refusal(repo / "src" / "app.py") == ""
