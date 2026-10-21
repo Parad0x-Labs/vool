@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,34 @@ def script() -> str:
     scripts = sorted(re.findall(r"<script[^>]*>(.*?)</script>", HTML, re.DOTALL), key=len, reverse=True)
     assert scripts, "no inline script found in the chat page"
     return scripts[0]
+
+
+def script_blocks(html: str) -> list[str]:
+    """Every inline <script> body in a rendered page, in order, read by the stdlib HTML parser."""
+
+    class _Scripts(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=False)
+            self.blocks: list[str] = []
+            self._open = False
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "script":
+                self._open = True
+                self.blocks.append("")
+
+        def handle_endtag(self, tag):
+            if tag == "script":
+                self._open = False
+
+        def handle_data(self, data):
+            if self._open:
+                self.blocks[-1] += data
+
+    parser = _Scripts()
+    parser.feed(html)
+    parser.close()
+    return parser.blocks
 
 
 def slice_source(source: str, start: str, end: str) -> str:

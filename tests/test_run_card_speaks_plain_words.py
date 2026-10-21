@@ -23,7 +23,7 @@ import pytest
 
 from core.i18n.catalog import CATALOGS_DIR, catalog_for
 from core.vool_chat_page import render_vool_chat_html
-from tests.chat_page_js_harness import DOM, run_node
+from tests.chat_page_js_harness import DOM, run_node, script_blocks
 
 LOCALES = sorted(p.stem for p in CATALOGS_DIR.glob("*.json"))
 _SCRIPTS: dict[str, str] = {}
@@ -32,7 +32,7 @@ _SCRIPTS: dict[str, str] = {}
 def _script(locale: str) -> str:
     if locale not in _SCRIPTS:
         html = render_vool_chat_html(ui_locale=locale)
-        scripts = sorted(re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL | re.IGNORECASE), key=len, reverse=True)
+        scripts = sorted(script_blocks(html), key=len, reverse=True)
         _SCRIPTS[locale] = scripts[0]
     return _SCRIPTS[locale]
 
