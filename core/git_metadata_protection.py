@@ -108,16 +108,17 @@ _PROGRAM_KEYS = frozenset({
     "core.fsmonitor", "core.pager", "core.editor", "core.sshcommand", "core.askpass", "sequence.editor",
     "credential.helper", "gpg.program", "gpg.openpgp.program", "gpg.x509.program", "gpg.ssh.program",
     "diff.external", "difftool.cmd", "mergetool.cmd", "pager.log", "web.browser", "sendemail.smtpserver",
+    "interactive.difffilter", "core.gitproxy", "core.alternaterefscommand", "sendemail.sendmailcmd",
 })
 _PROGRAM_SUFFIXES = (".clean", ".smudge", ".process", ".command", ".textconv", ".driver", ".cmd", ".helper",
-                     ".program", ".path", ".receivepack", ".uploadpack", ".proxy", ".sshcommand")
+                     ".program", ".path", ".receivepack", ".uploadpack", ".proxy", ".sshcommand", ".update")
 
 
 def _runs_a_program(key: str) -> bool:
     if key in _PROGRAM_KEYS or key.startswith(("alias.", "pager.")):
         return True
     return "." in key and key.startswith(("filter.", "diff.", "merge.", "difftool.", "mergetool.", "credential.",
-                                          "remote.", "core.", "gpg.", "browser.", "man.")) and key.endswith(_PROGRAM_SUFFIXES)
+                                          "remote.", "core.", "gpg.", "browser.", "man.", "trailer.", "submodule.")) and key.endswith(_PROGRAM_SUFFIXES)
 
 
 def _redirect_targets(top: Path) -> tuple[list[Path], list[Path]] | None:

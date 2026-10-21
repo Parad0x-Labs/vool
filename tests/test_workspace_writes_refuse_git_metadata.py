@@ -272,3 +272,9 @@ def test_a_script_a_filter_names_is_refused_before_it_exists(repo) -> None:
     result = _write(repo, "clean.sh", "exit 0\n")
     assert result is not None and result.ok is False
     assert not (repo / "clean.sh").exists()
+
+
+@pytest.mark.parametrize("key", ["interactive.diffFilter", "core.gitProxy", "trailer.sign.command", "sendemail.sendmailCmd"])
+def test_less_common_program_settings_protect_the_script_they_name(repo, key) -> None:
+    _git(repo, "config", key, "sh tools/run.sh")
+    assert refusal(repo / "tools" / "run.sh")
