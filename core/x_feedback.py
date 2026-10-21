@@ -215,10 +215,10 @@ def _asked_draft(session_id: str) -> str:
 
 
 def _plain_rating(text: str) -> tuple[int, str] | None:
-    match = re.fullmatch(r'\s*(?:Rating\s*:?\s*)?(\d{1,3})(?:\s*/\s*10)?(?:\s*[-–,:]\s*|\s+)?(.*?)\s*', text, re.I | re.S)
+    match = re.fullmatch(r'\s*(?:Rating\s*:?\s*)?(\d{1,3})(?:\s*/\s*10)?(?:(?:\s*[-–,:]\s*|\s+)(.*?))?\s*', text, re.I | re.S)
     if not match or not 1 <= int(match[1]) <= 10:
         return None
-    tail = match[2]
+    tail = match[2] or ''
     if (re.search(r'\b\d+\s*/\s*10\b|\b(?:or|rating|score)\s*:?\s*\d+', tail, re.I)
             or re.match(r'\d', tail)):
         return None

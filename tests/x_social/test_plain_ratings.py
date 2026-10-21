@@ -39,6 +39,8 @@ def test_plain_rating_binds_only_the_stored_assistant_draft(vault_home, text):
     ('7 or 8', 'rating-conversation', 'desktop', True),
     ('7/10 or 8/10', 'rating-conversation', 'desktop', True),
     ('11', 'rating-conversation', 'desktop', True),
+    ('7.5', 'rating-conversation', 'desktop', True),
+    ('7oops', 'rating-conversation', 'desktop', True),
     ('0', 'rating-conversation', 'desktop', True),
     ('7', 'rating-conversation', 'channel', True),
     ('7', 'rating-conversation', 'desktop', False),
