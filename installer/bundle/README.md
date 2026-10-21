@@ -198,6 +198,6 @@ No update policy, release manifest or feed format is defined here.
 same tarball into a fresh HOME on Ubuntu 22.04 and 24.04, removes the extracted
 source, checks exact-head health and a real chat answer, proves shutdown, then
 uninstalls while preserving profile data. Tag assets are attached only after
-both tests pass. AppImage and DEB are not part of v0.7.2.
+both tests pass. AppImage and DEB are not part of v0.7.3.
 
 Self-contained macOS builds fetch Ollama 0.40.3 from its official release archive and verify the recorded SHA-256 before extraction. The proxy-tools wheel is assembled twice from its pinned source archive with the deterministic Intel release recipe; mismatched source, wheel or repeated build bytes stop the build. The native DMG smoke uses the system mount point and also checks PIN redaction, private-chat traces, numeric-only speed records and scoped forgetting.

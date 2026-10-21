@@ -3,6 +3,49 @@
 All notable changes to VOOL. Dates are YYYY-MM-DD. Earlier internal development
 history is not republished here.
 
+## [0.7.3-beta] — 2026-10-21
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.3-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.3-beta).
+Updating from 0.7.2, 0.7.1 or 0.7.0: download 0.7.3 and install it over your current version. Your chats and settings
+live in your profile, outside the app.
+
+### Added
+- **Goals.** Type `/goal` followed by what you want done. VOOL plans the steps and works through them, with a card above the message box to pause, resume or stop. A goal never spends money by itself, and it waits while the chat is private.
+- **Run commands from chat.** More everyday tools run in VOOL's sandbox, such as make, go, uv, linters and formatters, and command lines chained together. The approval card shows the exact command before it runs. An install gets internet access only after your OK. A failed command shows its exit code and output.
+- **Remove a calendar account** from Settings. VOOL forgets the calendars you chose, the events it copied and its pending alerts. Nothing changes in the calendar itself.
+- **Apple Calendar and Contacts on Mac,** once macOS has your permission. For Calendar, VOOL asks only when you add an account or refresh the calendar list in Settings.
+- **Paying a contact (crypto, off by default).** A payment to a saved contact goes only to the exact address you reviewed. If the contact changes, VOOL asks you to review it again.
+
+### Changed
+- **Forget removes the text from the memory file.** Forget now erases the forgotten words from VOOL's local memory file and its search index, and from long text you pasted into that chat. "Forget A and forget B" forgets both, the count shows only memory that was really removed, and curly apostrophes work too.
+- **"Go online on its own" covers more.** With the switch off, VOOL also skips update checks and online calendar sync, and says so calmly. Calendars on this computer keep working.
+- **Plain words in Activity.** The Activity panel and the card under each reply say what happened in plain words, in your app language. Failures show as failures.
+- **No model yet? VOOL says so,** with a "Set up a model" button, even before your first message. It also finds a local model at another address on this computer.
+- **Better Auto model choice.** Auto picks only a model that can do what the task needs. A model you pick yourself handles the whole answer, tool steps included. A brief hiccup from a free model is retried once.
+- **One chat, two windows.** A new message waits its turn while the chat is answering in another window.
+- **Exported chats with real names,** named after the chat and the date, with a short header that says what is left out.
+- **Notes that make sense.** "Write a note to my neighbour" writes the note; "Take a note to buy milk" still saves it.
+- **Clearer Wallet panel.** Exact amounts, real times, and a "Not sent" receipt when a payment is declined or cancelled. On mainnet, a connected or watch-only account can receive and show its balance but cannot send from VOOL.
+- **Security updates.** pillow 13.0.0 and certifi 2026.10.19.
+
+### Fixed
+- Spending limits count each paid cloud answer once; a charge VOOL cannot confirm is held at that call's approved limit.
+- One question keeps one answer after a reload.
+- After you press Allow, the action you approved is the one that runs.
+- Cooking questions like "what oven temperature for roasting potatoes" are no longer treated as weather lookups.
+- Very long answers keep streaming smoothly to the end. Keyboard hints show Ctrl on Linux.
+
+### Known limitations
+- Skill Codex: only the skill's text goes along when you share, so a skill with extra files cannot be shared yet.
+- After a forget, VOOL keeps the words you asked it to forget in a short list on your computer, so it can keep refusing them.
+- On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now.
+- Paying websites through Solana pay-kit is not included in the downloads.
+- No live mainnet payment has been made yet with x402 or pay-per-answer AI services.
+- Before a local model can write answers, press **Certify** for it once (Settings > Models & Providers > Local models).
+- Scanned-PDF reading works on Macs only.
+- The macOS apps are not notarized.
+
 ## [0.7.2-beta] — 2026-10-20
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

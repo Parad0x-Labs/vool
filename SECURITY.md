@@ -42,7 +42,7 @@ through the private channels above, never a public issue.
 
 ## Supported Versions
 
-Only the latest release (currently v0.7.2-beta) and the `main` branch are actively maintained. We do not backport fixes to older tags or branches.
+Only the latest release (currently v0.7.3-beta) and the `main` branch are actively maintained. We do not backport fixes to older tags or branches.
 
 ## Disclosure
 
