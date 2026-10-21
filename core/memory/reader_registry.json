@@ -196,6 +196,7 @@
   "core/memory/reader_registry.py": {},
   "core/memory/revocation.py": {
     "serialized": "authority",
+    "fence_first": "authority",
     "begin_group": "authority",
     "prepare": "authority",
     "initialize_memory_home": "authority",
