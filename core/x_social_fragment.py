@@ -78,7 +78,7 @@ async function refresh(entry){
    }
    const yes=button(t('xact.approve','Approve and send'),()=>act('approve'));yes.classList.add('vx-approve');row.appendChild(yes);
    row.appendChild(button(t('xact.decline','Decline'),()=>act('decline')));card.appendChild(row);rating(card,a);
-  }else{note.textContent=t('xact.state_'+a.state,a.message||a.state);if(a.state==='sent')rating(card,a);}
+  }else{note.textContent=a.state==='unknown' ? (a.message||t('xact.state_unknown','Unclear if it was sent')) : t('xact.state_'+a.state,a.message||a.state);if(a.state==='sent')rating(card,a);}
   entry.host.appendChild(card);
  }
 }

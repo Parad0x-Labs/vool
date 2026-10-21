@@ -534,6 +534,11 @@ def approve(action_id: Any, *, expected_hash: Any = None) -> dict[str, Any]:
                   "url": x_api.post_url(handle if x_api._HANDLE_RE.fullmatch(handle) else "i", str(data_part["id"]))}
     elif isinstance(data_part, dict):
         result = {k: v for k, v in data_part.items() if isinstance(v, (bool, int)) and k != "url"}
+    # A 2xx status without the expected receipt does not prove publication.
+    if action["kind"] in _TEXT_KINDS and not result.get("post_id"):
+        action = _finish(action, state="unknown", message="X did not return a post receipt. "
+                         "It may or may not have gone out: check X before trying again.")
+        return {"ok": False, "state": "unknown", "message": action["message"], "action": public(action)}
     done = "sent" if action["kind"] in _TEXT_KINDS or action["kind"] == "dm" else "done"
     action = _finish(action, state="sent", result=result, message="Sent to X." if done == "sent" else "Done on X.")
     return {"ok": True, "action": public(action), "message": f"{action['summary']}: {done}." + (f" {result['url']}" if result.get("url") else "")}
