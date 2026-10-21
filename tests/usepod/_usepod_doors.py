@@ -25,7 +25,7 @@ def get(path: str, query: dict[str, list[str]] | None = None) -> dict:
     from core.web.api.runtime import RuntimeServices
     from core.web.api.service import dispatch_get
 
-    response = dispatch_get(path=path, query=query or {}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+    response = dispatch_get(path=path, query=query or {}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1")
     return json.loads(response.body.decode("utf-8"))
 
 

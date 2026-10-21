@@ -307,7 +307,7 @@ def test_runtime_session_api_keeps_summary_and_detail_contracts_distinct(monkeyp
     monkeypatch.setattr(service, "list_runtime_sessions", reader)
     result = service.dispatch_get(
         path="/api/runtime/sessions", query={"summary": ["1"]} if summary else {},
-        runtime=RuntimeServices(display_name="VOOL"), model_name="vool",
+        runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1",
     )
     assert result.status == 200
     assert json.loads(result.body)["sessions"][0]["session_id"] == "lifecycle"

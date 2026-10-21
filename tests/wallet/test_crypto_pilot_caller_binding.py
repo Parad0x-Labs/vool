@@ -113,7 +113,7 @@ def test_the_command_dispatch_projection_cannot_reach_a_trusted_door(app):
     from core.command_registry.groups import delegated_routes
 
     handler = delegated_routes._wallet_post("/api/wallet/approve")
-    context = ExecutionContext(projection="api")
+    context = ExecutionContext(projection="api", extra={"client_host": "127.0.0.1"})
     result = handler(delegated_routes.RouteInput(body={"proposal_id": "pay-00000000000000000000", "pin": "123456"}), context)
     rendered = json.dumps(getattr(result, "data", None) or getattr(result, "__dict__", {}), default=str)
     assert "wallet_caller_refused" in rendered and "no_caller_evidence" in rendered, rendered

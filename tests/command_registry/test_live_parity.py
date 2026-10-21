@@ -25,7 +25,8 @@ def live_server():
 
         def do_GET(self):
             res = dispatch_get(
-                path=self.path, query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool"
+                path=self.path, query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool",
+                client_host=self.client_address[0],
             )
             self.send_response(res.status)
             self.send_header("content-type", res.content_type)

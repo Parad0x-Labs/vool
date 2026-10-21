@@ -8,11 +8,11 @@ def test_dismissal_is_persisted_and_read_back_without_changing_other_preferences
     p = load_preferences()
     p.humor_percent = 37
     save_preferences(p)
-    response = dispatch_post(path="/api/settings/prefs", body={"speech_notice_dismissed": True}, headers={"Content-Type": "application/json"}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", workspace_root_provider=lambda: None)
+    response = dispatch_post(path="/api/settings/prefs", body={"speech_notice_dismissed": True}, headers={"Content-Type": "application/json"}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", workspace_root_provider=lambda: None, client_host="127.0.0.1")
     assert response.status == 200
     assert load_preferences().speech_notice_dismissed is True
     assert load_preferences().humor_percent == 37
-    response = dispatch_get(path="/api/settings/prefs", query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+    response = dispatch_get(path="/api/settings/prefs", query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1")
     assert response.status == 200
     import json
     assert json.loads(response.body)["speech_notice_dismissed"] is True
@@ -45,9 +45,9 @@ def test_browser_dismissal_survives_a_fresh_private_context():
             if r.request.method == "POST":
                 body = json.loads(r.request.post_data)
                 writes.append(body)
-                response = dispatch_post(path=path, body=body, headers={"content-type":"application/json"}, runtime=runtime, model_name="vool", workspace_root_provider=lambda: "/tmp")
+                response = dispatch_post(path=path, body=body, headers={"content-type":"application/json"}, runtime=runtime, model_name="vool", workspace_root_provider=lambda: "/tmp", client_host="127.0.0.1")
             else:
-                response = dispatch_get(path=path, query={}, runtime=runtime, model_name="vool")
+                response = dispatch_get(path=path, query={}, runtime=runtime, model_name="vool", client_host="127.0.0.1")
             return r.fulfill(status=response.status, content_type="application/json", body=response.body)
         payload = {"ok":True, "sessions":[], "items":[], "models":[], "projects":[]}
         if path == "/api/chat/dictation":

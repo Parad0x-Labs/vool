@@ -34,11 +34,12 @@ def _post(body, headers=None):
         runtime=_rt(),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
 
 
 def _get():
-    return dispatch_get(path="/api/settings/credentials", query={}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path="/api/settings/credentials", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _body(response):
@@ -95,7 +96,7 @@ def test_cloud_keys_maps_stored_slots_to_providers(monkeypatch) -> None:
     monkeypatch.setattr(credential_store, "list_credentials",
                         lambda: [{"name": "llm.cloud.openrouter", "label": "OpenRouter"}])
     monkeypatch.setattr(media_tools, "has_image_service", lambda *a, **k: True)
-    res = dispatch_get(path="/api/cloud/keys", query={}, runtime=_rt(), model_name="vool")
+    res = dispatch_get(path="/api/cloud/keys", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     keys = _json.loads(res.body.decode("utf-8"))["keys"]
     provs = {k["provider"] for k in keys}
     assert "openrouter" in provs and "fal" in provs

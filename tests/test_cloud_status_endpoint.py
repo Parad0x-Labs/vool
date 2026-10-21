@@ -42,7 +42,7 @@ def _rt() -> RuntimeServices:
 
 
 def _status(query=None):
-    return dispatch_get(path="/api/cloud/status", query=query or {}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path="/api/cloud/status", query=query or {}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _test_post(body=None, headers=None):
@@ -53,6 +53,7 @@ def _test_post(body=None, headers=None):
         runtime=_rt(),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
 
 

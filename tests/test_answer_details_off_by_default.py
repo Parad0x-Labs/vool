@@ -133,12 +133,13 @@ def test_the_settings_row_turns_the_line_on_and_off_through_the_real_doors(fresh
         response = dispatch_post(
             path=url, body={field: value}, headers={"Content-Type": "application/json"},
             runtime=RuntimeServices(display_name="VOOL"), model_name="vool", workspace_root_provider=lambda: None,
+            client_host="127.0.0.1",
         )
         assert response.status == 200, response.body
-        read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+        read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1")
         assert read.status == 200 and json.loads(read.body)[field] is value
 
-    read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool")
+    read = dispatch_get(path=row["read"]["url"], query={}, runtime=RuntimeServices(display_name="VOOL"), model_name="vool", client_host="127.0.0.1")
     assert json.loads(read.body)[field] is False
 
     _set(True)

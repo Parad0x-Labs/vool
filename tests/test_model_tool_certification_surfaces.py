@@ -55,6 +55,7 @@ def test_get_status_surface_is_observe_only(monkeypatch) -> None:
         query={"provider_name": ["ollama-local"], "model_name": ["qwen-test:4b"]},
         runtime=RuntimeServices(),
         model_name="vool",
+        client_host="127.0.0.1",
     )
     assert response.status == 200
     assert _json(response) == {"state": "verified", "observe_only": True, "routing_effect": "none"}

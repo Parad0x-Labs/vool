@@ -202,7 +202,7 @@ def test_service_wallet_info_never_accepts_a_post_that_would_mint() -> None:
 
 
 def test_service_credits_balance_returns_200() -> None:
-    r = dispatch_get(path="/v1/credits/balance", query={}, runtime=_rt(), model_name="vool")
+    r = dispatch_get(path="/v1/credits/balance", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     assert r.status == 200
     body = json.loads(r.body)
     assert "balance" in body
@@ -217,6 +217,7 @@ def test_service_credits_settle_returns_200() -> None:
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
         run_agent_provider=None,
+        client_host="127.0.0.1",
     )
     assert r.status == 200
     body = json.loads(r.body)

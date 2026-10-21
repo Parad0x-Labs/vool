@@ -45,7 +45,7 @@ def home(tmp_path, monkeypatch) -> Path:
 def _prefs_door(body: dict) -> int:
     from core.web.api.registry_authorities import set_prefs_authority
 
-    return set_prefs_authority(body, {"Content-Type": "application/json"}, RuntimeServices(display_name="VOOL")).status
+    return set_prefs_authority(body, {"Content-Type": "application/json"}, RuntimeServices(display_name="VOOL"), client_host="127.0.0.1").status
 
 
 def _steps(snap: dict) -> dict:
