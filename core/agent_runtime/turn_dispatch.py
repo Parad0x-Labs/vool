@@ -316,7 +316,9 @@ def prepare_turn_task_bundle(
         # content, they point at that answer (core.operator.notes.with_the_answer_it_follows).
         from core.operator.notes import with_the_answer_it_follows
 
-        operator_intent = with_the_answer_it_follows(operator_intent, session_id=session_id)
+        operator_intent = with_the_answer_it_follows(
+            operator_intent, session_id=session_id, source_context=source_context
+        )
     if operator_intent is not None:
         # Mode enforcement: Ask/Plan is a READ-ONLY posture. A mutating operator action (anything
         # that would change the system) is refused BEFORE dispatch -- nothing is written and no

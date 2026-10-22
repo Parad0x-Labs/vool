@@ -9,13 +9,17 @@ Measured on the served path at aeb58465 (real daemon, scripted loopback provider
 * After an answer that offered to save its plan, "yes, save it as a note" was taken by the notes lane, which found no
   content in those words and asked "what should it say?". The plan was never saved.
 
+Words that refuse the save or ask about it ("no thanks, don't save it as a note", "how do I save it as a note?"), and a
+private chat, whose newest answer is never logged, must not save an answer: review of 366aeeec measured each one
+saving the plan.
+
 Every case is a real served turn over HTTP. Assertions read what the model was shown (the tool observation bound
 for the provider), the reply, and the note files on disk. LABELLED: scripted provider, no live model.
 """
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import re
 
 import pytest
 
@@ -33,6 +37,7 @@ PLAN_ANSWER = (
     "\n"
     "Want me to save this plan as a note?"
 )
+PARTY_ANSWER = "Shopping list for the party:\n- cake\n- candles\n\nWant me to save this list as a note?"
 
 
 @pytest.fixture(scope="module")
@@ -147,3 +152,35 @@ def test_save_it_as_a_note_with_no_answer_before_it_still_asks(rig) -> None:
 
     assert "I just need its content" in reply, reply
     assert set(_notes(rig)) == before, "a note was saved from an answer this chat never gave"
+
+
+@pytest.mark.parametrize("words", [
+    "no thanks, don't save it as a note",
+    "do not save that as a note",
+    "should I save it as a note?",
+    "how do I save it as a note?",
+])
+def test_words_that_do_not_ask_for_the_save_save_nothing(rig, words) -> None:
+    session = "not-asked-" + re.sub(r"\W+", "-", words).strip("-")
+    _chat(rig, "plan a gentle three-day workout for me", session, typed=True, script=[{"final": PLAN_ANSWER}])
+    before = set(_notes(rig))
+
+    reply = _answer(_chat(rig, words, session, typed=True))
+
+    assert "Note saved" not in reply, reply
+    assert set(_notes(rig)) == before, f"{words!r} saved the answer"
+
+
+def test_save_it_as_a_note_in_a_private_chat_saves_no_older_answer(rig) -> None:
+    session = "private-save"
+    _chat(rig, "plan a gentle three-day workout for me", session, typed=True, script=[{"final": PLAN_ANSWER}])
+    assert "private" in _answer(_chat(rig, "private chat", session, typed=True)).lower()
+    party = _chat(rig, "what should I buy for the party?", session, typed=True, script=[{"final": PARTY_ANSWER}])
+    assert "candles" in _answer(party), _answer(party)
+    before = set(_notes(rig))
+
+    reply = _answer(_chat(rig, "yes, save it as a note", session, typed=True))
+
+    # The private answer is in no log to quote, and the plan before it is not what "it" means.
+    assert "Note saved" not in reply, reply
+    assert set(_notes(rig)) == before, "a private chat saved an answer from before it went private"

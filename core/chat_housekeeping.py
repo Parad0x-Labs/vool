@@ -729,20 +729,34 @@ def last_assistant_message(session_id: str) -> dict[str, Any] | None:
     return None
 
 
-def newest_assistant_message(session_id: str) -> dict[str, Any] | None:
-    """The chat's newest assistant message, for "save it as a note"; None when it may not be quoted.
+def newest_assistant_message(session_id: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """The answer this chat gave last, for "save it as a note"; None when it may not be quoted.
 
-    Unlike `last_assistant_message`, an older answer never stands in for a newest one that is withheld:
-    "it" means the answer just given."""
-    from core.memory.entries import recent_conversation_events
+    Unlike `last_assistant_message`, nothing older stands in for it: "it" means the answer just given. So the chat's
+    newest logged row decides, and a withheld one (forgotten, governed, a card, no answer text) answers None, as does
+    a private chat, whose turns are never logged and whose newest logged answer is one the user did not point at."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return None
+    try:
+        from core.private_chat import turn_is_private
 
-    rows = [row for row in recent_conversation_events(session_id, limit=6) if str(row.get("assistant") or "").strip()]
-    if not rows:
+        if turn_is_private(source_context, sid):
+            return None
+    except Exception:
         return None
-    text = str(rows[-1].get("assistant") or "").strip()
-    if not _assistant_text_servable(rows[-1], text):
-        return None
-    return {"role": "assistant", "text": text, "ts": str(rows[-1].get("ts") or "")}
+    from core.memory.files import conversation_log_path, load_jsonl
+    from core.memory.revocation import authorize_payload
+
+    for row in reversed(load_jsonl(conversation_log_path())):
+        if str(row.get("session_id") or "") != sid:
+            continue
+        text = str(row.get("assistant") or "").strip()
+        if (not text or str(row.get("artifact_kind") or "").strip() or not authorize_payload(row, chat_id=sid)
+                or not _assistant_text_servable(row, text)):
+            return None
+        return {"role": "assistant", "text": text, "ts": str(row.get("ts") or "")}
+    return None
 
 
 # --------------------------------------------------------------------------------------------
@@ -1124,9 +1138,9 @@ __all__ = [
     "describe_chat",
     "find_message",
     "last_assistant_message",
-    "newest_assistant_message",
     "list_pinned_chats",
     "move_chat_to_project",
+    "newest_assistant_message",
     "pin_message",
     "pinned_chat_ids",
     "query_terms",

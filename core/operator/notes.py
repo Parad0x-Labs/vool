@@ -404,6 +404,17 @@ _POINTS_BACK_RE = re.compile(
     r"|summary|steps|schedule|routine|recipe|draft|outline|itinerary|checklist|results?|points|ideas|tips|text)\b",
     re.IGNORECASE,
 )
+# The words ask for the save: an affirmation or a request, then the saving verb ("yes, save it as a note", "ok please
+# save that", "can you save this plan as a note?"). A refusal ("no thanks, don't save it as a note") or a question
+# about saving ("should I save it as a note?", "how do I save it as a note?") is not a request and still asks.
+_SAVE_ASK_RE = re.compile(
+    r"^\W*(?:(?:yes|yeah|yep|yup|sure|ok(?:ay)?|alright|great|perfect|thanks|thank\s+you|go\s+ahead|please|and|also|so"
+    r"|then|just)\b\W*)*"
+    r"(?P<asked>(?:can|could|would|will)\s+you\s+)?(?:please\s+|just\s+)*"
+    r"(?:save|store|keep|note|jot|write|make|take)\b",
+    re.IGNORECASE,
+)
+_DECLINE_RE = re.compile(r"\b(?:no|not|nope|nah|never|cancel|stop|skip|without|dont)\b|\b\w+n['\u2019]t\b", re.IGNORECASE)
 # The offer that closes an answer ("Want me to save this plan as a note?") is not part of what it offered.
 _SAVE_OFFER_RE = re.compile(
     r"^\W*(?:want\s+me\s+to|shall\s+i|should\s+i|would\s+you\s+like(?:\s+me)?\s+to|do\s+you\s+want(?:\s+me)?\s+to|i\s+can)\b"
@@ -428,21 +439,30 @@ def _answer_note(answer: str) -> tuple[str, str]:
     return title, body
 
 
-def with_the_answer_it_follows(intent: OperatorActionIntent, *, session_id: str) -> OperatorActionIntent:
+def _asks_to_save(words: str) -> bool:
+    asked = _SAVE_ASK_RE.match(words)
+    return bool(asked) and not _DECLINE_RE.search(words) and ("?" not in words or bool(asked.group("asked")))
+
+
+def with_the_answer_it_follows(
+    intent: OperatorActionIntent, *, session_id: str, source_context: dict[str, Any] | None = None
+) -> OperatorActionIntent:
     """A save request with no content of its own that points back at the conversation saves the answer it follows.
 
     Measured on the served path: after an answer that offered to save its plan, "yes, save it as a note" was taken by
-    the notes lane, found no content in those words and asked for it, and the plan was never saved. The answer is
-    read from this chat's own log, and only when it may be quoted (`newest_assistant_message`); otherwise the request
-    is unchanged and still asks. Only the chat lane calls this: a model's tool call writes the content it means.
+    the notes lane, found no content in those words and asked for it, and the plan was never saved. Only words that
+    ask for the save count (`_SAVE_ASK_RE`), and the answer is read from this chat's own log only when it may be
+    quoted (`newest_assistant_message`); otherwise the request is unchanged and still asks. Only the chat lane calls
+    this: a model's tool call writes the content it means.
     """
     if intent.kind != "save_note" or intent.note_body:
         return intent
-    if parse_note_request(intent.raw_text)["body"] or not _POINTS_BACK_RE.search(str(intent.raw_text or "")):
+    words = str(intent.raw_text or "")
+    if parse_note_request(words)["body"] or not _POINTS_BACK_RE.search(words) or not _asks_to_save(words):
         return intent
     from core.chat_housekeeping import newest_assistant_message
 
-    message = newest_assistant_message(session_id)
+    message = newest_assistant_message(session_id, source_context=source_context)
     title, body = _answer_note(str((message or {}).get("text") or ""))
     if not body:
         return intent

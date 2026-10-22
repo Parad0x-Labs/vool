@@ -91,9 +91,11 @@ def _argument(arguments: dict[str, Any], name: str) -> str:
 def _notes_scope_words(arguments: dict[str, Any]) -> str:
     """' in the "Work" folder of the "iCloud" account': the scope the Apple Notes handlers read back from the request.
 
-    The values go inside quotes, so their own quote marks are dropped; a scope only narrows a read."""
-    folder = re.sub(r'["\u201c\u201d]', "", _argument(arguments, "folder"))
-    account = re.sub(r'["\u201c\u201d]', "", _argument(arguments, "account"))
+    The values go inside quotes on one line, so their own quote marks are dropped and their spacing collapsed: a
+    newline in a value read as no folder, and a scope only narrows a read."""
+    folder, account = (
+        " ".join(re.sub(r'["\u201c\u201d]', "", _argument(arguments, name)).split()) for name in ("folder", "account")
+    )
     words = f' in the "{folder}" folder' if folder else ""
     if account:
         words += f' of the "{account}" account' if folder else f' in the "{account}" account'
