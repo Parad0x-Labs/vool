@@ -21,16 +21,16 @@ def test_readme_frontloads_install_and_honest_platform_claims() -> None:
 
     assert "# VOOL" in readme.splitlines()[0]
     assert "local-first personal agent" in readme
-    assert "0.7.3-beta" in early, "current beta version must be stated up front"
+    assert "0.7.4-beta" in early, "current beta version must be stated up front"
     assert "## ⚡ Install" in early or "## Install" in early
-    # v0.7.3-beta is published with app downloads: the README links each one on the
+    # v0.7.4-beta is published with app downloads: the README links each one on the
     # release, tells people to check the published checksum, and gives the first-open
     # steps for the non-notarized Mac app. Source installation stays documented.
-    release = "https://github.com/Parad0x-Labs/vool/releases/download/v0.7.3-beta/"
+    release = "https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/"
     for asset in (
-        "VOOL-0.7.3-beta-macos-arm64.dmg",
-        "VOOL-0.7.3-beta-macos-x86_64.dmg",
-        "vool-0.7.3-beta-linux-x86_64.tar.gz",
+        "VOOL-0.7.4-beta-macos-arm64.dmg",
+        "VOOL-0.7.4-beta-macos-x86_64.dmg",
+        "vool-0.7.4-beta-linux-x86_64.tar.gz",
     ):
         assert release + asset in early, asset
     assert "SHA-256" in early

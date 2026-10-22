@@ -6,6 +6,18 @@ description: Notable changes to VOOL.
 
 Entries are added as builds go out to testers. Newest first.
 
+## 0.7.4-beta — 2026-10-22
+
+Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the
+[v0.7.4-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.4-beta).
+A security update for 0.7.3; everyone on 0.7.x should install it. Updating from 0.7.3, 0.7.2, 0.7.1 or 0.7.0:
+download 0.7.4 and install it over your current version. Your chats and settings live in your profile, outside the app.
+
+* **Security hardening for workspace file tools.** VOOL's file tools (writing, editing and patching files, and undoing those changes) no longer change a project's git settings or the hook files git runs. To change those, edit them yourself.
+* **Patches.** A patch is checked in full before anything is written. If any part of it is refused, nothing in it is applied. Old-style "context" diffs are no longer accepted; VOOL uses the standard unified format.
+
+Everything else is the same as 0.7.3.
+
 ## 0.7.3-beta — 2026-10-21
 
 Downloads: Apple Silicon Mac, Intel Mac and Linux x86_64 on the

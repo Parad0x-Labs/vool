@@ -10,8 +10,8 @@ tree does not make it part of the default product.
 
 Historical matrix last dated 2026-07-20; subsequent notes are retained below.
 
-**Current release: v0.7.3-beta.** App downloads for Apple Silicon Macs, Intel Macs and Linux
-x86_64; Windows is experimental from source. What 0.7.3 does and does not include is on the
+**Current release: v0.7.4-beta.** App downloads for Apple Silicon Macs, Intel Macs and Linux
+x86_64; Windows is experimental from source. What 0.7.4 does and does not include is on the
 [release status](trust/release-status.md) page, which wins over any dated note here.
 
 ## 2026-07-20 Cross-lane: the paid lane now executes and its caps bind

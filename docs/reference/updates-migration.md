@@ -6,7 +6,7 @@ description: How VOOL updates itself, what happens to your data, and version com
 
 ## How updates work
 
-VOOL 0.7.3 is installed by download. Updating from 0.7.2, 0.7.1 or 0.7.0: download 0.7.3 and install it
+VOOL 0.7.4 is installed by download. Updating from 0.7.3, 0.7.2, 0.7.1 or 0.7.0: download 0.7.4 and install it
 over your current version. Your chats and settings live in your profile, outside the app.
 
 A signed update package runs a verified pipeline with automatic rollback:

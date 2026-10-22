@@ -37,7 +37,7 @@ handles your files, your memory, and your keys.
   be read back after the fact.
 
 {% hint style="warning" %}
-VOOL 0.7.3-beta is out for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
+VOOL 0.7.4-beta is out for Apple Silicon Macs, Intel Macs and Linux x86_64. The Mac apps
 are not notarized yet, so macOS asks you to confirm the first time you open one; the
 [Install](getting-started/install.md#first-open-on-a-mac) page shows how. See
 [Release status](trust/release-status.md) before installing.
