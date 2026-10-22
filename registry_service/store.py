@@ -25,6 +25,9 @@ from registry_service.authority import ACCOUNT_AGE, AGREEMENT, marks_document, m
 
 # An upload waiting for the signing Mac can sit out a used-up monthly review budget, so it waits past a month.
 CHECKING_DAYS = 35
+# Submissions per account per 24 hours; a team member publishes the team's own skills in batches.
+DAILY_SUBMISSIONS = 10
+TEAM_DAILY_SUBMISSIONS = 100
 
 
 def owned_by(db, account: str) -> tuple[set[str], set[str]]:
@@ -362,7 +365,7 @@ class Store:
             namespace = self._upload_namespace(db, account)
             pending = db.execute("SELECT count(*) FROM upload_leases WHERE account=?", (account,)).fetchone()[0]
             count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, now - 86400)).fetchone()[0]
-            require(count + pending < 10, "daily submission quota reached")
+            require(count + pending < self._daily_limit(db, account), "daily submission quota reached")
             require(pending == 0, "concurrent upload already active for this account")
             require(db.execute("SELECT count(*) FROM upload_leases").fetchone()[0] < 4, "concurrent upload capacity reached")
             db.execute("INSERT INTO upload_leases VALUES (?,?,?,?)", (token, account, namespace, now + 300))
@@ -408,6 +411,11 @@ class Store:
             # A team's name is the team's: nobody else can choose it.
             db.executemany("INSERT OR IGNORE INTO namespace_reservations VALUES (?)", [(name,) for name in value["teams"]])
         return value
+
+    def _daily_limit(self, db, account: str) -> int:
+        """A member of a team the signing Mac named publishes the team's skills in batches."""
+        teams = self._marks(db)["teams"]
+        return TEAM_DAILY_SUBMISSIONS if any(self._team_member(db, account, name) for name in teams) else DAILY_SUBMISSIONS
 
     def _team_member(self, db, account: str, namespace: str) -> bool:
         members = set(self._marks(db)["teams"].get(namespace, []))
@@ -584,7 +592,7 @@ class Store:
             completed = now + int(time.monotonic() - started)
             self._check_upload_slot(db, account, _slot, completed)
             count = db.execute("SELECT count(*) FROM submissions WHERE account=? AND created>?", (account, completed - 86400)).fetchone()[0]
-            require(count < 10, "daily submission quota reached")
+            require(count < self._daily_limit(db, account), "daily submission quota reached")
             if findings:
                 state = "rejected"
             elif agreement:

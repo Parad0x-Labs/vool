@@ -126,6 +126,54 @@ def moderate(args) -> int:
         return 1
 
 
+def team_upload(args) -> int:
+    """Operator-only: a team member's skill packages, uploaded and consented as the website would do it.
+
+    The member must have signed in to the website once with that GitHub account, and the signing Mac's
+    marks must list them in the package's team. Each package gets the same checks and quota as an upload.
+    """
+    import json
+
+    from core.registry.artifact import inspect
+    from registry_service.authority import AGREEMENT
+
+    try:
+        config = decode(args.config.read_bytes(), 65536)
+        require(isinstance(config, dict) and config.get("schema") == "vool.registry.service.v1", "unknown service configuration")
+        path = Path(config["private_dir"]).resolve() / "accounts.sqlite"
+        require(path.is_file(), "private store not found")
+        store = Store(path)
+        require(args.github_id.isdigit() and args.packages, "name the member's GitHub id and at least one package")
+        with store.connection() as db:
+            row = db.execute("SELECT account FROM identities WHERE provider='github' AND subject=?", (args.github_id,)).fetchone()
+        require(row, "that GitHub account has not signed in to the Skill Codex")
+        account, teams = row[0], store.marks()["teams"]
+    except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
+        print("Team upload refused: " + (str(exc) if isinstance(exc, RegistryError) else "invalid configuration"))
+        return 1
+    failed = 0
+    for name in args.packages:
+        try:
+            raw = Path(name).read_bytes()
+            publisher = inspect(raw)["metadata"]["id"].split("/")[0]
+            require(args.github_id in teams.get(publisher, []), "the package's publisher is not a team this member belongs to")
+            result = store.upload(account, raw, now=int(time.time()), agreement=AGREEMENT)
+            if result["state"] == "checking":
+                result = store.consent(account, result["id"], result["sha256"], public=True)
+            line = {key: result[key] for key in ("package_id", "version", "sha256", "state", "consent")}
+            if result["findings"]:
+                line["findings"] = result["findings"]
+                failed += 1
+            print(json.dumps(line, sort_keys=True))
+        except (RegistryError, OSError, ValueError, KeyError, TypeError) as exc:
+            failed += 1
+            reason = str(exc) if isinstance(exc, RegistryError) else type(exc).__name__
+            print(json.dumps({"file": str(name), "refused": reason}, sort_keys=True))
+            if reason == "daily submission quota reached":
+                break
+    return 1 if failed else 0
+
+
 def catalog_key(args) -> int:
     """Create the service's online catalog key once and print its public half for the Mac's setup."""
     from registry_service.authority import create_online_key, keyid
@@ -164,13 +212,17 @@ def restamp(online, *, every: int = 600) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["check-config", "serve", "catalog-key", *MODERATION])
+    parser.add_argument("command", choices=["check-config", "serve", "catalog-key", "team-upload", *MODERATION])
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--port", type=int, default=8791)
     parser.add_argument("--target", default="", help="comment id, report id, account namespace or skill id (publisher/name) "
                         "for moderation commands; for pictures-pending, a new folder to write the waiting pictures into")
+    parser.add_argument("--github-id", default="", help="for team-upload, the team member's GitHub account id")
+    parser.add_argument("--packages", nargs="+", type=Path, default=[], help="for team-upload, the skill package files to upload")
     args = parser.parse_args(argv)
     trust = None
+    if args.command == "team-upload":
+        return team_upload(args)
     if args.command in MODERATION:
         return moderate(args)
     if args.command == "catalog-key":
