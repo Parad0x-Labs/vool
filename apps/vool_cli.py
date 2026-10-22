@@ -264,13 +264,14 @@ def _run_web_intent(intent: str, arguments: dict[str, object]) -> object:
     network call happens while web is off.
     """
     from core.hive_activity_tracker import HiveActivityTracker
+    from core.request_trust import in_process_owner_source_context
     from core.tool_intent_executor import execute_tool_intent
 
     return execute_tool_intent(
         {"intent": intent, "arguments": dict(arguments)},
         task_id="cli-web",
         session_id="cli-web",
-        source_context={"surface": "cli", "platform": "vool-cli"},
+        source_context={"surface": "cli", "platform": "vool-cli", **in_process_owner_source_context()},
         hive_activity_tracker=HiveActivityTracker(),
     )
 
