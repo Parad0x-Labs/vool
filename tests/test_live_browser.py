@@ -124,7 +124,7 @@ def test_real_page_injection_refusal_form_download_and_private_cleanup(world):
     assert requests==[]
     status,data=rig.post('/api/browser/decide',{'chat':'live-test','id':token,'approve':True});assert status==409
     snap=finish(world,'navigate',{'url':origin+'/'})
-    assert snap['state']=='ready',snap
+    assert snap['state']=='ready',(snap,snap.get('result'))
     assert 'Next train: 14:36' in snap['result']['page']['text']
     assert snap['result']['page']['authority']=='none'
     assert snap['frame']
