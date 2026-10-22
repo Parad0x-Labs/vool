@@ -730,33 +730,39 @@ def last_assistant_message(session_id: str) -> dict[str, Any] | None:
 
 
 def newest_assistant_message(session_id: str, *, source_context: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """The answer this chat gave last, for "save it as a note"; None when it may not be quoted.
+    """The answer this chat just gave, for "save it as a note"; None when that answer cannot be told apart.
 
-    Unlike `last_assistant_message`, nothing older stands in for it: "it" means the answer just given. So the chat's
-    newest logged row decides, and a withheld one (forgotten, governed, a card, no answer text) answers None, as does
-    a private chat, whose turns are never logged and whose newest logged answer is one the user did not point at."""
+    The log alone cannot say its newest row is the turn just before this one: private turns, a forget and other
+    unlogged turns leave an older answer newest (review of 654e834e saved the plan from before a forget, and from
+    before a private stretch that had ended). So the newest logged answer counts only when it is also the last answer
+    the chat window sent back with this request (``client_conversation_history``, which the /chat page fills with
+    every earlier message). Nothing older stands in for it, and a private turn or chat answers None."""
     sid = str(session_id or "").strip()
+    context = source_context if isinstance(source_context, dict) else {}
     if not sid:
         return None
     try:
         from core.private_chat import turn_is_private
 
-        if turn_is_private(source_context, sid):
+        if turn_is_private(context, sid):
             return None
     except Exception:
         return None
-    from core.memory.files import conversation_log_path, load_jsonl
-    from core.memory.revocation import authorize_payload
+    shown = next(
+        (str(item.get("content") or "") for item in reversed(list(context.get("client_conversation_history") or []))
+         if isinstance(item, dict) and item.get("role") == "assistant"),
+        "",
+    )
+    if not shown.strip():
+        return None
+    from core.memory.entries import recent_conversation_events
 
-    for row in reversed(load_jsonl(conversation_log_path())):
-        if str(row.get("session_id") or "") != sid:
-            continue
-        text = str(row.get("assistant") or "").strip()
-        if (not text or str(row.get("artifact_kind") or "").strip() or not authorize_payload(row, chat_id=sid)
-                or not _assistant_text_servable(row, text)):
-            return None
-        return {"role": "assistant", "text": text, "ts": str(row.get("ts") or "")}
-    return None
+    rows = recent_conversation_events(sid, limit=1)
+    row = rows[-1] if rows else {}
+    text = str(row.get("assistant") or "").strip()
+    if not text or " ".join(text.split()) != " ".join(shown.split()) or not _assistant_text_servable(row, text):
+        return None
+    return {"role": "assistant", "text": text, "ts": str(row.get("ts") or "")}
 
 
 # --------------------------------------------------------------------------------------------

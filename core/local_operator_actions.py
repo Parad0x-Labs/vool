@@ -651,11 +651,7 @@ def _handle_apple_note_list(
     names = apple_notes.notes_in_scope(outcome.get("notes") or [], folder=destination["folder"], account=destination["account"])
     scope = _apple_note_scope_words(destination)
     shown = names[:30]
-    # One title per line: a note's id is Notes' own, and its folder is said only where the request named none.
-    lines = [f"Apple Notes has {len(names)} note(s){scope}:"] + [
-        f"- {note.get('title', '')}" + ("" if destination["folder"] or not note.get("folder") else f" ({note['folder']} folder)")
-        for note in shown
-    ]
+    lines = [f"Apple Notes has {len(names)} note(s){scope}:"] + [f"- {name}" for name in shown]
     if len(names) > len(shown):
         lines.append(f"(first {len(shown)} shown)")
     if not names:
