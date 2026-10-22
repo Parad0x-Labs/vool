@@ -93,6 +93,10 @@ def _diagnose_conflict(root: Path, step: Step, current: PathObservation) -> str 
         return "path_escapes_root"
     if not parent_chain_inside_root(root, step.target):
         return "parent_directory_escapes_workspace"
+    from core.git_metadata_protection import refusal as git_metadata_refusal
+
+    if git_metadata_refusal(step.target):
+        return "repository_metadata"
     if current.kind == "symlink":
         return "target_replaced_by_symlink"
     if current.kind == "file" and current.nlink > 1:
