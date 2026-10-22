@@ -4,8 +4,8 @@ description: How to install the VOOL AI assistant on macOS (Apple Silicon or Int
 
 # Install
 
-VOOL 0.7.2-beta has app downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 on
-the [v0.7.2-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.2-beta).
+VOOL 0.7.4-beta has app downloads for Apple Silicon Macs, Intel Macs and Linux x86_64 on
+the [v0.7.4-beta release](https://github.com/Parad0x-Labs/vool/releases/tag/v0.7.4-beta).
 You can also install from source with the bootstrap script on macOS, Linux or Windows.
 See [Release status](../trust/release-status.md) for signing and update details.
 
@@ -26,9 +26,9 @@ Local models need considerably more memory than the app itself. Sizing guidance 
 
 | Your computer | Download |
 | --- | --- |
-| Mac with Apple Silicon (M1 and later) | [`VOOL-0.7.2-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.2-beta/VOOL-0.7.2-beta-macos-arm64.dmg) |
-| Mac with an Intel chip | [`VOOL-0.7.2-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.2-beta/VOOL-0.7.2-beta-macos-x86_64.dmg) |
-| Linux x86_64 (Ubuntu 22.04 / 24.04) | [`vool-0.7.2-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.2-beta/vool-0.7.2-beta-linux-x86_64.tar.gz) |
+| Mac with Apple Silicon (M1 and later) | [`VOOL-0.7.4-beta-macos-arm64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-arm64.dmg) |
+| Mac with an Intel chip | [`VOOL-0.7.4-beta-macos-x86_64.dmg`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/VOOL-0.7.4-beta-macos-x86_64.dmg) |
+| Linux x86_64 (Ubuntu 22.04 / 24.04) | [`vool-0.7.4-beta-linux-x86_64.tar.gz`](https://github.com/Parad0x-Labs/vool/releases/download/v0.7.4-beta/vool-0.7.4-beta-linux-x86_64.tar.gz) |
 
 To find your Mac's chip, open the Apple menu and choose **About This Mac**. "Apple M…"
 means Apple Silicon; "Intel" means Intel. The Apple Silicon app does not run on an Intel
@@ -60,7 +60,7 @@ uninstall are in the [install guide](../INSTALL.md#linux-x86_64-tarball).
 
 Before a local model can answer, open **Settings → Models & Providers → Local models** and press **Certify** for it once. It runs a short check on your machine.
 
-Updating from 0.7.1 or 0.7.0: download 0.7.2 and install it over your current version. Your chats and settings
+Updating from 0.7.3, 0.7.2, 0.7.1 or 0.7.0: download 0.7.4 and install it over your current version. Your chats and settings
 live in your profile, outside the app. Crypto features are off by default.
 
 ## Install from source
@@ -68,8 +68,8 @@ live in your profile, outside the app. Crypto features are off by default.
 Run the bootstrap script for your platform:
 
 ```bash
-curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.2-beta/installer/bootstrap_vool.sh
-bash bootstrap_vool.sh --ref v0.7.2-beta
+curl -fsSLo bootstrap_vool.sh https://raw.githubusercontent.com/Parad0x-Labs/vool/v0.7.4-beta/installer/bootstrap_vool.sh
+bash bootstrap_vool.sh --ref v0.7.4-beta
 ```
 
 ```powershell
@@ -77,7 +77,7 @@ Invoke-WebRequest https://raw.githubusercontent.com/Parad0x-Labs/vool/main/insta
 powershell -ExecutionPolicy Bypass -File .\bootstrap_vool.ps1
 ```
 
-The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.2-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
+The macOS / Linux commands pin both the bootstrap script and its source download to `v0.7.4-beta`. To choose another release, change both the tag in the script URL and `--ref`. The bootstrap accepts a branch name or a release tag, not a commit hash.
 
 The installer prepares the Python environment, checks your hardware, sets up the local
 model, and launches the local services. Allow time and disk space for the initial model
@@ -99,7 +99,7 @@ installs the Intel builds of every dependency. Two limits are specific to Intel:
 
 On Intel Macs, local models run on the processor and are slow. A long memory answer can time out, so use a cloud model there for now. Local-model certification allows for slower processors.
 
-Intel Macs have their own download, `VOOL-0.7.2-beta-macos-x86_64.dmg`. The Apple Silicon
+Intel Macs have their own download, `VOOL-0.7.4-beta-macos-x86_64.dmg`. The Apple Silicon
 download does not run on Intel and says so at launch.
 
 ## Verify a download

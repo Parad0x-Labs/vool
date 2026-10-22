@@ -13,7 +13,7 @@ For the complete executable release sequence, use the private task's
 `RELEASE-STEPS.md`. The release contains separate `macos-arm64`, `macos-x64` and
 `linux-x64` update ZIPs, signed by `installer.update_release`, plus its signed
 `manifest.json`. The manifest version is the numeric runtime version, currently
-`0.7.2`; the channel is `beta`, the tag is `v0.7.2-beta`, and the per-channel
+`0.7.4`; the channel is `beta`, the tag is `v0.7.4-beta`, and the per-channel
 sequence must increase for each changed release document. Never reuse a sequence
 for different signed bytes.
 
