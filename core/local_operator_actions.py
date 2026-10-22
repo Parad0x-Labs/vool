@@ -651,7 +651,11 @@ def _handle_apple_note_list(
     names = apple_notes.notes_in_scope(outcome.get("notes") or [], folder=destination["folder"], account=destination["account"])
     scope = _apple_note_scope_words(destination)
     shown = names[:30]
-    lines = [f"Apple Notes has {len(names)} note(s){scope}:"] + [f"- {name}" for name in shown]
+    # One title per line: a note's id is Notes' own, and its folder is said only where the request named none.
+    lines = [f"Apple Notes has {len(names)} note(s){scope}:"] + [
+        f"- {note.get('title', '')}" + ("" if destination["folder"] or not note.get("folder") else f" ({note['folder']} folder)")
+        for note in shown
+    ]
     if len(names) > len(shown):
         lines.append(f"(first {len(shown)} shown)")
     if not names:
@@ -860,7 +864,9 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
             # live, so 'option 2, propose ...' redoes this part with a different slot.
             part_raw = raw + ", option 1"
         if kind == "save_note":
-            part_intent = OperatorActionIntent(kind=kind, raw_text=raw)
+            # A save that points back at the answer before it keeps that answer (core.operator.notes).
+            carried = {"note_body": intent.note_body, "target_label": intent.target_label} if intent.kind == "save_note" else {}
+            part_intent = OperatorActionIntent(kind=kind, raw_text=raw, **carried)
             try:
                 note_result = _handle_save_note(part_intent, task_id=task_id, session_id=session_id)
             except Exception as exc:

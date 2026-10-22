@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from core.execution.models import ToolIntentExecution, _tool_observation
@@ -83,9 +84,26 @@ def execute_operator_tool(
 _REQUEST_TEXT_KINDS = frozenset({"check_availability", "propose_calendar_event", "update_calendar_event", "save_note"})
 
 
+def _argument(arguments: dict[str, Any], name: str) -> str:
+    return str(arguments.get(name) or "").strip()
+
+
+def _notes_scope_words(arguments: dict[str, Any]) -> str:
+    """' in the "Work" folder of the "iCloud" account': the scope the Apple Notes handlers read back from the request.
+
+    The values go inside quotes, so their own quote marks are dropped; a scope only narrows a read."""
+    folder = re.sub(r'["\u201c\u201d]', "", _argument(arguments, "folder"))
+    account = re.sub(r'["\u201c\u201d]', "", _argument(arguments, "account"))
+    words = f' in the "{folder}" folder' if folder else ""
+    if account:
+        words += f' of the "{account}" account' if folder else f' in the "{account}" account'
+    return words
+
+
 def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) -> OperatorActionIntent:
     target_path = str(arguments.get("target_path") or arguments.get("path") or "").strip() or None
     destination_path = str(arguments.get("destination_path") or arguments.get("destination_dir") or "").strip() or None
+    target_label: str | None = None
     raw_text = ""
     if operator_kind == "move_path":
         source = str(arguments.get("source_path") or target_path or "").strip()
@@ -102,6 +120,19 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         # way they read a chat request. Approval is never read from it: approval_requested stays
         # False below, so a proposal or update can only stage, never apply.
         raw_text = str(arguments.get("text") or "").strip()
+    elif operator_kind in {"find_notes", "show_note"}:
+        # A notes search reads its query, and a note read its title, from the label the chat
+        # parser sets (core.operator.notes.find_notes_query, handle_show_note).
+        target_label = _argument(arguments, "query" if operator_kind == "find_notes" else "title") or None
+    elif operator_kind == "show_agenda":
+        # The agenda handler reads its window from the request's words; the window is those words.
+        raw_text = _argument(arguments, "window")
+    elif operator_kind == "apple_note_list":
+        raw_text = "list my Apple notes" + _notes_scope_words(arguments)
+    elif operator_kind == "apple_note_read":
+        # The title is the label; the folder or account narrows which note of that title is read.
+        target_label = _argument(arguments, "title") or None
+        raw_text = "read my Apple note" + _notes_scope_words(arguments)
     elif operator_kind == "cleanup_temp_files" and target_path:
         raw_text = f'clean temp files in "{target_path}"'
     elif operator_kind == "inspect_disk_usage" and target_path:
@@ -113,4 +144,5 @@ def build_operator_action_intent(operator_kind: str, arguments: dict[str, Any]) 
         approval_requested=False,
         action_id=str(arguments.get("action_id") or "").strip() or None,
         raw_text=raw_text,
+        target_label=target_label,
     )

@@ -729,6 +729,22 @@ def last_assistant_message(session_id: str) -> dict[str, Any] | None:
     return None
 
 
+def newest_assistant_message(session_id: str) -> dict[str, Any] | None:
+    """The chat's newest assistant message, for "save it as a note"; None when it may not be quoted.
+
+    Unlike `last_assistant_message`, an older answer never stands in for a newest one that is withheld:
+    "it" means the answer just given."""
+    from core.memory.entries import recent_conversation_events
+
+    rows = [row for row in recent_conversation_events(session_id, limit=6) if str(row.get("assistant") or "").strip()]
+    if not rows:
+        return None
+    text = str(rows[-1].get("assistant") or "").strip()
+    if not _assistant_text_servable(rows[-1], text):
+        return None
+    return {"role": "assistant", "text": text, "ts": str(rows[-1].get("ts") or "")}
+
+
 # --------------------------------------------------------------------------------------------
 # Follow-up memory ("pin 2" after a search) and handled-request ledger
 # --------------------------------------------------------------------------------------------
@@ -1108,6 +1124,7 @@ __all__ = [
     "describe_chat",
     "find_message",
     "last_assistant_message",
+    "newest_assistant_message",
     "list_pinned_chats",
     "move_chat_to_project",
     "pin_message",

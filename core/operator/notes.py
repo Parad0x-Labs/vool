@@ -394,6 +394,63 @@ def parse_note_request(text: str) -> dict[str, Any]:
     return {"title": title, "body": body, "wants_schedule": wants_schedule}
 
 
+# A save request that points back at the conversation instead of carrying its own words: "yes, save it as a
+# note", "save that to my notes", "save the plan as a note". A pronoun counts only where it stands for the thing
+# ("save that meeting" names a meeting, not the answer).
+_POINTS_BACK_RE = re.compile(
+    r"\b(?:it|this|that|these|those|them)\b(?=\s*(?:$|[,.!?;:]|as\b|to\b|in\b|into\b|down\b|for\s+(?:me|later)\b"
+    r"|please\b|pls\b|now\b|too\b|somewhere\b))"
+    r"|\b(?:the|that|this|your|these|those)\s+(?:above|last\s+(?:answer|reply|message)|answer|reply|response|plan|list"
+    r"|summary|steps|schedule|routine|recipe|draft|outline|itinerary|checklist|results?|points|ideas|tips|text)\b",
+    re.IGNORECASE,
+)
+# The offer that closes an answer ("Want me to save this plan as a note?") is not part of what it offered.
+_SAVE_OFFER_RE = re.compile(
+    r"^\W*(?:want\s+me\s+to|shall\s+i|should\s+i|would\s+you\s+like(?:\s+me)?\s+to|do\s+you\s+want(?:\s+me)?\s+to|i\s+can)\b"
+    r".*\b(?:save|store|keep|note)\b",
+    re.IGNORECASE,
+)
+
+
+def _answer_note(answer: str) -> tuple[str, str]:
+    """(title, body) of a note made from an answer: its closing save offer dropped, its first line as the title."""
+    lines = [line.rstrip() for line in str(answer or "").strip().splitlines()]
+    while lines:
+        last = re.sub(r"[*_`]+", "", lines[-1]).strip()
+        if last and not (last.endswith("?") and _SAVE_OFFER_RE.search(last)):
+            break
+        lines.pop()
+    body = "\n".join(lines).strip()
+    first = next((line for line in lines if line.strip()), "")
+    title = re.sub(r"[*_`]+", "", re.sub(r"^[\s#>*\-\d.)]+", "", first)).strip().rstrip(":").strip()
+    if len(title) > 60:
+        title = title[:60].rsplit(" ", 1)[0].rstrip(",;:")
+    return title, body
+
+
+def with_the_answer_it_follows(intent: OperatorActionIntent, *, session_id: str) -> OperatorActionIntent:
+    """A save request with no content of its own that points back at the conversation saves the answer it follows.
+
+    Measured on the served path: after an answer that offered to save its plan, "yes, save it as a note" was taken by
+    the notes lane, found no content in those words and asked for it, and the plan was never saved. The answer is
+    read from this chat's own log, and only when it may be quoted (`newest_assistant_message`); otherwise the request
+    is unchanged and still asks. Only the chat lane calls this: a model's tool call writes the content it means.
+    """
+    if intent.kind != "save_note" or intent.note_body:
+        return intent
+    if parse_note_request(intent.raw_text)["body"] or not _POINTS_BACK_RE.search(str(intent.raw_text or "")):
+        return intent
+    from core.chat_housekeeping import newest_assistant_message
+
+    message = newest_assistant_message(session_id)
+    title, body = _answer_note(str((message or {}).get("text") or ""))
+    if not body:
+        return intent
+    from dataclasses import replace
+
+    return replace(intent, note_body=body, target_label=title or None)
+
+
 def handle_save_note(
     intent: OperatorActionIntent,
     *,
@@ -410,6 +467,10 @@ def handle_save_note(
     parsed = parse_note_request(intent.raw_text)
     title = parsed["title"]
     body = parsed["body"]
+    if not body and intent.note_body:
+        # The answer these words point back at (`with_the_answer_it_follows`); a quoted title still wins.
+        body = str(intent.note_body).strip()
+        title = title or str(intent.target_label or "").strip()
     if not title and body:
         title = "Note"
     if not body:
