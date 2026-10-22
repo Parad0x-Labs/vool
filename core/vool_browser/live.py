@@ -759,6 +759,12 @@ class LiveSession:
         return self.snapshot() if refused else {"ok": True, "state": "running"}
 
     async def _execute_bounded(self, proposal: dict) -> None:
+        # A cold engine start (driver plus launch) gets its own allowance, so the
+        # 20 s operation budget is not spent before the page is touched. A start
+        # that fails or stalls is reported by _execute, which opens again.
+        self._execution_task = asyncio.current_task()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(self._open(), timeout=60)
         try:
             await asyncio.wait_for(self._execute(proposal), timeout=20)
         except asyncio.TimeoutError:
