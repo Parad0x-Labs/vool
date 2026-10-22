@@ -36,6 +36,17 @@ _SYMBOL_DEFINITION_TEMPLATES = (
     ("javascript_const", r"^\s*(?:export\s+)?(?:const|let|var)\s+{symbol}\b"),
 )
 _PATCH_TARGET_RE = re.compile(r"^(?:\+\+\+|---)\s+(?P<path>.+)$", re.MULTILINE)
+# Other lines GNU patch takes a file name from: a context diff's `*** name` and `Index:`/`Prereq:`-style headers.
+_OTHER_NAME_HEADER_RE = re.compile(r"^(?:\*\*\*|Index:)\s+(?P<path>.+)$")
+_CONTEXT_RANGE_RE = re.compile(r"^\*\*\*\s+\d+(?:,\d+)?\s+\*\*\*\*\s*$")
+# A line that makes GNU patch read a patch as something other than a plain `---`/`+++` unified diff, or pick a
+# file name from somewhere other than those headers. Such a patch is never handed to it.
+_GNU_PATCH_UNSAFE_LINE_RE = re.compile(
+    r"^(?:\*\*\* |Index:|Prereq:|diff --git |rename |copy |old mode |new mode |new file mode |deleted file mode |"
+    r"similarity index |dissimilarity index |GIT binary patch|Binary files |\d+(?:,\d+)?[acd]\d)"
+)
+_GIT_PATH_HEADER_RE = re.compile(r"^(?:rename|copy) (?:from|to) (?P<path>.+)$")
+_GIT_DIFF_LINE_RE = re.compile(r'^diff --git (?P<old>"(?:[^"\\]|\\.)*"|\S+) (?P<new>"(?:[^"\\]|\\.)*"|\S+)$')
 _HUNK_HEADER_RE = re.compile(
     r"^@@\s+\-(?P<old_start>\d+)(?:,(?P<old_count>\d+))?\s+\+(?P<new_start>\d+)(?:,(?P<new_count>\d+))?\s+@@"
 )
@@ -352,6 +363,18 @@ def apply_unified_diff_workspace(
             "response_text": "No patch targets were found in the supplied unified diff.",
             "details": {"paths": []},
         }
+    for relative in touched_paths:
+        # Every path the patch names is checked before any engine runs, so a refused one leaves the whole
+        # patch unapplied rather than half of it.
+        try:
+            resolve_workspace_path(relative, workspace_root=workspace_root, write=True)
+        except ValueError as exc:
+            return {
+                "ok": False,
+                "status": "workspace_path_refused",
+                "response_text": f"I did not apply this patch: it changes `{relative}`, which I cannot change. {exc}",
+                "details": {"paths": touched_paths, "changed_paths": [], "refused_path": relative},
+            }
     if reviewed_destinations is not None:
         # An approved code-task patch: only its reviewed destinations, written pinned.
         return _apply_protected_unified_diff(
@@ -400,7 +423,12 @@ def apply_unified_diff_workspace(
         except Exception as exc:
             errors.append(str(exc).strip())
     if not applied_with:
+        # GNU patch picks file names by rules of its own (context headers, `Index:`, git's copy/rename lines), so it
+        # only ever gets a plain unified diff whose names are exactly the `---`/`+++` pairs checked above.
         patch_available = shutil.which("patch")
+        if patch_available and any(_GNU_PATCH_UNSAFE_LINE_RE.match(line) for line in patch_text.splitlines()):
+            errors.append("this patch is not a plain unified diff, so it is not handed to GNU patch")
+            patch_available = None
         if patch_available:
             strip = "1" if "/dev/null" in patch_text or " a/" in patch_text or " b/" in patch_text or "\na/" in patch_text else "0"
             # `--fuzz=0` is load-bearing, not a style choice: GNU patch's default fuzz factor (2)
@@ -793,17 +821,44 @@ def _apply_protected_unified_diff(
 
 
 def _extract_patch_paths(patch_text: str) -> list[str]:
+    """Every path a patch engine could write: the `---`/`+++` headers, and git's `diff --git` header and
+    `rename`/`copy` lines, which `git apply` and GNU patch both act on without any `---`/`+++` pair."""
     candidates: list[str] = []
-    for match in _PATCH_TARGET_RE.finditer(str(patch_text or "")):
-        raw = str(match.group("path") or "").strip()
-        if not raw or raw == "/dev/null":
-            continue
-        clean = raw
-        if clean.startswith("a/") or clean.startswith("b/"):
-            clean = clean[2:]
-        if clean not in candidates:
+
+    def add(raw: str) -> None:
+        clean = _normalize_patch_path(_unquote_patch_path(raw))
+        if clean and clean != "/dev/null" and clean not in candidates:
             candidates.append(clean)
+
+    for line in str(patch_text or "").splitlines():
+        match = _PATCH_TARGET_RE.match(line)
+        if match:
+            add(str(match.group("path") or ""))
+            continue
+        other = _OTHER_NAME_HEADER_RE.match(line)
+        if other and not _CONTEXT_RANGE_RE.match(line):
+            add(other.group("path"))
+            continue
+        header = _GIT_PATH_HEADER_RE.match(line)
+        if header:
+            add(header.group("path"))
+            continue
+        git_line = _GIT_DIFF_LINE_RE.match(line)
+        if git_line:
+            add(git_line.group("old"))
+            add(git_line.group("new"))
     return candidates
+
+
+def _unquote_patch_path(raw: str) -> str:
+    # git C-quotes a path with unusual characters: "a/dir/na\tme". Unquote so the check sees the real name.
+    text = str(raw or "").strip()
+    if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+        try:
+            return text[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8")
+        except (UnicodeError, ValueError):
+            return text[1:-1]
+    return text
 
 
 def _classify_patch_apply_failure(errors: list[str]) -> str:
