@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -134,6 +136,22 @@ def _add_column_if_missing(conn: Any, name: str, definition: str) -> None:
 
 
 def _init_table() -> None:
+    # Every manifest read runs this on a fresh connection. While a new daemon is starting,
+    # other services are still creating their own tables in the same store, and SQLite can
+    # answer a statement here with "database schema has changed". The table statements are
+    # idempotent, so a short retry is safe; this failure used to surface as a 500 on the
+    # first model certification of a fresh install.
+    for attempt in range(5):
+        try:
+            _create_table()
+            return
+        except sqlite3.OperationalError as exc:
+            if "schema has changed" not in str(exc) or attempt == 4:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def _create_table() -> None:
     conn = get_connection()
     try:
         conn.execute(
