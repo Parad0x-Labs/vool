@@ -20,11 +20,14 @@ for the provider), the reply, and the note files on disk. LABELLED: scripted pro
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
+import sys
 
 import pytest
 
-from tests._served_skill_rig import PROVIDER_MANIFEST_ID, ProviderState, ServedDaemon, make_provider_server
+from tests._served_skill_rig import PROVIDER_MANIFEST_ID, REPO_ROOT, ProviderState, ServedDaemon, make_provider_server
 
 #: What the operator family's expansion says once it seated the family for the turn.
 SEATED = "Seated the `operator` family"
@@ -257,3 +260,22 @@ def test_save_it_as_a_note_after_a_forget_saves_no_older_answer(rig) -> None:
     # The forget took the party answer out of the log, which left the plan newest there.
     assert "Note saved" not in reply, reply
     assert set(_notes(rig)) == before, "the plan from before the forgotten answer was saved"
+
+
+def test_save_it_as_a_note_after_a_council_card_saves_no_older_answer(rig) -> None:
+    # The /chat page's own id shape, which the server keeps as the chat's id, so the card lands in this chat.
+    session = "openclaw:" + "c0c11c0a5d0e4a7b9e21"
+    shown = _plan_first(rig, session)
+    # A council convened from this chat finishes and writes its card to the chat, as core.persistent_memory does; the
+    # page shows the card but does not send it back with the next message.
+    code = ("from core.persistent_memory import append_assistant_artifact_event as card;"
+            f"assert card(session_id={session!r}, text='Council summary: AGREE 3/3. Adopt the gym plan.',"
+            " artifact_kind='council_summary', artifact={'run_id': 'r1', 'state': 'converged'})")
+    subprocess.run([sys.executable, "-c", code], env=dict(os.environ, VOOL_HOME=str(rig.daemon.home)), cwd=str(REPO_ROOT),
+                   check=True, capture_output=True, timeout=120)
+    before = set(_notes(rig))
+
+    reply, _ = _then(rig, shown, "yes, save it as a note", session)
+
+    assert "Note saved" not in reply, reply
+    assert set(_notes(rig)) == before, "the plan from before the council card was saved"

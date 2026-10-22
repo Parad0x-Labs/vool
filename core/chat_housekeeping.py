@@ -757,8 +757,12 @@ def newest_assistant_message(session_id: str, *, source_context: dict[str, Any] 
         return None
     from core.memory.entries import recent_conversation_events
 
-    rows = recent_conversation_events(sid, limit=1)
+    # A card written after the answer (a council verdict, a reminder delivery) is newest too, and the page does not
+    # send it back: the answer before it is not what "it" means.
+    rows = recent_conversation_events(sid, limit=1, include_artifacts=True)
     row = rows[-1] if rows else {}
+    if str(row.get("artifact_kind") or "").strip():
+        return None
     text = str(row.get("assistant") or "").strip()
     if not text or " ".join(text.split()) != " ".join(shown.split()) or not _assistant_text_servable(row, text):
         return None
