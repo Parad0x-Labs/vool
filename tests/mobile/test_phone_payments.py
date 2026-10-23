@@ -218,7 +218,10 @@ def test_owner_controls_work_in_chromium_and_use_exact_human_amounts(money):
             with page.expect_response(lambda response: response.url.endswith('/api/mobile/settings') and response.request.method == 'POST') as saved_response:
                 row.get_by_role('button', name='Save permissions').click()
             answer = saved_response.value.json()
-            assert saved_response.value.status == 200, answer
+            assert saved_response.value.status == 200, {
+                "answer": answer,
+                "requested_cap": saved_response.value.request.post_data_json.get("payment_cap_human"),
+            }
             assert answer['rules']['wallet_view'] is True and answer['rules']['payment_propose'] is True, {
                 'request_rules': saved_response.value.request.post_data_json['rules'], 'saved_rules': answer['rules']}
             page.wait_for_function("document.querySelector('.phone-device input[data-right=payment_propose]').checked")
