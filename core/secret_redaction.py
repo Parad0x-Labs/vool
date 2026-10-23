@@ -222,7 +222,10 @@ _WORD_VALUE_NON_VALUES = frozenset(
         "enabled", "used", "shared", "written", "typed", "entered", "managed", "kept", "same.",
     }
 )
-_CARD_RUN_RE = re.compile(r"(?<![\d.,])\d(?:[ -]?\d){12,18}(?![\d])")
+# A candidate must be a complete numeric token. Digit-only boundaries let the
+# matcher carve a Luhn-valid run out of a UUID, or turn its preceding hex "cc"
+# fragment into a card label when _clause_before ends at the first digit.
+_CARD_RUN_RE = re.compile(r"(?<![\w.,-])\d(?:[ -]?\d){12,18}(?![\w-])")
 _CARD_GROUPED_RE = re.compile(r"\d{4}(?:([ -])\d{4}\1\d{4}\1\d{1,7}|[ -]\d{6}[ -]\d{4,5})")
 _CARD_CONTEXT_RE = re.compile(
     r"(?i)\b(?:card|cards|visa|mastercard|master\s+card|amex|american\s+express|maestro|discover"
