@@ -1912,7 +1912,6 @@ function renderWidget(row, host) {
   if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
-  if (w === 'web0') return widgetWeb0(stack);
   if (w === 'phone_access') return widgetPhoneAccess(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
@@ -5164,84 +5163,6 @@ function widgetAutomaticChecks(stack) {
     labelKey: 'settings.row.automatic_checks.label', labelEn: 'Go online on its own',
     noteKey: 'settings.row.automatic_checks.local_only_note',
     retryKey: 'settings.row.automatic_checks.retry_note',
-  });
-}
-
-/* --- The Web0 switch (Advanced). One boolean at /api/web0/settings, written the same way.
-   Same consent-control discipline as the boundary switches: an unreadable answer draws no
-   switch (never a guessed state), a failed write re-reads and says so in plain words, and
-   the confirmed state comes from the authority's own answer, not the optimistic one. */
-const WEB0_SETTINGS_URL = '/api/web0/settings';
-function widgetWeb0(stack) {
-  const readFailed = () => T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
-  const reading = () => {
-    const src = state.sources[WEB0_SETTINGS_URL];
-    if (!src || src.ok === false) return null;
-    return typeof src.enabled === 'boolean' ? { on: src.enabled } : null;
-  };
-  if (state.sourceErr[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
-  if (!state.sources[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
-  const first = reading();
-  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
-
-  const st = el('div', 'state idle');
-  st.setAttribute('role', 'status');
-  const line = el('div', 'inline');
-  const sw = el('button', 'sw');
-  sw.type = 'button';
-  sw.setAttribute('role', 'switch');
-  sw.setAttribute('aria-label', T('settings.row.web0.label', 'Web0 names'));
-  const note = el('div', 'subtle', T('settings.row.web0.note',
-    'Off by default. On lets the Web0 page look up .null names and run its background work. Off starts none of it.'));
-  line.appendChild(sw);
-  stack.appendChild(line);
-  stack.appendChild(note);
-  stack.appendChild(st);
-  const paint = (r) => {
-    if (!r) { sw.disabled = true; sw.setAttribute('aria-checked', 'false'); return; }
-    sw.setAttribute('aria-checked', r.on ? 'true' : 'false');
-  };
-  paint(first);
-  const reread = async () => paint((await readSource(WEB0_SETTINGS_URL)) ? reading() : null);
-
-  sw.addEventListener('click', async () => {
-    if (sw.disabled) return;
-    const now = reading();
-    if (!now) { paint(null); return; }
-    const want = !now.on;
-    sw.disabled = true;
-    st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
-    try {
-      const r = await fetch(WEB0_SETTINGS_URL, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: want }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j || j.ok === false) {
-        await reread();
-        st.className = 'state failed';
-        st.textContent = tfmt('settings.switch.not_saved', 'Not saved — {reason}', {
-          reason: T('settings.row.web0.retry_note', 'VOOL could not change this right now. Try again in a moment.'),
-        });
-        return;
-      }
-      await reread();
-      const back = state.sourceErr[WEB0_SETTINGS_URL] ? null : reading();
-      if (!back || back.on !== want) {
-        st.className = 'state stale';
-        st.textContent = T('settings.switch.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
-        return;
-      }
-      st.className = 'state saved'; st.textContent = T('settings.switch.saved', 'Saved');
-      setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
-    } catch (e) {
-      await reread();
-      st.className = 'state failed';
-      st.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
-    } finally {
-      sw.disabled = false;
-      paint(reading());
-    }
   });
 }
 
