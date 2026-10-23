@@ -1794,7 +1794,18 @@ def cmd_spend_unfreeze(*, json_mode: bool = False) -> int:
         if not json_mode:
             print(f"OS consent unavailable ({exc}); wallet stays frozen.")
         return 1
-    set_frozen_mirrored(False, wallet=wallet, policy=policy, ledger=ledger)
+    from core.wallet.errors import WalletFault
+
+    try:
+        set_frozen_mirrored(False, wallet=wallet, policy=policy, ledger=ledger)
+    except WalletFault as exc:
+        if (exc.context or {}).get("reason") != "freeze_requires_wallet_pin":
+            raise
+        if json_mode:
+            _emit_json({"ok": False, "error": "wallet_pin_required"})
+        else:
+            print("Spending was frozen from your phone or Settings. Unfreeze it in VOOL Settings with your wallet PIN.")
+        return 1
     if json_mode:
         _emit_json({"ok": True, "frozen": False})
     else:

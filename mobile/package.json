@@ -11,24 +11,39 @@
     "test:protocol": "node --test tests/protocol.test.mjs",
     "e2e:journey": "node e2e/journey.mjs",
     "postinstall": "patch-package --error-on-fail",
-    "test:tooling": "node --test tests/tooling-security.test.mjs"
+    "test:tooling": "node --test tests/tooling-security.test.mjs tests/native-locale-config.test.mjs",
+    "test:jest": "jest",
+    "test:security": "node --test tests/native-security.test.mjs",
+    "test:i18n": "node --test tests/i18n.test.mjs"
   },
   "dependencies": {
     "expo": "~52.0.0",
     "expo-asset": "~11.0.0",
+    "expo-av": "15.0.2",
     "expo-camera": "~16.0.0",
     "expo-constants": "~17.0.0",
+    "expo-crypto": "14.0.2",
+    "expo-document-picker": "13.0.3",
+    "expo-file-system": "18.0.12",
     "expo-font": "~13.0.0",
     "expo-image-picker": "~16.0.0",
+    "expo-local-authentication": "15.0.2",
+    "expo-location": "18.0.10",
     "expo-notifications": "~0.29.0",
+    "expo-screen-capture": "7.0.1",
     "expo-secure-store": "~14.0.0",
     "expo-status-bar": "~2.0.0",
+    "patch-package": "8.0.1",
     "react": "18.3.1",
-    "react-native": "0.76.5",
-    "patch-package": "8.0.1"
+    "react-native": "0.76.5"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.7",
+    "@babel/preset-env": "^8.0.7",
+    "@babel/preset-typescript": "^8.0.7",
     "@types/react": "~18.3.12",
+    "babel-jest": "^30.5.2",
+    "jest": "^30.5.2",
     "typescript": "~5.6.0"
   },
   "type": "module",
@@ -40,5 +55,13 @@
     "tar": "7.5.21",
     "uuid": "11.1.1",
     "image-size": "2.0.3"
+  },
+  "jest": {
+    "testMatch": [
+      "<rootDir>/tests/jest/**/*.test.ts"
+    ],
+    "transform": {
+      "^.+\\.tsx?$": "babel-jest"
+    }
   }
 }

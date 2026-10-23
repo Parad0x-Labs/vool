@@ -226,6 +226,9 @@ def set_frozen_mirrored(
     policy: SpendPolicy | None = None,
     ledger: SpendLedger | None = None,
     now: float | None = None,
+    require_pin: bool = False,
+    wallet_id: str = "",
+    credential: str | None = None,
 ) -> bool:
     """Flip the panic freeze in BOTH stores and return the PRIOR state (frozen if EITHER was).
 
@@ -249,7 +252,10 @@ def set_frozen_mirrored(
     policy = freeze(policy) if frozen else unfreeze(policy)
     save_policy_and_ledger(wallet, policy, ledger, now=now)
     try:
-        wallet_limits.set_frozen(bool(frozen))
+        if require_pin or wallet_id or credential is not None:
+            wallet_limits.set_frozen(bool(frozen), require_pin=require_pin, wallet_id=wallet_id, credential=credential)
+        else:
+            wallet_limits.set_frozen(bool(frozen))
     except Exception:
         rolled_back = freeze(policy) if prior_legacy else unfreeze(policy)
         with contextlib.suppress(Exception):

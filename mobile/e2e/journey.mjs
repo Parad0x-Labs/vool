@@ -253,6 +253,46 @@ async function main() {
   assert.equal(replay.body.code, "replay_detected");
   log("sabotage: replayed request refused", "first=200 replay=409 replay_detected");
 
+  // -- 9b. PHONE-INITIATED UNPAIR: a second phone unpairs ITSELF -----------------
+  // A scratch device pairs, unpairs from the phone side (the devices.unpair
+  // action), and must lose authority with its very next request. The journey
+  // device stays live for the legs below.
+  {
+    const scratchKey = generateDeviceKeypair();
+    const scratchStart = await post("/api/mobile/pairing/start", { device_hint: "scratch phone" });
+    assert.equal(scratchStart.status, 200);
+    const scratchChallenge = await fetchPairingChallenge(BASE, scratchStart.body.pairing_id);
+    const { claim: scratchClaim } = await claimPairing(BASE, {
+      pairingId: scratchStart.body.pairing_id,
+      code: scratchStart.body.code,
+      deviceName: "Scratch Phone",
+      platform: "android",
+      deviceSeedHex: scratchKey.seedHex,
+      devicePublicKeyHex: scratchKey.publicKeyHex,
+      challenge: scratchChallenge,
+    });
+    const scratchClient = new MobileCompanionClient(credentialsFromClaim(BASE, scratchClaim, scratchKey.seedHex));
+    assert.equal((await scratchClient.devicesMe()).device_id, scratchClaim.device_id);
+
+    const unpaired = await scratchClient.unpair();
+    assert.equal(unpaired.device_id, scratchClaim.device_id);
+    assert.equal(unpaired.status, "revoked");
+
+    let unpairedError = null;
+    try {
+      await scratchClient.devicesMe();
+    } catch (exc) {
+      unpairedError = exc;
+    }
+    assert.ok(unpairedError instanceof CompanionError);
+    assert.equal(unpairedError.code, "device_revoked");
+    assert.equal(unpairedError.status, 401);
+
+    // The journey device is untouched after the scratch phone unpaired itself.
+    assert.equal((await client.devicesMe()).device_id, claim.device_id);
+    log("unpair", `scratch device ${scratchClaim.device_id.slice(0, 12)}… unpaired itself; next request 401`);
+  }
+
   // -- 10. SABOTAGE: desktop revokes the device ---------------------------------
   const revoke = await post("/api/mobile/devices/revoke", { device_id: claim.device_id, reason: "journey end" });
   assert.equal(revoke.status, 200);
@@ -273,7 +313,7 @@ async function main() {
   assert.equal(receipts.body.chain_verified, true);
   const kinds = receipts.body.receipts.map((r) => r.kind);
   for (const expected of ["pairing.started", "pairing.claimed", "attachment.uploaded", "approval.decided",
-    "security.replay_detected", "device.revoked", "security.revoked_device_attempt"]) {
+    "security.replay_detected", "device.unpaired", "device.revoked", "security.revoked_device_attempt"]) {
     assert.ok(kinds.includes(expected), `receipt ${expected} must exist`);
   }
   log("receipts", `${receipts.body.receipts.length} rows, chain verified`);

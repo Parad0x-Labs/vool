@@ -1240,6 +1240,13 @@
       "registry_command_id": "",
       "surface": "http"
     },
+    "http:GET:/api/mobile/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "GET /api/mobile/settings",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.settings.read",
+      "surface": "http"
+    },
     "http:GET:/api/model-radar/feed": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "GET /api/model-radar/feed",
@@ -2395,6 +2402,13 @@
       "registry_command_id": "mobile.pairing.start",
       "surface": "http"
     },
+    "http:POST:/api/mobile/settings": {
+      "classification": "GENERATED_ADAPTER",
+      "name": "POST /api/mobile/settings",
+      "note": "delegated route forwards through execute_command",
+      "registry_command_id": "mobile.settings.configure",
+      "surface": "http"
+    },
     "http:POST:/api/mode": {
       "classification": "GENERATED_ADAPTER",
       "name": "POST /api/mode",
@@ -3218,7 +3232,7 @@
   "totals": {
     "DEAD": 0,
     "EXTERNAL_TRANSPORT_ONLY": 312,
-    "GENERATED_ADAPTER": 138,
+    "GENERATED_ADAPTER": 140,
     "LEGACY_UNMIGRATED": 0,
     "REGISTRY_OWNED": 8
   }

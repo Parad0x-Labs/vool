@@ -942,6 +942,22 @@ def _settings_groups() -> list[dict]:
             ],
         },
         {
+            "id": "phone",
+            "icon": "",
+            "title": "Phone and chat apps",
+            "blurb": "Connect to your own computer. You decide what each device may do.",
+            "rows": [
+                _row(
+                    id="phone_access",
+                    label="Use VOOL from my phone",
+                    kind="custom", widget="phone_access",
+                    help="Off by default. Choose your home or private network, then pair your phone. Turning this off closes phone access.",
+                    read={"url": "/api/mobile/settings"},
+                    keywords="phone mobile companion network pair revoke telegram discord",
+                ),
+            ],
+        },
+        {
             "id": "advanced",
             "icon": "⌥",
             "title": "Advanced",
@@ -1065,6 +1081,17 @@ html, body { height:100%; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system,'Inter',system-ui,Segoe UI,Roboto,sans-serif; display:flex; overflow:hidden; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:6px; }
 
+.phone-device {border-top:1px solid var(--line); margin-top:22px; padding-top:18px;}
+.phone-rights {display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 18px; margin:16px 0;}
+.phone-right {display:flex; align-items:center; gap:7px; min-width:0; overflow-wrap:anywhere;}
+.phone-cap {display:grid; grid-template-columns:minmax(0,1fr) minmax(0,180px); align-items:center; gap:12px; margin:10px 0;}
+.phone-settings-panel, .phone-device, .phone-rights > *, .phone-cap > * {min-width:0;}
+.phone-settings-panel input.inp, .phone-settings-panel select.inp {box-sizing:border-box; width:100%; min-width:0; max-width:100%;}
+.phone-expiry {display:grid; min-width:0;}
+.phone-actions {display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;}
+.phone-unfreeze {display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+.phone-settings-panel > .inp {margin:10px 0;}
+@media(max-width:650px) {.phone-rights{grid-template-columns:1fr}.phone-cap{grid-template-columns:1fr}}
 /* ---- sidebar ---- */
 #side { flex:0 0 248px; width:248px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
 /* App-language control: top-left, above everything else in the nav. Compact (globe + the
@@ -1885,6 +1912,8 @@ function renderWidget(row, host) {
   if (w === 'live_browser') return widgetLiveBrowser(stack);
   if (w === 'web_lookups') return widgetWebLookups(stack);
   if (w === 'automatic_checks') return widgetAutomaticChecks(stack);
+  if (w === 'web0') return widgetWeb0(stack);
+  if (w === 'phone_access') return widgetPhoneAccess(stack);
   if (w === 'wallet') return widgetWallet(stack);
   if (w === 'crypto') return widgetCrypto(stack);
   if (w === 'calendar_accounts') return widgetSurface(stack, 'VoolCalendarSettings', T('settings.pane.calendar_missing', 'The calendar accounts panel did not load.'));
@@ -5136,6 +5165,264 @@ function widgetAutomaticChecks(stack) {
     noteKey: 'settings.row.automatic_checks.local_only_note',
     retryKey: 'settings.row.automatic_checks.retry_note',
   });
+}
+
+/* --- The Web0 switch (Advanced). One boolean at /api/web0/settings, written the same way.
+   Same consent-control discipline as the boundary switches: an unreadable answer draws no
+   switch (never a guessed state), a failed write re-reads and says so in plain words, and
+   the confirmed state comes from the authority's own answer, not the optimistic one. */
+const WEB0_SETTINGS_URL = '/api/web0/settings';
+function widgetWeb0(stack) {
+  const readFailed = () => T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.');
+  const reading = () => {
+    const src = state.sources[WEB0_SETTINGS_URL];
+    if (!src || src.ok === false) return null;
+    return typeof src.enabled === 'boolean' ? { on: src.enabled } : null;
+  };
+  if (state.sourceErr[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+  if (!state.sources[WEB0_SETTINGS_URL]) { stack.appendChild(el('div', 'empty', T('settings.widget.loading', 'Loading…'))); return; }
+  const first = reading();
+  if (!first) { stack.appendChild(el('div', 'empty', readFailed())); return; }
+
+  const st = el('div', 'state idle');
+  st.setAttribute('role', 'status');
+  const line = el('div', 'inline');
+  const sw = el('button', 'sw');
+  sw.type = 'button';
+  sw.setAttribute('role', 'switch');
+  sw.setAttribute('aria-label', T('settings.row.web0.label', 'Web0 names'));
+  const note = el('div', 'subtle', T('settings.row.web0.note',
+    'Off by default. On lets the Web0 page look up .null names and run its background work. Off starts none of it.'));
+  line.appendChild(sw);
+  stack.appendChild(line);
+  stack.appendChild(note);
+  stack.appendChild(st);
+  const paint = (r) => {
+    if (!r) { sw.disabled = true; sw.setAttribute('aria-checked', 'false'); return; }
+    sw.setAttribute('aria-checked', r.on ? 'true' : 'false');
+  };
+  paint(first);
+  const reread = async () => paint((await readSource(WEB0_SETTINGS_URL)) ? reading() : null);
+
+  sw.addEventListener('click', async () => {
+    if (sw.disabled) return;
+    const now = reading();
+    if (!now) { paint(null); return; }
+    const want = !now.on;
+    sw.disabled = true;
+    st.className = 'state saving'; st.textContent = T('settings.switch.saving', 'Saving…');
+    try {
+      const r = await fetch(WEB0_SETTINGS_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: want }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || j.ok === false) {
+        await reread();
+        st.className = 'state failed';
+        st.textContent = tfmt('settings.switch.not_saved', 'Not saved — {reason}', {
+          reason: T('settings.row.web0.retry_note', 'VOOL could not change this right now. Try again in a moment.'),
+        });
+        return;
+      }
+      await reread();
+      const back = state.sourceErr[WEB0_SETTINGS_URL] ? null : reading();
+      if (!back || back.on !== want) {
+        st.className = 'state stale';
+        st.textContent = T('settings.switch.unconfirmed', 'Sent, but VOOL could not confirm it. Reopen Settings to check.');
+        return;
+      }
+      st.className = 'state saved'; st.textContent = T('settings.switch.saved', 'Saved');
+      setTimeout(() => { if (st.className === 'state saved') { st.className = 'state idle'; st.textContent = ''; } }, 2600);
+    } catch (e) {
+      await reread();
+      st.className = 'state failed';
+      st.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.');
+    } finally {
+      sw.disabled = false;
+      paint(reading());
+    }
+  });
+}
+
+let phoneSettingsNode = null, phoneSettingsReady = false, phoneSettingsLanguage = '';
+const phoneBotPairing = {};
+function redrawPhoneSettings() {
+  const host = phoneSettingsNode && phoneSettingsNode.parentElement;
+  if (host) {phoneSettingsNode=null; host.replaceChildren(); widgetPhoneAccess(host);}
+}
+function widgetPhoneAccess(host) {
+  const url = '/api/mobile/settings';
+  const src = state.sources[url];
+  const language = document.documentElement.lang;
+  if (src && phoneSettingsNode && phoneSettingsReady && phoneSettingsLanguage === language) {host.appendChild(phoneSettingsNode);return;}
+  const stack = el('div', 'phone-settings-panel'); host.appendChild(stack);
+  phoneSettingsNode=stack; phoneSettingsReady=!!src && !state.sourceErr[url]; phoneSettingsLanguage=language;
+  if (!src || state.sourceErr[url]) {
+    stack.appendChild(el('div', 'empty', T('settings.switch.read_failed', 'VOOL could not read this setting. Reopen Settings to try again.'))); return;
+  }
+  const network = el('select', 'inp');
+  network.setAttribute('aria-label', T('phone.network', 'Network address'));
+  const addresses = [...new Set([src.address, ...(src.addresses || [])].filter(Boolean))];
+  addresses.forEach(a => { const option = el('option', '', a); option.value = a; network.appendChild(option); });
+  if (src.address) network.value = src.address;
+  network.disabled = !!src.enabled;
+  stack.appendChild(network);
+  const line = el('div', 'inline');
+  const toggle = el('button', 'sw'); toggle.type = 'button'; toggle.setAttribute('role', 'switch');
+  toggle.setAttribute('aria-label', T('settings.row.phone_access.label', 'Use VOOL from my phone'));
+  toggle.setAttribute('aria-checked', src.enabled ? 'true' : 'false'); line.appendChild(toggle);
+  const pair = el('button', 'btn', T('phone.pair', 'Pair a phone')); pair.type = 'button'; pair.disabled = !src.running;
+  line.appendChild(pair); stack.appendChild(line);
+  const note = el('div', 'state idle'); note.setAttribute('role', 'status'); stack.appendChild(note);
+  toggle.onclick = async () => {
+    toggle.disabled = true;
+    try {
+      const wanted = !src.enabled;
+      const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:wanted,address:network.value})});
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error();
+      const back = await getJSON(url);
+      if (back.enabled !== wanted) throw new Error();
+      state.sources[url] = back; redrawPhoneSettings();
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); toggle.disabled = false; }
+  };
+  const refresh = el('button','btn',T('phone.refresh','Refresh permissions')); refresh.type='button'; stack.appendChild(refresh);
+  refresh.onclick=async()=>{refresh.disabled=true;try{state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(e){note.textContent=e.message;refresh.disabled=false;}};
+  const frozen = el('button', 'btn', src.frozen ? T('phone.unfreeze', 'Unfreeze payments') : T('phone.freeze', 'Freeze payments'));
+  frozen.type = 'button'; stack.appendChild(frozen);
+  const accounts = (src.wallet_accounts || []).filter(a => a.seal_policy === 'pilot-v3' && a.setup_state === 'ready');
+  function accountSelect(value) {
+    const select = el('select', 'inp'); select.setAttribute('aria-label', T('phone.account', 'Wallet account'));
+    accounts.forEach(a => {const option = el('option', '', (a.label || a.display_network || a.network) + ' · ' + (a.native_asset || '')); option.value = a.wallet_id; select.appendChild(option);});
+    if (value) select.value = value;
+    return select;
+  }
+  async function save(body) {
+    const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const j = await r.json(); if (!r.ok || !j.ok) throw new Error(j.error || T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'));
+    state.sources[url] = await getJSON(url); redrawPhoneSettings();
+  }
+  const chatApps=el('details','phone-bot-connect'); stack.appendChild(chatApps);
+  chatApps.appendChild(el('summary','',T('phone.bot_connect','Connect chat app')));
+  chatApps.appendChild(el('p','help',T('phone.bot_privacy','Telegram and Discord can read messages sent through them. Use a private conversation.')));
+  const botPlatform=el('select','inp'); ['Telegram','Discord'].forEach(name=>{const option=el('option','',name);option.value=name.toLowerCase();botPlatform.appendChild(option);});chatApps.appendChild(botPlatform);
+  const botTokenLabel=el('label','phone-cap',T('phone.bot_token','Bot token'));const botToken=el('input','inp');botToken.type='password';botToken.autocomplete='off';botTokenLabel.appendChild(botToken);chatApps.appendChild(botTokenLabel);
+  const dmLabel=el('label','phone-cap',T('phone.bot_dm','Private Discord conversation link'));const dmLink=el('input','inp');dmLabel.appendChild(dmLink);chatApps.appendChild(dmLabel);dmLabel.hidden=true;
+  botPlatform.onchange=()=>{dmLabel.hidden=botPlatform.value!=='discord';};
+  const connectBot=el('button','btn',T('phone.bot_connect','Connect chat app'));connectBot.type='button';connectBot.disabled=!src.enabled;chatApps.appendChild(connectBot);
+  connectBot.onclick=async()=>{const token=botToken.value;botToken.value='';connectBot.disabled=true;try {
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_connect',platform:botPlatform.value,token,channel_link:dmLink.value})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+    phoneBotPairing[j.platform]={code:j.code,expires:Date.now()+j.expires_in*1000};state.sources[url]=await getJSON(url);redrawPhoneSettings();
+  }catch(e){note.textContent=e.message;connectBot.disabled=false;}};
+  const relayForm=el('details','phone-relay'); stack.appendChild(relayForm);
+  relayForm.appendChild(el('summary','',T('phone.relay_title','Use my relay')));
+  relayForm.appendChild(el('p','help',T('phone.relay_help','Your own relay forwards encrypted messages. It sees connection times and device identifiers. Pair at home first.')));
+  function relayInput(key, fallback, value, secret) {
+    const label=el('label','phone-cap',T(key,fallback)); const input=el('input','inp');
+    input.type=secret?'password':'text'; input.autocomplete='off'; input.value=value || ''; label.appendChild(input); relayForm.appendChild(label); return input;
+  }
+  const relayAddress=relayInput('phone.relay_address','Relay address',src.relay_endpoint);
+  const relayRoom=relayInput('phone.relay_room','Room code',src.relay_room);
+  const relayToken=relayInput('phone.relay_token','PC connection token','',true);
+  const relayEnable=el('button','btn',T('phone.relay_enable','Connect relay')); relayEnable.type='button';
+  relayEnable.disabled=!(src.devices || []).some(d=>d.status==='active'); relayForm.appendChild(relayEnable);
+  relayEnable.onclick=()=>{const token=relayToken.value; relayToken.value=''; relayEnable.disabled=true;
+    save({operation:'relay',endpoint:relayAddress.value,room:relayRoom.value,token}).catch(e=>{note.textContent=e.message;relayEnable.disabled=false;});};
+  if (src.mode==='relay') relayForm.appendChild(el('p','help',T('phone.relay_phone','Phone connection address')+': '+src.relay_endpoint+'/rooms/'+src.relay_room));
+  frozen.onclick = () => {
+    if (!src.frozen) {frozen.disabled = true; save({operation:'freeze'}).catch(e => {note.textContent=e.message; frozen.disabled=false;}); return;}
+    const form = el('div', 'phone-unfreeze'); const account = accountSelect(); const credential = el('input', 'inp');
+    credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential', 'Wallet PIN or password');
+    const button = el('button','btn',T('phone.unfreeze','Unfreeze payments')); button.type='button'; form.append(account, credential, button); stack.appendChild(form);
+    button.onclick = () => {const secret=credential.value; credential.value=''; button.disabled=true; save({operation:'unfreeze',wallet_id:account.value,credential:secret}).catch(e=>{note.textContent=e.message;button.disabled=false;});};
+  };
+  const names = {chat:'Chat', history:'Read chat history', attachments:'Send attachments', tool_approval:'Approve actions', alerts:'Alerts',
+    wallet_view:'Wallet balances and receipts', payment_propose:'Propose payments', payment_approve:'Approve payments', camera:'Camera', photos:'Photos', location:'Location', microphone:'Voice'};
+  const noticeNames={task_completed:'Task finished',task_failed:'Task failed',task_pending_approval:'VOOL needs an approval',
+    task_cancelled:'Task stopped',payment_pending:'Payment waiting for approval',payment_done:'Payment done',payment_refused:'Payment refused or failed',
+    desktop_inbox:'New desktop inbox item',calendar_alert:'Calendar alert',calendar_catch_up:'Missed calendar alerts',reminder:'Reminder',model_offer:'Model offer',model_market:'Model update',market_watch:'Market watch'};
+  function botNotices(row,device) {
+    const choices=JSON.parse(JSON.stringify(device.notification_preferences));
+    const section=el('fieldset','phone-bot-notifications');section.appendChild(el('legend','',T('phone.right.alerts','Alerts')));row.appendChild(section);
+    const preset=el('select','inp');preset.setAttribute('aria-label',T('phone.right.alerts','Alerts'));
+    ['everything','important','off','custom'].forEach(value=>{const option=el('option','',T('phone.event.preset_'+value,{everything:'Everything',important:'Important only',off:'Off',custom:'Custom'}[value]));option.value=value;preset.appendChild(option);});
+    preset.value=choices.preset;section.appendChild(preset);
+    const boxes={};Object.entries(choices.types).forEach(([kind,value])=>{
+      const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=value.enabled;box.dataset.notificationType=kind;boxes[kind]=box;
+      line.append(box,document.createTextNode(' '+T('phone.event.'+kind,noticeNames[kind]||kind)));section.appendChild(line);box.onchange=()=>{preset.value='custom';};
+    });
+    preset.onchange=()=>{const configured=src.notification_presets[preset.value];if(configured)Object.entries(boxes).forEach(([kind,box])=>{box.checked=configured.types[kind].enabled;});};
+    function quietSwitch(key,label) {const line=el('label','phone-right');const box=el('input');box.type='checkbox';box.checked=choices.quiet[key];line.append(box,document.createTextNode(' '+T('phone.event.'+label[0],label[1])));section.appendChild(line);return box;}
+    const quiet=quietSwitch('enabled',['quiet','Quiet hours']);
+    function quietTime(key,label) {const line=el('label','phone-expiry',T('phone.event.quiet_'+key,label));const input=el('input','inp');input.type='time';input.value=choices.quiet[key];line.appendChild(input);section.appendChild(line);return input;}
+    const start=quietTime('start','Quiet hours start'),end=quietTime('end','Quiet hours end');
+    const approvals=quietSwitch('approvals_through',['approvals_through','Allow approvals through']);
+    const payments=quietSwitch('payments_through',['payments_through','Allow payments through']);
+    const button=el('button','btn',T('notif.save','Save'));button.type='button';section.appendChild(button);
+    button.onclick=async()=>{
+      const preferences={quiet:{enabled:quiet.checked,start:start.value,end:end.value,offset_minutes:-new Date().getTimezoneOffset(),approvals_through:approvals.checked,payments_through:payments.checked}};
+      if(preset.value==='custom')preferences.types=Object.fromEntries(Object.entries(boxes).map(([kind,box])=>[kind,{enabled:box.checked}]));else preferences.preset=preset.value;
+      section.disabled=true;try {
+        const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'bot_notifications',device_id:device.device_id,preferences})});const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error);
+        device.notification_preferences=j.preferences;section.remove();botNotices(row,device);
+      }catch(e){note.textContent=e.message;section.disabled=false;}
+    };
+  }
+  (src.devices || []).forEach(device => {
+    const row=el('section','phone-device'); row.dataset.device=device.device_id;
+    const isBot=device.kind==='bot';
+    row.appendChild(el('h3','',device.name || T('phone.device','Phone')));
+    row.appendChild(el('p','help', T('phone.paired','Paired') + ': ' + (device.paired_at ? new Date(device.paired_at).toLocaleString() : '') + ' · ' + T('phone.last_seen','Last seen') + ': ' + (device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : '')));
+    if (device.status !== 'active') {row.appendChild(el('p','help',T('phone.unpaired','Unpaired'))); stack.appendChild(row); return;}
+    const rightsGrid=el('div','phone-rights'); row.appendChild(rightsGrid);
+    if (isBot && phoneBotPairing[device.platform]?.expires>Date.now() && device.binding_state==='waiting') row.appendChild(el('p','help',T('phone.bot_paircode','Send /pair {code} to this bot in a private conversation within five minutes.').replace('{code}',phoneBotPairing[device.platform].code)));
+    const boxes={}, expiryInputs={}; Object.entries(names).forEach(([name,label])=> {
+      if (isBot && ['camera','photos','location','microphone','tool_approval','payment_approve'].includes(name)) return;
+      const line=el('label','phone-right'); const box=el('input'); box.type='checkbox'; box.checked=!!(device.rules || {})[name];
+      box.dataset.right=name; box.disabled=name==='tool_approval' || name==='payment_approve'; boxes[name]=box;
+      line.append(box, document.createTextNode(' '+T('phone.right.'+name,label))); rightsGrid.appendChild(line);
+      const expiry=el('input','inp');expiry.type='datetime-local';expiry.setAttribute('aria-label',T('phone.right_expiry','Expires')+' · '+T('phone.right.'+name,label));
+      const epoch=(device.right_expiry || {})[name];if(epoch)expiry.value=new Date(epoch*1000-new Date(epoch*1000).getTimezoneOffset()*60000).toISOString().slice(0,16);
+      expiry.dataset.initial=expiry.value;
+      expiry.disabled=box.disabled;expiryInputs[name]=expiry;const expiryLabel=el('label','phone-expiry',T('phone.right_expiry','Expires'));expiryLabel.appendChild(expiry);rightsGrid.appendChild(expiryLabel);
+    });
+    row.appendChild(el('p','help',isBot?T('phone.bot_approve_pc','Bots can never approve payments or actions. Approve on your computer.'):T('phone.approve_on_pc','Payments and actions must be approved on your computer in this version.')));
+    if(isBot)botNotices(row,device);
+    const account=accountSelect((device.payment_cap || {}).wallet_id); row.appendChild(account);
+    function amount(label,value) {const line=el('label','phone-cap',label); const input=el('input','inp'); input.inputMode='decimal'; input.value=value || ''; line.appendChild(input); row.appendChild(line); return input;}
+    const cap=device.payment_cap_display || {};
+    const per=amount(T('phone.per_payment','Per-payment maximum'),cap.per_payment);
+    const daily=amount(T('phone.per_day','Daily maximum'),cap.daily);
+    row.appendChild(el('p','help',T('phone.cap_help','Enter amounts in the account’s native asset. Both limits must be lower than the wallet’s limits.')));
+    const credential=el('input','inp'); credential.type='password'; credential.autocomplete='off'; credential.placeholder=T('phone.credential','Wallet PIN or password'); row.appendChild(credential);
+    const actions=el('div','phone-actions'); row.appendChild(actions);
+    const saveButton=el('button','btn',T('phone.save_rights','Save permissions')); saveButton.type='button'; actions.appendChild(saveButton);
+    saveButton.onclick=()=> {
+      const rules=Object.fromEntries(Object.entries(boxes).map(([k,v])=>[k,v.checked]));
+      const body={operation:'device_rules',device_id:device.device_id,rules,expected_permission_revision:device.permission_revision || 0};
+      const changedExpiry={};Object.entries(expiryInputs).forEach(([name,input])=>{if(input.value!==input.dataset.initial)changedExpiry[name]=input.value?new Date(input.value).getTime()/1000:0;});
+      if(Object.keys(changedExpiry).length)body.right_expiry=changedExpiry;
+      if (rules.payment_propose) {
+        const selected=accounts.find(a=>a.wallet_id===account.value); if (!selected) {note.textContent=T('phone.setup_wallet','Set up a wallet on your computer first.');return;}
+        body.credential=credential.value; body.payment_cap_human={wallet_id:account.value,network:selected.network,per_payment:per.value,daily:daily.value};
+      }
+      credential.value=''; saveButton.disabled=true;
+      save(body).catch(e=>{note.textContent=e.message;saveButton.disabled=false;});
+    };
+    const revoke=el('button','btn',isBot?T('phone.bot_disconnect','Disconnect chat app'):T('phone.revoke','Unpair this phone')); revoke.type='button'; actions.appendChild(revoke);
+    revoke.onclick=async()=>{revoke.disabled=true;try {const r=await fetch(isBot?url:'/api/mobile/devices/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(isBot?{operation:'bot_disconnect',platform:device.platform}:{device_id:device.device_id})});if(!r.ok)throw new Error();delete phoneBotPairing[device.platform];state.sources[url]=await getJSON(url);redrawPhoneSettings();}catch(_){note.textContent=T('settings.switch.no_answer','Not saved — VOOL did not answer.');revoke.disabled=false;}};
+    stack.appendChild(row);
+  });
+  pair.onclick = async () => {
+    pair.disabled = true;
+    try {
+      const r = await fetch('/api/mobile/pairing/start', {method:'POST', headers:{'Content-Type':'application/json'},body:'{}'});
+      const j = await r.json(); if (!r.ok || !j.pairing_page) throw new Error();
+      window.open(j.pairing_page, '_blank', 'noopener');
+    } catch (_) { note.textContent = T('settings.switch.no_answer', 'Not saved — VOOL did not answer.'); }
+    finally { pair.disabled = !src.running; }
+  };
 }
 
 function widgetAnswerLanguage(stack) {

@@ -25,6 +25,7 @@ import { canonicalBytes } from "./canonical.ts";
 // polyfill), Android and Node.
 nacl.setPRNG(function (x: Uint8Array, n: number) {
   const bytes = new Uint8Array(n);
+  if (typeof globalThis.crypto?.getRandomValues !== "function") throw new Error("Secure random numbers are unavailable. Pairing is stopped.");
   globalThis.crypto.getRandomValues(bytes);
   x.set(bytes);
 });

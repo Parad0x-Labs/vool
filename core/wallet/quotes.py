@@ -426,6 +426,11 @@ def mint_quote(proposal_id: str, *, source_context: dict[str, Any] | None = None
             raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="full_drain_not_offered_in_the_pilot", source_context=source_context)
         if remainder < int(specific["rent_minimum_minor"]):
             raise _fault("wallet_insufficient_funds", proposal_id=proposal.proposal_id, reason="remainder_below_rent_minimum", remainder_minor=remainder, source_context=source_context)
+    from core.mobile_companion.payments import pc_review
+
+    mobile_review = pc_review(proposal)
+    if mobile_review is not None:
+        fields["mobile_review"] = mobile_review
     digest = digest_of(fields)
     quote_id = f"quote-{uuid.uuid4().hex[:20]}"
     with connection() as conn:

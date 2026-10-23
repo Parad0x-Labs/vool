@@ -69,6 +69,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import threading
@@ -81,7 +82,10 @@ from typing import Any, Optional
 
 from core.device_link import identity as device_identity
 from core.device_link import protocol as device_protocol
+from core.mobile_companion.policy import PhoneHistoryRequired, scoped_chat_handle
 from core.request_trust import is_loopback_host
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Tunables (env-overridable, all clamped)
@@ -116,9 +120,10 @@ def max_devices() -> int:
 
 
 def relay_enabled() -> bool:
-    """Remote relay is OFF unless explicitly configured. No relay client ships
-    in this drop — this flag exists so one can never appear silently."""
-    return str(os.environ.get("VOOL_MOBILE_RELAY_ENABLED") or "").strip().lower() in {"1", "true", "yes", "on"}
+    """Saved owner opt-in controls the outbound worker; retain the legacy gate."""
+    from core.mobile_companion.listener import load_settings
+    value = load_settings()
+    return (value["enabled"] and value.get("mode") == "relay") or str(os.environ.get("VOOL_MOBILE_RELAY_ENABLED") or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _utcnow() -> datetime:
@@ -139,6 +144,8 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "chats.prepare",
     "chats.history",
     "chats.send",
+    "chats.progress",
+    "chats.cancel",
     "attachments.limits",
     "attachments.upload",
     "approvals.pending",
@@ -146,7 +153,16 @@ COMPANION_ACTIONS: frozenset[str] = frozenset({
     "status.snapshot",
     "proof.get",
     "devices.me",
+    "devices.unpair",
     "notifications.poll",
+    "notifications.preferences.get",
+    "notifications.preferences.set",
+    "notifications.feed",
+    "notifications.read",
+    "devices.switch_off", "devices.lost_computer",
+    "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts",
+    "abilities.check", "abilities.dictate", "abilities.location",
+    "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline", "wallet.freeze",
 })
 
 #: Anything a grant could theoretically reach that this surface refuses to
@@ -213,6 +229,53 @@ class CompanionStore:
     def devices(self) -> dict[str, dict[str, Any]]:
         return dict(self._data["devices"])
 
+    def claim_wire_nonce(self, nonce_key: str, now: float) -> bool:
+        with self._lock:
+            nonces = {key: expiry for key, expiry in self._data.get("wire_nonces", {}).items()
+                      if isinstance(expiry, (int, float)) and expiry > now}
+            if nonce_key in nonces or len(nonces) >= 16384:
+                return False
+            # The grant timestamp window is 120 seconds in either direction.
+            nonces[nonce_key] = now + 300
+            self._data["wire_nonces"] = nonces
+            self._save()
+            return True
+
+    def remember_turn(self, device_id: str, key: str, record: dict) -> dict:
+        with self._lock:
+            device = self._data["devices"][device_id]
+            turns = device.setdefault("turns", {})
+            existing = turns.get(key)
+            if existing is not None:
+                if existing["digest"] != record["digest"]:
+                    raise ValueError("idempotency key already binds different content")
+                return dict(existing)
+            while len(turns) >= 2048:
+                del turns[next(iter(turns))]
+            turns[key] = record
+            self._save()
+            return dict(record)
+
+    def turn(self, device_id: str, key: str) -> dict | None:
+        with self._lock:
+            value = ((self._data["devices"].get(device_id) or {}).get("turns") or {}).get(key)
+            return dict(value) if value else None
+
+    def edit_notifications(self, device_id: str, update):
+        import copy
+
+        from core.mobile_companion.notifications import initial_state
+
+        with self._lock:
+            device = self._data["devices"].get(device_id)
+            if not device or device.get("status") != "active":
+                raise PermissionError("device_revoked")
+            state = copy.deepcopy(device.get("notification_state") or initial_state())
+            result = update(state, device)
+            device["notification_state"] = state
+            self._save()
+            return result
+
     def device(self, device_id: str) -> Optional[dict[str, Any]]:
         rec = self._data["devices"].get(str(device_id or ""))
         return dict(rec) if rec else None
@@ -268,8 +331,6 @@ class CompanionStore:
             if ts - float(start) >= window:
                 start, count = ts, 0
             if int(count) >= int(cap):
-                buckets[key] = (start, count)
-                self._save()
                 return False
             buckets[key] = (start, int(count) + 1)
             self._save()
@@ -350,6 +411,9 @@ class MobileCompanionService:
 
     def __init__(self, *, store: Optional[CompanionStore] = None, signing_key=None, clock: Optional[Callable[[], datetime]] = None) -> None:
         self._store = store or CompanionStore(_state_dir())
+        from core.mobile_companion.ingress import CompanionIngress
+
+        self.ingress = CompanionIngress(self._store)
         self._authority_key = signing_key  # injectable for tests; lazily loaded otherwise
         self._clock = clock or _utcnow
         self.registry = device_protocol.GrantRegistry()
@@ -427,10 +491,13 @@ def _relay_declared(headers: dict[str, Any], body: dict[str, Any]) -> bool:
     return bool((body or {}).get("relay"))
 
 
-def _check_relay(headers: dict[str, Any], body: dict[str, Any], store: CompanionStore):
+def _check_relay(headers: dict[str, Any], body: dict[str, Any], store: CompanionStore, *, ingress=None):
     """Fail-closed relay gate: disabled (the default) refuses declared-relay traffic."""
     if _relay_declared(headers, body) and not relay_enabled():
-        store.append_receipt("security.relay_refused", detail={"relay": "declared_while_disabled"})
+        if ingress is None:
+            store.append_receipt("security.relay_refused", detail={"relay": "declared_while_disabled"})
+        else:
+            ingress.refused("security.relay_refused", reason="declared_while_disabled")
         return _err(403, "relay_disabled", "remote relay is not enabled on this desktop")
     return None
 
@@ -450,10 +517,16 @@ def _verify_ed25519(public_key_hex: str, payload: bytes, signature_hex: str) -> 
 
 def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
     """Never leak the grant (its bearer secret least of all) to a listing."""
+    from core.mobile_companion.notifications import defaults as notification_defaults
+    from core.mobile_companion.policy import cap_display
+
     return {
         "device_id": rec.get("device_id"),
         "name": rec.get("name"),
         "platform": rec.get("platform"),
+        "kind": rec.get("kind", "phone"),
+        "binding_state": (rec.get("binding") or {}).get("state", ""),
+        "notification_preferences": ((rec.get("notification_state") or {}).get("preferences") or notification_defaults()) if rec.get("kind") == "bot" else None,
         "public_key": rec.get("public_key"),
         "status": rec.get("status"),
         "paired_at": rec.get("paired_at"),
@@ -462,6 +535,10 @@ def _public_device(rec: dict[str, Any]) -> dict[str, Any]:
         "revoke_reason": rec.get("revoke_reason"),
         "grant_id": (rec.get("grant") or {}).get("grant_id"),
         "envelope": (rec.get("grant") or {}).get("envelope"),
+        "rules": dict(rec.get("rules") or {}), "right_expiry": dict(rec.get("right_expiry") or {}),
+        "permission_revision": int(rec.get("permission_revision") or 0),
+        "payment_cap": dict(rec.get("payment_cap") or {}),
+        "payment_cap_display": cap_display(rec.get("payment_cap") or {}),
     }
 
 
@@ -475,7 +552,7 @@ def _new_pairing_code() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
-def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str):
+def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str, *, companion_host: str = ""):
     from urllib.parse import urlsplit
 
     store = service.store
@@ -510,11 +587,12 @@ def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
         "attempts": 0,
         "status": "waiting",
         "client_hint": str(body.get("device_hint") or "")[:64],
+        "companion_host": companion_host,
     }
     store.put_pairing(record)
     store.append_receipt("pairing.started", detail={"pairing_id": pairing_id, "ttl_seconds": ttl})
 
-    advertise_host = str(os.environ.get("VOOL_MOBILE_ADVERTISE_HOST") or "").strip()
+    advertise_host = companion_host or str(os.environ.get("VOOL_MOBILE_ADVERTISE_HOST") or "").strip()
     if not advertise_host:
         # Advertise what the desktop itself is addressed by — host AND port,
         # so the QR the phone scans dials the same surface.
@@ -542,9 +620,16 @@ def start_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
     })
 
 
-def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str):
+def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: MobileCompanionService, client_host: str, *, sealed_fields=None):
     store = service.store
-    refusal = _check_relay(headers, body, store)
+    def refusal_receipt(reason):
+        if sealed_fields is not None:
+            service.ingress.refused("pairing.failed", reason=reason)
+        else:
+            store.append_receipt("pairing.failed", detail={"pairing_id": str(body.get("pairing_id") or ""),
+                                                         "reason": reason, "client_host": client_host})
+
+    refusal = _check_relay(headers, body, store, ingress=service.ingress if sealed_fields is not None else None)
     if refusal is not None:
         return refusal
     pairing_id = str(body.get("pairing_id") or "").strip()
@@ -566,30 +651,32 @@ def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
 
     session = store.pairing(pairing_id)
     if session is None:
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "unknown_pairing", "client_host": client_host})
+        refusal_receipt("unknown_pairing")
         return _err(404, "pairing_unknown", "no such pairing session")
     if session.get("status") == "claimed":
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "code_replayed", "client_host": client_host})
+        refusal_receipt("code_replayed")
         return _err(409, "pairing_used", "this pairing code was already used")
     if float(session.get("expires_at_epoch") or 0) <= _now():
-        store.update_pairing(pairing_id, status="expired")
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "expired", "client_host": client_host})
+        if session.get("status") != "expired":
+            store.update_pairing(pairing_id, status="expired")
+        refusal_receipt("expired")
         return _err(410, "pairing_expired", "pairing code expired; start a new pairing on the desktop")
     if int(session.get("attempts") or 0) >= _PAIRING_MAX_ATTEMPTS:
-        store.update_pairing(pairing_id, status="locked")
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "attempt_cap", "client_host": client_host})
+        if session.get("status") != "locked":
+            store.update_pairing(pairing_id, status="locked")
+        refusal_receipt("attempt_cap")
         return _err(429, "pairing_locked", "too many wrong codes; start a new pairing")
     if not store.allow_rate(f"pair_claim_host:{client_host}", cap=_PAIR_HOST_RATE_CAP):
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "host_rate", "client_host": client_host})
+        refusal_receipt("host_rate")
         return _err(429, "pairing_rate_limited", "too many claims from this address; wait and retry")
 
     if not hmac.compare_digest(hashlib.sha256(code.encode("utf-8")).hexdigest(), str(session.get("code_hash") or "")):
         store.update_pairing(pairing_id, attempts=int(session.get("attempts") or 0) + 1)
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "bad_code", "client_host": client_host})
+        refusal_receipt("bad_code")
         return _err(401, "bad_code", "pairing code did not match")
 
     if store.active_device_count() >= max_devices():
-        store.append_receipt("pairing.failed", detail={"pairing_id": pairing_id, "reason": "device_limit"})
+        refusal_receipt("device_limit")
         return _err(409, "device_limit", "device limit reached; revoke a device first")
 
     # ---- PROOF OF POSSESSION ---------------------------------------------
@@ -608,11 +695,14 @@ def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
     }
     if not _verify_ed25519(public_key, _canonical_bytes(proof_payload), proof_signature):
         store.update_pairing(pairing_id, attempts=int(session.get("attempts") or 0) + 1)
-        store.append_receipt("pairing.failed", detail={
-            "pairing_id": pairing_id, "reason": "proof_of_possession", "client_host": client_host})
+        refusal_receipt("proof_of_possession")
         return _err(401, "proof_of_possession_failed",
                     "device signature over the pairing challenge did not verify")
 
+    if sealed_fields is not None:
+        from core.mobile_companion.notifications import initial_state
+
+        sealed_fields = {**sealed_fields, "notification_state": initial_state()}
     device_id = "phone:" + hashlib.sha256(bytes.fromhex(public_key)).hexdigest()[:20]
     grant = device_protocol.issue_grant(
         signing_key=service.authority_key(),
@@ -645,6 +735,8 @@ def claim_pairing(body: dict[str, Any], headers: dict[str, Any], service: Mobile
         "pairing_id": pairing_id,
         "grant": grant,
     }
+    if sealed_fields is not None:
+        record.update(sealed_fields)
     store.put_device(record)
     store.update_pairing(pairing_id, status="claimed", device_id=device_id)
     store.append_receipt("pairing.claimed", device_id=device_id, detail={
@@ -711,6 +803,9 @@ def dispatch_companion(
     timestamp = str(body.get("timestamp") or "").strip()
     signature = str(body.get("signature") or "").strip()
     device_signature = str(body.get("device_signature") or "").strip().lower()
+    if any(len(value) > bound for value, bound in ((device_id, 128), (grant_id, 256), (action, 96), (nonce, 256), (timestamp, 128), (signature, 512), (device_signature, 512))):
+        store.append_receipt("security.invalid_request", detail={"reason": "field_bounds"})
+        return _err(400, "invalid_request", "This request could not be read.")
     if not device_id or not grant_id or not action or not nonce or not timestamp or not signature or not device_signature:
         return _err(400, "invalid_request",
                     "device_id, grant_id, action, nonce, timestamp, signature and "
@@ -747,12 +842,13 @@ def dispatch_companion(
         )
     if not ok:
         status, code = _companion_error_for(reason)
+        store.append_receipt("security.authorization_refused", device_id=device_id, detail={"action": action, "code": code})
         if code == "replay_detected":
             store.append_receipt("security.replay_detected", device_id=device_id, detail={"action": action, "nonce": nonce[:16]})
         return _err(status, code, reason)
 
     # ---- DEVICE SIGNATURE --------------------------------------------------
-    # Second factor on EVERY request: an Ed25519 signature by the phone's
+    # Transport-key proof on EVERY request: an Ed25519 signature by the phone's
     # REGISTERED key (from the device record — a public key in the request
     # body is never trusted) over the same canonical bytes the grant HMAC
     # protects: device id, action, parameters digest, nonce, timestamp and
@@ -780,6 +876,12 @@ def dispatch_companion(
                                  detail={"action": action, "reason": "family_not_offered_to_companion"})
         return _err(403, "action_not_offered", f"the mobile companion does not offer {action!r}")
 
+    from core.mobile_companion.policy import refusal
+
+    policy_error = refusal(store.device(device_id) or {}, action)
+    if policy_error:
+        store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": policy_error})
+        return _err(403, policy_error, "This permission is off, expired, or needs approval on your computer.")
     store.mark_device(device_id, last_seen_at=service.utcnow().isoformat())
     handler = _ACTION_HANDLERS.get(action)
     if handler is None:
@@ -794,11 +896,33 @@ def dispatch_companion(
             service=service,
             device=device,
         )
+    except PhoneHistoryRequired as exc:
+        store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": "history_required"})
+        return _err(403, "phone_history_required", str(exc))
     except Exception as exc:
         from core.error_surface import safe_error_text
 
         return _err(500, "companion_handler_error", safe_error_text(exc))
-    return _json(status, {"ok": status < 400, "action": action, "device_id": device_id, "result": result})
+    if action not in {"devices.unpair", "devices.lost_computer"}:
+        fresh = store.device(device_id) or {}
+        if fresh.get("status") != "active":
+            store.append_receipt("security.revoked_inflight_response", device_id=device_id, detail={"action": action})
+            return _err(401, "device_revoked", "This phone was unpaired while its request was running.")
+        fresh_refusal = refusal(fresh, action)
+        try:
+            if action in {"chats.send", "attachments.upload"} and params.get("chat_id"):
+                scoped_chat_handle(fresh, str(params["chat_id"]))
+        except PhoneHistoryRequired:
+            fresh_refusal = "phone_history_required"
+        if fresh_refusal:
+            store.append_receipt("security.phone_right_refused", device_id=device_id, detail={"action": action, "reason": fresh_refusal})
+            return _err(403, fresh_refusal, "This phone's permission changed. Check its settings on your computer.")
+    payload = {"ok": status < 400, "action": action, "device_id": device_id, "result": result}
+    if status >= 400:
+        payload["error"] = str(result.get("error") or "This action could not be completed.")
+        code = str(result.get("code") or result.get("error") or "")
+        payload["code"] = code if code and code.replace("_", "").isalnum() else "companion_action_refused"
+    return _json(status, payload)
 
 
 # ---------------------------------------------------------------------------
@@ -806,6 +930,8 @@ def dispatch_companion(
 # ---------------------------------------------------------------------------
 
 def _action_devices_me(params: dict[str, Any], *, service: MobileCompanionService, device: dict[str, Any], **_kw):
+    from core.mobile_companion.policy import cap_display
+
     rec = service.store.device(str(device.get("device_id") or ""))
     if rec is None:
         return 401, {"error": "device_no_longer_registered"}
@@ -816,6 +942,35 @@ def _action_devices_me(params: dict[str, Any], *, service: MobileCompanionServic
         "status": rec.get("status"),
         "paired_at": rec.get("paired_at"),
         "last_seen_at": rec.get("last_seen_at"),
+        "desktop_fingerprint": service.desktop_fingerprint(),
+        "desktop_short_fingerprint": service.desktop_short_fingerprint(),
+        "rules": dict(rec.get("rules") or {}), "right_expiry": dict(rec.get("right_expiry") or {}),
+        "payment_cap": dict(rec.get("payment_cap") or {}),
+        "payment_cap_display": cap_display(rec.get("payment_cap") or {}),
+        "approval_key_status": "unproven_use_computer",
+    }
+
+
+def _action_devices_unpair(params: dict[str, Any], *, service: MobileCompanionService, device: dict[str, Any], **_kw):
+    """Phone-initiated unpair: revoke the CALLING device, nothing else.
+
+    The device record the dispatcher authenticated is the only target — any
+    device_id in params is deliberately ignored, so one paired phone can never
+    unpair another. The revocation is the desktop operator's own revoke path
+    (durable store + live registry + receipt), so the phone's authority dies
+    with this very response and its next request fails device_revoked.
+    """
+    device_id = str(device.get("device_id") or "")
+    rec = revoke_device(service, device_id, reason="unpaired from this phone")
+    if rec is None:
+        return 401, {"error": "device_no_longer_registered"}
+    # A distinct receipt kind so the journal separates a phone-initiated unpair
+    # from a desktop revocation (revoke_device already receipted the revocation).
+    service.store.append_receipt("device.unpaired", device_id=device_id, detail={"via": "phone"})
+    return 200, {
+        "device_id": rec.get("device_id"),
+        "status": rec.get("status"),
+        "revoked_at": rec.get("revoked_at"),
         "desktop_fingerprint": service.desktop_fingerprint(),
         "desktop_short_fingerprint": service.desktop_short_fingerprint(),
     }
@@ -862,6 +1017,9 @@ def _action_chats_list(params: dict[str, Any], **_kw):
     from core.memory.entries import list_conversation_sessions
 
     rows = list_conversation_sessions(limit=100)
+    search = str(params.get("search") or "").strip().casefold()[:200]
+    if search:
+        rows = [row for row in rows if search in str(row.get("title") or "").casefold()]
     return 200, {
         "chats": [
             {
@@ -907,14 +1065,14 @@ def _effective_session_id(handle: str) -> str:
     )
 
 
-def _action_chats_prepare(params: dict[str, Any], **_kw):
+def _action_chats_prepare(params: dict[str, Any], *, device=None, **_kw):
     # A PHONE-side handle (never a desktop canonical id): continuity comes
     # from the deterministic derivation in _effective_session_id.
     handle = "mob-" + secrets.token_hex(10)
-    return 200, {"chat_id": handle, "canonical_chat_id": _effective_session_id(handle)}
+    return 200, {"chat_id": handle, "canonical_chat_id": _effective_session_id(scoped_chat_handle(device, handle))}
 
 
-def _action_chats_history(params: dict[str, Any], *, runtime, model_name: str, **_kw):
+def _action_chats_history(params: dict[str, Any], *, runtime, model_name: str, device=None, **_kw):
     from core.web.api.service import dispatch_get
 
     chat_id = str(params.get("chat_id") or "").strip()
@@ -932,7 +1090,7 @@ def _action_chats_history(params: dict[str, Any], *, runtime, model_name: str, *
 
     response = dispatch_get(
         path="/api/chat/history",
-        query={"session": [_read_session_id(chat_id)], "limit": [str(limit)]},
+        query={"session": [_read_session_id(scoped_chat_handle(device, chat_id))], "limit": [str(limit)]},
         runtime=runtime,
         model_name=model_name,
         client_host=IN_PROCESS_OWNER_PEER,
@@ -965,6 +1123,8 @@ def _action_chats_send(
     model_name: str,
     client_host: str,
     workspace_root_provider,
+    service: MobileCompanionService,
+    device: dict[str, Any],
     **_kw,
 ):
     from core.web.api.service import dispatch_post
@@ -976,18 +1136,55 @@ def _action_chats_send(
         return 400, {"error": "message too long (32768 char ceiling)"}
     chat_id = str(params.get("chat_id") or "").strip()
     attachments = [str(a) for a in params.get("attachments") or [] if str(a or "").strip()][:8]
+    request_id = "mob-" + uuid.uuid4().hex
+    idempotency_key = str(params.get("idempotency_key") or "")
+    if idempotency_key:
+        import re
+
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{16,100}", idempotency_key):
+            return 400, {"error": "invalid_idempotency_key"}
+        request_id = "mob-" + hashlib.sha256((str(device["device_id"]) + ":" + idempotency_key).encode()).hexdigest()[:40]
+        chat_id = chat_id or request_id
+    phone_chat_id = chat_id or request_id
+    server_chat_id = scoped_chat_handle(device, phone_chat_id)
+    if idempotency_key:
+        digest = hashlib.sha256(_canonical_bytes({"chat_id": chat_id, "message": message, "attachments": attachments})).hexdigest()
+        try:
+            service.store.remember_turn(str(device["device_id"]), idempotency_key, {
+                "digest": digest, "cancel_id": request_id, "chat_id": phone_chat_id,
+                "session_id": _read_session_id(server_chat_id), "created_at": service.utcnow().isoformat()})
+        except ValueError:
+            service.store.append_receipt("chat.idempotency_conflict", device_id=str(device["device_id"]))
+            return 409, {"error": "idempotency_conflict"}
     body: dict[str, Any] = {
         "messages": [{"role": "user", "content": message}],
         "stream": False,
         "source_context": {"surface": "mobile_companion"},
         "platform": "mobile_companion",
     }
-    if chat_id:
-        body["session_id"] = chat_id
+    if idempotency_key:
+        body["turn_id"] = request_id
+    body["session_id"] = server_chat_id
+    if device.get("kind") == "bot":
+        body["platform"] = device["platform"]
+        body["source_context"] = {"surface": "channel", "platform": device["platform"]}
     if attachments:
         body["attachments"] = attachments
     # The REAL /api/chat pipeline — session derivation, mode resolution, the
     # turn gate, finalization and the receipt envelope all belong to it.
+    extra = {}
+    if device.get("sealed_protocol"):
+        from core.web.api.runtime import stable_openclaw_session_id
+
+        # The authenticated companion may resume the owner's existing chat,
+        # while its tool/paid-call source remains a remote channel.
+        def companion_session(**kwargs):
+            kwargs["allow_canonical_resume"] = bool((device.get("rules") or {}).get("history"))
+            return stable_openclaw_session_id(**kwargs)
+
+        extra["stable_openclaw_session_id_provider"] = companion_session
+        body["surface"] = "channel"
+        body["source_context"] = {**body["source_context"], "surface": "channel"}
     response = dispatch_post(
         path="/api/chat",
         body=body,
@@ -996,12 +1193,15 @@ def _action_chats_send(
         model_name=model_name,
         workspace_root_provider=workspace_root_provider,
         client_host=client_host,
-        request_id="mob-" + uuid.uuid4().hex,
+        request_id=request_id,
+        **extra,
     )
     try:
         payload = json.loads(response.body or b"{}")
     except (json.JSONDecodeError, TypeError):
         return 500, {"error": "turn_unreadable"}
+    if response.status == 202:
+        return 202, {"chat_id": phone_chat_id, "pending": True, "turn_id": request_id}
     if response.status != 200:
         return response.status, payload
     envelope_msg = payload.get("message") or {}
@@ -1009,14 +1209,38 @@ def _action_chats_send(
     result: dict[str, Any] = {
         # Phone-facing continuity: the phone keeps ITS handle; the canonical
         # desktop id is reported alongside, never required for the next turn.
-        "chat_id": chat_id or payload.get("vool_session_id"),
-        "canonical_chat_id": payload.get("vool_session_id"),
+        "chat_id": phone_chat_id,
+        "canonical_chat_id": payload.get("vool_session_id") or _read_session_id(server_chat_id),
         "reply": envelope_msg.get("content"),
         "done_reason": payload.get("done_reason"),
         "commit": {"type": commit.get("type"), "request_id": commit.get("request_id")} if commit else {},
         "model": payload.get("model"),
+        "turn_id": request_id,
     }
     return 200, result
+
+
+def _action_chats_progress(params, *, service, device, **_kw):
+    from core.runtime_task_events import list_runtime_session_events
+
+    record = service.store.turn(str(device["device_id"]), str(params.get("idempotency_key") or ""))
+    if record is None:
+        return 404, {"error": "turn_not_found"}
+    after = _clamp_int(params.get("after"), default=0, lo=0, hi=2**62)
+    rows = list_runtime_session_events(record["session_id"], after_seq=after, limit=100)
+    selected = [row for row in rows if row.get("client_turn_id") == record["cancel_id"]]
+    return 200, {"events": selected, "next_after": max([after] + [int(row["seq"]) for row in rows])}
+
+
+def _action_chats_cancel(params, *, service, device, **_kw):
+    from core.web.api.turn_cancel import request_cancel
+
+    record = service.store.turn(str(device["device_id"]), str(params.get("idempotency_key") or ""))
+    if record is None:
+        return 404, {"error": "turn_not_found"}
+    state = request_cancel(record["session_id"], record["cancel_id"])
+    service.store.append_receipt("chat.cancel_requested", device_id=str(device["device_id"]), detail={"state": state})
+    return 200, {"state": state}
 
 
 def _action_attachments_limits(params: dict[str, Any], **_kw):
@@ -1033,6 +1257,11 @@ def _action_attachments_upload(params: dict[str, Any], *, service: MobileCompani
 
     from core import chat_attachments
 
+    if params.get("ability") is not None:
+        from core.mobile_companion.abilities import check
+        code, value = check({"ability": params["ability"]}, service=service, device=device)
+        if code != 200: return code, value
+        if params["ability"] not in {"camera", "photos"}: return 400, {"error": "Choose a photo source."}
     chat_id = str(params.get("chat_id") or "").strip()
     filename = str(params.get("filename") or "").strip()
     content_b64 = str(params.get("content_b64") or "").strip()
@@ -1040,7 +1269,7 @@ def _action_attachments_upload(params: dict[str, Any], *, service: MobileCompani
     kind_hint = str(params.get("kind") or "").strip().lower()
     if not chat_id or not filename or not content_b64:
         return 400, {"error": "chat_id, filename and content_b64 are required"}
-    chat_id = _effective_session_id(chat_id)  # stage under the canonical session the send will use
+    chat_id = _read_session_id(scoped_chat_handle(device, chat_id))  # the send uses this same protected namespace
     try:
         data = base64.b64decode(content_b64, validate=True)
     except (binascii.Error, ValueError):
@@ -1142,7 +1371,7 @@ def _action_approvals_resolve(
     return 200, {"approval": approval, "decision": decision}
 
 
-def _action_proof_get(params: dict[str, Any], *, client_host: str = "", **_kw):
+def _action_proof_get(params: dict[str, Any], *, client_host: str = "", device=None, **_kw):
     from core.proof_projection import build_turn_proof
 
     chat_id = str(params.get("chat_id") or "").strip()
@@ -1160,7 +1389,7 @@ def _action_proof_get(params: dict[str, Any], *, client_host: str = "", **_kw):
         else f"channel:http:{client_host or 'unknown'}"
     )
     try:
-        proof = build_turn_proof(session_id=_read_session_id(chat_id), request_id=request_id, principal=principal)
+        proof = build_turn_proof(session_id=_read_session_id(scoped_chat_handle(device, chat_id)), request_id=request_id, principal=principal)
     except Exception:
         return 404, {"error": "proof_not_bound"}
     if not proof or not proof.get("bound"):
@@ -1169,6 +1398,10 @@ def _action_proof_get(params: dict[str, Any], *, client_host: str = "", **_kw):
 
 
 def _action_notifications_poll(params: dict[str, Any], **_kw):
+    if (_kw.get("device") or {}).get("sealed_protocol"):
+        from core.mobile_companion.notifications import poll
+
+        return poll(params, **_kw)
     from core.runtime_task_events import list_runtime_session_events
 
     after = _clamp_int(params.get("after"), default=0, lo=0, hi=2**62)
@@ -1204,11 +1437,14 @@ def _clamp_int(value: Any, *, default: int, lo: int, hi: int) -> int:
 
 _ACTION_HANDLERS: dict[str, Callable[..., tuple[int, dict[str, Any]]]] = {
     "devices.me": _action_devices_me,
+    "devices.unpair": _action_devices_unpair,
     "status.snapshot": _action_status_snapshot,
     "chats.list": _action_chats_list,
     "chats.prepare": _action_chats_prepare,
     "chats.history": _action_chats_history,
     "chats.send": _action_chats_send,
+    "chats.progress": _action_chats_progress,
+    "chats.cancel": _action_chats_cancel,
     "attachments.limits": _action_attachments_limits,
     "attachments.upload": _action_attachments_upload,
     "approvals.pending": _action_approvals_pending,
@@ -1217,10 +1453,86 @@ _ACTION_HANDLERS: dict[str, Callable[..., tuple[int, dict[str, Any]]]] = {
     "notifications.poll": _action_notifications_poll,
 }
 
+from core.mobile_companion import notifications as _phone_notifications
+
+
+def _action_phone_switch_off(params, *, service, device, **_kw):
+    from core.mobile_companion.policy import switch_off
+
+    return switch_off(service, device, params)
+
+
+def _action_wallet(params, *, service, device, _action, **_kw):
+    from core.mobile_companion.payments import handle
+
+    return handle(_action, params, service=service, device=device)
+
+
+def _freeze_payments() -> bool:
+    """Freeze the canonical wallet gate first; the legacy mirror is best effort.
+
+    Getting safer must never depend on the legacy policy file being readable.
+    Returns whether the legacy mirror was updated too.
+    """
+    from core.wallet import limits
+    from core.wallet_spend_policy_store import set_frozen_mirrored
+
+    limits.set_frozen(True, require_pin=True)
+    try:
+        set_frozen_mirrored(True, require_pin=True)
+    except Exception:
+        logger.warning("phone freeze: legacy spend policy mirror not updated; the wallet freeze is on")
+        return False
+    return True
+
+
+def _action_freeze(params, *, service, device, **_kw):
+    mirrored = _freeze_payments()
+    service.store.append_receipt("payments.frozen", device_id=device["device_id"],
+                                 detail={"via": "mobile", **({} if mirrored else {"legacy_mirror": "not_updated"})})
+    return 200, {"frozen": True, "message": "Payments are frozen. Completed payments cannot be undone. Unfreeze on your computer."}
+
+
+def _action_lost_computer(params, *, service, device, **_kw):
+    try:
+        _action_freeze({}, service=service, device=device)
+    finally:
+        # Revocation never waits on the freeze succeeding.
+        for record in service.store.devices().values():
+            if record.get("status") == "active":
+                revoke_device(service, record["device_id"], reason="computer reported lost")
+    runtime = _kw.get("runtime")
+    if runtime is not None and getattr(runtime, "phone_bot_manager", None):
+        runtime.phone_bot_manager.close(wait=False)
+    return 200, {"frozen": True, "revoked": True, "clear_credentials": True}
+
+
+from functools import partial as _partial
+
+_ACTION_HANDLERS.update({name: _partial(_action_wallet, _action=name) for name in (
+    "wallet.status", "wallet.balances", "wallet.receipts", "wallet.contacts", "wallet.pending", "wallet.preview", "wallet.propose", "wallet.approve", "wallet.decline")})
+_ACTION_HANDLERS.update({"devices.switch_off": _action_phone_switch_off, "wallet.freeze": _action_freeze,
+                         "devices.lost_computer": _action_lost_computer})
+
+
+_ACTION_HANDLERS.update({
+    "notifications.preferences.get": _phone_notifications.preferences_get,
+    "notifications.preferences.set": _phone_notifications.preferences_set,
+    "notifications.feed": _phone_notifications.feed,
+    "notifications.read": _phone_notifications.mark_read,
+})
+
 
 # ---------------------------------------------------------------------------
 # Desktop management endpoints (owner-local)
 # ---------------------------------------------------------------------------
+
+from core.mobile_companion.abilities import check as _ability_check
+from core.mobile_companion.abilities import dictate as _ability_dictate
+from core.mobile_companion.abilities import location as _ability_location
+
+_ACTION_HANDLERS.update({"abilities.check": _ability_check, "abilities.dictate": _ability_dictate, "abilities.location": _ability_location})
+
 
 def _devices_payload(service: MobileCompanionService) -> dict[str, Any]:
     devices = [_public_device(rec) for rec in service.store.devices().values()]
@@ -1253,7 +1565,8 @@ def handle_desktop_revoke(body: dict[str, Any], service: MobileCompanionService)
 
 def revoke_device(service: MobileCompanionService, device_id: str, *, reason: str = "") -> Optional[dict[str, Any]]:
     store = service.store
-    grant = (store.device(device_id) or {}).get("grant") or {}
+    previous = store.device(device_id) or {}
+    grant = previous.get("grant") or {}
     if grant.get("grant_id"):
         service.registry.revoke(str(grant["grant_id"]), reason=reason or "device revoked")
     rec = store.mark_device(
@@ -1264,6 +1577,9 @@ def revoke_device(service: MobileCompanionService, device_id: str, *, reason: st
     )
     if rec is not None:
         store.append_receipt("device.revoked", device_id=device_id, detail={"reason": reason or "revoked by operator"})
+        if previous.get("status") == "active" and previous.get("sealed_protocol"):
+            from core.mobile_companion.device_notices import record as record_notice
+            record_notice(service, device_id, "device_revoked")
     return rec
 
 
@@ -1306,6 +1622,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
   <div class="code" aria-label="Pairing code">__CODE__</div>
   <div class="meta" id="exp" role="status" aria-live="polite"></div>
   <p class="say">This computer's check code is <b>__SHORT_FP__</b>. If your phone shows a check code while pairing, it should be the same.</p>
+  <p class="say"><code>__FULL_FP__</code></p>
   <div class="expired">
     <p id="goneText">This code expired.</p>
     <button type="button" id="again">Make a new code</button>
@@ -1345,7 +1662,7 @@ _PAIRING_PAGE_TEMPLATE = """<!doctype html>
       })
       .catch(function () { btn.disabled = false; say.textContent = "VOOL isn't answering right now. Check that it is running, then try again."; });
   });
-  var uri = "vool-pair://" + window.location.host
+  var uri = "vool-pair://" + (payload.companion_host || window.location.host)
     + "?fp=" + payload.fp + "&pid=" + payload.pid
     + "&code=" + payload.code + "&exp=" + payload.exp;
   var qr = qrcode(0, "M");
@@ -1364,6 +1681,7 @@ def _html_pairing_page(payload: dict[str, Any]):
 
     html = _PAIRING_PAGE_TEMPLATE.replace("__SHORT_FP__", str(payload.get("short_fp") or ""))
     html = html.replace("__CODE__", str(payload.get("code") or ""))
+    html = html.replace("__FULL_FP__", str(payload.get("fp") or ""))
     html = html.replace("__PAYLOAD__", json.dumps(payload))
     vendor = (Path(__file__).resolve().parent / "mobile_vendor/qrcode.js").read_text(encoding="utf-8")
     # Inline the vendored renderer before the page logic (one file, no CDN).
@@ -1375,7 +1693,7 @@ def _html_pairing_page(payload: dict[str, Any]):
 MOBILE_PATH_PREFIX = "/api/mobile/"
 
 
-def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runtime, model_name: str, client_host: str = ""):
+def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runtime, model_name: str, client_host: str = "", headers=None):
     """GET routes under /api/mobile/. Returns None when the path is not ours."""
     if not path.startswith(MOBILE_PATH_PREFIX):
         return None
@@ -1384,6 +1702,23 @@ def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runti
 
     def _q(name: str) -> str:
         return str((query.get(name) or [""])[0] or "").strip()
+
+    if path == "/api/mobile/settings":
+        if not is_loopback_host(client_host):
+            return _err(403, "owner_local_required")
+        from core.mobile_companion.listener import listener_for
+        from core.mobile_companion.notifications import PRESETS
+        from core.mobile_companion.notifications import defaults as notification_defaults
+        from core.wallet import chains, limits
+        from core.wallet.status import wallet_status
+
+        accounts = wallet_status().get("accounts", [])
+        for account in accounts:
+            spec = chains.resolve_network(account["network"])
+            account.update(display_network=spec.display_name, native_asset=chains.native_asset(spec.network).symbol)
+        return _json(200, {"ok": True, **listener_for(runtime).snapshot(), "devices": _devices_payload(service)["devices"],
+                           "frozen": limits.is_frozen(), "wallet_accounts": accounts,
+                           "notification_presets": {name: notification_defaults(name) for name in sorted(PRESETS)}})
 
     if path == "/api/mobile/devices":
         if not is_loopback_host(client_host):
@@ -1443,12 +1778,22 @@ def handle_mobile_companion_get(path: str, query: dict[str, list[str]], *, runti
             "short_fp": service.desktop_short_fingerprint(),
             "exp": int(float(session.get("expires_at_epoch") or 0)),
             "status": str(session.get("status") or "waiting"),
+            "companion_host": str(session.get("companion_host") or ""),
         }
         return _html_pairing_page(payload)
 
     if path == "/api/mobile/receipts":
         if not is_loopback_host(client_host):
             return _err(403, "owner_local_required", "receipts are desktop-only")
+        from core.wallet import caller_binding
+
+        # Flushing is a write. A foreign browser cannot turn rejected LAN
+        # traffic into one state rewrite per request through this read door.
+        # Legacy in-process reads keep their read-only contract without a flush.
+        if headers is not None:
+            if caller_binding.refusal_reason(headers):
+                return _err(403, "owner_caller_required")
+            service.ingress.flush()
         after = _clamp_int(_q("after"), default=0, lo=0, hi=2**62)
         limit = _clamp_int(_q("limit"), default=200, lo=1, hi=1000)
         rows, head, verified = store.receipts(after_seq=after, limit=limit)
@@ -1485,8 +1830,117 @@ def handle_mobile_companion_post(
         return None
     service = mobile_companion_service()
 
+    if path == "/api/mobile/settings":
+        if not is_loopback_host(client_host):
+            return _err(403, "owner_local_required")
+        from core.wallet import caller_binding
+
+        if caller_binding.refusal_reason(headers):
+            code = "wallet_caller_refused" if headers is None else "owner_caller_required"
+            service.ingress.refused("security.settings_caller_refused", reason=code)
+            return _err(403, code)
+        if body.get("operation") in {"bot_connect", "bot_disconnect", "bot_notifications"}:
+            from core.mobile_companion.bot_runtime import connect, disconnect
+            from core.wallet import caller_binding
+            if caller_binding.refusal_reason(headers):
+                return _err(403, "owner_caller_required")
+            try:
+                if body["operation"] == "bot_connect":
+                    result = connect(runtime, str(body.get("platform") or ""), body.get("token"),
+                                     channel_link=str(body.get("channel_link") or ""))
+                elif body["operation"] == "bot_disconnect":
+                    result = disconnect(runtime, str(body.get("platform") or ""))
+                else:
+                    from core.mobile_companion.notifications import preferences_set
+                    device = service.store.device(str(body.get("device_id") or "")) or {}
+                    if device.get("kind") != "bot" or device.get("status") != "active":
+                        raise ValueError("This chat app is disconnected.")
+                    code, result = preferences_set(body.get("preferences") or {}, service=service, device=device)
+                    return _json(code, {"ok": code == 200, **result})
+            except (ValueError, OSError):
+                return _err(400, "chat_app_unavailable", "Could not connect this chat app. Check its connection details on your computer.")
+            return _json(200, {"ok": True, **result})
+        if body.get("operation") == "relay":
+            import re
+
+            from core.credential_store import store_credential
+            from core.mobile_companion.listener import listener_for
+            from core.mobile_companion.relay import validate
+            from core.wallet import caller_binding
+
+            if caller_binding.refusal_reason(headers):
+                return _err(403, "owner_caller_required")
+            try:
+                endpoint, room = str(body.get("endpoint") or ""), str(body.get("room") or "")
+                validate(endpoint, room)
+                token = str(body.get("token") or "")
+                if token:
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+                        raise ValueError("Use the PC connection token from your relay.")
+                    store_credential("mobile.relay.token", token, label="Phone relay")
+                result = listener_for(runtime).configure(enabled=True, mode="relay", relay_endpoint=endpoint, relay_room=room)
+            except (ValueError, OSError):
+                return _err(400, "relay_unavailable", "Could not enable this relay. Check its address and connection details.")
+            service.store.append_receipt("relay.enabled", detail={"mode": "outbound_sealed"})
+            return _json(200, {"ok": True, **result})
+        if body.get("operation") in {"freeze", "unfreeze"}:
+            from core.wallet import limits
+            from core.wallet.errors import WalletFault
+            from core.wallet_spend_policy_store import set_frozen_mirrored
+
+            try:
+                if body["operation"] == "freeze":
+                    _freeze_payments()
+                else:
+                    set_frozen_mirrored(False, require_pin=True,
+                                        wallet_id=str(body.get("wallet_id") or ""),
+                                        credential=str(body.get("credential") or ""))
+            except WalletFault as exc:
+                service.store.append_receipt("payments.freeze_change_refused",
+                                             detail={"operation": body["operation"], "reason": exc.code})
+                return _err(403, exc.code, exc.user_message)
+            service.store.append_receipt("payments.freeze_changed", detail={"frozen": limits.is_frozen(), "via": "computer"})
+            return _json(200, {"ok": True, "frozen": limits.is_frozen()})
+        if body.get("operation") == "device_rules":
+            from core.mobile_companion.policy import update
+            from core.wallet.errors import WalletFault
+
+            try:
+                with service.dispatch_lock:
+                    result = update(service, {**body, "_headers": headers})
+            except ValueError as exc:
+                return _err(400, "phone_rules_refused", str(exc))
+            except WalletFault as exc:
+                return _err(403, exc.code, exc.user_message)
+            return _json(200, {"ok": True, **result})
+        from core.mobile_companion.listener import listener_for
+
+        try:
+            result = listener_for(runtime).configure(enabled=body.get("enabled"),
+                address=str(body.get("address") or ""), port=body.get("port", 0))
+        except (ValueError, OSError):
+            return _err(400, "phone_network_unavailable", "Choose an available home or private-network address.")
+        service.store.append_receipt("listener.changed", detail={"enabled": result["enabled"]})
+        return _json(200, {"ok": True, **result})
+    if path in {"/api/mobile/devices/revoke", "/api/mobile/devices"}:
+        from core.wallet import caller_binding
+
+        # Same owner binding as Settings: a page on another localhost port is not the owner.
+        # (Pairing start keeps its loopback check: its QR uses the Host header, and a
+        # cross-origin page cannot read the code it would create.)
+        if is_loopback_host(client_host) and caller_binding.refusal_reason(headers):
+            code = "wallet_caller_refused" if headers is None else "owner_caller_required"
+            service.ingress.refused("security.settings_caller_refused", reason=code)
+            return _err(403, code)
     if path == "/api/mobile/pairing/start":
-        return start_pairing(body, headers, service, client_host)
+        from core.mobile_companion.listener import listener_for
+
+        listener = listener_for(runtime)
+        companion_host = ""
+        if listener.server is not None:
+            address, port = listener.server.server_address
+            companion_host = f"{address}:{port}"
+        return start_pairing(body, headers, service, client_host, companion_host=companion_host)
     if path == "/api/mobile/pairing/claim":
         return claim_pairing(body, headers, service, client_host)
     if path == "/api/mobile/companion":

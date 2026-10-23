@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "このチャットに写真を1枚追加します。「送信」をタップするまでメッセージは送信されません。",
+  "NSMicrophoneUsageDescription": "短いメモを録音し、コンピュータで文字に起こします。送信前に文章を確認してください。",
+  "NSLocationWhenInUseUsageDescription": "現在地をメッセージ欄に追加して確認します。バックグラウンドで位置情報は使いません。",
+  "NSFaceIDUsageDescription": "VOOLのロックを解除",
+  "NSCameraUsageDescription": "ペアリングQRを読み取る. 写真を撮る."
+}

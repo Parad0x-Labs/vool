@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Thêm một ảnh vào cuộc trò chuyện này. Chưa có tin nhắn nào được gửi cho đến khi bạn chạm Gửi.",
+  "NSMicrophoneUsageDescription": "Ghi một ghi chú ngắn để máy tính chuyển thành văn bản. Xem lại văn bản trước khi gửi.",
+  "NSLocationWhenInUseUsageDescription": "Thêm vị trí hiện tại vào ô tin nhắn để xem lại. Không sử dụng vị trí trong nền.",
+  "NSFaceIDUsageDescription": "Mở khóa VOOL",
+  "NSCameraUsageDescription": "Quét QR ghép đôi. Chụp ảnh."
+}

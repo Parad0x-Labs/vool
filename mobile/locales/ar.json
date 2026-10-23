@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "أضف صورة واحدة إلى هذه المحادثة. لن تُرسل رسالة حتى تضغط على إرسال.",
+  "NSMicrophoneUsageDescription": "سجّل ملاحظة قصيرة ليحوّلها الكمبيوتر إلى نص. راجع النص قبل إرساله.",
+  "NSLocationWhenInUseUsageDescription": "أضف موقعك الحالي إلى مربع الرسالة لمراجعته. لا يُستخدم الموقع في الخلفية.",
+  "NSFaceIDUsageDescription": "فتح VOOL",
+  "NSCameraUsageDescription": "مسح رمز QR للاقتران. التقاط صورة."
+}

@@ -658,6 +658,9 @@ def main() -> int:
 
             route_logging_to_file(active_data_dir() / "logs" / "vool_api.log")
         app = create_app(runtime)
+        from core.mobile_companion.listener import listener_for
+
+        listener_for(runtime).restore()
         import uvicorn
 
         _write_pidfile()
@@ -755,6 +758,10 @@ def main() -> int:
             if owns_signals:
                 signal.signal(signal.SIGTERM, previous_sigterm)
     finally:
+        if runtime is not None:
+            from core.mobile_companion.listener import listener_for
+
+            listener_for(runtime).close()
         _remove_pidfile()
         try:
             from core.operator.reminder_dispatcher import stop_default_dispatcher

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import {errorText, tr} from "../i18n/index.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
 import type { PendingApproval } from "../protocol/models.ts";
 
@@ -13,13 +14,13 @@ interface Props {
  *  human decision, with Approve / Refuse. */
 export default function ApprovalsScreen({ client, onRevoked }: Props) {
   const [approvals, setApprovals] = useState<PendingApproval[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
   const guard = useCallback(
     (exc: unknown) => {
       if (exc instanceof CompanionError && (exc.code === "device_revoked" || exc.code === "signature_invalid")) {
-        Alert.alert("Device unpaired", "This device was revoked on the desktop.", [
-          { text: "OK", onPress: () => void onRevoked() },
+        Alert.alert(tr("Unpaired"), tr("This phone is unpaired. Pair it again on your computer."), [
+          { text: tr("OK"), onPress: () => void onRevoked() },
         ]);
         return true;
       }
@@ -31,8 +32,9 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
   const refresh = useCallback(async () => {
     try {
       setApprovals(await client.pendingApprovals());
+      setError("");
     } catch (exc) {
-      if (!guard(exc)) setApprovals([]);
+      if (!guard(exc)) setError(errorText(exc));
     }
   }, [client, guard]);
 
@@ -42,20 +44,8 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const decide = useCallback(
-    async (approvalId: string, decision: "allow" | "deny") => {
-      setBusyId(approvalId);
-      try {
-        await client.resolveApproval(approvalId, decision, "once");
-        await refresh();
-      } catch (exc) {
-        if (!guard(exc)) Alert.alert("Decision failed", String((exc as Error).message || exc));
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [client, guard, refresh],
-  );
+  if (error) return <View><Text style={styles.resource}>{error}</Text>
+    <Pressable style={styles.button} onPress={() => void refresh()}><Text style={styles.approveText}>{tr("Refresh")}</Text></Pressable></View>;
 
   if (approvals === null) {
     return <ActivityIndicator style={styles.center} color="#7d8794" />;
@@ -64,10 +54,9 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
   if (approvals.length === 0) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.emptyTitle}>Nothing needs you</Text>
+        <Text style={styles.emptyTitle}>{tr("Nothing waiting for your approval")}</Text>
         <Text style={styles.emptyHint}>
-          When the desktop holds an action for approval — a file write, a paid call — it appears here.
-        </Text>
+          {tr("Payments and actions must be approved on your computer in this version.")}</Text>
       </View>
     );
   }
@@ -84,28 +73,13 @@ export default function ApprovalsScreen({ client, onRevoked }: Props) {
             </Text>
           ))}
           {a.planned_action_count ? (
-            <Text style={styles.planned}>{a.planned_action_count} planned change(s)</Text>
+            <Text style={styles.planned}>{tr("Planned changes: {count}", {count: a.planned_action_count})}</Text>
           ) : null}
           <Text style={a.reversible === false ? styles.irreversible : styles.reversible}>
-            {a.reversible === false ? "Irreversible" : "Reversible"}
+            {a.reversible === false ? tr("Irreversible") : tr("Reversible")}
           </Text>
           {a.diff_preview ? <Text style={styles.diff} numberOfLines={8}>{a.diff_preview}</Text> : null}
-          <View style={styles.buttons}>
-            <Pressable
-              style={[styles.button, styles.refuse]}
-              disabled={busyId === a.approval_id}
-              onPress={() => void decide(a.approval_id, "deny")}
-            >
-              <Text style={styles.refuseText}>Refuse</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.button, styles.approve]}
-              disabled={busyId === a.approval_id}
-              onPress={() => void decide(a.approval_id, "allow")}
-            >
-              <Text style={styles.approveText}>Approve</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.resource}>{tr("Payments and actions must be approved on your computer in this version.")}</Text>
         </View>
       ))}
     </ScrollView>

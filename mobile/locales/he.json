@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "הוסיפו תמונה אחת לשיחה. לא תישלח הודעה עד שתלחצו על שליחה.",
+  "NSMicrophoneUsageDescription": "הקליטו הערה קצרה שהמחשב יתמלל. בדקו את הטקסט לפני השליחה.",
+  "NSLocationWhenInUseUsageDescription": "הוסיפו את המיקום הנוכחי לתיבת ההודעה לבדיקה. אין שימוש במיקום ברקע.",
+  "NSFaceIDUsageDescription": "פתיחת VOOL",
+  "NSCameraUsageDescription": "סריקת QR לצימוד. צילום תמונה."
+}

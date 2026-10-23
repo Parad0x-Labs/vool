@@ -14,14 +14,39 @@
       "supportsTablet": false,
       "infoPlist": {
         "NSCameraUsageDescription": "Scan the pairing QR code shown on your VOOL desktop.",
-        "NSPhotoLibraryUsageDescription": "Attach photos to VOOL chats from your phone."
+        "NSPhotoLibraryUsageDescription": "Attach photos to VOOL chats from your phone.",
+        "NSFaceIDUsageDescription": "Unlock your private VOOL session with Face ID.",
+        "NSMicrophoneUsageDescription": "Record a note only while you hold the talk button.",
+        "NSLocationWhenInUseUsageDescription": "Add your location to a message only when you choose to share it.",
+        "CFBundleLocalizations": [
+          "ar",
+          "de",
+          "en",
+          "es",
+          "fr",
+          "he",
+          "hi",
+          "ja",
+          "ko",
+          "lt",
+          "pl",
+          "pt",
+          "ru",
+          "tr",
+          "uk",
+          "vi",
+          "zh-Hans"
+        ]
       }
     },
     "android": {
       "package": "systems.vool.companion",
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -34,6 +59,25 @@
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0b0d10"
+    },
+    "locales": {
+      "ar": "./locales/ar.json",
+      "de": "./locales/de.json",
+      "en": "./locales/en.json",
+      "es": "./locales/es.json",
+      "fr": "./locales/fr.json",
+      "he": "./locales/he.json",
+      "hi": "./locales/hi.json",
+      "ja": "./locales/ja.json",
+      "ko": "./locales/ko.json",
+      "lt": "./locales/lt.json",
+      "pl": "./locales/pl.json",
+      "pt": "./locales/pt.json",
+      "ru": "./locales/ru.json",
+      "tr": "./locales/tr.json",
+      "uk": "./locales/uk.json",
+      "vi": "./locales/vi.json",
+      "zh-Hans": "./locales/zh-Hans.json"
     }
   }
 }

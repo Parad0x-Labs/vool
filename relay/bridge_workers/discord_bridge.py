@@ -429,3 +429,11 @@ class DiscordBridge:
 
 if __name__ == "__main__":
     DiscordBridge().run_forever()
+
+# Private, explicitly selected DM conversation; no discovery or gateway token
+# exposure. The PC supplies a one-time code before any user can send a turn.
+from core.mobile_companion.bot_runtime import ManagedBot
+
+
+class ManagedDiscordChatBridge(ManagedBot):
+    platform = 'discord'

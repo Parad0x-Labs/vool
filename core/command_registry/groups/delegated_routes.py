@@ -150,14 +150,19 @@ def _wallet_post(path: str):
 
 def _mobile_post(path: str):
     def _run(inp: RouteInput, ctx: Any) -> Any:
+        from core.mobile_companion.runtime_context import live_runtime
         from core.web.api.mobile_companion_api import handle_mobile_companion_post
-        from core.web.api.runtime import RuntimeServices
+
+        runtime = (getattr(ctx, "extra", {}) or {}).get("runtime") or live_runtime()
+        if runtime is None:
+            return HandlerFault(fault_code="fault_tool", summary="Live desktop runtime unavailable", detail={"reason": "live desktop runtime unavailable"})
 
         return _response_to_result(
             handle_mobile_companion_post(
                 path,
                 dict(inp.body or {}),
-                runtime=RuntimeServices(display_name="VOOL"),
+                (getattr(ctx, "extra", {}) or {}).get("headers"),
+                runtime=runtime,
                 model_name="",
                 client_host=_peer(ctx),
             ),
@@ -253,6 +258,8 @@ WALLET_ACTIONS: tuple[tuple[str, str, str, str], ...] = (
 )
 
 MOBILE_ACTIONS: tuple[tuple[str, str, str, str], ...] = (
+    ("mobile.settings.configure", "/api/mobile/settings", "mutating",
+     "Configure the private phone listener on the running desktop"),
     ("mobile.pairing.start", "/api/mobile/pairing/start", "mutating",
      "Start a device-pairing session"),
     ("mobile.pairing.claim", "/api/mobile/pairing/claim", "destructive",
@@ -290,6 +297,7 @@ def route_command_map() -> dict[str, str]:
         mapping[f"http:POST:{path}"] = command_id
     for command_id, path, _effects, _description in MOBILE_ACTIONS:
         mapping[f"http:POST:{path}"] = command_id
+    mapping["http:GET:/api/mobile/settings"] = "mobile.settings.read"
     return mapping
 
 
@@ -352,6 +360,21 @@ def register(reg: CommandRegistry) -> None:
             )
         )
         ROUTE_COMMANDS[f"http:POST:{path}"] = command_id
+
+    def read_mobile_settings(inp, ctx):
+        from core.mobile_companion.runtime_context import live_runtime
+        from core.web.api.mobile_companion_api import handle_mobile_companion_get
+
+        runtime = (getattr(ctx, "extra", {}) or {}).get("runtime") or live_runtime()
+        if runtime is None:
+            return HandlerFault(fault_code="fault_tool", summary="Live desktop runtime unavailable", detail={"reason": "live desktop runtime unavailable"})
+        return _response_to_result(handle_mobile_companion_get("/api/mobile/settings", {},
+            runtime=runtime, model_name="", client_host=_peer(ctx)), summary="Phone connection settings")
+
+    reg.add(CommandSpec(command_id="mobile.settings.read", group="mobile",
+        description="Read the private phone connection settings", input_schema=RouteInput,
+        effects="read_only", permission=_AUTHORITY, availability=_MOBILE_AVAILABILITY,
+        handler=Handler(_register_handler("_h_mobile_settings_read", read_mobile_settings)), exit_codes=(0, 2, 42)))
 
     for command_id, path, effects, description in MOBILE_ACTIONS:
         fn_name = "_h_" + command_id.replace(".", "_")

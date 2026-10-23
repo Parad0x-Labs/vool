@@ -1,19 +1,26 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
+import {errorText, permissionText, tr} from "../i18n/index.ts";
 import { CompanionError, type MobileCompanionClient } from "../protocol/client.ts";
-import type { ChatMessage, StatusSnapshot, TurnProof } from "../protocol/models.ts";
+import type { ChatMessage, StatusSnapshot, TurnProof, DeviceInfo } from "../protocol/models.ts";
+import {connectionAddress} from "../protocol/connection.ts";
 
 interface Props {
   client: MobileCompanionClient;
   onRevoked: () => void | Promise<void>;
+  idleMinutes:number;
+  onIdleMinutes:(value:number)=>Promise<void>;
+  onConnection?: (address: string) => Promise<void>;
 }
 
 /** Current model, local/cloud status, Proof Chip, and the device's own standing. */
-export default function StatusScreen({ client, onRevoked }: Props) {
+export default function StatusScreen({ client, onRevoked, onConnection, idleMinutes, onIdleMinutes }: Props) {
   const [snapshot, setSnapshot] = useState<StatusSnapshot | null>(null);
+  const [device,setDevice]=useState<DeviceInfo|null>(null);
   const [proof, setProof] = useState<TurnProof | null>(null);
   const [error, setError] = useState("");
+  const [connection, setConnection] = useState(client.baseUrl);
 
   const guard = useCallback(
     (exc: unknown) => {
@@ -29,9 +36,9 @@ export default function StatusScreen({ client, onRevoked }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        setSnapshot(await client.statusSnapshot());
+        const [status,record]=await Promise.all([client.statusSnapshot(),client.devicesMe()]);setSnapshot(status);setDevice(record);
       } catch (exc) {
-        if (!guard(exc)) setError(String((exc as Error).message || exc));
+        if (!guard(exc)) setError(errorText(exc));
       }
     })();
   }, [client, guard]);
@@ -45,7 +52,7 @@ export default function StatusScreen({ client, onRevoked }: Props) {
       const chats = await client.listChats();
       const newest = chats.find((c) => !c.archived) || chats[0];
       if (!newest) {
-        setError("No chats yet — send one first.");
+        setError(tr("Nothing here yet."));
         return;
       }
       const history: ChatMessage[] = await client.chatHistory(newest.chat_id, 200);
@@ -56,47 +63,54 @@ export default function StatusScreen({ client, onRevoked }: Props) {
           return;
         }
       }
-      setError("No turn on this desktop carries a proof binding yet.");
+      setError(tr("not recorded"));
     } catch (exc) {
-      if (!guard(exc)) setError(String((exc as Error).message || exc));
+      if (!guard(exc)) setError(errorText(exc));
     }
   }, [client, guard]);
 
-  if (error && !snapshot) {
-    return <Text style={styles.error}>{error}</Text>;
-  }
+  const connectionForm = <View style={styles.card}>
+    <Text style={styles.label}>{tr("Phone connection address")}</Text>
+    <TextInput style={[styles.detail,{writingDirection:"ltr",textAlign:"left"}]} accessibilityLabel={tr("Phone connection address")} autoCapitalize="none" autoCorrect={false} value={connection} onChangeText={setConnection}/>
+    <Pressable style={styles.proofButton} onPress={() => {void (async () => {
+      try {await onConnection?.(connectionAddress(connection));}
+      catch {setError(tr("Could not complete this. Check your computer."));}
+    })();}}><Text style={styles.proofButtonText}>{tr("Save")}</Text></Pressable>
+  </View>;
+  if (error && !snapshot) return <View><Text style={styles.error}>{error}</Text>{connectionForm}</View>;
   if (!snapshot) {
-    return <ActivityIndicator style={styles.center} color="#7d8794" />;
+    return <View><ActivityIndicator style={styles.center} color="#7d8794" />{connectionForm}</View>;
   }
 
   const cloudOn = snapshot.model.cloud_state === "ok";
 
   return (
     <ScrollView>
-      <Text style={styles.section}>Desktop</Text>
+      {connectionForm}
+      <Text style={styles.section}>{tr("Desktop")}</Text>
       <View style={styles.card}>
         <Text style={styles.label}>
-          {snapshot.desktop.display_name} · {snapshot.model.current || "no model"}
+          {snapshot.desktop.display_name} · {snapshot.model.current || tr("No model")}
         </Text>
         <View style={styles.row}>
           <View style={[styles.pill, cloudOn ? styles.pillGreen : styles.pillGrey]}>
-            <Text style={styles.pillText}>{cloudOn ? "CLOUD OK" : "LOCAL"}</Text>
+            <Text style={styles.pillText}>{cloudOn ? tr("Cloud connected") : tr("Local")}</Text>
           </View>
           <View style={[styles.pill, snapshot.relay.enabled ? styles.pillAmber : styles.pillGrey]}>
             <Text style={styles.pillText}>{snapshot.relay.mode}</Text>
           </View>
         </View>
-        <Text style={styles.fingerprint}>authority {snapshot.desktop.short_fingerprint}</Text>
+        <Text style={styles.fingerprint}>{tr("Computer check code")}{snapshot.desktop.short_fingerprint}</Text>
         {snapshot.model.cloud_state && snapshot.model.cloud_state !== "ok" ? (
-          <Text style={styles.detail}>cloud: {snapshot.model.cloud_state}</Text>
+          <Text style={styles.detail}>{tr("Cloud untested")}</Text>
         ) : null}
       </View>
 
-      <Text style={styles.section}>Proof Chip</Text>
+      <Text style={styles.section}>{tr("Activity")}</Text>
       <View style={styles.card}>
         {proof ? (
           <View>
-            <Text style={styles.label}>Latest turn</Text>
+            <Text style={styles.label}>{tr("Latest turn")}</Text>
             <View style={styles.row}>
               <View
                 style={[
@@ -104,30 +118,81 @@ export default function StatusScreen({ client, onRevoked }: Props) {
                   proof.state === "VERIFIED" ? styles.pillGreen : proof.state === "RECORDED" ? styles.pillBlue : styles.pillAmber,
                 ]}
               >
-                <Text style={styles.pillText}>{proof.state.toUpperCase()}</Text>
+                <Text style={styles.pillText}>{proof.state === "VERIFIED" ? tr("Activity verified") : proof.state === "RECORDED" ? tr("Activity recorded") : tr("not recorded")}</Text>
               </View>
             </View>
             <Text style={styles.detail}>
-              {proof.compact.actions} actions · {proof.compact.sources} sources
-            </Text>
-            <Text style={styles.detail}>request {proof.request_id.slice(0, 18)}…</Text>
+              {proof.compact.actions} {tr("Actions")} · {proof.compact.sources} {tr("Sources")}</Text>
+            <Text style={styles.detail}>{tr("request")}{proof.request_id.slice(0, 18)}…</Text>
           </View>
         ) : (
           <Pressable style={styles.proofButton} onPress={() => void loadLatestProof()}>
-            <Text style={styles.proofButtonText}>Load latest turn's chip</Text>
+            <Text style={styles.proofButtonText}>{tr("Refresh")}</Text>
           </Pressable>
         )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </View>
 
-      <Text style={styles.section}>This device</Text>
+      <Text style={styles.detail}>{tr("Change this phone’s permissions on your computer.")}</Text>
+      {Object.entries(device?.rules || {}).map(([right,value])=><Text key={right} style={styles.detail}>
+        {permissionText(right)}: {value && (!(device?.right_expiry?.[right]) || (device.right_expiry[right] > Date.now()/1000)) ? tr("On") : tr("Off")}
+        {device?.right_expiry?.[right] ? " · "+tr("Expires")+" "+new Date(device.right_expiry[right]*1000).toLocaleString() : ""}
+      </Text>)}
+      <Text style={styles.section}>{tr("Lock after {count} min", {count:idleMinutes})}</Text>
+      {[1,5,15].map(value=><Pressable key={value} style={styles.proofButton} onPress={()=>{void onIdleMinutes(value).catch(error=>setError(errorText(error)));}}>
+        <Text style={styles.proofButtonText}>{tr("Lock after {count} min",{count:value})}</Text>
+      </Pressable>)}
+      <Text style={styles.section}>{tr("This device")}</Text>
       <View style={styles.card}>
         <Text style={styles.detail}>{client.deviceId}</Text>
-        <Text style={styles.detail}>pinned desktop {client.desktopFingerprint.slice(0, 24)}…</Text>
-        <Text style={styles.footnote}>
-          One secret on this phone (the device grant, in the platform keystore). Revoking it on the
-          desktop kills its authority immediately.
-        </Text>
+        <Text style={styles.detail}>{tr("Computer check code")}{client.desktopFingerprint.slice(0, 24)}…</Text>
+        <Pressable
+          style={styles.unpairButton}
+          onPress={() => {
+            Alert.alert(
+              tr("Unpair this phone"),
+              tr("Disconnect this phone. If your computer cannot be reached, revoke it there too."),
+              [
+                { text: tr("Cancel"), style: "cancel" },
+                {
+                  text: tr("Unpair this phone"),
+                  style: "destructive",
+                  onPress: () => {
+                    void (async () => {
+                      try {
+                        await client.unpair();
+                      } catch {
+                        // Refused, already revoked or unreachable: either way this
+                        // phone must drop its credentials — the desktop is the truth.
+                      }
+                      await onRevoked();
+                    })();
+                  },
+                },
+              ],
+            );
+          }}
+        >
+          <Text style={styles.unpairButtonText}>{tr("Unpair this phone")}</Text>
+        </Pressable>
+        <Pressable style={styles.unpairButton} onPress={() => Alert.alert(tr("My computer is lost"),
+          tr("Freeze payments and revoke phones if your computer is reachable. Then forget this phone’s connection. Completed payments cannot be undone."), [
+          {text: tr("Cancel"), style: "cancel"}, {text: tr("Freeze and disconnect"), style: "destructive", onPress: () => {void (async () => {
+            let reached = false;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            try {
+              await Promise.race([client.lostComputer(), new Promise((_, reject) => {
+                timer = setTimeout(() => reject(new Error("unreachable")), 8000);
+              })]); reached = true;
+            } catch {} finally {if (timer) clearTimeout(timer);}
+            try {await onRevoked();}
+            catch {Alert.alert(tr("Unpair this phone"), tr("Local removal failed. Clear VOOL’s app data in your phone’s settings."));return;}
+            Alert.alert(reached ? tr("Unpaired") : tr("Computer not reached"), reached
+              ? tr("Payments were frozen and phones revoked. Unfreeze on your recovered computer.")
+              : tr("This phone forgot its connection. Remote freezing and revocation are unconfirmed. Secure or recover your computer, then freeze payments there."));
+          })();}}])}>
+          <Text style={styles.unpairButtonText}>{tr("My computer is lost")}</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -150,5 +215,7 @@ const styles = StyleSheet.create({
   footnote: { color: "#5b6570", fontSize: 11, marginTop: 10, lineHeight: 16 },
   proofButton: { backgroundColor: "#1b2027", borderRadius: 8, padding: 12, alignItems: "center" },
   proofButtonText: { color: "#d3d9e0", fontWeight: "600" },
+  unpairButton: { backgroundColor: "#2a1416", borderRadius: 8, padding: 12, alignItems: "center", marginTop: 12, borderWidth: 1, borderColor: "#5b2027" },
+  unpairButtonText: { color: "#ff8a8a", fontWeight: "600" },
   error: { color: "#ff6b6b", fontSize: 13, marginTop: 8 },
 });

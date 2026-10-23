@@ -66,6 +66,10 @@ export interface CompanionError {
 export type CompanionResponse<T> = CompanionOk<T> | CompanionError;
 
 export interface DeviceInfo {
+  rules?: Record<string, boolean>;
+  right_expiry?: Record<string, number>;
+  payment_cap?: {wallet_id: string; network: string; asset: string};
+  payment_cap_display?: {per_payment: string; daily: string; asset: string};
   device_id: string;
   name: string;
   platform: string;
@@ -94,6 +98,8 @@ export interface ChatMessage {
 }
 
 export interface SendResult {
+  pending?: boolean;
+  turn_id?: string;
   chat_id: string;
   reply: string;
   done_reason: string | null;
@@ -171,6 +177,8 @@ export interface TurnProof {
 }
 
 export interface NotificationEvent {
+  security_notice?: string;
+  os_notification_allowed?: boolean;
   seq?: number;
   event_type: string;
   message?: string;
@@ -181,7 +189,17 @@ export interface NotificationEvent {
 }
 
 export interface PollResult {
+  badge?: number;
+  attention?: boolean;
+  gate?: boolean;
   events: NotificationEvent[];
   next_after: number;
   session: string;
+}
+
+export interface NotificationPreferences {
+  preset: string;
+  types: Record<string, {enabled: boolean; details: boolean}>;
+  quiet: {enabled: boolean; start: string; end: string; offset_minutes: number;
+    approvals_through: boolean; payments_through: boolean};
 }

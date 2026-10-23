@@ -1,15 +1,18 @@
+import {errorText, rightToLeft, tr} from "../i18n/index.ts";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Linking } from "react-native";
 
 import {
-  claimPairing, credentialsFromClaim, fetchPairingChallenge,
+  fetchPairingChallenge,
   type DeviceCredentials,
 } from "../protocol/client.ts";
 import { parsePairingUri, pairingUriIsFresh } from "../protocol/pairing.ts";
 import { generateDeviceKeypair, keypairFromSeed } from "../protocol/ed25519.ts";
+import { claimSealedPairing } from "../protocol/sealed.ts";
 import { credentialStoreForEnvironment } from "../store/credentials.ts";
+import {prepareApprovalKey, deleteApprovalKey} from "../security/approvalKey.ts";
 
 interface Props {
   onPaired: (creds: DeviceCredentials) => void | Promise<void>;
@@ -27,6 +30,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
   const [pairingId, setPairingId] = useState("");
   const [code, setCode] = useState("");
   const [deviceName, setDeviceName] = useState("");
+  const [fingerprint, setFingerprint] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>("");
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -43,11 +47,12 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
       setPairingId(parsed.pairingId);
       setCode(parsed.code);
+      setFingerprint(parsed.desktopFingerprint);
       if (!pairingUriIsFresh(parsed)) {
-        setError("This pairing QR/link has expired — start a new pairing on the desktop.");
+        setError(tr("This pairing QR has expired — start a new pairing on the desktop."));
       }
     } else {
-      setError("That link is not a valid VOOL pairing payload.");
+      setError(tr("The computer’s identity could not be verified. Check it before pairing again."));
     }
     onLinkConsumed?.();
   }, [incomingLink, onLinkConsumed]);
@@ -59,8 +64,9 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setDesktopUrl(`http://${parsed.host}${parsed.port ? ":" + parsed.port : ""}`);
     setPairingId(parsed.pairingId);
     setCode(parsed.code);
+    setFingerprint(parsed.desktopFingerprint);
     if (!pairingUriIsFresh(parsed)) {
-      setError("This pairing QR has expired — start a new pairing on the desktop.");
+      setError(tr("This pairing QR has expired — start a new pairing on the desktop."));
     }
   }, []);
 
@@ -68,20 +74,23 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     setError("");
     const base = desktopUrl.trim().replace(/\/$/, "").replace(/^vool-pair:\/\//, "http://");
     if (!base || !pairingId.trim() || !code.trim()) {
-      setError("Enter the desktop address, pairing id and code.");
+      setError(tr("Enter the desktop address, pairing id and code."));
       return;
     }
     setBusy(true);
+    let approvalAlias: string | null = null;
     try {
       // 1. Fetch the server-held challenge (also pins the desktop identity
       //    for the manual-entry path, where no QR fingerprint was scanned).
       const challenge = await fetchPairingChallenge(base, pairingId.trim());
       // 2. The phone's identity: generated once, seed stays in the keystore.
       const keypair = generateDeviceKeypair();
+      const approvalKey = await prepareApprovalKey(keypair.publicKeyHex, pairingId.trim(), challenge.challenge);
+      if (approvalKey) approvalAlias = keypair.publicKeyHex;
       // 3. Claim with proof of possession; the desktop verifies the
       //    signature over challenge/pid/code/public-key/expiry BEFORE any
       //    grant is issued.
-      const { claim, identityOk } = await claimPairing(base, {
+      const credentials = await claimSealedPairing(base, {
         pairingId: pairingId.trim(),
         code: code.trim(),
         deviceName: (deviceName.trim() || "VOOL companion").slice(0, 64),
@@ -89,13 +98,14 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         deviceSeedHex: keypair.seedHex,
         devicePublicKeyHex: keypair.publicKeyHex,
         challenge,
+        pinnedDesktopFingerprint: fingerprint.trim(),
+        approvalKey,
       });
-      if (!identityOk) {
-        throw new Error("desktop identity proof failed verification — not storing credentials");
-      }
-      await onPaired(credentialsFromClaim(base, claim, keypair.seedHex));
+      await onPaired({...credentials, ...(approvalAlias ? {approvalKeyAlias: approvalAlias} : {})});
+      approvalAlias = null;
     } catch (exc) {
-      setError(String((exc as Error).message || exc));
+      if (approvalAlias) await deleteApprovalKey(approvalAlias).catch(() => {});
+      setError(errorText(exc));
     } finally {
       setBusy(false);
     }
@@ -105,7 +115,7 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
     if (!cameraPermission?.granted) {
       const result = await requestCameraPermission();
       if (!result.granted) {
-        setError("Camera permission is needed to scan the desktop's pairing QR.");
+        setError(tr("Camera permission is needed to scan the desktop's pairing QR."));
         return;
       }
     }
@@ -123,26 +133,23 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         />
         <View style={styles.scanFrame} />
         <Pressable style={styles.scanCancel} onPress={() => setScanning(false)}>
-          <Text style={styles.scanCancelText}>Cancel</Text>
+          <Text style={styles.scanCancelText}>{tr("Cancel")}</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Pair with your desktop</Text>
+    <ScrollView style={[styles.root,{direction:rightToLeft()?"rtl":"ltr"}]} contentContainerStyle={styles.content}>
+      <Text style={styles.title}>{tr("Pair a phone")}</Text>
       <Text style={styles.hint}>
-        On the desktop, open the pairing page (POST /api/mobile/pairing/start → pairing_page) and
-        scan the QR — or open its vool-pair:// link — or type the short code below. The code is
-        single-use and expires in minutes.
-      </Text>
+        {tr("On your computer, open Settings, choose Phone and chat apps, then Pair a phone. Scan its code or enter the details below.")}</Text>
       <Pressable style={styles.scanButton} onPress={() => void startScanning()}>
-        <Text style={styles.scanButtonText}>Scan pairing QR</Text>
+        <Text style={styles.scanButtonText}>{tr("Scan pairing QR")}</Text>
       </Pressable>
       <TextInput
-        style={styles.input}
-        placeholder="Desktop address (http://192.168.1.20:11435)"
+        style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
+        placeholder={tr("Computer address")}
         placeholderTextColor="#5b6570"
         autoCapitalize="none"
         autoCorrect={false}
@@ -150,8 +157,8 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
         onChangeText={setDesktopUrl}
       />
       <TextInput
-        style={styles.input}
-        placeholder="Pairing id (pair_…)"
+        style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
+        placeholder={tr("Pairing ID")}
         placeholderTextColor="#5b6570"
         autoCapitalize="none"
         value={pairingId}
@@ -159,28 +166,34 @@ export default function PairScreen({ onPaired, incomingLink, onLinkConsumed }: P
       />
       <TextInput
         style={[styles.input, styles.codeInput]}
-        placeholder="8-character code"
+        placeholder={tr("8-character code")}
         placeholderTextColor="#5b6570"
         autoCapitalize="characters"
         value={code}
         onChangeText={setCode}
       />
       <TextInput
-        style={styles.input}
-        placeholder="Device name (e.g. Kitchen iPhone)"
+        style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
+        placeholder={tr("Computer check code")}
+        placeholderTextColor="#5b6570"
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={fingerprint}
+        onChangeText={setFingerprint}
+      />
+      <TextInput
+        style={[styles.input,{writingDirection:"ltr",textAlign:"left"}]}
+        placeholder={tr("Device name")}
         placeholderTextColor="#5b6570"
         value={deviceName}
         onChangeText={setDeviceName}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Pressable style={styles.button} onPress={pair} disabled={busy}>
-        {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.buttonText}>Pair</Text>}
+        {busy ? <ActivityIndicator color="#0b0d10" /> : <Text style={styles.buttonText}>{tr("Pair")}</Text>}
       </Pressable>
       <Text style={styles.footnote}>
-        This phone keeps its own Ed25519 identity (seed in the platform keystore) plus one grant
-        secret. Every request is signed by the device key — a stolen grant alone cannot act.
-        Model keys and wallet keys never leave the desktop.
-      </Text>
+        {tr("The connection is encrypted. Your wallet and model credentials stay on your computer.")}</Text>
     </ScrollView>
   );
 }

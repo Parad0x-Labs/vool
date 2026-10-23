@@ -2,8 +2,9 @@
 
 One shared React Native (Expo) codebase for iOS and Android that pairs with a
 VOOL desktop over the local network and acts as the operator's pocket surface:
-chats, typed-action approvals, model/local-cloud status with the Proof Chip,
-and completion/failure notifications.
+chats, model status and the Proof Chip, configurable alerts, wallet views and
+payment proposals. Payments and tool actions are approved on the computer
+while native protected-key approval is unproven.
 
 ## Security model
 
@@ -23,33 +24,53 @@ and completion/failure notifications.
   receipted). The claim response is signed by the desktop's Ed25519 authority
   key and carries the public key; the phone pins the QR fingerprint
   (sha256(key) == pin) and verifies.
-- **Every request** carries TWO proofs over the same canonical bytes (device
+- **Every request** carries two transport proofs over the same canonical bytes (device
   id, action, parameters digest, nonce, timestamp, grant identity): the grant
   HMAC (Device Link request surface, nonce replay shield, ±120 s window) AND
   an Ed25519 signature by the registered key, verified against the key IN THE
-  DEVICE RECORD (never a request-supplied key). A stolen grant secret without
-  the phone is useless; a stolen phone key without a live grant is useless.
-- **Revocation** kills both factors instantly and durably (restarts rehydrate
+  DEVICE RECORD (never a request-supplied key). Both are stored together. They are not independent approval factors and
+  do not authorize a wallet signature.
+- **Revocation** kills transport authority on the next request and durably (restarts rehydrate
   the revoked registry from `data/mobile_companion/state.json`).
 - **Reinstall / key loss** destroys the identity by design: a new key is a new
   `device_id` and must re-pair.
 - **The closed action catalog** (`COMPANION_ACTIONS` in
   `core/web/api/mobile_companion_api.py`) is the phone's entire surface:
-  chats, attachments, approvals, status, proof, notifications, devices.me.
-  No filesystem, no terminal, no signer, no credential reach of any kind.
-- **Secrets**: the phone holds exactly two secrets, both keystore-only — the
+  chats, attachments, approvals, status, proof, notifications, devices.me and
+  devices.unpair (self-unpair only). No filesystem, no terminal, no signer, no
+  credential reach of any kind.
+- **Secrets**: the transport holds two secrets together in the keychain — the
   grant bearer secret and its own Ed25519 seed. API/provider/model keys never
   leave the desktop; device listings never echo either secret.
 - **Receipts**: every security-relevant event is appended to a hash-chained
   journal (`GET /api/mobile/receipts`), tamper-detecting.
-- **Local-network first**: the companion talks to the same daemon on the
-  machine's interface; binding beyond loopback is the operator's explicit act
-  (`--bind` + `VOOL_ALLOWED_HOSTS`). A remote relay is disabled unless
-  explicitly configured (`VOOL_MOBILE_RELAY_ENABLED=1`); while disabled, any
-  request declaring relay provenance is refused fail-closed and receipted.
-- **Session-continuity law**: `/api/chat` resumes canonical desktop ids only
-  for owner-local clients (anti-spoofing). The phone holds `mob-…` handles;
-  the server derives the canonical session deterministically per handle.
+- **Separate transport**: phones use a dedicated, closed companion listener;
+  it never serves the desktop UI or generic API. Fresh installs stay off.
+  Enable it in Settings → Phone and chat apps. Turning it off closes the
+  socket. Its registry commands use the live daemon runtime.
+- **Sealed v2**: the app pins the computer's fingerprint from the pairing QR,
+  verifies a signed encryption-key binding, and seals pairing claims and action
+  bodies in both directions. Device and grant signatures remain inside the
+  envelope. Reply keys are directional and replies bind the exact request.
+  Wire replay protection is durable. Old app credentials require re-pairing.
+  Remote plaintext companion POSTs to the desktop API are refused.
+- **Session continuity**: the authenticated sealed companion may resume a
+  desktop chat when history access is granted. Its turns still enter as a
+  remote channel. Resuming a chat never grants owner-local tool authority.
+- **Small rights**: every right for a new sealed pairing starts off; the PC explicitly grants chat. History,
+  attachments, alerts, wallet viewing and payment proposals are separate PC
+  permissions. Payment proposal rights require the ready PC wallet's own
+  credential, checked through its existing durable throttle, and default to
+  30 days. Phone limits are lower than the wallet limits and count a rolling
+  24-hour window, including pending proposals and fee ceilings.
+- **Payment safety**: the wallet checks the phone claim again in its atomic
+  claim and transmit gates. Rights revisions and grant identity invalidate
+  old requests. An uncertain proposal retry retains its immutable identity;
+  it cannot resurrect a request the owner declined. The app never signs or
+  broadcasts a payment. Native-asset proposals only are offered in this build.
+- **Chat payments**: the separate remote-tool fence currently refuses wallet
+  and paid-AI tools in phone chats. Do not bypass it by stamping a phone as
+  owner-local. Direct app proposals use the scoped companion wallet actions.
 
 ## QR product flow
 
@@ -60,29 +81,44 @@ and completion/failure notifications.
 - The phone scans it with Expo Camera (`CameraView`, QR barcode type), opens
   it via the `vool-pair://` deep link (registered scheme; typed handler in
   `App.tsx` → the same `parsePairingUri` the scanner uses), or types the
-  address/pairing id/code by hand.
+  address, pairing id, code and computer fingerprint by hand. The fingerprint is required.
 - The QR pins desktop URL, pairing id, code, expiry and fingerprint; any
   tampered field fails parse or the fingerprint binding at claim; an expired
   payload refuses locally before any network call.
 
-## Notification truth (honest labels)
+## Notification delivery
 
 - **In-app polling is the verified channel**: the notification poller reads
   the desktop's typed event stream (`notifications.poll`) and classifies
-  completion/failure/attention. No push server is involved or needed for the
-  local-network companion.
+  completion/failure/attention. The durable in-app feed remains the record.
+  Per-type preferences, quiet hours and read cursors are stored per device
+  on the PC. Payment terminal events remain in the feed and badge while
+  payment rights are on, even when general alerts are off. No push server
+  is involved or needed for the
+  local-network companion. The app shell drives this loop
+  (`src/hooks/useNotifications.ts`): it feeds the tab badges and the coarse
+  in-app ticker, and it is what the OS layer rides on.
 - **OS notifications are an OPT-IN layer** (`src/notifications/osNotifications.ts`,
   `expo-notifications` local notifications, permission-requested): real code,
-  coarse non-sensitive text only ("A turn finished on your desktop." — never
-  task content, because lock screens echo notification text). **PARTIAL**:
+  coarse text by default. Per-type detail requires explicit phone opt-in and
+  the corresponding PC history/wallet-view right. The phone OS may mute,
+  delay or suppress delivery. **PARTIAL**:
   delivery has NOT been proven on an installed device — no iOS/Android build
   exists in this environment.
+
+## Unpair
+
+The phone can unpair itself: Status → This device → **Unpair this device**
+(the `devices.unpair` action). The desktop revokes only the CALLING device —
+a phone can never unpair another — and receipts it as `device.unpaired`; the
+phone drops its credentials and can re-pair any time with a new code. The
+desktop-side revoke remains available too and wins either way.
 
 ## Layout
 
 ```
 mobile/
-  App.tsx                  navigation shell + vool-pair:// deep-link handler
+  App.tsx                  navigation shell + vool-pair:// deep-link handler + badges/ticker
   src/protocol/            PURE TypeScript — the exact code the headless proof runs
     canonical.ts           Python-byte-compatible canonical JSON
     sha256.ts              SHA-256 + HMAC-SHA256 (no WebCrypto dependency)
@@ -90,6 +126,7 @@ mobile/
     pairing.ts             QR/deep-link payload parsing + desktop proof verification
     client.ts              MobileCompanionClient — dual proofs on every request
     notifications.ts       in-app polling loop (the verified channel)
+  src/hooks/useNotifications.ts  the app-shell wiring of that loop (badges, ticker, OS bridge)
   src/notifications/       opt-in OS notifications (PARTIAL — see above)
   src/store/credentials.ts Keychain/Keystore blob (grant secret + device seed)
   src/screens/             Pair (QR scan / deep link / manual), Chats, Approvals, Status
@@ -97,25 +134,25 @@ mobile/
   scripts/generate_assets.py  deterministic asset generator
   e2e/journey.mjs          headless end-to-end journey vs a live daemon
   tests/protocol.test.mjs  FIPS vectors, Python golden vectors, cross-impl checks
+  tests/jest/              jest unit tests for the app logic (client requests, poller)
 ```
 
 ## Build & verification
 
-Verified in this environment (Node 22, no Xcode/Android SDK):
+Local checks (native build and installed-device proof are separate):
 
 ```bash
 cd mobile
 npm ci                     # clean install from the committed package-lock.json
 npm run typecheck          # tsc --noEmit — clean
-npx expo export --platform ios --output-dir dist-ios      # Hermes bundle, 572 modules
-npx expo export --platform android --output-dir dist-android  # Hermes bundle, 571 modules
 npm run test:protocol      # node --test — 10 rows
+npm run test:jest          # jest — app-logic units (client requests, notification poller)
 npm run e2e:journey        # needs a daemon: VOOL_BASE_URL / VOOL_HOME / VOOL_PYTHON
 ```
 
-**No installed-device proof is claimed**: the JS bundles compile for both
-platforms (hashes recorded in the evidence bundle), but no .ipa/.apk was
-signed or installed — the toolchains are absent.
+**No installed-device proof is claimed.** TypeScript, protocol journeys and
+served PC checks do not establish native keychain, biometric, notification
+or UI behaviour. No iOS/Android application has been installed here.
 
 ## Desktop side
 
@@ -124,6 +161,7 @@ signed or installed — the toolchains are absent.
 
 | Route | Who | Purpose |
 |---|---|---|
+| `GET /api/mobile/settings` / `POST /api/mobile/settings` | desktop | listener, phone permissions and freeze controls |
 | `POST /api/mobile/pairing/start` | desktop (owner-local) | mint code + challenge + QR payload |
 | `GET  /api/mobile/pairing/challenge` | phone | server-held values to sign |
 | `GET  /api/mobile/pairing/page` | desktop | the QR pairing surface (real QR render) |
@@ -137,7 +175,8 @@ signed or installed — the toolchains are absent.
 ## Dependency security compatibility
 
 The lock overrides vulnerable transitive image-size, tar, PostCSS, UUID and
-Expo plist-parser releases. Expo 52 and its native-module versions stay unchanged.
+Expo plist-parser releases. Expo remains on SDK 52. Added first-party modules stay on their SDK 52 versions;
+the advisory baseline must be compared before and after any addition.
 Two versioned `patch-package` patches adapt Metro 0.81.5 to image-size 2's
 buffer/file APIs and Expo CLI 0.22.28 to tar 7's named CommonJS exports.
 `npm ci` applies these patches and fails if they cannot be applied; do not use

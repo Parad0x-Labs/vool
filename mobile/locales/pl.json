@@ -1,0 +1,7 @@
+{
+  "NSPhotoLibraryUsageDescription": "Dodaj jedno zdjęcie do tej rozmowy. Wiadomość zostanie wysłana dopiero po naciśnięciu Wyślij.",
+  "NSMicrophoneUsageDescription": "Nagraj krótką notatkę do transkrypcji na komputerze. Sprawdź tekst przed wysłaniem.",
+  "NSLocationWhenInUseUsageDescription": "Dodaj bieżące położenie do pola wiadomości do sprawdzenia. Lokalizacja w tle nie jest używana.",
+  "NSFaceIDUsageDescription": "Odblokuj VOOL",
+  "NSCameraUsageDescription": "Skanuj kod QR parowania. Zrób zdjęcie."
+}
