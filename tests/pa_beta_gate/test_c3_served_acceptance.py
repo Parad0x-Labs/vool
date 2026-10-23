@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import unquote, urlparse
+from uuid import UUID
 
 import pytest
 
@@ -163,3 +165,17 @@ def test_served_occurrence_move_and_accepted_cancellation_report_what_the_provid
     later = _turn(harness, "agenda from 2026-10-05 to 2026-10-11", workspace)
     assert "Retro: 2026-10-06 12:00" in later, later
     assert SERIES_MASTER in state.snapshot()[VILNIUS_CAL]["retro-served@f"]["ics"], "the series master persists as stored"
+
+
+@pytest.mark.parametrize("action_ids", [
+    ("123e4567-e89b-42d3-a456-426614174000", "17fc2553-5349-4882-9e61-c85ea35bea9f"),
+    ("720ced25-cc11-4791-8691-000ad2d95c6c", "80d93a9c-7399-4761-8118-80f5af1a33cf"),
+])
+def test_served_numeric_approval_ids_preserve_calendar_provider_truth(request, monkeypatch, action_ids):
+    """Only the generated IDs are fixed; the real approval/provider flow is unchanged."""
+    from core.operator import approvals
+
+    values = iter(UUID(value) for value in action_ids)
+    # Scope the UUID source to approvals, keeping every other runtime ID random.
+    monkeypatch.setattr(approvals, "uuid", SimpleNamespace(uuid4=lambda: next(values)))
+    test_served_occurrence_move_and_accepted_cancellation_report_what_the_provider_holds(request, monkeypatch)
