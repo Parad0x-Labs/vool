@@ -392,7 +392,7 @@ def test_no_package_was_added_to_this_project() -> None:
 
     History: this pin used to forbid EVERY pdf package in pyproject, because core/pdf_tools
     parses through the macOS system Python (PDFKit/Quartz) and must stay dependency-free.
-    The artifact-reader lane later added `pypdf==6.21.0` as a measured, DELIBERATE exception:
+    The artifact-reader lane later added `pypdf==6.21.1` as a measured, DELIBERATE exception:
     it runs only inside the confined decoder subprocess (core/artifact_readers/pdf.py — a
     hostile PDF meets pypdf inside the same sandbox every other decoder gets), with its
     projections kept in sync in requirements*.txt and installer/bundle. Everything else
@@ -416,7 +416,7 @@ def test_no_package_was_added_to_this_project() -> None:
         "\"pyobjc-framework-EventKit==12.2.2; sys_platform == 'darwin'\",",
     ], pyobjc_lines
     # The one sanctioned pdf dependency is the confined-reader fallback, pinned exactly.
-    assert "pypdf==6.21.0" in pyproject
+    assert "pypdf==6.21.1" in pyproject
 
 
 # --------------------------------------------------------------------------------------
