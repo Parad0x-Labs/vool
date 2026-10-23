@@ -105,17 +105,27 @@ class _Server(ThreadingHTTPServer):
         self.slots = threading.BoundedSemaphore(self.SLOTS)
         self.source_lock = threading.Lock()
         self.sources = {}
-        # Connections still sending their request, oldest first. A phone's request
-        # arrives in milliseconds; only a slow or idle sender stays here.
+        # Progress belongs to the transport, before JSON parsing or dispatch.
+        # Header drippers cannot displace a phone whose body is making progress.
         self.reading = {}
         super().__init__(address, handler)
 
     def _evict_slow_sender(self, source):
         with self.source_lock:
-            others = [(started, request) for request, (owner, started) in self.reading.items() if owner != source]
+            now = time.monotonic()
+            others = []
+            for request, progress in self.reading.items():
+                if progress["source"] == source:
+                    continue
+                elapsed = max(now - progress["started"], 0.001)
+                rate = progress["bytes"] / elapsed
+                if progress["body"] and (rate >= _MIN_BODY_RATE or (
+                        not progress["bytes"] and elapsed < 1)):
+                    continue
+                others.append(((progress["body"], rate, progress["started"]), request))
             if not others:
                 return False
-            _started, request = min(others, key=lambda item: item[0])
+            _rank, request = min(others, key=lambda item: item[0])
             self.reading.pop(request, None)
         with suppress(OSError):
             request.shutdown(socket.SHUT_RDWR)
@@ -133,7 +143,9 @@ class _Server(ThreadingHTTPServer):
             with self.source_lock:
                 if self.sources.get(source, 0) < self.PER_SOURCE:
                     self.sources[source] = self.sources.get(source, 0) + 1
-                    self.reading[request] = (source, time.monotonic())
+                    now = time.monotonic()
+                    self.reading[request] = {"source": source, "started": now,
+                                             "bytes": 0, "body": False}
                 else:
                     self.slots.release()
                     admitted = False
@@ -145,6 +157,15 @@ class _Server(ThreadingHTTPServer):
         except BaseException:
             self._release_source(source, request)
             raise
+
+    def body_progress(self, request, received):
+        with self.source_lock:
+            progress = self.reading.get(request)
+            if progress is not None:
+                now = time.monotonic()
+                if not progress["body"]:
+                    progress.update(body=True, started=now)
+                progress.update(bytes=received)
 
     def finished_reading(self, request):
         with self.source_lock:
@@ -239,7 +260,17 @@ def _handler(manager):
                     return api._err(413, "body_too_large")
                 self.connection.settimeout(15)
                 self._extend(_HEADER_DEADLINE + size / _MIN_BODY_RATE)
-                raw = self.rfile.read(size)
+                chunks = []
+                received = 0
+                self.server.body_progress(self.request, received)
+                while received < size:
+                    chunk = self.rfile.read1(min(64 * 1024, size - received))
+                    if not chunk:
+                        raise ValueError("Incomplete request body.")
+                    chunks.append(chunk)
+                    received += len(chunk)
+                    self.server.body_progress(self.request, received)
+                raw = b"".join(chunks)
                 self._extend(0)
                 self.server.finished_reading(self.request)
                 body = json.loads(raw)
@@ -383,6 +414,9 @@ class CompanionListener:
                 server.server_close()
             if thread is not None:
                 thread.join(timeout=2)
+            from core.web.api.mobile_companion_api import mobile_companion_service
+
+            mobile_companion_service().ingress.flush()
 
 
 def listener_for(runtime) -> CompanionListener:

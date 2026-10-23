@@ -145,18 +145,42 @@ def dispatch(path, envelope, headers, *, runtime, model_name, client_host, activ
     if not active():
         return _reply(api._err(403, "phone_access_off"), shared, envelope)
     if pairing:
-        with service.dispatch_lock:
-            from core.mobile_companion.approval_key import record
-            from core.mobile_companion.policy import defaults
+        from core.mobile_companion.approval_key import record
+        from core.mobile_companion.policy import defaults
 
-            evidence = record(
-                body.get("approval_key"), pairing_id=body.get("pairing_id"),
-                challenge=(store.pairing(body.get("pairing_id")) or {}).get("challenge"),
-                device_public_key=body.get("device_public_key"),
-            )
-            if evidence["state"] == "invalid_use_computer":
-                service.ingress.refused("security.approval_key_refused", reason="invalid_approval_key")
-                return _reply(api._err(400, "invalid_approval_key"), shared, envelope)
+        # Cheap admission precedes certificate parsing. The canonical claim below
+        # rechecks the session under the lock before consuming a code or a grant.
+        pairing_id = body.get("pairing_id")
+        if not isinstance(pairing_id, str) or len(pairing_id) > 128:
+            service.ingress.refused("pairing.failed", reason="invalid_pairing")
+            return _reply(api._err(400, "invalid_request"), shared, envelope)
+        session = store.pairing(pairing_id)
+        if not session:
+            service.ingress.refused("pairing.failed", reason="unknown_pairing")
+            return _reply(api._err(404, "pairing_unknown"), shared, envelope)
+        if session.get("status") == "claimed":
+            service.ingress.refused("pairing.failed", reason="code_replayed")
+            return _reply(api._err(409, "pairing_used"), shared, envelope)
+        if float(session.get("expires_at_epoch") or 0) <= time.time():
+            service.ingress.refused("pairing.failed", reason="expired")
+            return _reply(api._err(410, "pairing_expired"), shared, envelope)
+        if int(session.get("attempts") or 0) >= api._PAIRING_MAX_ATTEMPTS:
+            service.ingress.refused("pairing.failed", reason="attempt_cap")
+            return _reply(api._err(429, "pairing_locked"), shared, envelope)
+        if session.get("status") != "waiting":
+            service.ingress.refused("pairing.failed", reason="session_unavailable")
+            return _reply(api._err(409, "pairing_unavailable"), shared, envelope)
+        # Untrusted native evidence never holds the shared action-dispatch lock.
+        evidence = record(
+            body.get("approval_key"), pairing_id=pairing_id,
+            challenge=session.get("challenge"), device_public_key=body.get("device_public_key"),
+        )
+        if evidence["state"] == "invalid_use_computer":
+            service.ingress.refused("security.approval_key_refused", reason="invalid_approval_key")
+            return _reply(api._err(400, "invalid_approval_key"), shared, envelope)
+        with service.dispatch_lock:
+            if not active():
+                return _reply(api._err(403, "phone_access_off"), shared, envelope)
             # Validate and construct all sealed fields before consuming the code
             # or issuing a grant. There is no active partially sealed device.
             fields = dict(encryption_public_key=public_key, sealed_protocol=VERSION, rules=defaults(),

@@ -224,7 +224,11 @@ def maybe_handle_agent_brake(
             was_frozen = _set_frozen(False, wallet_fn)
         except WalletFault as exc:
             if (exc.context or {}).get("reason") != "freeze_requires_wallet_pin":
-                raise
+                return _response(
+                    "I could not change the freeze state just now. Your payment setting is unchanged. "
+                    "Check the wallet in Settings on this computer.",
+                    intent="agent_brake_start", success=False,
+                )
             return _response(
                 "Spending was frozen from your phone or Settings, so it stays frozen. Unfreeze it "
                 "in VOOL Settings on this computer with your wallet PIN.",

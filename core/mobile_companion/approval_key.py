@@ -16,7 +16,7 @@ from itertools import pairwise
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import ec, rsa
 
 BUILD_PROVEN = False
 
@@ -26,7 +26,10 @@ def canonical(value):
 
 
 def public_key(value):
-    data = base64.b64decode(value["public_key"], validate=True)
+    encoded = value["public_key"]
+    if not isinstance(encoded, str) or len(encoded) > 1400:
+        raise ValueError("Invalid approval key.")
+    data = base64.b64decode(encoded, validate=True)
     if len(data) > 1024:
         raise ValueError("Invalid approval key.")
     if value.get("encoding") == "x963":
@@ -71,6 +74,12 @@ def record(value, *, pairing_id, challenge, device_public_key):
                 raise ValueError("Invalid attestation chain.")
             now = datetime.now(timezone.utc)
             for certificate in certificates:
+                issuer_key = certificate.public_key()
+                if isinstance(issuer_key, rsa.RSAPublicKey):
+                    if issuer_key.key_size > 4096 or issuer_key.public_numbers().e != 65537:
+                        raise ValueError("Unsupported attestation signing key.")
+                elif not isinstance(issuer_key, ec.EllipticCurvePublicKey) or issuer_key.key_size > 521:
+                    raise ValueError("Unsupported attestation signing key.")
                 if not certificate.not_valid_before_utc <= now <= certificate.not_valid_after_utc:
                     raise ValueError("Attestation certificate expired.")
             for child, issuer in pairwise(certificates):

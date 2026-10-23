@@ -1494,16 +1494,41 @@ def _action_freeze(params, *, service, device, **_kw):
 
 
 def _action_lost_computer(params, *, service, device, **_kw):
+    frozen = None
+    failed = []
     try:
         _action_freeze({}, service=service, device=device)
+        frozen = True
+    except Exception:
+        failed.append("wallet_freeze")
+        try:
+            from core.wallet import limits
+
+            frozen = limits.is_frozen()
+        except Exception:
+            # A failed write plus an unreadable store is an unknown outcome.
+            frozen = None
     finally:
-        # Revocation never waits on the freeze succeeding.
+        # Every revocation and transport stop is attempted independently.
         for record in service.store.devices().values():
             if record.get("status") == "active":
-                revoke_device(service, record["device_id"], reason="computer reported lost")
-    runtime = _kw.get("runtime")
-    if runtime is not None and getattr(runtime, "phone_bot_manager", None):
-        runtime.phone_bot_manager.close(wait=False)
+                try:
+                    revoke_device(service, record["device_id"], reason="computer reported lost")
+                except Exception:
+                    failed.append("device_revoke")
+        runtime = _kw.get("runtime")
+        manager = getattr(runtime, "phone_bot_manager", None)
+        if manager is not None:
+            try:
+                manager.close(wait=False)
+            except Exception:
+                failed.append("bot_transport_stop")
+    if failed:
+        service.store.append_receipt("payments.freeze_failed", device_id=device["device_id"],
+                                     detail={"via": "lost_computer", "failed": sorted(set(failed)),
+                                             "frozen": frozen})
+        return 503, {"error": "recovery_incomplete", "frozen": frozen,
+                     "revoked": "device_revoke" not in failed, "clear_credentials": True}
     return 200, {"frozen": True, "revoked": True, "clear_credentials": True}
 
 
@@ -1890,7 +1915,7 @@ def handle_mobile_companion_post(
 
             try:
                 if body["operation"] == "freeze":
-                    _freeze_payments()
+                    mirrored = _freeze_payments()
                 else:
                     set_frozen_mirrored(False, require_pin=True,
                                         wallet_id=str(body.get("wallet_id") or ""),
@@ -1899,7 +1924,8 @@ def handle_mobile_companion_post(
                 service.store.append_receipt("payments.freeze_change_refused",
                                              detail={"operation": body["operation"], "reason": exc.code})
                 return _err(403, exc.code, exc.user_message)
-            service.store.append_receipt("payments.freeze_changed", detail={"frozen": limits.is_frozen(), "via": "computer"})
+            service.store.append_receipt("payments.freeze_changed", detail={"frozen": limits.is_frozen(), "via": "computer",
+                **({"legacy_mirror": "not_updated"} if body["operation"] == "freeze" and not mirrored else {})})
             return _json(200, {"ok": True, "frozen": limits.is_frozen()})
         if body.get("operation") == "device_rules":
             from core.mobile_companion.policy import update
