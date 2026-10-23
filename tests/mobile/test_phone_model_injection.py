@@ -116,9 +116,11 @@ def test_chat_attachment_and_bot_reach_model_then_remote_tool_fence(tmp_path, mo
             (tmp_path/('result-'+channel+'.json')).write_text(json.dumps(result,indent=2))
             assert len(provider.attacks) > start, {'result':result,'provider_calls':provider.calls}
             assert marker in json.dumps(provider.attacks[-1]['body'])
-            failed = ledger_row(desktop, "SELECT details_json FROM runtime_session_events WHERE event_type='tool_failed' AND details_json LIKE ? ORDER BY rowid DESC LIMIT 1", ("%"+result["result"]["turn_id"]+"%",))
-            observation = json.loads(failed['details_json'])['observation']
-            assert observation['reason'] == 'owner_local_required' and observation['ok'] is False
+            failed = ledger_row(desktop, "SELECT details_json FROM runtime_session_events WHERE event_type IN ('tool_failed','refused') AND details_json LIKE ? ORDER BY rowid DESC LIMIT 1", ("%"+result["result"]["turn_id"]+"%",))
+            detail = json.loads(failed['details_json'])
+            assert detail['tool_name'] == 'workspace.read_file'
+            observation = detail.get('observation') or detail
+            assert observation.get('reason', observation.get('status')) == 'owner_local_required' and observation['ok'] is False
             assert 'private-authority-canary' not in json.dumps(result)
         status, linked = http(base,'/api/mobile/settings',{'operation':'bot_connect','platform':'telegram','token':secrets.token_urlsafe(40)})
         assert status == 200, linked
@@ -129,9 +131,11 @@ def test_chat_attachment_and_bot_reach_model_then_remote_tool_fence(tmp_path, mo
         wait_for(lambda:any(row['kind']=='bot.turn_finished' for row in receipts(base)), timeout=60)
         assert len(provider.attacks) > start, provider.calls
         finished = next(row for row in receipts(base) if row['kind'] == 'bot.turn_finished')
-        failed = ledger_row(desktop, "SELECT details_json FROM runtime_session_events WHERE event_type='tool_failed' AND details_json LIKE ? ORDER BY rowid DESC LIMIT 1", ("%"+finished['detail']['turn_id']+"%",))
-        observation = json.loads(failed['details_json'])['observation']
-        assert observation['reason'] == 'owner_local_required' and observation['ok'] is False
+        failed = ledger_row(desktop, "SELECT details_json FROM runtime_session_events WHERE event_type IN ('tool_failed','refused') AND details_json LIKE ? ORDER BY rowid DESC LIMIT 1", ("%"+finished['detail']['turn_id']+"%",))
+        detail = json.loads(failed['details_json'])
+        assert detail['tool_name'] == 'workspace.read_file'
+        observation = detail.get('observation') or detail
+        assert observation.get('reason', observation.get('status')) == 'owner_local_required' and observation['ok'] is False
         assert 'private-authority-canary' not in json.dumps(bot.outgoing)
         assert owner_policy_snapshot(base) == protected
         after = call(*phone,'devices.me')[1]['result']
