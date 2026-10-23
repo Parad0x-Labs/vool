@@ -46,6 +46,9 @@ def test_every_memory_and_forget_path_keeps_the_file_lock_order_across_processes
     if hung:
         pytest.fail(f"{layout}: {', '.join(hung)} still running after {DEADLINE_S:.0f}s (killed): a cross-process "
                     "lock wait that never ended", pytrace=False)
+    # The order first: a child that failed still left the trace of what it took until then.
+    order = flo.violations(flo.read_traces([tmp_path / f"{name}.trace" for name in ROLES]))
+    assert not order, "\n".join(order + [f"{name} failed: {error}" for name, error in errors.items()])
     assert not errors, errors
 
     assert all(reply.startswith("Forget applied") for reply in results["forget"]), results["forget"]

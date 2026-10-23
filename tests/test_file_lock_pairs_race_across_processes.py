@@ -62,6 +62,9 @@ def test_two_processes_each_taking_two_file_locks_never_deadlock(tmp_path, pair)
     if hung:
         pytest.fail(f"{pair}: {', '.join(hung)} still running after {DEADLINE_S:.0f}s (killed): a cross-process "
                     "deadlock between two file locks", pytrace=False)
+    # The order first: a child that failed still left the trace of what it took until then.
+    order = flo.violations(flo.read_traces([tmp_path / f"{name}.trace" for name in specs]))
+    assert not order, "\n".join(order + [f"{name} failed: {error}" for name, error in errors.items()])
     assert not errors, errors
     for name, (role, *_rest) in specs.items():
         if role == "forget":
