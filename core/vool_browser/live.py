@@ -35,6 +35,7 @@ from core.vool_browser.ops import Untrusted
 
 MAX_BYTES = 2_000_000
 TIMEOUT = 8
+ENGINE_START_TIMEOUT = 60
 _LOCK = threading.RLock()
 _SESSIONS: dict[tuple[str, str], LiveSession] = {}
 
@@ -512,7 +513,7 @@ class LiveSession:
         flags += ['--disable-quic', '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1']
         self._context = await self._driver.chromium.launch_persistent_context(
             user_data_dir=str(self.profile), executable_path=binary, headless=True,
-            args=flags, timeout=10000, chromium_sandbox=True,
+            args=flags, timeout=ENGINE_START_TIMEOUT * 1000, chromium_sandbox=True,
             proxy={'server':f'http://127.0.0.1:{proxy_port}', 'bypass':'<-loopback>'},
             downloads_path=str(self.profile / "downloads"), env={**os.environ, "TMPDIR": str(self._engine_tmp)},
             java_script_enabled=False, service_workers="block", accept_downloads=False,
@@ -583,6 +584,7 @@ class LiveSession:
         except Exception as exc:
             self._blocked = str(exc) if isinstance(exc, BrowserFault) else "connection_failed"
             self.result["failure_class"] = type(exc).__name__
+            self.result["failure_phase"] = "network"
             with contextlib.suppress(Exception):
                 await route.abort()
         finally:
@@ -764,21 +766,22 @@ class LiveSession:
         # that fails or stalls is reported by _execute, which opens again.
         self._execution_task = asyncio.current_task()
         with contextlib.suppress(Exception):
-            await asyncio.wait_for(self._open(), timeout=60)
+            await asyncio.wait_for(self._open(), timeout=ENGINE_START_TIMEOUT)
         try:
             await asyncio.wait_for(self._execute(proposal), timeout=20)
         except asyncio.TimeoutError:
             self._permit = None
             if not self.closed:
-                self.result = {"failure_class": "operation_timeout"}
+                self.result = {"failure_class": "operation_timeout", "failure_phase": "operation"}
                 self.nodes = []
                 self.frame = ""
                 self.state = "page_failed"
-                self._complete(proposal["id"], {"ok": False, "status": "page_failed"})
+                self._complete(proposal["id"], {"ok": False, "status": "page_failed", **self.result})
 
     async def _execute(self, proposal: dict) -> None:
         self._execution_task = asyncio.current_task()
         observe = True
+        phase = "engine_start"
         try:
             _check()
             if self.closed:
@@ -786,6 +789,7 @@ class LiveSession:
             await self._open()
             if self.closed:
                 raise BrowserFault("stopped")
+            phase = "page_action"
             op, args = proposal["op"], proposal["args"]
             self._blocked = ""
             self.result = {}
@@ -854,7 +858,8 @@ class LiveSession:
             observe = False
             outcome = "stopped" if self.closed else "paused" if self.takeover else "cancelled"
         except Exception as exc:
-            self.result["failure_class"] = type(exc).__name__
+            self.result.setdefault("failure_class", type(exc).__name__)
+            self.result.setdefault("failure_phase", phase)
             outcome = "ready" if self._download else (self._blocked or (str(exc) if isinstance(exc, BrowserFault) else "page_failed"))
         finally:
             proposal.pop("_telemetry", None)
@@ -867,6 +872,7 @@ class LiveSession:
                     await self._observe()
                 except Exception as exc:
                     self.result["observation_failure_class"] = type(exc).__name__
+                    self.result.setdefault("failure_phase", "observation")
                     self.nodes = []
                     self.frame = ""
                     if outcome == "ready" and not self._download:
@@ -881,6 +887,12 @@ class LiveSession:
                 )
                 self.state = outcome
                 completed = {"ok": outcome == "ready", "status": "executed" if outcome == "ready" else outcome, "receipt": self.result["receipt"]}
+                if outcome != "ready":
+                    # Keep classification, never raw exception text or page data,
+                    # on the completion returned to the original waiting call.
+                    completed.update({key: self.result[key] for key in
+                                      ("failure_class", "failure_phase", "observation_failure_class")
+                                      if key in self.result})
                 if outcome == "ready" and self.result.get("page"):
                     completed.update(copy.deepcopy(self.result["page"]))
                     completed["result"] = copy.deepcopy(self.result)
