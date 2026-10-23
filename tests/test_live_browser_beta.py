@@ -92,8 +92,11 @@ def _hold_owned_browser_start(item, seconds):
             if not pid:
                 continue
             try:
+                driver_created = item._owned_processes.get(pid)
+                if driver_created is None:
+                    continue
                 driver = psutil.Process(pid)
-                assert driver.create_time() == item._owned_processes[pid]
+                assert driver.create_time() == driver_created
                 for browser in driver.children():
                     created = browser.create_time()
                     item._record_process(browser.pid)
