@@ -137,6 +137,7 @@ def test_lost_computer_closes_bot_workers_and_receipts_canonical_freeze_failure(
     from core.mobile_companion import bot_runtime
     manager = bot_runtime.manager_for(runtime)
     manager.provider_origins['telegram'] = host.url
+    database_path = ''
     try:
         import secrets
         phone = pair(desktop, activate_chat=False)
@@ -149,6 +150,7 @@ def test_lost_computer_closes_bot_workers_and_receipts_canonical_freeze_failure(
         # A real SQLite write refusal exercises the canonical freeze, rather
         # than replacing the wallet gate with a synthetic success or failure.
         with connection() as conn:
+            database_path = next(row[2] for row in conn.execute('PRAGMA database_list') if row[1] == 'main')
             if storage_failure == 'write':
                 conn.execute("""CREATE TRIGGER fixture_freeze_write_refusal BEFORE INSERT ON wallet_controls
                     WHEN NEW.key='spend_frozen' BEGIN SELECT RAISE(FAIL,'fixture write refused'); END""")
@@ -171,7 +173,21 @@ def test_lost_computer_closes_bot_workers_and_receipts_canonical_freeze_failure(
         assert failed['detail']['frozen'] is (False if storage_failure == 'write' else None)
         assert failed['detail']['failed'] == ['wallet_freeze']
     finally:
-        host.close()
+        try:
+            if database_path:
+                import sqlite3
+
+                with sqlite3.connect(database_path) as restored:
+                    if storage_failure == 'write':
+                        restored.execute('DROP TRIGGER IF EXISTS fixture_freeze_write_refusal')
+                    else:
+                        current = restored.execute("SELECT type FROM sqlite_master WHERE name='wallet_controls'").fetchone()
+                        if current and current[0] == 'view':
+                            restored.execute('DROP VIEW wallet_controls')
+                        if restored.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='fixture_controls'").fetchone():
+                            restored.execute('ALTER TABLE fixture_controls RENAME TO wallet_controls')
+        finally:
+            host.close()
 
 
 def test_non_pin_wallet_fault_gets_a_friendly_brake_reply(desktop):
