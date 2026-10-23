@@ -101,15 +101,15 @@ def test_a_forget_that_matches_no_document_keeps_them_and_says_nothing_was_remov
 
 def test_a_document_named_for_the_words_loses_the_name_and_keeps_unrelated_text(isolated_pages):
     chat = _chat("forget-paste-name")
-    dropped = _paste(chat, INVENTORY, turn="t1", name="locker-4417.txt")
+    dropped = _paste(chat, INVENTORY, turn="t1", name="locker-xqz4417.txt")
 
-    handled, reply = command(isolated_pages, chat, "Forget 4417.")
+    handled, reply = command(isolated_pages, chat, "Forget xqz4417.")
 
     assert handled and reply == "Forget applied. Removed 1 memory entry.", reply
-    assert "4417" not in json.dumps(_manifest(dropped))
+    assert "xqz4417" not in json.dumps(_manifest(dropped))
     carried = _carried(chat)
     assert [entry["attachment_id"] for entry in carried] == [dropped["id"]]
-    assert "4417" not in json.dumps(carried) and "crate 89 holds" in carried[0]["text"]
+    assert "xqz4417" not in json.dumps(carried) and "crate 89 holds" in carried[0]["text"]
 
 
 def test_a_document_that_cannot_be_read_is_never_reported_as_forgotten_and_a_retry_finishes(isolated_pages):
