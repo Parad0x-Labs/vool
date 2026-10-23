@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 
 from tests._credential_intelligence_support import isolated_home, vault_home
-from tests.test_x_actions_approval import fake_x, _settings
-from tests.x_social.test_cards import _context, _propose, _cards
+from tests.test_x_actions_approval import _settings, fake_x
+from tests.x_social.test_cards import _cards, _context, _propose
 
 
 @pytest.mark.parametrize('code,body,expected', [

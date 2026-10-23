@@ -567,8 +567,9 @@ def _handle_x_feedback(inp, ctx):
 
 def _probe_x_social_state(context: dict) -> tuple[bool, str]:
     try:
+        # Both imports are availability checks; missing modules must refuse the surface.
         import core.x_actions
-        import core.x_feedback
+        import core.x_feedback  # noqa: F401
 
         return True, ""
     except Exception as exc:

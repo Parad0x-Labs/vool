@@ -54,8 +54,8 @@ def test_action_summaries_use_every_catalog_on_served_settings(fake_x, vault_hom
         for locale in sorted(path.stem for path in CATALOGS_DIR.glob('*.json')):
             catalog = catalog_for(locale)
             page.goto(base + '/settings?ui_locale=' + locale + '#keys')
-            def isolate(value):
-                return '\u2068' + value + '\u2069' if locale in {'ar', 'he'} else value
+            def isolate(value, selected_locale=locale):
+                return '\u2068' + value + '\u2069' if selected_locale in {'ar', 'he'} else value
             expected = catalog.text('xs.summary_quote').replace('@{author}', isolate('@late_whale'))
             card = page.locator('.x-action-card').filter(has_text='Keep the exact proposed words.')
             card.locator('strong').filter(has_text=expected).wait_for()
@@ -65,7 +65,7 @@ def test_action_summaries_use_every_catalog_on_served_settings(fake_x, vault_hom
                 'description': 'A curated list.'}} for kind in x_actions.KINDS]
             rows.append({'kind': 'list_create', 'target': {'name': 'Launch board', 'private': False}})
             actual = page.evaluate('(rows)=>rows.map(a=>VoolXSocial.summary(a))', rows)
-            for row, rendered in zip(rows, actual):
+            for row, rendered in zip(rows, actual, strict=True):
                 key = 'xs.summary_' + row['kind']; assert key in catalog.locale_keys, (locale, key)
                 target = row['target']
                 values = {'author': 'late_whale', 'who': isolate('Morgan Lee (@morgan)'),

@@ -9,8 +9,8 @@ def test_explicit_x_search_reaches_installed_skill(vault_home, tmp_path, monkeyp
 
 
 def test_chat_history_search_keeps_its_own_wording(served):
-    from core.persistent_memory import append_conversation_event
     from core.chat_housekeeping import recalled_results
+    from core.persistent_memory import append_conversation_event
 
     source = "openclaw:mandarinpackagingorigin"
     append_conversation_event(session_id=source,
