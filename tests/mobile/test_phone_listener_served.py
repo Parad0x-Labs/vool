@@ -174,5 +174,3 @@ def test_network_choice_never_widens_to_public_or_all_interfaces(desktop, addres
     with pytest.raises((ValueError, OSError)):
         enable(runtime, address)
     assert runtime.phone_listener.server is None
-
-

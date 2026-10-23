@@ -58,7 +58,7 @@ These services can read messages sent through them. Both are off until connected
 3. Send the displayed `/pair CODE` to that bot in a private conversation within five minutes. Only that conversation and sender become bound. A stranger does not become the owner by messaging first.
 4. Set the bot's rights and notification choices in its desktop row. A bot can never approve payments or tool actions. Disconnect removes its credential and stops its bridge.
 
-`/history` reads that bot's conversation when allowed. Attachments require the attachment right. `/balance`, `/contacts` and `/receipts` require wallet viewing. `/pay AMOUNT CONTACT_OR_ADDRESS` displays an exact review. The displayed `/payconfirm TOKEN` creates the scoped proposal; review fees and approve in VOOL on the computer. No bot reply approves a payment. Bot alerts are coarse and best effort; the PC retains the record.
+`/history` reads that bot's conversation when allowed. Attachments require the attachment right. `/balance`, `/contacts` and `/receipts` require wallet viewing. `/pay AMOUNT CONTACT_OR_ADDRESS` displays an exact review. The displayed `/payconfirm TOKEN` creates the scoped proposal; review fees and approve in VOOL on the computer. No bot reply approves a payment. A privately paired owner can send `/freeze` (or `/stopx402`) even when optional chat rights are off. This only freezes payments; strangers cannot invoke it, and no bot command can unfreeze or approve. Bot alerts are coarse and best effort; the PC retains the record.
 
 The older terminal-started Telegram bridge still has its legacy first-sender binding contract. It is not used by this Settings flow and should not be used as a substitute. Removing that contract requires a separate change to its existing tests.
 

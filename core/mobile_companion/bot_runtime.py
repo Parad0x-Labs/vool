@@ -262,6 +262,18 @@ class ManagedBot:
                 return
             if binding.get("channel_id") != channel or binding.get("user_id") != user:
                 return self.refused("stranger", channel)
+            if text.strip().lower() in {"/freeze", "freeze", "/stopx402"}:
+                from core.web.api.mobile_companion_api import _action_freeze
+
+                try:
+                    _code, result = _action_freeze({}, service=service(), device=device)
+                except Exception:
+                    service().store.append_receipt("payments.freeze_failed", device_id=self.device_id,
+                                                  detail={"via": self.platform})
+                    self.send(channel, "Could not confirm the freeze. Check your computer.", right=None)
+                else:
+                    self.send(channel, result["message"], right=None)
+                return
             if not enabled(device, "chat"):
                 return self.refused("chat_right_off_or_expired", channel)
             service().store.mark_device(self.device_id, last_seen_at=service().utcnow().isoformat())
@@ -367,7 +379,7 @@ class ManagedBot:
                 right="payment_propose",
             )
             return
-        if text.startswith(("/approve", "/unfreeze", "/freeze", "/rules", "/contacts-add")):
+        if text.startswith(("/approve", "/unfreeze", "/rules", "/contacts-add")):
             return self.refused("pc_action_required", channel)
         if text.startswith(("/balance", "/receipts", "/contacts")):
             if not enabled(device, "wallet_view"):
