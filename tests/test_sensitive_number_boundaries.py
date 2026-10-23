@@ -1,4 +1,4 @@
-"""Card intake recognizes complete numeric values, never fragments of an identifier."""
+"""Hex identifiers survive card intake; cards remain protected even when glued to text."""
 from __future__ import annotations
 
 import random
@@ -83,3 +83,39 @@ def test_explicit_secret_labels_still_protect_their_values(text, kind):
     assert redact_secrets(text) != text
     intake = consume_secret_intake(text, owner_local=True)
     assert intake is not None and "didn't save your" in intake.reply
+
+
+@pytest.mark.parametrize("text,masked", [
+    ("card4111111111111111", "card[redacted-card-number]"),
+    ("visa_4111111111111111", "visa_[redacted-card-number]"),
+    ("card 4111111111111111-exp 12/29", "card [redacted-card-number]-exp 12/29"),
+    ("card 4111111111111111exp", "card [redacted-card-number]exp"),
+    ("card 0x4111111111111111", "card 0x[redacted-card-number]"),
+    ("card a4111111111111111g", "card a[redacted-card-number]g"),
+    ("card a11111111111111", "card a[redacted-card-number]"),
+])
+def test_card_values_glued_to_non_hex_text_are_still_redacted(text, masked):
+    assert contains_secret(text)
+    assert redactable_personal_kinds(text) == ("card_number",)
+    assert redact_secrets(text) == masked
+    intake = consume_secret_intake(text, owner_local=True)
+    assert intake is not None and "didn't save your card number" in intake.reply
+    assert "4111111111111111" not in intake.remainder
+
+
+@pytest.mark.parametrize("token", [
+    "a111111111111111",  # exactly 16 alphanumeric hex characters, including a letter
+    "a4111111111111111",
+    "4111111111111111dead",
+    "FACE4111111111111111BEEF",
+    "17fc2553-5349-4882-9e61-c85ea35bea9f",
+    "11111111-1111-4111-8111-111111111111",  # a UUID need not contain a letter
+])
+def test_only_whole_hex_tokens_exempt_their_own_numeric_fragments(token):
+    for text in (token, f"card {token}"):
+        assert redactable_personal_kinds(text) == ()
+        assert not contains_secret(text)
+        assert redact_secrets(text) == text
+        assert consume_secret_intake(text, owner_local=True) is None
+    mixed = f"card {token}; card4111111111111111"
+    assert redact_secrets(mixed) == f"card {token}; card[redacted-card-number]"
