@@ -130,6 +130,7 @@ class LoadedPlugin:
     skills: tuple[dict[str, Any], ...] = ()
     warnings: tuple[str, ...] = field(default_factory=tuple)
     enabled: bool = True
+    vool: dict[str, Any] = field(default_factory=dict)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -332,12 +333,19 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     version = str(raw.get("version") or "0.0.0").strip()
     root = Path(path).resolve().parent.parent
 
-    tools = raw.get("tools")
+    from core.plugin_manifest import validate_manifest
+
+    try:
+        extension = validate_manifest(raw, root=root)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise PluginManifestError(str(exc)) from None
+
+    tools = extension.get("tools", raw.get("tools"))
     if not tools:
         # The two installed plugins are exactly this: valid, loadable, no runtime tools yet.
-        return LoadedPlugin(plugin_id=plugin_id, version=version, root=root)
+        return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, vool=extension)
 
-    runtime = raw.get("runtime")
+    runtime = raw.get("runtime", {"contract_version": CONTRACT_VERSION} if extension else None)
     _require(
         isinstance(runtime, dict),
         f"{plugin_id}: a manifest that declares `tools` must also declare a `runtime` block",
@@ -351,9 +359,8 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
     )
     _require(isinstance(tools, list), f"{plugin_id}: `tools` must be a list")
 
-    contracts = tuple(
-        contract_from_tool(item, plugin_id=plugin_id, version=version) for item in tools
-    )
+    contracts = tuple(_manifest_contract(item, plugin_id=plugin_id, version=version,
+                                        extension=extension) for item in tools)
     seen: set[str] = set()
     for contract in contracts:
         _require(
@@ -361,7 +368,24 @@ def parse_manifest(raw: dict, *, path: Path) -> LoadedPlugin:
             f"{plugin_id}: {contract.intent!r} is declared twice in this manifest",
         )
         seen.add(contract.intent)
-    return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, contracts=contracts)
+    return LoadedPlugin(plugin_id=plugin_id, version=version, root=root, contracts=contracts, vool=extension)
+
+
+def _manifest_contract(spec: dict, *, plugin_id: str, version: str, extension: dict) -> RuntimeToolContract:
+    if not extension or spec.get("handler", {}).get("kind") != "mcp":
+        return contract_from_tool(spec, plugin_id=plugin_id, version=version)
+    handler = dict(spec["handler"])
+    pin = spec.get("trust")
+    normalized = {**spec, "handler": {"kind": "subprocess", "entry":
+        extension["mcpServers"][handler["server"]]["command"]}}
+    normalized["side_effect_class"] = pin["side_effect_class"] if pin else "read_only"
+    normalized["permission_actions"] = pin["permission_actions"] if pin else []
+    normalized["approval_requirement"] = "none" if normalized["side_effect_class"] == "read_only" else "runtime_policy"
+    contract = contract_from_tool(normalized, plugin_id=plugin_id, version=version)
+    if not pin:
+        contract = replace(contract, side_effect_class="external_unpinned", permission_actions=(),
+                           approval_requirement="explicit_user_opt_in")
+    return replace(contract, handler=json.dumps(handler, sort_keys=True))
 
 
 def _owner_disabled(plugin_id: str) -> bool:
