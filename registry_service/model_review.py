@@ -152,7 +152,7 @@ class ModelReview:
         require(len(data) <= MAX_FILES_CHARS, "this skill is too long to check")
         payload = {"model": self.model, "temperature": 0, "max_tokens": 2000,
                    "response_format": {"type": "json_object"},
-                   "messages": [{"role": "system", "content": PLUGIN_PROMPT if artifact["metadata"]["kind"] == "plugin" else PROMPT},
+                   "messages": [{"role": "system", "content": PLUGIN_PROMPT if artifact["metadata"].get("kind", "skill") == "plugin" else PROMPT},
                                 {"role": "user", "content": data}]}
         headers = {}
         if self.provider == "openrouter":
