@@ -5802,13 +5802,87 @@ function buildCard(run, host) {
   const refs = { card, mark: q('.tc-mark'), title: q('.tc-titletext'), stage: q('.tc-stage'), mode: q('.tc-mode'), model: q('.tc-model'), recent: q('.tc-recent'),
     stop: q('.tc-stop'), elapsed: q('.tc-elapsed'), tokens: q('.tc-tokens'), steps: q('.tc-steps'), cost: q('.tc-cost'), last: q('.tc-last'),
     summary: q('.tc-summary'), view: q('.tc-view'), sr: q('.sr-only') };
+  // The stopping look: the button says so and cannot be pressed again, and the mark holds. Kept
+  // on the run, so a card re-built while the stop is being decided shows it too.
+  const showStopping = () => {
+    refs.stop.disabled = true;
+    refs.stop.textContent = pageT('run.status_stopping', 'Stopping…');
+    card.classList.add('tc-hold');
+  };
+  if (run.stopRequested && !run.ended) showStopping();
   refs.stop.addEventListener('click', () => {
     // Cancel the SERVER turn first (so inference actually stops and stops counting toward usage),
     // then abort the client stream. Keyed by turn_id so it never cancels a different/queued turn.
     // Cancel is addressed to the run's OWN chat -- never to whatever is on screen, or Stop would
     // cancel a turn in the chat the user happens to be looking at.
-    try { fetch('/api/chat/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: run.chatId, turn_id: run.turnId }) }); } catch (e) {}
-    if (run.aborter) run.aborter.abort();
+    // One Stop per turn: a second press while the first is being decided does nothing (a new send
+    // meanwhile waits in this chat's queue, as for any busy chat).
+    if (run.ended || run.stopRequested) return;
+    run.stopRequested = true;
+    // At once: the answer stops growing on screen (a truthy timer makes scheduleStreamPaint wait)
+    // and the card says it is stopping, so the press never looks like it did nothing.
+    if (run.streamPaintTimer) clearTimeout(run.streamPaintTimer);
+    run.streamPaintTimer = 'stopping';
+    showStopping();
+    // The server decides. "committed": the answer was sealed before the stop counted, so it is the
+    // turn's record and the stream goes on to show it. "not_found": the turn had already finished
+    // running and its answer is on the way: shown the same way, unless the stream has not ended
+    // STOP_ANSWER_BOUND_MS later. "cancelled": the stop is the record, and the display ends as
+    // before. No answer within STOP_ANSWER_BOUND_MS, or a failed request, ends the display too:
+    // the bound is a safety net so Stop never hangs (the server answers within milliseconds
+    // unless the seal itself is stuck).
+    const STOP_ANSWER_BOUND_MS = 3000;
+    let settled = false, bound = null;
+    const abortDisplay = () => { try { if (run.aborter) run.aborter.abort(); } catch (e) {} };
+    const keepStream = () => {
+      run.streamPaintTimer = null;
+      if (run.refs) { run.refs.stop.style.display = 'none'; if (!run.permission && !run.pricePaused) run.card.classList.remove('tc-hold'); }
+      scheduleStreamPaint(run);
+    };
+    // Once the stream has wound down, and only when `when()` holds: the bubble and the chat's
+    // history say what a reload says, the stopped marker.
+    const markStoppedOnceDone = (when) => {
+      let tries = 0;
+      const check = () => {
+        if (!run.released && tries++ < 200) { setTimeout(check, 50); return; }
+        if (!when()) return;
+        run.text = pageT('run.stopped_showing', '(stopped showing this answer)');
+        const entry = run.historyIndex >= 0 ? ownerOf(run).history[run.historyIndex] : null;
+        if (entry && entry.role === 'assistant') entry.content = run.text;
+        // The card says what the bubble says: a turn that ended as "completed" while its stop was
+        // being decided is shown as stopped.
+        if (run.status === 'completed') { run.status = 'cancelled'; run.endSummary = ''; }
+        withRunDom(run, () => {
+          if (run.assistantMsgEl) run.assistantMsgEl.classList.remove('pending');
+          if (run.textEl) run.textEl.textContent = run.text;
+          if (run.card) { run.card.classList.remove('done'); paintFinishedCard(run); }
+        });
+      };
+      check();
+    };
+    const settle = (state) => {
+      if (settled) return; settled = true; clearTimeout(bound);
+      if (state === 'committed') { if (!run.ended) keepStream(); return; }
+      if (state === 'not_found') {
+        if (!run.ended) {
+          keepStream();
+          setTimeout(() => { if (!run.ended) abortDisplay(); }, STOP_ANSWER_BOUND_MS);
+        }
+        // The finished turn sealed no answer after all: say it stopped, never leave an empty bubble.
+        markStoppedOnceDone(() => !run.responseCommit && !String(run.text || '').trim());
+        return;
+      }
+      if (!run.ended) abortDisplay();
+      // A commit that reached the page while the stop was being decided is the server's cancel
+      // notice (an answer sealed first makes the server say "committed").
+      if (state === 'cancelled') markStoppedOnceDone(() => !!run.responseCommit);
+    };
+    bound = setTimeout(() => settle('unknown'), STOP_ANSWER_BOUND_MS);
+    try {
+      fetch('/api/chat/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: run.chatId, turn_id: run.turnId }) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => settle(String((b && b.state) || 'unknown')), () => settle('unknown'));
+    } catch (e) { settle('unknown'); }
   });
   refs.view.addEventListener('click', openPanel);
   run.card = card; run.refs = refs;

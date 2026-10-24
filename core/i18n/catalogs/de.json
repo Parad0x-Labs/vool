@@ -914,6 +914,7 @@
     "run.review_action": "Prüfe unten die exakte Aktion.",
     "run.status_completed": "Abgeschlossen",
     "run.status_stopped": "Gestoppt",
+    "run.status_stopping": "Wird gestoppt…",
     "run.status_waiting": "Wartet auf deine Freigabe",
     "run.stop": "Stopp",
     "run.stop_title": "Diesen Zug stoppen — bricht die laufende Aufgabe auf deinem Rechner ab und stoppt die Antwort.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Prüfen Sie jede Aktion vor der Ausführung. Seitenskripte sind aus. Nutzen Sie die Wallet für Zahlungen.",
     "settings.row.live_browser.label": "Webbrowser"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

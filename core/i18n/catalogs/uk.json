@@ -914,6 +914,7 @@
     "run.review_action": "Перегляньте точну дію нижче.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Зупинено",
+    "run.status_stopping": "Зупинка…",
     "run.status_waiting": "Очікує вашого підтвердження",
     "run.stop": "Зупинити",
     "run.stop_title": "Зупинити цей хід — скасовує виконуване завдання на вашому комп’ютері та припиняє відповідь.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Переглядайте кожну дію перед виконанням. Сценарії сторінок вимкнено. Для оплати використовуйте гаманець.",
     "settings.row.live_browser.label": "Браузер"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

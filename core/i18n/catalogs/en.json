@@ -1541,6 +1541,7 @@
     "run.stage_planning": "Planning",
     "run.status_completed": "Completed",
     "run.status_stopped": "Stopped",
+    "run.status_stopping": "Stopping…",
     "run.status_waiting": "Waiting for your approval",
     "run.stop": "Stop",
     "run.stop_title": "Stop this turn — cancels the running task on your machine and stops the answer.",
