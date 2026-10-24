@@ -35,6 +35,7 @@ def _store():
         provider_id=CONFIG.provider_id, label=CONFIG.label, kind="llm_cloud", credential_slot=CONFIG.credential_slot,
         verify_endpoint=origin() + CONFIG.credential_path_template + CONFIG.probe_path,
         auth_style="url_path_token", capability_family="cloud_chat", paid=True,
+        extra_headers=dict(CONFIG.extra_headers),
         endpoint_slot=CONFIG.endpoint_slot, default_endpoint=CONFIG.base_url,
         verify_path=CONFIG.credential_path_template + CONFIG.probe_path,
         response_path=CONFIG.probe_response_path, response_kind=CONFIG.probe_response_kind,
