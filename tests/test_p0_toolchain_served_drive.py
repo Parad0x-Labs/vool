@@ -139,7 +139,7 @@ def _drive(scripts, *, user_text, workspace, session_id):
 
     agent._emit_runtime_event = _spy
     context = {
-        "surface": "api", "workspace": str(workspace), "workspace_root": str(workspace),
+        "surface": "desktop", "_owner_local": True, "workspace": str(workspace), "workspace_root": str(workspace),
         "workspace_binding": "project", "runtime_session_id": session_id,
     }
     result = agent._maybe_execute_model_tool_intent(
@@ -151,7 +151,7 @@ def _drive(scripts, *, user_text, workspace, session_id):
         persona=SimpleNamespace(),
         session_id=session_id,
         source_context=context,
-        surface="api",
+        surface="desktop",
     )
     return result or {}, router, events, context
 

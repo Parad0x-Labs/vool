@@ -2635,7 +2635,8 @@ function widgetKeys(stack) {
         pill.appendChild(el('span', null, c.label || PROVIDER_LABELS[String(c.name).slice(keyFamilyOf(c.name).length)] || c.name));
         rowEl.appendChild(pill);
         if (!isOperatorKey(c.name)) {
-          rowEl.appendChild(el('span', 'pill', T('keys.plugin_managed_label', 'managed')));
+          const pluginKey = String(c.name).startsWith('plugin.') || PLUGIN_MANAGED_SLOTS.includes(String(c.name));
+          rowEl.appendChild(el('span', 'pill', pluginKey ? T('keys.plugin_managed_label', 'managed') : 'system'));
           into.appendChild(rowEl);
           return;                       /* no Remove: this one is not the user's to delete */
         }
