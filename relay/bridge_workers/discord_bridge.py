@@ -1,8 +1,26 @@
+"""Discord <-> local VOOL bridge: outbound posts from the mirror, and directed commands from
+Discord into the agent.
+
+Security (a Discord channel is a remote entry point into a machine that has tools, so it is
+locked down the same way as the Telegram chat bridge):
+- **Owner-locked.** The FIRST Discord user to send a directed command (``!vool ...``, ``vool: ...``
+  or a mention of the bot) pairs as the owner, trust-on-first-use, persisted under
+  ``VOOL_HOME/config/discord_bridge.json``. Every other user is told once, calmly, that this VOOL
+  is locked to its owner, and their messages are never processed. Set
+  ``VOOL_DISCORD_OWNER_USER_ID`` to pin the owner explicitly and skip first-use pairing; do that
+  for any channel other people can write in.
+- If the owner file exists but cannot be read, nobody is paired again and everyone is refused
+  until the file is fixed or the owner is pinned.
+- **Channel surface.** Accepted commands still enter through ``core.channel_gateway``, which marks
+  the turn as not the owner's own session, so even the owner's Discord turns get the remote-turn
+  fence (no keyed or paid tools, public pages only).
+"""
 from __future__ import annotations
 
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any
 from urllib import error
 from urllib.parse import urlencode
@@ -10,6 +28,15 @@ from urllib.parse import urlencode
 from core import remote_fetch_policy
 from core.channel_gateway import ChannelRequest, process_channel_request
 from relay.channel_outbound import TOPIC_BY_PLATFORM
+
+REFUSAL_TEXT = "Not authorized. This VOOL is locked to its owner."
+#: The owner file is present but unreadable: refuse everyone instead of pairing someone new.
+_OWNER_UNREADABLE = object()
+
+
+def _owner_file() -> Path:
+    home = Path(os.environ.get("VOOL_HOME") or (Path.home() / ".vool_runtime"))
+    return home / "config" / "discord_bridge.json"
 
 
 class DiscordBridge:
@@ -24,6 +51,44 @@ class DiscordBridge:
         self.sync_topic = os.environ.get("VOOL_DISCORD_OUTBOUND_TOPIC", TOPIC_BY_PLATFORM["discord"])
         self._last_seen_message_ids: dict[str, int] = {}
         self._agent = None
+        pinned = str(os.environ.get("VOOL_DISCORD_OWNER_USER_ID") or "").strip()
+        self.owner_user_id: Any = pinned or self._load_owner()
+        self._refused_users: set[str] = set()
+
+    # ---- owner lock -------------------------------------------------------------------------
+
+    def _load_owner(self) -> Any:
+        path = _owner_file()
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            owner = str(data.get("owner_user_id") or "").strip() if isinstance(data, dict) else ""
+        except (OSError, ValueError):
+            owner = ""
+        if not owner:
+            print(f"[DiscordBridge] Owner file {path} is unreadable; refusing every Discord user.")
+            return _OWNER_UNREADABLE
+        return owner
+
+    def _save_owner(self, user_id: str) -> None:
+        path = _owner_file()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".tmp")
+            tmp.write_text(json.dumps({"owner_user_id": str(user_id)}), encoding="utf-8")
+            os.replace(tmp, path)
+        except OSError as exc:
+            print(f"[DiscordBridge] Could not save the Discord owner ({exc}); the pairing lasts this run only.")
+
+    def _authorize(self, user_id: str) -> bool:
+        """True if this Discord user may drive VOOL. The first user pairs as owner; others are refused."""
+        user_id = str(user_id)
+        if self.owner_user_id is None:
+            self.owner_user_id = user_id
+            self._save_owner(user_id)
+            return True
+        return self.owner_user_id is not _OWNER_UNREADABLE and user_id == self.owner_user_id
 
     def is_configured(self) -> bool:
         outbound_ready = bool(self.webhook_url or self.webhook_urls or (self.bot_token and (self.default_channel_id or self.channel_ids)))
@@ -314,6 +379,12 @@ class DiscordBridge:
 
                 command_text = self._extract_command_text(str(message.get("content") or ""))
                 if not command_text:
+                    continue
+                if not self._authorize(author_id):
+                    # Told once per user, so a stranger cannot make the bot talk in a loop.
+                    if author_id not in self._refused_users:
+                        self._refused_users.add(author_id)
+                        self._post_bot_message(channel_id, f"<@{author_id}> {REFUSAL_TEXT}")
                     continue
 
                 # CANONICAL INGRESS (see core/channel_gateway.process_channel_request):

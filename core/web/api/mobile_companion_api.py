@@ -924,11 +924,18 @@ def _action_chats_history(params: dict[str, Any], *, runtime, model_name: str, *
     # The REAL desktop handler — same truth the desktop UI reads, no parallel
     # reconstruction that could drift from it. The phone's handle resolves to
     # the same canonical session every time (see _effective_session_id).
+    # /api/chat/history is an owner-local door. This forward runs only after the phone's grant
+    # HMAC and its registered device signature have both verified (dispatch_companion), so the
+    # server vouches for it as the owner's own read; a raw request from the phone's address
+    # would be refused.
+    from core.request_trust import IN_PROCESS_OWNER_PEER
+
     response = dispatch_get(
         path="/api/chat/history",
         query={"session": [_read_session_id(chat_id)], "limit": [str(limit)]},
         runtime=runtime,
         model_name=model_name,
+        client_host=IN_PROCESS_OWNER_PEER,
     )
     try:
         payload = json.loads(response.body or b"{}")

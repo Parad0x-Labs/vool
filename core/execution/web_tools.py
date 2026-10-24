@@ -182,7 +182,13 @@ def execute_web_tool(
                     mode="tool_failed",
                     tool_name=intent,
                 )
-            result = call_tool_fn("web.fetch", url=url, timeout_s=timeout_s)
+            from core.request_trust import turn_is_remote
+
+            # A turn from another device reads public addresses only (core.remote_turn_fetch).
+            if turn_is_remote(source_context):
+                result = call_tool_fn("web.fetch", url=url, timeout_s=timeout_s, public_only=True)
+            else:
+                result = call_tool_fn("web.fetch", url=url, timeout_s=timeout_s)
             status = str(result.get("status") or "unknown").strip()
             text = str(result.get("text") or "").strip()
             preview = text[:500] if text else ""

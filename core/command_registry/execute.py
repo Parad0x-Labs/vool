@@ -281,6 +281,29 @@ def execute_command(
                 projection=ctx.projection,
             )
 
+    # -- owner-local capability gate (dispatch-time, keyed on the declared capability) ------
+    # A command that changes the owner's settings, keys or providers runs only for the owner's
+    # own session, however it is reached (an HTTP route, /api/commands/dispatch, a forward from
+    # a newer route) and whatever its own permission gate checks. The peer is the transport
+    # fact the projection carried; an unknown peer is refused, never assumed loopback.
+    from core.request_trust import capability_requires_owner_local, execution_peer_host, is_loopback_host
+
+    owner_caps = sorted(cap for cap in spec.capabilities if capability_requires_owner_local(cap))
+    if owner_caps and not is_loopback_host(execution_peer_host(ctx)):
+        return _fault_envelope(
+            spec,
+            "permission_denied",
+            f"{spec.command_id} refused: only this computer's own VOOL session can change this",
+            started=started,
+            detail={
+                "legacy_status": 403,
+                "ok": False,
+                "error": "owner_local_required",
+                "capabilities": owner_caps,
+            },
+            projection=ctx.projection,
+        )
+
     # -- permission gate (dispatch-time, never handler convention) ----------
     if isinstance(spec.permission, ApprovalGate):
         try:
