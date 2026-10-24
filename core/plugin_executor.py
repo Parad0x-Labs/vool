@@ -214,16 +214,24 @@ def _kernel_confinement_prefix(
     allow_network: bool = False,
     working_directory: Path | None = None,
     readable_roots: tuple[Path, ...] = (),
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
 ) -> list[str] | None:
     """Wrap *argv* in the host's kernel confinement, or None when no backend can enforce it.
 
-    Reuses `sandbox.job_runner`'s backends so plugins, MCP servers and sandbox commands share ONE
-    confinement implementation (Seatbelt on macOS; bwrap on Linux). Every
-    backend is probed for whether it actually runs, not merely whether it is on PATH. Writes are
-    confined to `writable_roots`; the credential directories and VOOL's key home are read-denied;
-    network is denied unless `allow_network`.
+    Selects the optional isolated Linux container on macOS, or the sandbox runner's
+    Linux backend. Every backend must actually run. Reads and writes follow the
+    captured package and scratch grants; executable network access remains off.
     """
 
+    if sys.platform == "darwin":
+        from core.plugin_container import command
+
+        wrapped, _label = command(argv, working_directory=working_directory or Path.cwd(),
+                                  writable_roots=writable_roots, readable_roots=readable_roots,
+                                  allow_network=allow_network, proxy_port=proxy_port,
+                                  isolate_process_tree=isolate_process_tree)
+        return wrapped
     from sandbox.job_runner import JobRunner
     from sandbox.resource_limits import ExecutionPolicy, default_read_roots
 
@@ -279,13 +287,6 @@ def confined_argv(
     if clean_mode not in CONFINEMENT_MODES:
         clean_mode = "auto"
     bare = [str(a) for a in argv]
-    if sys.platform == "darwin":
-        from core.plugin_container import command
-
-        return command(bare, working_directory=working_directory or Path.cwd(),
-                       writable_roots=writable_roots, readable_roots=readable_roots,
-                       allow_network=allow_network, proxy_port=proxy_port,
-                       isolate_process_tree=isolate_process_tree)
     if refusal := process_isolation_refusal():
         # Seatbelt does not mediate KERN_PROCARGS2 on this platform. A child
         # can read the initial environment of any same-user process, including
@@ -296,7 +297,12 @@ def confined_argv(
     wrapped = _kernel_confinement_prefix(
         bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
+        proxy_port=proxy_port, isolate_process_tree=isolate_process_tree,
     )
+    from core.plugin_container import ContainerCommand
+
+    if isinstance(wrapped, ContainerCommand):
+        return wrapped, "kernel:container"
     if wrapped is not None:
         wrapped = list(wrapped)
         backend = os.path.basename(wrapped[0])

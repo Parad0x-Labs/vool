@@ -19,11 +19,11 @@ from tests.test_plugin_manager_v1 import installed, package
 
 
 @pytest.fixture
-def https_service(tmp_path):
+def https_service(tmp_path, request):
     ca_key, ca = tmp_path / "ca.key", tmp_path / "ca.pem"
     server_key, csr, certificate = tmp_path / "server.key", tmp_path / "server.csr", tmp_path / "server.pem"
     extensions = tmp_path / "extensions.txt"
-    extensions.write_text("subjectAltName=DNS:api.example.org,DNS:api.usepod.ai,DNS:api.eyebrow.cc\nextendedKeyUsage=serverAuth\n")
+    extensions.write_text("subjectAltName=DNS:api.example.org,DNS:api.usepod.ai,DNS:api.eyebrow.cc,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n")
     commands = [
         ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=Disposable service fixture CA", "-keyout", str(ca_key), "-out", str(ca)],
         ["openssl", "req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=api.example.org", "-keyout", str(server_key), "-out", str(csr)],
@@ -38,7 +38,8 @@ def https_service(tmp_path):
     child = subprocess.Popen([sys.executable, str(Path(__file__).with_name("plugin_https_fixture_server.py"))],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors, text=True, start_new_session=True,
                              env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin"})
-    child.stdin.write(json.dumps({"access": access, "log": str(log), "certificate": str(certificate), "private_key": str(server_key)}) + "\n")
+    child.stdin.write(json.dumps({"access": access, "log": str(log), "certificate": str(certificate), "private_key": str(server_key),
+                                 "tool_dispatch": getattr(request, "param", {}).get("tool_dispatch", False), "requests_log": str(tmp_path / "provider-requests.jsonl")}) + "\n")
     child.stdin.flush()
     port = json.loads(child.stdout.readline())["port"]
     context = ssl.create_default_context(cafile=str(ca))
@@ -161,8 +162,13 @@ def test_models_enter_existing_registry_and_real_adapter_streams(package, https_
     model = registry.get_manifest("plugin-sample-provider", "fixture-model")
     assert model and model.runtime_config["plugin_id"] == "sample-provider"
     assert model.metadata["plugin_reported_pricing"] == {"prompt": "0", "completion": "0"}
+    from core.runtime_provider_defaults import register_chat_cloud_model
+
+    assert register_chat_cloud_model("plugin-sample-provider", "fixture-model") == model.provider_id
+    assert model.metadata["supported_parameters"] == ["tools", "max_tokens"]
     prompt = secrets.token_hex(12)
     adapter = registry.build_adapter(model)
+    assert adapter._supports_native_tools()
     request = ModelRequest(task_kind="chat", prompt=prompt, messages=[{"role": "user", "content": prompt}])
     chunks = list(adapter.stream_text_task(request))
     text = "".join(chunk.delta_text for chunk in chunks)
@@ -170,6 +176,8 @@ def test_models_enter_existing_registry_and_real_adapter_streams(package, https_
     assert https_service["access"] not in json.dumps([chunk.__dict__ for chunk in chunks], default=str)
     manager.disable("sample-provider")
     assert registry.get_manifest("plugin-sample-provider", "fixture-model") is None
+    with pytest.raises(ValueError, match="unavailable"):
+        register_chat_cloud_model("plugin-sample-provider", "fixture-model")
     assert not any(model.runtime_config.get("plugin_id") == "sample-provider" for model in registry.list_manifests())
     with pytest.raises(ServiceRefused, match="disabled"):
         list(adapter.stream_text_task(request))

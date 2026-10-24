@@ -392,7 +392,7 @@ def _intent_is_dispatchable(intent: str) -> bool:
             # operator turned off. Not offered AND not dispatchable, or a model naming the
             # tool would run what the operator closed.
             is_plugin = str(getattr(contract, "source", "") or "").startswith("plugin:")
-            return not (is_plugin and not _plugin_lane_open())
+            return not (is_plugin and not _plugin_lane_open(name))
     except Exception:
         # A registry that cannot be read must not turn every tool into "unsupported". Fall through
         # to dispatchable: the permission gate below still decides, and the chain still ends at the
@@ -411,11 +411,11 @@ def _is_plugin_contract(intent: str) -> bool:
     return contract is not None and str(getattr(contract, "source", "") or "").startswith("plugin:")
 
 
-def _plugin_lane_open() -> bool:
+def _plugin_lane_open(intent: str = "") -> bool:
     try:
-        from core.runtime_flags import flag_enabled
+        from core.plugin_tools import plugin_id_for_intent, runtime_lane_open
 
-        return bool(flag_enabled("plugin_runtime_tools"))
+        return runtime_lane_open(plugin_id_for_intent(intent))
     except Exception:
         return False
 
@@ -469,7 +469,7 @@ def _undispatchable_execution(intent: str, arguments: dict[str, Any]) -> ToolInt
     if (
         contract is not None
         and str(getattr(contract, "source", "") or "").startswith("plugin:")
-        and not _plugin_lane_open()
+        and not _plugin_lane_open(intent)
     ):
         return _explained(
             "disabled",

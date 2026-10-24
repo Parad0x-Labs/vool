@@ -52,7 +52,8 @@ if sys.argv[1] == "1":
     if libc.prctl(38,1,0,0,0) or libc.prctl(22,2,ctypes.cast(ctypes.byref(program),ctypes.c_void_p).value,0,0):
         raise RuntimeError("The plugin child-process boundary could not be installed.")
 args=json.loads(sys.argv[2])
-os.execvpe(args[0],args,os.environ)
+environment={name:os.environ[name] for name in json.loads(sys.argv[3]) if name in os.environ}
+os.execvpe(args[0],args,environment)
 '''
 
 
@@ -190,7 +191,7 @@ def _run(config):
     for name in sorted(env):
         argv += ["--env", name]
     argv += ["--entrypoint", "/usr/local/bin/python3", IMAGE, "-I", "-c", _BOOTSTRAP,
-             "1" if config["no_fork"] else "0", json.dumps(config["args"])]
+             "1" if config["no_fork"] else "0", json.dumps(config["args"]), json.dumps(sorted(env))]
     try:
         return subprocess.call(argv, env=env)
     finally:

@@ -82,6 +82,7 @@ function icon(e){return node('span',e.category==='Design'?'Aa':e.category==='Sec
 function brand(label,tag,source){const n=node(tag||'span',label,'addon-brand');const id=String(source||label||'').toLowerCase();if(['anthropic','superpowers','vercel'].includes(id))n.classList.add(id);return n;}
 // A listing id such as "finishing-a-development-branch" reads as "Finishing a development branch".
 function listingTitle(e){const n=String((e&&e.name)||'');return /^[a-z0-9]+(?:[-_][a-z0-9]+)+$/.test(n)?n.charAt(0).toUpperCase()+n.slice(1).replace(/[-_]+/g,' '):n;}
+function installedState(card,e){if(e.installed)card.append(node('span',e.scan==='checked'?tr('plugin_checked','Scan reviewed'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));}
 function hero(host,title,subtitle,kicker){const h=node('header',undefined,'addon-hero');if(kicker)h.append(node('span',kicker,'addon-eyebrow'));h.append(node('h2',title),node('p',subtitle));host.append(h);}
 function nav(){
  const search=document.getElementById('pluginsSearch');if(!search)return;
@@ -113,13 +114,14 @@ function pending(host){
  const group=node('details',undefined,'addon-saved-scans');group.append(node('summary',tr('saved_scans','Saved scans to review')+' ('+data.reviews.length+')'));group.style.marginBottom='18px';host.append(group);host=group;
  (data.reviews||[]).forEach(r=>{const row=node('div',undefined,'addon-pending');const label=node('div',r.entry.name);label.append(node('small',r.can_install?tr('ready_review','Scan ready · awaiting your decision'):tr('needs_review','Scan saved · needs review')));row.append(label,button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:r.review_id});selected=null;}),'addon-linkbtn'));host.append(row);});
 }
+function renderError(host){if(!error)return;const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.prepend(p);}
 function render(query){
  const host=document.getElementById('pluginsBody');if(!host)return false;host.replaceChildren();nav();host.classList.remove('addon-library-grid');
  if(tab==='security'){security(host);return true;}
- if(error){const p=node('p',error,'addon-error');p.setAttribute('role','alert');host.append(p);}
+ if(tab!=='installed')renderError(host);
  if(tab==='registry'){renderRegistry(host,query);return true;}
  if(!data){host.append(error?button(tr('retry','Try again'),()=>{error='';load();}):node('p',tr('loading','Loading…')));return true;}
- if(tab==='installed'){renderLibrary(host,query);return true;}
+ if(tab==='installed'){renderLibrary(host,query);renderError(host);return true;}
  if(review){renderReview(host);return true;}if(selected){renderDetail(host,selected);return true;}if(remote){renderRemote(host);return true;}
  hero(host,tr('discover_title','Discover add-ons'),tr('plugin_browse_ready_intro','These skills work as instructions in VOOL. Review the checks before enabling one. Included skills need no GitHub account; some need other apps or accounts.'),tr('curated','THE ADD-ON STORE'));
  const collections=node('div',undefined,'addon-collections');[...new Set(data.entries.map(e=>e.ecosystem||e.publisher))].forEach(source=>{const ready=data.entries.filter(e=>(e.ecosystem||e.publisher)===source&&!e.discovery_only&&e.import_ready!==false).length;if(!ready&&availability==='ready'&&ecosystem!==source)return;const b=button('',()=>{ecosystem=ecosystem===source?'':source;category='';limit=24;refresh();});b.append(brand(source,'strong'),node('small',ready+' '+tr('ready_count','compatible with VOOL')));b.setAttribute('aria-pressed',String(ecosystem===source));collections.append(b);});host.append(collections);
@@ -138,7 +140,7 @@ function render(query){
   const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3','Media Studio'),brand('VOOL','small','built-in'));head.append(name);card.append(head,node('p','Cut, trim and export media in a dedicated editor window.'));
   const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';card.append(a);grid.append(card);
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
- rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);if(e.installed)card.append(node('span',e.scan==='checked'?tr('plugin_checked','Scan reviewed'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));grid.append(card);});
+ rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);installedState(card,e);grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
  host.append(node('p',tr('plugin_scope','Directory entries are not endorsements. Compatibility and licence checks come before scanning. Review executable plugins and their access separately in My add-ons → Plugins.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
@@ -304,7 +306,7 @@ function renderRemote(host){
   remote.repositories.forEach(r=>{const card=node('article',undefined,'addon-card');card.append(node('h3',r.name),node('p',r.description),node('span',r.license+' · '+r.stars+' '+tr('github_stars','GitHub stars'),'addon-meta'),button(tr('explore_skills','Explore skills'),()=>action(async()=>{remote=await post({action:'github_repository',repository:r.repository});}),'addon-primary'));grid.append(card);});
  }else{
   if(!remote.entries.length)grid.append(node('p',tr('no_skill_files','No SKILL.md files found. This may be an executable plugin or another format that needs a VOOL adapter.')));
-  remote.entries.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.name),node('p',e.skill_path),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));grid.append(card);});
+  remote.entries.forEach(e=>{const card=node('article',undefined,'addon-card');card.append(node('h3',e.name),node('p',e.skill_path),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));installedState(card,e);grid.append(card);});
  }
 }
 function localFindings(report){return Array.isArray(report&&report.findings)?report.findings:[];}
@@ -400,7 +402,7 @@ function renderReview(host){
  const evidence=node('details');evidence.append(node('summary',tr('report','View scan report')),node('pre',JSON.stringify({scanner:r.scanner_name||r.service,engine:r.engine,verdict:r.verdict,findings:r.findings,policy:r.policy,artifacts:r.artifacts,lockfile:r.lockfile,quota_remaining:r.quota_remaining,vool_installation_checks:review.vool_check},null,2)));detail.append(evidence);technical(detail,e);
 }
 function installDecision(risks){
- const id=review.review_id;return action(async()=>{await post({action:'install',review_id:id,accepted:true,...(risks?{risk_override:true,risk_acknowledged:true}:{})});review=null;localCheck=null;data=await read();_pluginCatalog=await (await fetch('/api/plugins')).json();});
+ const id=review.review_id;return action(async()=>{await post({action:'install',review_id:id,accepted:true,...(risks?{risk_override:true,risk_acknowledged:true}:{})});review=null;localCheck=null;data=await read();if(remote&&remote.entries)remote.entries=remote.entries.map(e=>data.entries.find(row=>row.id===e.id)||e);_pluginCatalog=await (await fetch('/api/plugins')).json();});
 }
 window.VoolAddons={open:()=>{nav();return load();},render,mountSecurity:security,publishControl};
 })();</script>

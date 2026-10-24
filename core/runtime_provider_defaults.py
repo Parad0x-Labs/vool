@@ -1398,7 +1398,14 @@ def register_chat_cloud_model(provider_id: str, model_name: str) -> str:
     A newly added lane is excluded from automatic ranking unless explicitly requested.
     """
     from core.cloud_providers import config_for
+    from core.plugin_providers import is_provider_id, usable_provider
 
+    if is_provider_id(provider_id):
+        registry = ModelRegistry()
+        model = registry.get_manifest(provider_id, model_name)
+        if not usable_provider(provider_id, model_name) or not model or not model.enabled:
+            raise ValueError("This plugin model is unavailable. Enable it and refresh its model list in Add-ons.")
+        return model.provider_id
     cfg = config_for(provider_id)
     if cfg is None:
         raise ValueError("Unknown cloud provider")

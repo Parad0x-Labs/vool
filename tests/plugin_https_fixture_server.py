@@ -38,6 +38,10 @@ def main():
             route = path[len("/proxy/" + expected):] if path_auth else path
             authorized = path_auth or self.headers.get("Authorization") == "Bearer " + expected
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
+            if config.get("tool_dispatch"):
+                assert expected not in json.dumps(body)
+                with Path(config["requests_log"]).open("a") as handle:
+                    handle.write(json.dumps(body) + "\n")
             record = {"path": ("/proxy/{credential}/" + path.split("/", 3)[-1]) if path.startswith("/proxy/") else path, "authorized": authorized,
                       "path_auth": path_auth, "authorization_header": bool(self.headers.get("Authorization")),
                       "method": self.command, "stream": body.get("stream", False)}
@@ -66,7 +70,7 @@ def main():
                 return self.wfile.write(value)
             if route == "/v1/models":
                 return self.send(200, {"data": [{"id": "fixture-model", "name": "Fixture model",
-                                                "pricing": {"prompt": "0", "completion": "0"}, "context_length": 16384}]})
+                                                "pricing": {"prompt": "0", "completion": "0"}, "context_length": 16384, "supported_parameters": ["tools", "max_tokens"]}]})
             if route == "/v1/version":
                 return self.send(200, {"engine": {"version": "fixture-1"}, "service": "external-fixture"})
             if route == "/v1/scan":
@@ -78,17 +82,68 @@ def main():
             if route == "/v1/chat/completions":
                 user = next((str(message["content"]) for message in reversed(body.get("messages", [])) if message["role"] == "user"), "")
                 answer = user[::-1]
+                tool_calls = []
+                if config.get("tool_dispatch"):
+                    observations = [str(message.get("content") or "") for message in body.get("messages", [])
+                                    if message.get("role") == "tool"]
+                    # VOOL can carry tool results as typed observation rows in a
+                    # user message rather than OpenAI role=tool envelopes. Echo
+                    # the actual observation; never compute an answer from input.
+                    for message in body.get("messages", []):
+                        if message.get("role") != "user":
+                            continue
+                        for line in str(message.get("content") or "").splitlines():
+                            if not line.startswith("- {"):
+                                continue
+                            try:
+                                observation = json.loads(line[2:])
+                            except ValueError:
+                                continue
+                            if observation.get("schema") == "tool_observation_v1":
+                                observations.append(str(observation.get("response_preview") or observation.get("safe_summary") or ""))
+                    if observations:
+                        answer = observations[-1]
+                    else:
+                        offered = [item["function"] for item in body.get("tools", [])
+                                   if "sha256" in str(item.get("function", {}).get("name", "")).lower()]
+                        if offered:
+                            supplied = json.loads(user.splitlines()[-1])
+                            tool_calls = [{"id": "fixture-call-" + hashlib.sha256(user.encode()).hexdigest()[:12],
+                                           "type": "function", "function": {"name": offered[0]["name"],
+                                           "arguments": json.dumps({"text": supplied["text"]})}}]
+                            answer = ""
+                        else:
+                            try:
+                                supplied = json.loads(user.splitlines()[-1])
+                            except (ValueError, IndexError):
+                                supplied = {}
+                            if isinstance(supplied, dict) and supplied.get("tool"):
+                                answer = "Unavailable: " + str(supplied["tool"])
+                finish = "tool_calls" if tool_calls else "stop"
+                record["tool_offers"] = [item.get("function", {}).get("name") for item in body.get("tools", [])]
+                record["used_tool_result"] = bool(config.get("tool_dispatch") and observations)
+                if config.get("tool_dispatch"):
+                    with Path(config["log"]).open("a") as handle:
+                        handle.write(json.dumps({"event": "inference", "tool_offers": record["tool_offers"],
+                                                 "used_tool_result": record["used_tool_result"]}) + "\n")
                 if not body.get("stream"):
                     return self.send(200, {"id": "fixture-response", "model": body["model"],
-                                           "choices": [{"message": {"role": "assistant", "content": answer}, "finish_reason": "stop"}],
+                                           "choices": [{"message": {"role": "assistant", "content": answer, **({"tool_calls": tool_calls} if tool_calls else {})}, "finish_reason": finish}],
                                            "usage": {"prompt_tokens": len(user.split()), "completion_tokens": len(answer.split())}})
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.end_headers()
+                if tool_calls:
+                    value = {"model": body["model"], "choices": [{"delta": {"tool_calls": [
+                        {"index": index, **call} for index, call in enumerate(tool_calls)]}, "finish_reason": None}]}
+                    self.wfile.write(("data: " + json.dumps(value) + "\n\n").encode())
                 for start in range(0, len(answer), 7):
                     value = {"model": body["model"], "choices": [{"delta": {"content": answer[start:start + 7]}, "finish_reason": None}]}
                     self.wfile.write(("data: " + json.dumps(value) + "\n\n").encode())
                     self.wfile.flush()
+                final = {"model": body["model"], "choices": [{"delta": {}, "finish_reason": finish}],
+                         "usage": {"prompt_tokens": len(user.split()), "completion_tokens": len(answer.split())}}
+                self.wfile.write(("data: " + json.dumps(final) + "\n\n").encode())
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush()
                 return

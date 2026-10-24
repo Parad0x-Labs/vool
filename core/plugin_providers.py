@@ -35,8 +35,13 @@ def _rows(payload) -> list[dict]:
         context = row.get("context_length", 8192)
         if not isinstance(context, int) or isinstance(context, bool) or not 256 <= context <= 10000000:
             context = 8192
+        parameters = row.get("supported_parameters", [])
+        if (not isinstance(parameters, list) or len(parameters) > 64
+                or any(not isinstance(item, str) or not item or len(item) > 64
+                       or not all(c.isascii() and (c.isalnum() or c == "_") for c in item) for item in parameters)):
+            raise ServiceRefused("The service model list contains an invalid entry.")
         result.append({"id": identity, "name": str(row.get("name") or identity)[:256],
-                       "reported_pricing": public_prices, "context_length": context})
+                       "reported_pricing": public_prices, "context_length": context, "supported_parameters": parameters})
     if not result or len({row["id"] for row in result}) != len(result):
         raise ServiceRefused("The service model list is empty or contains duplicate identities.")
     return safe_data(result)
@@ -81,6 +86,7 @@ def refresh_models(plugin_id: str) -> dict:
                             "plugin_approval": record.approval_digest, "timeout_seconds": 90, "supports_json_mode": True},
             metadata={"chat_selection_only": True, "runtime_family": "openai-compatible", "deployment_class": "remote",
                       "cost_class": "paid_cloud", "context_window": row["context_length"],
+                      "supported_parameters": row["supported_parameters"],
                       "plugin_reported_pricing": row["reported_pricing"], "pricing_authority": "service_reported_not_a_charge_receipt",
                       "plugin_id": plugin_id, "confidence_baseline": 0.7, "max_safe_concurrency": 1}, enabled=True,
         )

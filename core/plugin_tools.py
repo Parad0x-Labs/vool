@@ -429,6 +429,22 @@ def lifecycle_reason(plugin_id: str) -> str:
     )
 
 
+def runtime_lane_open(plugin_id: str) -> bool:
+    """Legacy feature opt-in or the v1 package's verified, enabled consent."""
+    from core.runtime_flags import flag_enabled
+
+    if flag_enabled("plugin_runtime_tools"):
+        return True
+    try:
+        from core.plugin_lifecycle import is_available, record_for
+
+        record = record_for(plugin_id)
+        return bool(record and is_available(plugin_id)
+                    and load_manifest(Path(record.root) / ".codex-plugin/plugin.json").vool)
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
 def register_plugin(plugin: LoadedPlugin) -> tuple[RuntimeToolContract, ...]:
     """Register a loaded plugin's tools atomically, honouring the owner's enabled state.
 
