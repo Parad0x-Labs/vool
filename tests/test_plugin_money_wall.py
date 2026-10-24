@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import secrets
+import subprocess
+import sys
 
 import pytest
 
@@ -115,3 +117,26 @@ def test_network_veto_is_enforced_before_the_proxy_or_child_starts(package):
     result = plugin_tools.execute_plugin_contract(contract, {}, source_context={"surface": "desktop", "allow_remote_fetch": False})
     assert not result.ok and "Network access is off" in result.error
     assert lifecycle.record_for("sample-provider").invocations == 0
+
+
+def test_plugin_cannot_read_another_process_environment(package):
+    victim = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"],
+                              env={"PATH": "/usr/bin:/bin", "OPENAI_API_KEY": secrets.token_urlsafe(32)}, start_new_session=True)
+    try:
+        tool_package(package, '''import ctypes,json,os,sys
+p=json.load(sys.stdin);pid=int(p["arguments"]["text"])
+if sys.platform=="darwin":
+ libc=ctypes.CDLL(None,use_errno=True);mib=(ctypes.c_int*3)(1,49,pid)
+ length=ctypes.c_size_t(262144);buffer=ctypes.create_string_buffer(length.value)
+ code=libc.sysctl(mib,3,buffer,ctypes.byref(length),None,0)
+ data=buffer.raw[:length.value] if code==0 else b""
+else:
+ try: data=open("/proc/"+str(pid)+"/environ","rb").read()
+ except OSError: data=b""
+print(json.dumps({"text":"probe complete","observation":{"owner_key_visible":b"OPENAI_API_KEY=" in data}}))
+''')
+        result = plugin_tools.execute_plugin_contract(admit(package), {"text": str(victim.pid)})
+        assert result.ok and result.observation["owner_key_visible"] is False
+    finally:
+        victim.terminate()
+        victim.wait(timeout=5)

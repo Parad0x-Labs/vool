@@ -37,6 +37,7 @@ import math
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -61,6 +62,14 @@ CONFINEMENT_MODES = frozenset({"auto", "heuristic_only"})
 
 class ConfinementUnavailableError(RuntimeError):
     """This host cannot confine a child process and the caller did not opt into running bare."""
+
+
+def process_isolation_refusal() -> str:
+    if sys.platform == "darwin":
+        return ("Executable plugins are unavailable on this device because its sandbox cannot "
+                "protect other processes' saved credentials. Declarative provider and scanner "
+                "plugins remain available.")
+    return ""
 
 
 @dataclass(frozen=True)
@@ -268,19 +277,30 @@ def confined_argv(
     if clean_mode not in CONFINEMENT_MODES:
         clean_mode = "auto"
     bare = [str(a) for a in argv]
+    if refusal := process_isolation_refusal():
+        # Seatbelt does not mediate KERN_PROCARGS2 on this platform. A child
+        # can read the initial environment of any same-user process, including
+        # another plugin's credentials. Filesystem and network restrictions
+        # cannot close that boundary. Do not start untrusted code under a
+        # confinement label that promises credential isolation.
+        raise ConfinementUnavailableError(refusal)
     wrapped = _kernel_confinement_prefix(
         bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
     )
     if wrapped is not None:
+        wrapped = list(wrapped)
+        backend = os.path.basename(wrapped[0])
+        if backend == "bwrap":
+            # A PID namespace without its own /proc still exposes host environ
+            # files through the read-only root mount. Install /proc last.
+            wrapped[1:1] = ["--unshare-pid", "--die-with-parent", "--new-session"]
+            boundary = wrapped.index("--")
+            wrapped[boundary:boundary] = ["--proc", "/proc"]
         if isolate_process_tree:
-            wrapped = list(wrapped)
-            backend = os.path.basename(wrapped[0])
             if backend == "sandbox-exec" and wrapped[1] == "-p":
                 wrapped[2] += "(deny process-fork)"
-            elif backend == "bwrap":
-                wrapped[1:1] = ["--unshare-pid", "--die-with-parent", "--new-session"]
-            else:
+            elif backend != "bwrap":
                 raise ConfinementUnavailableError("This device cannot contain the plugin's child processes.")
         if proxy_port:
             if (not 1 <= proxy_port <= 65535 or len(wrapped) < 4

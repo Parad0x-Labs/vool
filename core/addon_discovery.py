@@ -13,7 +13,7 @@ from email.utils import parsedate_to_datetime
 from pathlib import PurePosixPath
 from urllib.parse import quote, urlencode, urlsplit
 
-from core.eyebrow_client import AddonError, fetch_bytes
+from core.addon_security import AddonError, fetch_bytes
 
 _REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}\Z")
 _REF = re.compile(r"[0-9a-f]{40}\Z")

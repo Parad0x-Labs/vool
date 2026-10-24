@@ -29,20 +29,20 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
     risk = risk is True or delayed_catalog
     release_catalog = threading.Event()
     if bundled:
-        from core import addon_catalog, eyebrow_client
+        from core import addon_catalog, plugin_scanners
         from tests.test_addon_store import report
         actual = copy.deepcopy(addon_catalog.CATALOG[0])
         unsupported = copy.deepcopy(next(e for e in addon_catalog.CATALOG if e.get('import_ready') is False))
         unsupported['name'] = 'Unsupported example'
         monkeypatch.setattr(addon_store, 'CATALOG', [actual, unsupported])
         monkeypatch.setattr(addon_store, 'fetch_bytes', lambda *a, **kw: pytest.fail('Bundled workflow must not download'))
-        def bundled_scan(endpoint, payload=None):
+        def bundled_scan(endpoint, payload=None, **kwargs):
             rig[2].append((endpoint,payload))
             value = report(); value['artifacts'][0]['name'] = actual['skill_name']
             return value, '18'
-        monkeypatch.setattr(eyebrow_client, 'request_api', bundled_scan)
+        monkeypatch.setattr(plugin_scanners, 'request_api', bundled_scan)
     if risk:
-        from core import eyebrow_client
+        from core import plugin_scanners
         from tests.test_addon_store import report
         value = report()
         value['verdict'] = 'fail'
@@ -52,10 +52,10 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
             {'ruleId':'FUTURE-RULE', 'severity':'medium', 'message':'Unknown rule fixture'},
         ]
         value['policy']['violations'] = [{'kind':'high-severity'}]
-        def scan_reply(endpoint, payload=None):
+        def scan_reply(endpoint, payload=None, **kwargs):
             rig[2].append((endpoint,payload))
             return copy.deepcopy(value), '18'
-        monkeypatch.setattr(eyebrow_client,'request_api',scan_reply)
+        monkeypatch.setattr(plugin_scanners,'request_api',scan_reply)
     runtime = RuntimeServices(display_name="VOOL")
     calls = []
 
@@ -136,10 +136,10 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         assert page.locator('#pluginsBody .addon-card').count() == 1
         page.get_by_role('button', name='Coding', exact=True).click()
         page.get_by_role('button', name='View add-on').click()
-        page.get_by_role('button', name='Scan with Eyebrow' if bundled else 'Download and scan').click()
+        page.get_by_role('button', name='Run installation checks' if bundled else 'Download and scan').click()
         assert not rig[2], 'choosing an entry must not silently consume a scan'
         page.get_by_role('button', name='Run one scan').click()
-        page.get_by_role('heading',name='Eyebrow security report',exact=True).wait_for()
+        page.get_by_role('heading',name='Security scan report',exact=True).wait_for()
         assert page.get_by_role('heading',name='VOOL installation checks',exact=True).is_visible()
         if risk:
             # Plain-language help is local disclosure, never an installation decision.
@@ -156,12 +156,12 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
                 assert 'Existing permissions still apply' in card.inner_text()
                 card.get_by_text('What could go wrong?', exact=True).click()
             assert calls == before_help, 'Reading risk help cannot scan, install or acknowledge risk'
-            assert page.get_by_text('Eyebrow verdict: FAIL', exact=True).is_visible()
+            assert page.get_by_text('Scan verdict: FAIL', exact=True).is_visible()
             page.get_by_text('Advanced: install despite findings',exact=True).click()
-            assert not page.get_by_role('checkbox',name='I reviewed the Eyebrow findings and accept the risks of enabling this exact version.',exact=True).is_checked()
+            assert not page.get_by_role('checkbox',name='I reviewed the scan findings and accept the risks of enabling this exact version.',exact=True).is_checked()
             assert not page.get_by_role('button',name='Accept risks and enable this version').is_enabled()
             page.screenshot(path=str(tmp_path/'eyebrow-attribution-risk-review.png'))
-            page.get_by_role('checkbox',name='I reviewed the Eyebrow findings and accept the risks of enabling this exact version.',exact=True).check()
+            page.get_by_role('checkbox',name='I reviewed the scan findings and accept the risks of enabling this exact version.',exact=True).check()
             assert page.get_by_role('button',name='Accept risks and enable this version').is_enabled()
             assert calls.count('install')==0
         assert calls.count('scan') == 1
@@ -195,17 +195,17 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.evaluate('window.VoolPageActions.openSkills()')
         page.get_by_text('Saved scans to review (1)', exact=True).click()
         page.get_by_role('button', name='Review scan', exact=True).click()
-        page.get_by_role('heading',name='Eyebrow security report',exact=True).wait_for()
+        page.get_by_role('heading',name='Security scan report',exact=True).wait_for()
         assert calls.count('scan') == 1
         page.locator('#input').fill('Keep this unsent draft')
         if risk:
             page.get_by_text('Advanced: install despite findings',exact=True).click()
             assert not page.get_by_role('button',name='Accept risks and enable this version').is_enabled()
-            page.get_by_role('checkbox',name='I reviewed the Eyebrow findings and accept the risks of enabling this exact version.',exact=True).check()
+            page.get_by_role('checkbox',name='I reviewed the scan findings and accept the risks of enabling this exact version.',exact=True).check()
             page.get_by_role('button',name='Accept risks and enable this version').click()
         else:
             page.get_by_role('button', name='Accept and enable').click()
-        decision_label='Risks accepted by you' if risk else 'Checked by Eyebrow'
+        decision_label='Risks accepted by you' if risk else 'Scan reviewed'
         page.get_by_text(decision_label, exact=True).wait_for()
         assert calls.count('install') == 1
         assert addon_store.catalog()['entries'][0]['enabled']
@@ -236,7 +236,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         page.locator('#addonNav').get_by_role('button', name='Browse', exact=True).click()
         assert page.locator('#pluginsBody').evaluate('(el) => el.scrollWidth <= el.clientWidth')
         page.locator('#addonNav').get_by_role('button', name='Security', exact=True).click()
-        page.get_by_role('button', name='Manage in API Keys', exact=True).wait_for()
+        page.get_by_role('button', name='Manage scanner plugins', exact=True).wait_for()
         assert page.get_by_label('Eyebrow API key', exact=True).count() == 0
         assert calls.count('scan') == 1
         page.goto(f"http://127.0.0.1:{server.server_port}/settings#keys", wait_until="domcontentloaded")

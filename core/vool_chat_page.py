@@ -9377,7 +9377,6 @@ async function endOwnTools() {
   await refreshOwnToolsBanner();
 }
 
-let spendingPreflightPending = false;
 async function postJsonWithin(url, body, timeoutMs) {
   // The POST twin of fetchJsonWithin: a bounded owner-local read that answers with its body even
   // on a typed refusal (a 409 with a state is an answer, not an outage).
@@ -9395,63 +9394,6 @@ async function postJsonWithin(url, body, timeoutMs) {
     throw error;
   } finally { clearTimeout(timer); }
 }
-// Why a verified balance cannot let this draft go, in the user's terms. '' when the balance is a
-// reported, non-empty amount. The money law refuses a debit against an unverified balance, so the
-// check happens BEFORE the draft is consumed; the states are the balance door's own
-// (core.usepod.discovery.observe_balance), never a guess at funds: missing is not zero.
-function usepodBalanceBlocker(balance) {
-  // The balance door's own state names drive the lookup; amounts and codes render as-is.
-  if (!balance || typeof balance !== 'object') return pageT('usepod.balance_unchecked', 'Your UsePod balance could not be checked.');
-  const state = String(balance.state || '');
-  if (state === 'reported') {
-    const amount = Number(balance.usdc_balance_microunits);
-    return Number.isFinite(amount) && amount > 0 ? '' : pageT('usepod.balance_zero', 'Your UsePod balance is 0 USDC. Top up the account, then send again.');
-  }
-  if (state === 'no_token') return pageT('usepod.no_account', 'Your UsePod account is not connected.');
-  if (state === 'credential_pair_unresolved') return pageT('usepod.token_saving', 'Your UsePod token is still being saved or removed; try again in a moment.');
-  if (state === 'unavailable') {
-    const where = balance.http_status ? ' (HTTP ' + balance.http_status + ')' : (balance.error_code ? ' (' + balance.error_code + ')' : '');
-    return pageT('usepod.unavailable', 'UsePod did not confirm your balance') + where + '.';
-  }
-  if (state === 'not_observed') return pageT('usepod.not_observed', 'Your UsePod balance has not been read yet.');
-  return pageT('usepod.unreadable_form', 'UsePod answered the balance check in a form this build cannot read (') + state + ').';
-}
-async function checkUsePodSpending(selected, chatId = displayedChat) {
-  if (!String(selected).startsWith('usepod:')) return true;
-  const model = String(selected).slice(7);
-  let readiness;
-  try {
-    const data = await fetchJsonWithin('/api/cloud/usepod/discovery?q=' + encodeURIComponent(model), undefined, 5000);
-    readiness = data && data.spend_readiness;
-  } catch (e) { readiness = null; }
-  if (!(readiness && readiness.available === true)) {
-    const reasons = {expired: pageT('usepod.approval_expired', 'Your spending approval expired.'), revoked: pageT('usepod.approval_revoked', 'Your spending approval was revoked.'),
-      spent: pageT('usepod.approval_spent', 'Your one-call spending approval has been used.'), missing: pageT('usepod.approval_missing', 'A spending budget needs your approval.'),
-      no_account: pageT('usepod.no_account', 'Your UsePod account is not connected.'), unavailable: pageT('usepod.approval_unchecked', 'Spending approval could not be checked.')};
-    const reason = reasons[readiness && readiness.state] || reasons.unavailable;
-    if (!readiness) toast(reason + pageT('usepod.nothing_sent', ' Nothing was sent.'));
-    openSettingsInFrame('models/usepod/spend');
-    return false;
-  }
-  if (readiness.budget_scope === 'provider') acknowledgePaidPin(chatId, selected, 'conversation');
-  // A wallet-paid lane (x402) has no prepaid account to read: its money authority carries
-  // credit_liquidity "not_required" and the payment card is the liquidity gate the operator
-  // answers. Demanding a prepaid balance here would block every wallet-paid send on a lane
-  // that legitimately has no token.
-  if (readiness.state === 'wallet_approval_required') return true;
-  // The second half of readiness: the balance the money law will judge. Obtained through the ONE
-  // balance door the dispatch reservation reads (a fresh record, else one read-only GET of
-  // /proxy/<token>/balance; no inference, no spend) BEFORE the draft is consumed -- so a send never
-  // fails on a balance nobody read since Settings was last refreshed (the 02:26 refusal).
-  let balance = null;
-  try { balance = await postJsonWithin('/api/cloud/usepod/balance', {}, 20000); } catch (e) { balance = null; }
-  const blocker = usepodBalanceBlocker(balance);
-  if (!blocker) return true;
-  toast(blocker + pageT('usepod.nothing_sent', ' Nothing was sent.'));
-  openSettingsInFrame('models/usepod/spend');
-  return false;
-}
-
 // The chat's slot, from the ONE place that knows it across tabs: the server's live-turn registry.
 // send() never waits on it: pressing Send must paint at once, never after a round trip with the
 // draft already cleared. It reads what the page already knows -- its own run, and the server's
@@ -9488,34 +9430,7 @@ async function send() {
   // A message that is only the documents' markers carries no words of the user's own.
   if (!text || (draft.some((i) => i.document) && !textWithoutMarkers(text))) { toast(pageTF('attach.toast_say_what', 'Add a message saying what to do with the {kind}.', { kind: draft.some((i) => i.document) ? pageT('attach.document', 'document') : pageT('attach.attachment', 'attachment') })); inputEl.focus(); return; }
   const selected = effectiveModel(chatId, text);
-  if (String(selected).startsWith('usepod:') && !isChatBusy(chatId)) {
-    if (spendingPreflightPending) return;
-    spendingPreflightPending = true;
-    let available;
-    try { available = await checkUsePodSpending(selected, chatId); }
-    finally { spendingPreflightPending = false; }
-    if (!available) return;
-    // An edit or navigation during the read is not permission to submit a different draft.
-    if (!isDisplayed(chatId) || inputEl.value !== draftText || effectiveModel(chatId, text) !== selected) return;
-  }
   const attachments = draft.map((i) => attachmentMeta(i));
-  if (String(selected).startsWith('usepod:')) {
-    let target;
-    try { target = await postJsonWithin('/api/cloud/usepod/price-wait/check', {model_id:String(selected).slice(7)}, 20000); }
-    catch (e) { toast(pageT('send.price_check_unavailable', 'Price check unavailable. Your draft is unchanged.')); return; }
-    if (!isDisplayed(chatId) || inputEl.value !== draftText || effectiveModel(chatId, text) !== selected) return;
-    if (target && target.enabled) {
-      const queued = await queueOp('enqueue', chatId, {text, attachments:attachments.map(a=>a.id), price_wait_model:String(selected).slice(7), idempotency_key:'price-' + Date.now()});
-      if (!queued || !queued.item) { toast(pageT('send.price_queue_save_failed', 'Could not save this task to the price queue. Your draft is unchanged.')); return; }
-      // Same wakeup contract as the busy branch below: the arrival must survive an empty claim
-      // that was already on the wire when this item landed.
-      chatState(chatId).queueArrivals++;
-      inputEl.value = ''; if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
-      const owner = chatState(chatId); attachments.forEach(a=>{owner.queuedAttachmentMeta[a.id]=a;});owner.attachments=[];renderAttachStrip();
-      await refreshQueue(); toast(target.ready ? pageT('send.price_ready_start', 'Price is available. Starting within your UsePod budget.') : pageT('send.task_saved_waiting', 'Task saved. Waiting for your price; keep VOOL open.'));
-      pumpQueue(chatId); return;
-    }
-  }
   inputEl.value = '';
   if (window.VoolComposerExtras) window.VoolComposerExtras.draftConsumed(chatId);
   // Busy is a property of THE CHAT, not of this page: this page's own run or claim window, or a
@@ -10803,7 +10718,7 @@ var lastConnectionSelection = null, lastConnectionRows = [];
 // cloud provider/model, Auto sticking to a cloud model, a local model, Local Only, or plain Auto.
 // The header pill paints from this, so it can never show a provider as "this chat's" when the
 // chat is on Auto and would only reach that provider as Auto's default.
-const PROVIDER_LABELS = { usepod: 'UsePod', openrouter: 'OpenRouter', openai: 'OpenAI', anthropic: 'Anthropic', groq: 'Groq', google: 'Google', deepseek: 'DeepSeek', moonshot: 'Moonshot', custom: 'Custom' };
+const PROVIDER_LABELS = { openrouter: 'OpenRouter', openai: 'OpenAI', anthropic: 'Anthropic', groq: 'Groq', google: 'Google', deepseek: 'DeepSeek', moonshot: 'Moonshot', custom: 'Custom' };
 function chatRoute() {
   const sticky = modelValue === 'vool' && !!view.stickyModel;
   const selected = sticky ? view.stickyModel : modelValue;
@@ -10811,7 +10726,7 @@ function chatRoute() {
   if (!selected || (!MODEL_LABELS[selected] && !isLocalModel(selected) && !CLOUD_MODEL_ID_RE.test(selected))) return { kind:'unknown', provider:'', model:String(selected || '') };
   if (selected === LOCAL_ONLY_MODEL) return { kind: 'local-only', provider: '', model: '' };
   if (isLocalModel(selected) || MODEL_LABELS[selected]) return { kind: 'local', provider: '', model: String(selected) };
-  const match = String(selected).match(/^(openrouter|openai|anthropic|groq|google|deepseek|moonshot|usepod|custom):/);
+  const match = String(selected).match(/^(openrouter|openai|anthropic|groq|google|deepseek|moonshot|custom|plugin-[a-z0-9-]+):/);
   return { kind: sticky ? 'sticky' : 'pin', provider: match ? match[1] : 'openrouter', model: match ? String(selected).slice(match[0].length) : String(selected) };
 }
 function selectedCloudProvider() { return chatRoute().provider; }
@@ -10843,7 +10758,7 @@ function renderConnections(conns) {
   }
   if (selected) {
     const actual = lastConnectionRows.find(c => c.id === 'cloud' && c.provider === selected);
-    conns = [actual || {id:'cloud',provider:selected,label:({usepod:'UsePod',openrouter:'OpenRouter'}[selected] || selected),state:'untested'}];
+    conns = [actual || {id:'cloud',provider:selected,label:({openrouter:'OpenRouter'}[selected] || selected),state:'untested'}];
   }
   if (!cloudPillEl) return;
   cloudPillEl.classList.remove('ok', 'bad', 'warn');
@@ -10883,7 +10798,7 @@ function renderConnections(conns) {
       ? c.label + ' — ' + word + (route.kind === 'sticky' ? pageT('header.run_sticky_suffix', ' — Auto is staying on ') : pageT('header.run_selected_suffix', ' — this chat’s selected model: ')) + route.model
       : c.label + ' — ' + word + (route.kind === 'auto' && c.id === 'cloud' ? pageT('header.run_default_suffix', ' — an Auto default, not this chat’s selection') : '');
     const dot = document.createElement('span'); dot.className = 'dot ' + _connStateClass(c.state);
-    const lbl = document.createElement('span'); lbl.className = 'cp-txt'; lbl.textContent = c.provider === 'usepod' ? 'UsePod' : c.label;
+    const lbl = document.createElement('span'); lbl.className = 'cp-txt'; lbl.textContent = c.label;
     chip.appendChild(dot); chip.appendChild(lbl); cloudPillEl.appendChild(chip);
   });
   cloudPillEl.title = selected
@@ -11643,19 +11558,8 @@ async function refreshCredentials() {
     const slots = new Set((j.credentials || []).map((c) => c.name));
     // A key in a Settings slot or in the environment (the server reports the latter by presence
     // only): either way the lane routes on it, so the picker must offer it.
-    const configured = (jp.providers || []).filter((p) => p && p.id && (slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
-    let accountless = false;
-    // Include the wallet route even when another provider also has a saved key.
-    try {
-      const rc = await fetch('/api/connections');
-      const jc = await rc.json();
-      accountless = rc.ok && (jc.connections || []).some((c) => c && c.id === 'cloud' && c.mode === 'accountless_x402');
-    } catch (e) { accountless = false; }
+    const configured = (jp.providers || []).filter((p) => p && p.id && (p.plugin_id || slots.has('llm.cloud.' + p.id) || p.key_from_environment === true));
     if (revision !== cloudCredentialsRevision) return;
-    if (accountless && !configured.some((p) => p.id === 'usepod')) {
-      const walletProvider = (jp.providers || []).find((p) => p.id === 'usepod');
-      if (walletProvider) configured.push(walletProvider);
-    }
     cloudProviderRows = configured;
     if (!configured.some((p) => p.id === cloudBrowseProvider)) {
       const pinned = configured.find((p) => p.id !== 'openrouter' && modelValue.startsWith(p.id + ':'));

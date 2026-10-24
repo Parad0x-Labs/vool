@@ -4,7 +4,7 @@ from __future__ import annotations
 from urllib.parse import urlsplit
 
 from core import addon_store
-from core.eyebrow_client import AddonError
+from core.addon_security import AddonError
 
 
 def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int, dict]:
@@ -39,6 +39,8 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "plugin_enable": {"action", "id", "accepted", "approval_digest"},
         "plugin_disable": {"action", "id"},
         "plugin_connect": {"action", "id", "slot", "value"},
+        "plugin_test": {"action", "id"},
+        "plugin_models": {"action", "id"},
         "plugin_uninstall": {"action", "id", "remove_key"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
@@ -94,7 +96,10 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             result = addon_store.reject(str(body.get("review_id", "")))
         return 200, result
     except AddonError as exc:
-        return exc.status, {"ok": False, "error": exc.code, "message": exc.message}
+        from core.plugin_manager import message_key
+
+        return exc.status, {"ok": False, "error": exc.code, "message": exc.message,
+                            "message_key": "addons." + message_key(exc.message)}
     except ValueError as exc:
         from core.registry.codec import DOWNLOADS_PAUSED, FAILED_SAFETY_CHECKS, NEWER_VERSION_REQUIRED, RegistryError
 

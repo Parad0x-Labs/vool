@@ -21,11 +21,11 @@ from types import SimpleNamespace
 import pytest
 
 from adapters.base_adapter import ModelRequest
-from adapters.usepod_adapter import UsePodDispatchRefusedError, UsePodRouteNotCompliantError
 from core.anthropic_messages_protocol import AnthropicStreamError, IncompleteStreamError
 from core.cloud_provider_contract import CloudToolDefinition
 from core.normalized_provider_result import MalformedProviderResponseError
 from core.usepod import pricing, routing
+from core.usepod.legacy_adapter import UsePodDispatchRefusedError, UsePodRouteNotCompliantError
 from core.usepod.monetary import install_monetary_authority
 from core.usepod.transport import UsePodTransportError, install_payment_authority
 from tests.usepod._usepod_doors import get as _get

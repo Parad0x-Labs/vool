@@ -1,13 +1,16 @@
 """Real lifecycle and skill-offer proofs; external HTTP replies are explicit fixtures."""
+import contextlib
 import copy
 import hashlib
 import json
+import secrets
+from pathlib import Path
 
 import pytest
 
 from core import addon_store as store
-from core import eyebrow_client as eb
 from core import plugin_lifecycle as lifecycle
+from core import plugin_scanners as eb
 from core.web.api.addon_api import handle_addon_post
 
 SKILL = b'---\nname: example\ndescription: Review Python code\n---\nReview the supplied Python code and explain concrete defects.\n'
@@ -20,15 +23,15 @@ def report():
             "findings": [], "policy": {"violations": []}}
 
 
-@pytest.fixture
-def rig(tmp_path, monkeypatch):
+@contextlib.contextmanager
+def _base_rig(tmp_path, monkeypatch):
     from core import credential_store, plugin_catalog
     monkeypatch.setenv("VOOL_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "addons"))
     monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "lifecycle.json"))
     monkeypatch.setattr(store, "_root", lambda: tmp_path / "reviews")
     monkeypatch.setattr(store, "_key", lambda: b"test-only-review-key" * 2)
-    monkeypatch.setattr(credential_store, "has_credential", lambda name: True)
+    monkeypatch.setenv("VOOL_CREDENTIAL_STORE", "vault")
     entry = dict(store.CATALOG[0], id="example", skill_name="example", sha256=hashlib.sha256(SKILL).hexdigest(), license_sha256=hashlib.sha256(LICENCE).hexdigest())
     entry.pop('bundled_source', None)  # This fixture exercises public download, not shipped source.
     monkeypatch.setattr(store, "CATALOG", [entry])
@@ -38,7 +41,7 @@ def rig(tmp_path, monkeypatch):
         return (LICENCE if url.endswith("LICENSE.txt") else SKILL), {}
     monkeypatch.setattr(store, "fetch_bytes", download)
     scans = []
-    def api(endpoint, payload=None):
+    def api(endpoint, payload=None, **kwargs):
         scans.append((endpoint, payload))
         return report(), "19"
     monkeypatch.setattr(eb, "request_api", api)
@@ -47,13 +50,41 @@ def rig(tmp_path, monkeypatch):
     plugin_catalog.reset_storage_state()
 
 
+def _install_scanner():
+    from core import plugin_manager
+    reference = Path(__file__).parents[1] / "examples/plugins/vool-plugin-eyebrow"
+    reviewed = plugin_manager.prepare_local(str(reference))
+    scanner = plugin_manager.install(reviewed["review_id"], accepted=True, digest=reviewed["digest"])["plugin"]
+    plugin_manager.connect(scanner["id"], "access", secrets.token_urlsafe(32))
+    plugin_manager.enable(scanner["id"], accepted=True, approval_digest=scanner["approval_digest"])
+
+
+@pytest.fixture
+def offline_rig(tmp_path, monkeypatch):
+    with _base_rig(tmp_path, monkeypatch) as value:
+        yield value
+
+
+@pytest.fixture
+def rig(tmp_path, monkeypatch):
+    with _base_rig(tmp_path, monkeypatch) as value:
+        _install_scanner()
+        yield value
+
+
+def _skill_records():
+    # The scanner is an explicitly installed prerequisite; the instruction skill
+    # must still remain absent until this test's separate installation gesture.
+    return [record for record in lifecycle.records() if record.plugin_id != "vool-plugin-eyebrow"]
+
+
 def test_scan_review_install_offer_disable_and_drift(rig, monkeypatch):
     from core import plugin_catalog
     from core import tool_offer_assembly as offers
     root, downloads, scans = rig
     review = store.prepare("example", approved=True)
     assert review["can_install"]
-    assert not lifecycle.records()
+    assert not _skill_records()
     assert len(downloads) == 2 and len(scans) == 1
     assert scans[0][1]["source"]["content"].encode() == SKILL
     result = store.install_review(review["review_id"], accepted=True)
@@ -83,7 +114,7 @@ def test_reject_and_missing_consent_never_activate(rig):
     with pytest.raises(eb.AddonError, match="accept"):
         store.install_review(review["review_id"], accepted=False)
     store.reject(review["review_id"])
-    assert not lifecycle.records()
+    assert not _skill_records()
     # A discarded review no longer resolves at all -- the resolver answers from the real
     # pending listing, so the strongest honest assertion is the refusal itself.
     with pytest.raises(eb.AddonError):
@@ -106,7 +137,7 @@ def test_changed_or_expired_review_cannot_install(rig, mutation):
         store._write(stage / "review.json", value)
     with pytest.raises(eb.AddonError):
         store.install_review(review["review_id"], accepted=True)
-    assert not lifecycle.records()
+    assert not _skill_records()
 
 
 @pytest.mark.parametrize("shape", ["fail", "finding", "violation", "no_artifacts", "malformed"])
@@ -117,14 +148,14 @@ def test_http_200_does_not_mean_safe(rig, monkeypatch, shape):
     if shape == "violation": value["policy"]["violations"] = [{"kind": "blocked"}]
     if shape == "no_artifacts": value["artifacts"] = []
     if shape == "malformed": value["findings"] = "bad"
-    monkeypatch.setattr(eb, "request_api", lambda *a: (value, ""))
+    monkeypatch.setattr(eb, "request_api", lambda *a, **kw: (value, ""))
     if shape in {"no_artifacts", "malformed"}:
         with pytest.raises(eb.AddonError): store.prepare("example", approved=True)
     else:
         review = store.prepare("example", approved=True)
         assert not review["can_install"]
         with pytest.raises(eb.AddonError): store.install_review(review["review_id"], accepted=True)
-    assert not lifecycle.records()
+    assert not _skill_records()
 
 
 def test_added_executable_is_not_covered_by_skill_scan(rig):
@@ -156,19 +187,6 @@ def test_api_owner_origin_and_unknown_fields(rig):
     assert status == 200 and lifecycle.is_available(result["plugin_id"])
 
 
-def test_provider_timeout_no_retry_no_secret_echo(monkeypatch):
-    from core import credential_store
-    monkeypatch.setattr(credential_store, "get_credential", lambda *a: "private-fixture-key")
-    calls = []
-    def timeout(*args, **kwargs):
-        calls.append(args)
-        raise TimeoutError("private-fixture-key /private/example")
-    monkeypatch.setattr(eb, "fetch_bytes", timeout)
-    with pytest.raises(eb.AddonError) as caught:
-        eb.request_api("/v1/scan", {})
-    assert len(calls) == 1
-    assert "private-fixture-key" not in str(caught.value)
-    assert "/private" not in str(caught.value)
 
 
 def test_change_between_admission_and_read_cannot_enter_prompt(rig, monkeypatch):
@@ -186,12 +204,12 @@ def test_change_between_admission_and_read_cannot_enter_prompt(rig, monkeypatch)
 
 def test_catalogue_read_never_probes_keychain_or_network(rig, monkeypatch):
     from core import credential_store
-    monkeypatch.setattr(credential_store, '_meta_load', lambda: {eb.KEY_NAME: {'label': 'Eyebrow'}})
+    monkeypatch.setattr(credential_store, '_meta_load', lambda: {"plugin.vool-plugin-eyebrow.access": {'label': 'Eyebrow'}})
     def forbidden(*a, **kw): raise AssertionError('a catalogue read must not use credentials or network')
     monkeypatch.setattr(credential_store, '_maybe_migrate', forbidden)
     monkeypatch.setattr(credential_store, 'get_credential', forbidden)
     monkeypatch.setattr(store, 'fetch_bytes', forbidden)
-    assert store.catalog()['eyebrow']['configured']
+    assert store.catalog()['scanners'][0]['configured']
 
 
 def test_disk_review_is_reread_and_tampering_rejected(rig):
@@ -243,20 +261,20 @@ def test_saved_review_survives_ui_restart_and_never_rescans(rig):
     (store._stage(result["review_id"]) / "SKILL.md").write_bytes(b"different")
     assert not store.review_saved(result["review_id"])["can_install"]
     with pytest.raises(eb.AddonError): store.install_review(result["review_id"], accepted=True)
-    assert len(rig[2]) == 1 and not lifecycle.records()
+    assert len(rig[2]) == 1 and not _skill_records()
 
 
 def test_saved_blocked_review_is_visible_but_not_installable(rig, monkeypatch):
     value = report()
     value["findings"] = [{"ruleId": "EXFIL", "severity": "high", "explanation": "Requests private credentials."}]
-    monkeypatch.setattr(eb, "request_api", lambda *a: (value, "18"))
+    monkeypatch.setattr(eb, "request_api", lambda *a, **kw: (value, "18"))
     result = store.prepare("example", approved=True)
     saved = store.review_saved(result["review_id"])
     assert not saved["can_install"]
     assert saved["report"]["findings"][0]["ruleId"] == "EXFIL"
     assert not store.catalog()["reviews"][0]["can_install"]
     with pytest.raises(eb.AddonError): store.install_review(result["review_id"], accepted=True)
-    assert not lifecycle.records()
+    assert not _skill_records()
 
 
 def test_explicit_risk_acceptance_is_exact_and_survives_reload(rig, monkeypatch):
@@ -264,7 +282,7 @@ def test_explicit_risk_acceptance_is_exact_and_survives_reload(rig, monkeypatch)
     value['verdict'] = 'fail'
     value['findings'] = [{'ruleId':'PROMPT-INJECTION', 'severity':'high', 'explanation':'Fixture risk'}]
     value['policy']['violations'] = [{'kind':'high-severity'}]
-    monkeypatch.setattr(eb, 'request_api', lambda *a: (copy.deepcopy(value), '18'))
+    monkeypatch.setattr(eb, 'request_api', lambda *a, **kw: (copy.deepcopy(value), '18'))
     review = store.prepare('example', approved=True)
     assert review['can_override'] and not review['can_install']
     for opts in ({}, {'risk_override':True}, {'risk_acknowledged':True}, {'risk_override':'true','risk_acknowledged':True}):
@@ -310,19 +328,19 @@ def test_risk_override_cannot_bypass_evidence_and_package_boundaries(rig,damage)
     assert not state['can_install'] and not state['can_override']
     assert state['vool_check']['status']=='blocked' and state['vool_check']['code']
     with pytest.raises(eb.AddonError):store.install_review(review['review_id'],accepted=True,risk_override=True,risk_acknowledged=True)
-    assert not lifecycle.records()
+    assert not _skill_records()
 
 
 def test_risk_acceptance_http_requires_literal_gesture_and_owner_origin(rig,monkeypatch):
     value=report();value['verdict']='fail'
-    monkeypatch.setattr(eb,'request_api',lambda *a:(copy.deepcopy(value),'18'))
+    monkeypatch.setattr(eb,'request_api',lambda *a, **kw:(copy.deepcopy(value),'18'))
     review=store.prepare('example',approved=True)
     headers={'content-type':'application/json','host':'localhost:1234','origin':'http://localhost:1234'}
     request={'action':'install','review_id':review['review_id'],'accepted':True,'risk_override':True,'risk_acknowledged':True}
     assert handle_addon_post(request,{**headers,'origin':'https://evil.invalid'},'127.0.0.1')[0]==403
     assert handle_addon_post({**request,'risk_acknowledged':'true'},headers,'127.0.0.1')[0]==400
     assert handle_addon_post({**request,'report':{'eligible':True}},headers,'127.0.0.1')[0]==400
-    assert not lifecycle.records()
+    assert not _skill_records()
     code,result=handle_addon_post(request,headers,'127.0.0.1')
     assert code==200 and result['acceptance']['mode']=='risks_accepted'
     assert lifecycle.is_available(result['plugin_id'])
@@ -330,7 +348,7 @@ def test_risk_acceptance_http_requires_literal_gesture_and_owner_origin(rig,monk
 
 def test_provider_findings_do_not_hide_vool_source_refusal(rig,monkeypatch):
     value=report();value['verdict']='fail';value['findings']=[{'severity':'high','ruleId':'TEST'}]
-    monkeypatch.setattr(eb,'request_api',lambda *a:(value,'18'))
+    monkeypatch.setattr(eb,'request_api',lambda *a, **kw:(value,'18'))
     review=store.prepare('example',approved=True)
     monkeypatch.setattr(store,'CATALOG',[])
     reopened=store.review_saved(review['review_id'])
@@ -338,31 +356,3 @@ def test_provider_findings_do_not_hide_vool_source_refusal(rig,monkeypatch):
     assert reopened['vool_check']['code']=='addon_source_unavailable'
     assert reopened['reason']=='VOOL can’t verify where this add-on came from. Find it again in Browse, then scan before installing.'
     assert not reopened['can_override']
-
-
-@pytest.mark.parametrize("status, payload, expected", [
-    (403, {"cloudflare_error": True, "error_code": 1010, "error_name": "browser_signature_banned"}, "eyebrow_gateway_blocked"),
-    (401, {"cloudflare_error": True, "error_code": 1010, "error_name": "browser_signature_banned"}, "eyebrow_unauthorized"),
-    (403, {"cloudflare_error": "true", "error_code": 1010, "error_name": "browser_signature_banned"}, "eyebrow_unavailable"),
-    (403, {"cloudflare_error": True, "error_code": 1000, "error_name": "browser_signature_banned"}, "eyebrow_unavailable"),
-    (403, ["not-an-error-object"], "eyebrow_unavailable"),
-])
-def test_edge_denial_is_distinct_from_key_rejection(monkeypatch, status, payload, expected):
-    from io import BytesIO
-    from urllib.error import HTTPError
-
-    from core import credential_store
-
-    monkeypatch.setattr(credential_store, "get_credential", lambda *_: "synthetic-provider-key")
-    calls = []
-
-    def denied(url, **kwargs):
-        calls.append(url)
-        raise HTTPError(url, status, "denied", {}, BytesIO(json.dumps(payload).encode()))
-
-    monkeypatch.setattr(eb, "fetch_bytes", denied)
-    with pytest.raises(eb.AddonError) as caught:
-        eb.request_api("/v1/version")
-    assert caught.value.code == expected
-    assert len(calls) == 1
-    assert "synthetic-provider-key" not in str(caught.value)

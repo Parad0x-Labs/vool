@@ -3,9 +3,12 @@
 
 def plugin_functions() -> str:
     return r'''
-let pluginReview=null,pluginConsent=null,pluginRemoval=null;
-async function pluginPost(body){const result=await post(body);[data,_pluginCatalog]=await Promise.all([read(),fetch('/api/plugins').then(r=>r.json())]);pluginReview=null;pluginConsent=null;pluginRemoval=null;return result;}
+let pluginReview=null,pluginConsent=null,pluginRemoval=null,pluginNotice='';
+async function pluginPost(body){const result=await post(body);[data,_pluginCatalog]=await Promise.all([read(),fetch('/api/plugins').then(r=>r.json())]);pluginReview=null;pluginConsent=null;pluginRemoval=null;pluginNotice='';return result;}
 function pluginFacts(host,p){
+ if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available===false)host.append(node('p',tr('plugin_runtime_unavailable','Executable plugins are unavailable on this device because its sandbox cannot protect other processes’ credentials. Declarative provider and scanner plugins remain available.')));
+ if((p.kind||[]).includes('model_provider'))host.append(node('p',tr('plugin_provider_effect','Sends the chat requests you choose to this service. Usage may be billed to your service account.')));
+ if((p.kind||[]).includes('scanner'))host.append(node('p',tr('plugin_scanner_effect','Sends public add-on content to this service when you request a scan. A scan does not grant installation or tool permissions.')));
  const effects={read_only:tr('plugin_effect_read','Read information'),workspace_write:tr('plugin_effect_write','Change files in its own working space'),network_send:tr('plugin_effect_send','Send information'),network_publish:tr('plugin_effect_publish','Publish information'),external_unpinned:tr('plugin_effect_unknown','Unknown effects; approval is required each time')};
  const list=node('ul');(p.tools||[]).forEach(t=>list.append(node('li',t.description+' · '+(effects[t.side_effect_class]||tr('plugin_effect_other','Uses the normal permission checks')))));host.append(list);
  host.append(node('h4',tr('plugin_network','Network access')));
@@ -17,6 +20,8 @@ function pluginFacts(host,p){
 }
 function renderServicePlugins(host,query){
  hero(host,tr('plugin_title','Plugins'),tr('plugin_intro','Add tools and services you choose. Installing keeps a plugin disabled until you review its access.'));
+ (data?.plugin_notices||[]).forEach(n=>host.append(node('p',tr(n.message_key,n.message),'addon-meta')));
+ if(pluginNotice){const notice=node('p',pluginNotice);notice.setAttribute('role','status');host.append(notice);}
  if(pluginReview){
   const p=pluginReview.plugin;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_review','Review plugin package'));card.append(node('h3',p.name),node('p',p.description),node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store')),node('p',tr('plugin_review_full','Review every file in the package. Verification covers these exact bytes; it is not a safety guarantee.')));pluginFacts(card,p);
   card.append(button(tr('plugin_install_disabled','Install and keep disabled'),()=>action(async()=>{await pluginPost({action:'plugin_install',review_id:pluginReview.review_id,digest:pluginReview.digest,accepted:true});}),'addon-primary'),button(tr('plugin_cancel','Cancel'),()=>{pluginReview=null;refresh();}));host.append(card);return;
@@ -45,6 +50,9 @@ function renderServicePlugins(host,query){
   const card=node('article',undefined,'addon-card');card.dataset.pluginId=p.id;card.append(node('h3',p.name),node('p',p.description||''),node('p',p.enabled?tr('plugin_enabled','Enabled'):tr('plugin_disabled','Disabled'),'addon-state'));
   if(!p.reviewed_by_store)card.append(node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store'),'addon-meta'));
   if(p.reason)card.append(node('p',tr(p.reason_key,p.reason),'addon-error'));
+  if((p.kind||[]).includes('model_provider'))card.append(node('p',tr('plugin_model_count','{count} models available').replace('{count}',String(p.model_count||0))));
+  if(p.enabled&&(p.kind||[]).some(k=>k==='scanner'||k==='model_provider'))card.append(button(tr('plugin_test_connection','Test connection'),()=>action(async()=>{await pluginPost({action:'plugin_test',id:p.id});pluginNotice=tr('plugin_connection_checked','Connection checked. The service returned a response.');})));
+  if(p.enabled&&(p.kind||[]).includes('model_provider'))card.append(button(tr('plugin_refresh_models','Refresh model list'),()=>action(async()=>{await pluginPost({action:'plugin_models',id:p.id});pluginNotice=tr('plugin_models_refreshed','Model list refreshed. Published prices are service reports; the normal spending checks still apply.');})));
   const actions=node('div',undefined,'addon-actions');if(p.stage!=='invalid')actions.append(p.enabled?button(tr('plugin_disable','Disable'),()=>action(async()=>{await pluginPost({action:'plugin_disable',id:p.id});})):button(tr('plugin_enable','Review access and enable'),()=>{pluginConsent=p;refresh();}));actions.append(button(tr('plugin_uninstall','Uninstall'),()=>{pluginRemoval=p;refresh();}));card.append(actions);
   Object.entries(p.credentials||{}).forEach(([slot,spec])=>{const label=node('label',spec.label);const input=node('input');input.type='password';input.autocomplete='new-password';input.id='pluginKey_'+p.id+'_'+slot;label.htmlFor=input.id;card.append(label,input);if((p.configured_slots||[]).includes(slot))card.append(node('p',tr('plugin_key_saved','Key saved.')));card.append(button(tr('plugin_save_key','Save key'),()=>action(async()=>{const value=input.value;input.value='';await pluginPost({action:'plugin_connect',id:p.id,slot,value});})));if(spec.help_url)card.append(link(tr('plugin_get_key','Get a service key'),spec.help_url));});grid.append(card);
  });

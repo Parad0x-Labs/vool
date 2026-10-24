@@ -39,6 +39,29 @@ def test_schema_export_is_the_runtime_schema():
     assert validate_schema(manifest(), MANIFEST_SCHEMA) == []
 
 
+@pytest.mark.parametrize("version", ["01.0.0", "1.2.3-01", "1.2.3-a.01", "1.2.3-", "1.2.3+"])
+def test_semver_numeric_identifiers_are_not_ambiguous(tmp_path, version):
+    raw = manifest()
+    raw["version"] = raw["vool"]["version"] = version
+    with pytest.raises(PluginManifestError):
+        load(raw, tmp_path)
+
+
+@pytest.mark.parametrize("version", ["0.0.0", "1.2.3-alpha.0", "1.2.3-01a+build.01"])
+def test_semver_accepts_valid_prerelease_and_build_identifiers(tmp_path, version):
+    raw = manifest()
+    raw["version"] = raw["vool"]["version"] = version
+    assert load(raw, tmp_path).version == version
+
+
+@pytest.mark.parametrize("flag", ["autoEnable", "autoStart", "ownerPaidKeys", "ownerModelKeys"])
+def test_alternate_flag_spellings_do_not_bypass_the_manifest_wall(tmp_path, flag):
+    raw = manifest()
+    raw[flag] = False
+    with pytest.raises(PluginManifestError):
+        load(raw, tmp_path)
+
+
 @pytest.mark.parametrize("field", ["id", "version", "name", "publisher", "description", "homepage", "license", "kind", "network", "credentials"])
 def test_missing_required_service_metadata_refuses_the_whole_pack(field, tmp_path):
     value = manifest()

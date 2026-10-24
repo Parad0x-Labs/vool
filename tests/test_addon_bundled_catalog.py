@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from core import addon_catalog, addon_discovery, addon_packages, addon_store
-from core.eyebrow_client import AddonError
+from core.addon_security import AddonError
 from tests.test_addon_store import rig
 
 
@@ -62,13 +62,13 @@ def test_real_shipped_skill_scan_install_offer_needs_no_github(rig, monkeypatch)
         pytest.fail('A bundled skill must not contact GitHub')
     monkeypatch.setattr(addon_store, 'fetch_bytes', unavailable)
     monkeypatch.setattr(addon_discovery, 'fetch_bytes', unavailable)
-    from core import eyebrow_client
+    from core import plugin_scanners
     from tests.test_addon_store import report
-    def scan(endpoint, payload=None):
+    def scan(endpoint, payload=None, **kwargs):
         rig[2].append((endpoint,payload))
         result=report(); result['artifacts'][0]['name']=entry['skill_name']
         return result,'18'
-    monkeypatch.setattr(eyebrow_client, 'request_api', scan)
+    monkeypatch.setattr(plugin_scanners, 'request_api', scan)
     addon_store.catalog()
     assert not rig[2]
     saved = addon_store.prepare(entry['id'], approved=True)

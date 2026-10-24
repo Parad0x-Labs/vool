@@ -80,6 +80,7 @@ def _loaded(plugin_id: str, *, available=False):
 
 
 def summary(plugin) -> dict:
+    from core.plugin_executor import process_isolation_refusal
     from core.plugin_network import network_available
 
     block = plugin.vool
@@ -87,6 +88,7 @@ def summary(plugin) -> dict:
             **{key: block[key] for key in ("name", "publisher", "description", "homepage", "license", "kind", "network", "credentials")},
             "mcp_servers": list(block.get("mcpServers", {})),
             "process_network_available": network_available(),
+            "executable_runtime_available": not bool(process_isolation_refusal()),
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
                        "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}
@@ -232,6 +234,7 @@ def inspect(plugin_id: str) -> dict:
     from core.credential_store import credential_is_indexed
 
     record, plugin = _loaded(plugin_id)
+    from core.plugin_providers import cached_models
     available = lifecycle.is_available(plugin_id)
     reason = ""
     if record.enabled and not available:
@@ -242,6 +245,7 @@ def inspect(plugin_id: str) -> dict:
             "approval_digest": record.approval_digest, "package_digest": record.verified_digest,
             "reviewed_by_store": record.source.startswith("registry:"), "reason": reason,
             "reason_key": message_key(reason),
+            "model_count": len(cached_models(plugin_id)) if "model_provider" in plugin.vool["kind"] else 0,
             "configured_slots": [slot for slot in plugin.vool["credentials"]
                                  if credential_is_indexed(credential_name(plugin_id, slot))]}
 
@@ -280,13 +284,22 @@ def enable(plugin_id: str, *, accepted: bool, approval_digest: str) -> dict:
         lifecycle.disable(plugin_id)
         return {"ok": True, "enabled": False, "plugin": inspect(plugin_id)}
     _record, plugin = _loaded(plugin_id)
-    if plugin.contracts:
-        from core.plugin_executor import kernel_confinement_available
+    if plugin.contracts or plugin.vool.get("mcpServers"):
+        from core.plugin_executor import kernel_confinement_available, process_isolation_refusal
 
+        if refusal := process_isolation_refusal():
+            raise lifecycle.LifecycleError(refusal)
         if not kernel_confinement_available():
             raise lifecycle.LifecycleError("This device cannot safely confine the plugin. It remains disabled.")
     lifecycle.accept_consent(plugin_id, expected_approval=approval_digest, network=bool(plugin.vool["network"]))
     lifecycle.enable(plugin_id)
+    try:
+        from core.plugin_migration import bind_on_enable
+
+        bind_on_enable(plugin_id)
+    except Exception:
+        lifecycle.disable(plugin_id)
+        raise lifecycle.LifecycleError("The saved service key could not be opened. It is kept unchanged; connect your key in Add-ons and review access again.") from None
     _refresh(plugin_id)
     return {"ok": True, "enabled": True, "plugin": inspect(plugin_id)}
 
@@ -316,6 +329,27 @@ def connect(plugin_id: str, slot: str, value: str) -> dict:
     return {"ok": True, "plugin": inspect(plugin_id), "message": "Key saved. No connection was made."}
 
 
+def test_connection(plugin_id: str) -> dict:
+    from core.plugin_services import ServiceRefused, native_request
+
+    _record, plugin = _loaded(plugin_id, available=True)
+    kind = next((kind for kind in ("scanner", "model_provider") if kind in plugin.vool["kind"]), "")
+    if not kind:
+        raise ServiceRefused("This plugin does not declare a service connection test.")
+    spec = plugin.vool[kind]
+    path = spec["test_path"] if kind == "scanner" else spec["model_list_path"]
+    response = native_request(plugin_id, kind, "GET", spec["base_url"].rstrip("/") + path)
+    try:
+        data = response.json()
+        if not isinstance(data, dict) or not data or "error" in data:
+            raise ServiceRefused("The service did not return readable connection information.")
+    except ValueError:
+        raise ServiceRefused("The service did not return readable connection information.") from None
+    finally:
+        response.close()
+    return {"ok": True, "message": "Connection checked. The service returned a response."}
+
+
 def uninstall(plugin_id: str, *, remove_key=True) -> dict:
     from core.credential_store import delete_credential
     from core.plugin_tools import plugin_scratch_dir
@@ -341,6 +375,10 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
 
 
 def handle(action: str, body: dict) -> dict:
+    from requests.exceptions import Timeout
+
+    from core.plugin_services import ServiceRefused
+
     try:
         if action == "plugin_prepare":
             return prepare_local(body.get("path"), update=body.get("update") is True)
@@ -358,8 +396,18 @@ def handle(action: str, body: dict) -> dict:
             return disable(plugin_id)
         if action == "plugin_connect":
             return connect(plugin_id, body.get("slot"), body.get("value"))
+        if action == "plugin_test":
+            return test_connection(plugin_id)
+        if action == "plugin_models":
+            from core.plugin_providers import refresh_models
+
+            return refresh_models(plugin_id)
         if action == "plugin_uninstall":
             return uninstall(plugin_id, remove_key=body.get("remove_key", True))
         raise lifecycle.LifecycleError("Choose a supported plugin action.")
+    except Timeout:
+        raise lifecycle.LifecycleError("The plugin service timed out. No automatic retry was made.") from None
+    except ServiceRefused as exc:
+        raise lifecycle.LifecycleError(str(exc)) from None
     except (PackageError, PluginManifestError):
         raise lifecycle.LifecycleError("The plugin manifest or package is invalid. Review it before installing.") from None

@@ -64,7 +64,7 @@ const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,''
 const slugKey=s=>String(s||'').replace(/-/g,'_');
 const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
-async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(j.message||tr('request_failed','The request could not finish.'))+(String(j.error||'').startsWith('registry_')?'':' ['+(j.error||r.status)+']'));err.code=j.error;throw err;}return j;}
+async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(pluginMessage||tr('request_failed','The request could not finish.')));err.code=j.error;throw err;}return j;}
 async function read(){const r=await fetch('/api/addons');if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();}
 function refresh(){if(typeof renderPluginPanel==='function')renderPluginPanel(_pluginCatalog||{},document.getElementById('pluginsSearch')?.value||'');}
 async function load(){
@@ -99,13 +99,13 @@ function nav(){
  }
 }
 function security(host){
- host.replaceChildren();hero(host,tr('security_title','An extra check before you install'),tr('security_intro','Review third-party instructions before they reach your agent. You decide what gets added.'));
- const card=node('section',undefined,'addon-card');host.append(card);const head=node('div',undefined,'addon-card-head');head.append(icon({category:'Security'}),node('h3','Eyebrow'));card.append(head);
- card.append(node('p',tr('security_help','Scans add-on contents for risks. A passing scan is not a safety guarantee; VOOL permissions still control every tool action.')));
- const state=node('p',tr('loading','Loading…'),'addon-state');card.append(state);
- card.append(button(tr('manage_api_keys','Manage in API Keys'),()=>{if(window.VoolPageActions){window.VoolPageActions.openSettings('keys');return;}location.hash='keys';}));
- card.append(node('p',tr('quota_note','Scans use your Eyebrow allowance. Nothing is scanned in the background.'),'addon-meta'));
- read().then(j=>{if(state.isConnected)state.textContent=j.eyebrow.configured?tr('key_saved','Key saved. Connection is checked when you run a scan.'):tr('no_key','Connect Eyebrow in API Keys to scan external add-ons.');}).catch(e=>{if(state.isConnected)state.textContent=e.message;});
+ host.replaceChildren();hero(host,tr('plugin_security_title','Security checks'),tr('plugin_security_intro','Public add-ons are checked on this device. You can choose an additional scanner plugin; every installation still needs your decision.'));
+ const card=node('section',undefined,'addon-card');host.append(card);
+ const rows=data?.scanners||[];
+ card.append(node('p',rows.length?tr('plugin_remote_scanner_enabled','An enabled scanner plugin also receives public content when you request a scan.'):tr('plugin_local_scanner_only','Checks run on this device only. No remote scanner is enabled.')));
+ rows.forEach(p=>card.append(node('p',p.name+' · '+(p.configured?tr('plugin_key_saved','Key saved.'):tr('plugin_scanner_key_needed','Connect its service key before requesting a scan.')))));
+ card.append(button(tr('plugin_manage_scanners','Manage scanner plugins'),()=>{tab='installed';_pluginMode='plugins';refresh();}));
+ card.append(node('p',tr('plugin_scan_limits','A scan is not a guarantee of safety. Tools still use their normal permissions. Remote scans may use your service allowance.'),'addon-meta'));
 }
 async function action(work){if(busy)return;busy=true;error='';refresh();try{await work();}catch(e){error=e.message;}finally{busy=false;refresh();}}
 function pending(host){
@@ -121,7 +121,7 @@ function render(query){
  if(!data){host.append(error?button(tr('retry','Try again'),()=>{error='';load();}):node('p',tr('loading','Loading…')));return true;}
  if(tab==='installed'){renderLibrary(host,query);return true;}
  if(review){renderReview(host);return true;}if(selected){renderDetail(host,selected);return true;}if(remote){renderRemote(host);return true;}
- hero(host,tr('discover_title','Discover add-ons'),tr('browse_ready_intro','These skills work as instructions in VOOL. Review the Eyebrow scan before enabling one. Included skills need no GitHub account; some need other apps or accounts.'),tr('curated','THE ADD-ON STORE'));
+ hero(host,tr('discover_title','Discover add-ons'),tr('plugin_browse_ready_intro','These skills work as instructions in VOOL. Review the checks before enabling one. Included skills need no GitHub account; some need other apps or accounts.'),tr('curated','THE ADD-ON STORE'));
  const collections=node('div',undefined,'addon-collections');[...new Set(data.entries.map(e=>e.ecosystem||e.publisher))].forEach(source=>{const ready=data.entries.filter(e=>(e.ecosystem||e.publisher)===source&&!e.discovery_only&&e.import_ready!==false).length;if(!ready&&availability==='ready'&&ecosystem!==source)return;const b=button('',()=>{ecosystem=ecosystem===source?'':source;category='';limit=24;refresh();});b.append(brand(source,'strong'),node('small',ready+' '+tr('ready_count','compatible with VOOL')));b.setAttribute('aria-pressed',String(ecosystem===source));collections.append(b);});host.append(collections);
  pending(host);
  const statusControls=node('div',undefined,'addon-controls');[['ready',tr('ready_filter','Compatible with VOOL')],['all',tr('all_filter','All listed skills')]].forEach(([v,label])=>{const b=button(label,()=>{availability=v;limit=24;refresh();});b.setAttribute('aria-pressed',String(availability===v));statusControls.append(b);});host.append(statusControls);
@@ -138,9 +138,9 @@ function render(query){
   const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3','Media Studio'),brand('VOOL','small','built-in'));head.append(name);card.append(head,node('p','Cut, trim and export media in a dedicated editor window.'));
   const a=document.createElement('a');a.className='media-studio-open';a.href='/media-editor';a.target='_blank';a.rel='noopener';a.title='Open the Media Studio editor in a dedicated window';a.textContent='Open Media Studio';card.append(a);grid.append(card);
  }if(!rows.length)grid.append(node('p',availability==='ready'?tr('no_ready','No compatible skills match. Choose All listed skills to see what needs support.'):tr('no_results','No matching add-ons.')));
- rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);if(e.installed)card.append(node('span',e.scan==='checked'?tr('checked','Checked by Eyebrow'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));grid.append(card);});
+ rows.slice(0,limit).forEach(e=>{const card=node('article',undefined,'addon-card');const head=node('div',undefined,'addon-card-head');const name=node('div');name.append(node('h3',listingTitle(e)),brand(e.publisher,'small',e.ecosystem));head.append(icon(e),name);card.append(head,node('p',e.description));const foot=node('div',undefined,'addon-card-footer');foot.append(node('span',e.license+' · '+(e.discovery_only?tr('listed','Not inspected'):e.import_ready===false?tr('not_supported','Not supported yet'):tr('ready_filter','Compatible with VOOL'))),button(tr('view','View add-on'),()=>{selected=e;refresh();},'addon-primary'));card.append(foot);if(e.installed)card.append(node('span',e.scan==='checked'?tr('plugin_checked','Scan reviewed'):e.scan==='risks_accepted'?tr('risk_accepted','Risks accepted by you'):tr('changed','Changed since review'),'addon-state '+(e.scan==='checked'?'good':'')),node('span',e.enabled?tr('enabled','Enabled'):tr('disabled','Disabled'),'addon-state'));grid.append(card);});
  if(rows.length>limit)host.append(button(tr('show_more','Show more')+' ('+(rows.length-limit)+')',()=>{limit+=24;refresh();},'addon-linkbtn'));
- host.append(node('p',tr('scope','Directory entries are not endorsements. Compatibility and licence checks come before scanning. Executable plugins and MCP servers require an adapter.'),'addon-meta'));
+ host.append(node('p',tr('plugin_scope','Directory entries are not endorsements. Compatibility and licence checks come before scanning. Review executable plugins and their access separately in My add-ons → Plugins.'),'addon-meta'));
  host.append(node('p',tr('github_privacy','Search GitHub sends only the text you enter to GitHub. Browsing this directory stays local.'),'addon-meta'));return true;
 }
 function nativeControlNotice(host,value){
@@ -307,7 +307,7 @@ function renderRemote(host){
 }
 function localFindings(report){return Array.isArray(report&&report.findings)?report.findings:[];}
 function renderLocalCheck(host,e){
- // A VOOL-attributed report beside the Eyebrow one; it never replaces or overwrites it.
+ // A VOOL-attributed report beside the scanner one; it never replaces or overwrites it.
  const box=node('section',undefined,'addon-localcheck');host.append(box);
  box.append(node('h3',tr('local_check_title','VOOL local check')));
  box.append(node('p',e.bundled_source?tr('local_check_offline','Runs on this device. No API key, no scan allowance, and nothing leaves your machine.'):tr('local_check_download','Downloads the pinned public file first, then checks it on this device. The check itself is local and uses no key or allowance.'),'addon-meta'));
@@ -320,7 +320,7 @@ function renderLocalCheck(host,e){
    else if(r.status==='clean')body.append(node('p',tr('local_check_clean','No findings in the local check. This is not a safety guarantee.')));
    else body.append(node('p',tr('local_check_status','Local check status:')+' '+String(r.status||'unknown')+(r.reason?' ('+r.reason+')':'')+' · '+tr('local_check_incomplete','not a clean pass')));
    if(fs.length){const list=node('ul',undefined,'addon-findings');fs.forEach(f=>{const li=node('li');const stanceLabel=f.stance?tr('local_stance_'+f.stance,''):'';const where=f.context?[f.context.section,f.context.block].filter(Boolean).join(' · '):'';li.append(node('strong','VOOL local · '+String(f.severity||'').toUpperCase()+' · '+f.ruleId+' · '+tr('local_confidence','confidence')+' '+f.confidence));if(stanceLabel||where)li.append(node('p',[where,stanceLabel].filter(Boolean).join(' — '),'addon-meta'));li.append(node('span',f.explanation||''),node('small',[f.line?tr('line','Line')+' '+f.line:'',f.snippet||''].filter(Boolean).join(' · ')));const why=node('details');why.append(node('summary',tr('local_why','Why was this flagged?')));(f.limitations||[]).forEach(t=>why.append(node('p',t)));why.append(node('p',tr('local_limits','A finding is not proof of malicious intent. This static check cannot read intent or predict runtime behaviour.'),'addon-meta'));li.append(why);list.append(li);});body.append(list);}
-   body.append(node('p',tr('local_check_advisory','Advisory only: it does not replace the Eyebrow scan, the installation checks, or your decision.'),'addon-meta'));
+   body.append(node('p',tr('plugin_local_check_advisory','Advisory only: it does not replace the scanner scan, the installation checks, or your decision.'),'addon-meta'));
    const evidence=node('details');evidence.append(node('summary',tr('local_report','View local report')),node('pre',JSON.stringify({scanner:r.scanner,scanner_version:r.scanner_version,ruleset_version:r.ruleset_version,status:r.status,reason:r.reason,source:r.source,findings:r.findings,limitations:r.limitations,duration_ms:r.duration_ms},null,2)));body.append(evidence);
    body.append(button(tr('local_rerun','Run local check again'),()=>action(async()=>{localCheck={id:e.id,data:await post({action:'local_check',id:e.id})};paint(localCheck.data);})));
   }else{
@@ -336,7 +336,7 @@ function renderDetail(host,e){
  const detail=node('section',undefined,'addon-detail');host.append(detail);detailHead(detail,e);detail.append(node('p',e.description));
  const facts=node('dl',undefined,'addon-facts');[[tr('type','Type'),tr('instruction_skill','Instruction skill')],[tr('license','License'),e.license],[tr('access','Added access'),tr('none','None')]].forEach(([k,v])=>{const f=node('div');f.append(node('dt',k),node('dd',v));facts.append(f);});detail.append(facts);
  if(e.compatibility)detail.append(node('p',e.compatibility,'addon-meta'));
- if(e.scan==='risks_accepted')detail.append(node('p',tr('risk_accepted','Risks accepted by you')+' · '+tr('eyebrow_verdict','Eyebrow verdict:')+' '+e.scan_verdict+' · '+new Date(e.acceptance.accepted_at*1000).toLocaleString(),'addon-risk-note'));
+ if(e.scan==='risks_accepted')detail.append(node('p',tr('risk_accepted','Risks accepted by you')+' · '+tr('plugin_eyebrow_verdict','Scan verdict:')+' '+e.scan_verdict+' · '+new Date(e.acceptance.accepted_at*1000).toLocaleString(),'addon-risk-note'));
 
  detail.append(node('h3',tr('how_it_works','How it works')),node('p',tr('how_skill_works','Adds guidance your model can use for relevant tasks. It does not install programs or grant access to your files or accounts.')));
  const acts=node('div',undefined,'addon-actions');detail.append(acts);
@@ -344,7 +344,7 @@ function renderDetail(host,e){
  else if(e.import_ready===false){acts.append(node('p',tr('not_supported','Not supported yet'),'addon-error'));}
  else if(e.installed){acts.append(button(tr('manage','Manage in My add-ons'),()=>{tab='installed';selected=null;_pluginMode='plugins';refresh();}));}
  else{const saved=(data.reviews||[]).find(r=>r.entry.id===e.id);if(saved)acts.append(button(tr('resume_review','Review scan'),()=>action(async()=>{review=await post({action:'review',review_id:saved.review_id});selected=null;}),'addon-primary'));
- acts.append(button(e.bundled_source?tr('scan_saved','Scan with Eyebrow'):tr('scan','Download and scan'),()=>{if(!data.eyebrow.configured){tab='security';selected=null;}else{review={entry:e,consent:true};selected=null;}refresh();},saved?'':'addon-primary'));}
+ acts.append(button(e.bundled_source?tr('plugin_scan_saved','Run installation checks'):tr('scan','Download and scan'),()=>{review={entry:e,consent:true};selected=null;refresh();},saved?'':'addon-primary'));}
  if(!e.installed&&!e.discovery_only&&e.import_ready!==false)renderLocalCheck(detail,e);
  detail.append(node('p',tr('review_before_install','You review the scan before installing. Nothing runs when you browse.'),'addon-meta'));technical(detail,e);
 }
@@ -359,7 +359,7 @@ function riskExplanation(ruleId){
   d.append(node('p',tr('risk_sensitive','This skill refers to files that may contain passwords, API keys or other private information.')),
    node('p',tr('risk_sensitive_worst','Worst case: if VOOL is allowed to read and share those files, secrets could leave your device and someone could use them to access your accounts.')));
  }else{
-  d.append(node('p',tr('risk_unknown','Eyebrow flagged a possible risk. VOOL has no specific explanation for this finding yet; the report alone cannot tell us what would happen.')),
+  d.append(node('p',tr('plugin_risk_unknown','scanner flagged a possible risk. VOOL has no specific explanation for this finding yet; the report alone cannot tell us what would happen.')),
    node('p',tr('risk_unknown_worst','Depending on the instructions and allowed access, harm could include private data being shared or unwanted changes. Review the finding and source before deciding.')));
  }
  d.append(node('p',tr('risk_limits','A warning is not proof of malicious intent; scanners can make mistakes. Enabling a skill adds instructions, not permissions. Existing permissions still apply.'),'addon-meta'));
@@ -368,34 +368,34 @@ function riskExplanation(ruleId){
 function renderReview(host){
  const e=review.entry;const detail=node('section',undefined,'addon-detail');host.append(detail);detailHead(detail,e);
  const box=node('section',undefined,'addon-review'+(!review.consent&&!review.can_install?' blocked':''));box.setAttribute('aria-live','polite');detail.append(box);
- if(review.consent){box.append(node('h3',tr('before_scan','One check before you install')),node('p',e.bundled_source?tr('scan_bundled_consent','Send this included skill to Eyebrow for one scan. No GitHub download is needed. No private files, chats or other keys are included. Nothing is installed or executed.'):tr('scan_consent','Download this public skill from GitHub and send its contents to Eyebrow for one scan. No private files, chats or keys are included. Nothing is installed or executed.')),node('p',tr('scan_allowance','Uses one scan from your Eyebrow allowance.'),'addon-meta'));const acts=node('div',undefined,'addon-actions');box.append(acts);
+ if(review.consent){box.append(node('h3',tr('before_scan','One check before you install')),node('p',e.bundled_source?tr('plugin_scan_bundled_consent','Check this included public skill on this device. An enabled scanner plugin also receives its contents. No private files, chats or keys are included. Nothing is installed or executed.'):tr('plugin_scan_consent','Download this public skill from GitHub and check it on this device. An enabled scanner plugin also receives its contents. No private files, chats or keys are included. Nothing is installed or executed.')),node('p',tr('plugin_scan_allowance','An enabled remote scanner may use your service allowance. Without one, checks stay on this device.'),'addon-meta'));const acts=node('div',undefined,'addon-actions');box.append(acts);
  acts.append(button(busy?tr('scanning','Scanning…'):tr('confirm_scan','Run one scan'),()=>action(async()=>{review=await post({action:'scan',id:e.id,approved:true});data=await read();}),'addon-primary'),button(tr('cancel','Cancel'),()=>{review=null;selected=e;refresh();}));return;}
  const r=review.report||{};const findings=Array.isArray(r.findings)?r.findings:[];
- box.append(node('h3',tr('eyebrow_report','Eyebrow security report')),node('p',tr('eyebrow_verdict','Eyebrow verdict:')+' '+String(r.verdict||tr('unknown','Unknown')).toUpperCase()));
- if(!findings.length)box.append(node('p',tr('no_eyebrow_findings','No findings listed in this report. This is not a guarantee of safety.')));
- if(findings.length){const list=node('ul',undefined,'addon-findings');findings.forEach(f=>{const li=node('li');li.append(node('strong','Eyebrow · '+(f.severity||'').toUpperCase()+' · '+f.ruleId),node('span',f.explanation||f.message||f.description||f.ruleId),node('small',[f.file,f.line?tr('line','Line')+' '+f.line:''].filter(Boolean).join(' · ')),riskExplanation(f.ruleId));list.append(li);});box.append(list);}
+ box.append(node('h3',tr('plugin_eyebrow_report','Security scan report')),node('p',tr('plugin_eyebrow_verdict','Scan verdict:')+' '+String(r.verdict||tr('unknown','Unknown')).toUpperCase()));
+ if(!findings.length)box.append(node('p',tr('plugin_no_eyebrow_findings','No findings listed in this report. This is not a guarantee of safety.')));
+ if(findings.length){const list=node('ul',undefined,'addon-findings');findings.forEach(f=>{const li=node('li');li.append(node('strong',(r.scanner_name||r.service||tr('plugin_scanner_name','Scanner'))+' · '+(f.severity||'').toUpperCase()+' · '+f.ruleId),node('span',f.explanation||f.message||f.description||f.ruleId),node('small',[f.file,f.line?tr('line','Line')+' '+f.line:''].filter(Boolean).join(' · ')),riskExplanation(f.ruleId));list.append(li);});box.append(list);}
  const violations=Array.isArray(r.policy?.violations)?r.policy.violations:[];
  if(!findings.length&&(violations.length||String(r.verdict).toLowerCase()==='fail'))box.append(riskExplanation(''));
- if(violations.length){box.append(node('h3',tr('eyebrow_policy','Eyebrow policy results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
- box.append(node('p',tr('eyebrow_engine','Eyebrow engine:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
+ if(violations.length){box.append(node('h3',tr('plugin_eyebrow_policy','Scan policy results')));const list=node('ul');violations.forEach(v=>list.append(node('li',typeof v==='string'?v:v?.message||v?.reason||v?.ruleId||v?.kind||JSON.stringify(v))));box.append(list);}
+ box.append(node('p',tr('plugin_eyebrow_engine','Scan engine:')+' '+r.engine+' · '+new Date(review.checked_at*1000).toLocaleString(),'addon-meta'));
  // Both scanner summaries sit above the installation decision buttons, so the
  // decision is made with the local findings visible; the local check stays
  // optional and advisory, and neither scanner can hide the other.
  renderLocalCheck(detail,e);
  const gate=node('section',undefined,'addon-review'+(review.vool_check?.status==='blocked'?' blocked':''));
- gate.append(node('h3',tr('vool_checks','VOOL installation checks')),node('p',review.vool_check?.message||review.reason||tr('review_again','Reopen this scan to check its installation status.')),node('p',tr('separate_decisions','Eyebrow supplies the scan findings. VOOL checks package compatibility and file integrity, then applies your installation decision.'),'addon-meta'));detail.append(gate);
+ gate.append(node('h3',tr('vool_checks','VOOL installation checks')),node('p',review.vool_check?.message||review.reason||tr('review_again','Reopen this scan to check its installation status.')),node('p',tr('plugin_separate_decisions','The scanner supplies the scan findings. VOOL checks package compatibility and file integrity, then applies your installation decision.'),'addon-meta'));detail.append(gate);
  const acts=node('div',undefined,'addon-actions');gate.append(acts);
  if(review.can_install)acts.append(button(tr('install','Accept and enable'),()=>installDecision(false),'addon-primary'));
  acts.append(button(tr('reject','Reject'),()=>action(async()=>{await post({action:'reject',review_id:review.review_id});review=null;data=await read();})));
  if(review.can_override){
   const advanced=node('details',undefined,'addon-override');advanced.append(node('summary',tr('advanced_install','Advanced: install despite findings')));
   advanced.append(node('p',tr('override_scope','These instructions could mislead your model or request sensitive actions. Accepting the risks enables this exact scanned version only. It does not mark the scan as passed or change VOOL permissions.')));
-  const label=node('label');const check=node('input');check.type='checkbox';check.disabled=busy;label.append(check,node('span',tr('risk_ack','I reviewed the Eyebrow findings and accept the risks of enabling this exact version.')));advanced.append(label);
+  const label=node('label');const check=node('input');check.type='checkbox';check.disabled=busy;label.append(check,node('span',tr('plugin_risk_ack','I reviewed the scan findings and accept the risks of enabling this exact version.')));advanced.append(label);
   const confirm=button(tr('install_with_risks','Accept risks and enable this version'),()=>{if(check.checked)installDecision(true);},'addon-risk-button');confirm.disabled=true;
   check.onchange=()=>{confirm.disabled=busy||!check.checked;};advanced.append(confirm);gate.append(advanced);
  }
  detail.append(node('p',tr('permissions','This instruction pack adds no executable tools or permission grants. Existing VOOL tools still require their normal permissions.'),'addon-meta'));
- const evidence=node('details');evidence.append(node('summary',tr('report','View scan report')),node('pre',JSON.stringify({scanner:'Eyebrow',engine:r.engine,verdict:r.verdict,findings:r.findings,policy:r.policy,artifacts:r.artifacts,lockfile:r.lockfile,quota_remaining:r.quota_remaining,vool_installation_checks:review.vool_check},null,2)));detail.append(evidence);technical(detail,e);
+ const evidence=node('details');evidence.append(node('summary',tr('report','View scan report')),node('pre',JSON.stringify({scanner:r.scanner_name||r.service,engine:r.engine,verdict:r.verdict,findings:r.findings,policy:r.policy,artifacts:r.artifacts,lockfile:r.lockfile,quota_remaining:r.quota_remaining,vool_installation_checks:review.vool_check},null,2)));detail.append(evidence);technical(detail,e);
 }
 function installDecision(risks){
  const id=review.review_id;return action(async()=>{await post({action:'install',review_id:id,accepted:true,...(risks?{risk_override:true,risk_acknowledged:true}:{})});review=null;localCheck=null;data=await read();_pluginCatalog=await (await fetch('/api/plugins')).json();});

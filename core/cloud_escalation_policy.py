@@ -160,8 +160,9 @@ class CloudEscalationPolicy:
         provider = str(self.provider or "").strip().lower()
         # An unknown provider fails safe to "" (legacy = resolve-from-keyed-slot).
         from core.cloud_providers import PROVIDERS
+        from core.plugin_providers import is_provider_id
 
-        if provider not in PROVIDERS:
+        if provider not in PROVIDERS and not is_provider_id(provider):
             provider = ""
         return CloudEscalationPolicy(
             mode=mode,

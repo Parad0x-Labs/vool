@@ -128,7 +128,7 @@ def _observe_balance(service, token) -> str:
     import os
 
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     credential_store.store_credential("llm.cloud.usepod", token)
     credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)
@@ -276,7 +276,7 @@ def test_a_grant_too_small_or_for_another_model_refuses(law) -> None:
 def test_stale_or_missing_liquidity_never_authorizes_a_debit(law) -> None:
     authority, service, token = law
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     # The credential is bound but NO balance was ever observed for it.
     credential_store.store_credential("llm.cloud.usepod", token)

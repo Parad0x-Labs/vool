@@ -6,7 +6,7 @@ import urllib.error
 import pytest
 
 from core import addon_discovery as github
-from core import addon_store, eyebrow_client
+from core import addon_store, plugin_scanners
 from core.web.api.addon_api import handle_addon_post
 from tests.test_addon_store import SKILL, rig
 
@@ -71,11 +71,11 @@ def test_incompatible_sources_never_reach_scanner(source,rig,shape):
     elif shape=='conflicting_licence':content['skill']=SKILL.replace(b'description:',b'license: Apache-2.0\ndescription:')
     elif shape=='tool_mapping':content['skill']=SKILL.replace(b'description:',b'allowed-tools: [Read, Bash]\ndescription:')
     if shape=='symlink':
-        with pytest.raises(eyebrow_client.AddonError):github.inspect('example/skills',REF,'skills/example/SKILL.md')
+        with pytest.raises(plugin_scanners.AddonError):github.inspect('example/skills',REF,'skills/example/SKILL.md')
     else:
         row=github.inspect('example/skills',REF,'skills/example/SKILL.md')['entry']
         assert not row['import_ready']
-        with pytest.raises(eyebrow_client.AddonError,match='compatibility'):
+        with pytest.raises(plugin_scanners.AddonError,match='compatibility'):
             addon_store.prepare(row['id'],approved=True)
     assert not rig[2]
 
@@ -83,18 +83,18 @@ def test_incompatible_sources_never_reach_scanner(source,rig,shape):
 def test_changed_download_and_forged_inspection_fail_closed(source,rig):
     row=github.inspect('example/skills',REF,'skills/example/SKILL.md')['entry']
     source[2]['skill']+=b'changed after inspection'
-    with pytest.raises(eyebrow_client.AddonError,match='do not match'):
+    with pytest.raises(plugin_scanners.AddonError,match='do not match'):
         addon_store.prepare(row['id'],approved=True)
     assert not rig[2]
     record=addon_store._root()/'discovered'/(row['id']+'.json')
     envelope=json.loads(record.read_text());envelope['value']['import_ready']=False
     record.write_text(json.dumps(envelope))
-    with pytest.raises(eyebrow_client.AddonError):addon_store._entry(row['id'])
+    with pytest.raises(plugin_scanners.AddonError):addon_store._entry(row['id'])
 
 
 @pytest.mark.parametrize('value',['http://127.0.0.1/repo','https://github.com@evil.invalid/a/b','https://github.com/a/b?key=x','a/../b','https://github.com/a/b/tree/main','file:///private/key','a/..'])
 def test_only_explicit_github_repositories_are_accepted(value):
-    with pytest.raises(eyebrow_client.AddonError):github.repository_name(value)
+    with pytest.raises(plugin_scanners.AddonError):github.repository_name(value)
 
 
 def test_live_search_transport_is_fixed_origin_without_credentials(rig, monkeypatch):
@@ -103,7 +103,7 @@ def test_live_search_transport_is_fixed_origin_without_credentials(rig, monkeypa
         calls.append((url,kwargs));return b'{"items":[],"total_count":0}',{}
     monkeypatch.setattr(github,'fetch_bytes',fetch)
     from core import credential_store
-    monkeypatch.setattr(credential_store,'get_credential',lambda *a:pytest.fail('Public discovery must not read keys'))
+    monkeypatch.setattr(credential_store,'get_credential',lambda *a, **kw:pytest.fail('Public discovery must not read keys'))
     github.search('git helpers & coding')
     assert calls[0][0].startswith('https://api.github.com/search/repositories?q=git+helpers+%26+coding')
     assert 'Authorization' not in calls[0][1]['headers']
@@ -124,7 +124,7 @@ def test_discovery_api_fields_and_owner_boundary(source):
 
 def test_incomplete_tree_is_not_silent_partial_catalogue(monkeypatch):
     monkeypatch.setattr(github,'_api',lambda path,**kw: {'tree':[],'truncated':True} if '/git/trees/' in path else {'private':False})
-    with pytest.raises(eyebrow_client.AddonError,match='too large'):
+    with pytest.raises(plugin_scanners.AddonError,match='too large'):
         github.repository('example/skills',REF)
 
 
@@ -157,12 +157,12 @@ def test_github_refusal_names_its_owner_and_cools_down(rig, monkeypatch, status,
         calls.append(url)
         raise urllib.error.HTTPError(url, status, 'fixture', headers, io.BytesIO(body))
     monkeypatch.setattr(github, 'fetch_bytes', fetch)
-    with pytest.raises(eyebrow_client.AddonError) as error:
+    with pytest.raises(plugin_scanners.AddonError) as error:
         github._request('https://api.github.com/example', 4096)
     assert error.value.code == expected
     assert 'Eyebrow has not scanned' in str(error.value)
     if expected == 'github_rate_limited':
-        with pytest.raises(eyebrow_client.AddonError):
+        with pytest.raises(plugin_scanners.AddonError):
             github._request('https://api.github.com/another', 4096)
         assert len(calls) == 1
     assert not rig[2]

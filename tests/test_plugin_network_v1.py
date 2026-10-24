@@ -72,7 +72,7 @@ def test_credentials_are_injected_only_at_invocation_and_redacted_from_every_res
 json.load(sys.stdin)
 key=os.environ["SAMPLE_ACCESS"]
 print(json.dumps({"text":key,"error":key,"resolved_target":key,
- "observation":{"key":key,"owner_present":"OPENAI_API_KEY" in os.environ}}))
+ "observation":{"key":key,key:"credential used as a key","owner_present":"OPENAI_API_KEY" in os.environ}}))
 ''', env=["SAMPLE_ACCESS"])
     contract = admit(package, value=value)
     result = plugin_tools.execute_plugin_contract(contract, {"text": "probe"})

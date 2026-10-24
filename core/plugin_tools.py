@@ -553,9 +553,8 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
     from core.plugin_network import EgressProxy, NetworkRefused
     from core.plugin_package import PackageError, capture_package, execution_directory
     from core.plugin_processes import InvocationStopped, invocation
-    from core.plugin_services import ServiceRefused, credential_values
+    from core.plugin_services import ServiceRefused, credential_values, safe_data
     from core.request_trust import request_is_owner_local
-    from core.secret_redaction import redacted_copy
 
     context = dict(source_context or {})
     surface = str(context.get("surface") or context.get("platform") or "").lower()
@@ -695,9 +694,9 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                         package_dependencies=dependency_copies, call=call,
                     )
                 call.check()
-            return replace(result, text=redacted_copy(result.text), error=redacted_copy(result.error),
-                           resolved_target=redacted_copy(result.resolved_target),
-                           observation={**redacted_copy(result.observation), "trust": "untrusted_external",
+            return replace(result, text=safe_data(result.text), error=safe_data(result.error),
+                           resolved_target=safe_data(result.resolved_target),
+                           observation={**safe_data(result.observation), "trust": "untrusted_external",
                 "package_sha256": approved_digest, "approval_sha256": approved_approval,
                 "dependency_sha256": dependency_packages, "dependency_approval_sha256": dependency_pins})
     except (NetworkRefused, InvocationStopped, ServiceRefused) as exc:

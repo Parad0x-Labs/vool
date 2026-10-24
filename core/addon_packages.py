@@ -4,7 +4,7 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
-from core.eyebrow_client import AddonError
+from core.addon_security import AddonError
 
 
 @lru_cache(maxsize=1)

@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from core import json_schema_lite
 
 IDENTITY = r"^[a-z][a-z0-9_-]{0,79}$"
-SEMVER = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+SEMVER = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
 ENV_NAME = r"^[A-Z][A-Z0-9_]{0,95}$"
 MONEY = re.compile(r"(?:^|[._-])(?:wallet|payment|payments|sign|signing|approve|approval|cap|caps|budget|receipt|receipts)(?:$|[._-])", re.I)
 PAID = frozenset({"financial_or_paid_actions", "wallet_spend", "credit_spend"})
@@ -136,7 +136,8 @@ def _flags(value):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError("Manifest field names must be strings.")
-            if key.lower().replace("-", "_") in {"auto_enable", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
+            normalized = re.sub(r"([a-z])([A-Z])", r"\1_\2", key).lower().replace("-", "_")
+            if normalized in {"auto_enable", "auto_start", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
                 raise ValueError("Plugins cannot start automatically or request owner credentials.")
             if key.lower() in {"wallet", "payments", "signing", "approval", "caps", "budget", "receipts"}:
                 raise ValueError("Plugin packages cannot declare money or approval authority.")
@@ -227,7 +228,9 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
             raise ValueError(f"The {kind} declaration must match the plugin kind.")
         if block is None:
             continue
-        https_url(block["base_url"], hosts)
+        base = https_url(block["base_url"], hosts)
+        if base.query:
+            raise ValueError("Service base URLs cannot contain query parameters.")
         if block["credential_slot"] not in credentials:
             raise ValueError("A service may read only its own declared credential slot.")
         for key, value in block.items():

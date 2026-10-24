@@ -193,8 +193,8 @@ def test_an_active_x402_consent_authorizes_the_pick_for_its_own_provider(x402_ho
 
 def test_the_accountless_origin_is_chosen_explicitly_and_can_return_to_the_documented_one(x402_home) -> None:
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.usepod import descriptor, discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     assert discovery.save_accountless_origin("http://127.0.0.1:8123") == "http://127.0.0.1:8123"
     assert discovery.configured_origin() == "http://127.0.0.1:8123"
@@ -221,10 +221,10 @@ def test_an_origin_that_is_not_a_usepod_origin_is_refused(x402_home) -> None:
 
 
 def test_an_unresolved_credential_operation_blocks_the_origin_change(x402_home) -> None:
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.credential_intelligence.store import JOURNAL_FILE
     from core.runtime_paths import active_data_dir
     from core.usepod import discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     journal = active_data_dir() / JOURNAL_FILE
     journal.parent.mkdir(parents=True, exist_ok=True)

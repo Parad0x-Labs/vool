@@ -133,9 +133,9 @@ def test_a_proxy_target_never_prints_or_pickles_its_token() -> None:
 
 
 def test_a_registered_lane_carries_the_origin_and_slot_never_the_token_and_follows_the_lane_preference(service_and_token) -> None:
-    from adapters.usepod_adapter import UsePodAdapter
     from core.model_registry import ModelRegistry
     from core.runtime_provider_defaults import register_chat_cloud_model
+    from core.usepod.legacy_adapter import UsePodAdapter
     from storage.model_provider_manifest import list_provider_manifests
 
     service, token = service_and_token

@@ -272,13 +272,6 @@ def default_registry() -> ProviderRegistry:
             invalid_error_codes=tuple(cfg.invalid_key_error_codes),
         )
 
-    from core.eyebrow_client import API_ORIGIN, KEY_NAME, valid_version_report
-    descriptors["eyebrow"] = ProviderDescriptor(
-        provider_id="eyebrow", label="Eyebrow", kind="security_scan", credential_slot=KEY_NAME,
-        verify_endpoint=API_ORIGIN + "/v1/version", auth_style="bearer",
-        capability_family="addon_security", paid=True,
-        response_path=("engine",), response_kind="object", response_validator=valid_version_report,
-    )
     descriptors.update(chain_data_descriptors())
 
     # CoinGecko market data (core.coingecko_auth): each plan verifies on its own root's /ping with the

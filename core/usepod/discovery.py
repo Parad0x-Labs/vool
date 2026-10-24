@@ -56,9 +56,9 @@ class ResolvedCredential:
 
 
 def _stored_token() -> tuple[str, str]:
-    from core.cloud_providers import config_for
+    from core.usepod.legacy_config import CONFIG
 
-    cfg = config_for(descriptor.PROVIDER_ID)
+    cfg = CONFIG
     if cfg is None:
         return "", ""
     for name in cfg.env_names:
@@ -93,14 +93,14 @@ def resolve_credential(*, strict: bool = False) -> ResolvedCredential | None:
     admitted (unresolved, incoherent or unreadable) raises
     :class:`UsePodCredentialPairUnavailableError` when ``strict`` -- the dispatch path, which must name
     that refusal -- and reads as None for display callers."""
-    from core.cloud_providers import resolved_provider_pair
     from core.credential_intelligence.store import StorageConflictError, StorageUnavailableError
+    from core.usepod.legacy_config import resolved_pair
 
     token, source = _stored_token()
     if not token:
         return None
     try:
-        origin_raw, pair_token = resolved_provider_pair(descriptor.PROVIDER_ID)
+        origin_raw, pair_token = resolved_pair()
     except (StorageConflictError, StorageUnavailableError) as exc:
         if strict:
             raise UsePodCredentialPairUnavailableError(str(exc)) from None
@@ -159,7 +159,7 @@ def plan_credential_binding(value: str, *, explicit_origin: str = "") -> Credent
 
 
 def configured_origin() -> str:
-    from core.cloud_providers import usepod_origin
+    from core.usepod.legacy_config import origin as usepod_origin
 
     try:
         return descriptor.normalize_origin(usepod_origin())
@@ -184,17 +184,17 @@ def save_accountless_origin(value: str) -> str:
     a token. Written under the credential writers' lock, and refused while a credential operation on either slot is
     unresolved. Returns the origin in effect afterwards."""
     from core import credential_store
-    from core.cloud_providers import PROVIDERS
     from core.credential_intelligence._state_lock import credential_state_lock
     from core.credential_intelligence.store import JOURNAL_FILE
     from core.runtime_paths import active_data_dir
+    from core.usepod.legacy_config import CONFIG
 
     text = str(value or "").strip()
     try:
         origin = descriptor.normalize_origin(text) if text else descriptor.DEFAULT_ORIGIN
     except descriptor.UsePodConfigError as exc:
         raise AccountlessOriginRefusedError(f"origin_invalid:{exc.code}", "that is not a UsePod origin; nothing was changed", http_status=400) from None
-    cfg = PROVIDERS[descriptor.PROVIDER_ID]
+    cfg = CONFIG
     with credential_state_lock():
         token, _source = _stored_token()
         if token:
@@ -237,9 +237,9 @@ def accountless_x402_ready() -> dict[str, Any] | None:
     networks = tuple(str(item) for item in (getattr(authority, "networks", ()) or ()))
     if not networks:
         return None
-    from core.cloud_providers import config_for
+    from core.usepod.legacy_config import CONFIG
 
-    cfg = config_for(descriptor.PROVIDER_ID)
+    cfg = CONFIG
     # the provider's short name ("UsePod"), not its table description, so the lane reads as one label
     short = (cfg.label if cfg else "UsePod").split(" (", 1)[0]
     return {"label": f"{short} (wallet x402)", "networks": list(networks), "authority": label}

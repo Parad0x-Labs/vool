@@ -500,29 +500,7 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
     provider_id = provider_for_slot(name)
 
     if body.get("delete") is True:
-        if provider_id == "usepod":
-            # The token and its origin are ONE committed pair. The token and its binding row leave
-            # through the store's journaled delete (removal proven by read-back), then the origin,
-            # which was chosen together with the token and does not outlive it. A removal that
-            # cannot be proven keeps the binding and says so.
-            from core.cloud_providers import USEPOD_ORIGIN_SLOT
-            from core.credential_intelligence.binding import MalformedBindingIndexError
-            from core.credential_intelligence.provider_registry import default_registry
-            from core.credential_intelligence.store import CredentialStore, StorageUnavailableError
-
-            try:
-                removed = bool(CredentialStore(default_registry()).delete(provider_id).removed)
-            except (StorageUnavailableError, MalformedBindingIndexError) as exc:
-                return apply_runtime_headers(
-                    json_response(
-                        503,
-                        {"error": str(exc), "recovery": "the delete is journaled; reconcile (restart or on demand) decides it"},
-                    ),
-                    runtime,
-                )
-            delete_credential(USEPOD_ORIGIN_SLOT)
-        else:
-            removed = delete_credential(name)
+        removed = delete_credential(name)
         with contextlib.suppress(Exception):
             if removed:
                 from core.cloud_runtime import bump_cloud_broker_epoch
@@ -556,21 +534,6 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
     label = body.get("label", "")
     if not isinstance(label, str):
         return apply_runtime_headers(json_response(400, {"error": "label must be a string"}), runtime)
-    # UsePod's credential is a token that lives in the URL path. A pasted proxy base URL is split
-    # here -- token to the secret slot, origin validated and kept apart -- so the token is never
-    # stored as a "base URL" and no API key UsePod ignores is demanded. Validated BEFORE anything is
-    # stored: a refused paste writes nothing.
-    usepod_binding = None
-    if provider_id == "usepod":
-        from core.usepod.descriptor import UsePodConfigError
-        from core.usepod.discovery import plan_credential_binding
-
-        try:
-            usepod_binding = plan_credential_binding(value, explicit_origin=str(body.get("base_url") or ""))
-        except UsePodConfigError as exc:
-            return apply_runtime_headers(
-                json_response(400, {"error": "not a usable UsePod credential", "code": exc.code}), runtime
-            )
     # For the custom endpoint, a base_url must be provided and be HTTPS (or loopback) so a key
     # is never sent over plaintext; it is persisted so the lane survives a restart.
     # C15: the store is the explicit secure-storage door. One bounded attempt; a failure
@@ -594,13 +557,6 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
             refused = _commit_operator_pair("custom", value.strip(), base_url, runtime, auth=custom_auth)
             if refused is not None:
                 return refused
-        elif usepod_binding is not None:
-            # The UsePod token and the origin it was split from commit as ONE pair through the same
-            # operator-pair transaction: two separate writes could leave a new token beside an old
-            # origin, and the token would travel to a destination nobody chose with it.
-            refused = _commit_operator_pair(provider_id, usepod_binding.token, usepod_binding.origin, runtime)
-            if refused is not None:
-                return refused
         else:
             store_credential(name, value.strip(), label=label.strip()[:120])
     except SecureStorageError as exc:
@@ -619,16 +575,6 @@ def set_credentials_authority(body: dict, headers: dict, runtime, client_host: s
     # immediately (resetting the model to the provider's default only when switching providers).
     bind_saved_cloud_key(provider_id)
     saved = {"name": name, "provider": provider_id, "connected": has_credential(name)}
-    if usepod_binding is not None:
-        # Non-secret facts about what was bound; the fingerprint identifies the binding, not the token.
-        saved.update(
-            {
-                "origin": usepod_binding.origin,
-                "origin_is_default": usepod_binding.origin_is_default,
-                "credential_fingerprint": usepod_binding.fingerprint,
-                "token_shape": usepod_binding.token_shape,
-            }
-        )
     return apply_runtime_headers(json_response(200, saved), runtime)
 
 
@@ -673,16 +619,6 @@ def bind_saved_cloud_key(provider_id: str) -> None:
         # burst can never route to the provider the user just switched away from.
         retire_nonactive_provider_lanes(provider_id)
         bump_cloud_broker_epoch()
-    with contextlib.suppress(Exception):
-        from core.cloud_providers import uses_url_path_token
-
-        if uses_url_path_token(provider_id):
-            # Lanes already registered carry the origin they were registered for; a re-pointed origin
-            # must reach them. Their approved routes stay bound to the previous origin and are refused
-            # until the owner approves again.
-            from core.runtime_provider_defaults import refresh_path_token_lanes
-
-            refresh_path_token_lanes(provider_id)
 
 
 def _commit_operator_pair(provider_id: str, secret: str, endpoint: str, runtime, *, auth: str = "") -> ApiResponse | None:
@@ -794,7 +730,9 @@ def set_cloud_model_authority(body: dict, headers: dict, runtime, client_host: s
         return apply_runtime_headers(json_response(400, {"error": "invalid model id"}), runtime)
     _mp = body.get("provider")
     model_provider = str(_mp).strip().lower() if isinstance(_mp, str) and _mp.strip() else None
-    if model_provider is not None and model_provider not in PROVIDERS:
+    from core.plugin_providers import usable_provider
+
+    if model_provider is not None and model_provider not in PROVIDERS and not usable_provider(model_provider):
         return apply_runtime_headers(json_response(400, {"error": "unknown provider"}), runtime)
 
     # A11 SERVER-OWNED PAID AUTHORITY: classification runs through the ONE server-owned

@@ -216,6 +216,14 @@ def _credential_unavailable(credential_key: str, state: str, cause: str = "") ->
 
 
 class OpenAICompatibleAdapter(ModelAdapter):
+    def _http(self):
+        config = self.manifest.runtime_config
+        if config.get("plugin_id"):
+            from core.plugin_services import ProviderTransport
+
+            return ProviderTransport(config["plugin_id"], config.get("plugin_approval", ""))
+        return requests
+
     def supports_streaming(self) -> bool:
         return True
 
@@ -250,7 +258,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         health_path = str(self.manifest.runtime_config.get("health_path") or "/v1/models")
         timeout_seconds = float(self.manifest.runtime_config.get("health_timeout_seconds") or 3.0)
         try:
-            response = requests.get(
+            response = self._http().get(
                 f"{base_url}{health_path}",
                 headers=self._headers(base_url=base_url, api_key=dispatch_key),
                 timeout=timeout_seconds,
@@ -261,6 +269,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
             return {"ok": False, "provider_id": self.manifest.provider_id, "error": str(exc)}
 
     def prewarm(self) -> dict[str, Any]:
+        if self.manifest.runtime_config.get("plugin_id"):
+            return {"ok": True, "skipped": True, "reason": "plugin services connect only for an explicit operation"}
         prewarm_config = dict(self.manifest.runtime_config.get("prewarm") or {})
         if not prewarm_config:
             return super().prewarm()
@@ -317,7 +327,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                 ),
                 header_names=tuple(headers),
             )
-            response = requests.post(
+            response = self._http().post(
                 endpoint,
                 json=permit.consume(),
                 headers=headers,
@@ -506,7 +516,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
                     payload=payload,
                     header_names=tuple(headers),
                 )
-                response = requests.post(
+                response = self._http().post(
                     f"{base_url}{api_path}",
                     json=permit.consume(),
                     headers=headers,
@@ -754,7 +764,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         with local_model_slot(provider_id=self.manifest.provider_id):
             timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
             body = permit.consume()
-            response = requests.post(
+            response = self._http().post(
                 f"{base_url}/api/chat",
                 json=body,
                 headers=headers,
@@ -857,7 +867,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             payload=payload,
             header_names=tuple(headers),
         )
-        response = requests.post(
+        response = self._http().post(
             f"{base_url}{api_path}",
             json=permit.consume(),
             headers=headers,
@@ -983,7 +993,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         slot.__enter__()
         try:
             timeout_seconds = effective_timeout_seconds(request, timeout_seconds)
-            response = requests.post(
+            response = self._http().post(
                 f"{base_url}/api/chat",
                 json=permit.consume(),
                 headers=headers,
@@ -1766,6 +1776,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         return True
 
     def _probe_native_tool_support(self) -> bool | None:
+        if self.manifest.runtime_config.get("plugin_id"):
+            return None
         """Ask a LOOPBACK server whether it takes native tool schemas. `None` when not probeable.
 
         Only local servers are probed, and only over loopback. A probe is a real request, so
@@ -1820,7 +1832,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         if probe_base.rstrip("/") != base_url.rstrip("/"):
             return None  # the manifest destination is stale: not this probe's call to re-route
         try:
-            response = requests.post(
+            response = self._http().post(
                 f"{base_url}{api_path}",
                 json=payload,
                 headers=self._headers(base_url=base_url, api_key=probe_key),
@@ -1861,7 +1873,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         if self._runtime_family() != "ollama":
             return "unknown"
         try:
-            response = requests.get(
+            response = self._http().get(
                 f"{_native_ollama_base_url(base_url)}/api/version",
                 headers=self._headers(),
                 timeout=_request_timeout(5.0),
@@ -1904,7 +1916,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             return identity
         native_base = _native_ollama_base_url(base_url)
         try:
-            tags_response = requests.get(
+            tags_response = self._http().get(
                 f"{native_base}/api/tags",
                 headers=self._headers(),
                 timeout=_request_timeout(5.0),
@@ -1926,7 +1938,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
         except Exception:
             pass
         try:
-            show_response = requests.post(
+            show_response = self._http().post(
                 f"{native_base}/api/show",
                 json={"model": self.manifest.model_name},
                 headers=self._headers(),
@@ -2033,7 +2045,7 @@ class OpenAICompatibleAdapter(ModelAdapter):
             header_names=tuple(headers),
         )
         started = time.perf_counter()
-        response = requests.post(
+        response = self._http().post(
             endpoint,
             json=permit.consume(),
             headers=headers,
@@ -2117,6 +2129,8 @@ class OpenAICompatibleAdapter(ModelAdapter):
         ``_dispatch_credential``, which refuses before the wire instead of degrading to an
         anonymous request.
         """
+        if self.manifest.runtime_config.get("plugin_id"):
+            return ""
         api_key_env = str(self.manifest.runtime_config.get("api_key_env") or "").strip()
         if api_key_env and os.getenv(api_key_env):
             return str(os.getenv(api_key_env) or "")
@@ -2191,6 +2205,10 @@ class OpenAICompatibleAdapter(ModelAdapter):
         The snapshot is taken once per dispatch and preserved through headers, URL, routing
         and the call itself (including a same-lane retry) — a mid-flight replacement cannot
         split one request across two bindings, and no lock is held across the network."""
+        if self.manifest.runtime_config.get("plugin_id"):
+            from core.plugin_services import provider_binding
+
+            return provider_binding(self.manifest)
         base_url = str(self.manifest.runtime_config.get("base_url") or "").rstrip("/")
         if not self._is_custom_managed_lane():
             credential_key = str(self.manifest.runtime_config.get("credential_key") or "").strip()

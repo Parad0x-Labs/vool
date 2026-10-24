@@ -648,6 +648,11 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
         from core.plugin_tools import load_manifest
 
         plugin = load_manifest(pack / ".codex-plugin" / "plugin.json")
+        if plugin.contracts or plugin.vool.get("mcpServers"):
+            from core.plugin_executor import process_isolation_refusal
+
+            if process_isolation_refusal():
+                return False
         if plugin.vool:
             checked[plugin_id] = record.consented_approval == record.approval_digest and (
                 not plugin.vool["network"] or record.network_consent)

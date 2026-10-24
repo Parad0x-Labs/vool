@@ -167,6 +167,12 @@ class WalletX402PaymentAuthority:
 
     @property
     def networks(self) -> tuple[str, ...]:
+        from core.plugin_providers import require_legacy_x402
+
+        try:
+            require_legacy_x402()
+        except Exception:
+            return ()
         return verified_networks()
 
     def wallet_facts(self, *, network: str, asset: str, atomic_unit: str) -> Any:

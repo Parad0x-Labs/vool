@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import pytest
 
 from adapters.base_adapter import ModelRequest
-from adapters.usepod_adapter import UsePodDispatchRefusedError
+from core.usepod.legacy_adapter import UsePodDispatchRefusedError
 from core.usepod.monetary import MonetaryAuthorityRefusedError
 from tests.usepod._usepod_doors import post as _post
 from tests.usepod.strict_usepod_service import Listing, default_reply
@@ -114,8 +114,8 @@ def test_the_money_law_refuses_an_observation_older_than_its_window_and_names_th
 def test_a_never_observed_and_a_failed_read_are_named_not_treated_as_zero(law) -> None:
     authority, service, token = law
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.usepod import discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     credential_store.store_credential("llm.cloud.usepod", token)
     credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)
@@ -247,8 +247,8 @@ def test_another_credentials_observation_never_funds_this_one(law) -> None:
 def test_the_settings_test_records_the_balance_it_reads(law) -> None:
     authority, service, token = law
     from core import credential_store
-    from core.cloud_providers import USEPOD_ORIGIN_SLOT
     from core.usepod import discovery
+    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
 
     credential_store.store_credential("llm.cloud.usepod", token)
     credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)

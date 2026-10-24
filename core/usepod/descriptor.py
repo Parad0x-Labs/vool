@@ -28,12 +28,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from urllib.parse import urlsplit
 
-from core.cloud_providers import PROVIDERS as _PROVIDER_TABLE
+from core.usepod.legacy_config import CONFIG as _LEGACY_CONFIG
 
 PROVIDER_ID = "usepod"
 PROVIDER_LABEL = "UsePod"
 #: From the one provider table (core.cloud_providers), never restated here.
-DEFAULT_ORIGIN = _PROVIDER_TABLE[PROVIDER_ID].base_url.rstrip("/")
+DEFAULT_ORIGIN = _LEGACY_CONFIG.base_url.rstrip("/")
 DOCS_READ_ON = "2026-09-14"
 
 # Paths, relative to the origin. The prepaid token sits between PROXY_PREFIX and the surface path.

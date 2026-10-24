@@ -882,6 +882,15 @@ def dispatch_get(
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
+    if normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/")):
+        from core.plugin_providers import require_legacy_x402
+        from core.plugin_services import ServiceRefused
+
+        try:
+            require_legacy_x402()
+        except ServiceRefused as exc:
+            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
+
     def resolve_page_locale(page_query: dict[str, list[str]], page_headers: dict[str, str] | None) -> str:
         """The UI locale for one page render: ?ui_locale= > the vool_ui_locale cookie > en.
 
@@ -1856,6 +1865,9 @@ def dispatch_get(
              "key_from_environment": _env_keyed(cfg)}
             for cfg in PROVIDERS.values()
         ]
+        from core.plugin_providers import provider_rows as plugin_provider_rows
+
+        provider_rows.extend(plugin_provider_rows())
         return apply_runtime_headers(json_response(200, {"providers": provider_rows}), runtime)
 
     if normalized_path == "/api/cloud/usepod/discovery":
@@ -2472,10 +2484,7 @@ def dispatch_get(
         provider_q = str((query.get("provider") or [""])[0] or "").strip().lower()
         prov = provider_q or active_provider()
         if not prov:
-            # No provider holds a key: an accountless lane that is usable now is the one to list, else the legacy default.
-            from core.usepod.discovery import accountless_x402_ready
-
-            prov = "usepod" if accountless_x402_ready() else "openrouter"
+            prov = "openrouter"
         order = str((query.get("order") or ["featured"])[0] or "featured").strip().lower()
         if order not in {"name", "context", "featured"}:
             order = "featured"
@@ -2540,60 +2549,15 @@ def dispatch_get(
                 payload["refresh"] = refresh_result
             return apply_runtime_headers(json_response(200, payload), runtime)
 
-        if prov == "usepod":
-            # A dynamic marketplace: rows come from the cached live feed (?refresh=1 fetches it),
-            # carrying exact integer prices per route and the snapshot's provenance and staleness.
-            # Display floats are for the picker only; nothing here authorizes spend.
-            from core.usepod import pricing as _usepod_pricing
-            from core.usepod.discovery import configured_origin as _usepod_origin
-            from core.usepod.discovery import resolve_credential as _usepod_credential
+        if prov.startswith("plugin-"):
+            from core.plugin_providers import cached_models, usable_provider
 
-            _up_credential = _usepod_credential()
-            _up_origin = _up_credential.origin if _up_credential else _usepod_origin()
-            _up_refresh: dict[str, Any] | None = None
-            if str((query.get("refresh") or [""])[0] or "").strip() in {"1", "true", "yes"}:
-                try:
-                    _usepod_pricing.fetch_marketplace_snapshot(origin=_up_origin)
-                    _up_refresh = {"state": "fetched"}
-                except _usepod_pricing.MarketplaceFeedError as exc:
-                    _up_refresh = {"state": "unavailable", "error_code": exc.code}
-            _up_snapshot = _usepod_pricing.load_cached_snapshot(origin=_up_origin)
-
-            def _up_per_m(value: int | None) -> float | None:
-                return None if value is None else value / _usepod_pricing.MICROUNITS_PER_USDC
-
-            _up_rows: list[dict[str, Any]] = []
-            for _up_id in sorted(_up_snapshot.models) if _up_snapshot else []:
-                _up_model = _up_snapshot.models[_up_id]
-                _up_price = _up_model.marketplace or _up_model.best_available
-                _up_rows.append(
-                    {
-                        "id": _up_id,
-                        "name": _up_id,
-                        "context_length": 0,
-                        "free": False,
-                        "coding": False,
-                        "prompt_usd_per_m": _up_per_m(_up_price.input_microunits_per_million) if _up_price else None,
-                        "completion_usd_per_m": _up_per_m(_up_price.output_microunits_per_million) if _up_price else None,
-                        "provider": "usepod",
-                        "supports_images": False,
-                        "usable_for_spend": not _up_model.unusable_reason,
-                        "unusable_reason": _up_model.unusable_reason,
-                        "route_prices": _up_model.as_dict(),
-                    }
-                )
-            _up_payload: dict[str, Any] = {
-                "provider": "usepod",
-                "label": config_for("usepod").label if config_for("usepod") else "UsePod",
-                "models": _up_rows,
-                "free_count": 0,
-                "age_seconds": _up_snapshot.age_seconds() if _up_snapshot else None,
-                "order": "name",
-                "price_source": _up_snapshot.provenance() if _up_snapshot else {"state": "no_cached_snapshot"},
-            }
-            if _up_refresh is not None:
-                _up_payload["refresh"] = _up_refresh
-            return apply_runtime_headers(json_response(200, _up_payload), runtime)
+            if not usable_provider(prov):
+                return apply_runtime_headers(json_response(409, {"error": "Enable this provider plugin and refresh its model list in Add-ons."}), runtime)
+            rows = cached_models(prov.removeprefix("plugin-"))
+            return apply_runtime_headers(json_response(200, {"provider": prov, "models": [
+                {**row, "provider": prov, "free": False, "supports_images": False,
+                 "prompt_usd_per_m": None, "completion_usd_per_m": None} for row in rows], "free_count": 0}), runtime)
 
         if prov == "custom":
             # The operator's own endpoint has no curated list: its catalogue is what capability
@@ -3171,6 +3135,15 @@ def dispatch_post(
     request_id: str = "",
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
+
+    if normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/")):
+        from core.plugin_providers import require_legacy_x402
+        from core.plugin_services import ServiceRefused
+
+        try:
+            require_legacy_x402()
+        except ServiceRefused as exc:
+            return apply_runtime_headers(json_response(409, {"ok": False, "error": str(exc)}), runtime)
 
     if normalized_path.startswith("/api/browser/"):
         from core.web.api import browser_api
@@ -4325,7 +4298,6 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
         except Exception as exc:
             return 400, {"error": f"grant mint refused: {exc}", "code": "spend_grant_refused"}
     if normalized_path == "/api/cloud/usepod/lane":
-        from core.runtime_provider_defaults import refresh_path_token_lanes
         from core.usepod import discovery as usepod_discovery
         from core.usepod.lane import LanePreference, save_lane_preference
 
@@ -4343,7 +4315,7 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
             except usepod_discovery.AccountlessOriginRefusedError as exc:
                 return exc.http_status, {"error": str(exc), "code": exc.code}
         preference = save_lane_preference(requested)
-        return 200, {"lane": preference.to_dict(), "origin": usepod_discovery.configured_origin(), "refreshed_lanes": refresh_path_token_lanes("usepod")}
+        return 200, {"lane": preference.to_dict(), "origin": usepod_discovery.configured_origin()}
     if normalized_path == "/api/cloud/usepod/x402/resume":
         # The owner finishes ONE paid accountless call whose answer never arrived: the recorded bytes and proof are resent
         # once, never a new quote or a second payment. The conversation that asked has ended, so the answer comes back here.
@@ -4353,7 +4325,7 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
         operation_id = str(body.get("operation_id") or "").strip()
         if not operation_id:
             return 400, {"error": "missing operation_id", "code": "operation_id_required"}
-        from adapters.usepod_adapter import (
+        from core.usepod.legacy_adapter import (
             UsePodDispatchRefusedError,
             UsePodRouteNotCompliantError,
             resume_x402_operation,

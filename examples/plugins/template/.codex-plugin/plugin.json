@@ -1,0 +1,57 @@
+{
+  "name": "vool-plugin-template",
+  "version": "1.0.0",
+  "description": "Compute the SHA-256 digest of supplied text through a bundled local connection server.",
+  "vool": {
+    "id": "vool-plugin-template",
+    "name": "Text digest example",
+    "description": "Compute the SHA-256 digest of supplied text through a bundled local connection server.",
+    "homepage": "https://vool.dev/",
+    "kind": [
+      "tools"
+    ],
+    "network": [],
+    "credentials": {},
+    "mcpServers": {
+      "local": {
+        "command": "bin/server",
+        "args": [],
+        "env": {}
+      }
+    },
+    "tools": [
+      {
+        "intent": "vool-plugin-template.sha256",
+        "description": "Compute the SHA-256 digest and UTF-8 byte length of the supplied text.",
+        "input_schema": {
+          "type": "object",
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string",
+              "maxLength": 4096
+            }
+          }
+        },
+        "handler": {
+          "kind": "mcp",
+          "server": "local",
+          "tool": "sha256_text",
+          "timeout_seconds": 10
+        },
+        "trust": {
+          "side_effect_class": "read_only",
+          "permission_actions": [
+            "read_files"
+          ]
+        }
+      }
+    ],
+    "version": "1.0.0",
+    "publisher": "VOOL",
+    "license": "MIT"
+  }
+}

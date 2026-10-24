@@ -5,6 +5,7 @@ import base64
 import contextlib
 import hmac
 import ipaddress
+import queue
 import secrets
 import select
 import socket
@@ -27,30 +28,62 @@ def destination(url: str, hosts: list[str] | tuple[str, ...]) -> tuple[str, str]
     return parsed.hostname, (parsed.path or "/") + (("?" + parsed.query) if parsed.query else "")
 
 
-def public_addresses(host: str) -> tuple[tuple, ...]:
+def public_addresses(host: str, *, timeout: float = 5) -> tuple[tuple, ...]:
     try:
         host_name(host)
     except (ValueError, TypeError):
         raise NetworkRefused("The plugin destination is not a public HTTPS host.") from None
+    answer = queue.Queue(maxsize=1)
+
+    def resolve():
+        try:
+            answer.put(socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM))
+        except OSError:
+            answer.put(None)
+
+    threading.Thread(target=resolve, daemon=True).start()
     try:
-        addresses = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
-    except OSError:
+        addresses = answer.get(timeout=min(10, max(0.1, timeout)))
+    except queue.Empty:
+        raise NetworkRefused("The plugin service address took too long to resolve. No connection was made.") from None
+    if addresses is None:
         raise NetworkRefused("The plugin service address could not be resolved.") from None
-    if not addresses or any(not ipaddress.ip_address(row[4][0]).is_global for row in addresses):
+
+    def public(row):
+        address = ipaddress.ip_address(row[4][0])
+        return address.is_global and not (address.is_multicast or address.is_reserved or address.is_unspecified)
+
+    if not addresses or any(not public(row) for row in addresses):
         raise NetworkRefused("The plugin service resolved to a private or local address. The connection was refused.")
     return tuple(addresses)
 
 
-def connect_public(host: str, *, timeout: float = 10) -> socket.socket:
-    addresses = public_addresses(host)
+def connect_public(host: str, *, timeout: float = 10, call=None) -> socket.socket:
+    if call:
+        call.check()
+    addresses = public_addresses(host, timeout=timeout)
     for family, socktype, proto, _name, address in addresses:
+        if call:
+            call.check()
         connection = socket.socket(family, socktype, proto)
         connection.settimeout(timeout)
+
+        def close(owned=connection):
+            with contextlib.suppress(OSError):
+                owned.shutdown(socket.SHUT_RDWR)
+            owned.close()
+
+        if call:
+            call.own(close)
         try:
             connection.connect(address)  # the approved numeric address; no second DNS lookup
+            if call:
+                call.check()
             return connection
         except OSError:
             connection.close()
+            if call:
+                call.release(close)
     raise NetworkRefused("The plugin service could not be reached.")
 
 
@@ -71,6 +104,7 @@ class EgressProxy:
         register_exact_secret(self.token)
         self.authorization = "Basic " + base64.b64encode((self.token + ":").encode()).decode()
         self.sockets: set[socket.socket] = set()
+        self.connections = 0
         self.lock = threading.Lock()
         owner = self
 
@@ -79,6 +113,10 @@ class EgressProxy:
                 client = self.request
                 client.settimeout(5)
                 with owner.lock:
+                    owner.connections += 1
+                    if owner.connections > 64:
+                        client.close()
+                        return
                     owner.sockets.add(client)
                 upstream = None
                 try:
@@ -98,7 +136,7 @@ class EgressProxy:
                             or target != host + ":443" or host not in owner.hosts or not host_name(host)
                             or not hmac.compare_digest(authorization, owner.authorization)):
                         raise NetworkRefused("The plugin connection is outside its declared access.")
-                    upstream = connect_public(host)
+                    upstream = connect_public(host, call=owner.call)
                     owner.call.check()
                     with owner.lock:
                         owner.sockets.add(upstream)

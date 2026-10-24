@@ -424,7 +424,7 @@ def _settings_groups() -> list[dict]:
                 _row(
                     id="provider_guide", label="Find a provider", kind="custom", widget="provider_guide",
                     help="Choose a category, open the official provider site, then add your key below.",
-                    keywords="api setup guide providers models web search security scans eyebrow keys official links blockchain chain data helius alchemy solscan etherscan",
+                    keywords="api setup guide providers models web search plugin scans keys official links blockchain chain data helius alchemy solscan etherscan",
                 ),
                 _row(
                     id="cloud_keys",
@@ -442,7 +442,7 @@ def _settings_groups() -> list[dict]:
                     effect=EFFECT_IMMEDIATE,
                     keywords=(
                         "api key openai anthropic claude openrouter groq gemini deepseek kimi byok "
-                        "credential provider brave tavily exa serper firecrawl jina search token secret eyebrow security scans "
+                        "credential provider brave tavily exa serper firecrawl jina search token secret plugin security scans "
                         "helius alchemy solscan etherscan blockchain chain data solana"
                     ),
                 ),
@@ -511,7 +511,7 @@ def _settings_groups() -> list[dict]:
                     ),
                     scope=SCOPE_GLOBAL,
                     effect=EFFECT_NEXT_TURN,
-                    keywords="models providers overview usepod openrouter local setup guided budget price limits review",
+                    keywords="models providers overview openrouter local setup guided budget price limits review",
                 ),
                 _row(
                     id="model_own_tools",
@@ -563,26 +563,6 @@ def _settings_groups() -> list[dict]:
                     keywords=(
                         "local model ollama register certify certification lane offline "
                         "private qwen installed add"
-                    ),
-                ),
-                _row(
-                    id="usepod",
-                    label="UsePod marketplace",
-                    kind="custom",
-                    widget="usepod",
-                    read={"url": "/api/cloud/usepod/discovery"},
-                    help=(
-                        "The UsePod provider's own panel: what its marketplace lists and costs "
-                        "(with the source and age of every price), what your credential sees, "
-                        "which route each model may serve, and the approvals that gate paid "
-                        "dispatch. Opening this reads caches only; the one refresh button is the "
-                        "only thing here that contacts UsePod, and it runs no inference."
-                    ),
-                    scope=SCOPE_GLOBAL,
-                    effect=EFFECT_IMMEDIATE,
-                    keywords=(
-                        "usepod marketplace proxy token prepaid x402 route approve ceiling "
-                        "price balance model discovery origin"
                     ),
                 ),
             ],
@@ -1741,7 +1721,7 @@ function renderRow(row) {
     lab.appendChild(b);
   }
   main.appendChild(lab);
-  if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', state.focusPart === 'spend' && row.id === 'usepod' ? 'Review a spending limit for your next UsePod request. Your message stays in the chat until you send it.' : row.help));
+  if (row.help) main.appendChild(el('div', row.kind === 'note' ? 'row-help note-body' : 'row-help', row.help));
   if (row.kind !== 'note' && row.kind !== 'custom') { const meta = metaLine(row); if (meta.childNodes.length) main.appendChild(meta); }
   node.appendChild(main);
   if (row.kind === 'custom') {
@@ -1877,7 +1857,6 @@ function renderWidget(row, host) {
   if (w === 'models_overview') return widgetModelsOverview(stack);
   if (w === 'model_pin') return widgetModel(stack);
   if (w === 'local_models') return widgetLocalModels(stack);
-  if (w === 'usepod') return widgetUsePod(stack);
   if (w === 'profile') return widgetProfile(stack);
   if (w === 'email_accounts') return widgetEmailAccounts(stack);
   if (w === 'email_recovery') return widgetEmailRecovery(stack);
@@ -2590,7 +2569,6 @@ function widgetUsage(stack) {
 const KEY_FAMILIES = [
   { id: 'llm.cloud.', title: 'Model providers', blurb: 'Used only when a turn actually runs on that provider.' },
   { id: 'search.web.', title: 'Web search', blurb: 'Used for live lookups. Built-in keyless search remains available.' },
-  { id: 'security.', title: 'Security scans', blurb: 'Optional add-on checks. Scans use your provider allowance.' },
   { id: 'chain.data.', title: 'Blockchain data', blurb: 'Used for read-only chain lookups in any chat. Never used to sign or pay.' },
   { id: 'x.api.', title: 'X (Twitter)', blurb: 'Your X app keys, checked with a read-only request. VOOL does not post with them.' },
   { id: 'market.data.', title: 'Market data', blurb: 'Raises crypto price limits. Verified when saved; if the provider later refuses it, VOOL answers prices without it.' },
@@ -2610,12 +2588,13 @@ const PROVIDER_META = {};
 /* The custom endpoint's base URL is stored beside its key in its own slot so the lane survives a restart
    (core/cloud_providers.py: CUSTOM_BASE_URL_SLOT). It is an address, not a key, and the list says so. */
 const CUSTOM_BASE_URL_SLOT = 'llm.cloud.custom_base_url';
-const KEY_GROUP_ORDER = ['models', 'search', 'security', 'chain'];
+const KEY_GROUP_ORDER = ['models', 'search', 'chain'];
+const PLUGIN_MANAGED_SLOTS = __PLUGIN_MANAGED_SLOTS__;
 function keyFamilyOf(name) {
   /* A key saved for later lives in its own "Saved for later" list below; listing it here as well
      would show the person's own key twice, once as if it were VOOL's. */
   if (String(name || '').startsWith('quarantine.')) return 'quarantine';
-  if (String(name || '').startsWith('security.') && name !== 'security.eyebrow') return 'managed';
+  if (PLUGIN_MANAGED_SLOTS.includes(String(name || '')) || String(name || '').startsWith('security.')) return 'managed';
   const hit = KEY_FAMILIES.find(f => String(name || '').startsWith(f.id));
   return hit ? hit.id : 'managed';
 }
@@ -2644,8 +2623,8 @@ function widgetKeys(stack) {
         list.appendChild(el('div', 'subtle', meta.blurb));
       } else {
         const fold = el('details', 'key-system-keys');
-        fold.appendChild(el('summary', 'subtle', 'Keys VOOL made for itself (' + rows.length + ') — nothing to do'));
-        fold.appendChild(el('div', 'subtle', 'VOOL created these on its own to lock its storage on this computer. They are not yours to manage and cannot be removed here, because removing one would make what it locked unreadable.'));
+        fold.appendChild(el('summary', 'subtle', T('keys.plugin_managed_title', 'Managed keys') + ' (' + rows.length + ')'));
+        fold.appendChild(el('div', 'subtle', T('keys.plugin_managed_help', 'Storage keys and saved plugin connection keys stay here. Manage service connections in Add-ons. Storage keys cannot be removed because that would make protected data unreadable.')));
         list.appendChild(fold);
         into = fold;
       }
@@ -2656,16 +2635,16 @@ function widgetKeys(stack) {
         pill.appendChild(el('span', null, c.label || PROVIDER_LABELS[String(c.name).slice(keyFamilyOf(c.name).length)] || c.name));
         rowEl.appendChild(pill);
         if (!isOperatorKey(c.name)) {
-          rowEl.appendChild(el('span', 'pill', 'system'));
+          rowEl.appendChild(el('span', 'pill', T('keys.plugin_managed_label', 'managed')));
           into.appendChild(rowEl);
           return;                       /* no Remove: this one is not the user's to delete */
         }
-        if (c.name === CUSTOM_BASE_URL_SLOT || c.name === 'llm.cloud.usepod_origin') {
+        if (c.name === CUSTOM_BASE_URL_SLOT) {
           /* The address of the custom endpoint, not a key: nothing to Test (a URL has no auth to probe),
              and the credentials door's closed slot list does not take a delete for it -- saving the custom
              key again with another base URL replaces it. Said here rather than offered as a button that
              would be refused. */
-          pill.lastChild.textContent = c.name === CUSTOM_BASE_URL_SLOT ? 'Custom endpoint base URL' : 'UsePod endpoint';
+          pill.lastChild.textContent = 'Custom endpoint base URL';
           rowEl.appendChild(el('span', 'pill', 'endpoint'));
           rowEl.appendChild(el('span', 'subtle', 'replaced by saving the custom key again with a new base URL'));
           list.appendChild(rowEl);
@@ -2682,9 +2661,8 @@ function widgetKeys(stack) {
         testBtn.addEventListener('click', async () => {
           testBtn.disabled = true; st.textContent = tfmt('keys.asking_test', 'Testing — asking {label} whether it accepts this key…', { label: providerLabel });
           try {
-            if (fam === 'security.' && !confirm(T('keys.eyebrow_confirm', 'Check Eyebrow with one version request? No add-on is scanned.'))) { testBtn.disabled = false; st.textContent = ''; return; }
-            const url = fam === 'security.' ? '/api/addons' : fam === 'search.web.' ? '/api/search/test' : fam === 'chain.data.' ? '/api/chain/test' : fam === 'x.api.' ? '/api/x/setup' : '/api/cloud/test';
-            const payload = fam === 'security.' ? {action:'test_key'} : fam === 'x.api.' ? {action:'test'} : {provider:providerId};
+            const url = fam === 'search.web.' ? '/api/search/test' : fam === 'chain.data.' ? '/api/chain/test' : fam === 'x.api.' ? '/api/x/setup' : '/api/cloud/test';
+            const payload = fam === 'x.api.' ? {action:'test'} : {provider:providerId};
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const j = await r.json().catch(() => ({}));
             st.textContent = fam === 'security.' ? (r.ok && j.ok ? j.message : tfmt('keys.check_failed', 'Check failed — {message}', { message: (j.message || j.error || r.status) })) : keyTestMessage(providerLabel, j);
@@ -2696,7 +2674,7 @@ function widgetKeys(stack) {
           if (!confirm(tfmt('keys.remove_confirm', 'Remove the stored key “{name}”?\n\nIt is deleted from this machine. Nothing is sent anywhere. VOOL falls back to running without it.', { name: (c.label || c.name) }))) return;
           rm.disabled = true; st.textContent = T('keys.removing', 'Removing…');
           try {
-            const r = await fetch(fam === 'security.' ? '/api/addons' : fam === 'x.api.' ? '/api/x/setup' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : fam === 'x.api.' ? {action:'remove'} : { name: c.name, delete: true }) });
+            const r = await fetch(fam === 'x.api.' ? '/api/x/setup' : '/api/settings/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fam === 'security.' ? {action:'remove_key'} : fam === 'x.api.' ? {action:'remove'} : { name: c.name, delete: true }) });
             const j = await r.json().catch(() => null);
             if (!r.ok || (j && j.error)) throw new Error((j && j.error) || ('HTTP ' + r.status));
             await readSource('/api/settings/credentials');
@@ -2743,15 +2721,13 @@ function widgetKeys(stack) {
     const after = [...prov.querySelectorAll('optgroup')].find(x => rank(x.dataset.family) > rank(family));
     prov.insertBefore(g, after || null);
   };
-  addGroup('security', 'keys.group_security', 'Security scans', KEY_PROVIDER_GUIDE.find(g => g.id === 'security').providers);
   addGroup('chain', 'keys.group_chain', 'Blockchain data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers);
   addGroup('market', 'keys.group_market', 'Market data', (KEY_PROVIDER_GUIDE.find(g => g.id === 'market') || { providers: [] }).providers);
   getJSON('/api/cloud/providers')
     .then(d => {
       (d.providers || d.items || []).forEach(pr => { if (pr && pr.id) { PROVIDER_META[pr.id] = pr; if (pr.label) PROVIDER_LABELS[pr.id] = pr.label; } });
-      addGroup('models', 'keys.group_models', 'Model providers', d.providers || d.items || []);
+      addGroup('models', 'keys.group_models', 'Model providers', (d.providers || d.items || []).filter(p => !p.plugin_id));
       syncBaseUrl();
-      syncOrigin();
     })
     .catch(() => {});
   getJSON('/api/search/providers')
@@ -2798,29 +2774,6 @@ function widgetKeys(stack) {
   keyAuth.addEventListener('change', syncAuth);
   const syncBaseUrl = () => { const show = needsBaseUrl(); baseUrl.hidden = !show; baseUrlHint.hidden = !show; syncAuth(); };
   prov.addEventListener('change', syncBaseUrl);
-
-  /* A path-token provider (UsePod: the credential rides the URL path, not a header) accepts a
-     DIFFERENT paste here: a bare token, or a whole proxy URL containing it. The authority
-     (registry_authorities.set_credentials_authority) splits the paste before anything is stored,
-     keeps the token sealed, and binds it to an origin ONLY when the operator chose one explicitly
-     in this field -- a URL paste alone never re-points the token. This hunk is the
-     auth-placement-driven generic contract Task 01 owns: the selector's metadata decides the
-     form, no provider id is special-cased here. */
-  const origin = document.createElement('input');
-  origin.type = 'url'; origin.className = 'inp key-origin'; origin.hidden = true;
-  origin.autocomplete = 'off'; origin.spellcheck = false; origin.placeholder = T('keys.origin_placeholder', 'optional — only an origin you chose yourself');
-  origin.setAttribute('aria-label', T('keys.origin_aria', 'Provider origin'));
-  const originHint = el('div', 'subtle key-origin-hint',
-    tfmt('keys.origin_hint', 'UsePod puts the token in the URL path. Paste the token alone, or the whole proxy URL — it is split before storage and the token is never shown again. The optional origin names a different endpoint you chose yourself (https to any host, or http to a loopback host); leaving it empty keeps {default}. A URL you pasted never becomes the origin by itself: a paste that disagrees with the origin chosen here is refused, and the token is never sent to an origin you did not pick.', { default: USEPOD_ORIGIN_DEFAULT }));
-  originHint.hidden = true;
-  const isPathTokenProvider = () => { const meta = PROVIDER_META[prov.value.trim()]; return !!(meta && meta.auth_placement === 'url_path_token'); };
-  const syncOrigin = () => {
-    const show = isPathTokenProvider();
-    origin.hidden = !show; originHint.hidden = !show;
-    key.setAttribute('aria-label', show ? T('keys.token_aria', 'UsePod token or proxy URL') : T('keys.key_aria', 'API key'));
-    key.title = show ? T('keys.token_title', 'Paste the UsePod token, or the whole proxy URL containing it') : T('keys.key_title', 'Paste the API key here');
-  };
-  prov.addEventListener('change', syncOrigin);
 
   const key = document.createElement('input');
   key.type = 'password'; key.className = 'inp'; key.setAttribute('aria-label', T('keys.key_aria', 'API key')); key.title = T('keys.key_title', 'Paste the API key here');
@@ -2907,7 +2860,7 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); }
       const label = selectedLabel() || (candidates[0] && candidates[0].label) || providerId;
       const verifyBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
@@ -2915,10 +2868,6 @@ function widgetKeys(stack) {
         verifyBody.base_url = baseUrl.value.trim();
         verifyBody.auth = authValue();
       }
-      /* A path-token provider (UsePod): the origin field names an endpoint the operator chose. Left
-         empty, the provider's documented origin applies. The paste (a token or a whole proxy URL) is
-         split on this machine before anything is sent, and a URL naming another origin is refused. */
-      if (isPathTokenProvider() && origin.value.trim()) verifyBody.base_url = origin.value.trim();
       setSt('saving', tfmt('keys.asking', 'Asking {label} once whether it accepts this key…', { label: label }));
       const verified = await intakePost('/api/intake/verify', verifyBody);
       if (!verified.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(verified) })); return; }
@@ -2934,8 +2883,7 @@ function widgetKeys(stack) {
       const done = await intakePost('/api/intake/complete', { session_id: sid });
       if (!done.ok) { setSt('failed', tfmt('keys.not_stored', 'Not stored — {error}', { error: failText(done) })); return; }
       key.value = '';                     /* the secret leaves the field the moment it is stored */
-      origin.value = '';
-      const use = done.j.kind === 'security_scan' ? T('keys.use_security', ' Ready for add-on checks; nothing has been scanned or enabled.') : done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : done.j.kind === 'market_data' ? T('keys.use_market', ' VOOL uses it for crypto prices from now on.') : T('keys.use_model', ' It is now the active model provider.');
+      const use = done.j.kind === 'search_web' ? T('keys.use_search', ' VOOL uses it for live web lookups from now on.') : done.j.kind === 'chain_data' ? T('keys.use_chain', ' VOOL uses it for read-only chain lookups in any chat from now on. It never signs or pays.') : done.j.kind === 'market_data' ? T('keys.use_market', ' VOOL uses it for crypto prices from now on.') : T('keys.use_model', ' It is now the active model provider.');
       const credit = verified.j.account_state === 'exhausted' ? T('keys.credit_exhausted', ' Its credit limit is used up, so requests will fail until credit is added.') : '';
       /* A path-token binding names what the runtime now holds, never the secret: the origin the token
          is sent to and the one-way fingerprint its receipts carry. */
@@ -2973,21 +2921,19 @@ function widgetKeys(stack) {
         prov.focus();
         return;
       }
-      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); syncOrigin(); }
+      if (!picked) { prov.value = providerId.replace(/^(search|chain|market)\./, ''); syncBaseUrl(); }
       const laterBody = { session_id: sid, provider_id: providerId };
       if (needsBaseUrl()) {
         if (!baseUrl.value.trim()) { setSt('failed', T('keys.base_url_first_short', 'Not stored — enter the base URL of the endpoint first. Nothing was sent anywhere.')); baseUrl.focus(); return; }
         laterBody.base_url = baseUrl.value.trim();
         laterBody.auth = authValue();
       }
-      if (isPathTokenProvider() && origin.value.trim()) laterBody.base_url = origin.value.trim();
       /* preview pins the provider on the session without any request; complete stores quarantined */
       const seen = await intakePost('/api/intake/preview', laterBody);
       if (!seen.ok) throw new Error(failText(seen));
       const done = await intakePost('/api/intake/complete', { session_id: sid, persist: 'later' });
       if (!done.ok) throw new Error(failText(done));
       key.value = '';
-      origin.value = '';
       const note = T('keys.stored_unverified', 'Stored sealed and UNVERIFIED for later. Nothing uses this key — not the model lane, not search — until you retry it from the list below and the provider accepts it.');
       setSt('saved', note);
       widgetCache.keySaveNote = note;
@@ -3070,15 +3016,14 @@ function widgetKeys(stack) {
     const row = ((KEY_PROVIDER_GUIDE.find(g => g.id === 'chain') || {}).providers || []).find(r => r.provider === prov.value.trim());
     if (row) openKeySetupDialog(row);
   });
-  form.appendChild(prov); form.appendChild(steps); form.appendChild(baseUrl); form.appendChild(keyAuth); form.appendChild(keyHeader); form.appendChild(origin); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later); form.appendChild(useAnyway);
+  form.appendChild(prov); form.appendChild(steps); form.appendChild(baseUrl); form.appendChild(keyAuth); form.appendChild(keyHeader); form.appendChild(el('span', 'subtle', T('keys.key_label', 'Key'))); form.appendChild(key); form.appendChild(reveal); form.appendChild(save); form.appendChild(later); form.appendChild(useAnyway);
   stack.appendChild(form);
   stack.appendChild(baseUrlHint);
-  stack.appendChild(originHint);
   stack.appendChild(st);
   /* The two save buttons do different things, and the note says both (it used to say "only a verified
      key is stored" right under "Save for later (unverified)"). */
   stack.appendChild(el('div', 'subtle', T('keys.save_note', 'Leave the provider on Auto-detect and VOOL recognises most keys by their start, or asks you to choose. Save key checks the key with that one service first and then uses it. Save for later keeps the key locked away and unused until you check it from the list below. A saved key is never shown again.')));
-  stack.appendChild(el('div', 'subtle', T('keys.checks_note', 'Checks use one selected provider request. Search checks may use credits; Eyebrow checks its version without scanning an add-on.')));
+  stack.appendChild(el('div', 'subtle', T('keys.plugin_checks_note', 'Checks use one selected provider request. Search checks may use credits. Manage scanner connections in Add-ons.')));
   /* X has more than one key, so it gets a guided setup instead of the single paste field. */
   const xRow = el('div', 'inline x-setup-entry');
   xRow.appendChild(el('span', 'row-label', T('xsetup.title', 'X (Twitter)')));
@@ -3501,480 +3446,18 @@ function widgetProviderGuide(host) {
    writes a local manifest row, certifying runs the observe-only probe. A model that is not
    certified cannot author final answers -- that is the runtime's law, and this widget shows it
    rather than hiding it. */
-// ---- Models & Providers redesign: overview, provider detail, guided setup, review sheet ----
-// Layout from the reviewed design (the 2026-09-16 models-and-providers design review); every action
-// goes through the authority that already owns it: pin /api/cloud/model, price limits
-// /api/cloud/usepod/approve-route, budget propose->operator-allow->confirm, connection
-// /api/settings/credentials + /api/cloud/test. A close grants nothing, keeps what was saved, and
-// never claims an in-flight step stopped. The classic widgets below stay as the deep controls.
-const MP_CSS_ADDED_KEY = window.MP_CSS_ADDED || false;
-let mpView = { pane: 'overview', provider: '', guided: { active: false, step: 'connect', token: '', baseUrl: '', modelId: '', modelName: '', prices: null, budgetMode: 'daily', budgetUsdc: '' } };
-
-function mpUsdcPerM(v) {
-  const n = Number(v);
-  if (!isFinite(n)) return '?';
-  return (Math.round(n * 10000) / 10000).toString();
-}
-function mpMicroToUsdc(micro) {
-  const n = Math.trunc(Number(micro) || 0);
-  let s = String(n); while (s.length < 7) s = '0' + s;
-  s = s.slice(0, -6) + '.' + s.slice(-6);
-  return s.replace(/0+$/, '').replace(/\.$/, '') || '0';
-}
-/* The machine's name in plain words: "This Mac" only on a Mac, "This computer" everywhere else. */
 function thisComputerName() {
   const p = String((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '');
   return /mac/i.test(p) ? T('settings.models.this_mac', 'This Mac') : T('settings.models.this_computer', 'This computer');
 }
-function mpOpenRow(rowId, part) {
-  location.hash = '#models/' + rowId + (part ? '/' + part : '');
-}
-async function mpReads() {
-  const [pinR, discR, limitsR, localR] = await Promise.all([
-    getJSON('/api/cloud/model').catch(() => null),
-    getJSON(USEPOD_DISCOVERY_URL).catch(() => null),
-    getJSON('/api/cloud/spend-limits').catch(() => null),
-    getJSON('/api/models/local').catch(() => null),
-  ]);
-  return {
-    local: localR,
-    pin: pinR && pinR.ok ? pinR : null,
-    disc: discR && discR.ok !== false ? discR : null,
-    spendLimits: limitsR && limitsR.limits ? limitsR : null,
-  };
-}
-function mpUsePodState(disc) {
-  const cred = (disc && disc.credential) || {};
-  const grant = ((disc && disc.spend_approval) || {}).grant;
-  const consent = (disc && disc.spend_approval) || null;
-  const market = (disc && disc.marketplace) || {};
-  return {
-    connected: !!cred.configured,
-    origin: String(cred.origin || ''),
-    budgetActive: !!(grant && grant.kind === 'provider_budget' && grant.state === 'active'),
-    grant: grant || null,
-    consent: consent && consent.state ? consent : null,
-    feedFresh: !!(market && market.fetched_at != null),
-  };
-}
-
-// -- the review sheet: one explicit final confirmation over disclosed facts -------------------
-function mpClose(mpSheet, onClose, inFlight) {
-  // State-aware close wording: a close grants nothing, keeps completed saves, never claims an
-  // in-flight authorized step stopped.
-  if (inFlight()) return;
-  if (mpSheet.parentNode) mpSheet.parentNode.removeChild(mpSheet);
-  if (onClose) onClose();
-}
-function mpOpenSheet({ title, facts, steps, primaryLabel, onClose }) {
-  const mpSheet = document.createElement('div');
-  mpSheet.className = 'mp-sheet';
-  mpSheet.setAttribute('role', 'dialog');
-  mpSheet.setAttribute('aria-modal', 'true');
-  const head = el('div', 'mp-sheet-head', title);
-  const body = el('div', 'mp-sheet-body');
-  const kv = el('dl', 'kv');
-  facts.forEach(([k, v]) => { kv.appendChild(el('dt', null, k)); kv.appendChild(el('dd', null, String(v))); });
-  body.appendChild(kv);
-  const statusBox = el('div', 'stack mp-sheet-steps');
-  const stepState = steps.map(() => 'todo');
-  const drawSteps = () => {
-    statusBox.textContent = '';
-    steps.forEach((step, i) => {
-      const line = el('div', 'mp-step mp-step-' + stepState[i], (stepState[i] === 'done' ? '✓ ' : stepState[i] === 'failed' ? '✕ ' : stepState[i] === 'run' ? '… ' : '· ') + step.label);
-      statusBox.appendChild(line);
-    });
-  };
-  drawSteps();
-  body.appendChild(statusBox);
-  const note = el('div', 'mp-sheet-note', '');
-  body.appendChild(note);
-  const actionsRow = el('div', 'mp-sheet-actions');
-  let busy = false;
-  const inFlight = () => busy;
-  const runBtn = el('button', 'btn primary mp-sheet-run', primaryLabel); runBtn.type = 'button';
-  const closeBtn = el('button', 'btn mp-sheet-close', 'Leave for now'); closeBtn.type = 'button';
-  closeBtn.addEventListener('click', () => mpClose(mpSheet, onClose, inFlight));
-  const finishFrom = async (startAt) => {
-    if (busy) return;
-    busy = true; runBtn.disabled = true; note.textContent = '';
-    for (let i = startAt; i < steps.length; i++) {
-      stepState[i] = 'run'; drawSteps();
-      let outcome;
-      try { outcome = await steps[i].run(); }
-      catch (e) { outcome = { ok: false, error: e && e.message ? e.message : 'failed' }; }
-      if (!outcome || !outcome.ok) {
-        stepState[i] = 'failed'; drawSteps();
-        const kept = steps.slice(0, i).filter((s, j) => stepState[j] === 'done').map((s) => s.label);
-        note.textContent = (outcome && outcome.error ? outcome.error : 'The step failed.')
-          + (kept.length ? (' Kept: ' + kept.join(', ') + '. Retry continues from the failed step only.') : ' Retry continues from the failed step only.')
-          + (outcome && outcome.kept && outcome.kept.approval_id ? (' (saved approval ' + String(outcome.kept.approval_id).slice(0, 12) + '… resumes on reopen)') : '');
-        busy = false; runBtn.disabled = false;
-        return;
-      }
-      stepState[i] = 'done'; drawSteps();
-    }
-    note.textContent = 'Saved.';
-    busy = false; runBtn.disabled = true;
-    setTimeout(() => mpClose(mpSheet, onClose, inFlight), 600);
-  };
-  runBtn.addEventListener('click', () => finishFrom(0));
-  actionsRow.appendChild(runBtn); actionsRow.appendChild(closeBtn);
-  mpSheet.appendChild(head); mpSheet.appendChild(body); mpSheet.appendChild(actionsRow);
-  document.body.appendChild(mpSheet);
-  runBtn.focus();
-  return { sheet: mpSheet, retryFrom: finishFrom, note };
-}
-
-// -- the single-confirmation budget orchestration (propose/allow/confirm are internal) ---------
-async function mpBudgetStep({ usdc, mode, resume }) {
-  const atomic = usepodAtomicAmount(usdc, 'USDC');
-  if (!atomic) return { ok: false, error: 'Enter a positive budget in USDC.' };
-  let approval = resume && resume.approval_id ? { approval_id: resume.approval_id } : null;
-  if (!approval) {
-    const p = await usepodPost('/api/cloud/usepod/spend-approval/propose', { per_call_atomic: atomic, max_total_atomic: atomic, budget_mode: mode || 'daily', expiry_epoch: 0, asset: 'USDC' });
-    if (!p.ok) return { ok: false, error: 'Budget not registered — ' + (p.body && (p.body.error || p.body.code) || 'refused') + '.' };
-    approval = { approval_id: p.body.approval_id };
-  }
-  const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'resolve_approval', approval_id: approval.approval_id, decision: 'allow', session_id: 'openclaw:settings-operator' }) });
-  if (!r.ok) return { ok: false, kept: { approval_id: approval.approval_id }, error: 'Registered and waiting for the allow step — reopen to continue the same approval; nothing is enabled yet.' };
-  const c = await usepodPost('/api/cloud/usepod/spend-approval/confirm', { approval_id: approval.approval_id });
-  if (!c.ok) return { ok: false, kept: { approval_id: approval.approval_id }, error: 'Allowed but not enabled — reopen to finish enabling; the approval is kept.' };
-  return { ok: true };
-}
-function mpSheetForSetup({ pin, usepod, guided, reads, onClose }) {
-  const facts = [];
-  const steps = [];
-  if (pin) {
-    facts.push(['Model', (pin.provider && pin.provider !== 'openrouter' ? pin.provider + ':' : '') + pin.model + (pin.cost_state ? ' — ' + pin.cost_state : '')]);
-    steps.push({ label: 'Set ' + pin.model + ' as the model that answers', run: async () => {
-      const r = await usepodPost('/api/cloud/model', { model: pin.model, provider: pin.provider || 'usepod', confirm_paid: true });
-      return r.ok ? { ok: true } : { ok: false, error: 'Model not pinned — ' + (r.body && (r.body.error || r.body.message) || 'refused') + '.' };
-    } });
-  }
-  if (usepod && usepod.limits) {
-    facts.push(['Maximum input and output prices', usepod.limits.in + ' / ' + usepod.limits.out + ' USDC per 1M tokens (rates; not a per-request bill)']);
-    steps.push({ label: 'Save the maximum prices', run: async () => {
-      const r = await usepodPost('/api/cloud/usepod/approve-route', { model_id: usepod.modelId, max_input_usdc_per_million: usepod.limits.in, max_output_usdc_per_million: usepod.limits.out });
-      return r.ok ? { ok: true } : { ok: false, error: 'Limits not saved — ' + (r.body && (r.body.error || r.body.code) || 'refused') + '.' };
-    } });
-  }
-  if (usepod && usepod.budget) {
-    const resume = reads && reads.disc && reads.disc.spend_approval && (reads.disc.spend_approval.state === 'pending' || reads.disc.spend_approval.state === 'approved') ? reads.disc.spend_approval : null;
-    facts.push(['Budget', usepod.budget.usdc + ' USDC · ' + (usepod.budget.mode === 'total' ? 'total, until used or disabled' : 'every 24 hours while enabled')]);
-    if (resume) facts.push(['Saved approval to continue', String(resume.approval_id).slice(0, 12) + '… (' + resume.state + ')']);
-    steps.push({ label: 'Enable the budget' + (resume ? ' (continuing the saved approval)' : ''), run: () => mpBudgetStep({ usdc: usepod.budget.usdc, mode: usepod.budget.mode, resume }) });
-  }
-  facts.push(['Payment', usepod && usepod.prepaid ? 'UsePod prepaid token balance (a budget never authorizes wallet spending)' : 'provider account']);
-  return mpOpenSheet({ title: guided ? 'Turn on this setup?' : 'Save these changes?', facts, steps, primaryLabel: guided ? 'Turn on' : 'Save changes', onClose });
-}
-
-// -- provider cards / detail / guided -----------------------------------------------------------
+function mpOpenRow(rowId, part) { location.hash = '#models/' + rowId + (part ? '/' + part : ''); }
 function widgetModelsOverview(stack) {
-  const root = el('div', 'stack mp-root');
-  stack.appendChild(root);
-  const draw = async () => {
-    root.textContent = '';
-    const reads = await mpReads();
-    const st = mpUsePodState(reads.disc);
-    const head = el('div', 'stack mp-what');
-    head.appendChild(el('div', 'row-label', 'What will answer'));
-    const pinLine = reads.pin && reads.pin.model
-      ? ((reads.pin.provider && reads.pin.provider !== 'openrouter' ? reads.pin.provider + ':' : '') + reads.pin.model)
-      : T('settings.models.auto_pick', 'VOOL picks automatically');
-    const pinState = reads.pin ? String(reads.pin.cost_state || '') : '';
-    head.appendChild(el('div', null, pinLine + (pinState ? ' — ' + pinState + (pinState === 'paid' ? ' · ready for answers once its limits and budget are set' : '') : '')));
-    if (mpView.pane === 'detail') return mpDrawDetail(root, reads, st, draw);
-    // Problems strip (composed from the same reads).
-    const problems = [];
-    /* A provider nobody set up is not a problem: only a started UsePod setup gets a line here. */
-    if (st.connected && !st.budgetActive) problems.push(st.consent ? ('A UsePod budget approval is ' + st.consent.state + ' — one step away.') : 'No UsePod budget is enabled.');
-    if (st.connected && !st.feedFresh) problems.push('No UsePod price feed is cached — prices are unknown until a refresh.');
-    if (problems.length) {
-      const strip = el('div', 'stack mp-problems');
-      problems.forEach((p) => strip.appendChild(el('div', 'mp-problem', p)));
-      root.appendChild(strip);
-    }
-    // Provider cards.
-    const cards = el('div', 'mp-cards');
-    const mkCard = (key, name, stateLine, actionLabel, ready) => {
-      const card = el('div', 'stack mp-card' + (ready ? ' mp-ready' : ''));
-      card.appendChild(el('div', 'mp-card-title', name + (ready ? ' · ready' : '')));
-      card.appendChild(el('div', 'subtle', stateLine));
-      const btn = el('button', 'btn mp-card-open', actionLabel); btn.type = 'button';
-      btn.addEventListener('click', () => {
-        if (key === 'local') { mpOpenRow('local_models'); return; }   /* straight to the row, no detour pane */
-        if (key === 'usepod' && actionLabel !== 'Manage') mpView.guided.active = true;
-        mpView.pane = 'detail'; mpView.provider = key; draw();
-      });
-      card.appendChild(btn);
-      return card;
-    };
-    /* "ready" is earned from the real local listing, never assumed: a fresh install with no local
-       model is told so, and where to go instead. */
-    const localModels = (reads.local && reads.local.models) || [];
-    const localReady = !!(reads.local && !reads.local.local_models_disabled && localModels.length);
-    const localLine = !reads.local ? T('settings.models.local_unchecked', 'VOOL could not check for local models right now.')
-      : reads.local.local_models_disabled ? T('settings.models.local_off', 'Local models are turned off on this copy of VOOL.')
-      : localReady ? T('settings.models.local_ready', 'A model on this computer answers without the internet, for free.')
-      : T('settings.models.local_none', 'No local model yet. Install one, or add a key in API Keys to use an online model.');
-    cards.appendChild(mkCard('local', thisComputerName(), localLine, T('settings.models.view_local', 'View local models'), localReady));
-    // A pending or allowed-but-unconfirmed consent is a RESUME state, not a fresh setup: the
-    // card sends the operator to the detail with the saved approval, never through guided again
-    // (a second proposal would duplicate the consent identity).
-    const mpResumeState = st.connected && !st.budgetActive && st.consent;
-    cards.appendChild(mkCard('usepod', 'UsePod', st.connected
-      ? (st.budgetActive ? 'Connected · budget enabled' : (mpResumeState ? 'Connected · budget approval ' + st.consent.state + ' — one step away' : 'Connected · setup one step away'))
-      : 'Inference marketplace — connect a token to start.', st.connected && !st.budgetActive && !mpResumeState ? 'Continue setup' : (st.connected ? 'Manage' : 'Set up'), st.connected && st.budgetActive));
-    cards.appendChild(mkCard('openrouter', 'OpenRouter', 'Bring-your-own-key cloud models. VOOL-wide spending limits apply.', 'View OpenRouter', false));
-    root.appendChild(head); root.appendChild(cards);
-    const fine = el('div', 'subtle', T('settings.models.same_checks', 'Changes here go through the same checks as in a chat. Opening this page changes nothing.'));
-    root.appendChild(fine);
-  };
-  draw();
-  return stack;
+  stack.appendChild(el('div', 'subtle', T('keys.plugin_models_help', 'Built-in model providers remain in API Keys. Install and connect service plugins in Add-ons; their enabled models appear in the same model picker.')));
+  const line = el('div', 'inline');
+  const local = el('button', 'btn', thisComputerName()); local.type='button'; local.addEventListener('click', () => mpOpenRow('local_models')); line.appendChild(local);
+  const addons=el('a', 'btn', T('keys.plugin_manage', 'Manage plugins in Add-ons')); addons.href='/addons'; line.appendChild(addons);
+  stack.appendChild(line); widgetModel(stack);
 }
-function mpDrawDetail(root, reads, st, redraw) {
-  const back = el('button', 'btn mp-back', '← All providers'); back.type = 'button';
-  back.addEventListener('click', () => { mpView.pane = 'overview'; mpView.provider = ''; redraw(); });
-  root.appendChild(back);
-  const body = el('div', 'stack mp-detail');
-  root.appendChild(body);
-  if (mpView.provider === 'usepod') return mpDrawUsePod(body, reads, st, redraw);
-  if (mpView.provider === 'openrouter') return mpDrawOpenRouter(body, reads);
-  return mpDrawLocal(body, reads);
-}
-function mpDrawLocal(body) {
-  body.appendChild(el('div', 'row-label', 'Local models'));
-  body.appendChild(el('div', null, 'Local models answer on this machine with no network and no per-token cost. Registering and certifying stay where they always lived.'));
-  const btn = el('button', 'btn', 'Open local model controls'); btn.type = 'button';
-  btn.addEventListener('click', () => mpOpenRow('local_models'));
-  body.appendChild(btn);
-}
-async function mpDrawOpenRouter(body, reads) {
-  body.appendChild(el('div', 'row-label', 'OpenRouter'));
-  body.appendChild(el('div', null, 'Cloud models behind your own OpenRouter key. Each paid pick is reserved against VOOL\u2019s own spending limits before anything is sent.'));
-  const lim = reads.spendLimits;
-  const card = el('div', 'stack mp-card');
-  card.appendChild(el('div', 'row-label', 'Spending limits · VOOL-wide'));
-  if (lim) {
-    const kv = el('dl', 'kv');
-    [['Per call', lim.limits.per_call_usd], ['Per task', lim.limits.per_task_usd], ['Daily', lim.limits.daily_usd], ['Monthly', lim.limits.monthly_usd]].forEach(([k, v]) => {
-      kv.appendChild(el('dt', null, k)); kv.appendChild(el('dd', null, '$' + Number(v).toFixed(2)));
-    });
-    card.appendChild(kv);
-    card.appendChild(el('div', 'subtle', lim.scope + '.'));
-  } else {
-    card.appendChild(el('div', 'subtle', 'Limits unreadable right now; they are still enforced.'));
-  }
-  const link = el('button', 'btn', 'Usage & Budgets'); link.type = 'button';
-  link.addEventListener('click', () => { location.hash = '#budgets'; });
-  card.appendChild(link);
-  body.appendChild(card);
-  body.appendChild(el('div', 'subtle', 'These are VOOL\u2019s limits for paid calls on key-based providers — not OpenRouter account credit, and not any UsePod budget.'));
-  const all = el('button', 'btn', 'Open the classic model controls'); all.type = 'button';
-  all.addEventListener('click', () => mpOpenRow('model_pin'));
-  body.appendChild(all);
-}
-async function mpDrawUsePod(body, reads, st, redraw) {
-  if (!st.connected || (mpView.guided.active && mpView.guided.step !== 'ready')) return mpDrawGuided(body, reads, st, redraw);
-  body.appendChild(el('div', 'row-label', 'UsePod'));
-  const kv = el('dl', 'kv');
-  kv.appendChild(el('dt', null, 'Connection')); kv.appendChild(el('dd', null, 'Connected · ' + st.origin));
-  body.appendChild(kv);
-  // Budget card.
-  const budgetCard = el('div', 'stack mp-card');
-  budgetCard.appendChild(el('div', 'row-label', 'Budget'));
-  if (st.budgetActive && st.grant) {
-    const headroom = st.grant.headroom || {};
-    budgetCard.appendChild(el('div', null, 'Enabled — about ' + usepodDisplayAmount(headroom.principal_left_atomic, 'USDC') + ' remaining' + (st.grant.renews_at ? ' · resets ' + usepodTime(st.grant.renews_at) : '') + '.'));
-  } else if (st.consent) {
-    budgetCard.appendChild(el('div', null, 'A saved approval is ' + st.consent.state + ' — one step away. Finishing continues the same approval; nothing new is authorized by looking.'));
-    const fin = el('button', 'btn primary', st.consent.state === 'pending' ? 'Allow the saved budget' : 'Finish enabling'); fin.type = 'button';
-    fin.addEventListener('click', () => mpSheetForSetup({
-      usepod: { budget: { usdc: mpMicroToUsdc(st.consent.facts && (st.consent.facts.max_total_atomic || st.consent.facts.per_call_atomic) || 0), mode: (st.consent.facts && st.consent.facts.budget_mode) || 'daily' } },
-      reads, onClose: redraw,
-    }));
-    budgetCard.appendChild(fin);
-  } else {
-    budgetCard.appendChild(el('div', 'subtle', 'No budget is enabled. A budget is what authorizes paid UsePod requests account-wide.'));
-  }
-  const change = el('button', 'btn', st.budgetActive ? 'Change budget' : 'Enable a budget'); change.type = 'button';
-  change.addEventListener('click', () => {
-    const line = el('div', 'inline');
-    const amount = document.createElement('input'); amount.type = 'number'; amount.min = '0.000001'; amount.step = '0.000001'; amount.value = '3'; amount.className = 'inp mp-budget-usdc'; amount.setAttribute('aria-label', 'Budget in USDC');
-    const mode = document.createElement('select'); mode.className = 'inp mp-budget-mode'; mode.setAttribute('aria-label', 'Budget type');
-    [['daily', 'Every 24 hours — renew while enabled'], ['total', 'Total — until used or disabled']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; mode.appendChild(o); });
-    const review = el('button', 'btn primary', 'Review'); review.type = 'button';
-    review.addEventListener('click', () => mpSheetForSetup({ usepod: { budget: { usdc: amount.value, mode: mode.value }, prepaid: true }, reads, onClose: redraw }));
-    const l1 = el('label', 'stack', 'Budget (USDC)'); l1.appendChild(amount);
-    const l2 = el('label', 'stack', 'Type'); l2.appendChild(mode);
-    line.appendChild(l1); line.appendChild(l2); line.appendChild(review);
-    budgetCard.appendChild(line);
-  });
-  budgetCard.appendChild(change);
-  body.appendChild(budgetCard);
-  // Price limits on file.
-  const pin = reads.pin && reads.pin.provider === 'usepod' ? reads.pin : null;
-  const bound = pin && reads.disc && reads.disc.approved_routes ? reads.disc.approved_routes[pin.model] : null;
-  const limitsCard = el('div', 'stack mp-card');
-  limitsCard.appendChild(el('div', 'row-label', 'Maximum input and output prices'));
-  if (bound) {
-    limitsCard.appendChild(el('div', null, mpMicroToUsdc(bound.max_input_microunits_per_million) + ' / ' + mpMicroToUsdc(bound.max_output_microunits_per_million) + ' USDC per 1M tokens · saved ' + usepodTime(bound.approved_at) + '. A price above these is refused, never silently allowed.'));
-  } else {
-    limitsCard.appendChild(el('div', 'subtle', 'No saved limits for the pinned model yet.'));
-  }
-  const manage = el('button', 'btn', 'Manage limits'); manage.type = 'button';
-  manage.addEventListener('click', () => {
-    const line = el('div', 'inline');
-    const mk = (label, val) => { const i = document.createElement('input'); i.type = 'text'; i.inputMode = 'decimal'; i.className = 'inp mp-limits-' + label; i.value = val; i.setAttribute('aria-label', 'Maximum ' + label + ' price (USDC per 1M)'); const l = el('label', 'stack', 'Maximum ' + label + ' (USDC / 1M)'); l.appendChild(i); return l; };
-    const inL = mk('input', bound ? mpMicroToUsdc(bound.max_input_microunits_per_million) : '');
-    const outL = mk('output', bound ? mpMicroToUsdc(bound.max_output_microunits_per_million) : '');
-    const review = el('button', 'btn primary', 'Review'); review.type = 'button';
-    review.addEventListener('click', () => {
-      const inEl = line.querySelector('.mp-limits-input'), outEl = line.querySelector('.mp-limits-output');
-      if (!/^\d{1,9}(\.\d{1,6})?$/.test(inEl.value.trim()) || !/^\d{1,9}(\.\d{1,6})?$/.test(outEl.value.trim())) { limitsCard.appendChild(el('div', 'mp-problem', 'Give both maxima as positive numbers in USDC per 1M tokens.')); return; }
-      mpSheetForSetup({ usepod: { limits: { in: inEl.value.trim(), out: outEl.value.trim() }, modelId: pin ? pin.model : '', prepaid: true }, reads, onClose: redraw });
-    });
-    line.appendChild(inL); line.appendChild(outL); line.appendChild(review);
-    limitsCard.appendChild(line);
-  });
-  limitsCard.appendChild(manage);
-  body.appendChild(limitsCard);
-  // Advanced collapsed.
-  const adv = el('details', 'mp-advanced');
-  adv.appendChild(el('summary', null, 'Advanced: payment lane, routing policy, feed provenance'));
-  const allBtn = el('button', 'btn', 'All UsePod controls'); allBtn.type = 'button';
-  allBtn.addEventListener('click', () => mpOpenRow('usepod'));
-  adv.appendChild(allBtn);
-  body.appendChild(adv);
-}
-async function mpDrawGuided(body, reads, st, redraw) {
-  const g = mpView.guided;
-  const steps = ['connect', 'model', 'spending', 'review'];
-  const chips = el('div', 'mp-steps');
-  /* Numbered progress, not tabs: the steps are done in order and are not clickable. */
-  steps.forEach((s, i) => chips.appendChild(el('span', 'mp-chip' + (s === g.step ? ' mp-now' : i < steps.indexOf(g.step) ? ' mp-done' : ''), (i + 1) + '. ' + (s === 'connect' ? 'Connect' : s === 'model' ? 'Model' : s === 'spending' ? 'Spending' : 'Review'))));
-  chips.setAttribute('aria-label', 'Step ' + (steps.indexOf(g.step) + 1) + ' of ' + steps.length);
-  body.appendChild(chips);
-  const stepBody = el('div', 'stack mp-guided');
-  body.appendChild(stepBody);
-  if (g.step === 'connect') {
-    if (st.connected) {
-      stepBody.appendChild(el('div', null, 'Connected — the token is saved and was accepted. It stays saved if you leave at any point.'));
-      const cont = el('button', 'btn primary', 'Continue'); cont.type = 'button';
-      cont.addEventListener('click', () => { g.step = 'model'; redraw(); });
-      stepBody.appendChild(cont);
-      return;
-    }
-    stepBody.appendChild(el('div', null, 'Paste your UsePod token (or the whole proxy URL). It is saved the moment it verifies — before anything else — and stays saved if you leave.'));
-    /* A secret is typed hidden and kept out of browser autofill, as in API Keys. */
-    const token = document.createElement('input'); token.type = 'password'; token.autocomplete = 'off'; token.spellcheck = false; token.className = 'inp mp-guided-token'; token.setAttribute('aria-label', 'UsePod token or proxy URL'); token.value = g.token;
-    const save = el('button', 'btn primary', 'Connect'); save.type = 'button';
-    const sayLine = el('div', 'subtle', '');
-    save.addEventListener('click', async () => {
-      const value = token.value.trim();
-      if (!value) { sayLine.textContent = 'Paste your UsePod token first.'; token.focus(); return; }
-      save.disabled = true; sayLine.textContent = 'Saving and verifying…';
-      let baseUrl = '';
-      let tokenValue = value;
-      const m = value.match(/^(https?:\/\/[^\/]+)\/proxy\/([^\/]+)\/v1$/);
-      if (m) { baseUrl = m[1]; tokenValue = m[2]; }
-      const r = await usepodPost('/api/settings/credentials', { provider: 'usepod', value: tokenValue, base_url: baseUrl || undefined });
-      if (!r.ok) { sayLine.textContent = 'Not saved — ' + (r.body && (r.body.error || r.body.code) || 'refused') + '.'; save.disabled = false; return; }
-      const t = await usepodPost('/api/cloud/test', { provider: 'usepod' });
-      sayLine.textContent = t.ok && t.body.state === 'ok' ? 'Connected — the token is saved and UsePod accepted it.' : 'Saved, but the test did not confirm — you can retry from the full controls.';
-      g.token = '';
-      g.step = 'model';
-      await usepodPost('/api/cloud/usepod/refresh', {});
-      redraw();
-    });
-    const line = el('div', 'inline'); line.appendChild(token); line.appendChild(save);
-    stepBody.appendChild(line); stepBody.appendChild(sayLine);
-    return;
-  }
-  if (g.step === 'model') {
-    stepBody.appendChild(el('div', null, 'Pick the model that answers. Paid models need their maximum prices and a budget — both come next.'));
-    const search = document.createElement('input'); search.type = 'search'; search.className = 'inp mp-guided-search'; search.setAttribute('aria-label', 'Search models'); search.placeholder = 'Search…';
-    const list = el('div', 'stack mp-picker');
-    const drawList = async () => {
-      list.textContent = '';
-      list.appendChild(el('div', 'subtle', 'Reading the catalog…'));
-      const j = await getJSON('/api/cloud/models?provider=usepod').catch(() => null);
-      list.textContent = '';
-      const rows = (j && j.models) || [];
-      if (!rows.length) { list.appendChild(el('div', 'subtle', 'No catalog yet — use Refresh in the full controls, then come back.')); return; }
-      const q = search.value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-      const shown = rows.filter((r) => !q || String(r.id).toLowerCase().replace(/[^a-z0-9]+/g, '').indexOf(q) !== -1).slice(0, 40);
-      shown.forEach((r) => {
-        const row = el('button', 'mp-model-row' + (r.id === g.modelId ? ' mp-picked' : ''), (r.name || r.id) + (r.free ? ' · free' : ' · paid ' + mpUsdcPerM(r.prompt_usd_per_m) + '/' + mpUsdcPerM(r.completion_usd_per_m) + ' USDC per 1M'));
-        row.type = 'button';
-        row.addEventListener('click', () => { g.modelId = r.id; g.modelName = r.name || r.id; g.prices = { in: mpUsdcPerM(r.prompt_usd_per_m), out: mpUsdcPerM(r.completion_usd_per_m) }; next.disabled = !g.modelId; drawList(); });
-        list.appendChild(row);
-      });
-      if (rows.length > shown.length) list.appendChild(el('div', 'subtle', (rows.length - shown.length) + ' more — keep typing to narrow.'));
-    };
-    search.addEventListener('input', drawList);
-    stepBody.appendChild(search); stepBody.appendChild(list);
-    drawList();
-    const next = el('button', 'btn primary', 'Continue'); next.type = 'button'; next.disabled = !g.modelId;
-    next.addEventListener('click', () => { g.step = 'spending'; redraw(); });
-    stepBody.appendChild(next);
-    return;
-  }
-  if (g.step === 'spending') {
-    stepBody.appendChild(el('div', null, 'Set the account-wide budget for paid UsePod requests. Amounts are ordinary USDC.'));
-    const amount = document.createElement('input'); amount.type = 'number'; amount.min = '0.000001'; amount.step = '0.000001'; amount.value = g.budgetUsdc || '3'; amount.className = 'inp mp-guided-budget'; amount.setAttribute('aria-label', 'Budget in USDC');
-    const mode = document.createElement('select'); mode.className = 'inp mp-guided-mode'; mode.setAttribute('aria-label', 'Budget type');
-    [['daily', 'Every 24 hours — renew while enabled'], ['total', 'Total — until used or disabled']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; mode.appendChild(o); });
-    mode.value = g.budgetMode;
-    const l1 = el('label', 'stack', 'Budget (USDC)'); l1.appendChild(amount);
-    const l2 = el('label', 'stack', 'Type'); l2.appendChild(mode);
-    const line = el('div', 'inline'); line.appendChild(l1); line.appendChild(l2);
-    stepBody.appendChild(line);
-    stepBody.appendChild(el('div', 'subtle', 'The example amount is a suggestion to review, never a pre-authorized default.'));
-    const next = el('button', 'btn primary', 'Review'); next.type = 'button';
-    next.addEventListener('click', () => {
-      g.budgetUsdc = amount.value; g.budgetMode = mode.value;
-      g.step = 'review'; redraw();
-    });
-    stepBody.appendChild(next);
-    return;
-  }
-  if (g.step === 'ready') {
-    stepBody.appendChild(el('div', null, 'Ready — the model is pinned, its maximum prices and the budget are saved. The overview shows the current state.'));
-    const done = el('button', 'btn primary', 'Back to overview'); done.type = 'button';
-    done.addEventListener('click', () => { mpView.pane = 'overview'; mpView.provider = ''; redraw(); });
-    stepBody.appendChild(done);
-    return;
-  }
-  // review
-  const facts = [['Model', g.modelName || g.modelId]];
-  if (g.prices) facts.push(['Maximum input and output prices', g.prices.in + ' / ' + g.prices.out + ' USDC per 1M tokens (rates; edit below)']);
-  facts.push(['Budget', g.budgetUsdc + ' USDC · ' + (g.budgetMode === 'total' ? 'total' : 'every 24 hours')]);
-  facts.push(['Payment', 'UsePod prepaid token balance']);
-  const kv = el('dl', 'kv'); facts.forEach(([k, v]) => { kv.appendChild(el('dt', null, k)); kv.appendChild(el('dd', null, String(v))); });
-  stepBody.appendChild(kv);
-  const limitsLine = el('div', 'inline');
-  const mk = (label, val) => { const i = document.createElement('input'); i.type = 'text'; i.inputMode = 'decimal'; i.className = 'inp mp-review-' + label; i.value = val; i.setAttribute('aria-label', 'Maximum ' + label + ' price'); const l = el('label', 'stack', 'Maximum ' + label + ' (USDC / 1M)'); l.appendChild(i); return l; };
-  limitsLine.appendChild(mk('input', g.prices ? g.prices.in : ''));
-  limitsLine.appendChild(mk('output', g.prices ? g.prices.out : ''));
-  stepBody.appendChild(limitsLine);
-  const turnOn = el('button', 'btn primary mp-guided-turnon', 'Turn on'); turnOn.type = 'button';
-  turnOn.addEventListener('click', () => {
-    const inEl = stepBody.querySelector('.mp-review-input'), outEl = stepBody.querySelector('.mp-review-output');
-    if (!/^\d{1,9}(\.\d{1,6})?$/.test(inEl.value.trim()) || !/^\d{1,9}(\.\d{1,6})?$/.test(outEl.value.trim())) { stepBody.appendChild(el('div', 'mp-problem', 'Give both maxima as positive numbers in USDC per 1M tokens.')); return; }
-    mpSheetForSetup({
-      pin: { model: g.modelId, provider: 'usepod' },
-      usepod: { modelId: g.modelId, limits: { in: inEl.value.trim(), out: outEl.value.trim() }, budget: { usdc: g.budgetUsdc, mode: g.budgetMode }, prepaid: true },
-      guided: true, reads,
-      onClose: async () => { g.step = 'ready'; g.active = false; await usepodPost('/api/cloud/usepod/refresh', {}); redraw(); },
-    });
-  });
-  stepBody.appendChild(turnOn);
-  stepBody.appendChild(el('div', 'subtle', 'One confirmation covers everything listed. Leaving before it saves the connection only — already-saved steps are kept and resumed.'));
-}
-
 function widgetLocalModels(stack) {
   const body = el('div', 'stack');
   stack.appendChild(body);
@@ -4092,19 +3575,6 @@ async function autoFallbackControl(body, openrouterCatalogue) {
   body.appendChild(el('div', 'subtle', 'When a turn runs on VOOL Auto and escalates to the cloud, this is the free model it may use. It is separate from the pin above and can never authorise a paid route.'));
 }
 
-/* --- UsePod: the marketplace provider's own panel. Everything on first paint comes from
-   GET /api/cloud/usepod/discovery, a CACHE-ONLY read the runtime answers from disk — opening
-   this panel contacts nobody. The one action that leaves this machine is Refresh, and its button
-   says where it goes before it goes: the public marketplace feed, plus (only if a token is
-   stored) that token's own model list and balance. No inference, no spend, no wallet.
-
-   Three honest-refusal facts are shown as they stand, not as we would like them: prices carry
-   their source and age (a stale or missing feed never reads as free), a balance is an
-   observation with its time (never a spending authority), and the two paid-dispatch dependencies
-   (a monetary authority for prepaid, a verified-network wallet authority for x402) are named
-   when absent, with the Settings door each belongs behind — a lane that will refuse says so
-   here, before a turn is attempted. */
-const USEPOD_DISCOVERY_URL = '/api/cloud/usepod/discovery';
 function modelSearchKey(value) { return String(value || '').normalize('NFKC').toLocaleLowerCase().replace(/[\s_\-\u2010-\u2015]+/g, ''); }
 function widgetModel(stack) {
   let browseProvider = '', searchText = '', drawRevision = 0;
@@ -4141,8 +3611,7 @@ function widgetModel(stack) {
       ]);
       if (revision !== drawRevision) return;
       const slots = new Set((credentials.credentials || []).map(c => c.name));
-      const walletLane = (connections.connections || []).some(c => c.id === 'cloud' && c.mode === 'accountless_x402');
-      providers = (registry.providers || []).filter(p => slots.has('llm.cloud.' + p.id) || (p.id === 'usepod' && walletLane));
+      providers = (registry.providers || []).filter(p => p.plugin_id || slots.has('llm.cloud.' + p.id));
     } catch (e) {
       body.appendChild(el('div', 'subtle', 'Could not read configured providers. Reopen Settings to retry.'));
       return;
@@ -4279,715 +3748,11 @@ function widgetModel(stack) {
   };
   draw();
 }
-const USEPOD_ORIGIN_DEFAULT = 'https://api.usepod.ai';
-function usepodTime(ts) {
-  const n = Number(ts);
-  if (!isFinite(n) || n <= 0) return 'unknown time';
-  try { return new Date(n * 1000).toLocaleString(); } catch (e) { return 'unknown time'; }
-}
-/* Exact integer microunits stay visible; the decimal is a display of the same number, never a
-   rounding the arithmetic relies on (server-side money is integer microunits only). */
-function usepodUsdc(microunits) {
-  const n = Number(microunits);
-  if (!isFinite(n)) return '?';
-  const sign = n < 0 ? '-' : '';
-  const abs = Math.abs(Math.round(n));
-  return sign + (abs / 1e6).toFixed(6);
-}
-// Decimal input is converted exactly once at the boundary; the money law still receives integers.
-function usepodAtomicAmount(value, asset) {
-  const decimals = asset === 'SOL' ? 9 : 6;
-  const text = String(value || '').trim();
-  if (!/^\d+(?:\.\d+)?$/.test(text)) return null;
-  const parts = text.split('.'), fraction = parts[1] || '';
-  if (fraction.length > decimals) return null;
-  const atomic = BigInt(parts[0]) * (10n ** BigInt(decimals)) + BigInt(fraction.padEnd(decimals, '0'));
-  return atomic > 0n && atomic <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(atomic) : null;
-}
-function usepodBudgetScope(facts) {
-  const asset = (facts || {}).asset || 'USDC';
-  if (!facts || !facts.budget_mode || facts.budget_mode === 'once') return 'ONE request, up to ' + usepodDisplayAmount((facts || {}).per_call_atomic, asset);
-  return 'All UsePod models and chats · ' + usepodDisplayAmount(facts.max_total_atomic, asset)
-    + (facts.budget_mode === 'daily' ? ' every 24 hours, renewing while enabled' : ' in total, until used or disabled')
-    + (facts.per_call_atomic == null ? '' : ' · Maximum per request: ' + usepodDisplayAmount(facts.per_call_atomic, asset));
-}
-function usepodDisplayAmount(atomic, asset) {
-  if (atomic == null || !Number.isSafeInteger(Number(atomic))) return '?';
-  return (Number(atomic) / (asset === 'SOL' ? 1e9 : 1e6)).toFixed(asset === 'SOL' ? 9 : 6).replace(/\.?0+$/, '') + ' ' + asset;
-}
-function usepodRate(price) {
-  if (!price) return null;
-  return usepodUsdc(price.input_microunits_per_million) + ' input / ' + usepodUsdc(price.output_microunits_per_million) + ' output USDC per 1M tokens';
-}
-async function usepodPost(path, body) {
+async function modelPost(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   const j = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, body: j || {} };
 }
-function widgetUsePod(stack) {
-  const spendingOnly = state.focusPart === 'spend';
-  const body = el('div', 'stack');
-  stack.appendChild(body);
-  const note = el('div', 'state idle usepod-note', '');
-  stack.appendChild(note);
-  const say = (cls, text) => { note.className = 'state ' + cls + ' usepod-note'; note.textContent = text; };
-
-  const draw = async () => {
-    body.textContent = '';
-    body.appendChild(el('div', 'empty', 'Reading the UsePod caches…'));
-    let d;
-    try { d = await getJSON(USEPOD_DISCOVERY_URL); }
-    catch (e) { body.textContent = ''; body.appendChild(el('div', 'empty', 'Unavailable — ' + e.message)); return; }
-    body.textContent = '';
-
-    /* -- how calls are paid: two distinct ways, never one blurred "UsePod". A funded token spends the UsePod account's
-       balance; accountless x402 is quoted per call and paid from your wallet after you approve it on the Crypto Pilot
-       card. The lane selector below switches between them too; this block says which one is in use. */
-    const usepodAmount = (atomic, unit) => {
-      const n = Number(atomic);
-      if (atomic == null || !isFinite(n)) return '?';
-      return usepodDisplayAmount(n, String(unit) === 'lamport' ? 'SOL' : 'USDC');
-    };
-    const payLane = d.lane || {};
-    const payAuth = (d.authorities || {}).payment || {};
-    const payCred = d.credential || {};
-    const payNets = payAuth.verified_networks || [];
-    body.appendChild(el('div', 'row-label', 'How calls are paid'));
-    const walletReady = !!(payAuth.installed && payNets.length);
-    const tokenReady = !!payCred.configured;
-    const inUse = (ready) => ready ? ' — in use' : ' — selected, not ready yet';
-    const payModes = el('div', 'stack usepod-pay-modes');
-    body.appendChild(payModes);
-    const useLane = async (transportMode, button) => {
-      button.disabled = true;
-      const { ok, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: payLane.protocol || 'openai', transport_mode: transportMode });
-      /* Wording only: the result says what is really true. A payment way with nothing behind it (no wallet
-         on a supported network, no stored token) is saved as the choice, not announced as working. */
-      const ready = transportMode === 'x402' ? walletReady : tokenReady;
-      say(ok ? 'saved' : 'failed', ok
-        ? (ready ? ('Calls are now paid by ' + (transportMode === 'x402' ? 'your wallet (x402)' : 'the funded token') + '.')
-          : (transportMode === 'x402' ? 'Saved. Wallet payments can start only once Crypto is on and a wallet on a supported network is ready.' : 'Saved. Token payments can start only once a UsePod token is stored.'))
-        : ('Not switched — ' + (j.error || j.code || 'refused') + '.'));
-      await draw();
-    };
-    const tokenCard = el('div', 'stack profile-item usepod-pay-mode');
-    tokenCard.setAttribute('data-mode', 'prepaid_token');
-    tokenCard.appendChild(el('div', 'row-label', 'Funded token (prepaid)' + (payLane.transport_mode !== 'x402' ? inUse(tokenReady) : '')));
-    tokenCard.appendChild(el('div', 'subtle', 'Each paid call spends the UsePod account balance behind your stored token. ' + (payCred.configured ? 'A token is stored.' : 'No token is stored yet (API Keys → UsePod).')));
-    if (payLane.transport_mode === 'x402') {
-      const useToken = el('button', 'btn usepod-use-prepaid', 'Pay with the funded token'); useToken.type = 'button';
-      useToken.addEventListener('click', () => useLane('prepaid_token', useToken));
-      tokenCard.appendChild(useToken);
-    }
-    payModes.appendChild(tokenCard);
-    const walletCard = el('div', 'stack profile-item usepod-pay-mode');
-    walletCard.setAttribute('data-mode', 'x402');
-    walletCard.appendChild(el('div', 'row-label', 'Wallet x402 (pay per call)' + (payLane.transport_mode === 'x402' ? inUse(walletReady) : '')));
-    walletCard.appendChild(el('div', 'subtle', 'Each call is quoted, waits for your approval on the Crypto Pilot card, and is paid from your wallet in USDC or SOL — no UsePod token needed.'));
-    walletCard.appendChild(el('div', null, payAuth.installed
-      ? ('Wallet authority ' + String(payAuth.label || '?') + ' · pays on: ' + (payNets.length ? payNets.join(', ') : 'no network now (turn Crypto on and finish a Crypto Pilot wallet on Solana Mainnet)'))
-      : 'No wallet payment authority is installed.'));
-    walletCard.appendChild(el('div', 'mono', 'Origin ' + String(d.origin || '?')));
-    if (!payCred.configured) {
-      const originLine = el('div', 'inline');
-      const originInput = document.createElement('input'); originInput.type = 'url'; originInput.className = 'inp usepod-accountless-origin';
-      originInput.setAttribute('aria-label', 'UsePod origin for accountless x402 (empty for the documented origin)');
-      const originBtn = el('button', 'btn usepod-origin-save', 'Use this origin'); originBtn.type = 'button';
-      originBtn.addEventListener('click', async () => {
-        originBtn.disabled = true;
-        const { ok, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: payLane.protocol || 'openai', transport_mode: payLane.transport_mode || 'prepaid_token', origin: originInput.value.trim() });
-        say(ok ? 'saved' : 'failed', ok ? ('Accountless calls now go to ' + String(j.origin || '?') + '.') : ('Origin not changed — ' + (j.error || j.code || 'refused') + '.'));
-        await draw();
-      });
-      originLine.appendChild(originInput); originLine.appendChild(originBtn);
-      walletCard.appendChild(originLine);
-      walletCard.appendChild(el('div', 'subtle', 'Leave it empty for the documented UsePod origin; another origin is only ever your explicit choice.'));
-    } else {
-      walletCard.appendChild(el('div', 'subtle', 'The origin belongs to the stored token and changes only when the token is saved again.'));
-    }
-    if (payLane.transport_mode !== 'x402') {
-      const useWallet = el('button', 'btn usepod-use-x402', 'Pay from the wallet (x402)'); useWallet.type = 'button';
-      useWallet.addEventListener('click', () => useLane('x402', useWallet));
-      walletCard.appendChild(useWallet);
-    }
-    payModes.appendChild(walletCard);
-
-    /* -- credential: configuration facts only. The stored token itself is never returned by the
-       runtime and has no field here to land in; the fingerprint is one-way over origin+token. */
-    body.appendChild(el('div', 'row-label', 'Credential'));
-    const cred = d.credential || {};
-    if (!cred.configured) {
-      body.appendChild(el('div', 'subtle',
-        'No UsePod token stored. Save one under API Keys (Model providers → UsePod): paste the token, or the whole proxy URL — the runtime splits them and stores only the token, sealed.'));
-    } else {
-      const kv = el('dl', 'kv');
-      const stateText = { configured_not_verified_here: 'stored, not verified in this view (Test asks UsePod once)', token_or_origin_unusable: 'stored, but the token or origin is not usable as configured' }[cred.state] || cred.state;
-      kv.appendChild(el('dt', null, 'Token')); kv.appendChild(el('dd', null, stateText + (cred.source ? ' · from ' + cred.source : '')));
-      kv.appendChild(el('dt', null, 'Origin'));
-      kv.appendChild(el('dd', 'mono', String(cred.origin || 'unknown') + (cred.origin_is_default === false ? ' (you chose this origin)' : '')));
-      if (cred.fingerprint) { kv.appendChild(el('dt', null, 'Fingerprint')); kv.appendChild(el('dd', 'mono', cred.fingerprint)); }
-      if (cred.token_shape) { kv.appendChild(el('dt', null, 'Token shape')); kv.appendChild(el('dd', null, String(cred.token_shape))); }
-      body.appendChild(kv);
-      const line = el('div', 'inline');
-      const test = el('button', 'btn usepod-test', 'Test'); test.type = 'button';
-      const st = el('span', 'subtle usepod-test-state', '');
-      test.addEventListener('click', async () => {
-        test.disabled = true; st.textContent = 'Asking UsePod once whether this token is accepted (a balance read; no inference, no spend)…';
-        const { ok, body: j } = await usepodPost('/api/cloud/test', { provider: 'usepod' });
-        st.textContent = j.state === 'ok' ? 'Connection verified — UsePod accepted the token.'
-          : (j.detail === 'unauthorized' || j.http_status === 401 || j.http_status === 403) ? 'UsePod rejected the token (HTTP ' + (j.http_status || '?') + ').'
-          : 'Could not reach UsePod — the token itself was not judged' + (j.detail ? ' (' + j.detail + ')' : '') + '.';
-        test.disabled = false;
-      });
-      line.appendChild(test); line.appendChild(st); body.appendChild(line);
-    }
-
-    /* -- balance: one observation with its time. Absent is named, never zero. */
-    const disc = d.credential_discovery || {};
-    const bal = disc.balance;
-    body.appendChild(el('div', 'row-label', 'Balance'));
-    if (!bal) {
-      body.appendChild(el('div', 'subtle', cred.configured
-        ? 'Not observed for this credential yet. Refresh reads it once (GET /proxy/<token>/balance; no inference, no spend).'
-        : 'Nothing to read without a stored token.'));
-    } else if (bal.state === 'reported') {
-      body.appendChild(el('div', null,
-        usepodUsdc(bal.usdc_balance_microunits) + ' USDC (' + bal.usdc_balance_microunits + ' µUSDC) — observed ' + usepodTime(bal.observed_at) + '. An observation, not a spending authority: concurrent use makes it stale immediately.'));
-    } else {
-      body.appendChild(el('div', null, 'Not reported (' + String(bal.state) + (bal.error_code ? ': ' + bal.error_code : '') + '). Missing is not zero.'));
-    }
-
-    /* -- marketplace snapshot: source, age, expiry. Refresh is the only network action on this panel. */
-    body.appendChild(el('div', 'row-label', 'Marketplace prices'));
-    const market = d.marketplace || {};
-    const marketLine = el('div', 'inline');
-    const refresh = el('button', 'btn usepod-refresh', 'Refresh from UsePod'); refresh.type = 'button';
-    const rst = el('span', 'subtle usepod-refresh-state', '');
-    refresh.addEventListener('click', async () => {
-      refresh.disabled = true; rst.textContent = 'Fetching the public marketplace feed' + (cred.configured ? ' and this credential\u2019s model list and balance' : '') + '…';
-      const { ok, body: j } = await usepodPost('/api/cloud/usepod/refresh', {});
-      if (!ok) { rst.textContent = 'Not refreshed — ' + (j.error || 'HTTP refused') + '.'; refresh.disabled = false; return; }
-      const m = j.marketplace || {}, c = j.credential || {};
-      /* The outcome goes on the persistent note: draw() below rebuilds this row, and a message
-         written into the row it destroys was never seen by anyone. */
-      say('saved', 'Refreshed: feed ' + String(m.state || '?') + (m.error_code ? ' (' + m.error_code + ')' : '') + ' · credential ' + String(c.state || '?') + '.');
-      await draw();
-    });
-    marketLine.appendChild(refresh); marketLine.appendChild(rst); body.appendChild(marketLine);
-    /* provenance() carries no `state` field when a snapshot exists -- only the no-cache view
-       does -- so presence is decided by the observation itself, not by a missing key. */
-    const hasSnapshot = !!market && (market.fetched_at != null || market.body_sha256 != null);
-    if (!hasSnapshot) {
-      body.appendChild(el('div', 'subtle', 'Never fetched here. No price is known, and none is invented: dispatch refuses (price_feed_unavailable) until a real feed is fetched.'));
-    } else {
-      const kv = el('dl', 'kv');
-      kv.appendChild(el('dt', null, 'Source')); kv.appendChild(el('dd', 'mono', String(market.source || market.origin || 'unknown')));
-      kv.appendChild(el('dt', null, 'Fetched')); kv.appendChild(el('dd', null, usepodTime(market.fetched_at) + ' · age ' + Math.max(0, Math.round(Number(market.age_seconds) || 0)) + 's of a ' + (market.ttl_seconds || '?') + 's TTL'));
-      if (market.stale) kv.appendChild(el('dd', null, 'STALE — dispatch refuses at stale prices until Refresh.'));
-      kv.appendChild(el('dt', null, 'Rows'));
-      kv.appendChild(el('dd', null, (market.row_count ?? '?') + ' received · ' + (market.readable_rows ?? '?') + ' usable · ' + (market.rejected_rows ?? '?') + ' rejected'));
-      if (market.fixture_label) { kv.appendChild(el('dt', null, 'Fixture')); kv.appendChild(el('dd', null, String(market.fixture_label))); }
-      kv.appendChild(el('dt', null, 'Unit')); kv.appendChild(el('dd', null, String(market.unit || '?') + ' (' + String(market.currency || '?') + ')'));
-      body.appendChild(kv);
-      body.appendChild(el('div', 'subtle', 'Snapshot body ' + String(market.body_sha256 || '').slice(0, 16) + '… — every approved bound names the snapshot it was approved against.'));
-    }
-
-    /* -- paid-dispatch dependencies, as they stand. A missing authority is a fact with a door,
-       not a gap to paper over: the lane still selects, and its card says it will refuse. */
-    const auth = d.authorities || {};
-    body.appendChild(el('div', 'row-label', 'Paid-dispatch dependencies'));
-    const money = (auth.monetary || {});
-    const pay = (auth.payment || {});
-    const depLine = (ok2, label, have, missing) => el('div', null,
-      (ok2 ? '✓ ' : '✗ ') + label + ' — ' + (ok2 ? have : missing));
-    /* The money LAW is installed once merged; the operative facts for the operator are the
-       grants (what may be spent) and the projection (what has been). A test double says so. */
-    const moneyLabel = String(money.label || '?');
-    const grants = money.grants || [];
-    const grantBits = grants.map(g => String(g.grant_id).slice(0, 14) + '… up to ' + usepodUsdc(g.per_operation_max_atomic) + ' USDC/call');
-    body.appendChild(depLine(!!money.installed, 'Monetary authority (the money law)',
-      moneyLabel.startsWith('test_double:')
-        ? 'a labelled TEST DOUBLE is installed (' + moneyLabel + ') — not real money integration'
-        : 'installed: ' + moneyLabel + (grants.length
-            ? '. Active spend grants: ' + grantBits.join(' · ')
-            : '. NO active spend grant for UsePod — every paid turn refuses (MONEY_AUTHORITY_INVALID) until an operator grants one.'),
-      moneyLabel.startsWith('unavailable:')
-        ? 'none integrated. Every prepaid dispatch is refused before anything is sent. This is the monetary-budgets integration — Settings → Budgets.'
-        : 'Spending caps come from operator grants (the money law), not from route approval alone.'));
-    const payNetworks = pay.verified_networks || [];
-    body.appendChild(depLine(!!pay.installed && payNetworks.length > 0, 'Wallet payment authority (x402 signing)',
-      'installed: ' + String(pay.label || '?') + (String(pay.label || '').startsWith('test_double:') ? ' (a labelled TEST DOUBLE, not a real wallet)' : '') + '; pays on: ' + payNetworks.join(', '),
-      pay.installed
-        ? 'installed (' + String(pay.label || '?') + ') but it pays on no network now: turn Crypto on, choose Mainnet and finish a Crypto Pilot wallet on Solana Mainnet. Accountless x402 is refused at the pick until then (wallet_payment_network_unverified) — Settings → Wallet.'
-        : 'none integrated. Accountless x402 is refused before any reservation or payment (wallet_payment_authority_unavailable) — Settings → Wallet.'));
-
-    /* -- trusted spend approval: the user's consent bridge. Proposing registers a PENDING
-       approval in the SAME approval store the tool gate uses; the operator allows or denies it
-       through the ordinary approval surface; confirming mints the grant from the facts shown
-       here (server-derived account/asset/models/routes; the operator chooses only ceilings).
-       Route approval above bounds what a dispatch may cost; this consents to what may be
-       SPENT. Every cap field is integer µUSDC. */
-    if (spendingOnly) body.textContent = '';
-    if (spendingOnly) {
-      /* The decision, readable in one place: provider, model(s), the current price, the balance
-         the money law will judge, the maximum this approval allows, how long it is valid and its
-         actual scope (ONE request). Ordinary USDC; integer units and fingerprints stay in the
-         approval details below. Nothing here is authority -- it is what the operator decides on. */
-      const summary = el('div', 'stack usepod-spend-summary');
-      summary.appendChild(el('div', 'row-label', '1. Your UsePod account'));
-      const kv = el('dl', 'kv');
-      const laneMode = String((d.lane || {}).transport_mode || 'prepaid_token');
-      kv.appendChild(el('dt', null, 'Provider')); kv.appendChild(el('dd', null, 'UsePod — ' + (laneMode === 'x402' ? 'wallet x402, paid per call' : 'prepaid token balance')));
-      const bal = (d.credential_discovery || {}).balance;
-      kv.appendChild(el('dt', null, 'Balance'));
-      const balanceLine = el('dd', 'usepod-spend-balance');
-      if (bal && bal.state === 'reported') {
-        const age = bal.observed_at ? Math.max(0, Math.round(Date.now() / 1000 - Number(bal.observed_at))) : null;
-        balanceLine.textContent = usepodDisplayAmount(bal.usdc_balance_microunits, 'USDC') + (age == null ? '' : (age < 60 ? ' — checked just now' : ' — checked ' + Math.round(age / 60) + ' min ago'))
-          + (age != null && age > 900 ? ' · older than 15 minutes; it is re-read before sending' : '');
-      } else if (bal) {
-        balanceLine.textContent = 'Not verified (' + String(bal.state) + (bal.http_status ? ', HTTP ' + bal.http_status : (bal.error_code ? ', ' + bal.error_code : '')) + ') — sending is refused until UsePod confirms a balance.';
-      } else {
-        balanceLine.textContent = 'Not read yet — it is read before your first request.';
-      }
-      kv.appendChild(balanceLine);
-      summary.appendChild(kv);
-      const checkLine = el('div', 'inline');
-      const checkBtn = el('button', 'btn usepod-balance-check', 'Check balance now'); checkBtn.type = 'button';
-      const checkState = el('span', 'subtle usepod-balance-check-state', '');
-      checkBtn.addEventListener('click', async () => {
-        checkBtn.disabled = true; checkState.textContent = 'Reading the balance once (no inference, no spend)…';
-        const { ok, body: j } = await usepodPost('/api/cloud/usepod/balance', { max_age_seconds: 0 });
-        say(ok && j.state === 'reported' ? 'saved' : 'failed', ok && j.state === 'reported'
-          ? 'Balance ' + usepodDisplayAmount(j.usdc_balance_microunits, 'USDC') + ' confirmed by UsePod.'
-          : 'Balance not verified — ' + String(j.state || j.error || 'refused') + (j.http_status ? ' (HTTP ' + j.http_status + ')' : '') + '.');
-        await draw();
-      });
-      checkLine.appendChild(checkBtn); checkLine.appendChild(checkState); summary.appendChild(checkLine);
-      body.appendChild(summary);
-    }
-    body.appendChild(el('div', 'row-label', spendingOnly ? '2. Choose your budget' : 'UsePod spending approval'));
-    if (spendingOnly && !payCred.configured && payLane.transport_mode !== 'x402') {
-      body.appendChild(el('p', null, 'Connect your funded UsePod token first. It stays on this device.'));
-      const connect = el('button', 'btn primary', 'Connect UsePod');
-      connect.addEventListener('click', () => { location.hash = '#keys'; });
-      body.appendChild(connect); return;
-    }
-    const approvalBox = el('div', 'stack usepod-spend-approval');
-    body.appendChild(approvalBox);
-    const drawApproval = async () => {
-      approvalBox.textContent = '';
-      const consent = d.spend_approval;
-      if (consent && consent.facts && consent.state) {
-        const facts = consent.facts;
-        const kv = el('dl', 'kv');
-        const headline = {
-          pending: 'Awaiting YOUR approval — Allow or Deny it here',
-          approved: 'You approved this budget; finish enabling it below',
-          denied: 'You DENIED this consent; nothing was enabled',
-          expired: 'Previous approval expired. Choose a new budget below.',
-          minted: consent.grant && consent.grant.expired ? 'Spending approval expired — allow a fresh budget below' : (facts.budget_mode && facts.budget_mode !== 'once' ? (consent.grant && consent.grant.state === 'revoked' ? 'Budget disabled' : 'UsePod budget enabled') : 'One paid call was enabled by this consent; remaining availability is checked before sending'),
-          invalid: 'This consent record is incomplete; it cannot be used',
-        }[consent.state] || consent.state;
-        kv.appendChild(el('dt', null, 'Consent')); kv.appendChild(el('dd', null, headline));
-        if (consent.state !== 'minted' && facts && Object.keys(facts).length) {
-          kv.appendChild(el('dt', null, 'Exactly')); kv.appendChild(el('dd', null, usepodBudgetScope(facts)));
-          kv.appendChild(el('dt', null, 'Account')); kv.appendChild(el('dd', 'mono', String(facts.account)));
-          kv.appendChild(el('dt', null, 'Principal asset')); kv.appendChild(el('dd', null, String(facts.asset) + ' on ' + String(facts.network)));
-          if (facts.x402) {
-            /* The fee rail is a SEPARATE monetary fact the operator consents to. */
-            kv.appendChild(el('dt', null, 'Fee asset')); kv.appendChild(el('dd', null, String(facts.x402.fee_asset) + ' on ' + String(facts.x402.fee_network) + ' — up to ' + usepodAmount(facts.x402.fee_max_atomic, String(facts.x402.fee_asset) === 'SOL' ? 'lamport' : 'usdc_microunit') + ' per call'));
-          }
-          if (facts.expiry_epoch) {
-            kv.appendChild(el('dt', null, 'Spending window ends'));
-            kv.appendChild(el('dd', null, new Date(Number(facts.expiry_epoch) * 1000).toLocaleString()));
-          }
-          kv.appendChild(el('dt', null, 'Models')); kv.appendChild(el('dd', 'mono', (facts.models || []).join(', ') || (facts.budget_mode && facts.budget_mode !== 'once' ? 'All UsePod models' : 'None')));
-        }
-        if (consent.grant) {
-          kv.appendChild(el('dt', null, 'Grant'));
-          kv.appendChild(el('dd', 'mono', String(consent.grant.grant_id) + ' · ' + String(consent.grant.state)));
-        }
-        if (spendingOnly) {
-          approvalBox.appendChild(el('div', 'row-label', headline));
-          approvalBox.appendChild(el('div', null, usepodBudgetScope(facts)));
-          if (facts.x402) approvalBox.appendChild(el('div', null, 'Network fee: up to ' + usepodAmount(facts.x402.fee_max_atomic, String(facts.x402.fee_asset) === 'SOL' ? 'lamport' : 'usdc_microunit')));
-          const details = el('details'); details.appendChild(el('summary', null, 'Approval details')); details.appendChild(kv); approvalBox.appendChild(details);
-        } else approvalBox.appendChild(kv);
-        if (consent.grant && consent.grant.kind === 'provider_budget' && consent.grant.state === 'active') {
-          const remaining = consent.grant.headroom || {};
-          approvalBox.appendChild(el('div', null, 'Remaining budget: ' + usepodDisplayAmount(remaining.principal_left_atomic, 'USDC')
-            + (consent.grant.renews_at ? ' · resets ' + usepodTime(consent.grant.renews_at) : '')));
-          const disable = el('button', 'btn danger usepod-budget-disable', 'Disable UsePod budget');
-          disable.addEventListener('click', async () => {
-            disable.disabled = true;
-            const result = await usepodPost('/api/money/grants/revoke', {grant_id: consent.grant.grant_id, reason:'Disabled in UsePod Settings'});
-            say(result.ok ? 'saved' : 'failed', result.ok ? 'Budget disabled. No new paid requests are authorized.' : 'Could not disable budget.'); await draw();
-          }); approvalBox.appendChild(disable);
-        }
-        if (consent.state === 'pending') {
-          /* The operator's OWN Allow/Deny, through the same trusted resolution door the chat
-             approval buttons use. Visible controls; denial mints nothing. */
-          const line = el('div', 'inline');
-          const allowBtn = el('button', 'btn primary usepod-spend-allow', facts.budget_mode && facts.budget_mode !== 'once' ? 'Approve UsePod budget' : (spendingOnly ? 'Approve one paid call' : 'Allow')); allowBtn.type = 'button';
-          const denyBtn = el('button', 'btn danger usepod-spend-deny', 'Deny'); denyBtn.type = 'button';
-          const ast = el('span', 'subtle usepod-spend-allow-state', '');
-          let resolving = false;
-          const resolve = async (decision) => {
-            if (resolving) return; resolving = true;
-            allowBtn.disabled = true; denyBtn.disabled = true; ast.textContent = 'Recording your ' + decision + '…';
-            try {
-            const r = await fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'resolve_approval', approval_id: consent.approval_id, decision: decision, session_id: 'openclaw:settings-operator' }) });
-            const j = await r.json().catch(() => ({}));
-            ast.textContent = r.ok ? ('Consent ' + decision + 'ed.') : ('Not recorded — ' + (j.error || 'HTTP ' + r.status) + '.');
-            if (r.ok && decision === 'allow') {
-              const result = await usepodPost('/api/cloud/usepod/spend-approval/confirm', { approval_id: consent.approval_id });
-              say(result.ok ? 'saved' : 'failed', result.ok ? 'Budget enabled. Return to chat to send; eligible tasks already queued can start automatically.' : 'Approval recorded, but enabling failed — ' + (result.body.error || 'retry below') + '.');
-            }
-            if (!r.ok) say('failed', 'Approval not recorded — ' + (j.error || 'HTTP ' + r.status) + '.');
-            await draw();
-            } catch (e) {
-              say('failed', 'Could not finish this approval. Checking its saved state — ' + e.message);
-              await draw();
-            } finally { resolving = false; allowBtn.disabled = false; denyBtn.disabled = false; }
-          };
-          allowBtn.addEventListener('click', () => resolve('allow'));
-          denyBtn.addEventListener('click', () => resolve('deny'));
-          line.appendChild(allowBtn); line.appendChild(denyBtn); line.appendChild(ast);
-          approvalBox.appendChild(line);
-          return;
-        }
-        if (consent.state === 'approved') {
-          const line = el('div', 'inline');
-          const confirmBtn = el('button', 'btn primary usepod-spend-confirm', 'Enable approved budget'); confirmBtn.type = 'button';
-          const cst = el('span', 'subtle usepod-spend-confirm-state', '');
-          confirmBtn.addEventListener('click', async () => {
-            confirmBtn.disabled = true; cst.textContent = 'Enabling…';
-            const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/confirm', { approval_id: consent.approval_id });
-            /* The outcome rides the persistent note: the redraw below replaces this branch. */
-            if (ok) say('saved', 'Enabled: ' + String(j.grant_id) + (j.idempotent ? ' (already enabled)' : '') + '. ' + usepodBudgetScope(facts));
-            else say('failed', 'Not enabled — ' + (j.error || 'refused') + '.');
-            await draw();
-          });
-          line.appendChild(confirmBtn); line.appendChild(cst); approvalBox.appendChild(line);
-          return;
-        }
-        /* expired, invalid, denied and a used (or revoked) mint are all dead ends for THIS
-           consent: the only recovery is a FRESH proposal, which needs a NEW explicit Allow. */
-        if (consent.state !== 'pending' && facts.x402) {
-          const line = el('div', 'inline');
-          const againBtn = el('button', 'btn usepod-spend-propose-again', spendingOnly ? 'Review a new approval' : 'Enable one paid call — start a fresh approval'); againBtn.type = 'button';
-          const ast2 = el('span', 'subtle usepod-spend-again-state', '');
-          againBtn.addEventListener('click', async () => {
-            againBtn.disabled = true; ast2.textContent = 'Requesting a fresh approval…';
-            /* The ceilings the expired consent named are pre-filled as the starting point, not
-               carried as authority: the operator re-reads and re-allows everything. */
-            const per = facts && facts.per_call_atomic ? String(facts.per_call_atomic) : '';
-            const tot = facts && facts.max_total_atomic ? String(facts.max_total_atomic) : '';
-            const again = { per_call_atomic: parseInt(per, 10) || 0, max_total_atomic: parseInt(tot, 10) || 0 };
-            if (facts && facts.x402 && facts.asset) again.asset = String(facts.asset);
-            const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/propose', again);
-            if (!ok) { ast2.textContent = 'Not proposed — ' + (j.error || 'refused') + '.'; againBtn.disabled = false; return; }
-            say('saved', 'Fresh approval requested. Allow or deny it above — nothing is enabled until you do.');
-            await draw();
-          });
-          line.appendChild(againBtn); line.appendChild(ast2); approvalBox.appendChild(line);
-        }
-        /* A dead end for THIS consent is not the end of consenting: the form below proposes fresh ceilings (and, for
-           accountless x402, the asset) instead of repeating the old ones. */
-      }
-      const line = el('div', 'inline');
-      const perCall = document.createElement('input'); perCall.type = 'number'; perCall.min = '0.000001'; perCall.step = '0.000001'; perCall.placeholder = 'e.g. 3'; perCall.className = 'inp usepod-spend-percall'; perCall.setAttribute('aria-label', 'Maximum for this request');
-      const total = document.createElement('input'); total.type = 'number'; total.min = '0.000001'; total.step = '0.000001'; total.placeholder = 'e.g. 3'; total.className = 'inp usepod-spend-total'; total.setAttribute('aria-label', 'Total spending limit');
-      const hours = document.createElement('input'); hours.type = 'number'; hours.min = '1'; hours.max = '720'; hours.value = '24'; hours.className = 'inp usepod-spend-hours'; hours.setAttribute('aria-label', 'Approval lifetime in hours');
-      const proposeBtn = el('button', 'btn primary usepod-spend-propose', 'Review budget'); proposeBtn.type = 'button';
-      const pst = el('span', 'subtle usepod-spend-propose-state', '');
-      const accountlessLane = String((d.lane || {}).transport_mode || '') === 'x402';
-      const assetSelect = el('select', 'inp usepod-spend-asset'); assetSelect.setAttribute('aria-label', 'Asset this consent pays in');
-      [['USDC', 'USDC'], ['SOL', 'SOL']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; assetSelect.appendChild(o); });
-      const budgetMode = el('select', 'inp usepod-budget-mode'); budgetMode.setAttribute('aria-label', 'Budget type');
-      [['daily','Every 24 hours — renew while enabled'],['total','Total budget — until used or disabled']].forEach(([v,t])=>{const o=el('option',null,t);o.value=v;budgetMode.appendChild(o);});
-      budgetMode.value = 'daily';
-      const unitHint = el('span', 'subtle usepod-spend-unit', 'Amounts in USDC');
-      assetSelect.addEventListener('change', () => {
-        const asset = assetSelect.value === 'SOL' ? 'SOL' : 'USDC';
-        unitHint.textContent = 'Amounts in ' + asset;
-        perCall.min = total.min = perCall.step = total.step = asset === 'SOL' ? '0.000000001' : '0.000001';
-      });
-      proposeBtn.addEventListener('click', async () => {
-        proposeBtn.disabled = true; pst.textContent = 'Registering the approval…';
-        const asset = accountlessLane && assetSelect.value === 'SOL' ? 'SOL' : 'USDC';
-        const tot = usepodAtomicAmount(total.value || perCall.value, asset), per = usepodAtomicAmount(perCall.value || total.value, asset), hrs = Number(hours.value);
-        if (!per || !tot || (accountlessLane && (!Number.isInteger(hrs) || hrs < 1 || hrs > 720))) {
-          pst.textContent = accountlessLane ? 'Enter a positive amount in ' + asset + ' and a validity of 1–720 whole hours.' : 'Enter a positive budget in USDC.'; proposeBtn.disabled = false; return;
-        }
-        const proposal = { per_call_atomic: per, max_total_atomic: tot, expiry_epoch: Math.floor(Date.now() / 1000) + hrs * 3600 };
-        if (accountlessLane) proposal.asset = assetSelect.value;
-        else { proposal.budget_mode = budgetMode.value; proposal.expiry_epoch = 0; }
-        const { ok, body: j } = await usepodPost('/api/cloud/usepod/spend-approval/propose', proposal);
-        if (!ok) { pst.textContent = 'Not proposed — ' + (j.error || 'refused') + '.'; proposeBtn.disabled = false; return; }
-        say('saved', 'Review the budget above, then approve or deny it. Nothing is enabled yet.');
-        await draw();
-        /* The redraw replaced the form; a refusal written into it would never be seen. */
-      });
-      if (accountlessLane) line.appendChild(assetSelect);
-      line.appendChild(unitHint);
-      const field = (text, input) => { const label = el('label', 'stack', text); label.appendChild(input); line.appendChild(label); };
-      if (!accountlessLane) field('Budget type', budgetMode);
-      field(accountlessLane ? 'Total spending limit' : 'Budget (USDC)', total);
-      const advanced = el('details', 'usepod-budget-advanced'); advanced.appendChild(el('summary', null, 'Advanced limits'));
-      const perLabel = el('label', 'stack', 'Maximum per request (USDC; optional)'); perLabel.appendChild(perCall); advanced.appendChild(perLabel); line.appendChild(advanced);
-      if (accountlessLane) field('Valid for (hours)', hours);
-      line.appendChild(proposeBtn); line.appendChild(pst);
-      if (spendingOnly && consent && consent.facts) {
-        const change = el('details'); change.open = !accountlessLane && (!consent.facts.budget_mode || consent.facts.budget_mode === 'once' || consent.state !== 'minted' || (consent.grant && consent.grant.state !== 'active')); change.appendChild(el('summary', null, 'Change spending limits')); change.appendChild(line); approvalBox.appendChild(change);
-      } else approvalBox.appendChild(line);
-      approvalBox.appendChild(el('div', 'subtle', accountlessLane ? 'This approval covers one wallet-paid request.' : 'One approval covers all UsePod models and chats on this prepaid account. A 24-hour budget renews while enabled; a total budget stops when used. New limits replace the previous budget. Disable it here at any time. Price limits still apply; eligible tasks already queued can start automatically.'));
-    };
-    drawApproval();
-    const waitBox = el('details', 'stack usepod-price-wait'); waitBox.appendChild(el('summary', null, 'Advanced: wait for a lower price'));
-    waitBox.appendChild(el('p', 'subtle', 'Save a start price for a model, then select it in chat and send your task. VOOL keeps the task queued until both prices fit. Keep VOOL open; pending tasks survive a restart. You can cancel from the chat. Optional: allow a price rise during this task. Above that limit VOOL pauses before the next model call and continues automatically when prices fit. An already-sent call finishes. Keep VOOL open while paused; closing it does not preserve an active model-call continuation. Every call still requires your available budget.'));
-    const waitModel = el('input', 'inp usepod-wait-model'); waitModel.placeholder = 'Model ID, e.g. gpt-6-astra'; waitModel.setAttribute('aria-label','Price-wait model');
-    const waitInput = el('input', 'inp usepod-wait-input'); waitInput.type='number';waitInput.min='0.000001';waitInput.step='0.000001';waitInput.placeholder='e.g. 0.8';
-    const waitOutput = el('input', 'inp usepod-wait-output'); waitOutput.type='number';waitOutput.min='0.000001';waitOutput.step='0.000001';waitOutput.placeholder='e.g. 4';
-    const waitTolerance = el('input', 'inp usepod-wait-tolerance');waitTolerance.type='number';waitTolerance.min='0';waitTolerance.max='1000';waitTolerance.step='1';waitTolerance.placeholder='e.g. 10';
-    const waitInterval = el('input', 'inp usepod-wait-interval');waitInterval.type='number';waitInterval.min='1';waitInterval.max='60';waitInterval.value='5';
-    const waitField=(label,input)=>{const field=el('label','stack',label);field.appendChild(input);waitBox.appendChild(field);};
-    waitField('Model',waitModel);waitField('Maximum input price · USDC per 1M tokens',waitInput);waitField('Maximum output price · USDC per 1M tokens',waitOutput);waitField('Check every (minutes)',waitInterval);waitField('Allowed price rise during task (%) — blank means budget only',waitTolerance);
-    const waitSave=el('button','btn usepod-wait-save','Save start-price rule');
-    waitSave.addEventListener('click',async()=>{waitSave.disabled=true;const result=await usepodPost('/api/cloud/usepod/price-wait/save',{model_id:waitModel.value.trim(),max_input_usdc:waitInput.value,max_output_usdc:waitOutput.value,poll_minutes:Number(waitInterval.value),active_price_tolerance_percent:waitTolerance.value.trim()===''?null:Number(waitTolerance.value)});say(result.ok?'saved':'failed',result.ok?'Start-price rule saved. No task or payment was sent.':(result.body.error||'Could not save the rule'));if(result.ok)await draw();waitSave.disabled=false;});waitBox.appendChild(waitSave);
-    Object.entries(d.approved_routes || {}).forEach(([id,bound])=>{if(!bound.wait_poll_seconds)return;const row=el('div','stack');row.appendChild(el('div',null,id+' · input '+bound.max_input_usdc_per_million+' / output '+bound.max_output_usdc_per_million+' USDC per 1M · every '+bound.wait_poll_seconds/60+' minutes' + (bound.active_price_tolerance_percent == null ? ' · active task limited by budget' : ' · pause above +'+bound.active_price_tolerance_percent+'%')));const stop=el('button','btn','Remove price rule');stop.addEventListener('click',async()=>{await usepodPost('/api/cloud/usepod/forget-route',{model_id:id});say('saved','Price rule removed. Previously queued tasks remain paused; cancel them in chat. Select the model again to approve current prices.');await draw();});row.appendChild(stop);waitBox.appendChild(row);});
-    body.appendChild(waitBox);
-    if (spendingOnly) {
-      body.appendChild(el('div', 'subtle', 'Your chat and draft are unchanged. Return to VOOL to send your draft. Tasks you already queued can start when their price and budget conditions are met.'));
-      $('#pane').scrollTop = 0;
-      return;
-    }
-
-    /* -- paid calls waiting for an answer: an accountless call that was paid but whose answer never arrived (a lost
-       answer, or the app stopping mid-call). Resume sends the recorded request and payment proof once more: never a
-       new quote, never a second payment. */
-    body.appendChild(el('div', 'row-label', 'Paid calls waiting for an answer'));
-    const unresolvedBox = el('div', 'stack usepod-x402-unresolved');
-    body.appendChild(unresolvedBox);
-    getJSON('/api/cloud/usepod/x402/unresolved').then(u => {
-      const ops = (u && u.operations) || [];
-      if (!ops.length) { unresolvedBox.appendChild(el('div', 'subtle', 'None: every paid call has its answer.')); return; }
-      ops.forEach(op => {
-        const row = el('div', 'inline usepod-x402-operation');
-        row.setAttribute('data-operation', String(op.operation_id));
-        row.appendChild(el('span', 'mono', String(op.model_id || '?') + ' · ' + String(op.state || '?').replace(/_/g, ' ') + ' · liability ' + String(op.liability_state || '?') + ' · signature ' + String(op.proof_signature || '').slice(0, 10) + '…'));
-        if (op.resumable) {
-          const resumeBtn = el('button', 'btn usepod-x402-resume', 'Resume'); resumeBtn.type = 'button';
-          resumeBtn.addEventListener('click', async () => {
-            resumeBtn.disabled = true;
-            const { ok, body: j } = await usepodPost('/api/cloud/usepod/x402/resume', { operation_id: op.operation_id });
-            const answer = String(j.answer || '');
-            say(ok ? 'saved' : 'failed', ok
-              ? ('Resumed: the paid call answered — ' + answer.slice(0, 160) + (answer.length > 160 ? '…' : '') + ' (' + String(j.settlement_recording || '').replace(/_/g, ' ') + ')')
-              : ('Not resumed — ' + (j.code || j.error || 'refused') + (j.http_status ? ' (provider HTTP ' + j.http_status + ')' : '') + '. Nothing was paid again.'));
-            await draw();
-          });
-          row.appendChild(resumeBtn);
-        }
-        unresolvedBox.appendChild(row);
-      });
-    }).catch(e => { unresolvedBox.appendChild(el('div', 'subtle', 'Unavailable — ' + e.message)); });
-
-    /* -- money state: what has actually been reserved, settled or held unknown, from the
-       owner-local money projection. A read; it grants nothing. */
-    body.appendChild(el('div', 'row-label', 'Money state (reserved · settled · unknown)'));
-    const moneyState = el('div', 'stack usepod-money-state');
-    body.appendChild(moneyState);
-    getJSON('/api/money/projection?provider_id=usepod').then(p => {
-      const proj = (p && p.projection) || {};
-      const usdcBuckets = (buckets) => Object.entries(buckets || {}).map(([k, v]) => {
-        const parts = [];
-        if (Number(v.settled_exact) > 0) parts.push('settled ' + usepodUsdc(v.settled_exact));
-        if (Number(v.settled_bounded) > 0) parts.push('settled ≤' + usepodUsdc(v.settled_bounded));
-        if (Number(v.held) > 0) parts.push('held ' + usepodUsdc(v.held));
-        if (Number(v.unknown) > 0) parts.push('unknown ' + usepodUsdc(v.unknown));
-        return parts.length ? k + ': ' + parts.join(', ') : '';
-      }).filter(Boolean);
-      const lines = [].concat(usdcBuckets(proj.inference_expense), usdcBuckets(proj.provider_credit_debits));
-      if (lines.length) lines.forEach(l => moneyState.appendChild(el('div', 'subtle mono', l)));
-      else moneyState.appendChild(el('div', 'subtle', 'No UsePod money has moved through the money law yet.'));
-      const unknown = (proj.unknown_liabilities || []).length;
-      if (unknown) moneyState.appendChild(el('div', 'state failed', unknown + ' liability(ies) held UNKNOWN — they keep their maximum until evidence closes them; never read as free.'));
-    }).catch(() => { moneyState.appendChild(el('div', 'subtle', 'The money projection is not readable right now.')); });
-
-    /* -- lane: the wire protocol and how calls are paid. Separate from price approvals on purpose. */
-    body.appendChild(el('div', 'row-label', 'Lane: protocol & payment transport'));
-    const lane = d.lane || {};
-    const laneLine = el('div', 'inline');
-    const proto = el('select', 'inp usepod-protocol'); proto.setAttribute('aria-label', 'UsePod wire protocol');
-    [['openai', 'OpenAI-compatible (chat completions)'], ['anthropic', 'Anthropic-compatible (messages)']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; if (lane.protocol === v) o.selected = true; proto.appendChild(o); });
-    const transport = el('select', 'inp usepod-transport'); transport.setAttribute('aria-label', 'UsePod payment transport');
-    [['prepaid_token', 'Prepaid (token in the proxy URL)'], ['x402', 'Accountless x402 (pay per call)']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; if (lane.transport_mode === v) o.selected = true; transport.appendChild(o); });
-    const laneBtn = el('button', 'btn usepod-lane-save', 'Save lane'); laneBtn.type = 'button';
-    const lst = el('span', 'subtle usepod-lane-state', '');
-    laneBtn.addEventListener('click', async () => {
-      laneBtn.disabled = true; lst.textContent = 'Saving…';
-      const { ok: ok2, body: j } = await usepodPost('/api/cloud/usepod/lane', { protocol: proto.value, transport_mode: transport.value });
-      if (!ok2) { lst.textContent = 'Not saved — ' + (j.error || j.code || 'refused') + '.'; laneBtn.disabled = false; return; }
-      say('saved', 'Lane saved; ' + ((j.refreshed_lanes || []).length) + ' registered lane(s) refreshed.');
-      await draw();
-    });
-    laneLine.appendChild(proto); laneLine.appendChild(transport); laneLine.appendChild(laneBtn); laneLine.appendChild(lst);
-    body.appendChild(laneLine);
-    const laneWarn = el('div', 'subtle usepod-lane-warn', '');
-    const syncLaneWarn = () => {
-      const hasGrant = (money.grants || []).length > 0;
-      laneWarn.textContent = transport.value === 'x402' && !pay.installed
-        ? 'x402 selected, but no wallet payment authority is integrated: x402 turns refuse at the pick — before any reservation, quote or payment — until one is (Settings → Wallet).'
-        : transport.value === 'x402' && !(pay.verified_networks || []).length
-          ? 'x402 selected, but the wallet pays on no network now: x402 turns refuse at the pick (wallet_payment_network_unverified) — before any reservation, quote or payment — until Crypto is on with a ready Crypto Pilot wallet on Solana Mainnet (Settings → Wallet).'
-        : transport.value === 'prepaid_token' && money.installed && !hasGrant && !String(money.label || '').startsWith('test_double:')
-          ? 'Prepaid selected on the money law, but no spend grant exists yet: paid turns refuse with MONEY_AUTHORITY_INVALID until an operator grants one.'
-          : 'Protocol and transport do not change prices; an approved route bound survives a lane change.';
-    };
-    transport.addEventListener('change', syncLaneWarn);
-    syncLaneWarn();
-    body.appendChild(laneWarn);
-
-    /* -- routing policy: what dispatch will ask for, and the ceilings that bind it. */
-    body.appendChild(el('div', 'row-label', 'Routing policy'));
-    const policy = d.route_policy || {};
-    const pline1 = el('div', 'inline');
-    const mode = el('select', 'inp usepod-policy-mode'); mode.setAttribute('aria-label', 'UsePod routing mode');
-    [['marketplace-only', 'Marketplace only'], ['centralized-only', 'Centralized only'], ['auto', 'Auto (marketplace, then centralized)']].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; if (policy.mode === v) o.selected = true; mode.appendChild(o); });
-    /* The checkbox sits inside its label (no .inp width), so box and words stay together. */
-    const fallback = el('input', 'usepod-policy-fallback'); fallback.type = 'checkbox'; fallback.id = 'usepodFallback'; fallback.checked = !!policy.allow_centralized_fallback;
-    const fbLabel = el('label', 'inline'); fbLabel.htmlFor = 'usepodFallback';
-    fbLabel.appendChild(fallback); fbLabel.appendChild(el('span', null, 'allow centralized fallback'));
-    pline1.appendChild(mode); pline1.appendChild(fbLabel);
-    body.appendChild(pline1);
-    const pline2 = el('div', 'inline');
-    const pins = el('input', 'inp usepod-policy-pins'); pins.type = 'text'; pins.placeholder = 'Providers, comma-separated'; pins.value = (policy.pinned_providers || []).join(','); pins.setAttribute('aria-label', 'Pinned centralized providers');
-    pline2.appendChild(pins); body.appendChild(pline2);
-    const pline3 = el('div', 'inline');
-    const cin = el('input', 'inp usepod-policy-ceiling-in'); cin.type = 'number'; cin.min = '1'; cin.placeholder = 'no explicit ceiling'; cin.value = policy.max_input_microunits_per_million ?? ''; cin.setAttribute('aria-label', 'Input price ceiling in µUSDC per million tokens');
-    const cout = el('input', 'inp usepod-policy-ceiling-out'); cout.type = 'number'; cout.min = '1'; cout.placeholder = 'no explicit ceiling'; cout.value = policy.max_output_microunits_per_million ?? ''; cout.setAttribute('aria-label', 'Output price ceiling in µUSDC per million tokens');
-    pline3.appendChild(el('span', 'subtle', 'Ceilings, µUSDC per Mtok — input')); pline3.appendChild(cin); pline3.appendChild(el('span', 'subtle', 'output')); pline3.appendChild(cout);
-    body.appendChild(pline3);
-    const polBtn = el('button', 'btn usepod-policy-save', 'Save policy'); polBtn.type = 'button';
-    const pst = el('span', 'subtle usepod-policy-state', '');
-    polBtn.addEventListener('click', async () => {
-      polBtn.disabled = true; pst.textContent = 'Saving…';
-      const payload = { mode: mode.value, allow_centralized_fallback: !!fallback.checked,
-        pinned_providers: pins.value.split(',').map(s => s.trim()).filter(Boolean) };
-      if (cin.value.trim() !== '') payload.max_input_microunits_per_million = parseInt(cin.value.trim(), 10);
-      if (cout.value.trim() !== '') payload.max_output_microunits_per_million = parseInt(cout.value.trim(), 10);
-      const { ok: ok2, body: j } = await usepodPost('/api/cloud/usepod/route-policy', payload);
-      if (!ok2) { pst.textContent = 'Not saved — ' + (j.error || j.code || 'refused') + '.'; polBtn.disabled = false; return; }
-      say('saved', 'Policy saved. Existing route approvals bound to the previous policy will refuse (route_policy_changed_since_approval) until re-approved.');
-      await draw();
-    });
-    const pline4 = el('div', 'inline'); pline4.appendChild(polBtn); pline4.appendChild(pst); body.appendChild(pline4);
-    if (d.route_store_error) body.appendChild(el('div', 'state failed', 'Route store error — ' + d.route_store_error));
-    body.appendChild(el('div', 'subtle', 'A pin names centralized providers only; marketplace-only with a pin is refused upstream. Ceilings are maxima per million tokens in integer µUSDC; dispatch re-checks the live price against them before every send.'));
-
-    /* -- models: prices with source and age, and the approval that gates paid dispatch. */
-    body.appendChild(el('div', 'row-label', 'Models'));
-    const search = el('input', 'inp usepod-model-search'); search.type = 'search'; search.placeholder = 'filter by model id'; search.setAttribute('aria-label', 'Filter UsePod models');
-    const modelList = el('div', 'stack usepod-models');
-    const renderModels = () => {
-      modelList.textContent = '';
-      const q = search.value.trim().toLowerCase();
-      const rows = (d.models || []).filter(m => !q || modelSearchKey(m.model_id).includes(modelSearchKey(q)));
-      if (!(d.models || []).length) {
-        modelList.appendChild(el('div', 'empty', hasSnapshot ? 'No usable rows in the cached feed.' : 'No prices cached. Use Refresh to fetch the public feed first.'));
-        return;
-      }
-      if (!rows.length) { modelList.appendChild(el('div', 'empty', 'No model id matches “' + search.value.trim() + '”.')); return; }
-      rows.forEach(m => modelList.appendChild(usepodModelRow(m, d, say, draw)));
-    };
-    search.addEventListener('input', renderModels);
-    const searchLine = el('div', 'inline'); searchLine.appendChild(search);
-    body.appendChild(searchLine); body.appendChild(modelList);
-    renderModels();
-    body.appendChild(el('div', 'subtle',
-      'Approving a route is not choosing a model: the pin above (Model) picks what a turn asks for; an approval here is what you have agreed to PAY for that model. Dispatch needs both, and re-checks the live route and price against the approval before every send.'));
-  };
-  draw();
-}
-/* One model row: exact prices with their route source, spendability, and the approval state.
-   The Approve confirm names exactly what will be bound — model, ceilings (and where each ceiling
-   came from), route classes, origin — so the operator approves a fact, not a hope. */
-function usepodModelRow(m, d, say, draw) {
-  const rowEl = el('div', 'stack profile-item usepod-model');
-  const head = el('div', 'inline');
-  head.appendChild(el('span', 'profile-value mono', String(m.model_id || '?')));
-  if (m.listed_for_this_credential === true) head.appendChild(el('span', 'pill on', 'listed for this token'));
-  else if (m.listed_for_this_credential === false) head.appendChild(el('span', 'pill', 'not listed for this token'));
-  else head.appendChild(el('span', 'pill', 'listing not observed'));
-  if (m.unusable_reason) head.appendChild(el('span', 'pill', 'not usable: ' + m.unusable_reason));
-  else head.appendChild(el('span', 'pill on', 'usable for spend'));
-  rowEl.appendChild(head);
-  const priceLine = (label, price) => {
-    if (!price) return;
-    rowEl.appendChild(el('div', 'subtle mono', label + ': ' + usepodRate(price)));
-  };
-  priceLine('marketplace', m.marketplace);
-  priceLine('cheapest centralized', m.centralized_cheapest);
-  priceLine('best available', m.best_available);
-  if (m.request_price_microunits != null) rowEl.appendChild(el('div', 'subtle', 'per-request price ' + m.request_price_microunits + ' µUSDC — per-request billing cannot bound a token-billed call'));
-  (m.problems || []).forEach(p => rowEl.appendChild(el('div', 'state failed', 'price row problem: ' + p)));
-
-  const bound = m.approved_route;
-  if (bound) {
-    const kv = el('dl', 'kv');
-    kv.appendChild(el('dt', null, 'Approved'));
-    kv.appendChild(el('dd', null, usepodTime(bound.approved_at) + ' · ' + String(bound.approval_id || '?')));
-    kv.appendChild(el('dt', null, 'Ceiling'));
-    kv.appendChild(el('dd', null, 'in ≤ ' + bound.max_input_microunits_per_million + ' (' + bound.input_basis + '), out ≤ ' + bound.max_output_microunits_per_million + ' (' + bound.output_basis + ') µUSDC/Mtok'));
-    kv.appendChild(el('dt', null, 'Routes')); kv.appendChild(el('dd', null, (bound.allowed_route_classes || []).join(', ') || '?'));
-    kv.appendChild(el('dt', null, 'Priced from')); kv.appendChild(el('dd', null, 'snapshot ' + String(bound.snapshot_sha256 || '').slice(0, 12) + '… fetched ' + usepodTime(bound.snapshot_fetched_at) + (bound.origin ? ' · origin ' + bound.origin : '')));
-    rowEl.appendChild(kv);
-    const policy = d.route_policy || {};
-    if (bound.policy && (String(bound.policy.mode) !== String(policy.mode) || !!bound.policy.allow_centralized_fallback !== !!policy.allow_centralized_fallback)) {
-      rowEl.appendChild(el('div', 'state stale', 'The routing policy changed after this approval — dispatch will refuse (route_policy_changed_since_approval) until you re-approve.'));
-    }
-    const line = el('div', 'inline');
-    const forget = el('button', 'btn danger usepod-route-forget', 'Withdraw approval'); forget.type = 'button';
-    const fst = el('span', 'subtle', '');
-    forget.addEventListener('click', async () => {
-      forget.disabled = true; fst.textContent = 'Withdrawing…';
-      const { ok, body: j } = await usepodPost('/api/cloud/usepod/forget-route', { model_id: m.model_id });
-      if (!ok) { fst.textContent = 'Not withdrawn — ' + (j.error || 'refused') + '.'; forget.disabled = false; return; }
-      say('saved', 'Route approval for ' + m.model_id + ' withdrawn. Paid turns on it refuse immediately.');
-      await draw();
-    });
-    line.appendChild(forget); line.appendChild(fst); rowEl.appendChild(line);
-  } else if (!m.unusable_reason) {
-    const line = el('div', 'inline');
-    const approve = el('button', 'btn primary usepod-route-approve', 'Approve route'); approve.type = 'button';
-    const ast = el('span', 'subtle', '');
-    approve.addEventListener('click', async () => {
-      const policy = d.route_policy || {};
-      const what = 'Approve paid dispatch for ' + m.model_id + '?\n\n' +
-        'Route: ' + String(policy.mode || '?') + (policy.allow_centralized_fallback ? ' (centralized fallback allowed)' : '') + '\n' +
-        'Price ceilings: the cheaper of the policy ceilings and the prices below, in integer µUSDC per million tokens.\n' +
-        (m.marketplace ? 'Marketplace ' + usepodRate(m.marketplace) + '\n' : '') +
-        (m.centralized_cheapest ? 'Centralized ' + usepodRate(m.centralized_cheapest) + '\n' : '') +
-        'Origin: ' + String((d.credential || {}).origin || USEPOD_ORIGIN_DEFAULT) + '\n\n' +
-        'Spend caps still apply on top. You can withdraw this at any time and paid turns refuse immediately.';
-      if (!window.confirm(what)) { ast.textContent = 'Not approved.'; return; }
-      approve.disabled = true; ast.textContent = 'Approving at current prices…';
-      const { ok, status, body: j } = await usepodPost('/api/cloud/usepod/approve-route', { model_id: m.model_id });
-      if (!ok) {
-        ast.textContent = 'Not approved — ' + (status === 409 ? 'no route can be approved at current prices (' + (j.code || '?') + ')' : (j.error || 'refused')) + '.';
-        approve.disabled = false; return;
-      }
-      const b = j.approved_route || {};
-      say('saved', 'Route approved for ' + m.model_id + ': in ≤ ' + (b.max_input_microunits_per_million ?? '?') + ' / out ≤ ' + (b.max_output_microunits_per_million ?? '?') + ' µUSDC/Mtok.');
-      await draw();
-    });
-    line.appendChild(approve); line.appendChild(ast); rowEl.appendChild(line);
-  }
-  return rowEl;
-}
-
 /* --- Answer language. The value is one Operator Profile item in the `language` category, written
    through POST /api/profile/remember and cleared through /api/profile/forget -- the same authority
    the Memory list uses, not a second store. The options come from the policy's OWN table, so the
@@ -6117,6 +4882,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
     from core.calendar_settings_fragment import render_calendar_settings_fragment
     from core.chat_import_settings_fragment import render_chat_import_settings_fragment
     from core.notification_settings_fragment import render_notification_settings_fragment
+    from core.plugin_migration import retired_slots
     from core.provider_key_guide import provider_key_guide
     from core.settings_extras_fragment import render_settings_extras_fragment
     from core.wallet_fragment import render_wallet_fragment
@@ -6141,6 +4907,7 @@ def render_vool_settings_html(*, build_commit: str = "", ui_locale: str = "en", 
         page.replace("__SETTINGS_MODEL__", model)
         .replace("__VOOL_LOGO_URI__", logo_uri, 1)
         .replace("__LANGUAGE_CATALOG__", catalog)
+        .replace("__PLUGIN_MANAGED_SLOTS__", json.dumps(retired_slots()))
         .replace("__KEY_PROVIDER_GUIDE__", json.dumps(provider_key_guide(tag), ensure_ascii=False).replace("<", "\\u003c"))
         .replace("__PAGE_BUILD_COMMIT__", str(build_commit or "").strip())
         # The i18n bootstrap must run before the page's own script: it defines VOOLT.

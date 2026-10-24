@@ -239,6 +239,9 @@ def validate_x402_payment(requirement: TopUpRequirement, *, source_context: dict
 
 
 def _mint_operation(requirement: TopUpRequirement, *, payment_kind: str, accept_tokens: bool, memo_label: str, source_context: dict[str, Any] | None) -> dict[str, Any]:
+    from core.plugin_providers import require_legacy_x402
+
+    require_legacy_x402(requirement.provider)
     spec = chains.resolve_network(requirement.network)
     environment.require_active(spec.network, source_context=source_context)
     if not capabilities.pilot_transfer_ready(spec):
