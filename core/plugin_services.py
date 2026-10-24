@@ -68,11 +68,13 @@ def declaration(plugin_id: str, kind: str, *, expected_approval: str = ""):
 
 
 class _Transfer:
-    def __init__(self, plugin_id, current, timeout):
+    def __init__(self, plugin_id, current, timeout, cancel_check=None):
         self.scope = invocation(plugin_id, current)
         self.call = self.scope.__enter__()
         self.closed = threading.Event()
         self.expired = False
+        self.cancel_check = cancel_check
+        self.cancelled = False
         self.socket = None
         self.connection = None
         self.response = None
@@ -82,12 +84,33 @@ class _Transfer:
         self.watchdog = threading.Thread(target=self._watch, args=(timeout,), daemon=True)
         self.watchdog.start()
 
-    def _watch(self, timeout):
-        if not self.closed.wait(timeout):
-            self.expired = True
+    def _stopped(self):
+        if not self.cancelled and self.cancel_check is not None:
+            try:
+                self.cancelled = bool(self.cancel_check())
+            except Exception:
+                self.cancelled = True
+        return self.cancelled
+
+    def _raise_if_cancelled(self):
+        if self._stopped():
+            from core.provider_http import ProviderCallCancelled
+
             self.close()
+            raise ProviderCallCancelled()
+
+    def _watch(self, timeout):
+        while not self.closed.wait(min(0.05, max(0.001, self.deadline - time.monotonic()))):
+            if self._stopped():
+                self.close()
+                return
+            if time.monotonic() >= self.deadline:
+                self.expired = True
+                self.close()
+                return
 
     def check(self):
+        self._raise_if_cancelled()
         if self.expired:
             raise requests.exceptions.Timeout("The plugin service timed out. No automatic retry was made.")
         if self.closed.is_set():
@@ -171,7 +194,7 @@ class _Response(requests.Response):
 
 def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected_approval="", timeout=20,
                    payload=None, headers=None, stream=False, _connector=connect_public, _tls_context=None,
-                   _public_pricing=False):
+                   _public_pricing=False, cancel_check=None):
     """Native HTTPS only: approved hosts, pinned public DNS, no redirects or ambient proxies."""
     from core import plugin_lifecycle
 
@@ -187,8 +210,9 @@ def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected
     duration = timeout[-1] if isinstance(timeout, (tuple, list)) else timeout
     duration = min(120.0, max(0.1, float(duration)))
     transfer = _Transfer(plugin_id, lambda: bool(plugin_lifecycle.is_available(plugin_id)
-                         and plugin_lifecycle.record_for(plugin_id).approval_digest == record.approval_digest), duration)
+                         and plugin_lifecycle.record_for(plugin_id).approval_digest == record.approval_digest), duration, cancel_check)
     try:
+        transfer.check()
         slot = spec["credential_slot"]
         key = "" if public_pricing else credential_values(plugin_id, plugin.vool, [plugin.vool["credentials"][slot]["env"]])[plugin.vool["credentials"][slot]["env"]]
         wire_headers = {"Accept": "application/json", "User-Agent": "VOOL", "Content-Type": "application/json"}
@@ -246,9 +270,11 @@ def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected
         raise ServiceRefused("The plugin was disabled or changed. Its service result was discarded.") from None
     except TimeoutError:
         transfer.close()
+        transfer._raise_if_cancelled()
         raise requests.exceptions.Timeout("The plugin service timed out. No automatic retry was made.") from None
     except (OSError, http.client.HTTPException):
         transfer.close()
+        transfer._raise_if_cancelled()
         if transfer.expired:
             raise requests.exceptions.Timeout("The plugin service timed out. No automatic retry was made.") from None
         raise ServiceRefused("The plugin service could not be reached securely. No automatic retry was made.") from None
@@ -270,7 +296,8 @@ class ProviderTransport:
     def request(self, method, url, **options):
         return native_request(self.plugin_id, "model_provider", method, url, expected_approval=self.approval,
                               timeout=options.get("timeout", 20), payload=options.get("json"),
-                              headers=options.get("headers"), stream=options.get("stream", False))
+                              headers=options.get("headers"), stream=options.get("stream", False),
+                              cancel_check=options.get("cancel_check"))
 
 
 def provider_binding(manifest) -> tuple[str, str]:

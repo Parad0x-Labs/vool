@@ -238,3 +238,41 @@ def test_enabled_scanner_missing_its_key_refuses_instead_of_silently_skipping(pa
     with pytest.raises(AddonError, match="Connect your service key"):
         plugin_scanners.scan_skill("example", SKILL.decode())
     assert not https_service["log"].exists()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_provider_transport_stop_interrupts_real_tls_before_headers(package, https_service, monkeypatch, stream):
+    import threading
+    import time
+
+    from core import plugin_services
+    from core.plugin_services import ProviderTransport
+    from core.provider_http import ProviderCallCancelled
+
+    info = enabled_provider(package, https_service)
+    original = plugin_services.native_request
+
+    def routed(*args, **kwargs):
+        return original(*args, **kwargs, _connector=https_service["connector"], _tls_context=https_service["context"])
+
+    monkeypatch.setattr(plugin_services, "native_request", routed)
+    stopped = threading.Event()
+
+    def stop_after_request_arrives():
+        deadline = time.monotonic() + 3
+        while not https_service["log"].exists() and time.monotonic() < deadline:
+            time.sleep(0.005)
+        stopped.set()
+
+    stop = threading.Thread(target=stop_after_request_arrives)
+    stop.start()
+    start = time.monotonic()
+    try:
+        with pytest.raises(ProviderCallCancelled, match="model_call_cancelled"):
+            ProviderTransport("sample-provider", info["approval_digest"]).post(
+                "https://api.example.org/v1/chat/completions", json={"fixture_mode": "timeout"},
+                timeout=(1, 3), stream=stream, cancel_check=stopped.is_set)
+    finally:
+        stop.join(timeout=4)
+    assert time.monotonic() - start < 2
+    assert len(https_service["log"].read_text().splitlines()) == 1
