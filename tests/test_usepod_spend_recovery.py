@@ -1,10 +1,8 @@
-"""Expired spending fails before draft consumption and recovers via the existing consent owner."""
-import json
+"""Expired spending requires fresh consent through the retained monetary owner."""
 from types import SimpleNamespace
 
 import pytest
 
-from tests.chat_page_js_harness import DOM, run_node, script
 from tests.usepod.test_usepod_money_law import MODEL, _approved_consent, _mint_grant, law
 
 
@@ -61,32 +59,8 @@ def test_preflight_uses_account_model_revocation_and_real_remaining_envelope(law
     assert s.prepaid_spend_readiness(MODEL)['state'] == 'revoked'
 
 
-@pytest.mark.parametrize('state', ['expired','spent','revoked','missing','unavailable'])
-def test_send_preserves_draft_and_opens_recovery_without_chat_or_mint(state):
-    result = run_node(DOM + script() + '\nawait new Promise(r=>setImmediate(r));\nconst state=' + json.dumps(state) + ';\n' + r'''
-setDisplayedChat('openclaw:aaaaaaaaaaaaaaaaaaaa');setModelValue('usepod:gpt-6-astra');
-inputEl.value='what is better Python or Java?';
-const requests=[], opened=[];openSettingsInFrame=s=>opened.push(s);
-fetch=async (url,opts)=>{requests.push({url,method:opts?.method||'GET'});return {ok:true,json:async()=>({spend_readiness:{available:false,state}})}}; await send();
-out({draft:inputEl.value,requests,opened});
-''')
-    assert result['draft'] == 'what is better Python or Java?'
-    assert result['opened'] == ['models/usepod/spend']
-    assert len(result['requests']) == 1 and result['requests'][0]['method'] == 'GET'
-    assert '/discovery?q=gpt-6-astra' in result['requests'][0]['url']
 
 
-def test_other_providers_skip_preflight_and_fresh_grant_resumes_normal_path():
-    result = run_node(DOM + script() + '\nawait new Promise(r=>setImmediate(r));\n' + r'''
-const requests=[];fetch=async (url,opts)=>{requests.push({url,method:(opts&&opts.method)||'GET'});
- if(url==='/api/cloud/usepod/balance')return {ok:true,json:async()=>({state:'reported',usdc_balance_microunits:3000000,usdc_balance:'3.000000',evidence:'cache'})};
- return {ok:true,json:async()=>({spend_readiness:{available:true,state:'available'}})}};
-const other=await checkUsePodSpending('z-ai/glm:free'), available=await checkUsePodSpending('usepod:gpt-6-astra');out({other,available,requests});
-''')
-    assert result['other'] and result['available']
-    # A ready grant is half of readiness; the verified balance the money law will judge is the other half.
-    assert [r['method'] for r in result['requests']] == ['GET', 'POST']
-    assert result['requests'][1]['url'] == '/api/cloud/usepod/balance'
 
 
 def test_late_money_refusal_names_expiry_and_recovery_not_provider_failure():

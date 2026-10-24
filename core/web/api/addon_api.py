@@ -109,6 +109,10 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
                     NEWER_VERSION_REQUIRED: "registry_newer"}.get(str(exc))
             return 400, {"ok": False, "error": code or "registry_refused", "message": str(exc)}
         return 400, {"ok": False, "error": "addon_refused", "message": "The add-on input was refused."}
-    except Exception:
+    except Exception as exc:
+        # Preserve a diagnostic class without logging exception text or private values.
+        import logging
+
+        logging.getLogger(__name__).warning("Add-on operation failed (%s)", type(exc).__name__)
         # Never echo transport errors, credential values or personal storage paths.
         return 500, {"ok": False, "error": "addon_operation_failed", "message": "The add-on operation could not finish. Check storage access and review its status before retrying."}

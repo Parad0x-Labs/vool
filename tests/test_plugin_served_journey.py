@@ -257,7 +257,12 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
 def github_skill_review(page):
     page.locator("#addonNav").get_by_role("button", name="Browse", exact=True).click()
     page.locator("#pluginsSearch").fill("obra/superpowers")
-    page.get_by_role("button", name="Search GitHub", exact=True).click()
+    with page.expect_response(lambda response: response.request.method == "POST" and
+                              response.request.post_data_json.get("action") == "github_repository") as lookup:
+        page.get_by_role("button", name="Search GitHub", exact=True).click()
+    result = lookup.value.json()
+    assert lookup.value.status == 200 and result.get("ok"), result
+    assert any(row.get("skill_path") == "skills/verification-before-completion/SKILL.md" for row in result["entries"]), result
     card = page.locator(".addon-card").filter(has_text="skills/verification-before-completion/SKILL.md")
     card.get_by_role("button", name="View add-on", exact=True).click(timeout=60000)
     with page.expect_response(lambda response: response.request.method == "POST" and
