@@ -46,7 +46,11 @@ def _seed(clock, monkeypatch, *, due="2026-10-24 17:00"):
     text = f'remind me to stretch on {due.replace(" ", " at ")} every day'
     intent = parse_operator_action_intent(text)
     assert intent is not None
-    result = dispatch_operator_action(intent, task_id="t-repair", session_id="repair")
+    # Create while it is still future, then resume the recovery clock after its due
+    # time. Scheduling a past reminder is correctly refused by the chat handler.
+    with monkeypatch.context() as before_due:
+        before_due.setattr(clock, "now", clock.now - timedelta(days=1))
+        result = dispatch_operator_action(intent, task_id="t-repair", session_id="repair")
     assert result.ok, result.response_text
     return result.details["reminder_id"]
 
