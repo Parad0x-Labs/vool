@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "로컬 격리 플러그인 런타임을 사용할 수 없습니다. 실행 가능한 플러그인이 시작되지 않았습니다.",
     "addons.plugin_message_8696e7687080": "플러그인이 개인 애플리케이션 또는 홈 데이터가 포함된 폴더를 요청했습니다.",
     "addons.plugin_message_c7b23358e065": "실행 가능한 플러그인은 이 장치의 로컬 격리 런타임이 필요합니다. 하지만 이 런타임을 사용할 수 없습니다. 선언적 공급자 및 스캐너 플러그인은 계속 사용할 수 있습니다.",
-    "addons.plugin_message_1681d660cce9": "실행 파일은 캡처된 플러그인 패키지에 속해야 합니다."
+    "addons.plugin_message_1681d660cce9": "실행 파일은 캡처된 플러그인 패키지에 속해야 합니다.",
+    "run.status_stopping": "중지하는 중…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "بيئة تشغيل الملحق المعزولة محليًا غير متوفرة. لم يتم تشغيل أي ملحق قابل للتنفيذ.",
     "addons.plugin_message_8696e7687080": "طلب ​​الملحق مجلدًا يحتوي على بيانات تطبيق أو بيانات منزلية خاصة.",
     "addons.plugin_message_c7b23358e065": "تحتاج الملحقات القابلة للتنفيذ إلى بيئة التشغيل المعزولة محليًا على هذا الجهاز. وهي غير متوفرة. تبقى ملحقات موفر البيانات التصريحي والماسح الضوئي متوفرة.",
-    "addons.plugin_message_1681d660cce9": "يجب أن ينتمي الملف القابل للتنفيذ إلى حزمة الملحق التي تم التقاطها."
+    "addons.plugin_message_1681d660cce9": "يجب أن ينتمي الملف القابل للتنفيذ إلى حزمة الملحق التي تم التقاطها.",
+    "run.status_stopping": "جارٍ الإيقاف…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

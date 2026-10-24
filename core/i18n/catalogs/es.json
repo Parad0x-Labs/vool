@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "El entorno de ejecución aislado local de complementos no está disponible. No se inició ningún complemento ejecutable.",
     "addons.plugin_message_8696e7687080": "El complemento solicitó una carpeta que contuviera datos privados de la aplicación o del directorio personal.",
     "addons.plugin_message_c7b23358e065": "Los complementos ejecutables necesitan el entorno de ejecución aislado local en este dispositivo. Este no está disponible. Los complementos declarativos de proveedor y de escáner siguen estando disponibles.",
-    "addons.plugin_message_1681d660cce9": "El ejecutable debe pertenecer al paquete de complementos capturado."
+    "addons.plugin_message_1681d660cce9": "El ejecutable debe pertenecer al paquete de complementos capturado.",
+    "run.status_stopping": "Deteniendo…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

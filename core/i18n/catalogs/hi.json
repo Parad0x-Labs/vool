@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "लोकल आइसोलेटेड प्लगइन रनटाइम उपलब्ध नहीं है। कोई एग्जीक्यूटेबल प्लगइन शुरू नहीं किया गया था।",
     "addons.plugin_message_8696e7687080": "प्लगइन ने प्राइवेट एप्लिकेशन या होम डेटा वाले फ़ोल्डर का अनुरोध किया।",
     "addons.plugin_message_c7b23358e065": "एग्जीक्यूटेबल प्लगइन को इस डिवाइस पर लोकल आइसोलेटेड रनटाइम की ज़रूरत है। यह उपलब्ध नहीं है। डिक्लेरेटिव प्रोवाइडर और स्कैनर प्लगइन उपलब्ध रहते हैं।",
-    "addons.plugin_message_1681d660cce9": "एग्जीक्यूटेबल कैप्चर किए गए प्लगइन पैकेज से संबंधित होना चाहिए।"
+    "addons.plugin_message_1681d660cce9": "एग्जीक्यूटेबल कैप्चर किए गए प्लगइन पैकेज से संबंधित होना चाहिए।",
+    "run.status_stopping": "रोका जा रहा है…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

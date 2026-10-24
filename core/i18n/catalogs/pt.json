@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "O ambiente de execução isolado local do plugin não está disponível. Nenhum plugin executável foi iniciado.",
     "addons.plugin_message_8696e7687080": "O plugin solicitou uma pasta contendo dados privados de aplicativos ou arquivos pessoais.",
     "addons.plugin_message_c7b23358e065": "Plugins executáveis ​​precisam do ambiente de execução isolado local neste dispositivo. Ele não está disponível. Plugins de provedor declarativo e de scanner permanecem disponíveis.",
-    "addons.plugin_message_1681d660cce9": "O executável deve pertencer ao pacote de plugin capturado."
+    "addons.plugin_message_1681d660cce9": "O executável deve pertencer ao pacote de plugin capturado.",
+    "run.status_stopping": "Parando…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

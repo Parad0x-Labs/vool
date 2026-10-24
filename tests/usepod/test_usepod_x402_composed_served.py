@@ -16,9 +16,12 @@ from __future__ import annotations
 import json
 import os
 import signal
+import sys
 import threading
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import HTTPError
@@ -26,7 +29,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
+from tests.usepod.strict_usepod_service import Listing, PaidRetryPause, StrictUsePodService
 from tests.usepod.test_usepod_served_flow import (
     MARKET,
     MARKET_ID,
@@ -191,7 +194,7 @@ def _chat(daemon: WalletServedDaemon, text: str, *, session_id: str) -> tuple[in
 
 
 def _chat_in_background(daemon: WalletServedDaemon, text: str, session_id: str) -> dict:
-    turn: dict = {}
+    turn: dict = {"session_id": session_id}
 
     def run() -> None:
         try:
@@ -240,7 +243,14 @@ def _pending_payment(daemon: WalletServedDaemon, turn: dict, pay_to: str, *, tim
         if rows:
             return rows[-1]
         if not turn["worker"].is_alive():
-            raise AssertionError(f"the turn ended without asking the wallet: {turn.get('reply') or turn.get('error')}")
+            # The chat's fallback answer does not carry the underlying provider failure.
+            # Preserve that error in CI instead of losing the only causal evidence.
+            try:
+                _, events = daemon.call("GET", f"/api/runtime/events?session={turn['session_id']}&limit=500", timeout=5.0)
+            except Exception as exc:
+                events = {"unavailable": type(exc).__name__}
+            _keep("x402_early_turn_failure.json", {"turn": turn.get("reply") or turn.get("error"), "events": events})
+            raise AssertionError(f"the turn ended without asking the wallet: {turn.get('reply') or turn.get('error')}; runtime events: {events}")
         time.sleep(0.25)
     raise AssertionError("no UsePod payment reached the wallet")
 
@@ -572,7 +582,8 @@ def _wait_until(predicate, *, timeout: float, what: str) -> None:
     raise AssertionError(f"timed out waiting for {what}")
 
 
-def _paid_turn_until_the_retry_is_in_flight(composed, *, fault: str, prompt: str, prefix: str) -> tuple[dict, dict, int, int]:
+@contextmanager
+def _paid_turn_until_the_retry_is_in_flight(composed, *, fault: str, prompt: str, prefix: str) -> Iterator[tuple[dict, dict, int, int]]:
     daemon, service, node, pay_to = composed.daemon, composed.service, composed.node, composed.pay_to
     # The simulated chain has no ticking clock. Independent payments need a
     # fresh blockhash; otherwise identical transfer bytes reuse an old signature.
@@ -583,12 +594,19 @@ def _paid_turn_until_the_retry_is_in_flight(composed, *, fault: str, prompt: str
     session_id = _session(f"{prefix}-{uuid.uuid4()}")
     _pin_for(daemon, session_id)
     sends, quotes_before = node.distinct_sends(), len(service.requests_to(X402_PATH))
-    service.faults[fault] = 45.0
-    turn = _chat_in_background(daemon, prompt, session_id)
-    pending = _pending_payment(daemon, turn, pay_to)
-    approved = _owner_approves(daemon, pending["proposal_id"])
-    _wait_until(lambda: len(service.requests_to(X402_PATH)) - quotes_before >= 2, timeout=60.0, what="the paid retry to reach the provider")
-    return turn, approved, sends, quotes_before
+    pause = PaidRetryPause(seconds=45.0)
+    assert fault not in service.faults, "another crash setup still owns this provider fault"
+    service.faults[fault] = pause
+    try:
+        turn = _chat_in_background(daemon, prompt, session_id)
+        pending = _pending_payment(daemon, turn, pay_to)
+        approved = _owner_approves(daemon, pending["proposal_id"])
+        # Arrival is recorded before the provider applies the fault or settles a proof.
+        # Kill only after this request has entered the exact stage the test exercises.
+        _wait_until(pause.entered.is_set, timeout=60.0, what="the paid retry to reach the provider")
+        yield turn, approved, sends, quotes_before
+    finally:
+        service.faults.pop(fault, None)
 
 
 def _the_operation_paid_by(daemon: WalletServedDaemon, signature: str) -> dict:
@@ -599,12 +617,47 @@ def _the_operation_paid_by(daemon: WalletServedDaemon, signature: str) -> dict:
     return found[0]
 
 
+@pytest.mark.parametrize("fault", ["hold_then_drop_paid_retry_seconds", "paid_retry_delay_seconds"])
+def test_a_refused_crash_setup_disarms_its_provider_fault(composed, monkeypatch, fault) -> None:
+    daemon, service, node = composed.daemon, composed.service, composed.node
+    start_chat = _chat_in_background
+    sends, requests = node.distinct_sends(), len(service.requests_to(X402_PATH))
+    status, before = daemon.call("GET", "/api/money/grants")
+    assert status == 200, before
+    existing_grants = {grant["grant_id"] for grant in before["grants"]}
+
+    def withdraw_before_chat(daemon, text, session_id):
+        # A real owner action between setup and dispatch, not a substituted provider result.
+        status, withdrawn = daemon.call("POST", "/api/cloud/usepod/forget-route", {"model_id": MODEL})
+        assert status == 200, withdrawn
+        return start_chat(daemon, text, session_id)
+
+    monkeypatch.setattr(sys.modules[__name__], "_chat_in_background", withdraw_before_chat)
+    try:
+        with pytest.raises(AssertionError, match="the turn ended without asking the wallet"):
+            with _paid_turn_until_the_retry_is_in_flight(
+                composed, fault=fault, prompt="Name one reason harbours mark their entrances.", prefix="x402-refused-crash-setup",
+            ):
+                pytest.fail("a withdrawn route cannot reach a paid retry")
+        assert fault not in service.faults
+        assert node.distinct_sends() == sends and len(service.requests_to(X402_PATH)) == requests
+    finally:
+        status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
+        assert status == 200, approved
+        status, after = daemon.call("GET", "/api/money/grants")
+        assert status == 200, after
+        for grant in after["grants"]:
+            if grant["grant_id"] not in existing_grants:
+                status, revoked = daemon.door("POST", "/api/money/grants/revoke", {"grant_id": grant["grant_id"], "reason": "crash setup intentionally refused"})
+                assert status == 200, revoked
+
+
 def test_a_daemon_killed_while_its_paid_retry_is_held_resumes_that_operation_once(composed) -> None:
     daemon, service, node = composed.daemon, composed.service, composed.node
-    turn, approved, sends, quotes_before = _paid_turn_until_the_retry_is_in_flight(
-        composed, fault="hold_then_drop_paid_retry_seconds", prompt="Name one reason ships take on a harbour pilot.", prefix="x402-death-held")
-    _kill_hard(daemon)
-    service.faults.pop("hold_then_drop_paid_retry_seconds", None)
+    with _paid_turn_until_the_retry_is_in_flight(
+        composed, fault="hold_then_drop_paid_retry_seconds", prompt="Name one reason ships take on a harbour pilot.", prefix="x402-death-held",
+    ) as (turn, approved, sends, quotes_before):
+        _kill_hard(daemon)
     turn["worker"].join(timeout=60)
     daemon.start()
     signature = approved["transfer"]["tx_id"]
@@ -633,10 +686,10 @@ def test_a_daemon_killed_while_its_paid_retry_is_held_resumes_that_operation_onc
 
 def test_a_daemon_killed_after_the_provider_served_never_pays_again_on_resume(composed) -> None:
     daemon, service, node = composed.daemon, composed.service, composed.node
-    turn, approved, sends, quotes_before = _paid_turn_until_the_retry_is_in_flight(
-        composed, fault="paid_retry_delay_seconds", prompt="Name one reason lighthouses are painted in bands.", prefix="x402-death-served")
-    _kill_hard(daemon)
-    service.faults.pop("paid_retry_delay_seconds", None)
+    with _paid_turn_until_the_retry_is_in_flight(
+        composed, fault="paid_retry_delay_seconds", prompt="Name one reason lighthouses are painted in bands.", prefix="x402-death-served",
+    ) as (turn, approved, sends, quotes_before):
+        _kill_hard(daemon)
     turn["worker"].join(timeout=90)
     daemon.start()
     signature = approved["transfer"]["tx_id"]

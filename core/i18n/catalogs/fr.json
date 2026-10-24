@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "L'environnement d'exécution local isolé du plugin est indisponible. Aucun plugin exécutable n'a été lancé.",
     "addons.plugin_message_8696e7687080": "Le plugin a demandé un dossier contenant des données privées d'application ou des données personnelles.",
     "addons.plugin_message_c7b23358e065": "Les plugins exécutables nécessitent l'environnement d'exécution local isolé sur cet appareil. Celui-ci est indisponible. Les plugins de fournisseur déclaratif et d'analyse restent disponibles.",
-    "addons.plugin_message_1681d660cce9": "L'exécutable doit appartenir au package du plugin capturé."
+    "addons.plugin_message_1681d660cce9": "L'exécutable doit appartenir au package du plugin capturé.",
+    "run.status_stopping": "Arrêt en cours…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

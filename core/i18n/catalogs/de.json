@@ -3119,9 +3119,10 @@
     "addons.plugin_message_2a98fe159fd4": "Die lokale isolierte Plugin-Laufzeitumgebung ist nicht verfügbar. Es wurde kein ausführbares Plugin gestartet.",
     "addons.plugin_message_8696e7687080": "Das Plugin hat einen Ordner mit privaten Anwendungs- oder Heimnetzwerkdaten angefordert.",
     "addons.plugin_message_c7b23358e065": "Ausführbare Plugins benötigen die lokale, isolierte Laufzeitumgebung auf diesem Gerät. Diese ist nicht verfügbar. Deklarative Provider- und Scanner-Plugins sind weiterhin verfügbar.",
-    "addons.plugin_message_1681d660cce9": "Die ausführbare Datei muss zum erfassten Plugin-Paket gehören."
+    "addons.plugin_message_1681d660cce9": "Die ausführbare Datei muss zum erfassten Plugin-Paket gehören.",
+    "run.status_stopping": "Wird gestoppt…"
   },
-  "source_catalog_sha256": "5ba35c10f42dd4842db2315aa6f13afd751b731fa54ec79ed147f6890e383025",
+  "source_catalog_sha256": "5b5b2372b71aa1e85bdaf61639fc269d4e36f4e59187146c4a6a16ac0e15a55d",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
