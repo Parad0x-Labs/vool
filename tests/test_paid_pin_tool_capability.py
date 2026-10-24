@@ -237,6 +237,19 @@ def test_an_explicit_local_pin_of_a_bundle_reasoning_model_reaches_dispatch_on_a
             "core.provider_routing._device_probe",
             lambda: SimpleNamespace(ram_gb=64.0, vram_gb=0.0, accelerator="cpu", vram_free_gb=None),
         )
+        from core.system_resources import ResourceSnapshot
+
+        # The dispatch governor must see the same simulated host as model selection.
+        monkeypatch.setattr(
+            "core.system_resources.snapshot",
+            lambda **_kwargs: ResourceSnapshot(
+                total_ram_gb=64.0, available_ram_gb=60.0, used_ram_gb=4.0,
+                free_fraction=60.0 / 64.0, memory_pressure="normal", load_1m=0.0,
+                cpu_count=8, load_per_core=0.0, swap_used_gb=0.0,
+                ollama_loaded_gb=0.0, comfyui_running=False, reserve_gb=4.0,
+                usable_gb=56.0,
+            ),
+        )
         decision = _tool_turn(manifest, monkeypatch)
     assert decision.used_model, decision.details
     assert decision.provider_id == manifest.provider_id
