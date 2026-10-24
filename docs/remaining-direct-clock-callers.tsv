@@ -76,8 +76,6 @@ core/kernel/differential.py	(diff)	time.time()	Kernel diff timing	yes	LOW	no	Tra
 core/kernel/repl.py	(module-level)	time.time()	REPL run ID	yes	LOW	no	Transient
 core/knowledge_freshness.py	_utcnow	datetime.now(timezone.utc)	Knowledge freshness ts	yes	HIGH	no	Part of ~95 _utcnow duplicates
 core/learning/procedure_shards.py	(default factory)	datetime.now(timezone.utc)	Shard timestamps	yes	HIGH	no	Part of ~95 _utcnow duplicates
-core/local_operator_actions.py	_parse_calendar_request	datetime.now().astimezone()	Calendar request parsing	yes	HIGH	no	Should use persisted timezone
-core/local_operator_actions.py	_render_ics	datetime.now(timezone.utc)	ICS file generation	yes	HIGH	no	Part of ~95 _utcnow duplicates
 core/memory/files.py	(multiple)	datetime.now(timezone.utc)	Memory file timestamps	yes	HIGH	no	CLOSEST TO CANONICAL OWNER
 core/memory_manager.py	log_short_term	datetime.now() (naive)	Local task memory ts	yes	CRITICAL	no	NAIVE — persists to SQLite
 core/memory_manager.py	save_local_task	datetime.now() (naive)	Task creation timestamp	yes	CRITICAL	no	NAIVE — persists to SQLite
