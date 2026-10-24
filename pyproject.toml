@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=83.0.0", "wheel"]
+requires = ["setuptools>=84.1.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -31,7 +31,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.21.1",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==6.21.2",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.0.1",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -202,6 +202,7 @@ include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "o
 constraint-dependencies = [
     "urllib3>=2.8.0",
     "datasets>=5.0.1",
+    "setuptools>=84.1.0",  # Patched legacy wheel namespace validation.
 ]
 # The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
 # 0.36 and so solders below 0.27, and uv locks all extras together: without this, every install from the lock would
