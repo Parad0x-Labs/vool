@@ -294,9 +294,8 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
     except Exception as exc:
         raise LifecycleError(f"{plugin_id}: the manifest could not be read ({type(exc).__name__})") from None
     record = _load(plugin_id) or PluginRecord(plugin_id=str(plugin_id))
-    requested = [str(p).strip() for p in list(payload.get("permissions") or []) if str(p).strip()]
+    requested, bindings = _declared_access(payload, pack)
     dependencies = _declared_dependencies(payload)
-    bindings = [str(b).strip() for b in list(payload.get("credential_bindings") or []) if str(b).strip()]
     record.root = str(pack)
     record.version = str(payload.get("version") or "")
     record.declared_permissions = requested
@@ -315,6 +314,18 @@ def inspect(plugin_id: str, *, root: Path) -> PluginRecord:
         note="requested, not granted",
     )
     return _save(record)
+
+
+def _declared_access(payload: dict, pack: Path) -> tuple[list[str], list[str]]:
+    block = payload.get("vool")
+    if isinstance(block, dict) and "id" in block:
+        from core.plugin_tools import parse_manifest
+
+        plugin = parse_manifest(payload, path=pack / ".codex-plugin/plugin.json")
+        return (sorted({action for contract in plugin.contracts for action in contract.permission_actions}),
+                [f"plugin.{plugin.plugin_id}.{slot}" for slot in plugin.vool["credentials"]])
+    return ([str(p).strip() for p in list(payload.get("permissions") or []) if str(p).strip()],
+            [str(b).strip() for b in list(payload.get("credential_bindings") or []) if str(b).strip()])
 
 
 def _declared_dependencies(payload: dict) -> list[str]:
@@ -403,8 +414,7 @@ def verify(plugin_id: str, *, root: Path | None = None, expected_digest: str = "
             raise LifecycleError(f"{plugin_id}: dependency approval disappeared")
         pins[dependency] = child.approval_digest
     record.declared_dependencies = dependencies
-    record.declared_permissions = [str(p) for p in identity.manifest.get("permissions", [])]
-    record.credential_bindings = [str(p) for p in identity.manifest.get("credential_bindings", [])]
+    record.declared_permissions, record.credential_bindings = _declared_access(identity.manifest, pack)
     record.version = str(identity.manifest.get("version") or "")
     record.unresolved_dependencies = []
     record.verified_dependencies = pins
@@ -644,6 +654,16 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
             return False
     digest = manifest_digest(pack)
     checked[plugin_id] = bool(digest) and digest == record.verified_digest
+    if not checked[plugin_id] and record.consented_approval:
+        # A v1 access gesture belongs to these exact bytes. Observing a change
+        # withdraws it durably; restoring files later cannot restore consent.
+        # Re-read under the writer lock so an old hash check cannot disable a
+        # replacement that has since been reviewed and enabled.
+        with _lock:
+            current = _load(plugin_id)
+            if (current and current.approval_digest == record.approval_digest
+                    and current.consented_approval == record.consented_approval):
+                disable(plugin_id)
     if checked[plugin_id]:
         from core.plugin_tools import load_manifest
 

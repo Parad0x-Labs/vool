@@ -66,9 +66,11 @@ class ConfinementUnavailableError(RuntimeError):
 
 def process_isolation_refusal() -> str:
     if sys.platform == "darwin":
-        return ("Executable plugins are unavailable on this device because its sandbox cannot "
-                "protect other processes' saved credentials. Declarative provider and scanner "
-                "plugins remain available.")
+        from core.plugin_container import available
+
+        if not available():
+            return ("Executable plugins need the local isolated runtime on this device. "
+                    "It is unavailable. Declarative provider and scanner plugins remain available.")
     return ""
 
 
@@ -277,6 +279,13 @@ def confined_argv(
     if clean_mode not in CONFINEMENT_MODES:
         clean_mode = "auto"
     bare = [str(a) for a in argv]
+    if sys.platform == "darwin":
+        from core.plugin_container import command
+
+        return command(bare, working_directory=working_directory or Path.cwd(),
+                       writable_roots=writable_roots, readable_roots=readable_roots,
+                       allow_network=allow_network, proxy_port=proxy_port,
+                       isolate_process_tree=isolate_process_tree)
     if refusal := process_isolation_refusal():
         # Seatbelt does not mediate KERN_PROCARGS2 on this platform. A child
         # can read the initial environment of any same-user process, including
@@ -322,6 +331,10 @@ def kernel_confinement_available() -> bool:
     """Whether this host can confine a child at all (probed, cached by the sandbox backend)."""
 
     try:
+        if sys.platform == "darwin":
+            from core.plugin_container import available
+
+            return available()
         probe_root = Path(tempfile.gettempdir()).resolve()
         return _kernel_confinement_prefix(["true"], writable_roots=(probe_root,)) is not None
     except Exception:
@@ -430,9 +443,9 @@ def run_plugin_tool(
         child_env["VOOL_PLUGIN_DEPENDENCIES"] = json.dumps(
             {pid: str(path) for pid, path in (package_dependencies or {}).items()}, sort_keys=True
         )
-    if before_start is not None:
-        before_start()
     try:
+        if before_start is not None:
+            before_start()
         launch = dict(
             cwd=str(root), env=child_env, shell=False,
         )
@@ -475,6 +488,9 @@ def run_plugin_tool(
         )
     except OSError as exc:
         return PluginToolResult(ok=False, status="handler_failed", error=str(exc), confinement=confinement_label)
+    finally:
+        if close := getattr(argv, "close", None):
+            close()
 
     stdout = (completed.stdout or "")[:_MAX_OUTPUT_BYTES].strip()
     if completed.returncode != 0 and not stdout:

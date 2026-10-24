@@ -10,7 +10,6 @@ import secrets
 import select
 import socket
 import socketserver
-import sys
 import threading
 
 from core.plugin_manifest import host_name, https_url
@@ -88,8 +87,10 @@ def connect_public(host: str, *, timeout: float = 10, call=None) -> socket.socke
 
 
 def network_available() -> bool:
-    # Linux's current network namespace cannot reach a host-side proxy. Keep it off.
-    return sys.platform == "darwin"
+    # Process namespaces cannot reach a host-side loopback proxy. Until a
+    # confined bridge is available, process network stays off. Native provider
+    # and scanner requests still use their declared-host transport.
+    return False
 
 
 class EgressProxy:

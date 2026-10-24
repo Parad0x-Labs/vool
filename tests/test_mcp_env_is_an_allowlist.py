@@ -74,7 +74,7 @@ def _env_passed_to_popen(client: MCPStdioClient, monkeypatch) -> dict[str, str]:
         # The child now starts under kernel confinement, which probes the backend first with a
         # no-op (`... -- true`). That probe is a real subprocess; only the SERVER spawn is the
         # call whose environment this helper exists to capture.
-        if argv_list and argv_list[-1] == "true":
+        if argv_list and (argv_list[-1] == "true" or os.path.basename(argv_list[0]) == "docker"):
             return real_popen(argv, **kwargs)
         env = kwargs.get("env")
         if (
@@ -251,6 +251,9 @@ def test_a_host_without_kernel_confinement_refuses_to_start_the_server(monkeypat
     from core import plugin_executor
 
     monkeypatch.setattr(plugin_executor, "_kernel_confinement_prefix", lambda *a, **k: None)
+    from core import plugin_container
+
+    monkeypatch.setattr(plugin_container, "available", lambda: False)
 
     client = MCPStdioClient("echo", timeout=0.1)
     with pytest.raises(MCPError, match="refusing to start unconfined"):

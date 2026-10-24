@@ -237,6 +237,8 @@ def inspect(plugin_id: str) -> dict:
     from core.plugin_providers import cached_models
     available = lifecycle.is_available(plugin_id)
     reason = ""
+    if record.verified_digest and lifecycle.manifest_digest(Path(record.root)) != record.verified_digest:
+        reason = "The installed plugin changed or its approval is no longer valid. Review it again."
     if record.enabled and not available:
         lifecycle.disable(plugin_id)
         reason = "The installed plugin changed or its approval is no longer valid. Review it again."
@@ -360,7 +362,8 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
     if type(remove_key) is not bool:
         raise lifecycle.LifecycleError("Choose whether to remove saved keys.")
     target = _destination(plugin_id)
-    if Path(record.root).resolve() != target.resolve() or not record.source.startswith("plugin:"):
+    registry_owned = record.source.startswith("registry:") and bool(_loaded(plugin_id)[1].vool)
+    if Path(record.root).resolve() != target.resolve() or not (record.source.startswith("plugin:") or registry_owned):
         raise lifecycle.LifecycleError("This package is managed by its original installation settings.")
     lifecycle.disable(plugin_id)
     if remove_key:

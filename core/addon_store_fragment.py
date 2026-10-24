@@ -210,7 +210,9 @@ function renderRegistry(host,query){
   Object.entries(r.instructions||{}).forEach(([name,body])=>{const item=node('details');item.append(node('summary',name),node('pre',body));host.append(item);});
   const acts=node('div',undefined,'addon-actions');host.append(acts);
   const accept=enabled=>action(()=>unlessStopped(r.id,async()=>{await post({action:'registry_install',id:r.id,version:r.version,review_id:r.review_id,accepted:true,enable:enabled});registryReview=null;tab='installed';_pluginCatalog=await(await fetch('/api/plugins')).json();data=await read();}));
-  acts.append(button(tr('registry_install_only','Install without enabling'),()=>accept(false)),button(tr('registry_enable','Install and enable'),()=>accept(true),'addon-primary'),button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));
+  acts.append(button(tr('registry_install_only','Install without enabling'),()=>accept(false)));
+  if(!r.separate_enable_consent)acts.append(button(tr('registry_enable','Install and enable'),()=>accept(true),'addon-primary'));
+  acts.append(button(tr('cancel','Cancel'),()=>{registryReview=null;refresh();}));
   host.append(reportBlock(info));return;
  }
  host.append(button(busy?tr('loading','Loading…'):tr('registry_refresh','Browse Skill Codex'),()=>action(async()=>{registryData=await post({action:'registry_refresh',approved:true});stoppedSkills.clear();loadPictures(registryData.entries);_pluginCatalog=await(await fetch('/api/plugins')).json();}),'addon-primary'));

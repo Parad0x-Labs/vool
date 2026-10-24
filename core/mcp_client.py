@@ -113,6 +113,7 @@ class MCPStdioClient:
         #: How the running child is confined: ``kernel:<backend>`` or ``heuristic_only``.
         self.confinement = ""
         self._proc: subprocess.Popen[str] | None = None
+        self._confined_command = None
         self._id = 0
         self._q: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=64)
         self._reader: threading.Thread | None = None
@@ -245,6 +246,7 @@ class MCPStdioClient:
             )
         except ConfinementUnavailableError as exc:
             raise MCPError(f"{self.name}: refusing to start unconfined ({exc})") from exc
+        self._confined_command = argv
         full_env = build_child_env(
             env_allowlist=tuple(self.env_allowlist or ()),
             secrets=dict(self.env or {}),
@@ -321,6 +323,8 @@ class MCPStdioClient:
 
         proc, self._proc = self._proc, None
         if proc is None:
+            if close := getattr(self._confined_command, "close", None):
+                close()
             return
         try:
             terminate_owned(proc)
@@ -338,6 +342,8 @@ class MCPStdioClient:
                 proc.stdout.close()
         if self.call:
             self.call.release(self.close)
+        if close := getattr(self._confined_command, "close", None):
+            close()
 
     def __enter__(self) -> MCPStdioClient:
         return self.start()

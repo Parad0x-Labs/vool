@@ -10685,7 +10685,7 @@ async function loadProviderOptions() {
   try {
     const r = await fetch('/api/cloud/providers');
     const j = await r.json();
-    (j.providers || []).forEach((p) => {
+    (j.providers || []).filter((p) => !p.plugin_id).forEach((p) => {
       const o = document.createElement('option'); o.value = p.id; o.textContent = p.label; orProviderEl.appendChild(o);
     });
     orProviderEl.dataset.loaded = '1';
@@ -10719,6 +10719,11 @@ var lastConnectionSelection = null, lastConnectionRows = [];
 // The header pill paints from this, so it can never show a provider as "this chat's" when the
 // chat is on Auto and would only reach that provider as Auto's default.
 const PROVIDER_LABELS = { openrouter: 'OpenRouter', openai: 'OpenAI', anthropic: 'Anthropic', groq: 'Groq', google: 'Google', deepseek: 'DeepSeek', moonshot: 'Moonshot', custom: 'Custom' };
+function providerLabel(provider) {
+  const rows = typeof cloudProviderRows === 'undefined' ? [] : cloudProviderRows;
+  const configured = rows.find(p => p.id === provider);
+  return (configured && configured.label) || PROVIDER_LABELS[provider] || provider;
+}
 function chatRoute() {
   const sticky = modelValue === 'vool' && !!view.stickyModel;
   const selected = sticky ? view.stickyModel : modelValue;
@@ -10758,7 +10763,7 @@ function renderConnections(conns) {
   }
   if (selected) {
     const actual = lastConnectionRows.find(c => c.id === 'cloud' && c.provider === selected);
-    conns = [actual || {id:'cloud',provider:selected,label:({openrouter:'OpenRouter'}[selected] || selected),state:'untested'}];
+    conns = [actual || {id:'cloud',provider:selected,label:providerLabel(selected),state:'untested'}];
   }
   if (!cloudPillEl) return;
   cloudPillEl.classList.remove('ok', 'bad', 'warn');
@@ -10802,7 +10807,7 @@ function renderConnections(conns) {
     chip.appendChild(dot); chip.appendChild(lbl); cloudPillEl.appendChild(chip);
   });
   cloudPillEl.title = selected
-    ? pageTF('header.run_sends_title', 'This chat sends to {provider} · {model} — click to choose a model', {provider:PROVIDER_LABELS[selected] || selected,model:route.model})
+    ? pageTF('header.run_sends_title', 'This chat sends to {provider} · {model} — click to choose a model', {provider:providerLabel(selected),model:route.model})
     : pageT('header.run_auto_defaults', 'This chat is on VOOL Auto — the connections listed are the defaults Auto may use, not a selection for this chat.');
   syncModelConnectionTitle();
 }

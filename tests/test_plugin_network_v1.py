@@ -107,6 +107,18 @@ else:
         assert not result.ok or result.confinement.startswith("kernel:bwrap")
 
 
+def test_confined_service_can_use_a_thread_without_creating_another_process(package):
+    tool_package(package, '''import json,sys,threading
+json.load(sys.stdin)
+output=[]
+thread=threading.Thread(target=lambda: output.append("thread completed"))
+thread.start();thread.join()
+print(json.dumps({"text":output[0]}))
+''')
+    result = plugin_tools.execute_plugin_contract(admit(package), {})
+    assert result.ok and result.text == "thread completed"
+
+
 def test_disable_stops_running_child_and_cached_contract_cannot_run_again(package):
     tool_package(package, '''import json,os,sys,time
 from pathlib import Path
