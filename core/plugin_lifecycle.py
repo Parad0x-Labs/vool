@@ -146,6 +146,8 @@ class PluginRecord:
     declared_dependencies: list[str] = field(default_factory=list)
     unresolved_dependencies: list[str] = field(default_factory=list)
     credential_bindings: list[str] = field(default_factory=list)
+    consented_approval: str = ""
+    network_consent: bool = False
     invocations: int = 0
     last_invoked_at: str = ""
     evidence: list[dict[str, Any]] = field(default_factory=list)
@@ -344,6 +346,8 @@ def install(plugin_id: str, *, root: Path, source: str = "local") -> PluginRecor
     record.stage = STAGE_INSTALLED
     record.installed_at = _utcnow()
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.verified_digest = ""
     record.approval_digest = ""
     record.digest_schema = ""
@@ -426,6 +430,11 @@ def enable(plugin_id: str) -> PluginRecord:
         raise LifecycleError(f"{plugin_id}: complete package verification is required before enabling")
     if record.approval_digest != approval_digest(record.verified_digest, record.verified_dependencies):
         raise LifecycleError(f"{plugin_id}: complete dependency approval is required before enabling")
+    from core.plugin_tools import load_manifest
+
+    plugin = load_manifest(Path(record.root) / ".codex-plugin" / "plugin.json")
+    if plugin.vool and record.consented_approval != record.approval_digest:
+        raise LifecycleError("Review the plugin's access and accept its consent sheet before enabling it.")
     if record.source.startswith("registry:"):
         from core.registry.native import runtime_allowed
 
@@ -449,11 +458,27 @@ def disable(plugin_id: str) -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to disable")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_VERIFIED if record.verified_digest else STAGE_INSTALLED
     record.note("disabled")
     _save(record)
     _invalidate_registration(plugin_id)
     return record
+
+
+def accept_consent(plugin_id: str, *, expected_approval: str, network: bool) -> PluginRecord:
+    """Bind an owner-local consent gesture to the exact approved package and closure."""
+    with _lock:
+        record = _load(plugin_id)
+        if record is None or not record.approval_digest or record.approval_digest != expected_approval:
+            raise LifecycleError("The plugin changed while its access was being reviewed. Review it again.")
+        if manifest_digest(Path(record.root)) != record.verified_digest or record.enabled:
+            raise LifecycleError("Review the installed plugin again before enabling it.")
+        record.consented_approval = expected_approval
+        record.network_consent = network is True
+        record.note("consent_accepted", approval_digest=expected_approval, network=record.network_consent)
+        return _save(record)
 
 
 def note_invocation(
@@ -502,6 +527,8 @@ def update(plugin_id: str, *, root: Path | None = None, version: str = "") -> Pl
     record.verified_dependencies = {}
     record.verified_at = ""
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_INSTALLED
     record.updated_at = _utcnow()
     record.unresolved_dependencies = _unresolved(record.declared_dependencies)
@@ -518,6 +545,8 @@ def revoke(plugin_id: str, *, reason: str = "") -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to revoke")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.revoked_at = _utcnow()
     record.revoked_reason = str(reason or "revoked by the operator")
     record.stage = STAGE_REVOKED
@@ -532,6 +561,8 @@ def uninstall(plugin_id: str) -> PluginRecord:
     if record is None:
         raise LifecycleError(f"{plugin_id}: nothing installed to uninstall")
     record.enabled = False
+    record.consented_approval = ""
+    record.network_consent = False
     record.stage = STAGE_UNINSTALLED
     record.uninstalled_at = _utcnow()
     record.verified_digest = ""
@@ -610,6 +641,13 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
             return False
     digest = manifest_digest(pack)
     checked[plugin_id] = bool(digest) and digest == record.verified_digest
+    if checked[plugin_id]:
+        from core.plugin_tools import load_manifest
+
+        plugin = load_manifest(pack / ".codex-plugin" / "plugin.json")
+        if plugin.vool:
+            checked[plugin_id] = record.consented_approval == record.approval_digest and (
+                not plugin.vool["network"] or record.network_consent)
     return checked[plugin_id]
 
 

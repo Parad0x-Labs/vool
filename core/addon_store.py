@@ -299,7 +299,11 @@ def catalog() -> dict:
             except AddonError:
                 continue
     pending.sort(key=lambda item: item["checked_at"], reverse=True)
-    return {"entries": rows, "reviews": pending, "eyebrow": {"configured": credential_is_indexed(KEY_NAME)}, "supported": "Standalone instruction skills. Executable plugin and MCP imports are not offered yet."}
+    from core.plugin_manager import inventory
+
+    return {"entries": rows, "reviews": pending, "plugins": inventory(),
+            "eyebrow": {"configured": credential_is_indexed(KEY_NAME)},
+            "supported": "Skills and explicitly reviewed plugins."}
 
 
 def security_action(action: str, value: str = "") -> dict:

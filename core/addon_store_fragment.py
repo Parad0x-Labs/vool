@@ -2,7 +2,7 @@
 
 
 def render_addon_store_fragment() -> str:
-    return r'''
+    fragment = r'''
 <style>
 #pluginsOverlay .modal{width:min(1080px,94vw);max-width:1080px;height:min(820px,88vh);display:flex;flex-direction:column;border-radius:8px}
 #pluginsOverlay .modal-head{padding:18px 24px;border-bottom:1px solid var(--border);flex:none;gap:14px;flex-wrap:wrap}
@@ -64,7 +64,7 @@ const key=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s_-]+/g,''
 const slugKey=s=>String(s||'').replace(/-/g,'_');
 const catLabel=e=>tr('registry_category_'+slugKey(e.category),e.category)+' · '+tr('registry_subcategory_'+slugKey(e.subcategory),e.subcategory);
 function button(text,fn,cls){const b=node('button',text,cls||'');b.type='button';b.disabled=busy;b.addEventListener('click',fn);return b;}
-async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const err=new Error(j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(j.message||tr('request_failed','The request could not finish.'))+(String(j.error||'').startsWith('registry_')?'':' ['+(j.error||r.status)+']'));err.code=j.error;throw err;}return j;}
+async function post(payload){const r=await fetch('/api/addons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const j=await r.json();if(!r.ok||j.error){const translated=j.message_key&&window.VOOLT?window.VOOLT(j.message_key):j.message;const pluginMessage=translated===j.message_key?j.message:translated;const err=new Error(j.error==='plugin_refused'?pluginMessage:j.error==='registry_unsafe'?UNSAFE_NOTE():j.error==='registry_newer'?tr('registry_newer','This skill is already up to date. Check back for an update.'):(j.message||tr('request_failed','The request could not finish.'))+(String(j.error||'').startsWith('registry_')?'':' ['+(j.error||r.status)+']'));err.code=j.error;throw err;}return j;}
 async function read(){const r=await fetch('/api/addons');if(!r.ok)throw new Error(tr('catalog_failed','Could not read the add-on catalogue.'));return r.json();}
 function refresh(){if(typeof renderPluginPanel==='function')renderPluginPanel(_pluginCatalog||{},document.getElementById('pluginsSearch')?.value||'');}
 async function load(){
@@ -232,8 +232,10 @@ function releaseNotes(host,e){if(typeof e.release_notes==='string'&&e.release_no
 function renderLibrary(host,query){
  // Keep storage recovery, first-party identity and lifecycle controls at their existing owners.
  const d=typeof _pluginCatalog!=='undefined'?_pluginCatalog:{};
- if(_pluginMode==='skills')renderSkills(d,query);else renderPlugins(d,query);
+ const managed=new Set((data?.plugins||[]).map(p=>p.id));
+ if(_pluginMode==='skills')renderSkills(d,query);else renderPlugins({...d,plugins:(d.plugins||[]).filter(p=>!managed.has(p.id))},query);
  const grid=node('div',undefined,'addon-library-grid');while(host.firstChild)grid.append(host.firstChild);host.append(grid);
+ if(_pluginMode==='plugins')renderServicePlugins(host,query);
  const intro=node('div');hero(intro,tr('library_title','Your add-ons'),tr('library_intro','Everything installed in VOOL. Turn a plugin off without removing its files.'));
  const types=node('div',undefined,'addon-controls');[['plugins',tr('plugins','Plugins')],['skills',tr('skills','Skills')]].forEach(([id,label])=>{const b=button(label,()=>{_pluginMode=id;refresh();});b.setAttribute('aria-pressed',String(_pluginMode===id));types.append(b);});intro.append(types);(data?.entries||[]).filter(e=>e.installed&&e.scan==='risks_accepted').forEach(e=>{const note=node('p',e.name+' · '+tr('risk_accepted','Risks accepted by you'),'addon-risk-note');note.append(button(tr('view_decision','View decision'),()=>{tab='discover';selected=e;refresh();},'addon-linkbtn'));intro.append(note);});host.prepend(intro);
 }
@@ -401,3 +403,7 @@ function installDecision(risks){
 window.VoolAddons={open:()=>{nav();return load();},render,mountSecurity:security,publishControl};
 })();</script>
 '''
+
+    from core.plugin_store_fragment import plugin_functions
+
+    return fragment.replace("function render(query){", plugin_functions() + "\nfunction render(query){")
