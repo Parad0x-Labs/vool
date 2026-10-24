@@ -158,9 +158,10 @@ def _manifest_rows_text() -> str:
 )
 def test_settings_stores_a_usepod_credential_as_a_token_never_as_a_base_url(isolated_home, pasted: str) -> None:
     from core import credential_store
+    from tests.usepod._legacy_profile import save_pair
 
-    status, payload, text = _dispatch_post("/api/settings/credentials", {"provider": "usepod", "value": pasted})
-    assert status == 200, payload
+    payload = save_pair(pasted, "")
+    text = json.dumps(payload)
     assert UUID_TOKEN not in text
     assert credential_store.get_credential("llm.cloud.usepod") == UUID_TOKEN
     assert not credential_store.get_credential("llm.cloud.custom_base_url")
@@ -176,7 +177,10 @@ def test_settings_refuses_a_usepod_paste_that_is_not_a_proxy_credential(isolated
         f"https://api.usepod.ai/v1/chat/completions?token={UUID_TOKEN}",  # not the documented shape
         f"http://api.usepod.ai/proxy/{UUID_TOKEN}/v1",  # a credential never travels over cleartext
     ):
-        status, payload, text = _dispatch_post("/api/settings/credentials", {"provider": "usepod", "value": pasted})
-        assert status == 400, (pasted, payload)
-        assert UUID_TOKEN not in text
+        from core.usepod.descriptor import UsePodConfigError
+        from core.usepod.discovery import plan_credential_binding
+
+        with pytest.raises(UsePodConfigError) as refused:
+            plan_credential_binding(pasted)
+        assert UUID_TOKEN not in str(refused.value)
     assert not credential_store.get_credential("llm.cloud.usepod")

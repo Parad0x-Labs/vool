@@ -1,5 +1,5 @@
-"""UsePod registration seams: the Settings door, the connection test, credential verification, lane
-registration, the owner-action guard suite, the model catalog, the pricing owner and routing events.
+"""Retained UsePod credential pairs, verification, lane registration, owner-action guards,
+price provenance, reservation pricing and routing events after explicit plugin consent.
 
 Everything runs against the SYNTHETIC strict local service or touches no network at all. Tokens are
 generated per test; model names are invented.
@@ -33,8 +33,10 @@ def service_and_token(usepod_home, usepod_service):
     return service, token
 
 
-def _store(service, token: str) -> tuple[int, dict]:
-    return post("/api/settings/credentials", {"provider": "usepod", "value": token, "base_url": service.origin})
+def _store(service, token: str) -> dict:
+    from tests.usepod._legacy_profile import save_pair
+
+    return save_pair(token, service.origin)
 
 
 def _approve() -> dict:
@@ -45,7 +47,7 @@ def _approve() -> dict:
     return payload["approved_route"]
 
 
-# --- the Settings door ------------------------------------------------------------------------------------
+# --- persisted historical credential pairs ------------------------------------------------------------------------------------
 
 
 def test_a_non_default_origin_is_bound_only_when_chosen_and_a_paste_cannot_steer_the_token(service_and_token, usepod_service) -> None:
@@ -53,16 +55,18 @@ def test_a_non_default_origin_is_bound_only_when_chosen_and_a_paste_cannot_steer
 
     service, token = service_and_token
     elsewhere = usepod_service(tokens={token: 1})
-    status, payload = post("/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1"})
-    assert (status, payload.get("code")) == (400, "non_default_origin_must_be_chosen_explicitly")
-    status, payload = post(
-        "/api/settings/credentials", {"provider": "usepod", "value": f"{elsewhere.origin}/proxy/{token}/v1", "base_url": service.origin}
-    )
-    assert (status, payload.get("code")) == (400, "pasted_origin_differs_from_chosen_origin")
+    from core.usepod.discovery import plan_credential_binding
+    from tests.usepod._legacy_profile import save_pair
+
+    with pytest.raises(descriptor.UsePodConfigError) as refused:
+        plan_credential_binding(f"{service.origin}/proxy/{token}/v1")
+    assert refused.value.code == "non_default_origin_must_be_chosen_explicitly"
+    with pytest.raises(descriptor.UsePodConfigError) as refused:
+        plan_credential_binding(f"{elsewhere.origin}/proxy/{token}/v1", explicit_origin=service.origin)
+    assert refused.value.code == "pasted_origin_differs_from_chosen_origin"
     assert not credential_store.get_credential("llm.cloud.usepod")
 
-    status, payload = post("/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-    assert status == 200, payload
+    payload = save_pair(f"{service.origin}/proxy/{token}/v1", service.origin)
     assert payload["credential_fingerprint"] == descriptor.credential_fingerprint(service.origin, token)
     assert (payload["origin"], payload["origin_is_default"], payload["token_shape"]) == (service.origin, False, "uuid")
     assert credential_store.get_credential("llm.cloud.usepod") == token
@@ -75,40 +79,21 @@ def test_removing_the_credential_removes_the_origin_chosen_with_it(service_and_t
     from core import credential_store
 
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
-    status, payload = post("/api/settings/credentials", {"provider": "usepod", "delete": True})
-    assert status == 200 and payload["removed"] is True, payload
+    _store(service, token)
+    from tests.usepod._legacy_profile import delete_pair
+
+    assert delete_pair() is True
     assert not credential_store.get_credential("llm.cloud.usepod")
     assert not credential_store.get_credential("llm.cloud.usepod_origin")
 
 
-def test_the_connection_test_reads_the_balance_on_the_token_path_and_never_sends_a_bearer_header(service_and_token, monkeypatch) -> None:
-    from core import cloud_connection_state
-
-    service, token = service_and_token
-    assert _store(service, token)[0] == 200
-    monkeypatch.setattr(cloud_connection_state, "_last_probe_ts", {})
-    status, payload = post("/api/cloud/test", {"provider": "usepod"})
-    assert status == 200 and (payload["state"], payload["http_status"]) == ("ok", 200), payload
-    [probe] = service.requests
-    assert (probe["method"], probe["path"]) == ("GET", "/proxy/{token}/balance")
-    assert "authorization" not in probe["headers"]
-
-    stranger = str(uuid.uuid4())
-    assert _store(service, stranger)[0] == 200
-    monkeypatch.setattr(cloud_connection_state, "_last_probe_ts", {})
-    status, payload = post("/api/cloud/test", {"provider": "usepod"})
-    assert (payload["state"], payload["detail"], payload["http_status"]) == ("failed", "unauthorized", 401)
-    assert token not in json.dumps(payload) and stranger not in json.dumps(payload)
-
-
 def test_credential_verification_places_only_a_path_safe_token_and_sends_no_authorization_header(service_and_token) -> None:
-    from core.credential_intelligence.provider_registry import default_registry
     from core.credential_intelligence.verification import STATUS_REFUSED, STATUS_VERIFIED, verify_provider_credential
+    from tests.usepod._legacy_profile import _store as historical_store
 
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
-    usepod = default_registry().get("usepod")
+    _store(service, token)
+    _vault, usepod = historical_store()
     assert (usepod.auth_style, usepod.verify_endpoint) == ("url_path_token", f"{service.origin}/proxy/{{credential}}/balance")
     outcome = verify_provider_credential(token, usepod)
     assert (outcome.status, outcome.http_status) == (STATUS_VERIFIED, 200)
@@ -134,14 +119,14 @@ def test_a_proxy_target_never_prints_or_pickles_its_token() -> None:
 
 def test_a_registered_lane_carries_the_origin_and_slot_never_the_token_and_follows_the_lane_preference(service_and_token) -> None:
     from core.model_registry import ModelRegistry
-    from core.runtime_provider_defaults import register_chat_cloud_model
     from core.usepod.legacy_adapter import UsePodAdapter
     from storage.model_provider_manifest import list_provider_manifests
+    from tests.usepod._legacy_profile import register_model
 
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
+    _store(service, token)
     approved = _approve()
-    assert register_chat_cloud_model("usepod", MODEL) == f"usepod-byok:{MODEL}"
+    assert register_model(MODEL) == f"usepod-byok:{MODEL}"
     manifest = ModelRegistry().get_manifest("usepod-byok", MODEL)
     assert manifest.adapter_type == "usepod"
     assert {key: manifest.runtime_config[key] for key in ("base_url", "api_path", "protocol", "transport_mode", "credential_key")} == {
@@ -191,6 +176,9 @@ def test_a_registered_lane_carries_the_origin_and_slot_never_the_token_and_follo
     ],
 )
 def test_owner_actions_hold_the_post_guard_suite(usepod_home, path, body, options, status, expected) -> None:
+    from tests.usepod._legacy_profile import enable_reference
+
+    enable_reference()
     got_status, payload = post(path, body, **options)
     assert got_status == status, payload
     assert {key: payload.get(key) for key in expected} == expected
@@ -198,7 +186,7 @@ def test_owner_actions_hold_the_post_guard_suite(usepod_home, path, body, option
 
 def test_approving_a_route_the_feed_cannot_support_is_a_typed_conflict(service_and_token) -> None:
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
+    _store(service, token)
     assert post("/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})[0] == 200
     status, payload = post("/api/cloud/usepod/approve-route", {"model_id": "not-listed-anywhere-synth"})
     assert (status, payload["code"]) == (409, "model_not_listed")
@@ -210,32 +198,28 @@ def test_approving_a_route_the_feed_cannot_support_is_a_typed_conflict(service_a
 
 
 def test_the_model_catalog_lists_exact_route_prices_with_their_provenance(service_and_token) -> None:
-    from core.cloud_providers import AUTH_BEARER, AUTH_URL_PATH_TOKEN
-
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
-    empty = get("/api/cloud/models", {"provider": ["usepod"]})
-    assert (empty["models"], empty["price_source"]) == ([], {"state": "no_cached_snapshot"})
+    _store(service, token)
+    empty = get("/api/cloud/usepod/discovery")
+    assert (empty["models"], empty["marketplace"]) == ([], {"state": "no_cached_snapshot"})
 
-    listed = get("/api/cloud/models", {"provider": ["usepod"], "refresh": ["1"]})
-    assert listed["refresh"] == {"state": "fetched"}
+    status, refreshed = post("/api/cloud/usepod/refresh", {})
+    assert status == 200 and refreshed["marketplace"]["state"] == "fetched"
+    listed = get("/api/cloud/usepod/discovery")
     [row] = listed["models"]
-    assert (row["id"], row["usable_for_spend"], row["prompt_usd_per_m"], row["completion_usd_per_m"]) == (MODEL, True, 0.38, 1.14)
-    market = row["route_prices"]["marketplace"]
+    market = row["marketplace"]
+    assert (row["model_id"], row["unusable_reason"], market["input_usdc_per_million"], market["output_usdc_per_million"]) == (MODEL, "", "0.38", "1.14")
     assert (market["input_microunits_per_million"], market["output_microunits_per_million"]) == MARKET
-    assert [(price["provider"], price["input_microunits_per_million"]) for price in row["route_prices"]["centralized"]] == [(CENTRAL[0], CENTRAL[1])]
-    source = listed["price_source"]
+    assert [(price["provider"], price["input_microunits_per_million"]) for price in row["centralized"]] == [(CENTRAL[0], CENTRAL[1])]
+    source = listed["marketplace"]
     assert (source["origin"], source["evidence"], source["stale"], len(source["body_sha256"])) == (service.origin, "cache", False, 64)
 
     service.feed_status = 500
-    degraded = get("/api/cloud/models", {"provider": ["usepod"], "refresh": ["1"]})
-    assert degraded["refresh"] == {"state": "unavailable", "error_code": "feed_http_error"}
-    assert [item["id"] for item in degraded["models"]] == [MODEL]
-
-    providers = {item["id"]: item for item in get("/api/cloud/providers")["providers"]}
-    assert providers["usepod"]["auth_placement"] == AUTH_URL_PATH_TOKEN
-    assert {item["auth_placement"] for pid, item in providers.items() if pid != "usepod"} == {AUTH_BEARER}
-    assert token not in json.dumps(listed) + json.dumps(degraded)
+    status, refreshed = post("/api/cloud/usepod/refresh", {})
+    assert status == 200 and refreshed["marketplace"] == {"state": "unavailable", "error_code": "feed_http_error"}
+    degraded = get("/api/cloud/usepod/discovery")
+    assert [item["model_id"] for item in degraded["models"]] == [MODEL]
+    assert token not in json.dumps(listed) + json.dumps(degraded) + json.dumps(refreshed)
 
 
 # --- the pricing owner and routing events ------------------------------------------------------------------
@@ -251,7 +235,7 @@ def test_a_paid_reservation_is_refused_until_the_route_is_approved_then_sized_at
     from core.paid_call_reservation import _reservation_ceiling_usd
 
     service, token = service_and_token
-    assert _store(service, token)[0] == 200
+    _store(service, token)
     limits = SimpleNamespace(per_call_usd=0.25)
     assert reservation_price_refusal("usepod", MODEL) == "usepod_route_not_approved"
     with pytest.raises(PermissionError, match="usepod_route_not_approved"):

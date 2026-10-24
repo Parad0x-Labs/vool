@@ -29,11 +29,11 @@ def enable_reference():
 def _store():
     from core.credential_intelligence.provider_registry import ProviderDescriptor, ProviderRegistry
     from core.credential_intelligence.store import CredentialStore
-    from core.usepod.legacy_config import CONFIG
+    from core.usepod.legacy_config import CONFIG, origin
 
     descriptor = ProviderDescriptor(
         provider_id=CONFIG.provider_id, label=CONFIG.label, kind="llm_cloud", credential_slot=CONFIG.credential_slot,
-        verify_endpoint=CONFIG.base_url + CONFIG.credential_path_template + CONFIG.probe_path,
+        verify_endpoint=origin() + CONFIG.credential_path_template + CONFIG.probe_path,
         auth_style="url_path_token", capability_family="cloud_chat", paid=True,
         endpoint_slot=CONFIG.endpoint_slot, default_endpoint=CONFIG.base_url,
         verify_path=CONFIG.credential_path_template + CONFIG.probe_path,
@@ -74,29 +74,6 @@ def delete_pair():
 
 
 def register_model(model_name):
-    from core.model_registry import ModelRegistry
-    from core.plugin_providers import require_legacy_x402
-    from core.usepod.descriptor import protocol_path
-    from core.usepod.lane import load_lane_preference
-    from core.usepod.legacy_config import CONFIG, origin
-    from storage.model_provider_manifest import ModelProviderManifest
+    from core.usepod.legacy_registration import register_model as retained_register_model
 
-    require_legacy_x402()
-    lane, _ = load_lane_preference()
-    caps = ["summarize", "classify", "format", "extract", "code_basic", "code_complex", "structured_json", "long_context", "tool_intent"]
-    manifest = ModelProviderManifest(
-        provider_name="usepod-byok", model_name=model_name, source_type="http", adapter_type="usepod",
-        license_name="Provider", license_reference="user-managed", license_url_or_reference="user-managed",
-        weight_location="external", redistribution_allowed=False, runtime_dependency="remote-usepod-inference-marketplace",
-        notes="Historical monetary lane; the credential stays in the vault.", capabilities=caps,
-        runtime_config={"base_url": origin(), "api_path": protocol_path(lane.protocol), "protocol": lane.protocol,
-                        "transport_mode": lane.transport_mode, "timeout_seconds": 180, "health_timeout_seconds": 10,
-                        "temperature": 0.3, "supports_json_mode": False, "tool_dialect": "native",
-                        "credential_key": CONFIG.credential_slot},
-        metadata={"chat_selection_only": True, "runtime_family": "openai-compatible", "confidence_baseline": 0.75,
-                  "orchestration_role": "queen", "deployment_class": "remote", "cost_class": "paid_cloud",
-                  "context_window": 0, "tool_support": ["structured_json", "code_complex", "tool_calls"], "max_safe_concurrency": 2},
-        enabled=True,
-    )
-    ModelRegistry().register_manifest(manifest)
-    return manifest.provider_id
+    return retained_register_model(model_name)

@@ -54,6 +54,9 @@ def law(tmp_path, monkeypatch):
     # later suite that re-points the home through the environment alone.
     previous_override = runtime_paths._VOOL_HOME_OVERRIDE
     _home(tmp_path, monkeypatch)
+    from tests.usepod._legacy_profile import enable_reference
+
+    enable_reference()
     token = str(uuid.uuid4())
     service = StrictUsePodService(
         tokens={token: 80_000_000},
@@ -123,16 +126,10 @@ def _fingerprint() -> str:
 
 
 def _observe_balance(service, token) -> str:
-    """Bind the credential, refresh discovery (fresh liquidity) and return the fingerprint."""
-    """Bind the credential and refresh discovery so the liquidity observation is fresh."""
-    import os
+    """Bind the historical pair with explicit plugin consent, then refresh liquidity."""
+    from tests.usepod._legacy_profile import save_pair
 
-    from core import credential_store
-    from core.usepod.legacy_config import ORIGIN_SLOT as USEPOD_ORIGIN_SLOT
-
-    credential_store.store_credential("llm.cloud.usepod", token)
-    credential_store.store_credential(USEPOD_ORIGIN_SLOT, service.origin)
-    os.environ["VOOL_USEPOD_TOKEN"] = ""
+    save_pair(token, service.origin)
     from core.usepod import discovery
 
     result = discovery.refresh_discovery()

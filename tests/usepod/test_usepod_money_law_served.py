@@ -56,6 +56,7 @@ class MoneyLawDaemon(UsePodServedDaemon):
         return env
 
     def start(self, timeout: float = 240.0) -> MoneyLawDaemon:
+        self.seed_legacy_profile()
         self.home.mkdir(parents=True, exist_ok=True)
         handle = self.log_path.open("ab")
         self.process = subprocess.Popen(
@@ -171,16 +172,13 @@ def served(tmp_path_factory):
     previous_override = None
     previous_db_override = None
     try:
+        saved = daemon.seed_legacy_profile(origin=service.origin, token=token)
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
         # The discovery refresh is ALSO the liquidity observation: one owner action, two laws fed.
         status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
         assert status == 200 and refreshed["credential"]["state"] == "observed", refreshed
         status, _policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
         assert status == 200
-        status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-        assert status == 200 and pinned.get("ok") is True, pinned
         status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
         assert status == 200, approved
         served = SimpleNamespace(service=service, daemon=daemon, token=token, fingerprint=saved["credential_fingerprint"])
@@ -245,8 +243,6 @@ def _mint_grant(daemon, fingerprint: str, *, max_total: int = 5_000_000, per_ope
 
 
 def _pin_and_approve(served) -> None:
-    status, pinned = served.daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-    assert status == 200 and pinned.get("ok") is True, pinned
     status, approved = served.daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
     assert status == 200, approved
 

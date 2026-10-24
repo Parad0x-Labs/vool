@@ -43,6 +43,7 @@ from types import SimpleNamespace
 import pytest
 
 from tests.usepod._free_tool_lane import TOOL_NATIVE_NAME, FreeToolLaneService
+from tests.usepod._served_daemon import CENTRAL, PlainServedDaemon
 from tests.usepod.strict_usepod_service import Listing, StrictUsePodService
 from tests.usepod.test_usepod_served_flow import (
     DOUBLE_LABEL,
@@ -54,7 +55,6 @@ from tests.usepod.test_usepod_served_flow import (
     _free_port,
     _session,
 )
-from tests.usepod.test_usepod_settings_ui import CENTRAL, PlainServedDaemon
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 #: A second, NOVEL model with its own marketplace listing at different prices.
@@ -104,6 +104,7 @@ class ToolFlowDaemon(UsePodServedDaemon):
         completed = subprocess.run([sys.executable, "-B", "-c", script], cwd=str(REPO_ROOT), env=self.env(), capture_output=True, text=True, timeout=180)
         if completed.returncode != 0:
             raise RuntimeError(f"free-lane registration failed:\n{completed.stdout}\n{completed.stderr}")
+        self.seed_legacy_profile()
         self.home.mkdir(parents=True, exist_ok=True)
         handle = self.log_path.open("wb")
         self.process = subprocess.Popen(
@@ -191,9 +192,8 @@ def served(tmp_path_factory):
     free = FreeToolLaneService(mode="tool_round_trip").start()
     daemon = ToolFlowDaemon(root / "home", root / "scratch", free.base_url)
     try:
+        saved = daemon.seed_legacy_profile(origin=service.origin, token=token, models=tuple(service.models))
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
         status, refreshed = daemon.call("POST", "/api/cloud/usepod/refresh", {})
         assert status == 200 and refreshed["marketplace"]["state"] == "fetched", refreshed
         status, policy = daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
@@ -207,8 +207,6 @@ def served(tmp_path_factory):
 
 def _pin_and_approve(served, model_id: str) -> None:
     daemon = served.daemon
-    status, pinned = daemon.call("POST", "/api/cloud/model", {"model": model_id, "provider": "usepod", "confirm_paid": True})
-    assert status == 200 and pinned.get("ok") is True, pinned
     status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": model_id})
     assert status == 200, approved
 
@@ -508,13 +506,10 @@ def plain(tmp_path_factory):
     ).start()
     daemon = PlainServedDaemon(root / "home")
     try:
+        saved = daemon.seed_legacy_profile(origin=service.origin, token=token, models=tuple(service.models))
         daemon.start()
-        status, saved = daemon.call("POST", "/api/settings/credentials", {"provider": "usepod", "value": f"{service.origin}/proxy/{token}/v1", "base_url": service.origin})
-        assert status == 200, saved
         daemon.call("POST", "/api/cloud/usepod/refresh", {})
         daemon.call("POST", "/api/cloud/usepod/route-policy", {"mode": "marketplace-only"})
-        status, pinned = daemon.call("POST", "/api/cloud/model", {"model": MODEL, "provider": "usepod", "confirm_paid": True})
-        assert status == 200 and pinned.get("ok") is True, pinned
         status, approved = daemon.call("POST", "/api/cloud/usepod/approve-route", {"model_id": MODEL})
         assert status == 200, approved
         yield SimpleNamespace(service=service, daemon=daemon, token=token)

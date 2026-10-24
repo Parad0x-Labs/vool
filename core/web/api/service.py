@@ -4337,8 +4337,11 @@ def _usepod_owner_action(normalized_path: str, body: dict[str, Any], headers: di
                 usepod_discovery.save_accountless_origin(str(fields.get("origin") or ""))
             except usepod_discovery.AccountlessOriginRefusedError as exc:
                 return exc.http_status, {"error": str(exc), "code": exc.code}
+        from core.usepod.legacy_registration import refresh_path_token_lanes
+
         preference = save_lane_preference(requested)
-        return 200, {"lane": preference.to_dict(), "origin": usepod_discovery.configured_origin()}
+        return 200, {"lane": preference.to_dict(), "origin": usepod_discovery.configured_origin(),
+                     "refreshed_lanes": refresh_path_token_lanes("usepod")}
     if normalized_path == "/api/cloud/usepod/x402/resume":
         # The owner finishes ONE paid accountless call whose answer never arrived: the recorded bytes and proof are resent
         # once, never a new quote or a second payment. The conversation that asked has ended, so the answer comes back here.

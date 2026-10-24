@@ -28,6 +28,11 @@ def _usepod_starts_unconfigured(monkeypatch, tmp_path):
         reset_payment_authority()
 
     _reset()
+    # These retained monetary tests require the now-external provider prerequisite.
+    # Consent grants no wallet, budget, signing or payment authority.
+    from tests.usepod._legacy_profile import enable_reference
+
+    enable_reference()
     yield
     _reset()
 
