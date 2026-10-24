@@ -3110,12 +3110,16 @@
     "addons.plugin_migration_usepod_installed": "Your saved UsePod key is kept. Enable the plugin to reuse it, or connect your own service key.",
     "addons.plugin_migration_eyebrow": "Eyebrow now comes as a plugin. Install it to keep using it; your saved key will be reused.",
     "addons.plugin_migration_eyebrow_installed": "Your saved Eyebrow key is kept. Enable the plugin to reuse it, or connect your own service key.",
-    "addons.plugin_runtime_unavailable": "Executable plugins are unavailable on this device because its sandbox cannot protect other processes’ credentials. Declarative provider and scanner plugins remain available.",
+    "addons.plugin_runtime_unavailable": "Executable plugins need the local isolated runtime on this device. It is unavailable. Declarative provider and scanner plugins remain available.",
     "addons.plugin_message_c2b9528934e4": "Enable the matching provider plugin with x402 support before using this payment lane.",
     "keys.plugin_models_help": "Built-in model providers remain in API Keys. Install and connect service plugins in Add-ons; their enabled models appear in the same model picker.",
     "keys.plugin_manage": "Manage plugins in Add-ons",
     "addons.plugin_migration_model_fallback": "UsePod now comes as a plugin. Previous model choices were moved to a provider you had already selected, or cleared when none was configured. Automatic cloud escalation is off. Choose your model before sending another message.",
-    "addons.plugin_message_a8cbe874eb37": "Executable plugins are unavailable on this device because its sandbox cannot protect other processes' saved credentials. Declarative provider and scanner plugins remain available."
+    "addons.plugin_message_a8cbe874eb37": "Executable plugins are unavailable on this device because its sandbox cannot protect other processes' saved credentials. Declarative provider and scanner plugins remain available.",
+    "addons.plugin_message_2a98fe159fd4": "The local isolated plugin runtime is unavailable. No executable plugin was started.",
+    "addons.plugin_message_8696e7687080": "The plugin requested a folder containing private application or home data.",
+    "addons.plugin_message_c7b23358e065": "Executable plugins need the local isolated runtime on this device. It is unavailable. Declarative provider and scanner plugins remain available.",
+    "addons.plugin_message_1681d660cce9": "The executable must belong to the captured plugin package."
   },
   "html_keys": [
     "bypass.modal_limits",

@@ -40,6 +40,9 @@ def composed(monkeypatch, tmp_path):
     home.mkdir()
     monkeypatch.setenv("VOOL_HOME", str(home))
     runtime_paths.configure_runtime_home(home)
+    from tests.usepod._legacy_profile import isolate_reference
+
+    isolate_reference(monkeypatch, tmp_path)
     monkeypatch.setenv("VOOL_WALLET_ENABLED", "1")
     monkeypatch.setenv("VOOL_WALLET_X402_ALLOW_LOOPBACK", "1")
     monkeypatch.setenv("VOOL_USEPOD_X402_APPROVAL_SECONDS", "30")

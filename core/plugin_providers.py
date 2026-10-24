@@ -106,7 +106,7 @@ def filter_manifests(manifests):
     for manifest in manifests:
         if manifest.adapter_type == "usepod":
             try:
-                require_legacy_x402(str(manifest.runtime_config.get("base_url") or ""))
+                require_legacy_x402()
             except (ServiceRefused, ValueError, OSError):
                 continue
         plugin_id = manifest.runtime_config.get("plugin_id")
@@ -159,12 +159,15 @@ def usable_provider(provider: str, model: str = "") -> bool:
     return any(row["id"] == model for row in rows) if model else bool(rows)
 
 
-def require_legacy_x402(origin: str = ""):
+def require_legacy_x402():
     """Gate the retained monetary lane; a declaration grants no caps, approval or signing."""
+    from core.usepod.legacy_config import CONFIG
     from core.usepod.legacy_config import origin as legacy_origin
 
     record, plugin = declaration("vool-plugin-usepod", "model_provider")
     spec = plugin.vool["model_provider"]
-    if spec.get("x402") is not True or spec["base_url"].rstrip("/") != (origin or legacy_origin()).rstrip("/"):
+    saved_origin = legacy_origin().rstrip("/")
+    if (spec.get("x402") is not True
+            or spec["base_url"].rstrip("/") not in {CONFIG.base_url.rstrip("/"), saved_origin}):
         raise ServiceRefused("Enable the matching provider plugin with x402 support before using this payment lane.")
     return record, plugin

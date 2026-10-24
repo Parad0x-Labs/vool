@@ -28,6 +28,7 @@ from core.usepod import pricing, routing
 from core.usepod.legacy_adapter import UsePodDispatchRefusedError, UsePodRouteNotCompliantError
 from core.usepod.monetary import install_monetary_authority
 from core.usepod.transport import UsePodTransportError, install_payment_authority
+from tests.usepod._legacy_profile import delete_pair, register_model, save_pair
 from tests.usepod._usepod_doors import get as _get
 from tests.usepod._usepod_doors import post as _post
 from tests.usepod._usepod_doubles import RecordingMonetaryTestDouble, SyntheticChainPaymentTestDouble
@@ -58,8 +59,7 @@ def rig(usepod_home, usepod_service):
         tokens={token: BALANCE},
         models={MODEL: [Listing("marketplace", MARKET_ID, *MARKET), Listing("centralized", *CENTRAL)]},
     )
-    status, saved = _post("/api/settings/credentials", {"provider": "usepod", "value": token, "base_url": service.origin})
-    assert status == 200, saved
+    saved = save_pair(token, service.origin)
     assert (saved["origin"], saved["origin_is_default"]) == (service.origin, False)
     return SimpleNamespace(service=service, token=token, home=usepod_home, fingerprint=saved["credential_fingerprint"], make=usepod_service, other=None)
 
@@ -74,11 +74,10 @@ def _approve(policy: dict | None = None, model: str = MODEL) -> dict:
 
 def _lane(*, protocol: str = "openai", transport: str = "prepaid_token", model: str = MODEL, runtime_overrides: dict | None = None):
     from core.model_registry import ModelRegistry
-    from core.runtime_provider_defaults import register_chat_cloud_model
 
     status, payload = _post("/api/cloud/usepod/lane", {"protocol": protocol, "transport_mode": transport})
     assert status == 200, payload
-    assert register_chat_cloud_model("usepod", model) == f"usepod-byok:{model}"
+    assert register_model(model) == f"usepod-byok:{model}"
     registry = ModelRegistry()
     manifest = registry.get_manifest("usepod-byok", model)
     assert manifest is not None and (manifest.runtime_config["protocol"], manifest.runtime_config["transport_mode"]) == (protocol, transport)
@@ -406,15 +405,13 @@ def _privacy_class(label: str, code: str):
 def _token_removed(rig):
     _approve()
     adapter = _lane()[0]
-    status, payload = _post("/api/settings/credentials", {"provider": "usepod", "delete": True})
-    assert status == 200 and payload["removed"] is True, payload
+    assert delete_pair() is True
     return adapter, _request("Name a desert in Peru."), "usepod_token_not_configured"
 
 
 def _repoint(rig):
     rig.other = rig.make(tokens={rig.token: BALANCE}, models={MODEL: list(rig.service.models[MODEL])})
-    status, saved = _post("/api/settings/credentials", {"provider": "usepod", "value": rig.token, "base_url": rig.other.origin})
-    assert status == 200, saved
+    save_pair(rig.token, rig.other.origin)
 
 
 def _origin_repointed_under_a_built_lane(rig):
@@ -706,8 +703,7 @@ def test_rotating_the_token_changes_the_credential_identity_and_orphans_its_disc
 
     rotated = str(uuid.uuid4())
     rig.service.tokens[rotated] = 1_000_000
-    status, saved = _post("/api/settings/credentials", {"provider": "usepod", "value": rotated, "base_url": rig.service.origin})
-    assert status == 200, saved
+    saved = save_pair(rotated, rig.service.origin)
 
     after = _get("/api/cloud/usepod/discovery")
     assert after["credential"]["fingerprint"] == saved["credential_fingerprint"] != rig.fingerprint

@@ -203,9 +203,10 @@ def test_the_accountless_origin_is_chosen_explicitly_and_can_return_to_the_docum
 
 
 def test_a_stored_token_keeps_its_origin(x402_home, monkeypatch) -> None:
+    from core.credential_store import store_credential
     from core.usepod import discovery
 
-    monkeypatch.setenv("VOOL_USEPOD_TOKEN", str(uuid.uuid4()))
+    store_credential("llm.cloud.usepod", str(uuid.uuid4()))
     before = discovery.configured_origin()
     with pytest.raises(discovery.AccountlessOriginRefusedError) as caught:
         discovery.save_accountless_origin("http://127.0.0.1:8123")

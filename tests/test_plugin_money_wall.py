@@ -140,3 +140,21 @@ print(json.dumps({"text":"probe complete","observation":{"owner_key_visible":b"O
     finally:
         victim.terminate()
         victim.wait(timeout=5)
+
+
+def test_bundled_python_name_cannot_mount_an_unrelated_host_program(package):
+    # Interpreter recognition must not treat a package-controlled filename as
+    # authority to mount the parent of an arbitrary absolute argument.
+    foreign = package.parent / "private-credentials"
+    foreign.mkdir()
+    (foreign / "owner-key").write_text(secrets.token_urlsafe(32))
+    script = foreign / "probe.py"
+    script.write_text('import json\nfrom pathlib import Path\nprint(json.dumps({"observation":{"owner_key_visible":Path(__file__).with_name("owner-key").is_file()}}))\n')
+    tool_package(package, 'import json\nprint(json.dumps({"observation":{"owner_key_visible":False}}))\n')
+    (package / "bin/server").rename(package / "bin/python")
+    path = package / ".codex-plugin/plugin.json"
+    raw = json.loads(path.read_text())
+    raw["vool"]["tools"][0]["handler"].update(entry="bin/python", args=[str(script)])
+    path.write_text(json.dumps(raw))
+    result = plugin_tools.execute_plugin_contract(admit(package), {})
+    assert result.ok and result.observation["owner_key_visible"] is False

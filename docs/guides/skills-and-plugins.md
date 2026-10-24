@@ -4,8 +4,8 @@ description: Extend VOOL with skills and plugins.
 
 # Skills and plugins
 
-A **skill** is a packaged set of instructions for a recurring task. A **plugin** adds new
-tools to the runtime.
+A **skill** is a packaged set of instructions for a recurring task. A **plugin** adds tools,
+a model provider or an add-on scanner. Plugins may also bundle skills.
 
 ## Bundled versus externally installed
 
@@ -53,7 +53,25 @@ Review the entire package before verification. A review is evidence about specif
 not a safety certificate or a grant of permissions.
 {% endhint %}
 
-## Package approval in v0.7
+## Plugins in Add-ons
+
+Open **Add-ons → My add-ons → Plugins**. Review a local folder or a public GitHub folder at
+an exact commit. Installation captures the complete package and keeps it disabled. Signed
+store plugins use the existing registry chain and also install disabled. Review the access
+sheet separately before enabling tools or services. Saving a service key causes no request;
+connection tests and model-list refreshes are explicit actions.
+
+Disable removes tools and stops running calls. Uninstall disables first, removes owned files
+and scratch, defaults to deleting saved keys, and retains history. Updates and re-installs
+require a new review and start disabled. UsePod and Eyebrow reference plugins live under
+`examples/plugins/`; they are examples maintained with VOOL, not service endorsements.
+Older saved keys are kept. Add-ons explains how to reuse them after explicitly installing
+and enabling the reference. Previous UsePod model pins fall back to an already chosen
+configured provider or are cleared, with a notice and automatic escalation turned off.
+
+See [Plugin authoring](plugin-authoring.md) and [Add-on checks](addon-security.md).
+
+## Complete package approval
 
 Verification covers every package file and directory, including handler executables,
 vendored libraries, dependency locks, references, assets and executable mode bits.
@@ -93,10 +111,18 @@ Read-only tools receive no write grant. Other tools may write scratch but cannot
 their execution copy. `VOOL_PLUGIN_DEPENDENCIES` is a JSON mapping from declared dependency
 identities to the captured dependency directories. Bundle other third-party libraries
 and their locks inside the package; a lockfile alone does not attest an external environment.
-The host interpreter and system libraries remain part of the trusted platform, rather
+The runtime interpreter and system libraries remain part of the trusted platform, rather
 than being represented as reviewed third-party package bytes. This integrity check does
 not certify behavior, attest arbitrary code downloaded or loaded from outside the approved
 distribution, broker every internal effect or replace native wallet approval.
+
+Executable plugins on macOS require an explicitly provisioned local Linux container runtime
+with the pinned image already present. VOOL never starts a VM or downloads an image through
+plugin installation. A missing runtime refuses executable plugins; native providers and
+scanners remain usable. Linux uses bwrap, including a private process namespace and `/proc`.
+Process network access is currently off on the isolated backends, as the access sheet says.
+Native provider and scanner requests use their separate declared-host HTTPS transport.
+A network bridge for isolated executables is planned for a later version, not released yet.
 
 ## Writing a skill
 

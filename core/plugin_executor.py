@@ -17,13 +17,13 @@ to start a process at all.
 
 **Confinement is unconditional.** A minimal environment stops a child *inheriting* a secret; it
 does nothing about a child *reading* one from disk, or writing wherever it likes. Every plugin
-and MCP child therefore runs under the host's kernel confinement — the same Seatbelt (macOS) and
-bwrap (Linux) wrappers `sandbox.job_runner` already uses for sandbox commands:
-writes confined to the plugin's own root and its scratch directory, reads of the credential
-directories and VOOL's key home denied, network denied unless the manifest or server config
-says otherwise. A host that cannot enforce that REFUSES to run the child (status
-``confinement_unavailable``) rather than silently running it bare; the only way past is the
-explicit, informed ``confinement: "heuristic_only"`` opt-in, recorded on the result.
+and MCP child therefore requires an isolated runtime. Immutable packages use the Linux
+namespace wrapper when available. On macOS they may use a separately provisioned local Linux
+container runtime with a pinned, already installed image. Package mounts are read-only, scratch
+is private, process metadata is isolated, and executable network access stays off. No runtime
+or image is installed automatically. If this boundary is unavailable the child is refused
+(status ``confinement_unavailable``). The legacy ``heuristic_only`` option is explicit and
+recorded; immutable plugin execution never uses it.
 
 **Arguments are validated before dispatch, not after.** This is the pre-execution shape guard: a
 value bound to a parameter declared `x-vool-kind: "name"` that parses as a filesystem path is

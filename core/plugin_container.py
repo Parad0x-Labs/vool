@@ -139,7 +139,10 @@ def command(argv, *, working_directory, writable_roots, readable_roots=(), allow
     program = Path(args[0])
     # Python packages use the pinned guest interpreter, never a host executable
     # or a mounted host environment. Other bundled runtimes must run on Linux.
-    if program.name.startswith("python"):
+    outside_package = not program.resolve().is_relative_to(root)
+    if outside_package and program.name.startswith("python"):
+        if isolate_process_tree:
+            raise ConfinementUnavailableError("The executable must belong to the captured plugin package.")
         args[0] = "/usr/local/bin/python3"
         for token in args[1:]:
             if token.startswith("-"):

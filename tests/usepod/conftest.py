@@ -12,9 +12,11 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _usepod_starts_unconfigured(monkeypatch):
+def _usepod_starts_unconfigured(monkeypatch, tmp_path):
     """Every test starts and ends with no monetary or payment authority and no ambient UsePod token."""
     monkeypatch.delenv("VOOL_USEPOD_TOKEN", raising=False)
+    monkeypatch.setenv("VOOL_PLUGIN_LIFECYCLE_PATH", str(tmp_path / "plugin-lifecycle.json"))
+    monkeypatch.setenv("VOOL_PLUGINS_DIR", str(tmp_path / "installed-plugins"))
 
     def _reset() -> None:
         try:

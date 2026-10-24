@@ -458,7 +458,7 @@ class UsePodAdapter(OpenAICompatibleAdapter):
     def _prepare(self, request: ModelRequest, *, force_json: bool, stream: bool) -> _Plan:
         from core.plugin_providers import require_legacy_x402
 
-        require_legacy_x402(str(self.manifest.runtime_config.get("base_url") or ""))
+        require_legacy_x402()
         mode = self._mode()
         protocol = self._protocol()
         credential: ResolvedCredential | None = None
@@ -1080,7 +1080,7 @@ class UsePodAdapter(OpenAICompatibleAdapter):
     def resume_paid_operation(self, operation_id: str) -> dict[str, Any]:
         from core.plugin_providers import require_legacy_x402
 
-        require_legacy_x402(str(self.manifest.runtime_config.get("base_url") or ""))
+        require_legacy_x402()
         """Finish one already-paid x402 operation whose answer never arrived (a lost answer, or a process that ended while
         waiting). The transport resends the recorded bytes and proof once; the answer is judged against the route approval
         bound at dispatch, the provider receipt settles the liability and the chain confirmation follows. The conversation
