@@ -17,6 +17,7 @@ from core.plugin_network import NetworkRefused, connect_public, destination
 from core.plugin_processes import InvocationStopped, invocation
 
 _MAX_RESPONSE = 4 * 1024 * 1024
+ServiceTimeout = requests.exceptions.Timeout
 
 
 class ServiceRefused(RuntimeError):

@@ -378,9 +378,7 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
 
 
 def handle(action: str, body: dict) -> dict:
-    from requests.exceptions import Timeout
-
-    from core.plugin_services import ServiceRefused
+    from core.plugin_services import ServiceRefused, ServiceTimeout
 
     try:
         if action == "plugin_prepare":
@@ -408,7 +406,7 @@ def handle(action: str, body: dict) -> dict:
         if action == "plugin_uninstall":
             return uninstall(plugin_id, remove_key=body.get("remove_key", True))
         raise lifecycle.LifecycleError("Choose a supported plugin action.")
-    except Timeout:
+    except ServiceTimeout:
         raise lifecycle.LifecycleError("The plugin service timed out. No automatic retry was made.") from None
     except ServiceRefused as exc:
         raise lifecycle.LifecycleError(str(exc)) from None

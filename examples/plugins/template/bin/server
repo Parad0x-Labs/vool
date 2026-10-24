@@ -30,7 +30,9 @@ for line in sys.stdin:
             if parameters.get("name") != "sha256_text" or set(arguments) != {"text"} or not isinstance(text, str) or len(text) > 4096:
                 raise ValueError("Supply text to the declared digest tool.")
             encoded = text.encode("utf-8")
-            output = {"sha256": hashlib.sha256(encoded).hexdigest(), "bytes": len(encoded)}
+            # A byte-separated fingerprint retains every digest byte without
+            # resembling an unlabelled private key in an untrusted observation.
+            output = {"sha256": hashlib.sha256(encoded).digest().hex(":"), "bytes": len(encoded)}
             result = {"content": [{"type": "text", "text": json.dumps(output)}], "isError": False}
         else:
             raise ValueError("Unsupported operation.")

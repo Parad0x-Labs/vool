@@ -424,7 +424,7 @@ def test_a_malformed_wordlist_is_unavailable_not_silently_partial():
     assert sr.mnemonic_redaction_available() is True
 
 
-def test_bare_sha256_digests_survive_the_base58_shape_collision() -> None:
+def test_digest_fingerprints_preserve_bytes_without_exempting_opaque_keys() -> None:
     import hashlib
 
     # Independent input families; derive the public digest rather than prescribing an answer.
@@ -433,9 +433,14 @@ def test_bare_sha256_digests_survive_the_base58_shape_collision() -> None:
             value for index in range(4096)
             if "0" not in (value := hashlib.sha256(f"{prefix}:{index}".encode()).hexdigest())
         )
-        observation = '{"sha256": "' + digest + '"}'
+        # A hash-shaped untrusted string has no authority to exempt a key.
+        assert digest not in redact_secrets(digest)
+        assert contains_secret(digest) is True
+        fingerprint = bytes.fromhex(digest).hex(":")
+        observation = '{"sha256": "' + fingerprint + '"}'
         assert redact_secrets(observation) == observation
         assert contains_secret(observation) is False
+        assert bytes.fromhex(fingerprint.replace(":", "")).hex() == digest
 
 
 def test_hex_digest_precision_keeps_explicit_secret_authority() -> None:

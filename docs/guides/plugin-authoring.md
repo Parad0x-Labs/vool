@@ -6,8 +6,8 @@ Keep runtime output in scratch, never beside executable code.
 
 ## Manifest
 
-Extend `.codex-plugin/plugin.json` with the `vool` block specified by
-[`plugin-manifest.schema.json`](../reference/plugin-manifest.schema.json). Package `name` and
+Extend `.codex-plugin/plugin.json` with the `vool` block specified by the repository's
+`docs/reference/plugin-manifest.schema.json`. Package `name` and
 `vool.id` must agree, as must both semantic versions. Declare a display name, publisher,
 description, public HTTPS homepage and licence.
 

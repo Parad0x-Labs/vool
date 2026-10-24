@@ -22,7 +22,7 @@
     "tools": [
       {
         "intent": "vool-plugin-template.sha256",
-        "description": "Compute the SHA-256 digest and UTF-8 byte length of the supplied text.",
+        "description": "Compute the SHA-256 fingerprint as colon-separated hexadecimal bytes and the UTF-8 byte length of the supplied text.",
         "input_schema": {
           "type": "object",
           "required": [

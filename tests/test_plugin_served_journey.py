@@ -188,7 +188,8 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
                 if "0" not in hashlib.sha256((text := f"{seed}:{index}").encode()).hexdigest()
             )
         prompt = "Use the vool-plugin-template.sha256 tool to compute the text digest.\n" + json.dumps({"tool": "vool-plugin-template.sha256", "text": supplied})
-        digest = hashlib.sha256(supplied.encode()).hexdigest()
+        digest = hashlib.sha256(supplied.encode()).digest().hex(":")
+        assert bytes.fromhex(digest.replace(":", "")) == hashlib.sha256(supplied.encode()).digest()
         send_chat(page, prompt, digest, artifact=tmp_path / "tool-chat.ndjson")
         page.screenshot(path=str(tmp_path / "confined-tool-chat.png"), full_page=True)
         records = [json.loads(line) for line in https_service["log"].read_text().splitlines()]
@@ -355,4 +356,5 @@ def test_template_exact_mcp_configuration_handshake(tmp_path):
     assert replies[0]["result"]["protocolVersion"] == "2025-06-18"
     assert replies[1]["result"]["tools"][0]["name"] == "sha256_text"
     value = json.loads(replies[2]["result"]["content"][0]["text"])
-    assert value == {"sha256": hashlib.sha256(text.encode()).hexdigest(), "bytes": len(text.encode())}
+    assert value == {"sha256": hashlib.sha256(text.encode()).digest().hex(":"), "bytes": len(text.encode())}
+    assert bytes.fromhex(value["sha256"].replace(":", "")) == hashlib.sha256(text.encode()).digest()

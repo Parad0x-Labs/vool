@@ -3,11 +3,9 @@ from __future__ import annotations
 
 import hashlib
 
-import requests
-
 from core import json_schema_lite
 from core.addon_security import AddonError, validate_report
-from core.plugin_services import ServiceRefused, declaration, enabled, native_request
+from core.plugin_services import ServiceRefused, ServiceTimeout, declaration, enabled, native_request
 
 
 def scanners() -> list[dict]:
@@ -61,7 +59,7 @@ def request_api(endpoint: str, payload=None, *, plugin_id="") -> tuple[dict, str
             return value, ""
         finally:
             response.close()
-    except requests.exceptions.Timeout:
+    except ServiceTimeout:
         raise AddonError("scanner_timeout", "The scanner service timed out. No automatic retry was made; nothing was installed.", 502) from None
     except ServiceRefused as exc:
         raise AddonError("scanner_refused", str(exc), 502) from None
