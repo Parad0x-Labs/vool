@@ -124,11 +124,13 @@ def accept_access(page, card):
     card.get_by_text("Enabled", exact=True).wait_for()
 
 
-def send_chat(page, text, expected):
+def send_chat(page, text, expected, *, artifact=None):
     page.locator("#input").fill(text)
     with page.expect_response(lambda response: response.url.endswith("/api/chat")) as exchange:
         page.locator("#send").click()
     body = exchange.value.body()
+    if artifact is not None:
+        artifact.write_bytes(body)
     page.get_by_text(expected, exact=False).last.wait_for(timeout=10000)
     assert "application/x-ndjson" in exchange.value.headers.get("content-type", "")
     assert exchange.value.headers.get("transfer-encoding") == "chunked"
@@ -144,7 +146,8 @@ def select_provider(page):
 
 
 @pytest.mark.parametrize("https_service", [{"tool_dispatch": True}], indirect=True)
-def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, https_service):
+@pytest.mark.parametrize("digest_shape", ["arbitrary", "base58_collision"])
+def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, https_service, digest_shape):
     from tests.served_browser import launch_chromium
 
     daemon = PluginDaemon(tmp_path / "served", https_service).start()
@@ -177,9 +180,16 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         accept_access(page, card)
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
         supplied = "Fresh text " + secrets.token_hex(18)
+        if digest_shape == "base58_collision":
+            # Exercise the real redaction collision with fresh input and a computed answer.
+            seed = supplied
+            supplied = next(
+                text for index in range(4096)
+                if "0" not in hashlib.sha256((text := f"{seed}:{index}").encode()).hexdigest()
+            )
         prompt = "Use the vool-plugin-template.sha256 tool to compute the text digest.\n" + json.dumps({"tool": "vool-plugin-template.sha256", "text": supplied})
         digest = hashlib.sha256(supplied.encode()).hexdigest()
-        (tmp_path / "tool-chat.ndjson").write_bytes(send_chat(page, prompt, digest))
+        send_chat(page, prompt, digest, artifact=tmp_path / "tool-chat.ndjson")
         page.screenshot(path=str(tmp_path / "confined-tool-chat.png"), full_page=True)
         records = [json.loads(line) for line in https_service["log"].read_text().splitlines()]
         assert any(row.get("used_tool_result") for row in records)

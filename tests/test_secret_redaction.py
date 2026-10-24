@@ -234,9 +234,8 @@ def test_evm_private_key_shape_is_redacted_but_addresses_and_bare_digests_surviv
     # A bare sha256 digest (64 hex, NO 0x prefix) is the runtime's own diagnostic currency and
     # is deliberately outside this rule: the ambiguity with an unprefixed key body stays
     # explicit (the wallet accepts a bare 64-hex backup too) rather than masking every
-    # diagnostic digest. A digest containing a '0' splits the base58 run and survives; a
-    # no-zero digest was already inside the pre-existing base58 secret class before this rule
-    # (the x402 digest-vouch seam covers the digests the wallet itself mints).
+    # diagnostic digest. Bare 64-hex values are excluded from the broader base58 shape
+    # regardless of their digits; exact credentials and labelled values remain protected.
     digest = "a0" * 32
     assert redact_secrets(f"digest {digest}") == f"digest {digest}"
 
@@ -423,3 +422,34 @@ def test_a_malformed_wordlist_is_unavailable_not_silently_partial():
         assert sr.mnemonic_redaction_available() is False
         mp.setattr(sr, "_BIP39_INDEX", None)
     assert sr.mnemonic_redaction_available() is True
+
+
+def test_bare_sha256_digests_survive_the_base58_shape_collision() -> None:
+    import hashlib
+
+    # Independent input families; derive the public digest rather than prescribing an answer.
+    for prefix in ("plugin observation", "registry diagnostic"):
+        digest = next(
+            value for index in range(4096)
+            if "0" not in (value := hashlib.sha256(f"{prefix}:{index}".encode()).hexdigest())
+        )
+        observation = '{"sha256": "' + digest + '"}'
+        assert redact_secrets(observation) == observation
+        assert contains_secret(observation) is False
+
+
+def test_hex_digest_precision_keeps_explicit_secret_authority() -> None:
+    from core.secret_redaction import register_exact_secret
+
+    value = "ab" * 32
+    with _scoped_redaction_registry():
+        assert value not in redact_secrets("password: " + value)
+        assert contains_secret("password: " + value)
+        assert value not in redact_secrets("0x" + value)
+        assert contains_secret("0x" + value)
+        base58 = "3m" * 43
+        assert base58 not in redact_secrets(base58)
+        assert contains_secret(base58)
+        register_exact_secret(value)
+        assert value not in redact_secrets('{"sha256": "' + value + '"}')
+        assert contains_secret(value)

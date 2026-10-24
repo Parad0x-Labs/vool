@@ -122,7 +122,10 @@ _API_KEY_RE = re.compile(
 )
 # Long base58 (>= 64 chars) — a Solana secret key / seed. A 32-44 char base58 (a public address) is
 # deliberately NOT matched, so ordinary wallet addresses in chat stay readable.
-_B58_SECRET_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{64,88}\b")
+# A bare 64-hex digest is a more specific public diagnostic format. Without this
+# exclusion, only digests that happen to contain a zero survive the base58 rule.
+# Registered credentials and labelled secrets are still masked independently.
+_B58_SECRET_RE = re.compile(r"\b(?![0-9a-fA-F]{64}\b)[1-9A-HJ-NP-Za-km-z]{64,88}\b")
 # Bitcoin WIF private key: 51-52 base58 chars starting 5/K/L. Distinguishable from a Solana
 # public address (32-44 chars) by length + prefix, so this does not mask ordinary addresses.
 _WIF_RE = re.compile(r"\b[5KL][1-9A-HJ-NP-Za-km-z]{50,51}\b")
