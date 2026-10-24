@@ -32,12 +32,10 @@ answer exists to inspect, a whole-disk scan has already happened. Type-valid is 
 """
 from __future__ import annotations
 
-import contextlib
 import json
 import math
 import os
 import shutil
-import signal
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -256,6 +254,8 @@ def confined_argv(
     mode: str = "auto",
     working_directory: Path | None = None,
     readable_roots: tuple[Path, ...] = (),
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
 ) -> tuple[list[str], str]:
     """The argv to launch and a label naming how it is confined.
 
@@ -269,10 +269,25 @@ def confined_argv(
         clean_mode = "auto"
     bare = [str(a) for a in argv]
     wrapped = _kernel_confinement_prefix(
-        bare, writable_roots=writable_roots, allow_network=allow_network,
+        bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
     )
     if wrapped is not None:
+        if isolate_process_tree:
+            wrapped = list(wrapped)
+            backend = os.path.basename(wrapped[0])
+            if backend == "sandbox-exec" and wrapped[1] == "-p":
+                wrapped[2] += "(deny process-fork)"
+            elif backend == "bwrap":
+                wrapped[1:1] = ["--unshare-pid", "--die-with-parent", "--new-session"]
+            else:
+                raise ConfinementUnavailableError("This device cannot contain the plugin's child processes.")
+        if proxy_port:
+            if (not 1 <= proxy_port <= 65535 or len(wrapped) < 4
+                    or os.path.basename(wrapped[0]) != "sandbox-exec" or wrapped[1] != "-p"):
+                raise ConfinementUnavailableError("This device cannot restrict plugin network access to its private proxy.")
+            wrapped = list(wrapped)
+            wrapped[2] += f'(allow network-outbound (remote tcp "localhost:{proxy_port}"))'
         return list(wrapped), _backend_label(list(wrapped), bare) or "kernel:unknown"
     if clean_mode == "heuristic_only":
         return bare, "heuristic_only"
@@ -315,8 +330,13 @@ def run_plugin_tool(
     immutable_package: bool = False,
     package_dependencies: dict[str, Path] | None = None,
     before_start: Callable[[], None] | None = None,
+    call=None,
+    proxy_port: int = 0,
+    isolate_process_tree: bool = False,
 ) -> PluginToolResult:
     """Validate, then run one plugin tool. Never raises; every failure is a structured result."""
+
+    from core.plugin_processes import InvocationStopped, OutputTooLarge
 
     filled = json_schema_lite.apply_defaults(arguments, schema)
     errors = json_schema_lite.validate(filled, schema)
@@ -368,6 +388,8 @@ def run_plugin_tool(
             working_directory=root,
             readable_roots=(*(Path(p).resolve() for p in (package_dependencies or {}).values()),
                             *((Path(scratch_dir).resolve(),) if scratch_dir else ())),
+            proxy_port=proxy_port,
+            isolate_process_tree=isolate_process_tree,
         )
     except ConfinementUnavailableError as exc:
         return PluginToolResult(
@@ -401,16 +423,16 @@ def run_plugin_tool(
             duration = min(300.0, max(1.0, duration))
             # The copy's lifetime owns the child's process group. Do not delete
             # its executable tree while descendants continue using that tree.
+            from core.plugin_processes import communicate, terminate_owned
+
             with subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, text=True,
+                                  stderr=subprocess.PIPE,
                                   start_new_session=True, **launch) as child:
                 try:
-                    stdout, stderr = child.communicate(json.dumps(payload), timeout=duration)
+                    stdout, stderr = communicate(child, json.dumps(payload).encode(), timeout=duration, call=call)
                     completed = subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
                 finally:
-                    # Only this invocation's recorded PID/group is addressed.
-                    with contextlib.suppress(ProcessLookupError):
-                        os.killpg(child.pid, signal.SIGKILL)
+                    terminate_owned(child)
                     child.wait()
         else:
             completed = subprocess.run(
@@ -421,6 +443,9 @@ def run_plugin_tool(
             timeout=max(1.0, duration),
             **launch,
             )
+    except (InvocationStopped, OutputTooLarge) as exc:
+        return PluginToolResult(ok=False, status="plugin_stopped" if isinstance(exc, InvocationStopped) else "response_too_large",
+                                error=str(exc), confinement=confinement_label)
     except subprocess.TimeoutExpired:
         return PluginToolResult(
             ok=False,

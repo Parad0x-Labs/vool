@@ -10,6 +10,7 @@ function pluginFacts(host,p){
  const list=node('ul');(p.tools||[]).forEach(t=>list.append(node('li',t.description+' · '+(effects[t.side_effect_class]||tr('plugin_effect_other','Uses the normal permission checks')))));host.append(list);
  host.append(node('h4',tr('plugin_network','Network access')));
  host.append(node('p',(p.network||[]).length?p.network.join(', '):tr('plugin_no_network','No network access.')));
+ if((p.network||[]).length&&(p.tools||[]).length&&p.process_network_available===false)host.append(node('p',tr('plugin_network_unavailable','This device cannot limit plugin process connections to the listed hosts. Network access for its tools stays off.')));
  host.append(node('h4',tr('plugin_keys','Service keys')));
  const slots=Object.values(p.credentials||{});host.append(node('p',slots.length?slots.map(s=>s.label).join(', '):tr('plugin_no_keys','No service keys requested.')));
  if((p.mcp_servers||[]).length)host.append(node('p',tr('plugin_local_server','Runs a bundled connection server on this device.')));

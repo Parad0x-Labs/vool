@@ -80,10 +80,13 @@ def _loaded(plugin_id: str, *, available=False):
 
 
 def summary(plugin) -> dict:
+    from core.plugin_network import network_available
+
     block = plugin.vool
     return {"id": plugin.plugin_id, "version": plugin.version,
             **{key: block[key] for key in ("name", "publisher", "description", "homepage", "license", "kind", "network", "credentials")},
             "mcp_servers": list(block.get("mcpServers", {})),
+            "process_network_available": network_available(),
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
                        "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}

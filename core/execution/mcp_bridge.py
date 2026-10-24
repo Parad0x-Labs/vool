@@ -372,6 +372,50 @@ def _frame_output(server: str, tool_name: str, text: str) -> str:
     return f"[untrusted output from MCP server '{server}' tool '{tool_name}']\n{clean}"
 
 
+def execute_plugin_mcp(plugin, contract, arguments, *, scratch, dependencies, call, credentials, proxy=None):
+    """One approved package, one confined server lifetime, only its declared pinned tools."""
+    from core import json_schema_lite
+    from core.plugin_executor import PluginToolResult, check_argument_shapes
+
+    handler = json.loads(contract.handler)
+    spec = plugin.vool["mcpServers"][handler["server"]]
+    schema = dict(contract.json_schema or {})
+    filled = json_schema_lite.apply_defaults(arguments, schema)
+    problems = json_schema_lite.validate(filled, schema) + check_argument_shapes(filled, schema)
+    if problems:
+        return PluginToolResult(ok=False, status="invalid_arguments", error="; ".join(problems))
+    scratch.mkdir(parents=True, exist_ok=True)
+    environment = {name: credentials[name] for name in spec.get("env", {}) if name in credentials}
+    if proxy:
+        environment.update(proxy.environment)
+    client = MCPStdioClient(
+        str(plugin.root / spec["command"]), spec.get("args", []), env=environment,
+        cwd=str(plugin.root), name=plugin.plugin_id, timeout=float(handler.get("timeout_seconds", 30)),
+        immutable_package=True, scratch_dir=str(scratch),
+        readable_roots=(*dependencies.values(), scratch), proxy_port=proxy.port if proxy else 0, call=call,
+        read_only=contract.side_effect_class == "read_only",
+    )
+    try:
+        with client:
+            tools = client.list_tools()
+            matches = [tool for tool in tools if tool.name == handler["tool"]]
+            if len(matches) != 1 or matches[0].input_schema != schema:
+                return PluginToolResult(ok=False, status="mcp_contract_changed",
+                                        error="The connection server's tool differs from the reviewed manifest.")
+            result = client.call_tool(handler["tool"], filled)
+            call.check()
+            text = "\n".join(str(block.get("text") or "") for block in result.get("content", [])
+                             if isinstance(block, dict) and block.get("type") == "text")
+            return PluginToolResult(ok=not result.get("isError", False),
+                                    status="mcp_tool_error" if result.get("isError") else "mcp_executed",
+                                    text=text, confinement=client.confinement,
+                                    observation={"intent": contract.intent, "trust": "untrusted_external"})
+    except MCPError:
+        return PluginToolResult(ok=False, status="mcp_connection_failed",
+                                error="The plugin connection server stopped, timed out, or sent an invalid response.",
+                                confinement=client.confinement)
+
+
 def execute_mcp_intent(intent: str, arguments: dict[str, Any]) -> ToolIntentExecution:
     """Route an `mcp.<server>.<tool>` intent to its configured local MCP server."""
     parts = str(intent or "").split(".", 2)

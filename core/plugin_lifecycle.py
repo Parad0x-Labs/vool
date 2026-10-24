@@ -578,6 +578,9 @@ def uninstall(plugin_id: str) -> PluginRecord:
 def _invalidate_registration(plugin_id: str) -> None:
     """Drop this plugin's contracts from the live registry so the change takes effect NOW."""
 
+    from core.plugin_processes import stop
+
+    stop(plugin_id)
     try:
         from core import plugin_tools
         from core.tool_registry import contracts_from_source, unregister

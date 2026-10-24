@@ -550,7 +550,11 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
 
     from core import plugin_lifecycle as lifecycle
     from core.plugin_executor import PluginToolResult, run_plugin_tool
+    from core.plugin_network import EgressProxy, NetworkRefused
     from core.plugin_package import PackageError, capture_package, execution_directory
+    from core.plugin_processes import InvocationStopped, invocation
+    from core.plugin_services import ServiceRefused, credential_values
+    from core.secret_redaction import redacted_copy
 
     intent = str(contract.intent)
     plugin_id = str(contract.source or "")[len("plugin:"):]
@@ -639,18 +643,44 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                 lifecycle.note_invocation(plugin_id, intent, expected_approval=approved_approval,
                                           dependency_approvals=dependency_pins)
 
-            result = run_plugin_tool(
-                intent=intent, arguments=dict(arguments or {}), handler=handler,
-                schema=dict(contract.json_schema or {}), plugin_root=snapshot,
-                env_allowlist=tuple(str(x) for x in (handler.get("env_allowlist") or ())),
-                scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
-                allow_network=bool(handler.get("network", False)), confinement="auto",
-                read_only=contract.side_effect_class == "read_only", immutable_package=True,
-                package_dependencies=dependency_copies, before_start=before_start,
-            )
-            return replace(result, observation={**result.observation,
+            from contextlib import ExitStack
+
+            if not current():
+                raise PackageError("package authority changed before execution")
+            with invocation(plugin_id, current) as call, ExitStack() as resources:
+                is_mcp = handler.get("kind") == "mcp"
+                names = (reviewed.vool["mcpServers"][handler["server"]].get("env", {}) if is_mcp else
+                         handler.get("env_allowlist", [])) if reviewed.vool else ()
+                credentials = credential_values(plugin_id, reviewed.vool, names)
+                wants_network = bool(reviewed.vool.get("network")) and (is_mcp or handler.get("network") is True)
+                proxy = resources.enter_context(EgressProxy(reviewed.vool["network"], call)) if wants_network else None
+                before_start()
+                if is_mcp:
+                    from core.execution.mcp_bridge import execute_plugin_mcp
+
+                    result = execute_plugin_mcp(reviewed, contract, dict(arguments or {}), scratch=scratch,
+                                                dependencies=dependency_copies, call=call,
+                                                credentials=credentials, proxy=proxy)
+                else:
+                    result = run_plugin_tool(
+                        intent=intent, arguments=dict(arguments or {}), handler=handler,
+                        schema=dict(contract.json_schema or {}), plugin_root=snapshot,
+                        secrets={**credentials, **(proxy.environment if proxy else {})},
+                        scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
+                        allow_network=False, confinement="auto", proxy_port=proxy.port if proxy else 0,
+                        read_only=contract.side_effect_class == "read_only", immutable_package=True,
+                        isolate_process_tree=bool(reviewed.vool),
+                        package_dependencies=dependency_copies, call=call,
+                    )
+                call.check()
+            return replace(result, text=redacted_copy(result.text), error=redacted_copy(result.error),
+                           resolved_target=redacted_copy(result.resolved_target),
+                           observation={**redacted_copy(result.observation), "trust": "untrusted_external",
                 "package_sha256": approved_digest, "approval_sha256": approved_approval,
                 "dependency_sha256": dependency_packages, "dependency_approval_sha256": dependency_pins})
+    except (NetworkRefused, InvocationStopped, ServiceRefused) as exc:
+        return PluginToolResult(ok=False, status="plugin_refused", error=str(exc),
+                                observation={"intent": intent, "trust": "untrusted_external"})
     except (PackageError, PluginManifestError, lifecycle.LifecycleError, OSError, ValueError, TypeError, RecursionError) as exc:
         return PluginToolResult(ok=False, status="package_integrity_failed", error=str(exc),
                                 observation={"intent": intent, "package_sha256": approved_digest})

@@ -807,11 +807,15 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentEx
         "handler_escaped",
         "confinement_unavailable",
     }
+    details["trust"] = "untrusted_external"
     text = str(result.text or "").strip()
     if not result.ok:
         text = text or str(result.error or "").strip() or f"`{intent}` reported {result.status}."
         if result.status == "confinement_unavailable":
             text = f"`{intent}` was not run: this host cannot confine the plugin process. {result.error}"
+    from core.execution.mcp_bridge import _frame_output
+
+    text = _frame_output(str(contract.source)[len("plugin:"):], intent, text)
     return ToolIntentExecution(
         handled=True,
         ok=bool(result.ok),
