@@ -2999,7 +2999,14 @@
     "addons.plugin_message_24e733a12602": "The plugin service address could not be resolved.",
     "addons.plugin_message_32fa9cc9e60b": "Plugin process network access is unavailable on this device. It remains off.",
     "addons.plugin_message_2a1ab9fc2d93": "The plugin's private network connection could not start. Network access remains off.",
-    "addons.plugin_message_2e0b4d7e5579": "The plugin connection is outside its declared access."
+    "addons.plugin_message_2e0b4d7e5579": "The plugin connection is outside its declared access.",
+    "addons.plugin_message_af67a49aeb93": "A plugin credential environment name must be text.",
+    "addons.plugin_message_0376833df31f": "Plugin key slots cannot request owner model keys or change the process environment policy.",
+    "addons.plugin_message_29cdcbb8bc14": "Plugin tools must be a list of tool declarations.",
+    "addons.plugin_message_af43a9edefed": "Plugins cannot bind owner model or wallet credentials.",
+    "addons.plugin_message_7fcc34296aea": "Plugins cannot declare wallet, paid or approval tools.",
+    "addons.plugin_message_a8f782d347fa": "Plugin packages cannot declare money or approval authority.",
+    "addons.plugin_message_27f7dcd1115c": "Network access is off for this turn. The plugin was not connected."
   },
   "html_keys": [
     "bypass.modal_limits",

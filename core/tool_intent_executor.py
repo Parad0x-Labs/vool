@@ -740,7 +740,7 @@ def _settle_registered_budget_effect(intent: str, budget_effect, execution: Tool
     return execution
 
 
-def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentExecution | None:
+def _execute_plugin_tool(intent: str, arguments: dict[str, Any], *, source_context=None) -> ToolIntentExecution | None:
     """Dispatch a REGISTERED plugin contract through the confined plugin executor.
 
     Returns None when `intent` is not a plugin contract, so the chain continues to the next lane.
@@ -773,7 +773,7 @@ def _execute_plugin_tool(intent: str, arguments: dict[str, Any]) -> ToolIntentEx
             },
         )
     try:
-        result = plugin_tools.execute_plugin_contract(contract, dict(arguments or {}))
+        result = plugin_tools.execute_plugin_contract(contract, dict(arguments or {}), source_context=source_context)
     except Exception as exc:
         error = f"plugin executor failed: {type(exc).__name__}: {exc}"[:500]
         return ToolIntentExecution(
@@ -1642,7 +1642,7 @@ def _execute_tool_intent_impl(
     plugin_execution = (
         _dispatch_with_claim(
             lambda: _with_blackbox_coverage(
-                intent, arguments, source_context=source_context, dispatch=lambda: _execute_plugin_tool(intent, arguments)
+                intent, arguments, source_context=source_context, dispatch=lambda: _execute_plugin_tool(intent, arguments, source_context=source_context)
             )
         )
         if _is_plugin_contract(intent)

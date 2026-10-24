@@ -545,7 +545,7 @@ def confinement_mode() -> str:
     return mode if mode in {"auto", "heuristic_only"} else "auto"
 
 
-def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, Any]):
+def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, Any], *, source_context=None):
     """Run a registered plugin contract's handler. Returns a `PluginToolResult`; never raises."""
 
     from core import plugin_lifecycle as lifecycle
@@ -554,7 +554,14 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
     from core.plugin_package import PackageError, capture_package, execution_directory
     from core.plugin_processes import InvocationStopped, invocation
     from core.plugin_services import ServiceRefused, credential_values
+    from core.request_trust import request_is_owner_local
     from core.secret_redaction import redacted_copy
+
+    context = dict(source_context or {})
+    surface = str(context.get("surface") or context.get("platform") or "").lower()
+    if not request_is_owner_local(context) or surface in {"mobile_companion", "phone", "telegram", "discord", "web_companion", "openclaw"}:
+        return PluginToolResult(ok=False, status="plugin_owner_local_required",
+                                error="Use the local VOOL app to run installed plugins. Remote and phone turns cannot use them.")
 
     intent = str(contract.intent)
     plugin_id = str(contract.source or "")[len("plugin:"):]
@@ -567,6 +574,13 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
             observation={"intent": intent},
         )
     def current() -> bool:
+        token = context.get("cancel_event") or context.get("cancellation_token")
+        if token is not None:
+            try:
+                if token.is_set() if hasattr(token, "is_set") else token() if callable(token) else bool(token):
+                    return False
+            except Exception:
+                return False
         return bool(contract.supported and not _owner_disabled(plugin_id)
                     and lifecycle.is_available(plugin_id, root=root))
 
@@ -653,6 +667,14 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                          handler.get("env_allowlist", [])) if reviewed.vool else ()
                 credentials = credential_values(plugin_id, reviewed.vool, names)
                 wants_network = bool(reviewed.vool.get("network")) and (is_mcp or handler.get("network") is True)
+                if wants_network:
+                    from core.remote_fetch_policy import remote_fetch_forbidden
+                    from core.turn_prohibitions import FAMILY_TOOLS, FAMILY_WEB, conserved_request_prohibitions
+
+                    prohibitions = conserved_request_prohibitions(context)
+                    if (remote_fetch_forbidden() or context.get("allow_remote_fetch") is False
+                            or prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(FAMILY_TOOLS)):
+                        raise NetworkRefused("Network access is off for this turn. The plugin was not connected.")
                 proxy = resources.enter_context(EgressProxy(reviewed.vool["network"], call)) if wants_network else None
                 before_start()
                 if is_mcp:

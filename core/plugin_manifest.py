@@ -14,6 +14,17 @@ SEMVER = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?
 ENV_NAME = r"^[A-Z][A-Z0-9_]{0,95}$"
 MONEY = re.compile(r"(?:^|[._-])(?:wallet|payment|payments|sign|signing|approve|approval|cap|caps|budget|receipt|receipts)(?:$|[._-])", re.I)
 PAID = frozenset({"financial_or_paid_actions", "wallet_spend", "credit_spend"})
+_RESERVED_ENV = frozenset({"PATH", "HOME", "TMPDIR", "SHELL", "ENV", "BASH_ENV", "SSL_CERT_FILE",
+                          "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "HTTPS_PROXY", "HTTP_PROXY",
+                          "ALL_PROXY", "NO_PROXY", "SSH_AUTH_SOCK", "GPG_AGENT_INFO"})
+
+
+def credential_env_name(name: str) -> None:
+    if not isinstance(name, str):
+        raise ValueError("A plugin credential environment name must be text.")
+    if (name in _RESERVED_ENV or name.startswith(("VOOL_", "NULLA_", "PYTHON", "LD_", "DYLD_", "NODE_", "RUBY"))
+            or re.match(r"^(OPENAI|ANTHROPIC|OPENROUTER|GROQ|GEMINI|GOOGLE|MISTRAL|DEEPSEEK|CLOUDFLARE|USEPOD)_", name)):
+        raise ValueError("Plugin key slots cannot request owner model keys or change the process environment policy.")
 
 
 def _text(limit=500):
@@ -116,7 +127,7 @@ def package_command(value: str, root: Path) -> Path:
 def permission_wall(actions):
     if not isinstance(actions, (list, tuple)) or any(not isinstance(item, str) for item in actions):
         raise ValueError("Permission actions must be a list of names.")
-    if any(item in PAID or MONEY.search(item) for item in actions):
+    if any(item in PAID or MONEY.search(re.sub(r"([a-z])([A-Z])", r"\1_\2", item)) for item in actions):
         raise ValueError("Plugins cannot request wallet, payment, signing, approval, cap, budget or receipt authority.")
 
 
@@ -125,8 +136,10 @@ def _flags(value):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError("Manifest field names must be strings.")
-            if key.lower().replace("-", "_") in {"auto_enable", "autostart", "owner_credentials", "owner_keys"}:
+            if key.lower().replace("-", "_") in {"auto_enable", "autostart", "owner_credentials", "owner_keys", "owner_paid_keys", "owner_model_keys"}:
                 raise ValueError("Plugins cannot start automatically or request owner credentials.")
+            if key.lower() in {"wallet", "payments", "signing", "approval", "caps", "budget", "receipts"}:
+                raise ValueError("Plugin packages cannot declare money or approval authority.")
             _flags(item)
     elif isinstance(value, list):
         for item in value:
@@ -138,10 +151,22 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     if errors:
         raise ValueError("; ".join(errors[:8]))
     _flags(raw)
+    permission_wall(raw.get("permissions", []))
     for binding in raw.get("credential_bindings", []):
+        if not isinstance(binding, str) or binding.startswith(("llm.cloud.", "wallet.", "signing.", "owner.")):
+            raise ValueError("Plugins cannot bind owner model or wallet credentials.")
         if str(binding).startswith("plugin.") and not str(binding).startswith("plugin." + raw["name"] + "."):
             raise ValueError("A plugin cannot reference another plugin's credentials.")
     extension = raw.get("vool", {})
+    tools = extension.get("tools", raw.get("tools", [])) or []
+    if not isinstance(tools, list) or any(not isinstance(tool, dict) for tool in tools):
+        raise ValueError("Plugin tools must be a list of tool declarations.")
+    for tool in tools:
+        permission_wall(tool.get("permission_actions", []))
+        if tool.get("side_effect_class") in PAID or MONEY.search(tool.get("intent", "")):
+            raise ValueError("Plugins cannot declare wallet, paid or approval tools.")
+        for name in tool.get("handler", {}).get("env_allowlist", []):
+            credential_env_name(name)
     if not extension or "id" not in extension:
         return {}
     if extension["id"] != raw["name"] or extension["version"] != raw.get("version"):
@@ -159,6 +184,7 @@ def validate_manifest(raw: dict, *, root: Path) -> dict:
     if len(set(env)) != len(env):
         raise ValueError("Each credential needs a separate environment name.")
     for row in credentials.values():
+        credential_env_name(row["env"])
         https_url(row["help_url"])
     servers = extension.get("mcpServers", {})
     if servers and "tools" not in extension["kind"]:
