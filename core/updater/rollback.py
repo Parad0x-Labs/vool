@@ -68,7 +68,9 @@ def expected_prior(subsystem, txid: str) -> Path:
 
 def rollback_candidate(subsystem) -> dict | None:
     """Only an intact backup of a completed, migration-free current install qualifies."""
-    if not subsystem.feed.has_target:
+    if not subsystem.feed.has_target or subsystem.platform == 'linux-x64-bundle':
+        # Package updates keep the previous version folder for the automatic restore, but the manual
+        # "Roll back" journey is built for the protected code swap; it is not offered for the package yet.
         return None
     used = {state.get('source_txid') for path in (subsystem.paths.root / 'manual_rollbacks').glob('*/state.json')
             if isinstance(state := _read_json(path), dict) and state.get('phase') == 'completed'}

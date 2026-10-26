@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.} other {{n} yanıt gizlilik kuralları nedeniyle dahil edilmedi.}}",
     "online_access.open_setting": "“Kendi başına çevrimiçi olma” ayarını aç",
     "update.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL güncellemeleri kontrol etmiyor.",
+    "update.checks_off": "Güncelleme denetimi kapalı",
     "vcs.online_off": "Çevrimiçi erişim kapalı, bu yüzden VOOL internetteki takvimleri okumuyor. Bu bilgisayardaki takvimler çalışmaya devam ediyor.",
     "chat.no_model.line_text": "VOOL'un yanıt verebilmesi için bir yapay zekâ modeli gerekiyor. Kurulum yaklaşık iki dakika sürer.",
     "chat.no_model.reply_body": "Kurulum yaklaşık iki dakika sürer: kurulumu açın ve VOOL'un nerede düşüneceğini seçin. Bu bilgisayarda Ollama gibi bir model uygulaması zaten varsa onu açın ve yeniden sorun.",
@@ -2849,7 +2850,7 @@
     "settings.row.live_browser.help": "Her işlemi çalıştırmadan önce inceleyin. Sayfa betikleri kapalıdır. Ödemeler için cüzdanı kullanın.",
     "settings.row.live_browser.label": "Tarayıcı"
   },
-  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
+  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

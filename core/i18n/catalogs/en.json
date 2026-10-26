@@ -2811,6 +2811,7 @@
     "goal.acceptance_label": "Acceptance",
     "online_access.open_setting": "Open “Go online on its own”",
     "update.online_off": "Online access is off, so VOOL does not check for updates.",
+    "update.checks_off": "Update checks off",
     "vcs.online_off": "Online access is off, so VOOL does not read calendars from the internet. Calendars on this computer keep working.",
     "addons.registry_editors_pick": "Editor's pick",
     "addons.registry_featured": "Featured",

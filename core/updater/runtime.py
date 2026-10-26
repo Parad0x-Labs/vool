@@ -43,7 +43,7 @@ from core.updater.feed import (
 from core.updater.health import HttpHealthProbe
 from core.updater.macos import ExternalScriptHelper, MacProcessHelper
 from core.updater.migrations import MigrationCatalog
-from core.updater.platforms import installer_for, platform_key
+from core.updater.platforms import LINUX_BUNDLE_X64, installer_for, linux_bundle_root, platform_key
 from core.updater.service import UpdateCheckService, UpdateController, UserGesture
 from core.updater.state import HighWaterStore, UpdaterPaths, _atomic_write_json, _read_json
 from core.updater.status import StatusStore, UpdatePhase
@@ -135,6 +135,10 @@ class UpdateSubsystem:
             source_root = Path(__file__).resolve().parents[2]
             if self.platform.startswith("linux-") and (source_root / "install_receipt.json").is_file():
                 self.feed = replace(self.feed, app_path=str(source_root))
+            elif self.platform == "linux-x64" and (package_root := linux_bundle_root(source_root)) is not None:
+                # The release tarball's per-user package: whole-package updates under their own artifact key.
+                self.platform = LINUX_BUNDLE_X64
+                self.feed = replace(self.feed, app_path=str(package_root))
             elif self.platform.startswith("macos-"):
                 for ancestor in source_root.parents:
                     if ancestor.suffix == ".app" and source_root.is_relative_to(ancestor / "Contents/Resources"):
@@ -169,7 +173,11 @@ class UpdateSubsystem:
 
         if str(self.feed.source) == "disabled-by-env":
             reason = UnavailableReason.DISABLED
-        elif self.platform.startswith("linux-") and not (
+        elif self.platform == LINUX_BUNDLE_X64 and not (
+            self.feed.has_target and (Path(self.feed.app_path) / ".vool-linux-bundle").is_file()
+        ):
+            reason = UnavailableReason.RAW_CHECKOUT
+        elif self.platform.startswith("linux-") and self.platform != LINUX_BUNDLE_X64 and not (
             self.feed.has_target and (Path(self.feed.app_path) / "install_receipt.json").is_file()
         ):
             reason = UnavailableReason.RAW_CHECKOUT
@@ -341,6 +349,10 @@ class UpdateSubsystem:
         return worker_alive(self.data_dir)
 
     def _make_helper(self) -> ExternalHelper:
+        if self.platform == LINUX_BUNDLE_X64:
+            from core.updater.linux import LinuxBundleHelper
+
+            return LinuxBundleHelper(app_path=Path(self.feed.app_path), pid_file=self.data_dir / "vool_api.pid")
         if self.platform.startswith("linux-"):
             from core.updater.linux import LinuxProcessHelper
 

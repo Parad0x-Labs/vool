@@ -13,6 +13,19 @@ MAX_MEMBER_BYTES = 2 * 1024**3
 MAX_LINK_BYTES = 4096
 
 
+def _case_insensitive(directory: Path) -> bool:
+    """Probe the real destination filesystem; an unanswerable probe is treated as case-insensitive."""
+    probe = directory / f".vool-case-probe-{os.getpid()}"
+    try:
+        probe.mkdir()
+        try:
+            return (directory / probe.name.upper()).exists()
+        finally:
+            probe.rmdir()
+    except OSError:
+        return True
+
+
 def extract_update_zip(archive_path: Path, destination: Path) -> Path:
     """Validate the entire namespace before writing; never follow an archive link.
 
@@ -25,6 +38,10 @@ def extract_update_zip(archive_path: Path, destination: Path) -> Path:
         raise ValueError("update extraction destination must be empty and not a symlink")
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
+    # Names that differ only in case collide on a case-insensitive filesystem (the macOS default), so
+    # they are refused there. A case-sensitive one (Linux) keeps them apart, and packages rely on that:
+    # the bundled CPython's terminfo holds both 2621A and 2621a.
+    fold = _case_insensitive(root)
     with zipfile.ZipFile(archive_path) as archive:
         members = archive.infolist()
         total_bytes = sum(m.file_size for m in members)
@@ -42,13 +59,13 @@ def extract_update_zip(archive_path: Path, destination: Path) -> Path:
             kind = stat.S_IFMT(mode)
             if (not raw or path.is_absolute() or "\\" in raw or "\x00" in info.orig_filename
                     or any(p in ("", ".", "..") for p in raw.split("/"))
-                    or ":" in raw or raw.casefold() in folded):
+                    or ":" in raw or (raw.casefold() if fold else raw) in folded):
                 raise ValueError(f"unsafe or duplicate archive path: {raw}")
             if info.file_size > MAX_MEMBER_BYTES or mode & 0o6000:
                 raise ValueError(f"unsafe archive size or mode: {raw}")
             if kind not in (0, stat.S_IFREG, stat.S_IFDIR, stat.S_IFLNK):
                 raise ValueError(f"unsupported archive entry: {raw}")
-            folded.add(raw.casefold())
+            folded.add(raw.casefold() if fold else raw)
             target = root.joinpath(*path.parts)
             names[raw] = (info, target, mode)
             if kind == stat.S_IFLNK:

@@ -2797,6 +2797,7 @@
     "chat_export.withheld_count": "{n, plural, one {निजता नियमों के कारण {n} जवाब शामिल नहीं है।} other {निजता नियमों के कारण {n} जवाब शामिल नहीं हैं।}}",
     "online_access.open_setting": "“अपने आप ऑनलाइन जाना” खोलें",
     "update.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL अपडेट नहीं जाँचता।",
+    "update.checks_off": "अपडेट जाँच बंद",
     "vcs.online_off": "ऑनलाइन पहुँच बंद है, इसलिए VOOL इंटरनेट से कैलेंडर नहीं पढ़ता। इस कंप्यूटर के कैलेंडर काम करते रहते हैं।",
     "chat.no_model.line_text": "जवाब देने से पहले VOOL को एक AI मॉडल चाहिए। इसे सेट करने में लगभग दो मिनट लगते हैं।",
     "chat.no_model.reply_body": "सेटअप में लगभग दो मिनट लगते हैं: सेटअप खोलें और चुनें कि VOOL कहाँ सोचे। अगर इस कंप्यूटर पर पहले से कोई मॉडल ऐप है, जैसे Ollama, तो उसे खोलें और फिर से पूछें।",
@@ -2849,7 +2850,7 @@
     "settings.row.live_browser.help": "हर कार्रवाई चलने से पहले जाँचें। पेज की स्क्रिप्ट बंद हैं। भुगतान के लिए वॉलेट इस्तेमाल करें।",
     "settings.row.live_browser.label": "ब्राउज़र"
   },
-  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
+  "source_catalog_sha256": "7a5e4f00b345138e5995f265660831917c5165ae6df77cd14d89d0411b0972f9",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
