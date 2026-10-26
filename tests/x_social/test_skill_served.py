@@ -210,7 +210,7 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
         cursor[0] = 0
         payload['session_id'] = reply['vool_session_id']
         payload['turn_id'] = 'skill-social-native-rating'
-        payload['messages'] = [{'role': 'user', 'content': '9/10 A concrete checkpoint note. orchard social-manager'}]
+        payload['messages'] = [{'role': 'user', 'content': '9/10 "A concrete checkpoint note." orchard social-manager'}]
         if not os.environ.get('SOCIAL_M6_LEGACY'):
             rated = daemon.post('/v1/chat/completions', payload, timeout=90)
             assert cursor[0] == 2, rated

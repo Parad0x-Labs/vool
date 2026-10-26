@@ -45,7 +45,7 @@ def test_later_chat_rating_does_not_copy_existing_card_feedback_into_recorder(fa
     assert x_feedback.save('global', 7, 'The first card draft.', comment=marker)['ok']
     ctx = {'surface': 'desktop', '_owner_local': True, 'operating_mode': 'auto',
            'workspace_root': str(vault_home), 'runtime_session_id': 'later-rating'}
-    ctx['turn_request'] = TurnRequest.from_ingress(user_text='9/10 A separate caption.',
+    ctx['turn_request'] = TurnRequest.from_ingress(user_text='9/10 "A separate caption."',
         source_context=ctx, session_id='later-rating', request_id='later-rating', turn_id='later-rating')
     saved = execute_runtime_tool('x.feedback.save', {'rating': 9, 'text': 'A separate caption.'}, source_context=ctx)
     assert saved.ok, saved

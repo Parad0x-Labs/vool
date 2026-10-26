@@ -61,8 +61,8 @@ def test_model_cannot_invent_user_rating_or_comment(vault_home):
     assert not f.save_from_turn(args, {'turn_request': {'user_text': '9/10 Concise.'}})['ok']
     assert not f.save_from_turn(args, ctx('Could you rate this?'))['ok']
     assert not f.save_from_turn(args, ctx('9/10 A clear release note.'))['ok']
-    assert f.save_from_turn(args, ctx('9/10 A clear release note. Concise.'))['ok']
-    assert not f.save_from_turn(args, ctx('9/10 or 2/10 A clear release note. Concise.'))['ok']
+    assert f.save_from_turn(args, ctx('9/10 "A clear release note." Concise.'))['ok']
+    assert not f.save_from_turn(args, ctx('9/10 or 2/10 "A clear release note." Concise.'))['ok']
 
 
 def test_corrupt_store_refuses_and_does_not_overwrite(vault_home):
@@ -141,7 +141,7 @@ def test_native_nullable_optional_fields_preserve_an_explicit_rating(vault_home)
 
     ctx = {'surface': 'desktop', '_owner_local': True, 'runtime_session_id': 'nullable-rating'}
     ctx['turn_request'] = TurnRequest.from_ingress(
-        user_text='9/10 A concrete checkpoint note.', source_context=ctx,
+        user_text='9/10 "A concrete checkpoint note."', source_context=ctx,
         request_id='nullable-rating-request', turn_id='nullable-rating-turn', session_id='nullable-rating',
     )
     saved = x_feedback.save_from_turn({

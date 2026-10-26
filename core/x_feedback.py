@@ -231,11 +231,27 @@ def _asked_draft(session_id: str) -> str | None:
     return body if len(paragraphs) == 2 else ''
 
 
+_QUOTED_SPAN = re.compile(r'```[^\n]*\n(.*?)\n?```|"([^"\n]+)"|\u201c([^\u201c\u201d]+)\u201d', re.S)
+
+
+def _quoted_draft(user_text: str) -> str:
+    """The single quoted or fenced span in the owner's turn, or '' when absent/ambiguous."""
+    text = str(user_text or '')
+    spans = [next(g for g in m.groups() if g is not None).strip() for m in _QUOTED_SPAN.finditer(text)]
+    leftover = _QUOTED_SPAN.sub('', text)
+    if len(spans) != 1 or not spans[0] or any(mark in leftover for mark in ('"', '```', '\u201c', '\u201d')):
+        return ''
+    return spans[0]
+
+
 def _plain_rating(text: str) -> tuple[int, str] | None:
-    match = re.fullmatch(r'\s*(?:Rating\s*:?\s*)?(\d{1,3})(?:\s*/\s*10)?(?:(?:\s*[-–,:]\s*|\s+)(.*?))?\s*', text, re.I | re.S)
+    # The score is the whole leading token. A comment may follow only after "/10" or
+    # a separator (",", "-", ":", ";", "."), so "10 more ideas please" is not a rating.
+    match = re.fullmatch(r'\s*(?:Rating\s*:?\s*)?(\d{1,3})(?:\s*/\s*10(?:(?:\s*[-–—,:;.]\s*|\s+)(.*?))?'
+                         r'|(?:\s*[-–—,:;]\s*|\.\s+)(.*?))?\s*', text, re.I | re.S)
     if not match or not 1 <= int(match[1]) <= 10:
         return None
-    tail = match[2] or ''
+    tail = match[2] or match[3] or ''
     if (re.search(r'\b\d+\s*/\s*10\b|\b(?:or|rating|score)\s*:?\s*\d+', tail, re.I)
             or re.match(r'\d', tail)):
         return None
@@ -292,10 +308,13 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
         with x_actions._lock:
             account = str((x_actions._load()['actions'][action_id].get('account') or {}).get('id') or '')
     else:
-        text, kind, account = arguments.get('text', ''), arguments.get('kind'), ''
+        # The server takes the draft from the owner's own turn: exactly one quoted
+        # or fenced span. Model arguments may only repeat it verbatim, never pick it.
+        text, kind, account = _quoted_draft(turn.user_text), arguments.get('kind'), ''
         if kind is None:
             kind = 'post'
-        if not text or text not in turn.user_text:
+        claimed = arguments.get('text')
+        if not text or (claimed not in (None, '') and (not isinstance(claimed, str) or claimed.strip() != text)):
             return {'ok': False, 'status': 'draft_text_required'}
     return save(x_voice_profile.turn_scope(ctx), rating, text, comment=comment, kind=kind,
                 action_id=action_id, account=account)
