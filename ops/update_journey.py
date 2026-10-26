@@ -13,10 +13,10 @@ HTTP surface (the same calls the header chip makes):
 Feeds:
   ``--feed live``  the shipped feed and pinned publisher key, exactly as users get them;
   ``--feed DIR``   a test feed: DIR holds a manifest signed with a throwaway key plus the payload ZIPs. It is
-                   served on a NON-loopback address of this machine (a loopback feed would bypass the online
-                   switch), the installed package's feed address is pointed at it, and the throwaway public key
-                   is pinned for this run only. The request log proves nothing was fetched while the switch
-                   was off.
+                   served on loopback (the updater only fetches from GitHub's release hosts or this computer),
+                   the installed package's feed address is pointed at it, and the throwaway public key is
+                   pinned for this run only. A loopback feed counts as local, so it is not gated by the
+                   online switch; the switch gate itself is proved on the live feed (``--feed live``).
 
 ``--broken-update`` expects the opposite ending: the new version never comes up healthy, the app restores
 the previous version by itself, and the old commit is serving again.
@@ -33,7 +33,6 @@ import json
 import os
 import plistlib
 import shutil
-import socket
 import subprocess
 import sys
 import tarfile
@@ -98,13 +97,6 @@ def wait_for(what: str, probe, timeout: float, interval: float = 1.0):
     raise JourneyFailure(f"timed out after {timeout:.0f}s waiting for {what}; last: {last!r}")
 
 
-def outside_address() -> str:
-    """An address of this machine that is not loopback, so the app treats the feed as online."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
-        probe.connect(("192.0.2.1", 9))  # no packet is sent; this only selects the outbound interface
-        return probe.getsockname()[0]
-
-
 def serve_feed(directory: Path, log: Log) -> tuple[str, http.server.ThreadingHTTPServer]:
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
@@ -114,7 +106,7 @@ def serve_feed(directory: Path, log: Log) -> tuple[str, http.server.ThreadingHTT
             log.requests.append({"at_s": round(time.monotonic() - log.started, 1), "path": self.path})
             log.save()
 
-    host = outside_address()
+    host = "127.0.0.1"
     server = http.server.ThreadingHTTPServer((host, 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return f"http://{host}:{server.server_address[1]}", server
@@ -229,7 +221,7 @@ def journey(args: argparse.Namespace) -> None:
         config["manifest_url"] = f"{base_url}/manifest.json"
         target.feed_config().write_text(json.dumps(config, indent=2) + "\n")
         target.env["VOOL_UPDATE_TRUSTED_KEYS_JSON"] = str(feed_dir / "test-pin.json")
-        log.step("test feed served off loopback", True, {"manifest_url": config["manifest_url"]})
+        log.step("test feed served", True, {"manifest_url": config["manifest_url"]})
 
     target.start()
     first = wait_for("the old version to answer", lambda: health() if health().get("ok") else None, 300)
@@ -242,9 +234,11 @@ def journey(args: argparse.Namespace) -> None:
     status = call("/api/update/status")
     log.step("updater configured", status.get("configured") is True,
              {k: status.get(k) for k in ("configured", "unavailable_plain", "phase", "online_access")})
-    if args.feed != "live":
-        time.sleep(5)
-        log.step("nothing fetched while Go online is off", not log.requests, log.requests)
+    if args.feed == "live":
+        time.sleep(10)
+        quiet = call("/api/update/status")
+        log.step("no check while Go online is off", quiet.get("phase") == "idle" and quiet.get("online_access") is False,
+                 {k: quiet.get(k) for k in ("phase", "online_access", "message")})
 
     switched = call("/api/onboarding/pact/boundary", {"key": "automatic_checks", "value": True})
     log.step("Go online on its own turned on", switched.get("ok") is not False, switched)
@@ -267,18 +261,29 @@ def journey(args: argparse.Namespace) -> None:
     log.step("Update pressed", started.get("ok") is not False and started.get("accepted", True) is not False, started)
 
     expect = old_commit if args.broken_update else args.new_commit
+    ending = "rolled_back" if args.broken_update else "finalized"
+    transactions = target.data_dir() / "update_v2" / "transactions"
+
+    def journal_end():
+        # The transaction journal is the updater's own record of how the update ended. (The status line
+        # can already show the restarted app's next check: with a throwaway pin that check of the live
+        # feed fails, which says nothing about the update itself.)
+        for directory in sorted(transactions.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True):
+            lines = (directory / "journal.jsonl").read_text().splitlines() if (directory / "journal.jsonl").exists() else []
+            return [json.loads(line).get("step") for line in lines if line.strip()]
+        return []
 
     def serving():
         runtime = health().get("runtime") or {}
-        if runtime.get("commit_full") != expect:
+        steps = journal_end()
+        if runtime.get("commit_full") != expect or not steps or steps[-1] not in ("finalized", "rolled_back", "aborted"):
             return None
-        payload = call("/api/update/status")
-        return payload if payload.get("phase") in ("done", "rolled_back", "failed") else None
+        return {"steps": steps, "status": call("/api/update/status")}
 
     finished = wait_for("the update to finish", serving, args.install_timeout, 2)
-    ending = "rolled_back" if args.broken_update else "done"
-    log.step(f"update ended {ending}", finished.get("phase") == ending,
-             {k: finished.get(k) for k in ("phase", "message", "installed_version", "fault_code")})
+    status = finished["status"]
+    log.step(f"update journal ended {ending}", finished["steps"][-1] == ending,
+             {"steps": finished["steps"], "status": {k: status.get(k) for k in ("phase", "message", "installed_version")}})
     log.step("serving the expected build", target.current_commit() == expect,
              {"expected": expect, "current": target.current_commit()})
     log.step("data from before the update kept", marker.read_text() == "written before the update\n")
