@@ -51,6 +51,7 @@ def _api_envelope(command_id: str, input_data: dict | None, approval: dict | Non
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
     assert res.content_type == "application/json"
     return json.loads(res.body)

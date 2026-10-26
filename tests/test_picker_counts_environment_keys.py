@@ -29,7 +29,7 @@ def _providers(monkeypatch, env: dict[str, str]) -> dict[str, dict]:
         monkeypatch.delenv(name, raising=False)
     for name, value in env.items():
         monkeypatch.setenv(name, value)
-    response = dispatch_get(path="/api/cloud/providers", query={}, runtime=SimpleNamespace(runtime_version_stamp={}), model_name="vool")
+    response = dispatch_get(path="/api/cloud/providers", query={}, runtime=SimpleNamespace(runtime_version_stamp={}), model_name="vool", client_host="127.0.0.1")
     body = response.body if isinstance(response.body, (bytes, str)) else json.dumps(response.body)
     text = body.decode() if isinstance(body, bytes) else body
     assert ENV_KEY not in text, "the catalogue echoed key material"

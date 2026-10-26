@@ -192,7 +192,7 @@ def _rt():
 def test_prefs_get_forwards_through_registry():
     from core.web.api.service import dispatch_get
 
-    res = dispatch_get(path="/api/settings/prefs", query={}, runtime=_rt(), model_name="vool")
+    res = dispatch_get(path="/api/settings/prefs", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     assert res.status == 200
     payload = json.loads(res.body)
     assert "user_address" in payload and "autonomy_mode" in payload
@@ -212,6 +212,7 @@ def test_credentials_post_roundtrip_through_registry(tmp_path, monkeypatch):
             runtime=_rt(),
             model_name="vool",
             workspace_root_provider=lambda: str(tmp_path),
+            client_host="127.0.0.1",
         )
         assert res.status == 400  # unknown-field guard fires inside the lifted authority
     finally:

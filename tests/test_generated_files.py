@@ -68,7 +68,7 @@ def test_files_endpoints(_root, monkeypatch) -> None:
     import subprocess
 
     monkeypatch.setattr(subprocess, "Popen", lambda args, **k: None)
-    listing = _j(dispatch_get(path="/api/files", query={}, runtime=_rt(), model_name="vool"))
+    listing = _j(dispatch_get(path="/api/files", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1"))
     assert any(f["name"] == "render.png" for f in listing["files"])
     ok = _post("/api/files/open", {"path": str(_root / "render.png")})
     assert ok.status == 200 and _j(ok)["ok"] is True
@@ -78,7 +78,7 @@ def test_files_endpoints(_root, monkeypatch) -> None:
 
 def test_files_raw_serves_bytes_and_confines(_root) -> None:
     def _raw(p):
-        return dispatch_get(path="/api/files/raw", query={"path": [p]}, runtime=_rt(), model_name="vool")
+        return dispatch_get(path="/api/files/raw", query={"path": [p]}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
     ok = _raw(str(_root / "render.png"))
     assert ok.status == 200 and ok.content_type == "image/png" and ok.body == b"x" * 100

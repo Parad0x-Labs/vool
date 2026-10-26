@@ -720,6 +720,7 @@ def test_invalid_session_ids_are_rejected_before_any_storage_lookup(
             query={"session": [invalid_session_id]},
             runtime=RuntimeServices(display_name="VOOL"),
             model_name="vool",
+            client_host="127.0.0.1",
         )
     assert response.status == 400
     payload = json.loads(response.body.decode("utf-8"))
@@ -800,6 +801,7 @@ def test_runtime_changes_endpoint_returns_hardened_contract(change_runtime: Path
         query={"session": [session_id], "limit": ["25"]},
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
+        client_host="127.0.0.1",
     )
     assert response.status == 200
     payload = json.loads(response.body.decode("utf-8"))

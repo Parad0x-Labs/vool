@@ -300,8 +300,15 @@ def _owner_hit_fetch(url: str, monkeypatch, deliver) -> tuple[dict, list]:
 
 
 def test_a_search_hit_whose_redirects_land_on_this_computer_is_not_read(local_service, monkeypatch):
+    import socket
+
     port, hits = local_service
     direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    resolve = socket.getaddrinfo
+    # The hit's name has a public DNS answer, so the checked, pinned door dispatches it.
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, *a, **kw: (
+        [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
+        if host == "silver-prices.example" else resolve(host, *a, **kw)))
     # The hit names a public-looking site; the network answers with what its redirects landed on: a
     # service on this computer.
     fetched, sent = _owner_hit_fetch("https://silver-prices.example/today", monkeypatch,
@@ -318,9 +325,9 @@ def test_a_search_hit_whose_name_resolves_to_this_computer_is_never_sent(monkeyp
     assert sent == [] and fetched["status"] == "private_target_refused"
 
 
-def test_the_owners_research_still_reads_a_hit_this_computer_cannot_resolve(monkeypatch):
-    """Behind a proxy (or with fixture transports) a hit's name may not resolve here; it is not local,
-    so it still goes through the normal door, proxy included, and is read."""
+def test_the_owners_research_does_not_read_a_hit_this_computer_cannot_resolve(monkeypatch):
+    """A hit's name that does not resolve here cannot be checked, so it is never handed to a proxy
+    or the normal door to resolve elsewhere: it is refused before anything is sent."""
     import io
     import socket
     import urllib.response
@@ -337,8 +344,9 @@ def test_the_owners_research_still_reads_a_hit_this_computer_cannot_resolve(monk
 
     monkeypatch.setattr(socket, "getaddrinfo", _no_dns)
     fetched, sent = _owner_hit_fetch("https://silver-prices.example/today", monkeypatch, _the_page)
-    assert sent == ["https://silver-prices.example/today"]
-    assert fetched["status"] == "ok" and "6613" in fetched["text"]
+    assert sent == []
+    assert fetched["status"] == "private_target_refused"
+    assert "6613" not in fetched["text"] + fetched["html"]
 
 
 def _resolving_to(address: str, monkeypatch) -> None:
