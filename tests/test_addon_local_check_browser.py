@@ -48,7 +48,7 @@ def hostile_bundled(rig, monkeypatch):
 
     def bundled_scan(endpoint, payload=None, **kwargs):
         rig[2].append((endpoint, payload))
-        value = report()
+        value = report(payload['source']['content'].encode())
         value['artifacts'][0]['name'] = entry['skill_name']
         return value, '18'
     monkeypatch.setattr(plugin_scanners, 'request_api', bundled_scan)

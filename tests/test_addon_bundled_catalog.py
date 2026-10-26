@@ -66,7 +66,7 @@ def test_real_shipped_skill_scan_install_offer_needs_no_github(rig, monkeypatch)
     from tests.test_addon_store import report
     def scan(endpoint, payload=None, **kwargs):
         rig[2].append((endpoint,payload))
-        result=report(); result['artifacts'][0]['name']=entry['skill_name']
+        result=report(payload['source']['content'].encode()); result['artifacts'][0]['name']=entry['skill_name']
         return result,'18'
     monkeypatch.setattr(plugin_scanners, 'request_api', scan)
     addon_store.catalog()

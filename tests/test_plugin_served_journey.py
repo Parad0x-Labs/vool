@@ -203,7 +203,12 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         card.get_by_role("button", name="Disable", exact=True).click()
         card.get_by_text("Disabled", exact=True).wait_for()
         page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
+        before = len(https_service["log"].read_text().splitlines())
         (tmp_path / "disabled-chat.ndjson").write_bytes(send_chat(page, prompt, "Unavailable: vool-plugin-template.sha256"))
+        # The model was never offered the disabled plugin's tool; the answer is not the fixture's guess.
+        after = [json.loads(line) for line in https_service["log"].read_text().splitlines()[before:]]
+        inferences = [row for row in after if row.get("event") == "inference"]
+        assert inferences and not any("sha256" in str(name).lower() for row in inferences for name in row["tool_offers"])
         plugins_page(page, daemon)
         card = page.locator('[data-plugin-id="vool-plugin-template"]')
         card.get_by_role("button", name="Uninstall", exact=True).click()

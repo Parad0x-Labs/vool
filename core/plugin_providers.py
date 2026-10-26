@@ -54,6 +54,9 @@ def refresh_models(plugin_id: str) -> dict:
 
     record, plugin = declaration(plugin_id, "model_provider")
     spec = plugin.vool["model_provider"]
+    if money_governed(spec["base_url"]):
+        raise ServiceRefused("This service is paid from a balance VOOL spends only with your wallet approvals, "
+                             "so its models are not added as a plain provider. Your saved key is used through those approvals.")
     response = native_request(plugin_id, "model_provider", "GET", spec["base_url"].rstrip("/") + spec["model_list_path"],
                               expected_approval=record.approval_digest)
     try:
@@ -108,31 +111,61 @@ def refresh_models(plugin_id: str) -> dict:
 
 
 def filter_manifests(manifests):
+    # One package check per plugin per listing: a provider can list up to 2048 models.
+    checked: dict = {}
+
+    def usable(key, check):
+        if key not in checked:
+            try:
+                checked[key] = check()
+            except (ServiceRefused, ValueError, OSError):
+                checked[key] = None
+        return checked[key]
+
     result = []
     for manifest in manifests:
-        if manifest.adapter_type == "usepod":
-            try:
-                require_legacy_x402()
-            except (ServiceRefused, ValueError, OSError):
-                continue
+        if manifest.adapter_type == "usepod" and usable(("x402",), lambda: require_legacy_x402() or True) is None:
+            continue
         plugin_id = manifest.runtime_config.get("plugin_id")
         if plugin_id:
-            try:
-                declaration(plugin_id, "model_provider", expected_approval=manifest.runtime_config.get("plugin_approval", ""))
-                rows = cached_models(plugin_id)
-                if not any(row["id"] == manifest.model_name for row in rows):
-                    continue
-            except (ServiceRefused, ValueError, OSError):
+            approval = manifest.runtime_config.get("plugin_approval", "")
+            ids = usable(("plugin", plugin_id, approval),
+                         lambda plugin_id=plugin_id, approval=approval: _plain_lane_models(plugin_id, approval))
+            if not ids or manifest.model_name not in ids:
                 continue
         result.append(manifest)
     return result
+
+
+def _plain_lane_models(plugin_id: str, approval: str) -> frozenset[str]:
+    declaration(plugin_id, "model_provider", expected_approval=approval)
+    return frozenset(row["id"] for row in cached_models(plugin_id))
+
+
+def money_governed(base_url: str) -> bool:
+    """A service whose prepaid balance VOOL already spends under its money law.
+
+    Its token pays from a balance the owner funded through VOOL's wallet, so it
+    never becomes a plain provider lane: spending it stays on the retained lane
+    with spend grants, caps and receipts.
+    """
+    from urllib.parse import urlsplit
+
+    from core.usepod.legacy_config import CONFIG
+    from core.usepod.legacy_config import origin as legacy_origin
+
+    host = (urlsplit(str(base_url or "")).hostname or "").rstrip(".").lower()
+    governed = {(urlsplit(url).hostname or "").rstrip(".").lower() for url in (CONFIG.base_url, legacy_origin()) if url}
+    return bool(host) and host in governed
 
 
 def cached_models(plugin_id: str) -> list[dict]:
     from core.runtime_paths import data_path
 
     try:
-        record, _plugin = declaration(plugin_id, "model_provider")
+        record, plugin = declaration(plugin_id, "model_provider")
+        if money_governed(plugin.vool["model_provider"]["base_url"]):
+            return []
         cache = json.loads((data_path("plugin-models") / (plugin_id + ".json")).read_text())
         return cache["models"] if cache["approval_digest"] == record.approval_digest else []
     except (OSError, ValueError, KeyError, ServiceRefused):

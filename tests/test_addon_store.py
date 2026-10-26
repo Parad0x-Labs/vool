@@ -17,9 +17,10 @@ SKILL = b'---\nname: example\ndescription: Review Python code\n---\nReview the s
 LICENCE = b'Apache License 2.0\n'
 
 
-def report():
+def report(content: bytes = SKILL):
+    # A scanner names the exact bytes it checked; VOOL refuses a report for other content.
     return {"kind": "scan", "engine": "fixture-1", "service": "fixture", "verdict": "pass",
-            "lockfile": {"version": 1}, "artifacts": [{"name": "example", "digest": "fixture-digest"}],
+            "lockfile": {"version": 1}, "artifacts": [{"name": "example", "digest": hashlib.sha256(content).hexdigest()}],
             "findings": [], "policy": {"violations": []}}
 
 

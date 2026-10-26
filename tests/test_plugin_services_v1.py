@@ -209,7 +209,9 @@ def test_scanner_declaration_posts_exact_public_source_over_real_tls(package, ht
     report = plugin_scanners.scan_skill("example", SKILL.decode())
     assert report["eligible"] and report["scanner_plugin"] == "sample-provider"
     assert report["artifacts"][0]["name"] == "example"
-    assert report["service"] == "external-fixture"
+    # VOOL's own check always runs; the plugin report is added beside it, never in its place.
+    assert report["service"] == "VOOL local check" and report["local_report"]["status"] == "clean"
+    assert report["plugin_report"]["service"] == "external-fixture"
     assert len(https_service["log"].read_text().splitlines()) == 1
     assert https_service["access"] not in json.dumps(report)
 

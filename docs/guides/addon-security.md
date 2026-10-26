@@ -28,6 +28,10 @@ review access and enable it. Its declaration uses `/v1/version` for an explicit 
 and `/v1/scan` for requested scanning. The shared native plugin transport owns those requests;
 there is no built-in Eyebrow client or central Eyebrow key setting. Older saved keys are kept.
 
+VOOL's own check on this device always runs. A scanner plugin's report is added beside it:
+either one finding an issue blocks installation, and a plugin report must name the exact
+content that was checked. A scanner plugin can never approve an installation on its own.
+
 An enabled scanner with a missing or rejected key fails plainly. VOOL never silently replaces
 that requested remote scan with a passing local result. Timeouts, service errors, redirects,
 oversized responses and incomplete reports leave installation unaccepted. A timed-out request

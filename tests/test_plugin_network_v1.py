@@ -208,10 +208,9 @@ except OSError:
 print(json.dumps({{"text":str(allowed)}}))
 ''', network=True)
         result = plugin_tools.execute_plugin_contract(admit(package), {})
-        if network_available():
-            assert result.ok and result.text == "False"
-        else:
-            assert not result.ok and "unavailable" in result.error
+        # With the private proxy, or with no network where the device cannot limit hosts,
+        # the tool runs and its own direct socket never connects.
+        assert result.ok and result.text == "False"
         with pytest.raises(socket.timeout):
             listener.accept()
     finally:

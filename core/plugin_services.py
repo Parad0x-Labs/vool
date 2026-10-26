@@ -24,7 +24,7 @@ class ServiceRefused(RuntimeError):
     pass
 
 
-def credential_values(plugin_id: str, declaration: dict, names) -> dict[str, str]:
+def credential_values(plugin_id: str, declaration: dict, names, *, for_plugin_code: bool = True) -> dict[str, str]:
     """Resolve only this invocation's declared environment names; never ambient keys."""
     from core.credential_store import get_credential
     from core.secret_redaction import register_exact_secret
@@ -37,11 +37,24 @@ def credential_values(plugin_id: str, declaration: dict, names) -> dict[str, str
         value = get_credential(f"plugin.{plugin_id}.{slots[name]}")
         if not value:
             raise ServiceRefused("Connect your service key in Add-ons before using this plugin.")
+        if for_plugin_code and value in _retired_values():
+            # A key carried over from an earlier VOOL service setting is for VOOL's own
+            # requests only. It never enters plugin code, even after an update adds code.
+            raise ServiceRefused("This key was carried over from an earlier VOOL setting and is used only by VOOL's own "
+                                 "requests. Connect a key for this plugin in Add-ons.")
         register_exact_secret(value)
         register_exact_secret(quote(value, safe=""))
         register_exact_secret(json.dumps(value)[1:-1])
         result[name] = value
     return result
+
+
+def _retired_values() -> frozenset[str]:
+    from core.credential_store import credential_is_indexed, get_credential
+    from core.plugin_migration import retired_slots
+
+    return frozenset(value for value in (get_credential(slot) for slot in retired_slots() if credential_is_indexed(slot))
+                     if value)
 
 
 def safe_data(value):
@@ -56,13 +69,22 @@ def safe_data(value):
 
 def declaration(plugin_id: str, kind: str, *, expected_approval: str = ""):
     from core import plugin_lifecycle
-    from core.plugin_tools import load_manifest
+    from core.plugin_package import PackageError, capture_package
+    from core.plugin_tools import parse_manifest
 
     record = plugin_lifecycle.record_for(plugin_id)
     if (record is None or not plugin_lifecycle.is_available(plugin_id)
             or (expected_approval and expected_approval != record.approval_digest)):
         raise ServiceRefused("This plugin is disabled, changed, or no longer approved. Review it in Add-ons.")
-    plugin = load_manifest(Path(record.root) / ".codex-plugin/plugin.json")
+    # Parse the manifest from the same bytes whose digest is checked, so a file
+    # swapped after the availability check never runs under the old approval.
+    try:
+        captured = capture_package(Path(record.root))
+    except PackageError:
+        raise ServiceRefused("This plugin is disabled, changed, or no longer approved. Review it in Add-ons.") from None
+    if captured.digest != record.verified_digest:
+        raise ServiceRefused("This plugin is disabled, changed, or no longer approved. Review it in Add-ons.")
+    plugin = parse_manifest(captured.manifest, path=Path(record.root) / ".codex-plugin/plugin.json")
     if kind not in plugin.vool.get("kind", []):
         raise ServiceRefused("This plugin does not provide the requested service.")
     return record, plugin
@@ -215,7 +237,7 @@ def native_request(plugin_id: str, kind: str, method: str, url: str, *, expected
     try:
         transfer.check()
         slot = spec["credential_slot"]
-        key = "" if public_pricing else credential_values(plugin_id, plugin.vool, [plugin.vool["credentials"][slot]["env"]])[plugin.vool["credentials"][slot]["env"]]
+        key = "" if public_pricing else credential_values(plugin_id, plugin.vool, [plugin.vool["credentials"][slot]["env"]], for_plugin_code=False)[plugin.vool["credentials"][slot]["env"]]
         wire_headers = {"Accept": "application/json", "User-Agent": "VOOL", "Content-Type": "application/json"}
         # Adapter-authored harmless headers only; credentials always come from this slot.
         for name, value in (headers or {}).items():
@@ -311,12 +333,12 @@ def provider_binding(manifest) -> tuple[str, str]:
 
 def enabled(kind: str) -> list:
     from core import plugin_lifecycle
-    from core.plugin_tools import load_manifest
 
     result = []
     for record in plugin_lifecycle.records():
-        if plugin_lifecycle.is_available(record.plugin_id):
-            plugin = load_manifest(Path(record.root) / ".codex-plugin/plugin.json")
-            if kind in plugin.vool.get("kind", []):
-                result.append(plugin)
+        try:
+            _record, plugin = declaration(record.plugin_id, kind)
+        except (ServiceRefused, ValueError, OSError):
+            continue
+        result.append(plugin)
     return result

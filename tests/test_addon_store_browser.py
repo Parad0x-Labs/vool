@@ -38,7 +38,7 @@ def test_discover_scan_review_install_reopen_and_security(rig, source, monkeypat
         monkeypatch.setattr(addon_store, 'fetch_bytes', lambda *a, **kw: pytest.fail('Bundled workflow must not download'))
         def bundled_scan(endpoint, payload=None, **kwargs):
             rig[2].append((endpoint,payload))
-            value = report(); value['artifacts'][0]['name'] = actual['skill_name']
+            value = report(payload['source']['content'].encode()); value['artifacts'][0]['name'] = actual['skill_name']
             return value, '18'
         monkeypatch.setattr(plugin_scanners, 'request_api', bundled_scan)
     if risk:

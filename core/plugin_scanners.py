@@ -68,9 +68,12 @@ def request_api(endpoint: str, payload=None, *, plugin_id="") -> tuple[dict, str
 
 
 def scan_skill(name: str, content: str) -> dict:
+    # VOOL's own check always runs. A scanner plugin can add findings or block an
+    # installation; its verdict can never replace the local check or approve on its own.
+    local = _local_report(name, content)
     choices = scanners()
     if not choices:
-        return _local_report(name, content)
+        return local
     if len(choices) != 1:
         raise AddonError("scanner_selection_required", "Keep one scanner enabled in Add-ons so the installation check has a clear service choice.")
     plugin_id = choices[0]["id"]
@@ -80,12 +83,21 @@ def scan_skill(name: str, content: str) -> dict:
     value, quota = request_api("/v1/scan", payload, plugin_id=plugin_id)
     if json_schema_lite.validate(value, spec["response_schema"]):
         raise AddonError("scanner_invalid_report", "The scanner response differs from its reviewed contract. Nothing was installed.", 502)
-    report = {key: _field(value, path) for key, path in spec["response_map"].items()}
-    report = validate_report(name, report)
+    remote = {key: _field(value, path) for key, path in spec["response_map"].items()}
+    remote = validate_report(name, remote)
+    digest = hashlib.sha256(content.encode()).hexdigest()
+    if not any(isinstance(a, dict) and a.get("name") == name and a.get("digest") == digest for a in remote["artifacts"]):
+        raise AddonError("scanner_no_coverage", "The scanner report is for different content than this skill. Nothing was installed.", 502)
     declaration(plugin_id, "scanner", expected_approval=record.approval_digest)
-    report.update(quota_remaining=quota, scanner_plugin=plugin_id, scanner_name=plugin.vool["name"],
-                  scan_notice="Checked by the scanner plugin you enabled. A scan is not a safety guarantee.")
-    return report
+    findings = [*local["findings"], *remote["findings"]]
+    violations = [*local["policy"]["violations"], *remote["policy"]["violations"]]
+    report = dict(local)
+    report.update(verdict="pass" if local["verdict"] == remote["verdict"] == "pass" else "fail",
+                  findings=findings, policy={"violations": violations}, plugin_report=remote,
+                  quota_remaining=quota, scanner_plugin=plugin_id,
+                  scanner_name="VOOL local check and " + plugin.vool["name"],
+                  scan_notice="Checked on this device and by the scanner plugin you enabled. A scan is not a safety guarantee.")
+    return validate_report(name, report)
 
 
 def _local_report(name: str, content: str) -> dict:

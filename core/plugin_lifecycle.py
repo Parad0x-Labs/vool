@@ -669,9 +669,9 @@ def _available(plugin_id: str, *, root: Path | None = None, seen: frozenset[str]
 
         plugin = load_manifest(pack / ".codex-plugin" / "plugin.json")
         if plugin.contracts or plugin.vool.get("mcpServers"):
-            from core.plugin_executor import process_isolation_refusal
+            from core.plugin_executor import plugin_isolation_refusal
 
-            if process_isolation_refusal():
+            if plugin_isolation_refusal(plugin):
                 return False
         if plugin.vool:
             checked[plugin_id] = record.consented_approval == record.approval_digest and (

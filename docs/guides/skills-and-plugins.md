@@ -116,13 +116,17 @@ than being represented as reviewed third-party package bytes. This integrity che
 not certify behavior, attest arbitrary code downloaded or loaded from outside the approved
 distribution, broker every internal effect or replace native wallet approval.
 
-Executable plugins on macOS require an explicitly provisioned local Linux container runtime
-with the pinned image already present. VOOL never starts a VM or downloads an image through
-plugin installation. A missing runtime refuses executable plugins; native providers and
-scanners remain usable. Linux uses bwrap, including a private process namespace and `/proc`.
-Process network access is currently off on the isolated backends, as the access sheet says.
-Native provider and scanner requests use their separate declared-host HTTPS transport.
-A network bridge for isolated executables is planned for a later version, not released yet.
+On macOS, plugin code runs in the macOS sandbox. Keys reach a handler only over its private
+input, never its environment, because any program of the same user can read another
+program's starting environment on a Mac. A connection server that needs a key in its
+environment runs only in the optional isolated Linux runtime, which you provision yourself;
+VOOL never starts a VM or downloads an image. Without it, that plugin stays off and says why.
+Linux uses bwrap, including a private process namespace and `/proc`.
+
+On macOS a tool that declares network can reach only a private proxy VOOL starts for each
+call, and the proxy connects only to the declared hosts. On Linux and in the isolated runtime
+plugin processes have no network. Native provider and scanner requests use their separate
+declared-host HTTPS transport on every platform.
 
 ## Writing a skill
 

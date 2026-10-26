@@ -79,6 +79,15 @@ class ApiResponse:
     headers: dict[str, str] = field(default_factory=dict)
 
 
+
+# Reading what is owed and withdrawing an approval stay possible without the plugin:
+# they read or remove local records only and contact no service.
+_USEPOD_LOCAL_ONLY_PATHS = frozenset({
+    "/api/cloud/usepod/x402/unresolved",
+    "/api/cloud/usepod/forget-route",
+    "/api/cloud/usepod/spend-approval/pending",
+})
+
 def json_response(status: int, payload: Any, *, headers: dict[str, str] | None = None) -> ApiResponse:
     return ApiResponse(
         status=status,
@@ -882,7 +891,8 @@ def dispatch_get(
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
-    if normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/")):
+    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
+            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
         from core.plugin_providers import require_legacy_x402
         from core.plugin_services import ServiceRefused
 
@@ -3152,7 +3162,8 @@ def dispatch_post(
 ) -> ApiResponse:
     normalized_path = path.rstrip("/") or "/"
 
-    if normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/")):
+    if (normalized_path.startswith(("/api/cloud/usepod/", "/api/wallet/usepod/"))
+            and normalized_path not in _USEPOD_LOCAL_ONLY_PATHS):
         from core.plugin_providers import require_legacy_x402
         from core.plugin_services import ServiceRefused
 

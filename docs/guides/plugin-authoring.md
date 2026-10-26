@@ -38,14 +38,36 @@ Connect your own key in its card and accept the separate access sheet to enable 
 a key makes no request. Keys live under `plugin.<id>.<slot>` and are resolved only for that
 plugin's invocation. Wildcards, IP addresses, localhost and private destinations are refused.
 
-Executable process network is currently off on the isolated backends; native provider and
-scanner HTTPS works separately. On macOS the owner must provision a local runtime. Advanced
-setup uses `VOOL_PLUGIN_DOCKER_SOCKET`, a local Unix socket, and the already present image
-pinned by `core/plugin_container.py`. VOOL never provisions either through a plugin. Python
-handlers use the guest interpreter; other bundled executables must support the guest Linux
-architecture. The package and approved dependency copies are read-only; writable tools
-receive only their own scratch. Immutable macOS service packages may use threads but cannot
-fork detached processes. Unsupported confinement refuses execution.
+### Keys
+
+A handler always receives its keys on its private input: the JSON request on standard
+input carries them under `context.credentials`, keyed by the declared environment names.
+Read them from there; it works on every platform. On Linux they are also set as those
+environment variables. On macOS they never are, because any program of the same user can
+read another program's starting environment there and the macOS sandbox cannot stop it.
+
+An MCP server receives its declared keys as environment variables, as Claude Code and Codex
+expect. On macOS such a server therefore runs only in the optional isolated runtime
+(`VOOL_PLUGIN_DOCKER_SOCKET`, a local Unix socket, and the already present image pinned by
+`core/plugin_container.py`); without it, VOOL keeps that plugin off and says why. An MCP
+server that needs no key runs in the macOS sandbox like any handler.
+
+### Network
+
+On macOS a tool that declares network runs in the sandbox with exactly one allowed
+destination: a private proxy VOOL starts for that call, which connects only to the hosts in
+`network`. Every other address, including the plugin's own direct sockets, is refused. On
+Linux and in the isolated runtime a process cannot reach that proxy, so the tool runs with no
+network, as the access sheet says. Native provider and scanner requests are made by VOOL
+itself, to declared hosts only, on every platform.
+
+### Files and processes
+
+The package and approved dependency copies are read-only; writable tools receive only their
+own scratch. Python handlers in the isolated runtime use its interpreter; other bundled
+executables must support its Linux architecture. Unsupported confinement refuses execution.
+On a Mac, code a plugin runs can still see other programs' starting settings, as any app you
+install can; the access sheet says so.
 
 Every invocation checks enabled state and exact package/dependency digests. Disable stops
 owned work and discards late results. Changed bytes withdraw consent. Updates and re-installs

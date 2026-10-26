@@ -64,14 +64,36 @@ class ConfinementUnavailableError(RuntimeError):
     """This host cannot confine a child process and the caller did not opt into running bare."""
 
 
-def process_isolation_refusal() -> str:
-    if sys.platform == "darwin":
-        from core.plugin_container import available
+def process_isolation_refusal(*, private_environment: bool = False) -> str:
+    """Why this device cannot run a plugin's own code, or "" when it can.
 
-        if not available():
-            return ("Executable plugins need the local isolated runtime on this device. "
-                    "It is unavailable. Declarative provider and scanner plugins remain available.")
+    On macOS any program of the same user can read another process's starting
+    environment (KERN_PROCARGS2), and the macOS sandbox cannot stop it. A plugin
+    whose service key would travel in its environment (``private_environment``)
+    therefore runs only in the optional isolated runtime. Plugin handlers get their
+    keys over their private input instead, so they need only the macOS sandbox.
+    """
+    if sys.platform == "darwin":
+        if private_environment:
+            from core.plugin_container import available
+
+            if not available():
+                return ("This plugin's server receives its service key in a way this Mac cannot keep private "
+                        "from other programs, so it stays off here. Plugins that need no key, and provider and "
+                        "scanner plugins, still work.")
+        elif not kernel_confinement_available():
+            return ("This Mac cannot run plugin code inside the macOS sandbox, so plugins that run their own "
+                    "code stay off. Provider and scanner plugins still work.")
     return ""
+
+
+def plugin_isolation_refusal(plugin) -> str:
+    """The refusal for one loaded plugin's own code on this device, or ""."""
+    servers = (plugin.vool or {}).get("mcpServers", {}) or {}
+    if not plugin.contracts and not servers:
+        return ""
+    keyed = any(isinstance(spec, dict) and spec.get("env") for spec in servers.values())
+    return process_isolation_refusal(private_environment=keyed)
 
 
 @dataclass(frozen=True)
@@ -216,15 +238,17 @@ def _kernel_confinement_prefix(
     readable_roots: tuple[Path, ...] = (),
     proxy_port: int = 0,
     isolate_process_tree: bool = False,
+    private_environment: bool = False,
 ) -> list[str] | None:
     """Wrap *argv* in the host's kernel confinement, or None when no backend can enforce it.
 
-    Selects the optional isolated Linux container on macOS, or the sandbox runner's
-    Linux backend. Every backend must actually run. Reads and writes follow the
-    captured package and scratch grants; executable network access remains off.
+    macOS uses the sandbox (Seatbelt), or the optional isolated Linux container when the
+    child's environment carries a service key; Linux uses the sandbox runner's backend.
+    Every backend must actually run. Reads and writes follow the captured package and
+    scratch grants.
     """
 
-    if sys.platform == "darwin":
+    if sys.platform == "darwin" and private_environment:
         from core.plugin_container import command
 
         wrapped, _label = command(argv, working_directory=working_directory or Path.cwd(),
@@ -275,6 +299,7 @@ def confined_argv(
     readable_roots: tuple[Path, ...] = (),
     proxy_port: int = 0,
     isolate_process_tree: bool = False,
+    private_environment: bool = False,
 ) -> tuple[list[str], str]:
     """The argv to launch and a label naming how it is confined.
 
@@ -287,17 +312,16 @@ def confined_argv(
     if clean_mode not in CONFINEMENT_MODES:
         clean_mode = "auto"
     bare = [str(a) for a in argv]
-    if refusal := process_isolation_refusal():
-        # Seatbelt does not mediate KERN_PROCARGS2 on this platform. A child
-        # can read the initial environment of any same-user process, including
-        # another plugin's credentials. Filesystem and network restrictions
-        # cannot close that boundary. Do not start untrusted code under a
-        # confinement label that promises credential isolation.
+    if private_environment and (refusal := process_isolation_refusal(private_environment=True)):
+        # Seatbelt does not mediate KERN_PROCARGS2: any same-user process can read a
+        # child's starting environment. A key placed there is not private, so such a
+        # child starts only inside the isolated runtime.
         raise ConfinementUnavailableError(refusal)
     wrapped = _kernel_confinement_prefix(
         bare, writable_roots=writable_roots, allow_network=allow_network and not proxy_port,
         working_directory=working_directory, readable_roots=readable_roots,
         proxy_port=proxy_port, isolate_process_tree=isolate_process_tree,
+        private_environment=private_environment,
     )
     from core.plugin_container import ContainerCommand
 
@@ -337,10 +361,6 @@ def kernel_confinement_available() -> bool:
     """Whether this host can confine a child at all (probed, cached by the sandbox backend)."""
 
     try:
-        if sys.platform == "darwin":
-            from core.plugin_container import available
-
-            return available()
         probe_root = Path(tempfile.gettempdir()).resolve()
         return _kernel_confinement_prefix(["true"], writable_roots=(probe_root,)) is not None
     except Exception:
@@ -372,6 +392,7 @@ def run_plugin_tool(
     call=None,
     proxy_port: int = 0,
     isolate_process_tree: bool = False,
+    extra_env: dict[str, str] | None = None,
 ) -> PluginToolResult:
     """Validate, then run one plugin tool. Never raises; every failure is a structured result."""
 
@@ -438,12 +459,18 @@ def run_plugin_tool(
             observation={"intent": intent},
         )
 
+    # Keys always travel over the handler's private input. They are also placed in its
+    # environment except on macOS, where any same-user program can read a starting
+    # environment; there the private input is the only route.
     payload = {
         "intent": intent,
         "arguments": filled,
-        "context": {"scratch_dir": scratch_dir, "secrets": sorted((secrets or {}).keys())},
+        "context": {"scratch_dir": scratch_dir, "secrets": sorted((secrets or {}).keys()),
+                    "credentials": dict(secrets or {})},
     }
-    child_env = build_child_env(env_allowlist=env_allowlist, secrets=secrets, scratch_dir=scratch_dir)
+    child_env = build_child_env(env_allowlist=env_allowlist,
+                                secrets={**({} if sys.platform == "darwin" else (secrets or {})), **(extra_env or {})},
+                                scratch_dir=scratch_dir)
     if immutable_package:
         child_env["PYTHONDONTWRITEBYTECODE"] = "1"
         child_env["VOOL_PLUGIN_DEPENDENCIES"] = json.dumps(

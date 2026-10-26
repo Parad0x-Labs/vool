@@ -1810,7 +1810,7 @@
     "http:POST:/api/addons": {
       "classification": "EXTERNAL_TRANSPORT_ONLY",
       "name": "POST /api/addons",
-      "note": "add-on lane operator surface family (review/install/risk acceptance, Eyebrow key and scan consent; its own loopback and approval gates)",
+      "note": "add-on lane operator surface family (review/install/risk acceptance, plugin and scan consent; its own loopback and approval gates)",
       "registry_command_id": "",
       "surface": "http"
     },

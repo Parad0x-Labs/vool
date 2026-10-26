@@ -91,6 +91,7 @@ class MCPStdioClient:
         proxy_port: int = 0,
         call=None,
         read_only: bool = False,
+        private_environment: bool = False,
     ) -> None:
         self.command = command
         self.args = list(args or [])
@@ -109,6 +110,8 @@ class MCPStdioClient:
         self.proxy_port = proxy_port
         self.call = call
         self.read_only = read_only
+        #: The environment carries a key that must stay private from other programs.
+        self.private_environment = private_environment
         self._read_error = ""
         #: How the running child is confined: ``kernel:<backend>`` or ``heuristic_only``.
         self.confinement = ""
@@ -243,6 +246,7 @@ class MCPStdioClient:
                 readable_roots=self.readable_roots,
                 proxy_port=self.proxy_port,
                 isolate_process_tree=self.immutable_package,
+                private_environment=self.private_environment,
             )
         except ConfinementUnavailableError as exc:
             raise MCPError(f"{self.name}: refusing to start unconfined ({exc})") from exc

@@ -84,7 +84,7 @@ def _rate_error(deadline: float) -> AddonError:
     minutes = max(1, int((deadline - time.time() + 59) // 60))
     return AddonError('github_rate_limited',
                       f'GitHub’s public download limit was reached. Try again in {minutes} minute(s). '
-                      'Ready-to-scan store add-ons still work. Eyebrow has not scanned this request.', 429)
+                      'Ready-to-scan store add-ons still work. Nothing was scanned for this request.', 429)
 
 
 def _request(url: str, limit: int) -> bytes:
@@ -121,7 +121,7 @@ def _request(url: str, limit: int) -> bytes:
             raise _rate_error(until) from None
         if exc.code == 403:
             raise AddonError('github_access_denied', 'GitHub refused access to this source. '
-                             'Choose a public source you can open in your browser. Eyebrow has not scanned it.', 403) from None
+                             'Choose a public source you can open in your browser. Nothing was scanned.', 403) from None
         if exc.code == 404:
             raise AddonError('github_not_found', 'That public repository or version was not found.', 404) from None
         raise AddonError('github_unavailable', 'GitHub could not complete the lookup. Nothing was installed.', 502) from None

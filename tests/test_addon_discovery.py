@@ -160,7 +160,7 @@ def test_github_refusal_names_its_owner_and_cools_down(rig, monkeypatch, status,
     with pytest.raises(plugin_scanners.AddonError) as error:
         github._request('https://api.github.com/example', 4096)
     assert error.value.code == expected
-    assert 'Eyebrow has not scanned' in str(error.value)
+    assert 'Nothing was scanned' in str(error.value)
     if expected == 'github_rate_limited':
         with pytest.raises(plugin_scanners.AddonError):
             github._request('https://api.github.com/another', 4096)

@@ -6,21 +6,22 @@ def plugin_functions() -> str:
 let pluginReview=null,pluginConsent=null,pluginRemoval=null,pluginNotice='';
 async function pluginPost(body){const result=await post(body);[data,_pluginCatalog]=await Promise.all([read(),fetch('/api/plugins').then(r=>r.json())]);pluginReview=null;pluginConsent=null;pluginRemoval=null;pluginNotice='';return result;}
 function pluginFacts(host,p){
- if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available===false)host.append(node('p',tr('plugin_runtime_unavailable','Executable plugins need the local isolated runtime on this device. It is unavailable. Declarative provider and scanner plugins remain available.')));
+ if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available===false)host.append(node('p',tr(p.executable_runtime_refusal_key,p.executable_runtime_refusal)));
+ if(((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.executable_runtime_available!==false&&p.mac_process_note)host.append(node('p',tr('plugin_mac_process_note','On a Mac, code a plugin runs can see the starting settings of other programs you run, as any app you install can. Your service keys for plugins are never placed there.')));
  if((p.kind||[]).includes('model_provider'))host.append(node('p',tr('plugin_provider_effect','Sends the chat requests you choose to this service. Usage may be billed to your service account.')));
  if((p.kind||[]).includes('scanner'))host.append(node('p',tr('plugin_scanner_effect','Sends public add-on content to this service when you request a scan. A scan does not grant installation or tool permissions.')));
  const effects={read_only:tr('plugin_effect_read','Read information'),workspace_write:tr('plugin_effect_write','Change files in its own working space'),network_send:tr('plugin_effect_send','Send information'),network_publish:tr('plugin_effect_publish','Publish information'),external_unpinned:tr('plugin_effect_unknown','Unknown effects; approval is required each time')};
  const list=node('ul');(p.tools||[]).forEach(t=>list.append(node('li',t.description+' · '+(effects[t.side_effect_class]||tr('plugin_effect_other','Uses the normal permission checks')))));host.append(list);
  host.append(node('h4',tr('plugin_network','Network access')));
  host.append(node('p',(p.network||[]).length?p.network.join(', '):tr('plugin_no_network','No network access.')));
- if((p.network||[]).length&&(p.tools||[]).length&&p.process_network_available===false)host.append(node('p',tr('plugin_network_unavailable','This device cannot limit plugin process connections to the listed hosts. Network access for its tools stays off.')));
+ if((p.network||[]).length&&((p.tools||[]).length||(p.mcp_servers||[]).length)&&p.process_network_available===false)host.append(node('p',tr('plugin_network_unavailable','This device cannot limit plugin process connections to the listed hosts. Its tools still run, with no network access.')));
  host.append(node('h4',tr('plugin_keys','Service keys')));
  const slots=Object.values(p.credentials||{});host.append(node('p',slots.length?slots.map(s=>s.label).join(', '):tr('plugin_no_keys','No service keys requested.')));
  if((p.mcp_servers||[]).length)host.append(node('p',tr('plugin_local_server','Runs a bundled connection server on this device.')));
 }
 function renderServicePlugins(host,query){
  hero(host,tr('plugin_title','Plugins'),tr('plugin_intro','Add tools and services you choose. Installing keeps a plugin disabled until you review its access.'));
- (data?.plugin_notices||[]).forEach(n=>host.append(node('p',tr(n.message_key,n.message),'addon-meta')));
+ (data?.plugin_notices||[]).forEach(n=>{const notice=node('div',undefined,'addon-meta');notice.append(node('p',tr(n.message_key,n.message)));if(n.dismissible)notice.append(button(tr('plugin_notice_dismiss','Got it'),()=>action(async()=>{await pluginPost({action:'plugin_notice_dismiss'});})));host.append(notice);});
  if(pluginNotice){const notice=node('p',pluginNotice);notice.setAttribute('role','status');host.append(notice);}
  if(pluginReview){
   const p=pluginReview.plugin;const card=node('section',undefined,'addon-card');card.setAttribute('role','dialog');card.setAttribute('aria-label',tr('plugin_review','Review plugin package'));card.append(node('h3',p.name),node('p',p.description),node('p',tr('plugin_not_reviewed','Not reviewed by the VOOL store')),node('p',tr('plugin_review_full','Review every file in the package. Verification covers these exact bytes; it is not a safety guarantee.')));pluginFacts(card,p);

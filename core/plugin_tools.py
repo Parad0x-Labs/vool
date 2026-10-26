@@ -566,7 +566,7 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
 
     from core import plugin_lifecycle as lifecycle
     from core.plugin_executor import PluginToolResult, run_plugin_tool
-    from core.plugin_network import EgressProxy, NetworkRefused
+    from core.plugin_network import EgressProxy, NetworkRefused, network_available
     from core.plugin_package import PackageError, capture_package, execution_directory
     from core.plugin_processes import InvocationStopped, invocation
     from core.plugin_services import ServiceRefused, credential_values, safe_data
@@ -690,6 +690,10 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                     if (remote_fetch_forbidden() or context.get("allow_remote_fetch") is False
                             or prohibitions.prohibits_family(FAMILY_WEB) or prohibitions.prohibits_family(FAMILY_TOOLS)):
                         raise NetworkRefused("Network access is off for this turn. The plugin was not connected.")
+                # Where the device cannot limit a process to its declared hosts, the tool
+                # still runs, with no network at all, as the consent sheet says.
+                keyed = bool(credentials) and is_mcp
+                wants_network = wants_network and network_available(private_environment=keyed)
                 proxy = resources.enter_context(EgressProxy(reviewed.vool["network"], call)) if wants_network else None
                 before_start()
                 if is_mcp:
@@ -702,7 +706,7 @@ def execute_plugin_contract(contract: RuntimeToolContract, arguments: dict[str, 
                     result = run_plugin_tool(
                         intent=intent, arguments=dict(arguments or {}), handler=handler,
                         schema=dict(contract.json_schema or {}), plugin_root=snapshot,
-                        secrets={**credentials, **(proxy.environment if proxy else {})},
+                        secrets=credentials, extra_env=proxy.environment if proxy else None,
                         scratch_dir=str(scratch), timeout_seconds=timeout_seconds,
                         allow_network=False, confinement="auto", proxy_port=proxy.port if proxy else 0,
                         read_only=contract.side_effect_class == "read_only", immutable_package=True,

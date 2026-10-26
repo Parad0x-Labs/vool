@@ -5,9 +5,10 @@ from urllib.parse import urlsplit
 
 SERVICES = (
     {"id": "vool-plugin-usepod", "name": "UsePod", "slot": "llm.cloud.usepod",
-     "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider"},
+     "origin_slot": "llm.cloud.usepod_origin", "origin": "https://api.usepod.ai", "kind": "model_provider",
+     "rebind": False},
     {"id": "vool-plugin-eyebrow", "name": "Eyebrow", "slot": "security.eyebrow",
-     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner"},
+     "origin_slot": "", "origin": "https://api.eyebrow.cc", "kind": "scanner", "rebind": True},
 )
 
 
@@ -27,10 +28,15 @@ def notices() -> list[dict]:
             continue
         record = record_for(service["id"])
         installed = bool(record and record.stage != STAGE_UNINSTALLED)
-        if installed and record.enabled and credential_is_indexed("plugin." + service["id"] + ".access"):
+        if installed and record.enabled and (not service["rebind"]
+                                             or credential_is_indexed("plugin." + service["id"] + ".access")):
             continue
-        message = (service["name"] + " now comes as a plugin. Install it to keep using it; your saved key will be reused."
-                   if not installed else "Your saved " + service["name"] + " key is kept. Enable the plugin to reuse it, or connect your own service key.")
+        if not installed:
+            message = service["name"] + " now comes as a plugin. Install it to keep using it; your saved key will be reused."
+        elif service["rebind"]:
+            message = "Your saved " + service["name"] + " key is kept. Enable the plugin to reuse it, or connect your own service key."
+        else:
+            message = "Your saved " + service["name"] + " key is kept. Enable the plugin to keep using it through your wallet approvals."
         result.append({"plugin_id": service["id"], "message": message,
                        "message_key": "plugin_migration_" + service["id"].removeprefix("vool-plugin-") + ("_installed" if installed else "")})
     return result
@@ -42,7 +48,9 @@ def bind_on_enable(plugin_id: str) -> bool:
     from core.secret_redaction import register_exact_secret
 
     service = next((service for service in SERVICES if service["id"] == plugin_id), None)
-    if not service:
+    if not service or not service["rebind"]:
+        # A UsePod token pays from a balance funded through VOOL's wallet. It stays in its
+        # own slot, spent only on the retained lane with spend grants, caps and receipts.
         return False
     _record, plugin = declaration(plugin_id, service["kind"])
     spec = plugin.vool[service["kind"]]
@@ -68,8 +76,6 @@ def bind_on_enable(plugin_id: str) -> bool:
 def migrate_selections() -> bool:
     """Move retired pins using actual v0.7 policy/chat rows, without probing any provider."""
     from core import cloud_escalation_policy as policy
-    from core.cloud_providers import PROVIDERS
-    from core.credential_store import credential_is_indexed
 
     with policy._COUNTER_LOCK, policy._counter_file_lock():
         raw = policy._read_raw()
@@ -81,24 +87,18 @@ def migrate_selections() -> bool:
             isinstance(row, dict) and row.get("provider") == "usepod" for row in chats.values())
         if not retired:
             return False
-        # Only a provider/model the user already explicitly selected is eligible.
-        # Merely finding a paid key never chooses or authorizes that provider.
-        candidates = [settings, *chats.values()]
-        fallback = next((row for row in candidates if isinstance(row, dict)
-                         and row.get("provider") in PROVIDERS and row.get("model")
-                         and credential_is_indexed(PROVIDERS[row["provider"]].credential_slot)), {})
-        provider, model = str(fallback.get("provider", "")), str(fallback.get("model", ""))
+        # Clear the retired pins. Never move them to another provider: a paid choice is
+        # only made through the normal model picker and its spending confirmation.
         saved = raw.setdefault("plugin_migration", {})
         if settings.get("provider") == "usepod":
             saved.setdefault("previous_policy", dict(settings))
-            settings.update(provider=provider, model=model, mode="off")
+            settings.update(provider="", model="", mode="off")
         previous = saved.setdefault("previous_chats", {})
         for session, row in chats.items():
             if isinstance(row, dict) and row.get("provider") == "usepod":
                 previous.setdefault(session, dict(row))
-                row.update(provider=provider, model=model, revision=int(row.get("revision", 0)) + 1)
-        saved["fallback_provider"] = provider
-        saved["fallback_model"] = model
+                row.update(provider="", model="", revision=int(row.get("revision", 0)) + 1)
+        saved["notice_open"] = True
         return policy._write_raw(raw)
 
 
@@ -106,7 +106,20 @@ def selection_notice() -> dict | None:
     from core import cloud_escalation_policy as policy
 
     saved = policy._read_raw().get("plugin_migration", {})
-    if not saved:
+    if not isinstance(saved, dict) or not saved.get("notice_open"):
         return None
-    return {"plugin_id": "vool-plugin-usepod", "message_key": "plugin_migration_model_fallback",
-            "message": "UsePod now comes as a plugin. Previous model choices were moved to a provider you had already selected, or cleared when none was configured. Automatic cloud escalation is off. Choose your model before sending another message."}
+    return {"plugin_id": "vool-plugin-usepod", "message_key": "plugin_migration_model_fallback", "dismissible": True,
+            "message": "UsePod now comes as a plugin. Chats that used a UsePod model have no model selected now, and "
+                       "automatic cloud escalation is off. Choose a model before sending another message in those chats."}
+
+
+def dismiss_selection_notice() -> bool:
+    from core import cloud_escalation_policy as policy
+
+    with policy._COUNTER_LOCK, policy._counter_file_lock():
+        raw = policy._read_raw()
+        saved = raw.get("plugin_migration")
+        if not isinstance(saved, dict) or not saved.get("notice_open"):
+            return False
+        saved["notice_open"] = False
+        return policy._write_raw(raw)

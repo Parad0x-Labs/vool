@@ -27,6 +27,21 @@ def destination(url: str, hosts: list[str] | tuple[str, ...]) -> tuple[str, str]
     return parsed.hostname, (parsed.path or "/") + (("?" + parsed.query) if parsed.query else "")
 
 
+# IPv6 ranges that carry an IPv4 address inside them. `is_global` can call these public
+# while they reach a private or loopback IPv4 host through a translator or tunnel.
+_IPV4_CARRYING = tuple(ipaddress.ip_network(net) for net in (
+    "64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32", "::ffff:0:0/96", "::/96"))
+
+
+def is_public_address(address) -> bool:
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            return False
+        if any(address in network for network in _IPV4_CARRYING):
+            return False
+    return address.is_global and not (address.is_multicast or address.is_reserved or address.is_unspecified)
+
+
 def public_addresses(host: str, *, timeout: float = 5) -> tuple[tuple, ...]:
     try:
         host_name(host)
@@ -49,8 +64,7 @@ def public_addresses(host: str, *, timeout: float = 5) -> tuple[tuple, ...]:
         raise NetworkRefused("The plugin service address could not be resolved.") from None
 
     def public(row):
-        address = ipaddress.ip_address(row[4][0])
-        return address.is_global and not (address.is_multicast or address.is_reserved or address.is_unspecified)
+        return is_public_address(ipaddress.ip_address(row[4][0]))
 
     if not addresses or any(not public(row) for row in addresses):
         raise NetworkRefused("The plugin service resolved to a private or local address. The connection was refused.")
@@ -86,11 +100,22 @@ def connect_public(host: str, *, timeout: float = 10, call=None) -> socket.socke
     raise NetworkRefused("The plugin service could not be reached.")
 
 
-def network_available() -> bool:
-    # Process namespaces cannot reach a host-side loopback proxy. Until a
-    # confined bridge is available, process network stays off. Native provider
-    # and scanner requests still use their declared-host transport.
-    return False
+def network_available(*, private_environment: bool = False) -> bool:
+    """Whether a plugin process here can reach its declared hosts through this proxy.
+
+    Only the macOS sandbox can confine a child to one loopback port, so only there
+    does the proxy limit a process to its declared hosts. Linux process namespaces and
+    the isolated container cannot reach a host-side loopback proxy, so plugin process
+    network stays off there. VOOL's own provider and scanner requests use their
+    declared-host transport on every platform.
+    """
+    import sys
+
+    if sys.platform != "darwin" or private_environment:
+        return False
+    from core.plugin_executor import kernel_confinement_available
+
+    return kernel_confinement_available()
 
 
 class EgressProxy:

@@ -42,6 +42,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
         "plugin_test": {"action", "id"},
         "plugin_models": {"action", "id"},
         "plugin_uninstall": {"action", "id", "remove_key"},
+        "plugin_notice_dismiss": {"action"},
     }
     if not isinstance(action, str) or action not in fields or set(body) - fields[action]:
         return 400, {"error": "invalid_action", "message": "Unknown action or unexpected fields."}
@@ -53,8 +54,7 @@ def handle_addon_post(body: dict, headers: dict, client_host: str) -> tuple[int,
             try:
                 result = plugin_manager.handle(action, body)
             except LifecycleError as exc:
-                key = "addons." + plugin_manager.message_key(str(exc))
-                return 400, {"ok": False, "error": "plugin_refused", "message": str(exc), "message_key": key}
+                return 400, {"ok": False, "error": "plugin_refused", **plugin_manager.user_message(str(exc))}
         elif action == "skill_publish":
             # A check on this device and a website link; nothing is sent from here.
             if not isinstance(body.get("name"), str):

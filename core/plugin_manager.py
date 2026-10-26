@@ -7,6 +7,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import threading
 import time
 import uuid
@@ -80,15 +81,18 @@ def _loaded(plugin_id: str, *, available=False):
 
 
 def summary(plugin) -> dict:
-    from core.plugin_executor import process_isolation_refusal
+    from core.plugin_executor import plugin_isolation_refusal
     from core.plugin_network import network_available
 
     block = plugin.vool
     return {"id": plugin.plugin_id, "version": plugin.version,
             **{key: block[key] for key in ("name", "publisher", "description", "homepage", "license", "kind", "network", "credentials")},
             "mcp_servers": list(block.get("mcpServers", {})),
-            "process_network_available": network_available(),
-            "executable_runtime_available": not bool(process_isolation_refusal()),
+            "process_network_available": network_available(private_environment=any(
+                isinstance(spec, dict) and spec.get("env") for spec in block.get("mcpServers", {}).values())),
+            "executable_runtime_available": not bool(refusal := plugin_isolation_refusal(plugin)),
+            "mac_process_note": sys.platform == "darwin",
+            "executable_runtime_refusal": refusal, "executable_runtime_refusal_key": message_key(refusal) if refusal else "",
             "tools": [{"intent": tool.intent, "description": tool.description,
                        "side_effect_class": tool.side_effect_class,
                        "permission_actions": list(tool.permission_actions)} for tool in plugin.contracts]}
@@ -96,6 +100,19 @@ def summary(plugin) -> dict:
 
 def message_key(message: str) -> str:
     return "plugin_message_" + hashlib.sha256(message.encode()).hexdigest()[:12]
+
+
+GENERIC_FAILURE = "This plugin action could not be completed. Nothing was changed. Review the plugin in Add-ons and try again."
+
+
+def user_message(message: str) -> dict:
+    """Only reviewed, catalogued sentences reach the page; internal detail never does."""
+    from core.i18n.catalog import catalog_for
+
+    key = "addons." + message_key(message)
+    if key in catalog_for("en").keys:
+        return {"message": message, "message_key": key}
+    return {"message": GENERIC_FAILURE, "message_key": "addons." + message_key(GENERIC_FAILURE)}
 
 
 def prepare_local(folder: str, *, update=False, source="local") -> dict:
@@ -287,9 +304,9 @@ def enable(plugin_id: str, *, accepted: bool, approval_digest: str) -> dict:
         return {"ok": True, "enabled": False, "plugin": inspect(plugin_id)}
     _record, plugin = _loaded(plugin_id)
     if plugin.contracts or plugin.vool.get("mcpServers"):
-        from core.plugin_executor import kernel_confinement_available, process_isolation_refusal
+        from core.plugin_executor import kernel_confinement_available, plugin_isolation_refusal
 
-        if refusal := process_isolation_refusal():
+        if refusal := plugin_isolation_refusal(plugin):
             raise lifecycle.LifecycleError(refusal)
         if not kernel_confinement_available():
             raise lifecycle.LifecycleError("This device cannot safely confine the plugin. It remains disabled.")
@@ -353,7 +370,7 @@ def test_connection(plugin_id: str) -> dict:
 
 
 def uninstall(plugin_id: str, *, remove_key=True) -> dict:
-    from core.credential_store import delete_credential
+    from core.credential_store import delete_credential, list_credentials
     from core.plugin_tools import plugin_scratch_dir
 
     record = lifecycle.record_for(plugin_id)
@@ -367,9 +384,12 @@ def uninstall(plugin_id: str, *, remove_key=True) -> dict:
         raise lifecycle.LifecycleError("This package is managed by its original installation settings.")
     lifecycle.disable(plugin_id)
     if remove_key:
-        for name in record.credential_bindings:
-            if name.startswith(f"plugin.{plugin_id}."):
-                delete_credential(name)
+        # Every slot this plugin ever owned, including ones an update dropped from its manifest.
+        owned = {name for name in record.credential_bindings if name.startswith(f"plugin.{plugin_id}.")}
+        owned |= {str(row.get("name", "")) for row in list_credentials()
+                  if str(row.get("name", "")).startswith(f"plugin.{plugin_id}.")}
+        for name in sorted(owned):
+            delete_credential(name)
     _remove(plugin_scratch_dir(plugin_id))
     _remove(target)
     lifecycle.uninstall(plugin_id)
@@ -388,6 +408,10 @@ def handle(action: str, body: dict) -> dict:
                                   approved=body.get("approved") is True, update=body.get("update") is True)
         if action == "plugin_install":
             return install(body.get("review_id"), accepted=body.get("accepted") is True, digest=body.get("digest"))
+        if action == "plugin_notice_dismiss":
+            from core.plugin_migration import dismiss_selection_notice
+
+            return {"ok": True, "dismissed": dismiss_selection_notice()}
         plugin_id = body.get("id")
         if not isinstance(plugin_id, str) or not confined_plugin_id(plugin_id):
             raise lifecycle.LifecycleError("Choose a valid plugin.")

@@ -394,6 +394,7 @@ def execute_plugin_mcp(plugin, contract, arguments, *, scratch, dependencies, ca
         immutable_package=True, scratch_dir=str(scratch),
         readable_roots=(*dependencies.values(), scratch), proxy_port=proxy.port if proxy else 0, call=call,
         read_only=contract.side_effect_class == "read_only",
+        private_environment=bool(set(environment) - set(proxy.environment if proxy else {})),
     )
     try:
         with client:
