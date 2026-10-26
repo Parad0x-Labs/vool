@@ -16,7 +16,7 @@ from core.updater.archive import extract_update_zip
 from core.updater.trust import TrustedPublishers
 
 
-def write_tree_zip(source: Path, output: Path, *, prefix: str) -> None:
+def write_tree_zip(source: Path, output: Path, *, prefix: str, case_sensitive_names: bool = False) -> None:
     """Keep Unix modes and relative symlinks; never follow a link into other data."""
     if output.exists():
         raise ValueError(f"refusing to overwrite {output}")
@@ -43,7 +43,7 @@ def write_tree_zip(source: Path, output: Path, *, prefix: str) -> None:
         # Exercise the EXACT production extractor, including link containment,
         # namespace collisions, entry counts and expanded-size limits.
         with tempfile.TemporaryDirectory(prefix=".payload-verify-", dir=output.parent) as temporary:
-            extract_update_zip(output, Path(temporary) / "stage")
+            extract_update_zip(output, Path(temporary) / "stage", case_sensitive_names=case_sensitive_names)
     except Exception:
         output.unlink(missing_ok=True)
         raise
@@ -106,7 +106,7 @@ def build_payload(source: Path, output_dir: Path, *, platform: str, version: str
             raise ValueError("package has no exact source commit")
         _validate_source(source / "app", version)
         output = output_dir / f"vool-{version}-beta-linux-x86_64-package-update.zip"
-        write_tree_zip(source, output, prefix=f"vool-{version}-beta-linux-x86_64")
+        write_tree_zip(source, output, prefix=f"vool-{version}-beta-linux-x86_64", case_sensitive_names=True)
     else:
         raise ValueError(f"unsupported release platform: {platform}")
     return output
