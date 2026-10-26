@@ -173,12 +173,13 @@ class UpdateSubsystem:
 
         if str(self.feed.source) == "disabled-by-env":
             reason = UnavailableReason.DISABLED
-        elif self.platform == LINUX_BUNDLE_X64 and not (
-            self.feed.has_target and (Path(self.feed.app_path) / ".vool-linux-bundle").is_file()
-        ):
-            reason = UnavailableReason.RAW_CHECKOUT
-        elif self.platform.startswith("linux-") and self.platform != LINUX_BUNDLE_X64 and not (
-            self.feed.has_target and (Path(self.feed.app_path) / "install_receipt.json").is_file()
+        elif (
+            self.platform == LINUX_BUNDLE_X64
+            and not (self.feed.has_target and (Path(self.feed.app_path) / ".vool-linux-bundle").is_file())
+        ) or (
+            self.platform.startswith("linux-")
+            and self.platform != LINUX_BUNDLE_X64
+            and not (self.feed.has_target and (Path(self.feed.app_path) / "install_receipt.json").is_file())
         ):
             reason = UnavailableReason.RAW_CHECKOUT
         elif not trust.is_configured:
