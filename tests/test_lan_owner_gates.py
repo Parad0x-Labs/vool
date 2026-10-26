@@ -480,7 +480,8 @@ def local_web_server(monkeypatch):
             hits.append(self.path)
             if self.path.startswith("/redirect-to/"):
                 self.send_response(302)
-                self.send_header("Location", self.path[len("/redirect-to/"):].replace("|", "/"))
+                target = self.path[len("/redirect-to/"):].replace("|", "/")
+                self.send_header("Location", target.replace("\r", "").replace("\n", ""))
                 self.end_headers()
                 return
             body = b"local service: owner-only data 7731"
