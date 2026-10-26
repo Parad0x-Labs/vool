@@ -1,4 +1,5 @@
-"""Review r4 M3: a matched skill may add read-only or proposal tools, never side-effect tools."""
+"""Review r4 M3 and r5 N4: a matched skill may add only admitted public or VOOL-own reads and the
+three proposal tools; never side-effect tools, never reads of the owner's private stores."""
 from __future__ import annotations
 
 import pytest
@@ -10,6 +11,14 @@ SIDE_EFFECTS = ('sandbox.run_command', 'workspace.write_file', 'machine.write_fi
                 'machine.move_path', 'code.task.open', 'code.task.step', 'email.send', 'email.draft.send',
                 'wallet.spend', 'pay.x402', 'repo.push', 'vool-browser.click')
 READS = ('operator.find_notes', 'operator.show_note', 'x.feedback.list')
+PRIVATE = ('x.dms', 'contacts.search', 'contacts.resolve', 'machine.read_file', 'machine.list_directory',
+           'workspace.read_file', 'workspace.search_text', 'operator.apple_note_read', 'operator.apple_note_list',
+           'operator.show_agenda', 'operator.search_calendar_event', 'operator.list_reminders', 'pdf.extract_text',
+           'browser.render', 'x.follows', 'x.lists', 'x.account')
+ADMITTED = {'x.search', 'x.user', 'x.user_posts', 'x.post', 'x.trending', 'x.usage', 'x.results',
+            'x.replies.unanswered', 'operator.find_notes', 'operator.show_note', 'operator.save_note',
+            'x.feedback.list', 'x.action.status', 'x.feedback.save', 'x.action.propose',
+            'web.search', 'web.fetch', 'web.research'}
 TEXT = 'Run the quartz garden helper workflow for today.'
 
 
@@ -36,6 +45,7 @@ def test_skill_declared_side_effect_tools_are_never_seated(side_effect_skill):
     offer = assemble_tool_offer(user_text=TEXT, task_class='chat', source_context=dict(ctx))
     assert offer.skill_guidance.skills
     assert not set(SIDE_EFFECTS) & set(offer.intents), set(SIDE_EFFECTS) & set(offer.intents)
+    assert not set(PRIVATE) & set(seats), set(PRIVATE) & set(seats)
 
 
 def test_contract_tiers_decide_which_declared_tools_a_skill_may_seat():
@@ -46,3 +56,12 @@ def test_contract_tiers_decide_which_declared_tools_a_skill_may_seat():
               'x.trending', 'x.user', 'x.user_posts', 'x.post', 'x.action.propose', 'x.action.status',
               'x.feedback.save', 'x.feedback.list', 'x.results', 'x.replies.unanswered', 'web.search', 'web.fetch')
     assert all(_skill_may_seat(intent) for intent in social)
+
+
+def test_skill_never_seats_a_private_read_and_admits_exactly_the_social_list():
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+    from core.tool_offer_assembly import _skill_may_seat
+
+    assert not any(_skill_may_seat(intent) for intent in PRIVATE)
+    admitted = {intent for intent in runtime_tool_contract_map() if _skill_may_seat(intent)}
+    assert admitted == ADMITTED, sorted(admitted ^ ADMITTED)

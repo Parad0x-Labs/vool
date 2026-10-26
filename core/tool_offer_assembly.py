@@ -14,15 +14,19 @@ Now both call `assemble_tool_offer`. It:
   families, follow-up inheritance, turn expansions — all of `model_visible_specs`);
 - ranks installed skills against the user's words and renders the matched bodies with
   **provenance** (plugin id, file) under hard **bounds** (`MAX_SKILLS`, `MAX_SKILL_CHARS`);
-- lets a matched skill's allowed-tools NARROW the ranked fill, never widen it with a side effect.
-  A matched installed skill may ADD (seat) only the available built-in tools it declares that are
-  read-only by their contract (``side_effect_class == "read_only"`` with only read, list or network
-  read permission actions), plus the few that only create an owner-approved pending proposal or
-  record the owner's own words in an owner-local store (``SKILL_SEATABLE_PROPOSALS``: an X action
-  proposal, an X rating, a saved note). Shell or exec, file write or delete, code tasks and repo
-  sessions, email or send, wallet or payment, browser actions and every other side-effect tool are
-  never seated by a skill, even where a control-plane step is tiered read-only: a skill only
-  narrows them. Reserved seats and explicitly demanded intents stay,
+- lets a matched skill's allowed-tools NARROW the ranked fill, never widen it with a side effect
+  or a private read. A matched installed skill may ADD (seat) only the available built-in tools
+  it declares that are on ``SKILL_SEATABLE_READS`` (public X reads, the owner's own X results and
+  unanswered replies, VOOL's own social and note stores, and web reads that still obey the web
+  switch) AND are read-only by their contract (``side_effect_class == "read_only"``, no approval,
+  only read, list or network read permission actions), plus the few that only create an
+  owner-approved pending proposal or record the owner's own words in an owner-local store
+  (``SKILL_SEATABLE_PROPOSALS``: an X action proposal, an X rating, a saved note). Private-data
+  reads (X direct messages, contacts, machine or workspace files, Apple Notes, mail, calendar,
+  messages) are never seated by a skill; they reach the offer only by ranking or the owner's own
+  words. Shell or exec, file write or delete, code tasks and repo sessions, email or send, wallet
+  or payment, browser actions and every other side-effect tool are never seated by a skill, even
+  where a control-plane step is tiered read-only: a skill only narrows them. Reserved seats and explicitly demanded intents stay,
   unavailable and owner-only tools never seat, and plugin or MCP tools stay behind their family's
   expansion;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
@@ -575,6 +579,23 @@ _SKILL_SEATABLE_READ_ACTIONS = frozenset({
 #: proposal (nothing is sent until the owner taps approve) or records the owner's own typed
 #: words in an owner-local store. Everything else with a side effect keeps "narrow, never widen".
 SKILL_SEATABLE_PROPOSALS = frozenset({"x.action.propose", "x.feedback.save", "operator.save_note"})
+#: The only read-only built-ins a skill may seat. A closed list, not a tier test, because a
+#: read's contract fields cannot tell a public read from a private one (``machine.read_file`` and
+#: ``web.search`` both carry no permission action). A new read stays unseatable until it is
+#: added here. Kept out on purpose: ``x.dms``, ``contacts.*``, ``machine.*``, ``workspace.*``,
+#: ``pdf.*``, ``operator.apple_note_*``, calendar, reminders, mail and messages reads, and any
+#: other read of the owner's private stores; a skill matching the owner's words must not pair
+#: such a read with a network fetch in one turn.
+SKILL_SEATABLE_READS = frozenset({
+    # Public X reads.
+    "x.search", "x.user", "x.user_posts", "x.post", "x.trending", "x.usage",
+    # The owner's own X results and the unanswered replies on the owner's own posts.
+    "x.results", "x.replies.unanswered",
+    # VOOL's own stores that the social skills write: notes, ratings, proposal status.
+    "operator.find_notes", "operator.show_note", "x.feedback.list", "x.action.status",
+    # Web reads; execution still refuses them while the web switch is off.
+    "web.search", "web.fetch", "web.research",
+})
 #: Workflow control planes whose contracts read "read_only" because a step only moves a journal
 #: (open, propose or approve a code task, approve an email draft, open a repo session, simulate a
 #: payment) while the workflow it advances ends in an exec, write, send or spend. A skill never
@@ -586,21 +607,26 @@ _SKILL_UNSEATABLE_FAMILIES = (
 
 
 def _skill_may_seat(intent: str) -> bool:
-    """Read the tool's own contract tiers: a skill may widen only with reads or proposals."""
+    """A skill may widen only with an admitted public or VOOL-own read, or a proposal.
+
+    Both gates hold: the intent is on ``SKILL_SEATABLE_READS`` (or ``SKILL_SEATABLE_PROPOSALS``)
+    and its own contract still reads as a read with no approval (a proposal: the contract is not
+    read-only). A contract that changes tier drops out without editing the list.
+    """
     from core.runtime_tool_contracts import runtime_tool_contract_map
 
     contract = runtime_tool_contract_map().get(intent)
     if contract is None or contract.source != "builtin" or intent.startswith(_SKILL_UNSEATABLE_FAMILIES):
         return False
     if contract.read_only and contract.approval_requirement == "none":
-        return set(contract.permission_actions) <= _SKILL_SEATABLE_READ_ACTIONS
+        return intent in SKILL_SEATABLE_READS and set(contract.permission_actions) <= _SKILL_SEATABLE_READ_ACTIONS
     return intent in SKILL_SEATABLE_PROPOSALS
 
 
 def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
     """Resolve declarations through the ordinary availability/owner-only graph.
 
-    Only built-in tools seat this way, and only the read-only or proposal-only ones
+    Only built-in tools seat this way, and only the admitted reads or proposal-only ones
     (``_skill_may_seat``). A plugin or MCP tool stays behind its family: the model reaches
     it through ``capability.expand_family`` (or the user's own words naming it), so a
     pack's own skill matching the user's words never seats the pack.
