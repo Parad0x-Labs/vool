@@ -1,13 +1,13 @@
 # Returning to the previous VOOL version
 
-The shipped release feed does not contact the network on a fresh runtime home.
-Press **Check for updates** to check it and enable periodic checks for that home
-and feed. The next periodic check runs after the configured interval; later
-launches can check in the background. An operator can also explicitly enable
-checks with `auto_check: true` in the feed configuration or a
-`VOOL_UPDATE_MANIFEST_URL` override. `VOOL_UPDATE_DISABLED=1` disables the feed.
-The first-run egress census reports the update door as closed before that choice,
-and names the configured-feed caveat once checks are enabled.
+The shipped release feed is checked only while **Go online on its own** is on
+(Settings > Privacy & Permissions). With it on, VOOL checks the feed when it
+starts and then once a day, and the header shows **Update ready** when a newer
+version is out. With it off, nothing is fetched and the header shows
+**Update checks off**. **Check for updates** checks right away.
+`VOOL_UPDATE_DISABLED=1` disables the feed; a `VOOL_UPDATE_MANIFEST_URL`
+override points it at another feed. The first-run egress census reports the
+update door as closed while the switch is off.
 
 After a successful signed update, the header update menu and **Settings > About**
 offer **Roll back to <version>** when a compatible previous copy is retained.
