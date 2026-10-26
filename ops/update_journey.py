@@ -217,11 +217,18 @@ def journey(args: argparse.Namespace) -> None:
         feed_dir = Path(args.feed)
         base_url, server = serve_feed(feed_dir, log)
         write_test_feed(feed_dir, base_url)
-        config = json.loads(target.feed_config().read_text())
-        config["manifest_url"] = f"{base_url}/manifest.json"
-        target.feed_config().write_text(json.dumps(config, indent=2) + "\n")
+        manifest_url = f"{base_url}/manifest.json"
+        if args.platform == "linux":
+            # The package's shipped feed setting is plain data: pointing it at the test feed keeps every other
+            # shipped choice (auto_check) in force, so the notice proves what users get.
+            config = json.loads(target.feed_config().read_text())
+            config["manifest_url"] = manifest_url
+            target.feed_config().write_text(json.dumps(config, indent=2) + "\n")
+        else:
+            # Editing a Mac bundle would break its code signature; the launcher's feed override is used instead.
+            target.env["VOOL_UPDATE_MANIFEST_URL"] = manifest_url
         target.env["VOOL_UPDATE_TRUSTED_KEYS_JSON"] = str(feed_dir / "test-pin.json")
-        log.step("test feed served", True, {"manifest_url": config["manifest_url"]})
+        log.step("test feed served", True, {"manifest_url": manifest_url})
 
     target.start()
     first = wait_for("the old version to answer", lambda: health() if health().get("ok") else None, 300)
