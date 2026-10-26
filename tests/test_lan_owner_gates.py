@@ -479,8 +479,13 @@ def local_web_server(monkeypatch):
         def do_GET(self):
             hits.append(self.path)
             if self.path.startswith("/redirect-to/"):
+                target = self.path[len("/redirect-to/"):].replace("|", "/")
+                if "\r" in target or "\n" in target:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
                 self.send_response(302)
-                self.send_header("Location", self.path[len("/redirect-to/"):].replace("|", "/"))
+                self.send_header("Location", target.replace("\r", "").replace("\n", ""))
                 self.end_headers()
                 return
             body = b"local service: owner-only data 7731"
