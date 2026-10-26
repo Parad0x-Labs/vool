@@ -49,7 +49,7 @@ async function manager(host,scope){
   let out;try{out=await call('/api/x/feedback',{action:'list',scope:scope});}catch(e){return;}
   if(!out.ok){box.replaceChildren(node('p','vx-note',t('xs.failed','Could not save this change. Try again.')));return;}
   box.replaceChildren(node('strong','',t('xs.ratings','Your ratings')+' · '+(scope==='global'?t('settings.profile.scope_name.global','Everywhere'):t('settings.profile.scope_name.project','One project')+': '+scope.slice(8))));
-  box.appendChild(node('p','vx-note',t('xs.forget_scope','Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.')));
+  box.appendChild(node('p','vx-note',t('xs.forget_scope','Forgetting ratings removes their saved guidance and voice samples. A rating you typed in chat also stays in that chat until you forget the chat message.')));
   const data=out.data;const row=node('div','vx-row');const note=node('p','vx-note');note.setAttribute('role','status');
   async function change(payload){try{const r=await call('/api/x/feedback',Object.assign({scope:scope},payload));if(r.ok)await draw();else note.textContent=t('xs.failed','Could not save this change. Try again.');}catch(e){note.textContent=t('xs.failed','Could not save this change. Try again.');}}
   row.appendChild(button(data.paused?t('xs.resume','Resume ratings'):t('xs.pause','Pause ratings'),()=>change({action:'pause',paused:!data.paused})));

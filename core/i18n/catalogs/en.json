@@ -3633,7 +3633,7 @@
     "xs.pause": "Pause ratings",
     "xs.reset": "Forget all ratings",
     "xs.forget": "Forget rating",
-    "xs.forget_scope": "Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.",
+    "xs.forget_scope": "Forgetting ratings removes their saved guidance and voice samples. A rating you typed in chat also stays in that chat until you forget the chat message.",
     "xs.limit_reached": "Your X send limit has been reached. Check your limits in Settings.",
     "xs.summary_post": "Post on X",
     "xs.summary_reply": "Reply to @{author}",

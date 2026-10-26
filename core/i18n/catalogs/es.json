@@ -3633,7 +3633,7 @@
     "xs.pause": "Pausar valoraciones",
     "xs.reset": "Olvidar todas las valoraciones",
     "xs.forget": "Olvidar valoración",
-    "xs.forget_scope": "Al olvidar las valoraciones se eliminan sus pautas guardadas y muestras de voz. Los chats anteriores pueden conservar los comentarios.",
+    "xs.forget_scope": "Al olvidar las valoraciones se eliminan sus pautas guardadas y muestras de voz. Una valoración que escribiste en el chat también permanece en ese chat hasta que olvides el mensaje.",
     "xs.limit_reached": "Has alcanzado tu límite de envíos a X. Revisa tus límites en Ajustes.",
     "xs.summary_post": "Publicar en X",
     "xs.summary_reply": "Responder a @{author}",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "No está claro si se envió. Revisa X antes de volver a intentarlo.",
     "web.off.tool_refusal": "Las búsquedas web están desactivadas. Puedes pegar el texto del artículo, los enlaces o las notas que quieras que use, y trabajaré con ellos. Para activarlas: Ajustes > Privacidad y permisos > Búsquedas web. (Línea de comandos: la búsqueda web es opcional; actívala con VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

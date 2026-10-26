@@ -3633,7 +3633,7 @@
     "xs.pause": "Tạm dừng dùng đánh giá",
     "xs.reset": "Quên tất cả đánh giá",
     "xs.forget": "Quên đánh giá",
-    "xs.forget_scope": "Quên đánh giá sẽ xóa hướng dẫn đã lưu và các mẫu văn phong liên quan. Những cuộc trò chuyện trước vẫn có thể chứa phản hồi.",
+    "xs.forget_scope": "Quên đánh giá sẽ xóa hướng dẫn đã lưu và các mẫu văn phong liên quan. Đánh giá bạn đã gõ trong cuộc trò chuyện cũng còn trong đó cho đến khi bạn quên tin nhắn ấy.",
     "xs.limit_reached": "Bạn đã đạt giới hạn gửi lên X. Kiểm tra giới hạn trong phần Cài đặt.",
     "xs.summary_post": "Đăng lên X",
     "xs.summary_reply": "Trả lời @{author}",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "Chưa rõ nội dung này đã được gửi hay chưa. Hãy kiểm tra X trước khi thử lại.",
     "web.off.tool_refusal": "Tra cứu web đang tắt. Bạn có thể dán nội dung bài viết, liên kết hoặc ghi chú bạn muốn tôi dùng, và tôi sẽ làm việc từ đó. Để bật: Cài đặt > Riêng tư và Quyền > Tra cứu web. (Dòng lệnh: tra cứu web là tùy chọn; bật bằng VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

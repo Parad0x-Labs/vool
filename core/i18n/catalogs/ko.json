@@ -3633,7 +3633,7 @@
     "xs.pause": "평가 사용 일시 중지",
     "xs.reset": "모든 평가 잊기",
     "xs.forget": "이 평가 잊기",
-    "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 이전 채팅에는 피드백이 남아 있을 수 있습니다.",
+    "xs.forget_scope": "평가를 삭제하면 저장된 지침과 문체 샘플이 삭제됩니다. 채팅에 입력한 평가는 해당 메시지를 삭제할 때까지 그 채팅에도 남습니다.",
     "xs.limit_reached": "X 전송 한도에 도달했습니다. 설정에서 한도를 확인하세요.",
     "xs.summary_post": "X에 게시하기",
     "xs.summary_reply": "@{author}에게 답글 달기",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "전송되었는지 확실하지 않습니다. 다시 시도하기 전에 X를 확인하세요.",
     "web.off.tool_refusal": "웹 검색이 꺼져 있습니다. 사용할 기사 본문, 링크 또는 메모를 붙여 넣으면 그것으로 작업하겠습니다. 켜려면: 설정 > 개인정보와 권한 > 웹 검색. (명령줄: 웹 검색은 선택 사항이며 VOOL_ENABLE_WEB=1로 켭니다.)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

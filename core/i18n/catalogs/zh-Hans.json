@@ -3633,7 +3633,7 @@
     "xs.pause": "暂停使用评分",
     "xs.reset": "忘记所有评分",
     "xs.forget": "忘记此评分",
-    "xs.forget_scope": "忘记评分会移除已保存的指导和文风样本。过去的聊天中可能仍保留这些反馈。",
+    "xs.forget_scope": "忘记评分会移除已保存的指导和文风样本。你在聊天中输入的评分也会留在该聊天中，直到你忘记那条聊天消息。",
     "xs.limit_reached": "已达到 X 发送上限。请在设置中检查限额。",
     "xs.summary_post": "在 X 上发帖",
     "xs.summary_reply": "回复 @{author}",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "无法确定是否已发送。再次尝试前请先检查 X。",
     "web.off.tool_refusal": "网络查询已关闭。你可以粘贴希望我使用的文章正文、链接或笔记，我会据此工作。要开启：设置 > 隐私与权限 > 网络查询。（命令行：网络查询需主动开启；用 VOOL_ENABLE_WEB=1 开启。）"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

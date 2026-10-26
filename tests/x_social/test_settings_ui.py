@@ -63,7 +63,7 @@ def test_rating_voice_pause_forget_on_the_served_settings_page(fake_x, vault_hom
         page.reload()
         project=page.locator('[data-feedback-scope="project:orchard"]')
         project.get_by_text('Keep it exact.',exact=True).wait_for()
-        assert project.get_by_text('Forgetting ratings removes their saved guidance and voice samples. Past chats may still contain the feedback.',exact=True).is_visible()
+        assert project.get_by_text('Forgetting ratings removes their saved guidance and voice samples. A rating you typed in chat also stays in that chat until you forget the chat message.',exact=True).is_visible()
         project.screenshot(path=str(out/'ratings-scopes.png'))
         project.get_by_role('button',name='Forget rating',exact=True).click()
         project.get_by_text('Keep it exact.',exact=True).wait_for(state='detached')

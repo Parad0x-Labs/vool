@@ -3633,7 +3633,7 @@
     "xs.pause": "評価の利用を一時停止",
     "xs.reset": "すべての評価を忘れる",
     "xs.forget": "この評価を忘れる",
-    "xs.forget_scope": "評価を削除すると、保存された指針と文体サンプルも削除されます。過去のチャットにはフィードバックが残る場合があります。",
+    "xs.forget_scope": "評価を削除すると、保存された指針と文体サンプルも削除されます。チャットで入力した評価は、そのメッセージを削除するまでチャットにも残ります。",
     "xs.limit_reached": "Xへの送信上限に達しました。設定で上限を確認してください。",
     "xs.summary_post": "X に投稿する",
     "xs.summary_reply": "@{author}に返信する",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "送信されたかどうか不明です。再試行する前に X を確認してください。",
     "web.off.tool_refusal": "ウェブ検索はオフです。使ってほしい記事の本文、リンク、メモを貼り付けてください。それをもとに作業します。オンにするには: 設定 > プライバシーと権限 > ウェブ検索。(コマンドライン: ウェブ検索は任意です。VOOL_ENABLE_WEB=1 で有効にします。)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3633,7 +3633,7 @@
     "xs.pause": "Wstrzymaj używanie ocen",
     "xs.reset": "Zapomnij wszystkie oceny",
     "xs.forget": "Zapomnij ocenę",
-    "xs.forget_scope": "Zapomnienie ocen usuwa zapisane wskazówki i próbki stylu. Wcześniejsze rozmowy mogą nadal zawierać te opinie.",
+    "xs.forget_scope": "Zapomnienie ocen usuwa zapisane wskazówki i próbki stylu. Ocena wpisana w czacie zostaje też w tym czacie, dopóki nie zapomnisz tej wiadomości.",
     "xs.limit_reached": "Osiągnięto limit wysyłania do X. Sprawdź limity w ustawieniach.",
     "xs.summary_post": "Opublikuj na X",
     "xs.summary_reply": "Odpowiedz @{author}",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "Nie wiadomo, czy to wysłano. Sprawdź X przed ponowną próbą.",
     "web.off.tool_refusal": "Wyszukiwanie w sieci jest wyłączone. Możesz wkleić tekst artykułu, linki lub notatki, których mam użyć, a ja na nich popracuję. Aby je włączyć: Ustawienia > Prywatność i uprawnienia > Wyszukiwanie w sieci. (Wiersz poleceń: wyszukiwanie w sieci jest opcjonalne; włącz je przez VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -3633,7 +3633,7 @@
     "xs.pause": "Bewertungen pausieren",
     "xs.reset": "Alle Bewertungen vergessen",
     "xs.forget": "Bewertung vergessen",
-    "xs.forget_scope": "Beim Vergessen werden die gespeicherten Bewertungshinweise und Stimmbeispiele entfernt. Frühere Chats können das Feedback weiterhin enthalten.",
+    "xs.forget_scope": "Beim Vergessen werden die gespeicherten Bewertungshinweise und Stimmbeispiele entfernt. Eine Bewertung, die du im Chat eingegeben hast, bleibt auch in diesem Chat, bis du die Chatnachricht vergisst.",
     "xs.limit_reached": "Dein X-Sendelimit ist erreicht. Prüfe deine Limits in den Einstellungen.",
     "xs.summary_post": "Auf X posten",
     "xs.summary_reply": "Auf @{author} antworten",
@@ -3660,7 +3660,7 @@
     "xs.unknown_state": "Es ist unklar, ob dies gesendet wurde. Prüfe X, bevor du es erneut versuchst.",
     "web.off.tool_refusal": "Websuchen sind aus. Du kannst den Artikeltext, Links oder Notizen einfügen, die ich verwenden soll, und ich arbeite damit. Websuchen einschalten: Einstellungen > Privatsphäre & Berechtigungen > Websuchen. (Befehlszeile: Websuche ist optional; einschalten mit VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
+  "source_catalog_sha256": "8599cb5e7300d80e0ffc627cc9b033516a4ba45f7e4ecff6258e9d12c714bf3b",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
