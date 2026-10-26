@@ -22,6 +22,16 @@ _POST = frozenset({"/api/mobile/pairing/claim", "/api/mobile/companion"})
 _MAX_BODY = 6 * 1024 * 1024
 _HEADER_DEADLINE = 5.0
 _MIN_BODY_RATE = 16 * 1024  # bytes per second a real phone easily beats
+_RATE_WINDOW = 10.0  # seconds: rides out a phone's network stall; a burst then a drip ages out
+
+
+def _recent_rate(progress, now):
+    """Body bytes per second over the last few seconds, never a lifetime average."""
+    recent = [item for item in progress.get("recent") or () if now - item[0] <= _RATE_WINDOW]
+    if not recent:
+        return 0.0
+    first_at, first_bytes = recent[0]
+    return (progress["bytes"] - first_bytes) / max(now - first_at, 0.5)
 
 
 def _settings_path() -> Path:
@@ -118,7 +128,7 @@ class _Server(ThreadingHTTPServer):
                 if progress["source"] == source:
                     continue
                 elapsed = max(now - progress["started"], 0.001)
-                rate = progress["bytes"] / elapsed
+                rate = _recent_rate(progress, now)
                 if progress["body"] and (rate >= _MIN_BODY_RATE or (
                         not progress["bytes"] and elapsed < 1)):
                     continue
@@ -164,8 +174,12 @@ class _Server(ThreadingHTTPServer):
             if progress is not None:
                 now = time.monotonic()
                 if not progress["body"]:
-                    progress.update(body=True, started=now)
+                    progress.update(body=True, started=now, recent=[(now, 0)])
                 progress.update(bytes=received)
+                recent = progress["recent"]
+                recent.append((now, received))
+                while len(recent) > 1 and now - recent[0][0] > _RATE_WINDOW:
+                    recent.pop(0)
 
     def finished_reading(self, request):
         with self.source_lock:
