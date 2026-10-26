@@ -14,9 +14,17 @@ Now both call `assemble_tool_offer`. It:
   families, follow-up inheritance, turn expansions — all of `model_visible_specs`);
 - ranks installed skills against the user's words and renders the matched bodies with
   **provenance** (plugin id, file) under hard **bounds** (`MAX_SKILLS`, `MAX_SKILL_CHARS`);
-- seats available built-in tools declared by matched installed guidance before narrowing ranked
-  fill; reserved seats and explicitly demanded intents stay, unavailable and owner-only tools never
-  seat, and plugin or MCP tools stay behind their family's expansion;
+- lets a matched skill's allowed-tools NARROW the ranked fill, never widen it with a side effect.
+  A matched installed skill may ADD (seat) only the available built-in tools it declares that are
+  read-only by their contract (``side_effect_class == "read_only"`` with only read, list or network
+  read permission actions), plus the few that only create an owner-approved pending proposal or
+  record the owner's own words in an owner-local store (``SKILL_SEATABLE_PROPOSALS``: an X action
+  proposal, an X rating, a saved note). Shell or exec, file write or delete, code tasks and repo
+  sessions, email or send, wallet or payment, browser actions and every other side-effect tool are
+  never seated by a skill, even where a control-plane step is tiered read-only: a skill only
+  narrows them. Reserved seats and explicitly demanded intents stay,
+  unavailable and owner-only tools never seat, and plugin or MCP tools stay behind their family's
+  expansion;
 - stamps the offer's provenance on the turn context (``_tool_offer``) so an executed turn can be
   audited against what was offered.
 
@@ -557,12 +565,45 @@ def _scope_download_specs(specs: list[dict[str, Any]], user_text: str) -> list[d
     return result
 
 
+#: Permission actions a read-only contract may carry and still be seated by a skill.
+#: ``public_read_only_retrieval`` (the live browser: navigate, click, type) is left out on
+#: purpose: driving a browser acts on a page, so a skill never seats it.
+_SKILL_SEATABLE_READ_ACTIONS = frozenset({
+    "read_files", "list_directories", "use_network_access", "access_external_providers",
+})
+#: The only non-read-only built-ins a skill may seat: each creates an owner-approved pending
+#: proposal (nothing is sent until the owner taps approve) or records the owner's own typed
+#: words in an owner-local store. Everything else with a side effect keeps "narrow, never widen".
+SKILL_SEATABLE_PROPOSALS = frozenset({"x.action.propose", "x.feedback.save", "operator.save_note"})
+#: Workflow control planes whose contracts read "read_only" because a step only moves a journal
+#: (open, propose or approve a code task, approve an email draft, open a repo session, simulate a
+#: payment) while the workflow it advances ends in an exec, write, send or spend. A skill never
+#: seats any of them; it can only narrow an offer that already holds them.
+_SKILL_UNSEATABLE_FAMILIES = (
+    "code.", "repo.", "email.", "wallet.", "pay.", "x402.", "sandbox.", "orchestration.",
+    "skill.", "vool-browser.", "marketplace.", "sell.",
+)
+
+
+def _skill_may_seat(intent: str) -> bool:
+    """Read the tool's own contract tiers: a skill may widen only with reads or proposals."""
+    from core.runtime_tool_contracts import runtime_tool_contract_map
+
+    contract = runtime_tool_contract_map().get(intent)
+    if contract is None or contract.source != "builtin" or intent.startswith(_SKILL_UNSEATABLE_FAMILIES):
+        return False
+    if contract.read_only and contract.approval_requirement == "none":
+        return set(contract.permission_actions) <= _SKILL_SEATABLE_READ_ACTIONS
+    return intent in SKILL_SEATABLE_PROPOSALS
+
+
 def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
     """Resolve declarations through the ordinary availability/owner-only graph.
 
-    Only built-in tools seat this way. A plugin or MCP tool stays behind its family:
-    the model reaches it through ``capability.expand_family`` (or the user's own words
-    naming it), so a pack's own skill matching the user's words never seats the pack.
+    Only built-in tools seat this way, and only the read-only or proposal-only ones
+    (``_skill_may_seat``). A plugin or MCP tool stays behind its family: the model reaches
+    it through ``capability.expand_family`` (or the user's own words naming it), so a
+    pack's own skill matching the user's words never seats the pack.
     """
     if not guidance.allowed_tools:
         return ()
@@ -585,6 +626,7 @@ def _available_skill_tools(guidance: SkillGuidance) -> tuple[str, ...]:
             explicit_intents=tuple(guidance.allowed_tools), max_candidates=_HARD_MAX_CANDIDATES
         )
         if spec.get("intent") in allowed and not _projected(str(spec["intent"]))
+        and _skill_may_seat(str(spec["intent"]))
     )
 
 
