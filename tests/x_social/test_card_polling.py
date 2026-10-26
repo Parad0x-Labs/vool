@@ -151,3 +151,121 @@ def test_chat_page_batches_polls_only_live_cards_and_stops_after_empty(vault_hom
     finally:
         browser.close()
         manager.stop()
+
+
+def test_a_chat_drawn_again_gets_its_pending_card_back(vault_home):
+    """Review r5 N1: switch to another chat and back; the fresh elements get their cards."""
+    manager, browser, page, seen = _browser_page(True, lambda body: {
+        'ok': True, 'cards': [_card('req-1', 'pending')] if body['session_id'] == 'chat-one' else []})
+    try:
+        _mount_history(page, 3)
+        page.clock.run_for(100)
+        _settle(page, seen, 1)
+        page.wait_for_selector('#m1 .vx-approval')
+        page.evaluate("() => { document.getElementById('chat').innerHTML = ''; }")
+        _mount_history(page, 2, chat='chat-two')
+        page.clock.run_for(100)
+        _settle(page, seen, 2)
+        page.evaluate("() => { document.getElementById('chat').innerHTML = ''; }")
+        _mount_history(page, 3)
+        page.clock.run_for(100)
+        _settle(page, seen, 3)
+        card = page.locator('#m1 .vx-approval')
+        card.wait_for()
+        assert card.count() == 1
+        assert card.get_by_role('button', name='Approve and send').count() == 1
+        assert card.get_by_role('button', name='Decline').count() == 1
+    finally:
+        browser.close()
+        manager.stop()
+
+
+def test_a_tab_opened_before_x_was_connected_asks_once_when_an_answer_finishes(vault_home):
+    """Review r5 N2: the page flag was false; a finished answer still asks, once, batched."""
+    manager, browser, page, seen = _browser_page(False, lambda body: {
+        'ok': True, 'cards': [_card('req-new', 'sent')] if 'req-new' in body.get('request_ids', ()) else []})
+    try:
+        _mount_history(page, 100)                  # history with X off and no card: no request
+        page.clock.run_for(30000)
+        _settle(page, seen, 0)
+        page.evaluate("""() => { const m = document.createElement('div'); m.id = 'new';
+          document.getElementById('chat').appendChild(m);
+          window.VoolXSocial.mount(m, 'chat-one', 'req-new', true);
+          window.VoolXSocial.mount(m, 'chat-one', 'req-new', true); }""")
+        page.clock.run_for(100)                    # both finish paths for one answer: one request
+        _settle(page, seen, 1)
+        assert len(seen[0]['request_ids']) == 101 and seen[0]['session_id'] == 'chat-one'
+        page.wait_for_selector('#new .vx-approval')
+        page.clock.run_for(30000)                  # a sent card is not live: no polling
+        _settle(page, seen, 1)
+    finally:
+        browser.close()
+        manager.stop()
+
+
+def test_a_failed_card_request_retries_with_backoff_then_stops(vault_home):
+    """Review r5 N3: a failed request re-arms at 3s, 6s, 12s (cap 60s); success with nothing live stops."""
+    from core.x_social_fragment import render_x_social_fragment
+    from tests.served_browser import launch_chromium
+
+    plan = ['abort', 500, 500, 'pending', 'sent']
+    seen = []
+    manager, browser = launch_chromium()
+    page = browser.new_page()
+    page.clock.install()
+
+    def cards(route):
+        seen.append(json.loads(route.request.post_data or '{}'))
+        step = plan.pop(0) if plan else 'sent'
+        if step == 'abort':
+            route.abort()
+        elif step == 500:
+            route.fulfill(status=500, content_type='application/json', body='{"ok": false}')
+        else:
+            route.fulfill(status=200, content_type='application/json',
+                          body=json.dumps({'ok': True, 'cards': [_card('req-1', step)]}))
+
+    page.route('http://vool.test/api/x/cards', cards)
+    page.route('http://vool.test/chat', lambda route: route.fulfill(
+        status=200, content_type='text/html', body=_PAGE.format(fragment=render_x_social_fragment(True))))
+    page.goto('http://vool.test/chat')
+    page.clock.pause_at(page.evaluate('Date.now()') + 1000)   # time moves only by run_for
+    try:
+        _mount_history(page, 3)
+        page.clock.run_for(100)
+        _settle(page, seen, 1)                     # fails (network)
+        for wait in (3000, 6000, 12000):
+            page.clock.run_for(wait - 300)
+            _settle(page, seen, len(seen))
+            before = len(seen)
+            page.clock.run_for(400)
+            _settle(page, seen, before + 1)
+        assert len(seen) == 4                      # 4th succeeds with a pending card
+        page.wait_for_selector('#m1 .vx-approval')
+        page.clock.run_for(3100)                   # live card: ordinary 3s poll, answer is sent
+        _settle(page, seen, 5)
+        page.clock.run_for(120000)                 # success with nothing live: stopped
+        _settle(page, seen, 5)
+    finally:
+        browser.close()
+        manager.stop()
+
+
+def test_failed_retries_cap_at_sixty_seconds(vault_home):
+    manager, browser, page, seen = _browser_page(True, lambda body: None)
+    page.route('http://vool.test/api/x/cards', lambda route: (seen.append(1), route.fulfill(
+        status=503, content_type='application/json', body='{"ok": false}')))
+    page.clock.pause_at(page.evaluate('Date.now()') + 1000)   # time moves only by run_for
+    try:
+        _mount_history(page, 1)
+        page.clock.run_for(100)
+        _settle(page, seen, 1)
+        for wait in (3000, 6000, 12000, 24000, 48000, 60000, 60000):
+            before = len(seen)
+            page.clock.run_for(wait - 300)
+            _settle(page, seen, before)
+            page.clock.run_for(400)
+            _settle(page, seen, before + 1)
+    finally:
+        browser.close()
+        manager.stop()

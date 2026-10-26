@@ -2538,7 +2538,7 @@ function applyResponseCommit(run, commit) {
       _owner.history[run.historyIndex].request_id = commitRequest;
     }
     if (run.ended && run.assistantMsgEl && isDisplayed(run.chatId)) {
-      try { mountProofChip(run.assistantMsgEl, run.chatId, commitRequest, run.displayMetadata && run.displayMetadata.presentation_selection); } catch (e) {}
+      try { mountProofChip(run.assistantMsgEl, run.chatId, commitRequest, run.displayMetadata && run.displayMetadata.presentation_selection, true); } catch (e) {}
     }
   }
   return true;
@@ -5272,8 +5272,10 @@ function downloadFilenameFrom(disposition, fallback) {
     .split(/[\\/]/).pop().replace(/^[.\s]+/, '').trim();
   return name || fallback;
 }
-async function mountProofChip(host, chatId, requestId, presentationSelection) {
-  if (window.VoolXSocial && requestId) window.VoolXSocial.mount(host, chatId, requestId);
+async function mountProofChip(host, chatId, requestId, presentationSelection, finished) {
+  // finished: an answer that just ended asks for its X cards even on a page drawn before X
+  // was connected; a history render (no flag) asks only when the page flag is on.
+  if (window.VoolXSocial && requestId) window.VoolXSocial.mount(host, chatId, requestId, finished === true);
   if (typeof mountAnswerExport === 'function') mountAnswerExport(host, chatId, requestId);
   const id = String(requestId || '');
   if (!host || !id) return null;
@@ -6291,7 +6293,7 @@ function paintFinishedCard(run) {
   // addressed by the commit's canonical request id — the same identity the server stamped on
   // the served bytes. No commit frame means no id, and no id means no chip.
   if (run.assistantMsgEl && isDisplayed(run.chatId)) {
-    try { mountProofChip(run.assistantMsgEl, run.chatId, run.responseCommit && run.responseCommit.request_id, run.displayMetadata && run.displayMetadata.presentation_selection); } catch (e) {}
+    try { mountProofChip(run.assistantMsgEl, run.chatId, run.responseCommit && run.responseCommit.request_id, run.displayMetadata && run.displayMetadata.presentation_selection, true); } catch (e) {}
   }
   if (kind !== 'awaiting_approval') applyResultSummary(run);
   if (kind === 'failed' && !run.card.dataset.brWired) {

@@ -84,19 +84,29 @@ async function manager(host,scope){
  await draw();
 }
 
-// One batched /api/x/cards request per chat, never one per message. A chat is asked only
-// while X is connected or a card already exists; it is polled only while one of its cards
-// is pending or sending, and an empty answer stops it until a new answer or an owner act.
-const POLL_MS=3000,BATCH=200,LIVE=new Set(['pending','sending']);
+// One batched /api/x/cards request per chat, never one per message. A history render asks
+// only while X is connected or a card already exists; an answer that just finished asks once
+// even when the page was drawn before X was connected. A chat is polled only while one of its
+// cards is pending or sending, and an empty answer stops it until a new answer or an owner act.
+// A failed request retries with backoff (3s, 6s, 12s ... 60s) until one succeeds.
+const POLL_MS=3000,RETRY_MAX_MS=60000,BATCH=200,LIVE=new Set(['pending','sending']);
 let active=__X_SOCIAL_ACTIVE__;
 const chats=new Map();
-function chatFor(session){let c=chats.get(session);if(!c){c={session:session,hosts:new Map(),versions:new Map(),timer:0,queued:false,running:null,again:false};chats.set(session,c);}return c;}
-function mount(host,session,request){
+// Drawn state lives on the message element, not the chat: a chat drawn again gets new
+// elements, and each fresh element must get its card even when the card did not change.
+const drawn=new WeakMap();
+function drawnOn(host){let v=drawn.get(host);if(!v){v=new Map();drawn.set(host,v);}return v;}
+function chatFor(session){let c=chats.get(session);if(!c){c={session:session,hosts:new Map(),timer:0,queued:false,running:null,again:false,failures:0};chats.set(session,c);}return c;}
+const finishedHosts=new WeakSet();
+function mount(host,session,request,finished){
  if(!host||!session||!request)return;
  const chat=chatFor(session);
- if(chat.hosts.get(request)===host)return;
+ const fresh=chat.hosts.get(request)!==host;
  chat.hosts.set(request,host);
- if(active)schedule(chat);
+ // A finished answer asks once per element, even if this element was mounted before it ended.
+ const ending=finished===true&&!finishedHosts.has(host);
+ if(ending)finishedHosts.add(host);
+ if(fresh?(active||ending):(ending&&!active))schedule(chat);
 }
 function schedule(chat){
  // A history render mounts every answer in one task: collect them into one request.
@@ -115,10 +125,15 @@ async function ask(chat){
  if(!chat.hosts.size){chats.delete(chat.session);return;}
  const ids=Array.from(chat.hosts.keys());let cards=[];
  for(let i=0;i<ids.length;i+=BATCH){
-  let result;try{result=await call('/api/x/cards',{session_id:chat.session,request_ids:ids.slice(i,i+BATCH)});}catch(e){return;}
-  if(!result.ok)return;
+  let result;try{result=await call('/api/x/cards',{session_id:chat.session,request_ids:ids.slice(i,i+BATCH)});}catch(e){result=null;}
+  if(!result||!result.ok){
+   chat.failures+=1;
+   if(!chat.again)chat.timer=setTimeout(()=>refresh(chat),Math.min(POLL_MS*2**(chat.failures-1),RETRY_MAX_MS));
+   return;
+  }
   cards=cards.concat(result.data.cards||[]);
  }
+ chat.failures=0;
  if(cards.length)active=true;
  draw(chat,cards);
  if(cards.some(a=>LIVE.has(a.state))&&!chat.again)chat.timer=setTimeout(()=>refresh(chat),POLL_MS);
@@ -126,8 +141,9 @@ async function ask(chat){
 function draw(chat,cards){
  for(const a of cards){
   const host=chat.hosts.get(a.request_id);if(!host||!host.isConnected)continue;
-  if(chat.versions.get(a.id)===a.state)continue;
-  chat.versions.set(a.id,a.state);
+  const versions=drawnOn(host);
+  if(versions.get(a.id)===a.state)continue;
+  versions.set(a.id,a.state);
   const previous=host.querySelector('[data-x-action="'+a.id+'"]');if(previous)previous.remove();
   const card=node('section','vx-social vx-approval');card.dataset.xAction=a.id;
   card.appendChild(node('strong','',summary(a)));
@@ -142,7 +158,7 @@ function draw(chat,cards){
    async function act(action){
     row.querySelectorAll('button').forEach(b=>b.disabled=true);
     try{const r=await call('/api/x/activity',{action:action,action_id:a.id,...(action==='approve'?{hash:a.hash}:{})});note.textContent=r.data.message||'';
-     chat.versions.delete(a.id);await refresh(chat);
+     versions.delete(a.id);await refresh(chat);
      if(!r.ok){const current=host.querySelector('[data-x-action="'+a.id+'"]');const status=current&&current.querySelector('[role=status]');
       if(status&&current.querySelector('.vx-approve'))status.textContent=r.data.state==='usage_limit_reached'?t('xs.limit_reached','Your X send limit has been reached. Check your limits in Settings.'):(r.data.message||t('xact.failed','That did not work. Nothing was sent.'));}
     }catch(e){note.textContent=t('xact.lost_answer','VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.');}
