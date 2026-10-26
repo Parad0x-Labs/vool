@@ -914,6 +914,7 @@
     "run.review_action": "नीचे दी गई सटीक क्रिया की समीक्षा करें।",
     "run.status_completed": "पूर्ण",
     "run.status_stopped": "रुका हुआ",
+    "run.status_stopping": "रोका जा रहा है…",
     "run.status_waiting": "आपकी स्वीकृति की प्रतीक्षा",
     "run.stop": "रोकें",
     "run.stop_title": "यह मोड़ रोकें — आपकी मशीन पर चल रहे कार्य को रद्द करता है और उत्तर को रोकता है।",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "हर कार्रवाई चलने से पहले जाँचें। पेज की स्क्रिप्ट बंद हैं। भुगतान के लिए वॉलेट इस्तेमाल करें।",
     "settings.row.live_browser.label": "ब्राउज़र"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

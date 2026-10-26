@@ -914,6 +914,7 @@
     "run.review_action": "Peržiūrėkite tikslų veiksmą žemiau.",
     "run.status_completed": "Atlikta",
     "run.status_stopped": "Sustabdyta",
+    "run.status_stopping": "Stabdoma…",
     "run.status_waiting": "Laukiama jūsų leidimo",
     "run.stop": "Stabdyti",
     "run.stop_title": "Sustabdyti šį ėjimą — atšaukia vykdomą užduotį jūsų kompiuteryje ir nutraukia atsakymą.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Peržiūrėkite kiekvieną veiksmą prieš jį vykdydami. Puslapių scenarijai išjungti. Mokėkite per piniginę.",
     "settings.row.live_browser.label": "Naršyklė"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

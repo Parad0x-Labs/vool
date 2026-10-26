@@ -28,7 +28,7 @@ from core.updater.runtime import (
     get_update_subsystem,
     reset_update_subsystem_for_tests,
 )
-from core.updater.status import UpdatePhase
+from core.updater.status import StatusStore, UpdatePhase, UpdateStatus
 from core.updater.trust import TrustedPublishers
 from core.web.api.app import default_workspace_root as _default_workspace_root
 
@@ -102,6 +102,62 @@ class TestHonestDisable:
         first = boot_update_subsystem(data_dir=tmp_path)
         second = boot_update_subsystem(data_dir=tmp_path)
         assert first is second
+
+
+class TestAvailabilityAfterUpgrade:
+    @pytest.mark.parametrize("online", [False, True])
+    def test_old_unavailable_status_clears_when_publisher_key_is_pinned(
+        self, tmp_path, monkeypatch, unconfigured_pin_map, online
+    ):
+        import copy
+
+        from core import policy_engine
+
+        policy = copy.deepcopy(policy_engine.load())
+        policy.setdefault("network", {})["outbound_enabled"] = online
+        policy.setdefault("system", {})["local_only_mode"] = False
+        monkeypatch.setattr(policy_engine, "_POLICY_CACHE", policy)
+        feed = FeedConfig(manifest_url="https://updates.example.invalid/manifest.json")
+        old = boot_update_subsystem(data_dir=tmp_path, feed=feed, platform="macos-arm64")
+        assert old.status_payload()["phase"] == UpdatePhase.UNAVAILABLE.value
+        assert "no release publisher key pinned" in old.status_payload()["message"]
+        reset_update_subsystem_for_tests()
+
+        # A replacement build now ships a pin, but reuses the old profile and status.
+        _private_hex, public_hex = generate_publisher_keypair()
+        unconfigured_pin_map.write_text(json.dumps({"release-2026-01": public_hex}), encoding="utf-8")
+        upgraded = boot_update_subsystem(data_dir=tmp_path, feed=feed, platform="macos-arm64")
+        payload = upgraded.status_payload()
+        assert payload["configured"] is True
+        assert payload["phase"] == UpdatePhase.IDLE.value
+        assert payload["unavailable_reason"] == ""
+        assert "publisher key" not in payload["message"]
+        assert payload["online_access"] is online
+        assert upgraded.status.load().phase is UpdatePhase.IDLE
+        assert upgraded.service._thread is None
+        assert not (tmp_path / "update_v2" / "check_consent.json").exists()
+        if not online:
+            assert upgraded.trigger_check()["reason"] == "online_access_off"
+            assert not (tmp_path / "update_v2" / "check_consent.json").exists()
+
+    @pytest.mark.parametrize("phase", list(UpdatePhase))
+    def test_configured_boot_preserves_other_update_states(self, tmp_path, phase):
+        _private_hex, public_hex = generate_publisher_keypair()
+        store = StatusStore(tmp_path / "update_v2" / "status.json")
+        store.save(UpdateStatus(
+            phase=phase, message="Saved update progress", target_version="0.7.4",
+            fault_code="update_not_applicable" if phase is UpdatePhase.UNAVAILABLE else "",
+        ))
+        before = store.path.read_bytes()
+        subsystem = boot_update_subsystem(
+            data_dir=tmp_path,
+            feed=FeedConfig(manifest_url="https://updates.example.invalid/manifest.json"),
+            trust=TrustedPublishers({"release-2026-01": public_hex}),
+            platform="macos-arm64",
+        )
+        assert subsystem.configured
+        assert store.path.read_bytes() == before
+        assert subsystem.status_payload()["phase"] == phase.value
 
 
 class TestBoundedBoot:

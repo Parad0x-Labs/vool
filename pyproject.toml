@@ -1,15 +1,15 @@
 [build-system]
-requires = ["setuptools>=83.0.0", "wheel"]
+requires = ["setuptools>=84.1.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "vool"
-version = "0.7.4"
+version = "0.7.5"
 description = "VOOL — local-first AI agent runtime with memory, tools, optional helpers, and visible proof"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     {name = "sls_0x"},
 ]
@@ -17,7 +17,6 @@ keywords = ["ai", "agent", "local-first", "memory", "tools", "proof"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -31,7 +30,7 @@ dependencies = [
     "keyring>=24.0",  # OS-keystore key protection (Windows DPAPI / macOS Keychain / Linux Secret Service)
     "psutil>=5.9",
     "pyyaml>=6.0",
-    "pypdf==6.21.0",  # Confined PDF text fallback; keep installer/bundle projections in sync.
+    "pypdf==6.21.2",  # Confined PDF text fallback; keep installer/bundle projections in sync.
     "reportlab==5.0.1",
     "markdown-it-py==4.2.0",
     "xlrd==2.0.2",  # Legacy XLS reader (pure Python, no native parts); keep installer/bundle projections in sync.
@@ -202,6 +201,7 @@ include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "o
 constraint-dependencies = [
     "urllib3>=2.8.0",
     "datasets>=5.0.1",
+    "setuptools>=84.1.0",  # Patched legacy wheel namespace validation.
 ]
 # The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
 # 0.36 and so solders below 0.27, and uv locks all extras together: without this, every install from the lock would
@@ -287,7 +287,7 @@ ignore = [
 known-first-party = ["adapters", "core", "network", "storage", "sandbox", "apps", "ops", "retrieval", "channels", "tools", "relay", "installer"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

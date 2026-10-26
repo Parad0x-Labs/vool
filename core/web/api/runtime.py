@@ -2066,19 +2066,42 @@ def _run_agent_locked(
             raise RuntimeError(
                 "K-08 violation: url-grounding would mutate post-admission bytes"
             )
-        schedule_memory_extraction(
-            runtime,
-            user_text=user_text,
-            assistant_output=str(dict(result or {}).get("response") or ""),
-            session_id=session_id,
-            source_context=base_context,
+        # A turn the person stopped feeds neither memory nor later prompts: its response is the
+        # cancel notice (or an answer nobody saw), never an exchange to learn from. The turn's
+        # cancel marker says so here; a stop that lands later is the transcript's to decide, once:
+        # a served turn's answer is often sealed after this worker returns, so what it learns is
+        # held until the transcript records the turn, and dropped if the person stopped it. A turn
+        # that ended with no answer is learned from with the recorded (empty) answer: the person's
+        # message counts, the draft nobody was shown does not.
+        from core.finalization import _turn_cancel_marker_fired
+        from core.persistent_memory import _after_transcript_records
+        from core.semantic.semantic_admissions import current_request_id
+
+        _turn_stopped = _turn_cancel_marker_fired(base_context) or bool(
+            (base_context or {}).get("_cancelled_before_publication")
         )
-        _admit_turn_context_page(
-            user_text=user_text,
-            assistant_output=str(dict(result or {}).get("response") or ""),
-            session_id=session_id,
-            source_context=base_context,
-        )
+        if not _turn_stopped:
+            _assistant_output = str(dict(result or {}).get("response") or "")
+
+            def _learn_from_exchange(recorded_answer: str | None = None) -> None:
+                answer = _assistant_output if recorded_answer is None else recorded_answer
+                schedule_memory_extraction(
+                    runtime,
+                    user_text=user_text,
+                    assistant_output=answer,
+                    session_id=session_id,
+                    source_context=base_context,
+                )
+                _admit_turn_context_page(
+                    user_text=user_text,
+                    assistant_output=answer,
+                    session_id=session_id,
+                    source_context=base_context,
+                )
+
+            _after_transcript_records(
+                str(current_request_id() or (base_context or {}).get("request_id") or ""), _learn_from_exchange
+            )
         update_retrieval_telemetry(web_calls=remote_fetch_attempt_count())
         return finalize_turn_trace(_finalize_turn_usage(result, base_context))
 
@@ -2957,6 +2980,45 @@ def _no_answer_terminal(reason_code: str, detail: str) -> dict[str, Any]:
     return no_answer_terminal(turn_id="", reason_code=reason_code, detail=detail)
 
 
+def _stopped_turn_recorder(
+    session_id: str, user_text: str, stream_context: dict[str, Any]
+) -> Callable[[], str] | None:
+    """The function that records this streamed turn as stopped, or None when it cannot be keyed.
+
+    Built while the stream starts, under the turn's own ingress context, where the request id the
+    turn's transcript row is staged under is read, once. The record is the person's message with an
+    empty assistant side, typed ``stopped``; the marker the page shows is painted from that state
+    where the transcript is shown. A turn whose ingress declared no commit boundary writes its rows
+    at once and is not stopped here (fail closed: nothing is written that could double a row).
+    """
+    from core.persistent_memory import TRANSCRIPT_COMMIT_BOUNDARY_KEY, append_conversation_event
+    from core.semantic.semantic_admissions import current_request_id
+
+    if not stream_context.get(TRANSCRIPT_COMMIT_BOUNDARY_KEY):
+        return None
+    request_id = str(current_request_id() or "")
+    if not request_id:
+        return None
+
+    def _recorder() -> str:
+        # What the stop decided: "stopped" / "already_stopped", or "already_recorded" when the
+        # turn's answer was committed first (its seal won). Anything else is "unknown".
+        try:
+            outcome = append_conversation_event(
+                session_id=session_id,
+                user_input=user_text,
+                assistant_output="",
+                source_context=stream_context,
+                stopped_request_id=request_id,
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("stopped turn could not be recorded")
+            return "unknown"
+        return outcome if outcome in {"stopped", "already_stopped", "already_recorded"} else "unknown"
+
+    return _recorder
+
+
 def no_answer_terminal_line(terminal: dict[str, Any], *, created_at: str | None = None) -> bytes:
     """One NDJSON line carrying typed NO_ANSWER_TERMINAL truth (A7 LAW 6).
 
@@ -3383,6 +3445,59 @@ def format_runtime_event_text(event: dict[str, Any]) -> str:
     return message + "\n" if message else ""
 
 
+#: The stopped-turn recorder of each streamed turn still running, keyed like the live-turn registry
+#: by (session_id, client turn_id). Registered with the turn's cancel Event and released by the
+#: worker on every exit path, next to ``unregister_turn``.
+_STOP_RECORDERS: dict[tuple[str, str], Callable[[], str]] = {}
+_STOP_RECORDERS_LOCK = threading.Lock()
+#: Request ids of streamed turns whose worker is still running and whose outcome has not reached
+#: the stream yet, each with the work held until the turn is done (``run_when_turn_ends``).
+_LIVE_STREAM_REQUESTS: dict[str, list[Callable[[], None]]] = {}
+
+
+def run_when_turn_ends(request_id: str, work: Callable[[], None]) -> bool:
+    """Hold ``work`` until ``request_id``'s streamed turn is done; False when it already is.
+
+    The served door's request-end transcript flush uses this when the page's stream ends first
+    (an aborted fetch): the turn is still running, may still be stopped, and its rows are not
+    final until the worker is done.
+    """
+    key = str(request_id or "")
+    with _STOP_RECORDERS_LOCK:
+        pending = _LIVE_STREAM_REQUESTS.get(key) if key else None
+        if pending is None:
+            return False
+        pending.append(work)
+        return True
+
+
+def _turn_ended(request_id: str) -> None:
+    with _STOP_RECORDERS_LOCK:
+        pending = _LIVE_STREAM_REQUESTS.pop(str(request_id or ""), None) if request_id else None
+    for work in pending or ():
+        try:
+            work()
+        except Exception:
+            logging.getLogger(__name__).exception("work held for the end of a turn failed")
+
+
+def record_stopped_turn(session_id: str, turn_id: str) -> str:
+    """Record the stopped turn ``(session_id, turn_id)`` now: their message, no reply, typed stopped.
+
+    Called by the cancel door before it sets the turn's cancel Event, so the record exists before
+    the cancel answers: a reload, a delete or the next message that follows the stop sees it. The
+    record is the person's message and an empty assistant side typed ``stopped``; any text of the
+    turn itself, even a partly streamed answer, is not kept. The stream is left as it was (a client
+    still reading gets the turn's typed cancel). Idempotent. ``"not_running"`` when no streamed
+    turn with that key is running (nothing is written).
+    """
+    with _STOP_RECORDERS_LOCK:
+        recorder = _STOP_RECORDERS.get((str(session_id or ""), str(turn_id or "")))
+    if recorder is None:
+        return "not_running"
+    return recorder()
+
+
 def stream_agent_with_events(
     runtime: RuntimeServices,
     user_text: str,
@@ -3511,8 +3626,25 @@ def _stream_agent_with_events_inner(
     consumed_queue_item = stream_context.get("consumed_queue_item")
     # A side answer to a question asked mid-task is not a task: a follow-up must never attach to it.
     is_task_turn = bool(cancel_turn_id) and not stream_context.get(followup_continuity.SIDE_ANSWER_CONTEXT_KEY)
+    stop_key = (str(session_id or ""), cancel_turn_id)
+    stop_recorder = _stopped_turn_recorder(session_id, user_text, stream_context) if cancel_turn_id else None
+    from core.semantic.semantic_admissions import current_request_id as _current_request_id
+
+    live_request_id = str(_current_request_id() or "")
+    if live_request_id:
+        with _STOP_RECORDERS_LOCK:
+            _LIVE_STREAM_REQUESTS.setdefault(live_request_id, [])
     if cancel_turn_id:
         stream_context["cancel_event"] = register_turn(session_id, cancel_turn_id)
+        if stop_recorder is not None:
+            with _STOP_RECORDERS_LOCK:
+                _STOP_RECORDERS[stop_key] = stop_recorder
+
+    def _release_stop_recorder() -> None:
+        if stop_recorder is not None:
+            with _STOP_RECORDERS_LOCK:
+                if _STOP_RECORDERS.get(stop_key) is stop_recorder:
+                    del _STOP_RECORDERS[stop_key]
     if is_task_turn:
         followup_continuity.begin_task(session_id, cancel_turn_id, user_text)
 
@@ -3560,7 +3692,9 @@ def _stream_agent_with_events_inner(
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
                 release_chat_turn_admission(session_id, admission_token)
+                _release_stop_recorder()
                 _release_followups()
+                _turn_ended(live_request_id)
 
         # F-01 (independent-proof repair): execute the turn under the ingress
         # context captured at the accept door, so A0 request binding and the
@@ -3580,7 +3714,9 @@ def _stream_agent_with_events_inner(
                 if cancel_turn_id:
                     unregister_turn(session_id, cancel_turn_id)
                 release_chat_turn_admission(session_id, admission_token)
+                _release_stop_recorder()
                 _release_followups()
+                _turn_ended(live_request_id)
                 raise
         else:
             _body()
@@ -3596,7 +3732,9 @@ def _stream_agent_with_events_inner(
         if cancel_turn_id:
             unregister_turn(session_id, cancel_turn_id)
         release_chat_turn_admission(session_id, admission_token)
+        _release_stop_recorder()
         _release_followups()
+        _turn_ended(live_request_id)
         if stream_id:
             unregister_runtime_event_sink(stream_id)
         raise
@@ -3622,6 +3760,8 @@ def _stream_agent_with_events_inner(
                         yield task_event_line(task_event)
                     continue
                 continue
+            if kind in ("error", "result"):
+                _turn_ended(live_request_id)
             if kind == "error":
                 # Never ship a raw exception into the chat bubble: str(exc) carries absolute
                 # paths (operator username + layout) and anything the raising code interpolated.

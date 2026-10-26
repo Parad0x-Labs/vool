@@ -914,6 +914,7 @@
     "run.review_action": "Revise a ação exata abaixo.",
     "run.status_completed": "Concluído",
     "run.status_stopped": "Parado",
+    "run.status_stopping": "Parando…",
     "run.status_waiting": "Aguardando sua aprovação",
     "run.stop": "Parar",
     "run.stop_title": "Para este turno — cancela a tarefa em execução na sua máquina e interrompe a resposta.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Reveja cada ação antes de a executar. Os scripts das páginas estão desligados. Use a carteira para pagamentos.",
     "settings.row.live_browser.label": "Navegador"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

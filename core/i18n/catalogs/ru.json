@@ -914,6 +914,7 @@
     "run.review_action": "Просмотрите точное действие ниже.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Остановлено",
+    "run.status_stopping": "Остановка…",
     "run.status_waiting": "Ожидает вашего подтверждения",
     "run.stop": "Остановить",
     "run.stop_title": "Остановить этот ход — отменяет выполняемую задачу на вашем компьютере и прекращает ответ.",
@@ -2848,7 +2849,7 @@
     "settings.row.live_browser.help": "Проверяйте каждое действие перед выполнением. Сценарии страниц отключены. Для оплаты используйте кошелёк.",
     "settings.row.live_browser.label": "Браузер"
   },
-  "source_catalog_sha256": "f86b3315dd08e2886e16251c4102288aa8c9a7ccb51b4264ae239592792fbf53",
+  "source_catalog_sha256": "42f0be964c4fca1324783422fd6688cd7715dd12b3c4a6e5eec5b40e501633b7",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

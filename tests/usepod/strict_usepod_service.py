@@ -62,6 +62,18 @@ class Listing:
 
 
 @dataclass
+class PaidRetryPause:
+    """A test-owned pause that acknowledges the provider stage before the sender may be killed."""
+
+    seconds: float
+    entered: threading.Event = field(default_factory=threading.Event)
+
+    def enter(self) -> float:
+        self.entered.set()
+        return self.seconds
+
+
+@dataclass
 class ScriptedReply:
     text: str = ""
     tool_name: str = ""
@@ -557,6 +569,8 @@ class StrictUsePodService:
             encoded = self.faults.get("raw_payment_required_header") or base64.b64encode(json.dumps(quote).encode("utf-8")).decode("ascii")
             return self._send_json(handler, 402, {"error": {"type": "payment_required"}}, extra={"PAYMENT-REQUIRED": encoded})
         held = self.faults.get("hold_then_drop_paid_retry_seconds")
+        if isinstance(held, PaidRetryPause):
+            held = held.enter()
         if isinstance(held, (int, float)) and held > 0:
             # SIMULATION of a request in flight when its sender dies: held open, then closed without being processed.
             # Nothing is verified or marked used, so the recorded operation can still be served on a resume.
@@ -591,6 +605,8 @@ class StrictUsePodService:
         with self.lock:
             self.used_signatures.add(signature)
         paid_delay = self.faults.get("paid_retry_delay_seconds")
+        if isinstance(paid_delay, PaidRetryPause):
+            paid_delay = paid_delay.enter()
         if isinstance(paid_delay, (int, float)) and paid_delay > 0:
             time.sleep(float(paid_delay))
         listing = quote["listing"]

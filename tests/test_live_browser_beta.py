@@ -7,6 +7,7 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -41,8 +42,7 @@ def _execute(origin, *, cancel=None, chat='live-test'):
         )
 
 
-@pytest.mark.parametrize('path, evidence', [('/', '14:36'), ('/other', '22:14')])
-def test_owner_approval_continues_original_real_tool_call(world, path, evidence):
+def _owner_approval_roundtrip(world, path, evidence, *, wait_seconds=25):
     rig, item, origin, requests = world
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(contextvars.copy_context().run, _execute, origin + path)
@@ -51,8 +51,13 @@ def test_owner_approval_continues_original_real_tool_call(world, path, evidence)
         proposal_id = item.pending['id']
         status, decision = rig.post('/api/browser/decide', {'chat': 'live-test', 'id': proposal_id, 'approve': True})
         assert status == 200, decision
-        execution = future.result(timeout=25)
-    assert execution.ok and execution.status == 'executed', execution
+        execution = future.result(timeout=wait_seconds)
+    assert execution.ok and execution.status == 'executed', {
+        'failure_class': item.result.get('failure_class'),
+        'failure_phase': item.result.get('failure_phase'),
+        'observation_failure_class': item.result.get('observation_failure_class'),
+        'execution': execution,
+    }
     assert execution.details['observation']['receipt']['approved_proposal_id'] == proposal_id
     assert evidence in execution.details['observation']['page_text']
     assert execution.details['observation']['authority'] == 'none'
@@ -65,6 +70,87 @@ def test_owner_approval_continues_original_real_tool_call(world, path, evidence)
     assert len(requests) == 1
     status, replay = rig.post('/api/browser/decide', {'chat': 'live-test', 'id': proposal_id, 'approve': True})
     assert status == 409 and replay['error'] == 'stale_approval'
+
+
+@pytest.mark.parametrize('path, evidence', [('/', '14:36'), ('/other', '22:14')])
+def test_owner_approval_continues_original_real_tool_call(world, path, evidence):
+    _owner_approval_roundtrip(world, path, evidence)
+
+
+@contextmanager
+def _hold_owned_browser_start(item, seconds):
+    """Exercise a slow real launch, using only this session's recorded PIDs."""
+    import psutil
+
+    stop = threading.Event()
+    held = []
+    errors = []
+
+    def hold():
+        while not stop.wait(.005):
+            pid = item._driver_pid
+            if not pid:
+                continue
+            try:
+                driver_created = item._owned_processes.get(pid)
+                if driver_created is None:
+                    continue
+                driver = psutil.Process(pid)
+                assert driver.create_time() == driver_created
+                for browser in driver.children():
+                    created = browser.create_time()
+                    item._record_process(browser.pid)
+                    browser.suspend()
+                    held.append((browser.pid, created))
+                    try:
+                        time.sleep(seconds)
+                    finally:
+                        if browser.is_running() and browser.create_time() == created:
+                            browser.resume()
+                    return
+            except psutil.NoSuchProcess:
+                continue
+            except Exception as exc:
+                errors.append(exc)
+                return
+
+    worker = threading.Thread(target=hold, daemon=True)
+    worker.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        worker.join(timeout=seconds + 5)
+        assert not worker.is_alive(), 'Owned browser suspension did not finish'
+        assert held and not errors, (held, errors)
+
+
+def test_owner_approval_survives_a_slow_real_browser_start(world):
+    from core.vool_browser.live import ENGINE_START_TIMEOUT
+
+    # Longer than the former 10 s child-launch cap, within the existing 60 s
+    # cold-start allowance. The real browser still performs the approved GET,
+    # observation and stale-approval refusal; no engine or page is substituted.
+    with _hold_owned_browser_start(world[1], 11):
+        _owner_approval_roundtrip(world, '/', '14:36', wait_seconds=ENGINE_START_TIMEOUT + 25)
+
+
+def test_failed_approved_browser_start_retains_safe_classification(world, monkeypatch, tmp_path):
+    rig, item, origin, requests = world
+    monkeypatch.setenv('VOOL_BROWSER_ENGINE', str(tmp_path / 'not-installed'))
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(contextvars.copy_context().run, _execute, origin + '/')
+        _until(lambda: item.pending is not None)
+        proposal_id = item.pending['id']
+        status, decision = rig.post('/api/browser/decide', {'chat': 'live-test', 'id': proposal_id, 'approve': True})
+        assert status == 200, decision
+        execution = future.result(timeout=25)
+    assert not execution.ok and execution.status == 'engine_missing', execution
+    result = execution.details['observation']
+    assert result['failure_class'] == 'BrowserFault'
+    assert result['failure_phase'] == 'engine_start'
+    assert result['receipt']['approved_proposal_id'] == proposal_id
+    assert requests == [] and not item.profile.exists()
 
 
 @pytest.mark.parametrize('decision', ['refuse', 'cancel', 'takeover', 'off'])
