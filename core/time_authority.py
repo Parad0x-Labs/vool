@@ -47,13 +47,13 @@ class TimeAuthority:
         return datetime.now(timezone.utc)
 
     def now_for_timezone(self, timezone_name: str) -> datetime:
-        """Return the current instant in the given IANA timezone.
+        """Return the canonical UTC instant in the given IANA timezone.
 
         Raises ``ZoneInfoNotFoundError`` if *timezone_name* is not a known IANA
         identifier.  Never silently falls back to UTC or local time.
         """
         tz = self.ZONE_INFO(timezone_name)
-        return datetime.now(tz)
+        return self.now_utc().astimezone(tz)
 
     def monotonic_now(self) -> float:
         """Return a monotonic float suitable for measuring elapsed time.
