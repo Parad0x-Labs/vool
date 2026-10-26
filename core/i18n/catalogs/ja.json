@@ -3657,9 +3657,10 @@
     "xs.public": "公開",
     "xs.description": "（説明：「{description}」）",
     "xs.summary_unknown": "X の操作",
-    "xs.unknown_state": "送信されたかどうか不明です。再試行する前に X を確認してください。"
+    "xs.unknown_state": "送信されたかどうか不明です。再試行する前に X を確認してください。",
+    "web.off.tool_refusal": "ウェブ検索はオフです。使ってほしい記事の本文、リンク、メモを貼り付けてください。それをもとに作業します。オンにするには: 設定 > プライバシーと権限 > ウェブ検索。(コマンドライン: ウェブ検索は任意です。VOOL_ENABLE_WEB=1 で有効にします。)"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

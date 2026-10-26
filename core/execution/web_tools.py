@@ -10,6 +10,16 @@ from core.research_evidence import truthful_evidence_strength
 from core.retrieval_observability import begin_web_retrieval, finish_web_retrieval
 
 
+#: The lookup tools the Web lookups switch governs (browser.render has its own policy).
+WEB_LOOKUP_INTENTS = frozenset({"web.search", "web.research", "web.fetch"})
+WEB_OFF_REFUSAL_KEY = "web.off.tool_refusal"
+WEB_OFF_REFUSAL_EN = (
+    "Web lookups are off. You can paste the article text, links or notes you want me to use, "
+    "and I will work from them. To turn lookups on: Settings > Privacy & Permissions > Web lookups. "
+    "(Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
+)
+
+
 def normalize_item(item: Any) -> dict[str, Any]:
     if isinstance(item, dict):
         return dict(item)
@@ -64,7 +74,15 @@ def execute_web_tool(
             details={"offline": True},
         )
     if not allow_web_fallback_fn():
-        return unsupported_execution_for_intent_fn(intent, status="disabled")
+        execution = unsupported_execution_for_intent_fn(intent, status="disabled")
+        if intent in WEB_LOOKUP_INTENTS:
+            # The owner hears what still works (pasting the material), in the app language.
+            from core.i18n.turn_locale import turn_text
+
+            text = turn_text(WEB_OFF_REFUSAL_KEY, WEB_OFF_REFUSAL_EN)
+            execution.response_text = text
+            execution.user_safe_response_text = text
+        return execution
 
     load_builtin_tools_fn()
     try:

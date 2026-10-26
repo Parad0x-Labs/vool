@@ -714,6 +714,16 @@ def assemble_tool_offer(
                  if str(spec.get("intent") or "") in permitted
                  and browser_tool_allowed(str(spec["intent"]))
                  and (contract := tool_for_intent(str(spec["intent"]))) is not None and contract.supported]
+    from core.execution.web_tools import WEB_LOOKUP_INTENTS
+    from core.remote_fetch_policy import effective_web_available
+
+    if WEB_LOOKUP_INTENTS & set(guidance.allowed_tools) and not effective_web_available(source_context):
+        # Web lookups off on a turn guided by a skill that declares a lookup tool: the lookup
+        # tools are not offered, so the skill's own web-off wording reaches the chat.
+        # `web.search`/`web.research` are declared supported whatever the switch says, so the
+        # graph and the skill's seats would offer them, and a call ends the turn on core's
+        # refusal. Any other turn keeps the native seam's offer and a named tool its refusal.
+        specs = [spec for spec in specs if str(spec.get("intent") or "") not in WEB_LOOKUP_INTENTS]
     if task_seats and "code.task.open" not in task_seats:
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.

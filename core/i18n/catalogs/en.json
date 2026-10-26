@@ -3657,7 +3657,8 @@
     "xs.public": "public",
     "xs.description": ", described as “{description}”",
     "xs.summary_unknown": "X action",
-    "xs.unknown_state": "It is unclear whether this was sent. Check X before trying again."
+    "xs.unknown_state": "It is unclear whether this was sent. Check X before trying again.",
+    "web.off.tool_refusal": "Web lookups are off. You can paste the article text, links or notes you want me to use, and I will work from them. To turn lookups on: Settings > Privacy & Permissions > Web lookups. (Command line: web lookup is opt-in; enable with VOOL_ENABLE_WEB=1.)"
   },
   "html_keys": [
     "bypass.modal_limits",

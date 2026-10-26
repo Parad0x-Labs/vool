@@ -3657,9 +3657,10 @@
     "xs.public": "公开",
     "xs.description": "，描述为“{description}”",
     "xs.summary_unknown": "X 操作",
-    "xs.unknown_state": "无法确定是否已发送。再次尝试前请先检查 X。"
+    "xs.unknown_state": "无法确定是否已发送。再次尝试前请先检查 X。",
+    "web.off.tool_refusal": "网络查询已关闭。你可以粘贴希望我使用的文章正文、链接或笔记，我会据此工作。要开启：设置 > 隐私与权限 > 网络查询。（命令行：网络查询需主动开启；用 VOOL_ENABLE_WEB=1 开启。）"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

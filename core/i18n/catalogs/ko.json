@@ -3657,9 +3657,10 @@
     "xs.public": "공개",
     "xs.description": ", 설명: “{description}”",
     "xs.summary_unknown": "X 작업",
-    "xs.unknown_state": "전송되었는지 확실하지 않습니다. 다시 시도하기 전에 X를 확인하세요."
+    "xs.unknown_state": "전송되었는지 확실하지 않습니다. 다시 시도하기 전에 X를 확인하세요.",
+    "web.off.tool_refusal": "웹 검색이 꺼져 있습니다. 사용할 기사 본문, 링크 또는 메모를 붙여 넣으면 그것으로 작업하겠습니다. 켜려면: 설정 > 개인정보와 권한 > 웹 검색. (명령줄: 웹 검색은 선택 사항이며 VOOL_ENABLE_WEB=1로 켭니다.)"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

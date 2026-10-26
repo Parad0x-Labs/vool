@@ -3657,9 +3657,10 @@
     "xs.public": "सार्वजनिक",
     "xs.description": ", विवरण: “{description}”",
     "xs.summary_unknown": "X पर कार्रवाई",
-    "xs.unknown_state": "यह स्पष्ट नहीं है कि इसे भेजा गया या नहीं। दोबारा कोशिश करने से पहले X देखें।"
+    "xs.unknown_state": "यह स्पष्ट नहीं है कि इसे भेजा गया या नहीं। दोबारा कोशिश करने से पहले X देखें।",
+    "web.off.tool_refusal": "वेब खोज बंद है। आप लेख का पाठ, लिंक या नोट्स चिपका सकते हैं जिनका मैं उपयोग करूँ, और मैं उन्हीं से काम करूँगा। खोज चालू करने के लिए: सेटिंग्स > गोपनीयता और अनुमतियाँ > वेब खोज। (कमांड लाइन: वेब खोज वैकल्पिक है; VOOL_ENABLE_WEB=1 से चालू करें।)"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

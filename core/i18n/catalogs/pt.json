@@ -3657,9 +3657,10 @@
     "xs.public": "pública",
     "xs.description": ", com a descrição “{description}”",
     "xs.summary_unknown": "Ação no X",
-    "xs.unknown_state": "Não está claro se isto foi enviado. Confira o X antes de tentar novamente."
+    "xs.unknown_state": "Não está claro se isto foi enviado. Confira o X antes de tentar novamente.",
+    "web.off.tool_refusal": "As pesquisas na web estão desativadas. Você pode colar o texto do artigo, os links ou as notas que quer que eu use, e eu trabalharei com eles. Para ativá-las: Configurações > Privacidade e permissões > Pesquisas na web. (Linha de comando: a pesquisa na web é opcional; ative com VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

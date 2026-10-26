@@ -3657,9 +3657,10 @@
     "xs.public": "công khai",
     "xs.description": ", với mô tả “{description}”",
     "xs.summary_unknown": "Thao tác trên X",
-    "xs.unknown_state": "Chưa rõ nội dung này đã được gửi hay chưa. Hãy kiểm tra X trước khi thử lại."
+    "xs.unknown_state": "Chưa rõ nội dung này đã được gửi hay chưa. Hãy kiểm tra X trước khi thử lại.",
+    "web.off.tool_refusal": "Tra cứu web đang tắt. Bạn có thể dán nội dung bài viết, liên kết hoặc ghi chú bạn muốn tôi dùng, và tôi sẽ làm việc từ đó. Để bật: Cài đặt > Riêng tư và Quyền > Tra cứu web. (Dòng lệnh: tra cứu web là tùy chọn; bật bằng VOOL_ENABLE_WEB=1.)"
   },
-  "source_catalog_sha256": "a7d3aa024c18e7efd5a9e974bb0ca4f5d9bad7c8483afb2beb439b64f6979c47",
+  "source_catalog_sha256": "5b2eb8ed2a886368374491a954b5d12a2ec9a567a9aca339453d25c285ff8204",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",
