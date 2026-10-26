@@ -84,6 +84,7 @@ def test_loopback_callback_endpoint_rejects_remote_and_get_requests():
         query={},
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
+        client_host="127.0.0.1",
     )
     assert post.status == 403
     assert get.status == 404

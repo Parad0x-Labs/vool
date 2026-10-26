@@ -128,16 +128,16 @@ echo This will set up VOOL in the extracted folder.
 echo ===============================================
 echo.
 
-REM Guarantee a real Python 3.10+ exists, installing one per-user if the host has none, an
+REM Guarantee a real Python 3.11+ exists, installing one per-user if the host has none, an
 REM old one, or only the Microsoft Store stub. This is what makes the single documented
 REM command truly one-click on a bare Windows box. ensure_python.ps1 writes the resolved
 REM python.exe path to a temp file; we use that concrete path because a Python it just
 REM installed will not be on this cmd session's PATH yet.
 set "PYFOUND_FILE=%TEMP%\vool_python_path_%RANDOM%_%RANDOM%.txt"
-echo Ensuring Python 3.10+ is available (installing it if needed)...
+echo Ensuring Python 3.11+ is available (installing it if needed)...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%ensure_python.ps1" -OutFile "%PYFOUND_FILE%"
 if !errorlevel! neq 0 (
-  echo ERROR: Could not find or automatically install Python 3.10+.
+  echo ERROR: Could not find or automatically install Python 3.11+.
   echo Install it from https://www.python.org/downloads/windows/ and retry.
   del /f /q "%PYFOUND_FILE%" >nul 2>&1
   exit /b 1
@@ -202,7 +202,7 @@ if !errorlevel! neq 0 (
 echo Step 2/14: Installing dependencies (this can take a while)...
 set "REQUIREMENTS_FILE=%PROJECT_ROOT%\requirements.txt"
 if exist "%RUNTIME_REQUIREMENTS%" set "REQUIREMENTS_FILE=%RUNTIME_REQUIREMENTS%"
-"%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade "pip<26" "setuptools<82" wheel
+"%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade "pip<26" "setuptools>=84.1.0" wheel
 if exist "%WHEELHOUSE_DIR%\*" (
   echo Using bundled wheelhouse from %WHEELHOUSE_DIR%...
   "%VENV_DIR%\Scripts\python.exe" -m pip install --no-index --find-links "%WHEELHOUSE_DIR%" -r "%REQUIREMENTS_FILE%"

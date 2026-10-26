@@ -914,6 +914,7 @@
     "run.review_action": "아래의 정확한 작업을 검토하세요.",
     "run.status_completed": "완료됨",
     "run.status_stopped": "중지됨",
+    "run.status_stopping": "중지하는 중…",
     "run.status_waiting": "승인을 기다리는 중",
     "run.stop": "중지",
     "run.stop_title": "이 턴 중지 — 이 컴퓨터에서 실행 중인 작업을 취소하고 답변을 멈춥니다.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "휴대폰 또는 채팅 앱에서 제안했습니다. 승인은 이 컴퓨터에서 합니다.",
     "wallet.mobile.unusual_amount": "평소와 다른 금액: 승인 전에 금액을 확인하세요."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

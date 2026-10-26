@@ -56,7 +56,7 @@ def _rt() -> RuntimeServices:
 
 def _get():
     return dispatch_get(
-        path="/api/runtime/unresolved-effects", query={}, runtime=_rt(), model_name="vool"
+        path="/api/runtime/unresolved-effects", query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1"
     )
 
 

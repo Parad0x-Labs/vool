@@ -914,6 +914,7 @@
     "run.review_action": "סקור את הפעולה המדויקת למטה.",
     "run.status_completed": "הושלם",
     "run.status_stopped": "נעצר",
+    "run.status_stopping": "עוצר…",
     "run.status_waiting": "ממתין לאישורך",
     "run.stop": "עצירה",
     "run.stop_title": "עצירת התור הזה — מבטל את המשימה הרצה במחשב שלך ועוצר את התשובה.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "הוצע מהטלפון או מיישום הצ׳אט שלך. האישור נשאר במחשב הזה.",
     "wallet.mobile.unusual_amount": "סכום חריג: יש לבדוק את הסכום לפני האישור."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

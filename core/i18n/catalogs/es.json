@@ -914,6 +914,7 @@
     "run.review_action": "Revisa abajo la acción exacta.",
     "run.status_completed": "Completado",
     "run.status_stopped": "Detenido",
+    "run.status_stopping": "Deteniendo…",
     "run.status_waiting": "Esperando tu permiso",
     "run.stop": "Detener",
     "run.stop_title": "Detiene este turno — cancela la tarea en ejecución en tu máquina y corta la respuesta.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "Propuesto desde tu teléfono o aplicación de chat. La aprobación se realiza en este ordenador.",
     "wallet.mobile.unusual_amount": "Importe inusual: comprueba el importe antes de aprobarlo."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

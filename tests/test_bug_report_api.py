@@ -62,7 +62,7 @@ def _post(path: str, body, headers=None, client_host: str = "127.0.0.1"):
 
 
 def _get(path: str, query=None):
-    return dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _draft_body():

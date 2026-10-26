@@ -227,6 +227,12 @@ class UpdateSubsystem:
                 self.status.publish(
                     UpdatePhase.UNAVAILABLE, reason=self.unavailable_reason.plain
                 )
+            else:
+                previous = self.status.load()
+                if previous is not None and previous.phase is UpdatePhase.UNAVAILABLE and not previous.fault_code:
+                    # Availability belongs to this build's feed and publisher pins, not
+                    # a prior build's saved status. Keep transaction and refusal states.
+                    self.status.publish(UpdatePhase.IDLE)
 
     # -- lifecycle ------------------------------------------------------------ #
 

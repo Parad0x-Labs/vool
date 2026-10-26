@@ -914,6 +914,7 @@
     "run.review_action": "Prüfe unten die exakte Aktion.",
     "run.status_completed": "Abgeschlossen",
     "run.status_stopped": "Gestoppt",
+    "run.status_stopping": "Wird gestoppt…",
     "run.status_waiting": "Wartet auf deine Freigabe",
     "run.stop": "Stopp",
     "run.stop_title": "Diesen Zug stoppen — bricht die laufende Aufgabe auf deinem Rechner ab und stoppt die Antwort.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "Vom Telefon oder der Chat-App vorgeschlagen. Die Freigabe erfolgt auf diesem Computer.",
     "wallet.mobile.unusual_amount": "Ungewöhnlicher Betrag: Prüfe den Betrag vor der Freigabe."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

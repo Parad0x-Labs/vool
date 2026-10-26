@@ -1070,130 +1070,156 @@ def finalize_answer(
             verdict["covered"] = False
     # LAW 2: consume the A2 id verbatim — never derive it from bytes, ids below.
     semantic_result_id = current_semantic_result_id()
-    if _turn_cancel_marker_fired(_cancel_context):
-        # The operator cancelled this turn and the cancel was acknowledged. Whatever the lanes
-        # composed afterwards is not published: the committed bytes are the typed cancel notice --
-        # decided AFTER every gate and the closure sweep so nothing rewrites it -- and the typed
-        # `task_cancelled` reaches the page. Measured 2026-09-06 on a scratch daemon: a cancel
-        # acknowledged mid-retrieval was followed by every remaining facet query, a model call and
-        # a published comparison -- an orphan answer under a cancelled turn.
-        content = CANCELLED_BEFORE_PUBLICATION
-        if isinstance(_cancel_context, dict):
-            _cancel_context["_cancelled_before_publication"] = True
-        try:
-            from core.runtime_task_events import emit_runtime_event
-
-            emit_runtime_event(
-                _cancel_context,
-                event_type="task_cancelled",
-                message="Turn cancelled by the operator before publication; no answer was published.",
-                details={"cancelled_at": "finalization"},
-            )
-        except Exception:
-            pass
-    content_hash = _sha256_hex(content)
-    clean_turn_id = str(turn_id or "").strip()
-    # K-09: finalization identity derives from OPAQUE inputs
-    # (semantic_result_id, request_id, nonce) — NEVER from the raw content
-    # hash. A one-word answer must not become a permanent confirmation oracle,
-    # and rekeying must stay possible after scale.
     try:
         from core.semantic.semantic_admissions import current_request_id
 
         bound_request_id = current_request_id()
     except Exception:
         bound_request_id = ""
-    import secrets as _secrets
+    # THE SEAL IS THE ONE POINT A STOP IS DECIDED AT. The cancel door records the person's stop
+    # before it sets the cancel marker, so the marker alone can be read between the two and let an
+    # answer nobody saw be bound. The claim is taken under the transcript's own lock: a stop
+    # recorded first wins (the cancel notice below is committed, never the answer); a stop arriving
+    # after it waits for this seal, which either commits the answer the page then shows or, when
+    # the bind fails, records the stop (see `_end_transcript_seal` below).
+    _seal_claimed = False
+    _stopped_first = _turn_cancel_marker_fired(_cancel_context)
+    if not _stopped_first and bound_request_id and status == ANSWER_PRESENT:
+        from core.persistent_memory import _claim_transcript_seal
 
-    finalization_nonce = _secrets.token_hex(8)
-    finalization_id = "fc:" + hashlib.sha256(
-        "\x1f".join((semantic_result_id, bound_request_id, finalization_nonce)).encode("utf-8")
-    ).hexdigest()[:32]
-    # M2 SLICE 4 -- the typed terminal truth. The values the commit assembled
-    # from scattered locals are computed INTO the TurnResult first; the commit's
-    # own result-carried fields are then PROJECTED from it. The buckets follow
-    # the ledger census the verdict already carries (no new taxonomy -- M6's).
-    # R2 — the turn's effect account travels WITH its terminal truth. The slot
-    # existed and no writer ever filled it, so a turn that was denied at the
-    # network door committed a terminal record saying nothing about the denial.
-    # Read from the turn's own ledger, which is open here: finalization runs
-    # inside the turn scope that owns it.
-    from core.effect_gateway import effect_outcomes as _turn_effect_outcomes
-    from core.effect_gateway import effect_receipts as _turn_effect_receipts
-    from core.effect_gateway import effect_receipts_dropped as _turn_effects_dropped
-    from core.effect_gateway import effect_receipts_truncated as _turn_effects_truncated
-    from core.turn_contract import TurnResult
+        _seal_claimed = _claim_transcript_seal(bound_request_id)
+        _stopped_first = not _seal_claimed
+    # From the claim on, every exit ends it (the ``finally`` below): an exception while the commit
+    # is built must never leave a stop waiting on a seal that does not end.
+    _bound = False
+    try:
+        if _stopped_first:
+            # The operator cancelled this turn and the cancel was acknowledged. Whatever the lanes
+            # composed afterwards is not published: the committed bytes are the typed cancel notice --
+            # decided AFTER every gate and the closure sweep so nothing rewrites it -- and the typed
+            # `task_cancelled` reaches the page. Measured 2026-09-06 on a scratch daemon: a cancel
+            # acknowledged mid-retrieval was followed by every remaining facet query, a model call and
+            # a published comparison -- an orphan answer under a cancelled turn.
+            content = CANCELLED_BEFORE_PUBLICATION
+            if isinstance(_cancel_context, dict):
+                _cancel_context["_cancelled_before_publication"] = True
+            try:
+                from core.runtime_task_events import emit_runtime_event
 
-    turn_result = TurnResult(
-        turn_id=clean_turn_id,
-        request_id=bound_request_id,
-        finalization_id=finalization_id,
-        terminal_state=status,
-        committed_answer=content,
-        final_content_hash=content_hash,
-        fulfilled_obligations=int(_rss_census.get("demand_satisfied") or 0),
-        unresolved_obligations=int(_rss_census.get("demand_indeterminate") or 0),
-        refused_obligations=int(_rss_census.get("demand_unanswered") or 0),
-        effect_receipts=_turn_effect_receipts(),
-        effect_receipts_truncated=_turn_effects_truncated(),
-        effect_receipts_dropped=_turn_effects_dropped(),
-        # R2b2b — the terminal lifecycle travels with the turn's truth: the
-        # per-effect outcome account, so a commit answers what was attempted,
-        # whether transport ran, and how it ended.
-        effect_outcomes=_turn_effect_outcomes(),
-        # ROOT-CAUSE CONTRACT — derived from the validated typed record above;
-        # empty means no diagnosis was open (a fact, never a repair claim).
-        root_cause_state=root_cause_state,
-        root_cause_status=root_cause_status,
-        # FAULT PLANE — the turn's retry hint, derived from the faults its boundaries
-        # filed. Empty for a turn with no faults, so ordinary commits stay byte-identical.
-        retry_classification=retry_classification_for_turn(clean_turn_id),
-    )
-    _commit_display_metadata = dict(display_metadata or {})
-    if isinstance(_presentation_selection, dict):
-        _commit_display_metadata["presentation_selection"] = _presentation_selection
-    if isinstance(_render_lane_record, dict) and _render_lane_record:
-        # Provenance of the render lane: what it normalized, or why it declined.
-        # Same surface law as the selection record — metadata, never answer bytes.
-        _commit_display_metadata["render_lane"] = dict(_render_lane_record)
-    if _execution_record:
-        # Provenance of the execution-claim check: what it withheld, or why it stood down.
-        _commit_display_metadata["execution_claims"] = dict(_execution_record)
-    if _private_turn:
-        # Private chat (core.private_chat): the page marks this turn's two bubbles with the ghost
-        # and learns whether the chat is still private after it. Absent on ordinary turns.
-        _commit_display_metadata["private_chat"] = True
-        _commit_display_metadata["private_chat_on"] = _private_chat_still_on(_selection_context)
-    commit = {
-        "type": "response.commit",
-        "version": 2,
-        "revision": 1,
-        "finalization_id": finalization_id,
-        "turn_id": clean_turn_id,
-        "semantic_result_id": semantic_result_id,
-        "request_id": bound_request_id,
-        **turn_result.to_commit_fields(),
-        "closure_verdict": dict(verdict),
-        # C19: the shipped selection record describes the committed (post-gate)
-        # bytes — provenance only, never part of the answer bytes themselves.
-        "display_metadata": _commit_display_metadata,
-        # Requirement 11: the lifecycle rides the commit, so the API and Activity can show
-        # required / retrieved / bound / supported / published — or name the exact stage that
-        # failed — without re-deriving any of it. Absent for turns that never needed current
-        # information, which is how a reader tells "not applicable" from "not reached".
-        **({"grounding_lifecycle": _grounding_record} if _grounding_record else {}),
-        # The egress law: the commit envelope is an ingress/egress adapter, so the
-        # result rides as its DICT projection (JSON-safe — found live: the typed
-        # object broke the serve path's serialization with a 500). Reconstruct with
-        # TurnResult(**commit["turn_result"]); the typed object remains the
-        # computed-once home inside the seam.
-        "turn_result": turn_result.to_dict(),
-    }
-    if root_cause_publication is not None:
-        # Added ONLY for turns that carried a diagnosis contract, so ordinary
-        # commits stay byte-identical (frozen tests pin their shape).
-        commit["root_cause"] = dict(root_cause_publication)
-    outcome = _bind_durably(commit, private=_private_turn)
+                emit_runtime_event(
+                    _cancel_context,
+                    event_type="task_cancelled",
+                    message="Turn cancelled by the operator before publication; no answer was published.",
+                    details={"cancelled_at": "finalization"},
+                )
+            except Exception:
+                pass
+        content_hash = _sha256_hex(content)
+        clean_turn_id = str(turn_id or "").strip()
+        # K-09: finalization identity derives from OPAQUE inputs
+        # (semantic_result_id, request_id, nonce) — NEVER from the raw content
+        # hash. A one-word answer must not become a permanent confirmation oracle,
+        # and rekeying must stay possible after scale. (bound_request_id: read above.)
+        import secrets as _secrets
+
+        finalization_nonce = _secrets.token_hex(8)
+        finalization_id = "fc:" + hashlib.sha256(
+            "\x1f".join((semantic_result_id, bound_request_id, finalization_nonce)).encode("utf-8")
+        ).hexdigest()[:32]
+        # M2 SLICE 4 -- the typed terminal truth. The values the commit assembled
+        # from scattered locals are computed INTO the TurnResult first; the commit's
+        # own result-carried fields are then PROJECTED from it. The buckets follow
+        # the ledger census the verdict already carries (no new taxonomy -- M6's).
+        # R2 — the turn's effect account travels WITH its terminal truth. The slot
+        # existed and no writer ever filled it, so a turn that was denied at the
+        # network door committed a terminal record saying nothing about the denial.
+        # Read from the turn's own ledger, which is open here: finalization runs
+        # inside the turn scope that owns it.
+        from core.effect_gateway import effect_outcomes as _turn_effect_outcomes
+        from core.effect_gateway import effect_receipts as _turn_effect_receipts
+        from core.effect_gateway import effect_receipts_dropped as _turn_effects_dropped
+        from core.effect_gateway import effect_receipts_truncated as _turn_effects_truncated
+        from core.turn_contract import TurnResult
+
+        turn_result = TurnResult(
+            turn_id=clean_turn_id,
+            request_id=bound_request_id,
+            finalization_id=finalization_id,
+            terminal_state=status,
+            committed_answer=content,
+            final_content_hash=content_hash,
+            fulfilled_obligations=int(_rss_census.get("demand_satisfied") or 0),
+            unresolved_obligations=int(_rss_census.get("demand_indeterminate") or 0),
+            refused_obligations=int(_rss_census.get("demand_unanswered") or 0),
+            effect_receipts=_turn_effect_receipts(),
+            effect_receipts_truncated=_turn_effects_truncated(),
+            effect_receipts_dropped=_turn_effects_dropped(),
+            # R2b2b — the terminal lifecycle travels with the turn's truth: the
+            # per-effect outcome account, so a commit answers what was attempted,
+            # whether transport ran, and how it ended.
+            effect_outcomes=_turn_effect_outcomes(),
+            # ROOT-CAUSE CONTRACT — derived from the validated typed record above;
+            # empty means no diagnosis was open (a fact, never a repair claim).
+            root_cause_state=root_cause_state,
+            root_cause_status=root_cause_status,
+            # FAULT PLANE — the turn's retry hint, derived from the faults its boundaries
+            # filed. Empty for a turn with no faults, so ordinary commits stay byte-identical.
+            retry_classification=retry_classification_for_turn(clean_turn_id),
+        )
+        _commit_display_metadata = dict(display_metadata or {})
+        if isinstance(_presentation_selection, dict):
+            _commit_display_metadata["presentation_selection"] = _presentation_selection
+        if isinstance(_render_lane_record, dict) and _render_lane_record:
+            # Provenance of the render lane: what it normalized, or why it declined.
+            # Same surface law as the selection record — metadata, never answer bytes.
+            _commit_display_metadata["render_lane"] = dict(_render_lane_record)
+        if _execution_record:
+            # Provenance of the execution-claim check: what it withheld, or why it stood down.
+            _commit_display_metadata["execution_claims"] = dict(_execution_record)
+        if _private_turn:
+            # Private chat (core.private_chat): the page marks this turn's two bubbles with the ghost
+            # and learns whether the chat is still private after it. Absent on ordinary turns.
+            _commit_display_metadata["private_chat"] = True
+            _commit_display_metadata["private_chat_on"] = _private_chat_still_on(_selection_context)
+        commit = {
+            "type": "response.commit",
+            "version": 2,
+            "revision": 1,
+            "finalization_id": finalization_id,
+            "turn_id": clean_turn_id,
+            "semantic_result_id": semantic_result_id,
+            "request_id": bound_request_id,
+            **turn_result.to_commit_fields(),
+            "closure_verdict": dict(verdict),
+            # C19: the shipped selection record describes the committed (post-gate)
+            # bytes — provenance only, never part of the answer bytes themselves.
+            "display_metadata": _commit_display_metadata,
+            # Requirement 11: the lifecycle rides the commit, so the API and Activity can show
+            # required / retrieved / bound / supported / published — or name the exact stage that
+            # failed — without re-deriving any of it. Absent for turns that never needed current
+            # information, which is how a reader tells "not applicable" from "not reached".
+            **({"grounding_lifecycle": _grounding_record} if _grounding_record else {}),
+            # The egress law: the commit envelope is an ingress/egress adapter, so the
+            # result rides as its DICT projection (JSON-safe — found live: the typed
+            # object broke the serve path's serialization with a 500). Reconstruct with
+            # TurnResult(**commit["turn_result"]); the typed object remains the
+            # computed-once home inside the seam.
+            "turn_result": turn_result.to_dict(),
+        }
+        if root_cause_publication is not None:
+            # Added ONLY for turns that carried a diagnosis contract, so ordinary
+            # commits stay byte-identical (frozen tests pin their shape).
+            commit["root_cause"] = dict(root_cause_publication)
+        outcome = _bind_durably(commit, private=_private_turn)
+        _bound = True
+    finally:
+        if _seal_claimed:
+            from core.persistent_memory import _end_transcript_seal
+
+            # A failed bind, or an exception anywhere since the claim, releases it and records a
+            # stop that arrived meanwhile; a bound answer is the turn's record, and the transcript
+            # row below is written with it.
+            _end_transcript_seal(bound_request_id, committed=_bound)
     commit["binding_outcome"] = outcome
     # TRANSCRIPT AT THE COMMIT BOUNDARY. The lane that produced this answer staged its
     # conversation row instead of writing a pre-gate draft (see core.persistent_memory); the

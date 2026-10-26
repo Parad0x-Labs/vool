@@ -20,7 +20,13 @@ _REF = re.compile(r"[0-9a-f]{40}\Z")
 _CACHE = OrderedDict()
 _LOCK = threading.RLock()
 _SLOTS = threading.BoundedSemaphore(2)
-_ECOSYSTEMS = {'vercel-labs/agent-skills':'Vercel', 'obra/superpowers':'Superpowers'}
+# VOOL's own skills repository: only its owner can change it, so its skills are listed first and named VOOL.
+OWN_REPOSITORY = 'Parad0x-Labs/vool-skills'
+_ECOSYSTEMS = {'vercel-labs/agent-skills':'Vercel', 'obra/superpowers':'Superpowers', OWN_REPOSITORY.lower():'VOOL'}
+
+
+def is_own(entry: dict) -> bool:
+    return str(entry.get('repository', '')).lower() == 'https://github.com/' + OWN_REPOSITORY.lower()
 
 
 def repository_name(value: str) -> str:
@@ -190,7 +196,7 @@ def listing(repo: str, ref: str, path: str, *, ecosystem='', license_id='Unknown
     identity = hashlib.sha256((repo.lower()+'@'+ref+':'+path).encode()).hexdigest()[:24]
     return {'id':'github-'+identity, 'name':slug.replace('-', ' ').replace('_',' ').capitalize(),
             'description':description or 'Community skill from '+repo+'. Open it to check requirements and compatibility.',
-            'publisher':repo.split('/')[0], 'ecosystem':ecosystem or _ECOSYSTEMS.get(repo.lower(),repo.split('/')[0]), 'category':category_for(path),
+            'publisher':'VOOL' if repo.lower() == OWN_REPOSITORY.lower() else repo.split('/')[0], 'ecosystem':ecosystem or _ECOSYSTEMS.get(repo.lower(),repo.split('/')[0]), 'category':category_for(path),
             'kind':'skill', 'repository':'https://github.com/'+repo, 'ref':ref, 'path':folder,
             'skill_path':path, 'skill_name':slug, 'license':license_id, 'discovery_only':True,
             'compatibility':'Check compatibility before scanning or installing.', 'requirements':'Not inspected yet.'}

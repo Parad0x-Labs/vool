@@ -73,7 +73,7 @@ function Resolve-Python {
         return $py
     }
 
-    throw "Python was not found. Install Python 3.10 or newer and rerun."
+    throw "Python was not found. Install Python 3.11 or newer and rerun."
 }
 
 function Convert-ToSafeLogName {

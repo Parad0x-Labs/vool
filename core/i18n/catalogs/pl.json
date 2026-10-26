@@ -914,6 +914,7 @@
     "run.review_action": "Przejrzyj dokładne działanie poniżej.",
     "run.status_completed": "Ukończono",
     "run.status_stopped": "Zatrzymano",
+    "run.status_stopping": "Zatrzymywanie…",
     "run.status_waiting": "Czeka na Twoją zgodę",
     "run.stop": "Zatrzymaj",
     "run.stop_title": "Zatrzymaj tę turę — anuluje uruchomione zadanie na twoim komputerze i przerywa odpowiedź.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "Zaproponowano z telefonu lub komunikatora. Zatwierdzenie odbywa się na tym komputerze.",
     "wallet.mobile.unusual_amount": "Nietypowa kwota: sprawdź ją przed zatwierdzeniem."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

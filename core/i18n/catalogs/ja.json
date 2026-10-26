@@ -914,6 +914,7 @@
     "run.review_action": "以下の正確な操作を確認してください。",
     "run.status_completed": "完了",
     "run.status_stopped": "停止しました",
+    "run.status_stopping": "停止しています…",
     "run.status_waiting": "承認を待っています",
     "run.stop": "停止",
     "run.stop_title": "このターンを停止 — このマシンで実行中のタスクをキャンセルし、回答を止めます。",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "スマートフォンまたはチャットアプリからの提案です。承認はこのコンピューターで行います。",
     "wallet.mobile.unusual_amount": "通常と異なる金額：承認前に金額を確認してください。"
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

@@ -226,7 +226,17 @@ _CARD_RUN_RE = re.compile(r"(?<![\d.,])\d(?:[ -]?\d){12,18}(?![\d])")
 _CARD_GROUPED_RE = re.compile(r"\d{4}(?:([ -])\d{4}\1\d{4}\1\d{1,7}|[ -]\d{6}[ -]\d{4,5})")
 _CARD_CONTEXT_RE = re.compile(
     r"(?i)\b(?:card|cards|visa|mastercard|master\s+card|amex|american\s+express|maestro|discover"
-    r"|diners|jcb|unionpay|credit|debit|pan|cc)\b"
+    r"|diners|jcb|unionpay|credit|debit|pan|cc)(?:\b|(?=_))"
+)
+# [^\W_] is a Unicode alphanumeric character. Check the whole surrounding
+# alphanumeric run, so non-hex text such as "card4111..." cannot exempt a card.
+# UUIDs have their own complete shape, including UUIDs with no hex letters.
+_HEX_TOKEN_RE = re.compile(
+    r"(?<![^\W_])(?:"
+    r"(?<!-)[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}(?!-)"
+    r"|(?=[0-9a-f]*[a-f])[0-9a-f]{16,}"
+    r")(?![^\W_])",
+    re.IGNORECASE,
 )
 _CARD_CONTEXT_WINDOW = 60
 _LABEL_CLAUSE_BOUNDARY_RE = re.compile(r"[.;!?\n]\s")
@@ -255,7 +265,13 @@ def _clause_before(text: str, start: int) -> str:
 
 
 def _luhn_digit_run_spans(value: str):
+    hex_tokens = iter(_HEX_TOKEN_RE.finditer(value))
+    token = next(hex_tokens, None)
     for match in _CARD_RUN_RE.finditer(value):
+        while token is not None and token.end() <= match.start():
+            token = next(hex_tokens, None)
+        if token is not None and token.start() <= match.start() and match.end() <= token.end():
+            continue
         raw = match.group(0)
         digits = re.sub(r"[ -]", "", raw)
         if not 13 <= len(digits) <= 19:

@@ -914,6 +914,7 @@
     "run.review_action": "请审查下方确切的操作。",
     "run.status_completed": "已完成",
     "run.status_stopped": "已停止",
+    "run.status_stopping": "正在停止…",
     "run.status_waiting": "等待你的批准",
     "run.stop": "停止",
     "run.stop_title": "停止本轮 — 取消您机器上正在运行的任务并停止回答。",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "从你的手机或聊天应用提出。仍需在此电脑上批准。",
     "wallet.mobile.unusual_amount": "金额异常：批准前请核对金额。"
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

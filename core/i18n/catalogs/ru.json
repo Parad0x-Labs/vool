@@ -914,6 +914,7 @@
     "run.review_action": "Просмотрите точное действие ниже.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Остановлено",
+    "run.status_stopping": "Остановка…",
     "run.status_waiting": "Ожидает вашего подтверждения",
     "run.stop": "Остановить",
     "run.stop_title": "Остановить этот ход — отменяет выполняемую задачу на вашем компьютере и прекращает ответ.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "Предложено с телефона или из приложения чата. Подтверждение выполняется на этом компьютере.",
     "wallet.mobile.unusual_amount": "Необычная сумма: проверьте сумму перед подтверждением."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

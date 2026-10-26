@@ -22,7 +22,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$OutFile,
     [int]$MinMajor = 3,
-    [int]$MinMinor = 10,
+    [int]$MinMinor = 11,
     # Pinned python.org fallback (used only when winget is unavailable/fails).
     [string]$FallbackVersion = "3.12.7"
 )
@@ -59,7 +59,7 @@ function Test-PythonCandidate {
 function Find-Python {
     # 1) py launcher, newest requested first (respects real installs, not the Store stub).
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        foreach ($v in "3.13", "3.12", "3.11", "3.10") {
+        foreach ($v in "3.13", "3.12", "3.11") {
             try {
                 $path = (& py "-$v" -I -c "import sys; print(sys.executable)" 2>$null |
                     Where-Object { $_ } | Select-Object -Last 1)

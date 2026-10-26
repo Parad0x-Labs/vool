@@ -128,9 +128,9 @@ def has_passed(resolution: WhenResolution) -> bool:
 def parse_when_expression(
     text: str,
     *,
-    now_fn: Callable[[], datetime] = CLOCK.now_utc,
+    now_fn: Callable[[], datetime] | None = None,
 ) -> WhenResolution:
-    now = now_fn()
+    now = (now_fn or CLOCK.now_utc)()
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     resolution = _parse_when_expression(text, now_fn=lambda: now)

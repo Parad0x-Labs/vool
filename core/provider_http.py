@@ -29,6 +29,17 @@ _MAX_BODY = 64 * 1024 * 1024
 _MAX_FRAME = 128 * 1024
 
 
+class ProviderCallCancelled(RuntimeError):
+    """The caller's ``cancel_check`` came true: the transfer worker is ended, no reply is read.
+
+    Carries the adapters' stable ``model_call_cancelled`` code, so a stopped call is never taken
+    for a transport failure of the provider.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("model_call_cancelled")
+
+
 def is_loopback_url(url):
     try:
         parsed = urllib.parse.urlparse(str(url))
@@ -57,7 +68,10 @@ def urlopen(request, *, timeout):
 
 
 class _Transfer:
-    def __init__(self, method, url, options):
+    def __init__(self, method, url, options, cancel_check=None):
+        # Opt-in and parent-side only: never serialized to the worker. None leaves the transfer
+        # exactly as it was.
+        self.cancel_check = cancel_check
         timeout = options.get("timeout", 30.0)
         budget = timeout[-1] if isinstance(timeout, (tuple, list)) else timeout
         self.deadline = time.monotonic() + max(0.001, float(budget))
@@ -128,6 +142,9 @@ class _Transfer:
 
     def receive(self):
         while True:
+            if self.cancel_check is not None and self.cancel_check():
+                self.close()
+                raise ProviderCallCancelled()
             remaining = self.deadline - time.monotonic()
             if self.expired.is_set() or remaining <= 0:
                 raise exceptions.Timeout("provider transfer exceeded its wall-clock deadline")
@@ -212,7 +229,10 @@ class _Response(_requests.Response):
 
 def _request(method, url, **options):
     streaming = bool(options.pop("stream", False))
-    owner = _Transfer(method, url, options)
+    # ``cancel_check``: a callable the transfer polls while it waits; when it returns true the
+    # worker is ended and ProviderCallCancelled is raised. A check that raises ends the call too.
+    cancel_check = options.pop("cancel_check", None)
+    owner = _Transfer(method, url, options, cancel_check)
     try:
         header = owner.receive()
         if header.get("type") != "response":

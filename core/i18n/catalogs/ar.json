@@ -914,6 +914,7 @@
     "run.review_action": "راجع الإجراء المحدد أدناه.",
     "run.status_completed": "اكتمل",
     "run.status_stopped": "متوقف",
+    "run.status_stopping": "جارٍ الإيقاف…",
     "run.status_waiting": "بانتظار موافقتك",
     "run.stop": "إيقاف",
     "run.stop_title": "إيقاف هذا الدور — يلغي المهمة الجارية على جهازك ويوقف الإجابة.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "اقتُرح من هاتفك أو تطبيق المحادثة. تبقى الموافقة على هذا الكمبيوتر.",
     "wallet.mobile.unusual_amount": "مبلغ غير معتاد: تحقّق من هذا المبلغ قبل الموافقة."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

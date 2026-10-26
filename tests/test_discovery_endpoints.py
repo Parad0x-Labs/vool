@@ -62,7 +62,7 @@ def _rt() -> RuntimeServices:
 
 
 def _get(path):
-    return dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool")
+    return dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
 
 
 def _post(body, headers=None):

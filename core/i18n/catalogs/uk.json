@@ -914,6 +914,7 @@
     "run.review_action": "Перегляньте точну дію нижче.",
     "run.status_completed": "Завершено",
     "run.status_stopped": "Зупинено",
+    "run.status_stopping": "Зупинка…",
     "run.status_waiting": "Очікує вашого підтвердження",
     "run.stop": "Зупинити",
     "run.stop_title": "Зупинити цей хід — скасовує виконуване завдання на вашому комп’ютері та припиняє відповідь.",
@@ -3039,7 +3040,7 @@
     "wallet.mobile.origin": "Запропоновано з телефона або застосунку чату. Підтвердження виконується на цьому комп’ютері.",
     "wallet.mobile.unusual_amount": "Незвична сума: перевірте суму перед підтвердженням."
   },
-  "source_catalog_sha256": "c28c17cc845e6ed13ca4cec2d2dc45db390c0dc568ac2857a08292949daccf5b",
+  "source_catalog_sha256": "06aff24860e1d653e153ea1d92cd4baab5b9ae783ff9348edf9f64fcb44de9ef",
   "generator": {
     "engine": "GLM-5.3 (ZCode idle translation agent)",
     "status": "MACHINE_DRAFT",

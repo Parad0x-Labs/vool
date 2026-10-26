@@ -32,7 +32,7 @@ def _post(path, body, headers=None):
 
 
 def _get(path, query=None):
-    res = dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool")
+    res = dispatch_get(path=path, query=query or {}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     return json.loads(res.body.decode("utf-8"))
 
 

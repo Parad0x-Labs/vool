@@ -325,6 +325,7 @@ def test_history_endpoint_attaches_the_persisted_ts_to_the_assistant_message(tmp
             query={"session": ["ts-hist-1"]},
             runtime=RuntimeServices(display_name="VOOL"),
             model_name="vool",
+            client_host="127.0.0.1",
         )
         assert res.status == 200
         body = json.loads(res.body.decode("utf-8"))
@@ -365,6 +366,7 @@ def test_history_endpoint_never_invents_a_ts_for_the_user_message(tmp_path) -> N
             query={"session": ["ts-hist-2"]},
             runtime=RuntimeServices(display_name="VOOL"),
             model_name="vool",
+            client_host="127.0.0.1",
         )
         body = json.loads(res.body.decode("utf-8"))
         user_msg = next(m for m in body["messages"] if m["role"] == "user")
@@ -392,6 +394,7 @@ def test_history_endpoint_degrades_quietly_when_the_persisted_row_lacks_ts(tmp_p
             query={"session": ["ts-hist-3"]},
             runtime=RuntimeServices(display_name="VOOL"),
             model_name="vool",
+            client_host="127.0.0.1",
         )
         assert res.status == 200
         body = json.loads(res.body.decode("utf-8"))
@@ -425,6 +428,7 @@ def test_history_endpoint_survives_reload_with_the_same_ts_across_repeated_reads
                 query={"session": ["ts-hist-4"]},
                 runtime=RuntimeServices(display_name="VOOL"),
                 model_name="vool",
+                client_host="127.0.0.1",
             ).body.decode("utf-8")
         )
         second = json.loads(
@@ -433,6 +437,7 @@ def test_history_endpoint_survives_reload_with_the_same_ts_across_repeated_reads
                 query={"session": ["ts-hist-4"]},
                 runtime=RuntimeServices(display_name="VOOL"),
                 model_name="vool",
+                client_host="127.0.0.1",
             ).body.decode("utf-8")
         )
         assert first["messages"] == second["messages"]

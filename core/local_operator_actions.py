@@ -32,6 +32,7 @@ from core.operator import when as operator_when
 from core.operator.models import OperatorActionIntent, OperatorActionResult
 from core.operator.parser import _extract_quoted_values
 from core.runtime_paths import data_path
+from core.time_authority import CLOCK
 from storage.db import get_connection
 
 _TIME_RE = re.compile(r"\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b", re.IGNORECASE)
@@ -355,7 +356,7 @@ def _handle_list_reminders(
         task_id=task_id,
         session_id=session_id,
         list_reminders_fn=_list_reminders,
-        now_fn=lambda: datetime.now(timezone.utc).isoformat(),
+        now_fn=lambda: CLOCK.now_utc().isoformat(),
         audit_log_fn=audit_logger.log,
     )
 
@@ -860,7 +861,9 @@ def _composed_request_parts(intent: OperatorActionIntent, *, task_id: str, sessi
             # live, so 'option 2, propose ...' redoes this part with a different slot.
             part_raw = raw + ", option 1"
         if kind == "save_note":
-            part_intent = OperatorActionIntent(kind=kind, raw_text=raw)
+            # A save that points back at the answer before it keeps that answer (core.operator.notes).
+            carried = {"note_body": intent.note_body, "target_label": intent.target_label} if intent.kind == "save_note" else {}
+            part_intent = OperatorActionIntent(kind=kind, raw_text=raw, **carried)
             try:
                 note_result = _handle_save_note(part_intent, task_id=task_id, session_id=session_id)
             except Exception as exc:
@@ -1455,7 +1458,6 @@ def _handle_move_calendar_event(
 
 
 def _scheduling_now():
-    from core.time_authority import CLOCK
     from core.user_preferences import load_user_timezone
     return CLOCK.now_for_timezone(load_user_timezone() or 'UTC')
 
@@ -1651,7 +1653,7 @@ def _render_ics(*, title: str, start_iso: str, end_iso: str) -> str:
         start_iso=start_iso,
         end_iso=end_iso,
         uuid_fn=uuid.uuid4,
-        now_fn=lambda: datetime.now(timezone.utc),
+        now_fn=lambda: CLOCK.now_utc(),
     )
 
 

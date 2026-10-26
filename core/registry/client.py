@@ -37,6 +37,12 @@ _LISTED: dict[tuple[str, str], tuple[str, int]] = {}
 _PICTURES: dict[tuple[str, str], bytes] = {}
 _PICTURE_STATE = {"browsed": False}
 _PICTURE_LOCK = threading.Lock()
+# The team's own publisher name. Only team members can publish under it, so its skills are listed first.
+TEAM_PUBLISHER = "vool-team"
+
+
+def _team(package_id: str) -> bool:
+    return package_id.split("/")[0] == TEAM_PUBLISHER
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -133,8 +139,8 @@ class Client:
                 row.update(metrics.get(row["id"], {}))
                 row.update(editors_pick=row["id"] in curated.get("editors_picks", []),
                            featured=row["id"] in curated.get("featured", []))
-            rows.sort(key=lambda item: (not item.get("editors_pick", False), not item.get("featured", False),
-                                       -item.get("stars", 0), item["id"]))
+            rows.sort(key=lambda item: (not _team(item["id"]), not item.get("editors_pick", False),
+                                       not item.get("featured", False), -item.get("stars", 0), item["id"]))
         except (RegistryError, OSError, ValueError, TypeError, KeyError):
             return  # An unavailable display feed does not grant a label or change the verified catalog.
 
@@ -156,7 +162,7 @@ class Client:
             prior = latest.get(row["id"])
             if prior is None or version_key(row["version"]) > version_key(prior["version"]):
                 latest[row["id"]] = row
-        rows = [latest[package_id] for package_id in sorted(latest)]
+        rows = [latest[package_id] for package_id in sorted(latest, key=lambda package_id: (not _team(package_id), package_id))]
         self._presentation(rows, now=now)
         with _PICTURE_LOCK:
             # A new Browse forgets earlier pictures, so a picture whose approval was taken away stops showing.
