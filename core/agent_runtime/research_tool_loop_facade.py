@@ -464,6 +464,25 @@ def _tool_step_evidence_rows(executed_steps: list[dict[str, Any]]) -> list[dict[
     return rows
 
 
+_MANIFEST_BLOCK = re.compile(
+    r'(?:^|\n\n)Evidence identity for this turn \(retrieved before this answer was written\):'
+    r'\nevidence_set_id: [^\n]*(?:\n- [^\n]*)*')
+
+
+def _without_evidence_manifests(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop earlier bound manifests, so a rebind replaces the identity instead of stacking it."""
+    kept = []
+    for item in history:
+        content = item.get('content')
+        if str(item.get('role') or '') == 'user' and isinstance(content, str) and _MANIFEST_BLOCK.search(content):
+            content = _MANIFEST_BLOCK.sub('', content)
+            if not content.strip():
+                continue
+            item = {**item, 'content': content}
+        kept.append(item)
+    return kept
+
+
 def _bind_tool_step_evidence(context: dict[str, Any], steps: list[dict[str, Any]], *,
                              query: str, task_id: str, stage: str) -> None:
     """Bind observed facts before a model can close a native or synthesis round."""
@@ -482,9 +501,10 @@ def _bind_tool_step_evidence(context: dict[str, Any], steps: list[dict[str, Any]
     record_bound(context, binding=record, notes=rows, scope=scope)
     context['evidence_synthesis_binding'] = dict(record)
     manifest = evidence_manifest(evidence)
-    history = [dict(item) for item in list(context.get('conversation_history') or []) if isinstance(item, dict)]
-    # The manifest rides INSIDE the turn's observation message (the line's rule): attached once,
-    # never twice when a native round already bound the same evidence before synthesis.
+    history = _without_evidence_manifests(
+        [dict(item) for item in list(context.get('conversation_history') or []) if isinstance(item, dict)])
+    # The manifest rides INSIDE the turn's observation message (the line's rule): earlier manifests
+    # are dropped above, so the current one is attached once.
     if (history and str(history[-1].get('role') or '') == 'user'
             and 'Grounding observations for this turn' in str(history[-1].get('content') or '')
             and manifest not in str(history[-1].get('content') or '')):
