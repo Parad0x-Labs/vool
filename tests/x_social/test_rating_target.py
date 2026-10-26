@@ -113,3 +113,29 @@ def test_settings_disclosure_uses_the_decided_wording():
     except TypeError:  # the r4 fragment took no flag
         fragment = render_x_social_fragment()
     assert decided in fragment
+
+
+# -- r5 Info: on the explicit N/10 path the comment is derived by the server too --------------
+
+@pytest.mark.parametrize('turn,comment', [
+    ('7/10 for "' + RELEASE + '", too long', 'too long'),
+    ('7/10 "' + RELEASE + '" Great hook.', 'Great hook.'),
+    ('7/10 punchy opener "' + RELEASE + '"', 'punchy opener'),
+    ('7/10 for "' + RELEASE + '"', ''),
+])
+def test_explicit_rating_comment_is_the_owner_text_around_the_draft(vault_home, turn, comment):
+    from core import x_feedback as f
+
+    assert f.save_from_turn({'rating': 7, 'text': RELEASE}, context(turn, session='info-a'))['ok']
+    [row] = f.inspect('global')['entries']
+    assert (row['text'], row['comment']) == (RELEASE, comment)
+
+
+@pytest.mark.parametrize('picked', ['too', 'long', RELEASE, 'Shipping', 'too long, really'])
+def test_model_cannot_pick_a_substring_as_the_explicit_comment(vault_home, picked):
+    from core import x_feedback as f
+
+    turn = context('7/10 for "' + RELEASE + '", too long', session='info-b')
+    assert not f.save_from_turn({'rating': 7, 'text': RELEASE, 'comment': picked}, turn)['ok']
+    assert f.save_from_turn({'rating': 7, 'text': RELEASE, 'comment': '  too   long '}, turn)['ok']
+    assert [r['comment'] for r in f.inspect('global')['entries']] == ['too long']

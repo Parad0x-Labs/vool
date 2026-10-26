@@ -244,6 +244,28 @@ def _quoted_draft(user_text: str) -> str:
     return spans[0]
 
 
+_COMMENT_EDGES = ' \t\r\n-\u2013\u2014,:;.'
+_LEAD_INS = {'', 'for', 'on', 'to', 'about', 'of'}
+
+
+def _explicit_comment(rest: str) -> str:
+    """The owner's comment on an explicit N/10 rating: the turn's text after the score with
+    the one quoted or fenced draft taken out. A lead-in such as "for" right before the draft
+    is not comment text. Derived by the server; the model can only repeat it."""
+    match = next(_QUOTED_SPAN.finditer(rest), None)
+    if match is None:
+        parts = [rest]
+    else:
+        before, after = rest[:match.start()], rest[match.end():]
+        parts = [before if before.strip(_COMMENT_EDGES).lower() not in _LEAD_INS else '', after]
+    return _comment_words(' '.join(_comment_words(part) for part in parts if part.strip(_COMMENT_EDGES)))
+
+
+def _comment_words(text: str) -> str:
+    """One spacing and no leading separator, so "7/10 - ok" and "7/10, ok" both read "ok"."""
+    return ' '.join(str(text).split()).lstrip(_COMMENT_EDGES)
+
+
 def _plain_rating(text: str) -> tuple[int, str] | None:
     # The score is the whole leading token. A comment may follow only after "/10" or
     # a separator (",", "-", ":", ";", "."), so "10 more ideas please" is not a rating.
@@ -296,8 +318,13 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
     # Only an unambiguous explicit score, verbatim in THIS immutable user turn.
     scores = re.findall(r'(?<![\w/])([1-9]|10)\s*/\s*10(?!\d)', turn.user_text)
     explicit = re.match(r'(?:Rating:\s*|I rate (?:this|it)\s+)?(?:[1-9]|10)\s*/\s*10(?!\d)', turn.user_text.strip())
-    if not explicit or scores != [str(rating)] or (comment and comment not in turn.user_text):
+    if not explicit or scores != [str(rating)]:
         return {'ok': False, 'status': 'user_rating_required'}
+    # The comment is the owner's own words around the draft, never a span the model picked.
+    derived = _explicit_comment(turn.user_text.strip()[explicit.end():])
+    if comment.strip() and _comment_words(comment) != derived:
+        return {'ok': False, 'status': 'user_rating_required'}
+    comment = derived
     action_id = str(arguments.get('action_id') or '')
     if action_id:
         outcome = x_actions.status_for_model(action_id, source_context=ctx)

@@ -218,7 +218,7 @@ if os.environ.get('SOCIAL_SKILL_FIXTURE'):
             from core import x_feedback
 
             [stored_rating] = x_feedback.inspect('global', home=vault_home)['entries']
-            assert stored_rating['rating'] == 9 and stored_rating['comment'] == ''
+            assert stored_rating['rating'] == 9 and stored_rating['comment'] == 'orchard social-manager'  # server-derived: the owner's words after the draft
             assert stored_rating['kind'] == 'post'
             from core.blackbox.store import BlackboxStore
 
