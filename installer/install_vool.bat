@@ -128,16 +128,16 @@ echo This will set up VOOL in the extracted folder.
 echo ===============================================
 echo.
 
-REM Guarantee a real Python 3.10+ exists, installing one per-user if the host has none, an
+REM Guarantee a real Python 3.11+ exists, installing one per-user if the host has none, an
 REM old one, or only the Microsoft Store stub. This is what makes the single documented
 REM command truly one-click on a bare Windows box. ensure_python.ps1 writes the resolved
 REM python.exe path to a temp file; we use that concrete path because a Python it just
 REM installed will not be on this cmd session's PATH yet.
 set "PYFOUND_FILE=%TEMP%\vool_python_path_%RANDOM%_%RANDOM%.txt"
-echo Ensuring Python 3.10+ is available (installing it if needed)...
+echo Ensuring Python 3.11+ is available (installing it if needed)...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%ensure_python.ps1" -OutFile "%PYFOUND_FILE%"
 if !errorlevel! neq 0 (
-  echo ERROR: Could not find or automatically install Python 3.10+.
+  echo ERROR: Could not find or automatically install Python 3.11+.
   echo Install it from https://www.python.org/downloads/windows/ and retry.
   del /f /q "%PYFOUND_FILE%" >nul 2>&1
   exit /b 1
