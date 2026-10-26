@@ -13,20 +13,7 @@ MAX_MEMBER_BYTES = 2 * 1024**3
 MAX_LINK_BYTES = 4096
 
 
-def _case_insensitive(directory: Path) -> bool:
-    """Probe the real destination filesystem; an unanswerable probe is treated as case-insensitive."""
-    probe = directory / f".vool-case-probe-{os.getpid()}"
-    try:
-        probe.mkdir()
-        try:
-            return (directory / probe.name.upper()).exists()
-        finally:
-            probe.rmdir()
-    except OSError:
-        return True
-
-
-def extract_update_zip(archive_path: Path, destination: Path) -> Path:
+def extract_update_zip(archive_path: Path, destination: Path, *, case_sensitive_names: bool = False) -> Path:
     """Validate the entire namespace before writing; never follow an archive link.
 
     Extraction requires an empty, real directory. Links are created last, and may
@@ -38,10 +25,10 @@ def extract_update_zip(archive_path: Path, destination: Path) -> Path:
         raise ValueError("update extraction destination must be empty and not a symlink")
     destination.mkdir(parents=True, exist_ok=True)
     root = destination.resolve()
-    # Names that differ only in case collide on a case-insensitive filesystem (the macOS default), so
-    # they are refused there. A case-sensitive one (Linux) keeps them apart, and packages rely on that:
-    # the bundled CPython's terminfo holds both 2621A and 2621a.
-    fold = _case_insensitive(root)
+    # Names that differ only in case collide on a case-insensitive filesystem (the macOS default) and are
+    # refused. Only a Linux package may carry them (its bundled CPython terminfo holds both 2621A and 2621a);
+    # on an unusual case-insensitive Linux disk the exclusive create below still refuses the second one.
+    fold = not case_sensitive_names
     with zipfile.ZipFile(archive_path) as archive:
         members = archive.infolist()
         total_bytes = sum(m.file_size for m in members)
