@@ -353,7 +353,7 @@ install_dependencies() {
   fi
 
   say "Step 2/14: Installing dependencies (this can take a while)..."
-  "${VENV_DIR}/bin/python" -m pip install --upgrade "pip<26" setuptools wheel
+  "${VENV_DIR}/bin/python" -m pip install --upgrade "pip<26" "setuptools>=84.1.0" wheel
   if dir_has_files "${WHEELHOUSE_DIR}"; then
     say "Using bundled wheelhouse from ${WHEELHOUSE_DIR}"
     if ! "${VENV_DIR}/bin/python" -m pip install --no-index --find-links "${WHEELHOUSE_DIR}" -r "${requirements_file}"; then

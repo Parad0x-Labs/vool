@@ -5,6 +5,10 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { Readable, Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const require = createRequire(import.meta.url);
 const expoRequire = createRequire(require.resolve("@expo/cli/package.json"));
@@ -69,4 +73,61 @@ test("Existing CommonJS consumers retain UUID v1 and v4 APIs", () => {
     assert.equal(dependency.version(dependency.v1()), 1);
     assert.equal(dependency.version(dependency.v4()), 4);
   }
+});
+
+test("Expo's patched fetch fallback reads responses and rejects excessive content codings", async () => {
+  const fetchModule = path.join(cliRoot, "build/src/utils/fetch.js");
+  const saved = Object.fromEntries(["fetch", "Headers"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  let fetch;
+  try {
+    delete globalThis.fetch;
+    delete globalThis.Headers;
+    delete require.cache[require.resolve(fetchModule)];
+    ({ fetch } = require(fetchModule));
+    assert.equal(fetch, expoRequire("undici").fetch);
+    assert.equal(expoRequire("undici/package.json").version, "6.29.1");
+  } finally {
+    for (const [name, descriptor] of Object.entries(saved)) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    }
+    delete require.cache[require.resolve(fetchModule)];
+  }
+  const server = createServer((req, res) => {
+    if (req.url === "/hostile") {
+      res.writeHead(200, { "Content-Encoding": "gzip, gzip, gzip, gzip, gzip, gzip", "Content-Length": "10" });
+      res.end();
+    } else {
+      res.end("preserved");
+    }
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  try {
+    const url = `http://127.0.0.1:${server.address().port}`;
+    assert.equal(await (await fetch(url)).text(), "preserved");
+    await assert.rejects(fetch(`${url}/hostile`), TypeError);
+    // A rejected fetch must not leave an orphaned stream error on the next turn.
+    await new Promise(resolve => setImmediate(resolve));
+  } finally {
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+});
+
+test("The installed EventSource parser preserves events and bounds tiny retained fields and chunks", async () => {
+  const { EventSourceStream } = expoRequire("undici/lib/web/eventsource/eventsource-stream.js");
+  const parse = async chunks => {
+    const events = [];
+    await pipeline(
+      Readable.from(chunks),
+      new EventSourceStream({ maxEventSize: 1024 * 1024 }),
+      new Writable({ objectMode: true, write(event, encoding, done) { events.push(event); done(); } }),
+    );
+    return events;
+  };
+  const events = await parse([Buffer.from("data: preserved\n\n")]);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].options.data, "preserved");
+  // Both inputs are far below the byte limit; the retained-item bounds must refuse them.
+  await assert.rejects(parse(Array(9000).fill(Buffer.from("data:x\n"))), /EventSource message size exceeded/);
+  await assert.rejects(parse(Array(9000).fill(Buffer.from("x"))), /EventSource message size exceeded/);
 });

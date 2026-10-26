@@ -202,7 +202,7 @@ if !errorlevel! neq 0 (
 echo Step 2/14: Installing dependencies (this can take a while)...
 set "REQUIREMENTS_FILE=%PROJECT_ROOT%\requirements.txt"
 if exist "%RUNTIME_REQUIREMENTS%" set "REQUIREMENTS_FILE=%RUNTIME_REQUIREMENTS%"
-"%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade "pip<26" "setuptools<82" wheel
+"%VENV_DIR%\Scripts\python.exe" -m pip install --upgrade "pip<26" "setuptools>=84.1.0" wheel
 if exist "%WHEELHOUSE_DIR%\*" (
   echo Using bundled wheelhouse from %WHEELHOUSE_DIR%...
   "%VENV_DIR%\Scripts\python.exe" -m pip install --no-index --find-links "%WHEELHOUSE_DIR%" -r "%REQUIREMENTS_FILE%"
