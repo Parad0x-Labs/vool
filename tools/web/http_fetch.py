@@ -81,7 +81,10 @@ def _decompress(raw: bytes, content_encoding: str) -> bytes | None:
     return None
 
 
-def http_fetch_text(url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000_000) -> dict[str, str]:
+def http_fetch_text(
+    url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000_000, public_only: bool = False,
+    not_local: bool = False,
+) -> dict[str, str]:
     """Fetch and normalize one page -- THROUGH THE ONE DOOR (R2b2b).
 
     This opened its own raw `urllib.request.urlopen`, which made it the
@@ -92,26 +95,48 @@ def http_fetch_text(url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000
     is typed and visible. The fetch tally is the door's too: a refused fetch
     never went to the network and is not counted (the door's own law), where
     this module used to count its own vetoed attempts.
+
+    ``public_only`` (a turn from another device, core.remote_turn_fetch) reaches public addresses
+    only, checked after DNS and on every redirect hop; a refused target answers
+    ``private_target_refused``.
+
+    ``not_local`` (the owner's research reading search hits) uses the same checked, pinned
+    resolution and per-hop redirect guard as ``public_only``. Neither mode permits a proxy
+    to resolve the target again or follows an unchecked redirect.
     """
+    from core.remote_turn_fetch import RemoteTurnTargetRefused, open_public_only, refuse_local_target
+
     max_bytes = max(1024, min(int(max_bytes), policy_engine.max_fetch_bytes()))
-    request = urllib.request.Request(
-        url,
-        headers={
-            # A self-identifying bot User-Agent is not answered with a refusal, it is answered with
-            # a DECOY INDEX -- a 200 carrying real HTML that is not about the query at all. See
-            # tools/web/browser_identity.py for the measurements. Nothing in the tree read the old
-            # string; this was its only reference.
-            "User-Agent": DESKTOP_USER_AGENT,
-            # Without this the same engines geo-scatter English queries into other locales.
-            "Accept-Language": DESKTOP_ACCEPT_LANGUAGE,
-            # Ask for an uncompressed body. Politeness, not protection -- servers compress anyway,
-            # which is why _decompress exists.
-            "Accept-Encoding": "identity",
-        },
-    )
+
+    def _request(target: str) -> urllib.request.Request:
+        return urllib.request.Request(
+            target,
+            headers={
+                # A self-identifying bot User-Agent is not answered with a refusal, it is answered with
+                # a DECOY INDEX -- a 200 carrying real HTML that is not about the query at all. See
+                # tools/web/browser_identity.py for the measurements. Nothing in the tree read the old
+                # string; this was its only reference.
+                "User-Agent": DESKTOP_USER_AGENT,
+                # Without this the same engines geo-scatter English queries into other locales.
+                "Accept-Language": DESKTOP_ACCEPT_LANGUAGE,
+                # Ask for an uncompressed body. Politeness, not protection -- servers compress anyway,
+                # which is why _decompress exists.
+                "Accept-Encoding": "identity",
+            },
+        )
+
     try:
-        with open_remote(request, timeout=timeout_s) as response:
+        opened = (
+            open_public_only(url, make_request=_request, timeout=timeout_s)
+            if public_only or not_local
+            else open_remote(_request(url), timeout=timeout_s)
+        )
+        with opened as response:
             final_url = str(response.geturl() or url)
+            if public_only or not_local:
+                # The pinned door never follows a redirect on its own; a response that still
+                # landed on this computer came through a door that did, and is not read.
+                refuse_local_target(final_url, resolve=False)
             content_encoding = str(response.headers.get("Content-Encoding") or "")
             raw = response.read(max_bytes)
     except RemoteFetchRefusedError:
@@ -119,6 +144,8 @@ def http_fetch_text(url: str, *, timeout_s: float = 15.0, max_bytes: int = 2_000
         # is already on the turn's ledger as a first-class denied effect.
         status = "remote_fetch_disabled" if remote_fetch_forbidden() else "fetch_denied"
         return {"status": status, "text": "", "html": "", "final_url": url}
+    except RemoteTurnTargetRefused as refused:
+        return {"status": "private_target_refused", "text": "", "html": "", "final_url": refused.url}
     body = _decompress(raw, content_encoding)
     if body is None:
         # Better to report nothing than to pass compressed bytes off as the page's text.

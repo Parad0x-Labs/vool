@@ -39,6 +39,7 @@ from core.grounded_synthesis_binding import (
     outcome_for_receipt,
     turn_scope,
 )
+from core.request_trust import turn_is_remote
 
 #: Outcomes that must not be handed to the model dressed as current evidence.
 #
@@ -283,6 +284,8 @@ def prefetch_current_evidence(
     Returns `ran=False` untouched for every turn this does not apply to, so the DIRECT and
     no-retrieval lanes pay nothing: one classifier read, no network, no extra model call.
     """
+    if turn_is_remote(source_context):
+        return PrefetchResult(reason="owner_local_required")
     if not is_chat_surface:
         return PrefetchResult(reason="not_a_chat_surface")
     current_required = requires_current_information(effective_input, source_context)

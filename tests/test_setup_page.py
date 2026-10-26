@@ -181,11 +181,11 @@ def test_the_prefs_door_accepts_and_reads_back_the_two_setup_fields(tmp_path, mo
     try:
         rt = RuntimeServices(display_name="VOOL")
         hdr = {"Content-Type": "application/json"}
-        assert set_prefs_authority({"setup_dismissed": "yes"}, hdr, rt).status == 400
-        assert set_prefs_authority({"setup_skipped_steps": ["thinking"]}, hdr, rt).status == 400
-        assert set_prefs_authority({"setup_skipped_steps": "thinking,\x00folder"}, hdr, rt).status == 400
-        assert set_prefs_authority({"autonomy_chosen_at": "2026-01-01T00:00:00Z"}, hdr, rt).status == 400, "provenance is stamped by the door, never posted"
-        assert set_prefs_authority({"setup_dismissed": True, "setup_skipped_steps": "thinking,folder"}, hdr, rt).status == 200
+        assert set_prefs_authority({"setup_dismissed": "yes"}, hdr, rt, client_host="127.0.0.1").status == 400
+        assert set_prefs_authority({"setup_skipped_steps": ["thinking"]}, hdr, rt, client_host="127.0.0.1").status == 400
+        assert set_prefs_authority({"setup_skipped_steps": "thinking,\x00folder"}, hdr, rt, client_host="127.0.0.1").status == 400
+        assert set_prefs_authority({"autonomy_chosen_at": "2026-01-01T00:00:00Z"}, hdr, rt, client_host="127.0.0.1").status == 400, "provenance is stamped by the door, never posted"
+        assert set_prefs_authority({"setup_dismissed": True, "setup_skipped_steps": "thinking,folder"}, hdr, rt, client_host="127.0.0.1").status == 200
         listed = _handle_prefs_list(None, None).data
         assert listed["setup_dismissed"] is True and listed["setup_skipped_steps"] == "thinking,folder"
         assert "autonomy_chosen_at" not in listed

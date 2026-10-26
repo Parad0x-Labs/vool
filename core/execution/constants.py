@@ -2359,6 +2359,11 @@ _READ_ONLY_OPERATOR_INTENTS = {
     "operator.search_calendar_event",
     "operator.find_notes",
     "operator.show_note",
+    # This runtime's own reminder rows and Apple Notes reads: reports, never a change. Without
+    # them here a model call fell through to "not wired" while the chat parser ran the same read.
+    "operator.list_reminders",
+    "operator.apple_note_list",
+    "operator.apple_note_read",
 }
 _MUTATING_OPERATOR_INTENTS = {
     "operator.cleanup_temp_files",

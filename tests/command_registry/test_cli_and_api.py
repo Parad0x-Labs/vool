@@ -90,7 +90,7 @@ def _rt():
 def _get(path: str):
     from core.web.api.service import dispatch_get
 
-    res = dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool")
+    res = dispatch_get(path=path, query={}, runtime=_rt(), model_name="vool", client_host="127.0.0.1")
     return res.status, json.loads(res.body)
 
 
@@ -153,6 +153,7 @@ def test_api_dispatch_mutating_without_approval_is_refused(tmp_path):
         runtime=_rt(),
         model_name="vool",
         workspace_root_provider=lambda: str(ws),
+        client_host="127.0.0.1",
     )
     payload = json.loads(res.body)
     assert res.status == 403
@@ -170,6 +171,7 @@ def test_api_dispatch_bad_body_is_typed_400():
         runtime=_rt(),
         model_name="vool",
         workspace_root_provider=lambda: "/tmp",
+        client_host="127.0.0.1",
     )
     assert res.status == 400
     assert json.loads(res.body)["fault"]["code"] == "usage"

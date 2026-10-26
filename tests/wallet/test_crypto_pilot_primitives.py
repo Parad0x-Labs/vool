@@ -431,7 +431,7 @@ def test_the_settings_switch_counts_each_change_and_moves_the_enabled_epoch(home
     from core.web.api.runtime import RuntimeServices
 
     def door(body: dict) -> int:
-        return set_prefs_authority(body, {"Content-Type": "application/json"}, RuntimeServices(display_name="VOOL")).status
+        return set_prefs_authority(body, {"Content-Type": "application/json"}, RuntimeServices(display_name="VOOL"), client_host="127.0.0.1").status
 
     (home / "user_preferences.json").write_text(json.dumps({"wallet_enabled": False, "show_workflow": False}), encoding="utf-8")
     assert (config.enabled_generation(), _epochs()["enabled"]) == (0, 0), "an older preference file has no generation"

@@ -33,16 +33,27 @@ jobs:
       - name: Provision real GTK and WebKitGTK
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-venv python3-gi python3-gi-cairo gir1.2-webkit2-4.1 xvfb xdotool openbox libglib2.0-bin desktop-file-utils
-          python3 -m venv --system-site-packages "$RUNNER_TEMP/desktop-venv"
-          # The distro-seeded installer toolchain is part of the install contract: ubuntu-22.04's
-          # ensurepip yields the patched pip 22.0.2 with a pre-PEP-660 setuptools visible through
-          # --system-site-packages, and the editable install died in backend selection with
-          # "build backend is missing the 'build_editable' hook" (run 36982838739, job
-          # 110761046634) while ubuntu-24.04's newer toolchain built the same tree fine. Raise
-          # the venv's own installer toolchain before the editable install so both runners use a
-          # backend that supports PEP 660.
-          "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install --upgrade pip 'setuptools>=64' wheel
+          sudo apt-get install -y gir1.2-webkit2-4.1 xvfb xdotool openbox libglib2.0-bin desktop-file-utils
+          if [[ "${{ matrix.os }}" == "ubuntu-22.04" ]]; then
+            # VOOL needs Python 3.11+, and 22.04's distro Python is 3.10, which is the only one its
+            # python3-gi is built for. Use the distro's python3.11 and build the GTK bindings into
+            # the venv from source against 22.04's GObject introspection 1.72 / cairo. PyGObject 3.50
+            # is the last series that builds against girepository-1.0 (3.51+ needs girepository-2.0,
+            # which 22.04 does not ship).
+            sudo apt-get install -y python3.11 python3.11-venv python3.11-dev libgirepository1.0-dev libcairo2-dev pkg-config gcc
+            python3.11 -m venv "$RUNNER_TEMP/desktop-venv"
+            "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install --upgrade pip 'setuptools>=64' wheel
+            "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install 'PyGObject==3.50.2' 'pycairo==1.29.2'
+          else
+            sudo apt-get install -y python3-venv python3-gi python3-gi-cairo
+            python3 -m venv --system-site-packages "$RUNNER_TEMP/desktop-venv"
+            # The distro-seeded installer toolchain is part of the install contract: raise the venv's
+            # own installer toolchain before the editable install so it uses a backend that supports
+            # PEP 660 ("build backend is missing the 'build_editable' hook" otherwise, run 36982838739).
+            "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install --upgrade pip 'setuptools>=64' wheel
+          fi
+          "$RUNNER_TEMP/desktop-venv/bin/python" -c "import sys; assert sys.version_info >= (3, 11), sys.version"
+          "$RUNNER_TEMP/desktop-venv/bin/python" -c "import gi; gi.require_version('Gtk', '3.0'); gi.require_version('WebKit2', '4.1'); from gi.repository import Gtk, WebKit2"
           "$RUNNER_TEMP/desktop-venv/bin/python" -m pip install -e '.[dev]' 'pywebview>=6.1,<7'
       - name: Installer and ownership regression
         env:

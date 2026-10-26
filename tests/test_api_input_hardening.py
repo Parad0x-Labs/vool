@@ -22,6 +22,7 @@ def test_non_numeric_limit_does_not_500():
         query={"session": ["s"], "after": ["abc"], "limit": ["xyz"]},
         runtime=RuntimeServices(display_name="VOOL"),
         model_name="vool",
+        client_host="127.0.0.1",
     )
     assert res.status == 200
     body = json.loads(res.body.decode("utf-8"))
