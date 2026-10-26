@@ -52,7 +52,7 @@ function summary(a){
 }
 function state(a){if(a.state==='unknown')return t('xs.unknown_state','Unclear if it was sent. Check X before trying again.');if(a.state==='failed'&&a.message)return a.message;return t('xact.state_'+a.state,a.message||a.state);}
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!=null)n.textContent=text;return n;}
-async function call(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();return {ok:r.ok&&j.ok!==false,data:j};}
+async function call(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const j=await r.json();return {ok:r.ok&&j.ok!==false,status:r.status,data:j};}
 function button(label,fn){const b=node('button','',label);b.type='button';b.addEventListener('click',async()=>{b.disabled=true;b.setAttribute('aria-busy','true');try{await fn();}finally{b.disabled=false;b.removeAttribute('aria-busy');}});return b;}
 function rating(host,a){
  if(!a.text||!['post','reply','quote'].includes(a.kind))return;
@@ -127,6 +127,8 @@ async function ask(chat){
  for(let i=0;i<ids.length;i+=BATCH){
   let result;try{result=await call('/api/x/cards',{session_id:chat.session,request_ids:ids.slice(i,i+BATCH)});}catch(e){result=null;}
   if(!result||!result.ok){
+   // A refusal (4xx) will not clear by asking again; only a lost answer or a server error retries.
+   if(result&&result.status<500)return;
    chat.failures+=1;
    if(!chat.again)chat.timer=setTimeout(()=>refresh(chat),Math.min(POLL_MS*2**(chat.failures-1),RETRY_MAX_MS));
    return;

@@ -136,6 +136,16 @@ def test_model_cannot_pick_a_substring_as_the_explicit_comment(vault_home, picke
     from core import x_feedback as f
 
     turn = context('7/10 for "' + RELEASE + '", too long', session='info-b')
-    assert not f.save_from_turn({'rating': 7, 'text': RELEASE, 'comment': picked}, turn)['ok']
-    assert f.save_from_turn({'rating': 7, 'text': RELEASE, 'comment': '  too   long '}, turn)['ok']
+    # Whatever the model sends as the comment, the saved comment is the owner's own words.
+    assert f.save_from_turn({'rating': 7, 'text': RELEASE, 'comment': picked}, turn)['ok']
     assert [r['comment'] for r in f.inspect('global')['entries']] == ['too long']
+
+
+@pytest.mark.parametrize('turn, sent', [
+    ('7/10 I liked the "hook" line', 'I liked the "hook" line'),
+    ('8/10 "hook". Nice hook.', 'Nice hook'),
+])
+def test_owner_words_sent_back_by_the_model_still_save(vault_home, turn, sent):
+    from core import x_feedback as f
+
+    assert f.save_from_turn({'rating': int(turn[0]), 'comment': sent}, context(turn, session='r1'))['ok']

@@ -312,7 +312,7 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
         if not target:
             return {'ok': False, 'status': 'draft_text_required'}
         parsed = _plain_rating(turn.user_text)
-        if not parsed or parsed[0] != rating or (comment and comment != parsed[1]):
+        if not parsed or parsed[0] != rating:
             return {'ok': False, 'status': 'user_rating_required'}
         return save(x_voice_profile.turn_scope(ctx), rating, target, comment=parsed[1])
     # Only an unambiguous explicit score, verbatim in THIS immutable user turn.
@@ -321,10 +321,8 @@ def save_from_turn(arguments: dict, source_context: dict | None) -> dict:
     if not explicit or scores != [str(rating)]:
         return {'ok': False, 'status': 'user_rating_required'}
     # The comment is the owner's own words around the draft, never a span the model picked.
-    derived = _explicit_comment(turn.user_text.strip()[explicit.end():])
-    if comment.strip() and _comment_words(comment) != derived:
-        return {'ok': False, 'status': 'user_rating_required'}
-    comment = derived
+    # The model's own comment is ignored, so its wording can never block or change the owner's.
+    comment = _explicit_comment(turn.user_text.strip()[explicit.end():])
     action_id = str(arguments.get('action_id') or '')
     if action_id:
         outcome = x_actions.status_for_model(action_id, source_context=ctx)

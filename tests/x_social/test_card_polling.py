@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
+
 from tests._credential_intelligence_support import isolated_home, vault_home
 from tests.test_x_actions_approval import fake_x
 
@@ -266,6 +268,24 @@ def test_failed_retries_cap_at_sixty_seconds(vault_home):
             _settle(page, seen, before)
             page.clock.run_for(400)
             _settle(page, seen, before + 1)
+    finally:
+        browser.close()
+        manager.stop()
+
+
+@pytest.mark.parametrize('status', [400, 403])
+def test_a_refused_card_request_is_not_retried(vault_home, status):
+    """Review r6 R2: a refusal will not clear by asking again, so the chat stops asking."""
+    manager, browser, page, seen = _browser_page(True, lambda body: None)
+    page.route('http://vool.test/api/x/cards', lambda route: (seen.append(1), route.fulfill(
+        status=status, content_type='application/json', body='{"ok": false}')))
+    page.clock.pause_at(page.evaluate('Date.now()') + 1000)   # time moves only by run_for
+    try:
+        _mount_history(page, 1)
+        page.clock.run_for(100)
+        _settle(page, seen, 1)
+        page.clock.run_for(180000)
+        _settle(page, seen, 1)
     finally:
         browser.close()
         manager.stop()
