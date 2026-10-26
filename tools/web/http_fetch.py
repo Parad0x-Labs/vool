@@ -136,7 +136,7 @@ def http_fetch_text(
             if public_only or not_local:
                 # The pinned door never follows a redirect on its own; a response that still
                 # landed on this computer came through a door that did, and is not read.
-                refuse_local_target(final_url)
+                refuse_local_target(final_url, resolve=False)
             content_encoding = str(response.headers.get("Content-Encoding") or "")
             raw = response.read(max_bytes)
     except RemoteFetchRefusedError:

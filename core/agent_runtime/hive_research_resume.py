@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 from typing import Any
 
 
@@ -206,7 +207,8 @@ def maybe_handle_hive_research_followup(
                     auto_claim=True,
                 )
 
-        _threading.Thread(target=_bg_research, name=f"bg-research-{topic_id[:12]}", daemon=True).start()
+        # The worker runs in this turn's context, so a turn from another device stays one there.
+        _threading.Thread(target=contextvars.copy_context().run, args=(_bg_research,), name=f"bg-research-{topic_id[:12]}", daemon=True).start()
         response = f"Started Hive research on `{title}` in the background. We can keep chatting — I'll work on it."
         return agent._fast_path_result(
             session_id=session_id,

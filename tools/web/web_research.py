@@ -277,6 +277,22 @@ _BROWSER_SEARCH_MIN_BUDGET_S = 10.0
 _BROWSER_SEARCH_MAX_TIMEOUT_S = 20.0
 
 
+def _browser_may_read_hit(hit_url: str, final_url: str) -> bool:
+    """A search hit goes to the browser only while its names still answer with public addresses.
+
+    The browser resolves on its own, so this is not the pinned check http_fetch makes; it keeps a
+    hit that names, or now resolves to, this computer or its local network out of the browser.
+    """
+    from core.remote_turn_fetch import RemoteTurnTargetRefused, resolve_public_target
+
+    try:
+        for url in dict.fromkeys((hit_url, final_url)):
+            resolve_public_target(url)
+    except RemoteTurnTargetRefused:
+        return False
+    return True
+
+
 def _should_try_browser() -> bool:
     if remote_turn_active():
         return False
@@ -3318,6 +3334,7 @@ def web_research(
 
             if (
                 status != "private_target_refused"
+                and _browser_may_read_hit(hit.url, final_url)
                 and _should_try_browser()
                 and _needs_browser(status, text)
                 and _remaining() >= _BROWSER_MIN_BUDGET_S

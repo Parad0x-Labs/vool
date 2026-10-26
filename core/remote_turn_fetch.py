@@ -87,7 +87,7 @@ def resolve_public_target(url: str) -> tuple[str, ...]:
     return addresses
 
 
-def refuse_local_target(url: str) -> None:
+def refuse_local_target(url: str, *, resolve: bool = True) -> None:
     """Raise :class:`RemoteTurnTargetRefused` when ``url`` names this computer or its local network.
 
     The owner's own research reads pages a search engine returned. Those are public by nature, so
@@ -96,7 +96,9 @@ def refuse_local_target(url: str) -> None:
     working, and a name that does not resolve on this computer is left to the normal door: it
     cannot be reached directly from here, and a proxy that resolves it is another machine.
     Private names, non-public literal addresses and names that resolve here to a non-public
-    address are refused.
+    address are refused. ``resolve=False`` checks names and literals only, for a URL whose page was
+    already read over checked, pinned addresses: looking its name up again could only answer
+    differently, never more truly.
     """
 
     parts = urllib.parse.urlsplit(str(url or "").strip())
@@ -112,6 +114,8 @@ def refuse_local_target(url: str) -> None:
     else:
         if not _address_is_public(host):
             raise RemoteTurnTargetRefused("non_public_address", url)
+        return
+    if not resolve:
         return
     try:
         infos = socket.getaddrinfo(host, parts.port or (443 if parts.scheme == "https" else 80), type=socket.SOCK_STREAM)
