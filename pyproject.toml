@@ -195,12 +195,15 @@ include = ["adapters*", "core*", "network*", "storage*", "sandbox*", "apps*", "o
 #                   chunked-Deflate loop. First patched: 2.8.0.
 #   datasets>=5.0.1 Dependabot #62 (GHSA-379c-qx7v-6h59): folder-builder `file_name` path
 #                   traversal. First patched: 5.0.1.
+#   filelock>=4.2.1 Dependabot filelock alerts (3, uv.lock; 2026-10-26 intake), rides
+#                   torch / huggingface-hub / datasets. First patched: 4.2.1 (needs Python 3.11+).
 # accelerate (#46, GHSA-4j2p-28q2-5m79) is deliberately NOT constrained: upstream lists no first
 # patched version, so there is no floor to hold; the lock pins the contained release 1.14.0 and
 # the checkpoint confinement suites own that defense.
 constraint-dependencies = [
     "urllib3>=2.8.0",
     "datasets>=5.0.1",
+    "filelock>=4.2.1",
     "setuptools>=84.1.0",  # Patched legacy wheel namespace validation.
 ]
 # The `pay` extra is locked in a branch of its own. solana-pay-kit 0.10.0 needs anchorpy, which holds solana at
