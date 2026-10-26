@@ -18,8 +18,12 @@ from core.web.api.service import (
 )
 
 
-def set_prefs_authority(body: dict, headers: dict, runtime, client_host: str = '127.0.0.1') -> ApiResponse:
+def set_prefs_authority(body: dict, headers: dict, runtime, client_host: str = "") -> ApiResponse:
     """Lifted verbatim from the legacy /api/settings/prefs route; the registry command and the route both call it."""
+    # Owner-local first: the owner's own session (a loopback socket peer) only. The default peer
+    # is "" (unknown), so a caller that forgets to pass the real one is refused, never trusted.
+    if not is_loopback_host(client_host):
+        return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
     import json as _json
 
     from core.user_preferences import load_preferences, save_preferences
@@ -254,8 +258,12 @@ def email_recovery_check_authority(body: dict, headers: dict, runtime, client_ho
     return apply_runtime_headers(json_response(status, payload), runtime)
 
 
-def set_credentials_authority(body: dict, headers: dict, runtime, client_host: str = '127.0.0.1') -> ApiResponse:
+def set_credentials_authority(body: dict, headers: dict, runtime, client_host: str = "") -> ApiResponse:
     """Lifted verbatim from the legacy /api/settings/credentials route; the registry command and the route both call it."""
+    # Owner-local first: the owner's own session (a loopback socket peer) only. The default peer
+    # is "" (unknown), so a caller that forgets to pass the real one is refused, never trusted.
+    if not is_loopback_host(client_host):
+        return apply_runtime_headers(json_response(403, {"ok": False, "error": "owner_local_required"}), runtime)
     import json as _json
 
     from core.cloud_providers import PROVIDERS, all_slots, provider_for_slot, slot_for

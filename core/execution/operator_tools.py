@@ -20,11 +20,27 @@ def execute_operator_tool(
 ) -> ToolIntentExecution:
     operator_kind = intent.split(".", 1)[1]
     operator_intent = build_operator_action_intent(operator_kind, arguments)
-    dispatch = dispatch_operator_action_fn(
-        operator_intent,
-        task_id=task_id,
-        session_id=session_id,
-    )
+    # Remote-turn fence (core.request_trust.remote_turn_tool_refusal): the local operator lane acts
+    # on this computer (processes, disk, files, notes, calendar, reminders), so a turn the server
+    # stamped as not the owner's own session is refused here, before anything runs.
+    from core.request_trust import REMOTE_TURN_REFUSAL_TEXT, remote_turn_tool_refusal
+
+    _remote_refusal = remote_turn_tool_refusal(f"operator.{operator_kind}", source_context)
+    if _remote_refusal:
+        from core.operator.models import OperatorActionResult
+
+        dispatch = OperatorActionResult(
+            ok=False,
+            status=_remote_refusal,
+            response_text=REMOTE_TURN_REFUSAL_TEXT,
+            details={"kind": operator_kind, "executed": False, "reason": _remote_refusal},
+        )
+    else:
+        dispatch = dispatch_operator_action_fn(
+            operator_intent,
+            task_id=task_id,
+            session_id=session_id,
+        )
     # The turn-keyed execution TRUTH: an operator action that ran is a tool that ran, so
     # the signed honesty ledger and the completion-claim guards must read it from the one
     # store built for that question. Without this fact a mixed-demand turn whose

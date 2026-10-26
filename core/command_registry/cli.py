@@ -99,7 +99,12 @@ def main(argv: list[str] | None = None) -> int:
             for name, value in zip(fields, remaining, strict=False):
                 input_data[name] = _parse_value(value)
 
-    envelope = execute_command(surface, input_data or None, context=ExecutionContext(projection="cli"))
+    from core.request_trust import in_process_owner_extra
+
+    # the owner's own terminal: named explicitly, never inferred from the projection
+    envelope = execute_command(
+        surface, input_data or None, context=ExecutionContext(projection="cli", extra=in_process_owner_extra())
+    )
     if as_json:
         sys.stdout.write(json.dumps(envelope.to_json(), indent=2, sort_keys=True, default=str) + "\n")
     else:
