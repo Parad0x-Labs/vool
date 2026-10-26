@@ -311,6 +311,14 @@ def prepare_turn_task_bundle(
         # layer answer independent explanatory siblings; constructing and then rejecting a tool
         # call records a false attempted effect and commonly drops the sibling that was answerable.
         operator_intent = None
+    if operator_intent is not None and operator_intent.kind == "save_note":
+        # "yes, save it as a note" after an answer that offered to save it: the words carry no
+        # content, they point at that answer (core.operator.notes.with_the_answer_it_follows).
+        from core.operator.notes import with_the_answer_it_follows
+
+        operator_intent = with_the_answer_it_follows(
+            operator_intent, session_id=session_id, source_context=source_context
+        )
     if operator_intent is not None:
         # Mode enforcement: Ask/Plan is a READ-ONLY posture. A mutating operator action (anything
         # that would change the system) is refused BEFORE dispatch -- nothing is written and no

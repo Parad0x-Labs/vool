@@ -32,6 +32,9 @@ class OperatorActionIntent:
     action_id: str | None = None
     raw_text: str = ""
     target_label: str | None = None
+    # A save whose words point back at the answer they follow ("yes, save it as a note") carries that
+    # answer here. Only the chat lane sets it, from this chat's own log (core.operator.notes).
+    note_body: str | None = None
 
 
 @dataclass
