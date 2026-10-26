@@ -5838,7 +5838,9 @@ def _dispatch_post_inner(
         refusal = _credential_page_refusal(headers, client_host)
         if refusal:
             return apply_runtime_headers(json_response(403, {"ok": False, "cards": []}), runtime)
-        if set(body) - {"session_id", "request_id"} or any(not isinstance(body.get(k), str) or not 0 < len(body[k]) <= 200 for k in ("session_id", "request_id")):
+        from core.x_actions import valid_card_origin
+
+        if not valid_card_origin(body):
             return apply_runtime_headers(json_response(400, {"ok": False, "cards": []}), runtime)
         from core.command_registry.legacy import forward as _cr_forward
 

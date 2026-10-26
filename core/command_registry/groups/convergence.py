@@ -525,7 +525,8 @@ def _handle_x_activity(inp, ctx):
 @dataclass(frozen=True)
 class XCardsInput:
     session_id: str
-    request_id: str
+    request_id: str = ""
+    request_ids: list = dc_field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -551,12 +552,12 @@ def _gate_x_social_owner(inp, ctx) -> AuthorityDecision:
 
 
 def _handle_x_cards(inp, ctx):
-    from core.x_actions import chat_cards
+    from core.x_actions import chat_cards, valid_card_origin
 
-    if any(not isinstance(value, str) or not 0 < len(value) <= 200
-           for value in (inp.session_id, inp.request_id)):
+    body = {"session_id": inp.session_id, "request_id": inp.request_id, "request_ids": inp.request_ids}
+    if not valid_card_origin({k: v for k, v in body.items() if v or k == "session_id"}):
         return _legacy_fault("usage", "Invalid X card origin", 400, {"ok": False, "cards": []})
-    payload = chat_cards(inp.session_id, inp.request_id)
+    payload = chat_cards(inp.session_id, list(inp.request_ids) or [inp.request_id])
     if payload.get("ok"):
         return HandlerOk(data=payload, summary="X proposal cards")
     return _legacy_fault("usage", "X cards unavailable", 400, payload)

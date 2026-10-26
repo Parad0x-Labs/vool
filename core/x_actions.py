@@ -1180,15 +1180,40 @@ def handle(body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 __all__ = ["KINDS", "approve", "decline", "handle", "overview", "pending", "propose", "public", "recent", "status_for_model"]
 
 
-def chat_cards(session_id: str, request_id: str) -> dict[str, Any]:
-    """Only the guarded owner-local HTTP surface calls this; never a model tool."""
-    if not session_id or not request_id:
+MAX_CARD_REQUESTS = 200
+
+
+def valid_card_origin(body: Any) -> bool:
+    """One chat and either one request id or a bounded batch of them (the chat page's one call)."""
+    if not isinstance(body, dict) or set(body) - {"session_id", "request_id", "request_ids"}:
+        return False
+
+    def ok(value: Any) -> bool:
+        return isinstance(value, str) and 0 < len(value) <= 200
+
+    if not ok(body.get("session_id")):
+        return False
+    if "request_ids" in body:
+        ids = body["request_ids"]
+        return ("request_id" not in body and isinstance(ids, list)
+                and 0 < len(ids) <= MAX_CARD_REQUESTS and all(ok(item) for item in ids))
+    return ok(body.get("request_id"))
+
+
+def chat_cards(session_id: str, request_ids: str | list[str]) -> dict[str, Any]:
+    """Only the guarded owner-local HTTP surface calls this; never a model tool.
+
+    Each card names its ``request_id`` so the page can place a batch answer under its message.
+    """
+    wanted = {request_ids} if isinstance(request_ids, str) else {str(r) for r in request_ids if r}
+    wanted.discard("")
+    if not session_id or not wanted:
         return {"ok": False, "cards": []}
     try:
         state = _current()
-        cards = [public(a, for_settings=True) for a in state["actions"].values()
+        cards = [{**public(a, for_settings=True), "request_id": a["request_id"]} for a in state["actions"].values()
                  if a.get("owner_local_chat") is True and a.get("session") == session_id
-                 and a.get("request_id") == request_id and a.get("state") in {"pending", "sending", "sent", "unknown", "failed", "expired", "declined"}]
+                 and a.get("request_id") in wanted and a.get("state") in {"pending", "sending", "sent", "unknown", "failed", "expired", "declined"}]
         return {"ok": True, "cards": cards}
     except RuntimeError:
         return {"ok": False, "cards": []}

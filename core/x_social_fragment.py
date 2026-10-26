@@ -2,8 +2,33 @@
 from __future__ import annotations
 
 
-def render_x_social_fragment() -> str:
-    return r'''<style>
+def x_social_active() -> bool:
+    """Whether a chat page should ask for X cards at all: X connected, or a stored chat card.
+
+    Read once per page render (disk index and the local action store, no key read), so an
+    owner who never connected X makes no /api/x/cards request.
+    """
+    try:
+        from core import x_api
+
+        if x_api.connected():
+            return True
+    except Exception:
+        pass
+    try:
+        from core import x_actions
+
+        return any(a.get("owner_local_chat") is True for a in x_actions._current()["actions"].values())
+    except Exception:
+        return False
+
+
+def render_x_social_fragment(active: bool | None = None) -> str:
+    flag = "true" if (x_social_active() if active is None else active) else "false"
+    return _FRAGMENT.replace("__X_SOCIAL_ACTIVE__", flag, 1)
+
+
+_FRAGMENT = r'''<style>
 .vx-social{display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:12px;padding:14px;margin:10px 0;color:var(--ink);background:var(--panel)}
 .vx-social label{display:flex;align-items:center;gap:8px}.vx-social p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.vx-social button,.vx-social input,.vx-social textarea,.vx-social select{font:inherit;border:1px solid var(--border);border-radius:8px;padding:7px 10px;background:var(--field,var(--bg));color:var(--ink)}
 .vx-social strong,.x-action-card strong{overflow-wrap:anywhere;white-space:pre-wrap}.vx-social button{cursor:pointer}.vx-social button.vx-approve{background:var(--accent);color:var(--bg);font-weight:600}.vx-social button:disabled{opacity:.5;cursor:default}.vx-social .vx-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.vx-social textarea{width:100%;box-sizing:border-box;resize:vertical}.vx-social .vx-note{font-size:12px;color:var(--muted)}
@@ -59,21 +84,51 @@ async function manager(host,scope){
  await draw();
 }
 
-const mounts=new Map();
+// One batched /api/x/cards request per chat, never one per message. A chat is asked only
+// while X is connected or a card already exists; it is polled only while one of its cards
+// is pending or sending, and an empty answer stops it until a new answer or an owner act.
+const POLL_MS=3000,BATCH=200,LIVE=new Set(['pending','sending']);
+let active=__X_SOCIAL_ACTIVE__;
+const chats=new Map();
+function chatFor(session){let c=chats.get(session);if(!c){c={session:session,hosts:new Map(),versions:new Map(),timer:0,queued:false,running:null,again:false};chats.set(session,c);}return c;}
 function mount(host,session,request){
  if(!host||!session||!request)return;
- const key=session+':'+request;
- if(mounts.has(key)&&mounts.get(key).host===host)return;
- const entry={host:host,session:session,request:request,versions:new Map()};mounts.set(key,entry);refresh(entry);
+ const chat=chatFor(session);
+ if(chat.hosts.get(request)===host)return;
+ chat.hosts.set(request,host);
+ if(active)schedule(chat);
 }
-async function refresh(entry){
- if(!entry.host.isConnected)return;
- let result;try{result=await call('/api/x/cards',{session_id:entry.session,request_id:entry.request});}catch(e){return;}
- if(!result.ok||!entry.host.isConnected)return;
- for(const a of result.data.cards||[]){
-  if(entry.versions.get(a.id)===a.state)continue;
-  entry.versions.set(a.id,a.state);
-  const previous=entry.host.querySelector('[data-x-action="'+a.id+'"]');if(previous)previous.remove();
+function schedule(chat){
+ // A history render mounts every answer in one task: collect them into one request.
+ if(chat.queued)return;chat.queued=true;
+ Promise.resolve().then(()=>{chat.queued=false;refresh(chat);});
+}
+function refresh(chat){
+ // One request at a time per chat; a refresh asked for meanwhile runs once more after it.
+ if(chat.running){chat.again=true;return chat.running;}
+ chat.running=(async()=>{try{do{chat.again=false;await ask(chat);}while(chat.again);}finally{chat.running=null;}})();
+ return chat.running;
+}
+async function ask(chat){
+ if(chat.timer){clearTimeout(chat.timer);chat.timer=0;}
+ for(const [request,host] of chat.hosts)if(!host.isConnected)chat.hosts.delete(request);
+ if(!chat.hosts.size){chats.delete(chat.session);return;}
+ const ids=Array.from(chat.hosts.keys());let cards=[];
+ for(let i=0;i<ids.length;i+=BATCH){
+  let result;try{result=await call('/api/x/cards',{session_id:chat.session,request_ids:ids.slice(i,i+BATCH)});}catch(e){return;}
+  if(!result.ok)return;
+  cards=cards.concat(result.data.cards||[]);
+ }
+ if(cards.length)active=true;
+ draw(chat,cards);
+ if(cards.some(a=>LIVE.has(a.state))&&!chat.again)chat.timer=setTimeout(()=>refresh(chat),POLL_MS);
+}
+function draw(chat,cards){
+ for(const a of cards){
+  const host=chat.hosts.get(a.request_id);if(!host||!host.isConnected)continue;
+  if(chat.versions.get(a.id)===a.state)continue;
+  chat.versions.set(a.id,a.state);
+  const previous=host.querySelector('[data-x-action="'+a.id+'"]');if(previous)previous.remove();
   const card=node('section','vx-social vx-approval');card.dataset.xAction=a.id;
   card.appendChild(node('strong','',summary(a)));
   const account=node('p','vx-note','@'+((a.account||{}).username||'?')+' · '+String(a.weighted_length||0)+'/280');account.dir='ltr';card.appendChild(account);
@@ -87,23 +142,23 @@ async function refresh(entry){
    async function act(action){
     row.querySelectorAll('button').forEach(b=>b.disabled=true);
     try{const r=await call('/api/x/activity',{action:action,action_id:a.id,...(action==='approve'?{hash:a.hash}:{})});note.textContent=r.data.message||'';
-     entry.versions.delete(a.id);await refresh(entry);
-     if(!r.ok){const current=entry.host.querySelector('[data-x-action="'+a.id+'"]');const status=current&&current.querySelector('[role=status]');
+     chat.versions.delete(a.id);await refresh(chat);
+     if(!r.ok){const current=host.querySelector('[data-x-action="'+a.id+'"]');const status=current&&current.querySelector('[role=status]');
       if(status&&current.querySelector('.vx-approve'))status.textContent=r.data.state==='usage_limit_reached'?t('xs.limit_reached','Your X send limit has been reached. Check your limits in Settings.'):(r.data.message||t('xact.failed','That did not work. Nothing was sent.'));}
     }catch(e){note.textContent=t('xact.lost_answer','VOOL did not get an answer. It may already have been sent: check Recent below and X before trying again.');}
    }
    const yes=button(t('xact.approve','Approve and send'),()=>act('approve'));yes.classList.add('vx-approve');row.appendChild(yes);
    row.appendChild(button(t('xact.decline','Decline'),()=>act('decline')));card.appendChild(row);rating(card,a);
   }else{note.textContent=state(a);if(a.state==='sent')rating(card,a);}
-  entry.host.appendChild(card);
+  host.appendChild(card);
  }
 }
-setInterval(()=>{for(const [key,e] of mounts){if(!e.host.isConnected)mounts.delete(key);else refresh(e);}},3000);
 async function managers(host,scopes){
  try{const stored=await call('/api/x/feedback',{action:'scopes'});if(stored.ok)for(const scope of stored.data.scopes||[])scopes.add(scope);}catch(e){}
  for(const scope of scopes)await manager(host,scope);
 }
-window.VoolXSocial={summary:summary,state:state,rating:rating,manager:manager,managers:managers,mount:mount};
+window.VoolXSocial={summary:summary,state:state,rating:rating,manager:manager,managers:managers,mount:mount,
+ refresh:session=>{active=true;const c=chats.get(session);if(c)schedule(c);}};
 
 })();
 </script>'''
