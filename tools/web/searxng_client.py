@@ -9,7 +9,7 @@ import urllib.request
 from dataclasses import dataclass
 
 from core import policy_engine
-from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote
+from core.remote_fetch_policy import RemoteFetchRefusedError, open_remote, remote_turn_active
 
 DEFAULT_TIMEOUT_SECONDS = 12.0
 
@@ -62,6 +62,8 @@ class SearXNGClient:
         safesearch: int = 1,
         max_results: int = 10,
     ) -> list[SearchResult]:
+        if remote_turn_active():
+            raise RemoteFetchRefusedError("owner_local_required")
         text = (query or "").strip()
         if not text:
             return []

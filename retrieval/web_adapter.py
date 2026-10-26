@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from core import policy_engine
-from core.remote_fetch_policy import note_remote_fetch_attempt, remote_fetch_forbidden
+from core.remote_fetch_policy import note_remote_fetch_attempt, remote_fetch_forbidden, remote_turn_active
 from core.source_credibility import evaluate_source_domain
 from core.source_reputation import SourceProfile, allowed_domains_for_topic, profiles_for_topic, render_query
 from storage.db import execute_query, get_connection
@@ -41,7 +41,7 @@ class WebAdapter:
         total_budget_s: float | None = None,
     ) -> ResearchResult | None:
         note_remote_fetch_attempt()
-        if remote_fetch_forbidden():
+        if remote_turn_active() or remote_fetch_forbidden():
             return None
         if not policy_engine.allow_web_fallback():
             return None
@@ -67,7 +67,7 @@ class WebAdapter:
         total_budget_s: float | None = None,
     ) -> list[dict]:
         note_remote_fetch_attempt()
-        if remote_fetch_forbidden():
+        if remote_turn_active() or remote_fetch_forbidden():
             return []
         research = WebAdapter.research_query(
             query_text,
@@ -100,7 +100,7 @@ class WebAdapter:
         source_label: str = "web.search",
     ) -> list[dict]:
         note_remote_fetch_attempt()
-        if remote_fetch_forbidden():
+        if remote_turn_active() or remote_fetch_forbidden():
             return []
         text = str(query_text or "").strip()
         if not text:

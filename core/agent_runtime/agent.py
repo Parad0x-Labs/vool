@@ -3543,6 +3543,10 @@ class VoolAgent(
         it reaches this function, so that structural fix did nothing against the real `/api/chat`
         path until entity extraction was given text that still has its boundaries intact.
         """
+        from core.request_trust import turn_is_remote
+
+        if turn_is_remote(source_context):
+            return None
         # ARCH-TRUTH-R1d: `planned_subturn` blocks RECURSIVE PLANNING (see
         # `_maybe_answer_planned_turn` and the conductor), never an execution lane. This
         # lane used to refuse a planned sub-request outright, so the planner admitted a

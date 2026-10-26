@@ -100,10 +100,9 @@ def http_fetch_text(
     only, checked after DNS and on every redirect hop; a refused target answers
     ``private_target_refused``.
 
-    ``not_local`` (the owner's research reading search hits) goes through the normal door, proxy
-    included, but refuses a URL that names this computer or its local network before it is sent,
-    and a page whose redirects landed there before its body is read
-    (core.remote_turn_fetch.refuse_local_target).
+    ``not_local`` (the owner's research reading search hits) uses the same checked, pinned
+    resolution and per-hop redirect guard as ``public_only``. Neither mode permits a proxy
+    to resolve the target again or follows an unchecked redirect.
     """
     from core.remote_turn_fetch import RemoteTurnTargetRefused, open_public_only, refuse_local_target
 
@@ -127,16 +126,16 @@ def http_fetch_text(
         )
 
     try:
-        if not_local and not public_only:
-            refuse_local_target(url)
         opened = (
             open_public_only(url, make_request=_request, timeout=timeout_s)
-            if public_only
+            if public_only or not_local
             else open_remote(_request(url), timeout=timeout_s)
         )
         with opened as response:
             final_url = str(response.geturl() or url)
-            if not_local and not public_only:
+            if public_only or not_local:
+                # The pinned door never follows a redirect on its own; a response that still
+                # landed on this computer came through a door that did, and is not read.
                 refuse_local_target(final_url)
             content_encoding = str(response.headers.get("Content-Encoding") or "")
             raw = response.read(max_bytes)
