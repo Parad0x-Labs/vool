@@ -1679,6 +1679,14 @@ def _bind_runtime_claims_to_evidence(
     response = str(output.get("response") or "").strip()
     if not response:
         return output
+    # The URL-grounding decline is the runtime's own sentence, written only when this turn made
+    # no fetch, so its "did not open it on this turn" is already proven. Read as a model's denial
+    # it was repaired into "I cannot verify ...", which dropped the sentinel the grounding guard
+    # recognises; the verify-only grounding pass at the served boundary then saw a fresh
+    # unfetched-URL answer and refused the turn (K-08) with an HTTP 500.
+    grounding = output.get("url_grounding_validator")
+    if isinstance(grounding, dict) and grounding.get("applied") and response == _UNFETCHED_URL_RESPONSE:
+        return output
     try:
         from core.agent_runtime.evidence_claim_binder import (
             bind_response_to_evidence,
