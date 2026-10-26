@@ -165,6 +165,9 @@ If you already have a verified archive digest, pass it to the bootstrap script w
 
 ## Manual Developer Setup
 
+VOOL needs Python 3.11 or newer. On Ubuntu 22.04, whose own Python is 3.10, install
+`python3.11` and `python3.11-venv` and create the environment with `python3.11 -m venv .venv`.
+
 ```bash
 git clone https://github.com/Parad0x-Labs/vool.git
 cd vool

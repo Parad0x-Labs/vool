@@ -95,13 +95,13 @@ def _opt_str(body: dict, key: str) -> str:
     return str(value if value is not None else "").strip()
 
 
-def handle_pact_get(path: str, query: dict, runtime, client_host: str = "127.0.0.1"):
+def handle_pact_get(path: str, query: dict, runtime, client_host: str = ""):
     """GET /api/onboarding/pact — the aggregated §6.1 projection (seed races resolve as 404)."""
     if path not in _PACT_GET_PATHS:
         if path in _QUARANTINE_GET_PATHS and is_loopback_host(client_host):
             from core.command_registry.legacy import forward as _cr_forward
 
-            _q_status, _q_payload = _cr_forward("intake.quarantine.list", {})
+            _q_status, _q_payload = _cr_forward("intake.quarantine.list", {}, client_host=client_host)
             from core.web.api.service import json_response as _jr
 
             return _with_runtime_headers(_jr(_q_status, _q_payload), runtime)
@@ -134,13 +134,13 @@ def handle_pact_get(path: str, query: dict, runtime, client_host: str = "127.0.0
     return _with_runtime_headers(_json_response(200, payload), runtime)
 
 
-def handle_provider_get(path: str, query: dict, runtime):
+def handle_provider_get(path: str, query: dict, runtime, client_host: str = ""):
     """GET /api/onboarding/state — the provider-choice machine (provider spec §4.3)."""
     if path not in _PROVIDER_GET_PATHS:
         return None
     from core.command_registry.legacy import forward as _cr_forward
 
-    status, payload = _cr_forward("onboarding.state", {})
+    status, payload = _cr_forward("onboarding.state", {}, client_host=client_host)
     return _with_runtime_headers(_json_response(status if status != 200 else 200, payload), runtime)
 
 
@@ -164,7 +164,7 @@ def handle_pact_post(path: str, body: Any, headers: dict | None, client_host: st
 
     from core.command_registry.legacy import forward as _cr_forward
 
-    status, payload = _cr_forward(command_id, input_data)
+    status, payload = _cr_forward(command_id, input_data, client_host=client_host)
     if status == 200:
         payload = {"ok": True, **(payload or {})}
     else:

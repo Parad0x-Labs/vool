@@ -8,7 +8,7 @@ RUNTIME_REQUIREMENTS_FILE="${PROJECT_ROOT}/requirements-runtime.txt"
 WHEELHOUSE_DIR="${PROJECT_ROOT}/vendor/wheelhouse"
 PYTHON_BIN="${PYTHON_BIN:-}"
 MIN_PYTHON_MAJOR=3
-MIN_PYTHON_MINOR=10
+MIN_PYTHON_MINOR=11
 
 say() {
   printf '%s\n' "$*" >&2
@@ -24,7 +24,7 @@ PY
 
 resolve_python_bin() {
   local candidate=""
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
+  for candidate in python3.13 python3.12 python3.11 python3 python; do
     if command -v "${candidate}" >/dev/null 2>&1 && python_supports_minimum "${candidate}"; then
       command -v "${candidate}"
       return 0
@@ -33,7 +33,7 @@ resolve_python_bin() {
 
   if command -v uv >/dev/null 2>&1; then
     local uv_target=""
-    for uv_target in 3.13 3.12 3.11 3.10; do
+    for uv_target in 3.13 3.12 3.11; do
       candidate="$(uv python find "${uv_target}" 2>/dev/null || true)"
       if [[ -n "${candidate}" && -x "${candidate}" ]] && python_supports_minimum "${candidate}"; then
         printf '%s\n' "${candidate}"
@@ -42,7 +42,7 @@ resolve_python_bin() {
     done
 
     say "No supported system Python found. Attempting uv-managed Python bootstrap..."
-    for uv_target in 3.12 3.11 3.10; do
+    for uv_target in 3.12 3.11; do
       if uv python install "${uv_target}" >/tmp/vool_uv_python_install.log 2>&1; then
         candidate="$(uv python find "${uv_target}" 2>/dev/null || true)"
         if [[ -n "${candidate}" && -x "${candidate}" ]] && python_supports_minimum "${candidate}"; then
