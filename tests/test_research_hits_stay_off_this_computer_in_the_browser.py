@@ -1,8 +1,7 @@
-"""A search hit whose name answers with this computer's address is never handed to the browser.
+"""Research never hands a search hit to the browser.
 
-The browser resolves names on its own, so a hit whose checked fetch came back short (a page the
-browser would normally render) is first checked again; one that now names this computer is not
-rendered.
+The browser resolves names and follows redirects on its own, so a hit whose checked fetch came back
+short (a page the browser would once have rendered) is not rendered, whatever its name answers.
 """
 from __future__ import annotations
 
@@ -37,5 +36,5 @@ def test_a_hit_that_now_names_this_computer_is_not_rendered(monkeypatch):
     assert _research_with_a_short_page("127.0.0.1", monkeypatch) == []
 
 
-def test_a_public_hit_still_goes_to_the_browser(monkeypatch):
-    assert _research_with_a_short_page("93.184.216.34", monkeypatch) == ["https://silver-prices.example/today"]
+def test_a_public_hit_is_not_rendered_either(monkeypatch):
+    assert _research_with_a_short_page("93.184.216.34", monkeypatch) == []
