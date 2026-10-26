@@ -138,15 +138,18 @@ def test_local_check_beside_eyebrow_in_served_browser(rig, hostile_bundled, monk
         page.get_by_role('button', name='Run one scan', exact=True).click()
         page.get_by_role('heading', name='Security scan report', exact=True).wait_for()
         assert page.locator('.addon-localcheck').count() == 1, 'the review page keeps both reports distinct'
-        assert 'Scan verdict: PASS' in page.inner_text('#pluginsBody')
-        accept = page.get_by_role('button', name='Accept and enable', exact=True)
-        assert accept.count() == 1
+        # The scanner plugin passed the bytes, but VOOL's own findings still count:
+        # a plugin's verdict can add findings, never wash out the local ones.
+        assert 'Scan verdict: FAIL' in page.inner_text('#pluginsBody')
+        combined = page.locator('.addon-findings li strong').filter(has_text='VOOL local check and ')
+        assert combined.filter(has_text='LS-EXFIL-CREDENTIALS').count() >= 1
+        assert page.get_by_role('button', name='Accept and enable', exact=True).count() == 0
+        assert page.get_by_text('Advanced: install despite findings', exact=True).count() == 1
         # Both available scanner summaries sit BEFORE the installation decision
-        # buttons, so the decision is made with both in view.
+        # controls, so the decision is made with both in view.
         ordering = page.evaluate(
             "() => { const panel = document.querySelector('.addon-localcheck');"
-            " const btn = [...document.querySelectorAll('#pluginsBody button')]"
-            "  .find(b => b.textContent.trim() === 'Accept and enable');"
+            " const btn = document.querySelector('#pluginsBody .addon-override');"
             " return panel && btn ? panel.compareDocumentPosition(btn) : 0; }")
         assert ordering & 4, 'the local check summary must precede the install button in document order'
         page.screenshot(path=str(tmp_path / 'both-scanners-attributed.png'))

@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -137,6 +138,19 @@ def send_chat(page, text, expected, *, artifact=None):
     return body
 
 
+def path_token_provider(folder):
+    """The reference provider manifest pointed at an ordinary service, not a wallet-funded one."""
+    shutil.copytree(ROOT / "examples/plugins/vool-plugin-usepod", folder)
+    path = folder / ".codex-plugin/plugin.json"
+    raw = json.loads(path.read_text())
+    raw["vool"]["network"] = ["api.example.org"]
+    raw["vool"]["model_provider"].update(base_url="https://api.example.org",
+                                         pricing_source="https://api.example.org/v1/marketplace/models")
+    raw["vool"]["model_provider"].pop("x402", None)
+    path.write_text(json.dumps(raw))
+    return folder
+
+
 def select_provider(page):
     page.locator("#modelBtn").click()
     page.get_by_label("Model provider", exact=True).select_option("plugin-vool-plugin-usepod")
@@ -162,7 +176,7 @@ def test_native_provider_and_confined_template_in_normal_served_chat(tmp_path, h
         (tmp_path / "fresh-checkpoint.json").write_text(json.dumps({"plugins": [], "native_requests": 0, "service_requests": 0}))
         page.screenshot(path=str(tmp_path / "fresh-plugins.png"), full_page=True)
 
-        card = install_folder(page, ROOT / "examples/plugins/vool-plugin-usepod", "vool-plugin-usepod")
+        card = install_folder(page, path_token_provider(tmp_path / "provider"), "vool-plugin-usepod")
         card.get_by_label("Your UsePod service token", exact=True).fill(https_service["access"])
         card.get_by_role("button", name="Save key", exact=True).click()
         assert not daemon.routes.exists()
@@ -253,16 +267,22 @@ def test_upgrade_notice_decline_and_explicit_saved_key_reuse(tmp_path, https_ser
         page.get_by_role("button", name="Keep disabled", exact=True).click()
         assert not daemon.routes.exists()
         accept_access(page, card)
-        card.get_by_text("Key saved.", exact=True).wait_for()
-        assert not daemon.routes.exists()
+        # The UsePod token pays from a balance funded through VOOL's wallet: it stays in its
+        # own slot for the retained lane and never becomes a plain plugin provider key.
+        assert not card.get_by_text("Key saved.", exact=True).count()
         card.get_by_role("button", name="Refresh model list", exact=True).click()
-        card.get_by_text("1 models available", exact=True).wait_for()
-        page.goto(daemon.origin + "/chat", wait_until="domcontentloaded")
-        select_provider(page)
-        message = "Transport " + secrets.token_hex(12)
-        (tmp_path / "upgrade-chat.ndjson").write_bytes(send_chat(page, message, message[::-1]))
+        page.get_by_text("wallet approvals", exact=False).first.wait_for()
+        assert not card.get_by_text("1 models available", exact=True).count()
+        assert not daemon.routes.exists() and not https_service["log"].exists()
+        # A scanner key is an ordinary service key: enabling its plugin reuses it explicitly.
+        card = install_folder(page, ROOT / "examples/plugins/vool-plugin-eyebrow", "vool-plugin-eyebrow")
+        assert not card.get_by_text("Key saved.", exact=True).count()
+        accept_access(page, card)
+        card.get_by_text("Key saved.", exact=True).wait_for()
+        assert not daemon.routes.exists() and not https_service["log"].exists()
+        assert https_service["access"] not in page.locator("body").inner_text()
         assert https_service["access"] not in daemon.log.read_text(errors="replace")
-        page.screenshot(path=str(tmp_path / "upgrade-chat.png"), full_page=True)
+        page.screenshot(path=str(tmp_path / "upgrade-keys.png"), full_page=True)
     finally:
         page.screenshot(path=str(tmp_path / "upgrade-final.png"), full_page=True)
         browser.close()
