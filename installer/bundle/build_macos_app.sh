@@ -131,14 +131,14 @@ webview_capable() { "$1" -c 'import webview' >/dev/null 2>&1; }
 
 select_capable_wrapper_python() {
   # Same candidate order the shipped wrapper launcher uses at run time (install venv first, then a
-  # system 3.10+). A candidate qualifies ONLY when it can import webview — version alone picked an
+  # system 3.11+). A candidate qualifies ONLY when it can import webview — version alone picked an
   # interpreter that could not open the window while one that could sat further down the list.
   local root="$1" c
   if [[ -x "${root}/.venv/bin/python" ]] && webview_capable "${root}/.venv/bin/python"; then
     printf '%s' "${root}/.venv/bin/python"
     return 0
   fi
-  for c in python3.13 python3.12 python3.11 python3.10 python3; do
+  for c in python3.13 python3.12 python3.11 python3; do
     command -v "$c" >/dev/null 2>&1 || continue
     if webview_capable "$(command -v "$c")"; then printf '%s' "$(command -v "$c")"; return 0; fi
   done
@@ -1072,7 +1072,7 @@ VENV_PY="\${PROJECT_ROOT}/.venv/bin/python"
 if [[ -x "\${VENV_PY}" ]] && py_ok "\${VENV_PY}"; then
   PY="\${VENV_PY}"
 else
-  for c in python3.13 python3.12 python3.11 python3.10 python3; do
+  for c in python3.13 python3.12 python3.11 python3; do
     command -v "\$c" >/dev/null 2>&1 || continue
     cand="\$(command -v "\$c")"
     if py_ok "\${cand}"; then PY="\${cand}"; break; fi
@@ -1205,7 +1205,7 @@ ${conf_out}"
     capable="$(select_capable_wrapper_python "${PROJECT_ROOT}")" || true
     # (the "|| true" matters: with set -e, a failing selection would otherwise kill the build
     # silently BEFORE the legible die below ever runs)
-    [[ -n "${capable}" ]] || die "no interpreter that can 'import webview' found for ${PROJECT_ROOT}; the native window cannot start. Install pywebview for a candidate interpreter (python3.13/3.12/3.11/3.10/3 or .venv), or rebuild with --self-contained."
+    [[ -n "${capable}" ]] || die "no interpreter that can 'import webview' found for ${PROJECT_ROOT}; the native window cannot start. Install pywebview for a candidate interpreter (python3.13/3.12/3.11/3 or .venv), or rebuild with --self-contained."
     say "  wrapper preflight: runtime starter + native interpreter (${capable}) verified"
   fi
 

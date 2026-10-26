@@ -9,7 +9,7 @@ description = "VOOL — local-first AI agent runtime with memory, tools, optiona
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     {name = "sls_0x"},
 ]
@@ -17,7 +17,6 @@ keywords = ["ai", "agent", "local-first", "memory", "tools", "proof"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -288,7 +287,7 @@ ignore = [
 known-first-party = ["adapters", "core", "network", "storage", "sandbox", "apps", "ops", "retrieval", "channels", "tools", "relay", "installer"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
