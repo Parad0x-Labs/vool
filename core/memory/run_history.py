@@ -237,6 +237,9 @@ _RUNTIME_SIGNED_TABLES = frozenset({"provider_invocation_manifests"})
 #: had answered (2026-10-20, also on v0.7.2; v0.7.1 applied it). Only these exact keys, and only in those tables:
 #: a ``model`` or ``car_model`` anywhere else is read as words.
 _RUNTIME_NAME_KEYS = frozenset({"model_id", "provider_id"})
+#: A runtime-made id in those call records: a whole UUID (8-4-4-4-12 hex, either case), or plain hex of 16 or more
+#: characters that is not all decimal digits (a long number under an ``_id`` key may be the person's, such as a card).
+_CALL_ID_RE = re.compile(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}|(?![0-9]+\Z)[0-9A-Fa-f]{16,}")
 _PENDING_QUEUE_STATES = frozenset({"pending"})
 _OBLIGATION_ATTEMPT_RE = re.compile(r"^ob:([^:]+):")
 
@@ -941,19 +944,42 @@ def _without_runtime_names(value: Any) -> Any:
     return value
 
 
+def _without_call_ids(value: Any) -> Any:
+    """A call record's own ids (a UUID or plain hex under a key ending in ``_id``) are not the person's words.
+
+    Measured on the forget-fold review: "Forget 27." on the 27th failed "could not be verified ... provider invocation
+    manifests" because a record's nested ``context_manifest_id`` was "0b625409-f27c-...", and "27" stands alone in
+    "f27c"; a random UUID does this for a two-digit number about once in 559, and every model call adds ids. Any other
+    value under an ``_id`` key ("client 27", "27", a prefixed or short id) is still read, and so is a UUID under any
+    other key.
+    """
+    if isinstance(value, Mapping):
+        return {key: _without_call_ids(item) for key, item in value.items()
+                if not (isinstance(key, str) and key.endswith("_id") and isinstance(item, str)
+                        and _CALL_ID_RE.fullmatch(item))}
+    if isinstance(value, list):
+        return [_without_call_ids(item) for item in value]
+    return value
+
+
+def _without_call_record_marks(value: Any) -> Any:
+    """A call record's own signatures and ids left out (only ever applied to ``_RUNTIME_SIGNED_TABLES``)."""
+    return _without_call_ids(_without_signatures(value))
+
+
 def _unclassified_payload(row: Mapping[str, Any], table: str = "") -> list[Any]:
     """A session-scoped table nobody classified: its words, without ids, stamps, counters and the runtime's signatures
-    and model names."""
+    model names and call ids."""
     signed = table in _RUNTIME_SIGNED_TABLES
     words: list[Any] = []
-    for key, value in (_without_runtime_names(_without_signatures(dict(row))) if signed else dict(row)).items():
+    for key, value in (_without_runtime_names(_without_call_record_marks(dict(row))) if signed else dict(row)).items():
         if key in ROW_IDENTITIES or _runtime_made(value):
             continue
         if isinstance(value, (bytes, bytearray, memoryview)):
             raise ValueError("unclassified run history field has an opaque representation")
         if key.endswith("_json"):
             value = _decoded(value)
-            value = _without_runtime_names(_without_signatures(value)) if signed else value
+            value = _without_runtime_names(_without_call_record_marks(value)) if signed else value
         words.append(_without_bookkeeping(_without_runtime_ids(_without_nested_identities(value, ROW_IDENTITIES))))
     return words
 
