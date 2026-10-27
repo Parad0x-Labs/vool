@@ -1254,6 +1254,15 @@ _OWNER_APPLE_READ_SEAT_RE = re.compile(
 )
 
 
+_OWNER_DISK_ANALYSIS_SEAT_RE = re.compile(
+    r"\bwhere\s+did\s+(?:the\s+)?(?:space|storage|it\s+all)\s+go\b"
+    r"|\bwhat(?:'s| is|s)\s+(?:taking|using|eating|occupying|filling)\s+up\b"
+    r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
+    r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
+    re.IGNORECASE,
+)
+
+
 def owner_local_operator_intents(text: str) -> tuple[str, ...]:
     """The operator tool intents the user's own words ask for, for seating on owner-local turns.
 
@@ -1298,6 +1307,11 @@ def owner_local_operator_intents(text: str) -> tuple[str, ...]:
         intents.append("operator.apple_note_list")
     if _seats(_OWNER_APPLE_READ_SEAT_RE):
         intents.append("operator.apple_note_read")
+    if _OWNER_DISK_ANALYSIS_SEAT_RE.search(eligible):
+        # A disk-analysis ask stands down from the direct capacity read (see
+        # core.execution.constants._DISK_ANALYSIS_ASK_RE) and needs the reasoning lane with the
+        # operator's own inspect tool seated. Read-only, and the words are disk-anchored.
+        intents.append("operator.inspect_disk_usage")
     try:
         # The parser's own save-note recognizer, verbatim: it already separates keeping a note
         # from composing one for someone (a thank-you note), and "take note of" from a note.

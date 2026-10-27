@@ -1969,7 +1969,8 @@ def _run_agent_locked(
         # commit): the sanitizer + capsule override are completed HERE, before any transport
         # commit. A result that already carries its response.commit was sealed inside the
         # agent and is untouchable -- the K-08 verifies below are exactly that law.
-        if not isinstance((result or {}).get("vool_response_commit"), dict):
+        _arrived_unsealed = not isinstance((result or {}).get("vool_response_commit"), dict)
+        if _arrived_unsealed:
             _capsule = capsule_exact_response(
                 user_text,
                 get_last_retrieval_telemetry(),
@@ -2036,7 +2037,13 @@ def _run_agent_locked(
             result.pop("_model_answer_pre_capsule", None)
         # A-12/R-5: honesty + URL grounding ran INSIDE the sealing context
         # (pre-admit); these boundary re-applications are verify-only — any
-        # divergence means post-admission mutation was about to happen.
+        # divergence means post-admission mutation was about to happen. An
+        # UNSEALED result (a deterministic lane that answered before any model
+        # round, never admitted) is completed HERE exactly like the capsule
+        # above: the application is the legal one, not a post-admission
+        # mutation, so it stands instead of raising (measured: a web-fetch
+        # fast-path answer that quoted the request's URL was rewritten by the
+        # grounding backstop here and the turn died as HTTP 500).
         _pre_honesty = str(result.get("response") or "")
         result = enforce_final_action_honesty(
             dict(result or {}),
@@ -2045,7 +2052,7 @@ def _run_agent_locked(
             session_id=session_id,
             source_context=base_context,
         )
-        if str(result.get("response") or "") != _pre_honesty:
+        if str(result.get("response") or "") != _pre_honesty and not _arrived_unsealed:
             raise RuntimeError(
                 "K-08 violation: final-action-honesty would mutate post-admission bytes"
             )
@@ -2053,7 +2060,7 @@ def _run_agent_locked(
         # the sealing context): invented URL summaries must already be replaced.
         _pre_grounding = str(result.get("response") or "")
         result = enforce_url_grounding(result, user_input=user_text, fetch_attempts=remote_fetch_attempt_count())
-        if str(result.get("response") or "") != _pre_grounding:
+        if str(result.get("response") or "") != _pre_grounding and not _arrived_unsealed:
             raise RuntimeError(
                 "K-08 violation: url-grounding would mutate post-admission bytes"
             )

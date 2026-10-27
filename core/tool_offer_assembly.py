@@ -615,6 +615,26 @@ def assemble_tool_offer(
     from core.tool_offer_state import turn_family_expansions
 
     expansions = turn_family_expansions(source_context) if source_context is not None else ()
+    # The skills the words match are resolved BEFORE the specs, because a matched skill's
+    # ``allowed-tools`` now SEATS its tools (they used to only narrow the ranked fill, which left
+    # a skill whose tools the ranking left out with nothing to call). The seats are owner-local
+    # only, and every other law still applies at seating time: availability, owner-only, the cap.
+    guidance = skill_guidance_for(
+        str(user_text or ""),
+        task_class=str(task_class or ""),
+        task_chars=MAX_TOOL_LANE_SKILL_CHARS,
+        doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
+        source_context=source_context if isinstance(source_context, dict) else None,
+    )
+    skill_seats: tuple[str, ...] = ()
+    if guidance.allowed_tools and isinstance(source_context, dict):
+        try:
+            from core.request_trust import request_is_owner_local
+
+            if request_is_owner_local(source_context):
+                skill_seats = tuple(dict.fromkeys(guidance.allowed_tools))
+        except Exception:
+            skill_seats = ()
     specs = list(
         model_visible_specs(
             family_hint=resolved_hint,
@@ -624,6 +644,7 @@ def assemble_tool_offer(
             user_text=str(user_text or ""),
             source_context=source_context,
             expanded_families=expansions,
+            skill_allowed=skill_seats,
             max_candidates=int(max_candidates or _DEFAULT_MAX_CANDIDATES),
         )
     )
@@ -647,13 +668,6 @@ def assemble_tool_offer(
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.
         specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
-    guidance = skill_guidance_for(
-        str(user_text or ""),
-        task_class=str(task_class or ""),
-        task_chars=MAX_TOOL_LANE_SKILL_CHARS,
-        doctrine_chars=MAX_TOOL_LANE_DOCTRINE_CHARS,
-        source_context=source_context if isinstance(source_context, dict) else None,
-    )
     if guidance.allowed_tools:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)
         specs = _narrow(specs, allowed=guidance.allowed_tools, keep=set(_ALWAYS_VISIBLE) | explicit | set(work_seats))

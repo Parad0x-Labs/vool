@@ -2045,7 +2045,13 @@ _ASKS_DATE_RE = re.compile(
     # requirements below keep "wat day is the meeting" out.
     r"|(?:what|wat)\s+day\s+is\s+(?:it|today|this)\b"
     r"|(?:what|wat)(?:'?s| is)?\s+(?:the\s+)?day\s+today\b"
-    r"|\bday\s+today\b"
+    # The bare "day today" arm: a possessive or determiner directly before "day" makes it an
+    # OBJECT the sentence works on, not the clock's subject -- "organise my day today from my
+    # calendar, reminders and to-dos" was claimed here and answered "Today is Tuesday, ...",
+    # and the day-planning turn never reached the model. "what's the day today" has its own
+    # arm above; this one keeps only fragment-shaped asks ("day today?").
+    r"|(?<!\bmy\s)(?<!\byour\s)(?<!\bhis\s)(?<!\bher\s)(?<!\bits\s)(?<!\bour\s)(?<!\btheir\s)"
+    r"(?<!\bthe\s)(?<!\ba\s)(?<!\ban\s)(?<!\bthis\s)(?<!\bthat\s)\bday\s+today\b"
     r"|tell\s+me\s+(?:the\s+|today'?s\s+)*date\b"
     r"|(?:what|wat)\s+is\s+today\b"
     # "which day of the week are we on right now?" reached the model instead of the clock, and it

@@ -729,6 +729,22 @@ def largest_kind(text: str) -> str:
     return "both"
 
 
+#: An analysis-shaped disk ask: it wants the breakdown (largest folders/files, what grew),
+#: which a capacity read cannot serve. Read-only shapes only -- "free up"/"clean" are already
+#: write-suppressed below and stay on their own lane.
+_DISK_ANALYSIS_ASK_RE = re.compile(
+    r"\bwhere\s+did\s+(?:the\s+)?(?:space|storage|it\s+all)\s+go\b"
+    r"|\bwhat(?:'s| is|s)\s+(?:taking|using|eating|occupying|filling)\s+up\b"
+    r"|\bwhat(?:'s| is)?\s+(?:the\s+)?(?:biggest|largest|heaviest)\s+"
+    r"(?:files?|folders?|directories|dirs?|things|items?|space|hogs|culprits?)\b"
+    r"|\b(?:biggest|largest|heaviest)\s+(?:files?|folders?)\s+(?:on|in)\b"
+    r"|\bfind\s+(?:the\s+)?(?:large|biggest|largest|heaviest)\s+(?:files?|folders?|items?)\b"
+    r"|\bwhat\s+(?:ate|consumed|used\s+up)\s+(?:my|the)\s+(?:disk|drive|storage|space)\b"
+    r"|\bwhy\s+is\s+(?:my|the)\s+(?:disk|drive|storage)\s+(?:so\s+)?full\b",
+    re.IGNORECASE,
+)
+
+
 def machine_diagnostics_intent(text: str) -> str | None:
     """Map a read-only disk/drive question to the ``machine.disk_usage`` tool intent, else ``None``.
 
@@ -742,6 +758,14 @@ def machine_diagnostics_intent(text: str) -> str | None:
     """
     lowered = " ".join(str(text or "").strip().lower().split())
     if not lowered:
+        return None
+    # An ANALYSIS ask ("where did the space go?", "what's taking up my storage?", "biggest
+    # files") is not a capacity read: this lane answers only totals, and answering totals
+    # pre-empted the deeper tools (find the largest folders/files) the ask actually wanted --
+    # the disk-space-advisor skill never ran at all (measured on the served rig). Those asks
+    # stand down here for the lane that can reason about them (the model, with the
+    # operator/machine tools the demand rules seat).
+    if _DISK_ANALYSIS_ASK_RE.search(lowered):
         return None
     if _MACHINE_DIAG_WRITE_RE.search(lowered):
         return None

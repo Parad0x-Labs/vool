@@ -325,6 +325,76 @@ def _without_attachment_references(text: str, names: tuple[str, ...]) -> str:
     return " ".join(neutral.split())
 
 
+#: A local-code ask: the words name this project's own artifacts (tests, build, repo) AND a
+#: failure/debug state. Lookup-shaped verbs in such a sentence ("find out why") ask about the
+#: artifact, not about the web.
+_LOCAL_CODE_ASK_RE = re.compile(
+    r"\b(?:tests?|test\s+suite|suite|build|compile|compilation|lint|regression|bug|defect"
+    r"|my\s+project|our\s+project|this\s+project|the\s+project|my\s+repo|this\s+repo|repository"
+    r"|codebase|workspace)\b",
+    re.IGNORECASE,
+)
+_LOCAL_CODE_FAILURE_RE = re.compile(
+    r"\b(?:fails?|failing|failures?|broken|breaks?|error|errors?|exception|traceback|regress"
+    r"|crash(?:es|ed|ing)?|defect|bug|flak(?:y|ing)|red|failing)\b"
+    r"|\b(?:find\s+out\s+why|figure\s+out\s+why|diagnose|debug|root\s+cause|why\s+(?:is|does|did))\b",
+    re.IGNORECASE,
+)
+
+
+def _local_code_ask_beats_web_planning(text: str) -> bool:
+    """Whether a lookup-shaped ask is about THIS machine's own code, not the world.
+
+    Two anchors must co-occur: a project/test/build artifact AND a failure or a why-debug
+    verb. "Find out why the Eiffel Tower is famous" has neither; "find out why my package
+    build fails" has both and belongs to the workspace tools, never to a search engine.
+    """
+    lowered = " ".join(str(text or "").split())
+    return bool(_LOCAL_CODE_ASK_RE.search(lowered) and _LOCAL_CODE_FAILURE_RE.search(lowered))
+
+
+def _matched_tool_skill_releases_the_lane(
+    text: str, source_context: dict[str, Any] | None
+) -> bool:
+    """An installed TOOL skill the words matched releases the tool lane (owner-local only).
+
+    Same law as the email-work admission above, read through the SAME matcher the offer seats
+    from (``core.plugin_skills.rank_skills`` over ``core.tool_offer_assembly.loaded_skills``),
+    so this gate and the offer cannot disagree. A skill is a tool lane only when its
+    ``allowed-tools`` name at least one tool this runtime actually has: a skill whose tools are
+    all unavailable stays guidance, not a lane. The seats themselves remain bounded,
+    availability-filtered and trust-gated in the offer seam; this only hands the turn to the
+    loop where the model can see them.
+    """
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+        from core.plugin_skills import rank_skills
+        from core.tool_offer_assembly import loaded_skills
+
+        skills = loaded_skills()
+        if not skills:
+            return False
+        from core.tool_registry import tool_for_intent
+
+        for skill in rank_skills(skills, str(text or ""), limit=3):
+            names = tuple(str(name) for name in (getattr(skill, "allowed_tools", ()) or ()))
+            if not names:
+                continue
+            for name in names:
+                try:
+                    contract = tool_for_intent(name)
+                except Exception:
+                    contract = None
+                if contract is not None and bool(getattr(contract, "supported", False)):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
 def should_attempt_tool_intent(
     user_text: str,
     *,
@@ -445,6 +515,13 @@ def should_attempt_tool_intent(
             return True
     except Exception:
         pass
+
+    # An installed TOOL skill the words matched (a user's own install, owner-local only): the
+    # skill's whole purpose is to drive its tools, and the tools-less chat lane kept those turns
+    # as prose -- the skill rendered as guidance beside an empty tool list (measured on the
+    # served rig: 21 of 26 tool skills active, none of them callable).
+    if _matched_tool_skill_releases_the_lane(text, source_context):
+        return True
 
     # The answer wanted AS A FILE ("give me this as a Word document", "export the table to CSV",
     # "zip these") is an action with a tool of its own, read through the SAME recogniser that
@@ -2981,18 +3058,28 @@ def plan_tool_workflow(
                     next_payload={"intent": "code.task.open", "arguments": {"objective": raw_text}},
                 )
         if lookup_followup_text and explicit_lookup:
-            if public_entity_lookup:
-                return WorkflowPlannerDecision(
-                    handled=True,
-                    reason="planned_entity_lookup_search",
-                    next_payload={"intent": "web.search", "arguments": {"query": entity_query or research_text, "limit": 4}},
-                )
-            if research_flow:
-                return WorkflowPlannerDecision(
-                    handled=True,
-                    reason="planned_research_search",
-                    next_payload={"intent": "web.search", "arguments": {"query": research_text, "limit": 4}},
-                )
+            # A LOCAL code ask ("a test in my project fails, find out why without changing code")
+            # carries lookup-shaped words ("find out why") about an artifact THIS machine owns:
+            # planning it onto web.search answered "No. Web lookups are off." and neither the
+            # workspace tools nor an installed skill ever ran. The web stays for asks about the
+            # world; the model, offered the workspace tools (and any matched skill), takes these.
+            if _local_code_ask_beats_web_planning(text):
+                explicit_lookup = False
+                public_entity_lookup = False
+                research_flow = False
+            else:
+                if public_entity_lookup:
+                    return WorkflowPlannerDecision(
+                        handled=True,
+                        reason="planned_entity_lookup_search",
+                        next_payload={"intent": "web.search", "arguments": {"query": entity_query or research_text, "limit": 4}},
+                    )
+                if research_flow:
+                    return WorkflowPlannerDecision(
+                        handled=True,
+                        reason="planned_research_search",
+                        next_payload={"intent": "web.search", "arguments": {"query": research_text, "limit": 4}},
+                    )
         if tool_inventory_request:
             return WorkflowPlannerDecision(
                 handled=True,

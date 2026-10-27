@@ -1351,6 +1351,7 @@ def model_visible_specs(
     family_hints: tuple[str, ...] = (),
     source_context: dict[str, Any] | None = None,
     expanded_families: tuple[str, ...] | None = None,
+    skill_allowed: tuple[str, ...] = (),
 ) -> list[dict[str, Any]]:
     """Build a bounded set of tool specs for the served model/planner path.
 
@@ -1372,6 +1373,11 @@ def model_visible_specs(
       offer of that turn includes the family's ranked candidates. Reading them
       never clears them (``core.tool_offer_state``). ``expanded_families`` is the
       turn's set as the caller already read it, so one offer comes from one read.
+    - ``skill_allowed`` seats the ``allowed-tools`` of a skill the words matched
+      (the offer seam resolves and trust-gates them): a skill whose tools the
+      ranking left out had nothing to call -- allowed-tools only ever NARROWED
+      the offer. Skill seats widen the per-turn budget by their count, hard-capped
+      at ``_HARD_MAX_CANDIDATES``; unavailable and owner-only tools never seat.
 
     The total stays capped at ``max_candidates``: reserved seats, explicit
     intents and per-family fills all draw from the same bounded budget. Seating
@@ -1466,9 +1472,19 @@ def model_visible_specs(
     # family that seats in this round's family set: a family the resolved-family
     # cap truncated away seats nothing, and its bonus would silently widen the
     # other families' fill for every remaining round of the turn.
+    skill_seats: list[str] = []
+    for name in skill_allowed:
+        clean = str(name or "").strip()
+        if clean and clean not in skill_seats:
+            skill_seats.append(clean)
     seat_budget = max_candidates
     for _ in [family for family in expansions if family in families][:_EXPANSION_MAX_FAMILIES]:
         seat_budget += _EXPANSION_SEAT_BONUS
+    if skill_seats:
+        # The same bounded-bonus shape an expansion pays: a matched skill's tools
+        # must not evict each other out of the 8-seat default, and the hard cap
+        # still bounds the whole round.
+        seat_budget += len(skill_seats)
     seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     # -- Step 2: Materialise the spec map and availability truth --
@@ -1516,10 +1532,13 @@ def model_visible_specs(
         result_specs.append(spec)
         included.add(intent)
 
-    # -- Step 3: Reserved seats, then explicit intents (priority over ranking) --
+    # -- Step 3: Reserved seats, then explicit intents, then skill seats --
     for intent in _ALWAYS_VISIBLE_ORDER:
         _seat(intent)
     for intent in explicit:
+        if _intent_available(intent):
+            _seat(intent)
+    for intent in skill_seats:
         if _intent_available(intent):
             _seat(intent)
 
