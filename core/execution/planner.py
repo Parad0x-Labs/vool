@@ -325,13 +325,13 @@ def _without_attachment_references(text: str, names: tuple[str, ...]) -> str:
     return " ".join(neutral.split())
 
 
-#: A local-code ask: the words name this project's own artifacts (tests, build, repo) AND a
-#: failure/debug state. Lookup-shaped verbs in such a sentence ("find out why") ask about the
-#: artifact, not about the web.
+#: A local-code ask: the words name the OWNER'S OWN project or repo (a possessive/determiner
+#: anchor: "my project", "this repo", "our codebase") AND a failure/debug state. Lookup-shaped
+#: verbs in such a sentence ("find out why") ask about the artifact, not about the web. Bare
+#: artifact words are the WORLD's -- "the Starship test flight failure", "the CrowdStrike bug",
+#: "the Python 3.13 build" -- so they never beat web planning (round 2, R6).
 _LOCAL_CODE_ASK_RE = re.compile(
-    r"\b(?:tests?|test\s+suite|suite|build|compile|compilation|lint|regression|bug|defect"
-    r"|my\s+project|our\s+project|this\s+project|the\s+project|my\s+repo|this\s+repo|repository"
-    r"|codebase|workspace)\b",
+    r"\b(?:my|this|our)\s+(?:projects?|repos?|repositories|repository|codebases?|workspaces?)\b",
     re.IGNORECASE,
 )
 _LOCAL_CODE_FAILURE_RE = re.compile(
@@ -340,16 +340,47 @@ _LOCAL_CODE_FAILURE_RE = re.compile(
     r"|\b(?:find\s+out\s+why|figure\s+out\s+why|diagnose|debug|root\s+cause|why\s+(?:is|does|did))\b",
     re.IGNORECASE,
 )
+#: An EXPLICIT-WEB ask names the web itself ("search the web for ...", "look it up online",
+#: "google ..."). It is narrower than `looks_like_explicit_lookup_request`, which also reads
+#: "find out why ..." as a lookup: that phrase beside the owner's own project is a LOCAL ask
+#: (K-test-failure-helper), while a sentence that names the web asks the world even when it
+#: also names a build or a bug (round 2, R6).
+_EXPLICIT_WEB_ONLY_ASK_RE = re.compile(
+    r"\b(?:search|searching|look|looking|check|checking|find|finding)\b[^.\n]{0,40}\b"
+    r"(?:web|internet|online)\b"
+    r"|\b(?:google|bing|duckduckgo|web\s+search|online\s+search|internet\s+search)\b",
+    re.IGNORECASE,
+)
 
 
-def _local_code_ask_beats_web_planning(text: str) -> bool:
+def _local_code_ask_beats_web_planning(
+    text: str, source_context: dict[str, Any] | None = None
+) -> bool:
     """Whether a lookup-shaped ask is about THIS machine's own code, not the world.
 
-    Two anchors must co-occur: a project/test/build artifact AND a failure or a why-debug
-    verb. "Find out why the Eiffel Tower is famous" has neither; "find out why my package
-    build fails" has both and belongs to the workspace tools, never to a search engine.
+    Three gates, all required (round 2, R6):
+
+    - OWNER-LOCAL, and the owner's own project is NAMED ("my/this/our project, repo,
+      codebase, workspace") beside a failure or why-debug verb. A missing or unsure
+      context is remote, and a remote session's words never lose their web planning.
+    - An ask that names the web itself ("search the web for why the Python 3.13 build
+      fails on macOS") always keeps its web planning.
+    - The own-project anchor must co-occur with the failure verb. "Find out why the
+      Eiffel Tower is famous" has neither; "find out why my project build fails" has
+      both and belongs to the workspace tools, never to a search engine.
     """
+    if not isinstance(source_context, dict) or not source_context:
+        return False
+    try:
+        from core.request_trust import request_is_owner_local
+
+        if not request_is_owner_local(source_context):
+            return False
+    except Exception:
+        return False
     lowered = " ".join(str(text or "").split())
+    if _EXPLICIT_WEB_ONLY_ASK_RE.search(lowered):
+        return False
     return bool(_LOCAL_CODE_ASK_RE.search(lowered) and _LOCAL_CODE_FAILURE_RE.search(lowered))
 
 
@@ -2953,14 +2984,17 @@ def plan_tool_workflow(
     if public_entity_lookup and _web_planning_excluded_by_requirements(text, task_class=task_class, source_context=source_context):
         public_entity_lookup = False
     explicit_lookup = looks_like_explicit_lookup_request(research_text) or public_entity_lookup
-    # A LOCAL code ask ("a test in my project fails, find out why without changing code") carries
-    # lookup-shaped words about an artifact THIS machine owns: planning it onto web.search
-    # answered "No. Web lookups are off." and neither the workspace tools nor an installed skill
-    # ever ran (measured on the served rig). The web stays for asks about the world; the model,
-    # offered the workspace tools (and any matched skill), takes these.
-    if _local_code_ask_beats_web_planning(text) or _matched_tool_skill_releases_the_lane(
-        text, source_context
-    ):
+    # An EXPLICIT web ask always keeps its web planning (round 2, R6): neither the local-code
+    # guard below nor a matched tool skill may turn "search the web for ..." into a tool-only
+    # turn. A LOCAL code ask ("a test in my project fails, find out why without changing code")
+    # carries lookup-shaped words about an artifact THIS machine owns: planning it onto
+    # web.search answered "No. Web lookups are off." and neither the workspace tools nor an
+    # installed skill ever ran (measured on the served rig). The web stays for asks about the
+    # world; the model, offered the workspace tools (and any matched skill), takes these.
+    explicit_web_ask = bool(_EXPLICIT_WEB_ONLY_ASK_RE.search(text))
+    local_code_ask = _local_code_ask_beats_web_planning(text, source_context)
+    skill_owns_the_lane = _matched_tool_skill_releases_the_lane(text, source_context)
+    if not explicit_web_ask and (local_code_ask or skill_owns_the_lane):
         # ... or the words matched an installed TOOL skill: its own workflow (and the model,
         # offered the skill's tools) owns the turn -- a deterministic web.search here answered
         # the web-off refusal before the skill ever ran (measured: K-research-brief).
@@ -2998,8 +3032,8 @@ def plan_tool_workflow(
         eligible_lowered = lowered
     research_flow = (
         not workspace_scoped_lookup
-        and not _local_code_ask_beats_web_planning(text)
-        and not _matched_tool_skill_releases_the_lane(text, source_context)
+        and not local_code_ask
+        and not (skill_owns_the_lane and not explicit_web_ask)
         and bool(
         explicit_lookup
         or compare_or_verify
