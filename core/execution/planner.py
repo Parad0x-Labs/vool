@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -387,7 +388,7 @@ def _local_code_ask_beats_web_planning(
 def _matched_tool_skill_releases_the_lane(
     text: str, source_context: dict[str, Any] | None
 ) -> bool:
-    """An installed TOOL skill the words matched releases the tool lane (owner-local only).
+    """An installed TOOL skill the words REALLY matched releases the tool lane (owner-local only).
 
     Same law as the email-work admission above, read through the SAME matcher the offer seats
     from (``core.plugin_skills.rank_skills`` over ``core.tool_offer_assembly.loaded_skills``),
@@ -396,6 +397,12 @@ def _matched_tool_skill_releases_the_lane(
     all unavailable stays guidance, not a lane. The seats themselves remain bounded,
     availability-filtered and trust-gated in the offer seam; this only hands the turn to the
     loop where the model can see them.
+
+    R3 (round 2): the ranker proposes, a REAL match releases
+    (``core.tool_offer_assembly.skill_match_is_real``): one shared description word is prose
+    coincidence, and it must not hand an ordinary conversation turn to the tool lane. R4: a
+    skill the operator disabled releases nothing, in the same ONE disable store the guidance
+    lane and the seats read.
     """
     try:
         from core.request_trust import request_is_owner_local
@@ -403,14 +410,24 @@ def _matched_tool_skill_releases_the_lane(
         if not request_is_owner_local(source_context):
             return False
         from core.plugin_skills import rank_skills
-        from core.tool_offer_assembly import loaded_skills
+        from core.tool_offer_assembly import loaded_skills, skill_match_is_real
 
         skills = loaded_skills()
         if not skills:
             return False
+        disabled: set[str] = set()
+        with contextlib.suppress(Exception):
+            from core.native_skill_library import disabled_skill_ids
+
+            disabled = set(disabled_skill_ids())
+        skills = tuple(s for s in skills if str(getattr(s, "name", "") or "") not in disabled)
+        if not skills:
+            return False
         from core.tool_registry import tool_for_intent
 
-        for skill in rank_skills(skills, str(text or ""), limit=3):
+        for skill in rank_skills(skills, str(text or ""), limit=len(skills)):
+            if not skill_match_is_real(skill, str(text or "")):
+                continue
             names = tuple(str(name) for name in (getattr(skill, "allowed_tools", ()) or ()))
             if not names:
                 continue

@@ -133,10 +133,21 @@ def test_a_disk_analysis_ask_stands_down_from_the_capacity_read():
 def test_a_local_code_ask_is_not_planned_onto_the_web():
     from core.execution.planner import _local_code_ask_beats_web_planning
 
-    assert _local_code_ask_beats_web_planning("a test in my project fails, find out why without changing code")
-    assert _local_code_ask_beats_web_planning("why does my build break, look it up")
-    assert not _local_code_ask_beats_web_planning("find out why the Eiffel Tower is famous")
-    assert not _local_code_ask_beats_web_planning("look up the latest docs for this API")
+    # R6 (round 2, OWNER OK sls 2026-10-27 22:16Z): the guard is owner-local only and needs
+    # the own-project anchor. A missing context is remote (section 12), so every row now
+    # carries its context; "why does my build break, look it up" has no own-project anchor
+    # and belongs with the not-local rows.
+    owner_local = {"_owner_local": True, "runtime_session_id": "s-code", "turn_id": "t-code"}
+    remote = {"_owner_local": False, "runtime_session_id": "s-code-r", "turn_id": "t-code-r"}
+    assert _local_code_ask_beats_web_planning(
+        "a test in my project fails, find out why without changing code", owner_local
+    )
+    assert not _local_code_ask_beats_web_planning(
+        "a test in my project fails, find out why without changing code", remote
+    )
+    assert not _local_code_ask_beats_web_planning("why does my build break, look it up", remote)
+    assert not _local_code_ask_beats_web_planning("find out why the Eiffel Tower is famous", owner_local)
+    assert not _local_code_ask_beats_web_planning("look up the latest docs for this API", remote)
 
 
 def test_a_beyond_reading_url_ask_is_not_answered_by_the_raw_fetch():

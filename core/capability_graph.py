@@ -1478,12 +1478,6 @@ def model_visible_specs(
     seat_budget = max_candidates
     for _ in [family for family in expansions if family in families][:_EXPANSION_MAX_FAMILIES]:
         seat_budget += _EXPANSION_SEAT_BONUS
-    if skill_seats:
-        # The same bounded-bonus shape an expansion pays: a matched skill's tools
-        # must not evict each other out of the 8-seat default, and the hard cap
-        # still bounds the whole round.
-        seat_budget += len(skill_seats)
-    seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     # -- Step 2: Materialise the spec map and availability truth --
     all_specs = runtime_tool_specs()
@@ -1502,6 +1496,22 @@ def model_visible_specs(
             # window must not out the tool after the lane closed.
             return impl.available and intent in spec_map
         return impl.available
+
+    # R8 (round 2): the skill bonus counts only SEATABLE tools -- available on this runtime
+    # and not owner-only, the same two filters `_seat` enforces below. Counting the raw
+    # ``skill_allowed`` list paid the bonus for tools the filters refuse to seat, and the
+    # ranked fill grew by every unavailable name a matched skill happened to list (measured
+    # on the served rig: an unrelated turn went from 8 to 18 tools, among them sell.quote
+    # and marketplace.search_listings). The hard cap still bounds the whole round.
+    if skill_seats:
+        seatable = [
+            intent for intent in skill_seats
+            if _intent_available(intent) and not _intent_is_owner_only(intent)
+        ]
+        # The same bounded-bonus shape an expansion pays: a matched skill's tools
+        # must not evict each other out of the 8-seat default.
+        seat_budget += len(seatable)
+    seat_budget = min(seat_budget, _HARD_MAX_CANDIDATES)
 
     result_specs: list[dict[str, Any]] = []
     included: set[str] = set()

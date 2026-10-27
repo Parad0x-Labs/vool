@@ -31,6 +31,7 @@ import contextlib
 import hashlib
 import json
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -485,16 +486,111 @@ def skill_guidance_for(
     return SkillGuidance(text="\n\n".join(blocks), skills=tuple(provenance), allowed_tools=tuple(allowed))
 
 
+#: R3 (round 2): the request verbs that can open a clause. A closed class, in the repo's
+#: instructional_request idiom: the ordinary ways an English turn asks for something to be
+#: DONE, not reported. A verb behind any other word ("she loved the pictures") is narration.
+_SKILL_ASK_CLAUSE_RE = re.compile(
+    r"(?:^|[.,;!?]\s*|,\s*"
+    r"|\b(?:please|pls|can\s+you|could\s+you|would\s+you|will\s+you|help\s+me(?:\s+to)?|go\s+ahead\s+and"
+    r"|try\s+to)\s+)"
+    r"(?:give|show|tell|find|list|read|open|save|write|make|create|build|generate|put|add|set|turn"
+    r"|convert|extract|export|summarize|summarise|review|check|scan|verify|sort|organise|organize|tidy"
+    r"|clean|plan|schedule|book|arrange|prepare|draft|compose|edit|fix|delete|remove|rename|move|copy"
+    r"|compare|explain|describe|help|suggest|recommend|propose|remind|look|search|research|analyze"
+    r"|analyse|split|merge|fill|sign|send|share|trim|crop|quote|pull|collect|gather|produce|keep|take"
+    r"|do)\b",
+    re.IGNORECASE,
+)
+#: The request framings that ask from inside a sentence ("I want a ...", "could I ...").
+_SKILL_ASK_MARK_RE = re.compile(
+    r"\b(?:can|could|would|will)\s+you\b"
+    r"|\bplease\b"
+    r"|\bi\s+(?:want|need|would\s+like)\b"
+    r"|\bhelp\s+me\b"
+    r"|\blet(?:'s|\s+us)\b"
+    r"|\b(?:could|may)\s+i\b",
+    re.IGNORECASE,
+)
+#: Every question word already covers a question head; a bare "?" anywhere in the turn means
+#: some clause asked.
+
+
+def _match_stem(word: str) -> str:
+    """Light suffix stem so "notes" meets "note" and "announcing" meets "announcement"."""
+    if len(word) <= 4:
+        return word
+    for suffix in ("es", "s", "ed", "ing", "ment"):
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            word = word[: -len(suffix)]
+            break
+    if len(word) > 4 and word.endswith("e"):
+        word = word[:-1]
+    return word
+
+
+def _match_stems(text: str) -> set[str]:
+    from core.plugin_skills import _tokens
+
+    return {_match_stem(token) for token in _tokens(text)}
+
+
+def _turn_asks_for_something(text: str) -> bool:
+    """A question or an imperative clause; narration and musing are not asks."""
+    if "?" in text:
+        return True
+    return bool(_SKILL_ASK_CLAUSE_RE.search(text) or _SKILL_ASK_MARK_RE.search(text))
+
+
+#: How many shared content words (stemmed, stopwords out) make a real topical match. One
+#: shared word is prose coincidence ("today" in a weather question); three is the ask being
+#: about what the skill is about.
+_SKILL_MATCH_OVERLAP = 3
+
+
+def skill_match_is_real(skill: Any, user_text: str) -> bool:
+    """A seating-worthy match: the skill named outright, or an ask about what it is about.
+
+    The lexical ranker (`core.plugin_skills.rank_skills`) counts any description overlap --
+    right for choosing GUIDANCE, too weak for the three things a match used to do here: seat
+    tools, release the tool lane and stand web planning down (round 2, R3: "what's the weather
+    in Paris today" was offered calendar tools because a planner skill's description contains
+    "today"). A REAL match needs the turn to ask for something -- narration that happens to
+    share topic words ("my weekly digest went out this morning") never seats -- AND either the
+    skill's own name spoken in full, or a dense overlap with its declared vocabulary (its
+    frontmatter triggers plus its description: these carry the author's "Use when ..." law).
+    """
+    text = str(user_text or "").strip()
+    if not text or not _turn_asks_for_something(text):
+        return False
+    words = _match_stems(text)
+    if not words:
+        return False
+    name_words = _match_stems(str(getattr(skill, "name", "") or "").replace("-", " "))
+    if name_words and name_words <= words:
+        return True
+    declared = " ".join(str(t) for t in (getattr(skill, "triggers", ()) or ()))
+    declared = f"{declared} {getattr(skill, 'description', '') or ''}"
+    return len(words & _match_stems(declared)) >= _SKILL_MATCH_OVERLAP
+
+
 def matched_skill_tool_seats(
-    user_text: str, *, source_context: dict[str, Any] | None = None, limit: int = MAX_SKILLS
+    user_text: str, *, source_context: dict[str, Any] | None = None, limit: int = MAX_SKILLS,
+    include_bundled: bool = False,
 ) -> tuple[str, ...]:
-    """The ``allowed-tools`` of the skills the words match, rendered or not.
+    """The ``allowed-tools`` of the skills the words REALLY match, rendered or not.
 
     A tool list costs no prompt characters, while a skill BODY can be dropped whole for the
     tool lane's tighter budget (the complete-or-absent law) -- and a skill dropped for budget
     is still the reason the turn wants its tools. Read through the same lexical ranking the
     guidance lanes use, over the same lane-1 candidates (the operator's own and registry
     skills), so what seats and what renders cannot disagree about which skills matched.
+
+    R3 (round 2): the ranking proposes; only a real match (``skill_match_is_real``) seats --
+    description overlap alone renders guidance at most. R4: a skill the operator disabled
+    (``core.native_skill_library.disabled_skill_ids``, the ONE disable store) seats nothing
+    here, exactly as it stopped rendering in the guidance lane. ``include_bundled`` adds the
+    repo's own bundled packs to the candidate pool for the NARROWING lever only -- their
+    SEATS stay lane-1 by the bundled-expansion design (af2303f1).
     """
     text = str(user_text or "").strip()
     if not text:
@@ -508,15 +604,37 @@ def matched_skill_tool_seats(
 
             scoped = scoped_skills(scope_keys(source_context))
     shadowed = {str(s.name or "").strip().lower() for s in scoped}
-    candidates = tuple(scoped) + tuple(
+    lane1 = tuple(
         s for s in installed if _user_authored(s) and str(s.name or "").strip().lower() not in shadowed
     )
+    candidates = tuple(scoped) + lane1
+    if include_bundled:
+        candidates += tuple(
+            s for s in installed
+            if not _user_authored(s) and str(s.name or "").strip().lower() not in shadowed
+        )
+    disabled: set[str] = set()
+    with contextlib.suppress(Exception):
+        from core.native_skill_library import disabled_skill_ids
+
+        disabled = set(disabled_skill_ids())
+    candidates = tuple(s for s in candidates if str(getattr(s, "name", "") or "") not in disabled)
     if not candidates:
         return ()
     from core.plugin_skills import rank_skills
 
+    # Rank the WHOLE candidate set, then keep the real matches: the ranker itself only
+    # returns its top `limit`, and one description-heavy skill must not crowd a real match
+    # out of the slots before the real-match filter ever sees it.
+    ranked = rank_skills(candidates, text, limit=max(limit, len(candidates)))
     seats: list[str] = []
-    for skill in rank_skills(candidates, text, limit=limit):
+    matched = 0
+    for skill in ranked:
+        if matched >= limit:
+            break
+        if not skill_match_is_real(skill, text):
+            continue
+        matched += 1
         for name in getattr(skill, "allowed_tools", ()) or ():
             clean = str(name).strip()
             if clean and clean not in seats:
@@ -718,7 +836,15 @@ def assemble_tool_offer(
         # Continue the journal's active task instead of offering a second opening
         # merely because the original repair words still demand code.task.open.
         specs = [spec for spec in specs if spec.get("intent") != "code.task.open"]
-    if guidance.allowed_tools or skill_seats:
+    # R3 (round 2): the narrowing lever follows the real match too. A description-only
+    # render still teaches (its body is guidance), but its allowed-tools may not evict what
+    # the turn asked for by name: with a planner skill installed, a weather question used to
+    # lose web.search to a calendar skill's allowed list it never really matched. Bundled
+    # packs keep their narrowing under the same real-match law (`include_bundled`).
+    narrow_allowed = skill_seats or matched_skill_tool_seats(
+        user_text, source_context=source_context, include_bundled=True
+    )
+    if guidance.allowed_tools or narrow_allowed:
         explicit = set(resolve_demand_signals(str(user_text or "")).explicit_intents)
         keep = set(_ALWAYS_VISIBLE) | explicit | set(work_seats)
         # R5 (round 2): the narrowing is a budget lever on the RANKED fill. The seats the
@@ -741,7 +867,7 @@ def assemble_tool_offer(
                 for spec in specs
                 if str(spec.get("intent") or "").partition(".")[0] in set(expansions)
             }
-        specs = _narrow(specs, allowed=skill_seats or guidance.allowed_tools,
+        specs = _narrow(specs, allowed=narrow_allowed,
                         keep=keep)
 
     # The recorded families are the families the offer ACTUALLY seated -- derived from the
